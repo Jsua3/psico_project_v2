@@ -35,6 +35,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Binds the request to a thread-local for audit-trail actor/IP capture.
+    "apps.simulation.middleware.AuditContextMiddleware",
 ]
 
 ROOT_URLCONF = "psychosim.urls"

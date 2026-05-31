@@ -36,6 +36,7 @@ from ..models import (
     SimulationNode,
 )
 from . import world_validation
+from .audit_service import auditable
 
 VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
 
@@ -1198,3 +1199,30 @@ def _world_clinical_tool(t):
         "description": t.description,
         "active": t.active,
     }
+
+
+# ─── Audit instrumentation (parity with Spring @Auditable) ───────────────────
+# Applied here (outside @transaction.atomic) so the audit write runs after the
+# business transaction. resource_id_param_index mirrors the Java annotations.
+create_node = auditable("ADMIN_CREATE_NODE", "CASE_VERSION")(create_node)
+update_node = auditable("ADMIN_UPDATE_NODE", "NODE", 1)(update_node)
+delete_node = auditable("ADMIN_DELETE_NODE", "NODE", 1)(delete_node)
+create_decision = auditable("ADMIN_CREATE_DECISION", "CASE_VERSION")(create_decision)
+update_decision = auditable("ADMIN_UPDATE_DECISION", "DECISION", 1)(update_decision)
+delete_decision = auditable("ADMIN_DELETE_DECISION", "DECISION", 1)(delete_decision)
+create_map = auditable("ADMIN_CREATE_MAP", "CASE_VERSION")(create_map)
+update_map = auditable("ADMIN_UPDATE_MAP", "MAP", 1)(update_map)
+delete_map = auditable("ADMIN_DELETE_MAP", "MAP", 1)(delete_map)
+create_object = auditable("ADMIN_CREATE_OBJECT", "MAP", 1)(create_object)
+update_object = auditable("ADMIN_UPDATE_OBJECT", "OBJECT", 1)(update_object)
+delete_object = auditable("ADMIN_DELETE_OBJECT", "OBJECT", 1)(delete_object)
+create_dialogue = auditable("ADMIN_CREATE_DIALOGUE", "MAP", 1)(create_dialogue)
+update_dialogue = auditable("ADMIN_UPDATE_DIALOGUE", "DIALOGUE", 1)(update_dialogue)
+delete_dialogue = auditable("ADMIN_DELETE_DIALOGUE", "DIALOGUE", 1)(delete_dialogue)
+create_tool = auditable("ADMIN_CREATE_TOOL", "CASE_VERSION")(create_tool)
+update_tool = auditable("ADMIN_UPDATE_TOOL", "TOOL", 1)(update_tool)
+delete_tool = auditable("ADMIN_DELETE_TOOL", "TOOL", 1)(delete_tool)
+update_checklist = auditable("ADMIN_CHECKLIST_UPDATE", "CASE_VERSION")(update_checklist)
+publish = auditable("ADMIN_PUBLISH_CASE", "CASE_VERSION")(publish)
+clone_version = auditable("ADMIN_CLONE_VERSION", "CASE_VERSION")(clone_version)
+save_world = auditable("ADMIN_SAVE_WORLD", "CASE_VERSION")(save_world)

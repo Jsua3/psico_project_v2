@@ -17,6 +17,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.serializers import game_dtos as dto
 from . import crypto_service, decision_effects
+from .audit_service import auditable
 
 
 def _hash_token(raw_token: str) -> str:
@@ -305,3 +306,10 @@ def get_progress_map(attempt_id, attempt_token, actor):
         "visitedNodeKeys": visited_keys,
         "currentNodeKey": attempt.current_node.node_key,
     }
+
+
+# ─── Audit instrumentation (parity with Spring @Auditable) ───────────────────
+start_attempt = auditable("ATTEMPT_STARTED", "CASE_VERSION")(start_attempt)
+choose_decision = auditable("DECISION_SELECTED", "ATTEMPT")(choose_decision)
+save_reflection = auditable("REFLECTION_SAVED", "ATTEMPT")(save_reflection)
+safe_exit = auditable("SAFE_EXIT_REQUESTED", "ATTEMPT")(safe_exit)
