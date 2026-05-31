@@ -6,10 +6,14 @@ from apps.simulation.views.game_views import (
     CasesView,
     CompletionReportView,
     DecisionsView,
+    InteractionView,
     ProgressMapView,
     ReflectionsView,
     SafeExitView,
     StartAttemptView,
+    ToolUseView,
+    WorldStateView,
+    WorldView,
 )
 
 # Mounted at "api/simulation".
@@ -22,5 +26,9 @@ urlpatterns = [
     path("/attempts/<uuid:attempt_id>/progress-map", ProgressMapView.as_view()),
     path("/attempts/<uuid:attempt_id>/decisions", DecisionsView.as_view()),
     path("/attempts/<uuid:attempt_id>/reflections", ReflectionsView.as_view()),
+    path("/attempts/<uuid:attempt_id>/world", WorldView.as_view()),
+    path("/attempts/<uuid:attempt_id>/world-state", WorldStateView.as_view()),
+    path("/attempts/<uuid:attempt_id>/interactions/<str:interaction_key>", InteractionView.as_view()),
+    path("/attempts/<uuid:attempt_id>/tools/use", ToolUseView.as_view()),
     path("/attempts/<uuid:attempt_id>/safe-exit", SafeExitView.as_view()),
 ]

@@ -12,7 +12,16 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import game_service
+from apps.simulation.services import game_service, world_service
+
+
+def _int(value, default=0):
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 class CasesView(APIView):
@@ -105,3 +114,50 @@ class SafeExitView(APIView):
             ser.validated_data["reason"], request.user,
         )
         return api_ok(state, message="Salida segura registrada")
+
+
+# ─── Explorable world (SimulationWorldService) ───────────────────────────────
+class WorldView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        token = request.query_params.get("attemptToken")
+        return api_ok(world_service.get_world(attempt_id, token, request.user))
+
+
+class WorldStateView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def patch(self, request, attempt_id):
+        state = world_service.update_position(
+            attempt_id,
+            request.data.get("attemptToken"),
+            _int(request.data.get("playerX")),
+            _int(request.data.get("playerY")),
+            request.user,
+        )
+        return api_ok(state, message="Estado de mundo actualizado")
+
+
+class InteractionView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def post(self, request, attempt_id, interaction_key):
+        result = world_service.open_interaction(
+            attempt_id, request.data.get("attemptToken"), interaction_key, request.user
+        )
+        return api_ok(result, message="Interaccion registrada")
+
+
+class ToolUseView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def post(self, request, attempt_id):
+        result = world_service.use_tool(
+            attempt_id,
+            request.data.get("attemptToken"),
+            request.data.get("toolCode"),
+            request.data.get("targetInteractionKey"),
+            request.user,
+        )
+        return api_ok(result, message="Herramienta usada")
