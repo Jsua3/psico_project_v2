@@ -217,6 +217,8 @@ def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
 
     if attempt.status == "COMPLETED":
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
+        from apps.progression.services import record_case_completion
+        record_case_completion(attempt.student_id, attempt.case_version.simulation_case_id)
 
     feedback = dto.feedback_dto(decision, effects, message)
     return dto.attempt_state(attempt, attempt_token, feedback)
