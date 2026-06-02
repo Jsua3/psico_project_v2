@@ -62,7 +62,8 @@ def test_get_world_returns_scene(estudiante, case_version_id):
     assert isinstance(world["objects"], list)
     assert len(world["tools"]) >= 1
     obj = world["objects"][0]
-    for key in ("key", "label", "type", "x", "y", "color", "shortCode", "collision", "dialogue"):
+    for key in ("key", "label", "type", "x", "y", "color", "shortCode", "collision",
+                "dialogue", "movementPattern", "facing", "metadata"):
         assert key in obj
 
 
@@ -137,3 +138,17 @@ def test_world_requires_token(estudiante, case_version_id):
     attempt_id, _ = _start(c, case_version_id)
     resp = c.get(f"/api/simulation/attempts/{attempt_id}/world")
     assert resp.status_code == 400  # token obligatorio
+
+
+def test_world_objects_expose_movement_fields(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    assert world["objects"], "expected at least one world object in SIM-VBG-001"
+    for obj in world["objects"]:
+        assert "movementPattern" in obj
+        assert "facing" in obj
+        assert "metadata" in obj
+        assert isinstance(obj["movementPattern"], dict)
+        assert isinstance(obj["metadata"], dict)
+        assert isinstance(obj["facing"], str)

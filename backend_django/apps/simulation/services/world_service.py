@@ -299,6 +299,11 @@ def _to_map_object(o):
         "decisionOptionId": o.decision_option_id,
         "toolCode": o.tool_code,
         "dialogue": _to_dialogue(o),
+        # ── B1: additive movement passthrough (authored motion can override the
+        #     frontend default later; authoring itself is deferred to sub-project E) ──
+        "movementPattern": _read_map(o.movement_pattern_json),
+        "facing": o.facing,
+        "metadata": _read_map(o.metadata_json),
     }
 
 
