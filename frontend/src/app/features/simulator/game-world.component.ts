@@ -25,6 +25,7 @@ import {
   freeTileNear, MovementPattern, pickWanderTarget, reached, resolvePattern, stepToward,
 } from './scene-motion.util';
 import { SceneGuideEntry } from './scene-guide.config';
+import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -215,6 +216,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNpcHints();
     this.updateAmbientMovers(time, delta);
     this.updateGuide(delta);
+    // 2.5D: re-ordena por Y a los actores que se mueven
+    if (this.player) this.ysort(this.player);
+    if (this.guideContainer) this.ysort(this.guideContainer);
+    for (const mover of this.ambientMovers.values()) {
+      const marker = this.markers.get(mover.key);
+      if (marker) this.ysort(marker);
+    }
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
   }
@@ -288,7 +296,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1);
 
-    this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]).setDepth(16);
+    this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]).setDepth(actorDepth(entry.spawnY));
     this.guideSprite = sprite;
     this.guideBubble = this.buildGuideBubble(entry.hint);
 
@@ -314,7 +322,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x6f7cff, 0.6).setOrigin(0.5, 1);
     this.guideBubbleHeight = b.height + 12;
     this.guideBubbleHalfW = (b.width + 16) / 2;
-    return this.add.container(0, 0, [bg, text]).setDepth(26).setVisible(false);
+    return this.add.container(0, 0, [bg, text]).setDepth(DEPTH.UI).setVisible(false);
   }
 
   private showGuideBubble(show: boolean) {
@@ -424,6 +432,30 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.load.start();
   }
 
+  /**
+   * Crea las capas de tiles de un Tilemap aplicando las bandas 2.5D
+   * (floor, props_back, walls_back/walls, props_front, lighting, overlay).
+   * La capa de paredes alimenta `this.wallsLayer` para colisión.
+   * Retrocompatible: mapas con solo `Floor`/`Walls` se comportan igual que antes.
+   */
+  private buildTiledLayers(
+    tilemap: Phaser.Tilemaps.Tilemap,
+    tilesets: Phaser.Tilemaps.Tileset[],
+  ): void {
+    for (const layerData of tilemap.layers) {
+      const depth = tiledLayerDepth(layerData.name);
+      if (depth === null) continue;
+      const layer = tilemap.createLayer(layerData.name, tilesets);
+      if (!layer) continue;
+      layer.setDepth(depth);
+      // La capa de paredes (legacy `Walls` o `walls_back`/`collision`) es la sólida.
+      const norm = layerData.name.trim().toLowerCase().replace(/^\d+[_-]?/, '');
+      if (norm === 'walls' || norm === 'walls_back' || norm === 'collision') {
+        this.wallsLayer = layer;
+      }
+    }
+  }
+
   private renderWorld() {
     if (!this.world) return;
 
@@ -475,9 +507,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const ts3 = tilemap.addTilesetImage('rpg-urban',    'rpg-img');
         const tilesets = [ts1, ts2, ts3].filter((t): t is Phaser.Tilemaps.Tileset => t !== null);
         if (tilesets.length > 0) {
-          tilemap.createLayer('Floor', tilesets)?.setDepth(2);
-          this.wallsLayer = tilemap.createLayer('Walls', tilesets) ?? undefined;
-          this.wallsLayer?.setDepth(3);
+          this.buildTiledLayers(tilemap, tilesets);
         }
         tiledObjects = tilemap.getObjectLayer('Objects')?.objects ?? [];
         hasTiledMap  = true;
@@ -543,6 +573,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.refreshMarkerStates();
     this.updateNearestInteraction(true); // suppress blip on initial spawn
     this.buildGuide();
+    this.applyLightingOverlay();
   }
 
   /**
@@ -580,9 +611,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const tilesets = [ts1, ts2, ts3].filter((t): t is Phaser.Tilemaps.Tileset => t !== null);
 
         if (tilesets.length > 0) {
-          tilemap.createLayer('Floor', tilesets)?.setDepth(2);
-          this.wallsLayer = tilemap.createLayer('Walls', tilesets) ?? undefined;
-          this.wallsLayer?.setDepth(3);
+          this.buildTiledLayers(tilemap, tilesets);
         }
 
         actualMapW = tilemap.widthInPixels;
@@ -637,6 +666,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.buildGuide();
+    this.applyLightingOverlay();
   }
 
   private checkExitTriggers() {
@@ -698,7 +728,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
       }).setOrigin(0.5, 1).setAlpha(0);
 
-      const container = this.add.container(npc.x, npc.y, [shadow, sprite, label, hint]).setDepth(15);
+      const container = this.add.container(npc.x, npc.y, [shadow, sprite, label, hint]).setDepth(actorDepth(npc.y));
       this.npcMarkers.set(npc.key, container);
       (container as unknown as Record<string, unknown>)['__npcConfig'] = npc;
       (container as unknown as Record<string, unknown>)['__hintSprite'] = hint;
@@ -909,6 +939,31 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Viñeta de iluminación procedural (sin assets). Pineada a cámara, estática
+   * (segura con prefers-reduced-motion). El tinte sigue `ambient.ambientTone`.
+   */
+  private applyLightingOverlay(): void {
+    const tone = String(
+      (this.world?.map.ambient as { ambientTone?: unknown })?.ambientTone ?? 'calm',
+    ).toLowerCase();
+    const tint =
+      tone === 'warm' ? 0x3a2a1a :
+      tone === 'clinical' ? 0x1a2433 :
+      tone === 'tense' ? 0x2a1420 :
+      0x141a2e; // calm (default)
+    const cam = this.cameras.main;
+    const w = cam.width, h = cam.height;
+    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING);
+    // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
+    const band = Math.round(Math.min(w, h) * 0.18);
+    for (let i = 0; i < band; i++) {
+      const a = 0.45 * (1 - i / band) ** 2;
+      g.lineStyle(1, tint, a);
+      g.strokeRect(i, i, w - i * 2, h - i * 2);
+    }
+  }
+
   private renderCollisionZone(zone: CollisionZoneState) {
     const cx = zone.x + zone.width/2;
     const cy = zone.y + zone.height/2;
@@ -933,13 +988,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
       // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
       // (scale 2 at zoom 2 would be 64px = 2 full tiles — too dominant)
-      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(20);
+      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
     } else {
       const body  = this.add.rectangle(0,  4, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
       const head  = this.add.circle(0, -18, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
       const badge = this.add.rectangle(0,  8, 12,  7, 0xffffff, .9);
-      this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(20);
+      this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
     }
   }
 
@@ -973,7 +1028,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.tweens.add({ targets: pulse, scale: 1.3, alpha: .05, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
-    const marker = this.add.container(object.x, object.y, [pulse, main, label]).setDepth(12);
+    const marker = this.add.container(object.x, object.y, [pulse, main, label]).setDepth(actorDepth(object.y));
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
     this.applyAmbientLife(marker, object);
@@ -983,7 +1038,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const hintTx = this.add.text(0, 0, `E  ${object.label} →`, {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
-      const hint = this.add.container(object.x, object.y - 50, [hintBg, hintTx]).setDepth(25).setVisible(false);
+      const hint = this.add.container(object.x, object.y - 50, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
       this.doorHints.set(object.key, hint);
     }
   }
@@ -1099,6 +1154,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
       WARNING: KenneyDungeonFrames.DESK
     };
     return map[type] ?? KenneyDungeonFrames.DESK;
+  }
+
+  /** Ordena un objeto de mundo por su Y (2.5D: más abajo = más al frente). */
+  private ysort(obj: Phaser.GameObjects.Container): void {
+    obj.setDepth(actorDepth(obj.y));
   }
 
   private movePlayer(dx: number, dy: number) {
@@ -1302,7 +1362,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         parent: this.gameHost!.nativeElement,
         width: 960, height: 540,
         backgroundColor: '#0e141a',
-        pixelArt: true,   // nearest-neighbour scaling — keeps pixel art sharp
+        pixelArt: true,    // nearest-neighbour scaling — keeps pixel art sharp
+        roundPixels: true, // 2.5D: evita shimmer sub-pixel al hacer y-sort + follow
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
         scene: this.scene
       });
