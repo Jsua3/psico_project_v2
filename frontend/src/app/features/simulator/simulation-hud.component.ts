@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
 import { getSceneObjective, getSceneProgress } from './scene-objectives.config';
 import { getProximityStepHint } from './risky-interaction.config';
+import { Heart, stressToHearts } from './stress-hearts.util';
 
 type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
@@ -18,6 +19,16 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
         [class.hud--stress-critical]="stressTier() === 'critical'">
 
         <div class="hud-strip">
+          <div class="hud-brand" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="brand-glyph" width="20" height="20">
+              <path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-1.8 5.4A3 3 0 0 0 6 17a3 3 0 0 0 3 3V3z" fill="currentColor" opacity=".85"/>
+              <path d="M15 3a3 3 0 0 1 3 3 3 3 0 0 1 1.8 5.4A3 3 0 0 1 18 17a3 3 0 0 1-3 3V3z" fill="currentColor" opacity=".55"/>
+              <circle cx="9" cy="9" r="1.1" fill="#0e1322"/>
+              <circle cx="12" cy="13" r="1.1" fill="#0e1322"/>
+              <circle cx="15" cy="9" r="1.1" fill="#0e1322"/>
+            </svg>
+            <span class="brand-word">SIEP</span>
+          </div>
           <!-- LEFT zone: case vitals -->
           <div class="hud-zone hud-zone--vitals">
             <div class="hud-score" aria-label="Seguimiento formativo: {{ game.accumulatedScore }} puntos">
@@ -30,10 +41,12 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
               role="meter"
               [attr.aria-valuenow]="game.stressIndex" aria-valuemin="0" aria-valuemax="100"
               [attr.aria-label]="'Estado de estrés del caso: ' + game.stressIndex + '%. ' + stressLabel()">
-              <span class="stress-pct" [style.color]="stressColor()">{{ game.stressIndex }}%</span>
-              <div class="stress-track" aria-hidden="true">
-                <span [style.width.%]="game.stressIndex" [style.background]="stressMeterGradient()"></span>
+              <div class="hud-hearts" aria-hidden="true" [style.color]="stressColor()">
+                @for (h of hearts(); track $index) {
+                  <mat-icon class="heart heart--{{ h }}">{{ h === 'empty' ? 'favorite_border' : 'favorite' }}</mat-icon>
+                }
               </div>
+              <span class="stress-pct" [style.color]="stressColor()" aria-hidden="true">{{ game.stressIndex }}%</span>
             </div>
 
             @if (patientState(); as ps) {
@@ -95,7 +108,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       border-radius: 0 0 16px 16px;
       background: rgba(8,12,18,.84);
       backdrop-filter: blur(18px) saturate(120%);
-      border: 1px solid rgba(79,163,165,.18);
+      border: 1px solid rgba(182,156,255,.2);
       border-top: none;
       color: rgba(232,240,244,.9);
       transition: border-color var(--psy-motion-ui);
@@ -116,14 +129,19 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-zone--right { flex-shrink: 0; margin-left: auto; }
 
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-    .hud-score mat-icon { color: var(--siep-blue-soft); font-size: 18px; width: 18px; height: 18px; }
+    .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
     .hud-score strong { font-family: 'JetBrains Mono', monospace; font-size: .9rem; letter-spacing: .04em; }
 
-    .hud-stress { display: flex; align-items: center; gap: 8px; flex: 0 0 150px; }
+    .hud-stress { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .hud-stress--pulse { animation: stress-pulse .6s ease-out; }
+    .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 8px; margin-right: 4px; border-right: 1px solid rgba(182,156,255,.18); }
+    .brand-glyph { color: #B69CFF; flex-shrink: 0; }
+    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
+    .hud-hearts { display: inline-flex; align-items: center; gap: 1px; }
+    .hud-hearts .heart { font-size: 15px; width: 15px; height: 15px; }
+    .heart--empty { opacity: .42; }
+    .heart--half { opacity: .7; }
     .stress-pct { font-family: 'JetBrains Mono', monospace; font-size: .78rem; min-width: 38px; transition: color var(--psy-motion-ui); }
-    .stress-track { flex: 1; height: 5px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
-    .stress-track span { display: block; height: 100%; border-radius: inherit; transition: width .5s cubic-bezier(.4,0,.2,1), background .5s ease; }
 
     .hud-patient { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .patient-bars { display: flex; flex-direction: column; gap: 3px; }
@@ -133,7 +151,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .mini-track span { display: block; height: 100%; border-radius: inherit; transition: width .5s ease, background .5s ease; }
 
     .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
-    .hud-scene mat-icon { color: var(--siep-blue-soft); font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
+    .hud-scene mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
     .hud-scene span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: rgba(232,240,244,.7); }
 
     .hud-step {
@@ -146,17 +164,17 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
     .hud-status { display: flex; align-items: center; gap: 5px; flex-shrink: 0; font-size: .7rem; color: rgba(232,240,244,.4); white-space: nowrap; }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); }
-    .hud-status--live .status-dot { background: var(--siep-blue-soft); animation: dot-blink 2s ease-in-out infinite; }
+    .hud-status--live .status-dot { background: #B69CFF; animation: dot-blink 2s ease-in-out infinite; }
 
     .hud-objective-line {
       display: flex; align-items: flex-start; gap: 6px;
       padding: 5px 14px 7px;
-      border-top: 1px solid rgba(79,163,165,.14);
-      background: rgba(79,163,165,.06);
+      border-top: 1px solid rgba(182,156,255,.16);
+      background: rgba(124,77,255,.08);
     }
-    .hud-objective-line mat-icon { color: var(--siep-blue-soft); font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+    .hud-objective-line mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
     .hud-objective-line span { font-size: .74rem; line-height: 1.3; color: rgba(232,240,244,.82); }
-    .hud-objective-line strong { color: rgba(157,192,232,.9); font-weight: 800; margin-right: 4px; }
+    .hud-objective-line strong { color: #cdbcff; font-weight: 800; margin-right: 4px; }
 
     @keyframes stress-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(212,160,80,.4); }
@@ -168,7 +186,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     @media (max-width: 640px) {
       .hud-scene { display: none; }
       .hud-zone--vitals { gap: 10px; }
-      .hud-stress { flex: 0 0 96px; }
+      .brand-word { display: none; }
       .hud-patient { display: none; }
       .hud-objective-line span { font-size: .7rem; }
     }
@@ -193,18 +211,13 @@ export class SimulationHudComponent {
     return 'calm';
   });
 
+  readonly hearts = computed<Heart[]>(() => stressToHearts(this.attempt()?.stressIndex ?? 0));
+
   readonly stressColor = computed(() => ({
     calm:     'var(--psy-teal-deep, #2a7a6e)',
     moderate: '#7a8a3e',
     high:     '#b07830',
     critical: '#8b3145'
-  })[this.stressTier()]);
-
-  readonly stressMeterGradient = computed(() => ({
-    calm:     'linear-gradient(90deg, #8cbfa6, #4fa3a5)',
-    moderate: 'linear-gradient(90deg, #8cbfa6, #c4b55a)',
-    high:     'linear-gradient(90deg, #c4b55a, #d4a050)',
-    critical: 'linear-gradient(90deg, #d4a050, #a85062)'
   })[this.stressTier()]);
 
   readonly stressLabel = computed(() => ({
