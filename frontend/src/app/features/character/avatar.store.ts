@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, Optional, signal } from '@angular/core';
 import { AvatarConfig } from './avatar.model';
 import { defaultAvatar, parseAvatar, serializeAvatar } from './avatar-config.util';
 
@@ -10,8 +10,13 @@ export class AvatarStore {
   private readonly _avatar = signal<AvatarConfig>(defaultAvatar());
   readonly avatar = this._avatar.asReadonly();
 
-  /** `storage` is injectable for tests; runtime falls back to window.localStorage. */
-  constructor(storage?: Storage) {
+  /**
+   * `storage` is optional and only used by unit tests (passed directly).
+   * Under Angular DI there is no `Storage` provider, so `@Optional()` makes the
+   * injector pass `null` instead of throwing NG0201; we then fall back to
+   * `window.localStorage`.
+   */
+  constructor(@Optional() storage?: Storage) {
     this.store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
     this.loadSaved();
   }

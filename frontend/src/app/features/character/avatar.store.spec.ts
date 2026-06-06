@@ -19,6 +19,11 @@ describe('AvatarStore', () => {
     expect(s.avatar()).toEqual(defaultAvatar());
   });
 
+  it('can be constructed with no storage arg (DI path) without throwing', () => {
+    // Under Angular DI there is no Storage provider; the no-arg path must work.
+    expect(() => new AvatarStore()).not.toThrow();
+  });
+
   it('update merges without persisting until save', () => {
     const store = mockStorage();
     const s = new AvatarStore(store);
