@@ -1,0 +1,32 @@
+{
+  "scenarioKey": "ruta-proteccion",
+  "startRoomKey": "sala-atencion",
+  "rooms": [
+    {
+      "key": "sala-atencion",
+      "tiledMapKey": "map-ruta-sala",
+      "tiledJsonPath": "/assets/game/maps/ruta-sala.json",
+      "displayName": "Sala de Atención — Ruta de Protección",
+      "spawnX": 160,
+      "spawnY": 200,
+      "exits": [],
+      "npcs": [
+        {
+          "key": "trabajadora-social",
+          "npcType": "colleague",
+          "displayName": "Trabajadora social",
+          "portrait": "👩‍💼",
+          "x": 300,
+          "y": 180,
+          "frameIndex": 428,
+          "dialogue": {
+            "lines": [
+              { "text": "La Resolución 459/2012 del MSPS establece el protocolo que debemos seguir. ¿Ya activaste la notificación a la Comisaría de Familia?", "emotion": "neutral" },
+              { "text": "El ICBF debe ser notificado si los menores estuvieron presentes durante la agresión. Eso es Ley 1098.", "emotion": "neutral" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

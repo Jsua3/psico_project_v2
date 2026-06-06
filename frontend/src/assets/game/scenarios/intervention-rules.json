@@ -1,0 +1,8 @@
+{
+  "byClassification": {
+    "ADEQUATE":   { "trustLevel": 13, "emotionalState": 10, "crisisLevel": -10, "openness": 7 },
+    "RISKY":      { "trustLevel": -7, "crisisLevel": 9, "openness": -3 },
+    "INADEQUATE": { "trustLevel": -5, "crisisLevel": 12, "emotionalState": -6 }
+  },
+  "prohibited": { "trustLevel": -28, "crisisLevel": 23, "emotionalState": -18, "openness": -17 }
+}

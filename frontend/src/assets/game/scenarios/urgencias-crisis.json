@@ -1,0 +1,46 @@
+{
+  "scenarioKey": "urgencias-crisis",
+  "startRoomKey": "sala-urgencias",
+  "rooms": [
+    {
+      "key": "sala-urgencias",
+      "tiledMapKey": "map-urgencias-sala",
+      "tiledJsonPath": "/assets/game/maps/urgencias-sala.json",
+      "displayName": "Sala de Urgencias — Hospital",
+      "spawnX": 160,
+      "spawnY": 200,
+      "exits": [],
+      "npcs": [
+        {
+          "key": "enfermera-urgencias",
+          "npcType": "colleague",
+          "displayName": "Enfermera de turno",
+          "portrait": "👩‍⚕️",
+          "x": 280,
+          "y": 160,
+          "frameIndex": 428,
+          "dialogue": {
+            "lines": [
+              { "text": "Llegó hace 20 minutos. Hematomas en rostro y brazos, llanto contenido. Los niños están en la sala de espera con otra enfermera.", "emotion": "neutral" },
+              { "text": "Esta es la tercera vez en seis meses. La última vez solo se le dio el alta sin seguimiento.", "emotion": "negative" }
+            ]
+          }
+        },
+        {
+          "key": "colega-urgencias",
+          "npcType": "colleague",
+          "displayName": "Colega de guardia",
+          "portrait": "🧑‍⚕️",
+          "x": 420,
+          "y": 220,
+          "frameIndex": 428,
+          "dialogue": {
+            "lines": [
+              { "text": "Recuerda: primero estabilización emocional. Los PAP son la primera línea, no los cuestionarios.", "emotion": "neutral" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

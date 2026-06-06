@@ -1,0 +1,506 @@
+<section class="dashboard-page psy-reveal" [attr.aria-label]="heroTitle()">
+  @if (loading()) {
+    <p class="dashboard-loading-banner" aria-live="polite">{{ loadingMessage() }}</p>
+  }
+
+  <header class="dashboard-hero pixel-panel">
+    <div class="hero-copy">
+      <p class="psy-eyebrow">
+        @if (isAdmin()) { Administración · {{ brand.shortName }} }
+        @else if (isProfesor()) { Seguimiento docente · {{ brand.shortName }} }
+        @else { Mi entrenamiento · {{ brand.shortName }} }
+      </p>
+      <h1 class="hero-title">{{ heroTitle() }}</h1>
+      <p class="hero-lead">{{ heroLead() }}</p>
+      <div class="hero-actions">
+        @if (continuarEntrenamiento()) {
+          <a class="pixel-button pixel-button--accent" routerLink="/portal/simulador">
+            <mat-icon aria-hidden="true">play_arrow</mat-icon>
+            @if (isEstudiante()) { Continuar simulación } @else { Continuar entrenamiento }
+          </a>
+        }
+        @for (action of quickActions().slice(0, isEstudiante() ? 3 : 2); track action.route + action.label) {
+          <a
+            class="pixel-button"
+            [class.pixel-button--accent]="action.accent && !continuarEntrenamiento()"
+            [routerLink]="action.route"
+          >
+            <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
+            {{ action.label }}
+          </a>
+        }
+      </div>
+    </div>
+
+    @let statusCard = heroStatusCard();
+    <aside class="hero-status-card" [attr.aria-label]="statusCard.title">
+      <div class="hero-status-card__frame">
+        <div class="hero-status-card__header">
+          <h2 class="hero-status-card__title">{{ statusCard.title }}</h2>
+          <div class="hero-status-card__chips">
+            @for (chip of statusCard.chips; track chip) {
+              <span class="hero-status-chip">{{ chip }}</span>
+            }
+          </div>
+        </div>
+        <dl class="hero-status-card__metrics">
+          @for (item of statusCard.items; track item.label) {
+            <div class="hero-status-card__metric">
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          }
+        </dl>
+        <a
+          class="pixel-button pixel-button--accent hero-status-card__action"
+          [routerLink]="statusCard.action.route"
+        >
+          <mat-icon aria-hidden="true">{{ statusCard.action.icon }}</mat-icon>
+          {{ statusCard.action.label }}
+        </a>
+      </div>
+    </aside>
+  </header>
+
+  <section class="metric-grid" [class.metric-grid--admin]="isAdmin() || isProfesor()" aria-label="Métricas de entrenamiento">
+    @for (metric of metrics(); track metric.label) {
+      <article class="pixel-stat-card pixel-card">
+        <div class="pixel-stat-card__icon" aria-hidden="true">
+          <mat-icon>{{ metric.icon }}</mat-icon>
+        </div>
+        @if (loading()) {
+          <div class="psy-skeleton skeleton-value"></div>
+          <div class="psy-skeleton skeleton-label"></div>
+        } @else {
+          <p class="pixel-stat-card__value">{{ metric.value }}</p>
+          <h2 class="pixel-stat-card__label">{{ metric.label }}</h2>
+          <span
+            class="pixel-badge"
+            [class.pixel-badge--blue]="metric.badgeClass === 'blue'"
+            [class.pixel-badge--purple]="metric.badgeClass === 'purple'"
+            [class.pixel-badge--green]="metric.badgeClass === 'green'"
+            [class.pixel-badge--orange]="metric.badgeClass === 'orange'"
+            [class.pixel-badge--neutral]="metric.badgeClass === 'neutral'"
+            [attr.title]="metric.status"
+          >{{ metric.status }}</span>
+        }
+      </article>
+    }
+  </section>
+
+  @if (error()) {
+    <aside class="dashboard-error pixel-panel" role="alert">
+      <div class="dashboard-error__icon" aria-hidden="true"><mat-icon>cloud_off</mat-icon></div>
+      <div>
+        <strong>No fue posible cargar la información</strong>
+        <p>Revisa la conexión con el servidor e intenta recargar la página.</p>
+      </div>
+    </aside>
+  }
+
+  <section class="quick-actions pixel-panel" aria-label="Acciones rápidas">
+    <p class="pixel-section-title">Acciones rápidas</p>
+    <div class="quick-actions__grid">
+      @for (action of quickActions(); track action.label) {
+        <a class="quick-action-card" [class.quick-action-card--accent]="action.accent" [routerLink]="action.route">
+          <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
+          <span>{{ action.label }}</span>
+        </a>
+      }
+    </div>
+  </section>
+
+  <section class="charts-grid" aria-label="Gráficas formativas">
+    @if (loading()) {
+      @for (i of [1, 2, 3]; track i) {
+        <article class="chart-card pixel-card"><div class="psy-skeleton chart-skeleton"></div></article>
+      }
+    } @else if (isAdmin()) {
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Usuarios por rol</h2>
+          <p>Distribución del registro académico</p>
+        </header>
+        @if (chartHasData(adminRoleChart())) {
+          <div class="bar-chart" role="img" [attr.aria-label]="'Gráfica de usuarios por rol'">
+            @for (bar of adminRoleChart(); track bar.label) {
+              <div class="bar-chart__item">
+                <div class="bar-chart__bar-wrap">
+                  <span class="bar-chart__bar bar-chart__bar--{{ bar.tone }}" [style.height.%]="(bar.value / bar.max) * 100"></span>
+                </div>
+                <strong>{{ bar.value }}</strong>
+                <span>{{ bar.label }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Intentos por estado</h2>
+          <p>Actividad reciente del sistema</p>
+        </header>
+        @if (chartHasData(adminAttemptsChart())) {
+          <div class="bar-chart bar-chart--horizontal">
+            @for (bar of adminAttemptsChart(); track bar.label) {
+              <div class="bar-row">
+                <span>{{ bar.label }}</span>
+                <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--{{ bar.tone }}" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
+                <strong>{{ bar.value }}</strong>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Aún no hay intentos registrados.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Simulaciones por día</h2>
+          <p>Últimos registros recientes</p>
+        </header>
+        @if (chartHasData(adminWeeklyChart())) {
+          <div class="bar-chart">
+            @for (bar of adminWeeklyChart(); track bar.label) {
+              <div class="bar-chart__item">
+                <div class="bar-chart__bar-wrap">
+                  <span class="bar-chart__bar bar-chart__bar--purple" [style.height.%]="(bar.value / bar.max) * 100"></span>
+                </div>
+                <strong>{{ bar.value }}</strong>
+                <span>{{ bar.label }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        }
+      </article>
+    } @else if (isProfesor()) {
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Desempeño por estudiante</h2>
+          <p>Promedio de puntaje en tus grupos</p>
+        </header>
+        @if (chartHasData(professorStudentChart())) {
+          <div class="bar-chart">
+            @for (bar of professorStudentChart(); track bar.label) {
+              <div class="bar-chart__item">
+                <div class="bar-chart__bar-wrap">
+                  <span class="bar-chart__bar bar-chart__bar--blue" [style.height.%]="(bar.value / bar.max) * 100"></span>
+                </div>
+                <strong>{{ bar.value }}</strong>
+                <span>{{ bar.label }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Decisiones críticas por caso</h2>
+          <p>Intentos que requieren revisión</p>
+        </header>
+        @if (chartHasData(professorCaseChart())) {
+          <div class="bar-chart bar-chart--horizontal">
+            @for (bar of professorCaseChart(); track bar.label) {
+              <div class="bar-row">
+                <span>{{ bar.label }}</span>
+                <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--orange" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
+                <strong>{{ bar.value }}</strong>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Sin alertas formativas registradas.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Avance del grupo</h2>
+          <p>{{ professorGroupProgress().label }}</p>
+        </header>
+        <div class="group-progress-ring">
+          <svg class="progress-ring" viewBox="0 0 120 120" role="img" aria-label="Avance del grupo">
+            <circle class="progress-ring__track" cx="60" cy="60" r="48"></circle>
+            <circle
+              class="progress-ring__fill"
+              cx="60"
+              cy="60"
+              r="48"
+              [attr.stroke-dasharray]="ringProgress(professorGroupProgress().completed, professorGroupProgress().completed + professorGroupProgress().inProgress) + ', 301'"
+            ></circle>
+          </svg>
+          <div class="group-progress-ring__meta">
+            <strong>{{ professorGroupProgress().completed }}</strong>
+            <span>Completadas</span>
+            <small>{{ professorGroupProgress().inProgress }} en progreso</small>
+          </div>
+        </div>
+      </article>
+    } @else {
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Evolución de puntaje</h2>
+          <p>Últimos intentos registrados</p>
+        </header>
+        @if (chartHasData(studentScoreChart())) {
+          <svg class="line-chart" viewBox="0 0 280 90" role="img" aria-label="Evolución de puntaje por intento">
+            <polyline [attr.points]="lineChartPath(studentScoreChart())"></polyline>
+            @for (point of studentScoreChart(); track point.label; let i = $index) {
+              <circle
+                [attr.cx]="scoreChartPointX(i)"
+                [attr.cy]="scoreChartPointY(i)"
+                r="3"
+              ></circle>
+            }
+          </svg>
+          <p class="chart-summary">Resumen: {{ studentScoreChart().length }} intento(s) visualizados.</p>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Aún no hay intentos registrados.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Progreso de casos</h2>
+          <p>Porcentaje de intentos completados</p>
+        </header>
+        @if (chartHasData(studentCaseProgressChart())) {
+          <div class="bar-chart bar-chart--horizontal">
+            @for (bar of studentCaseProgressChart(); track bar.label) {
+              <div class="bar-row">
+                <span>{{ bar.label }}</span>
+                <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--purple" [style.width.%]="bar.value"></i></div>
+                <strong>{{ bar.value }}%</strong>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>No hay casos asignados.</p></div>
+        }
+      </article>
+
+      <article class="chart-card pixel-card">
+        <header class="chart-card__head">
+          <h2>Distribución de decisiones</h2>
+          <p>Clasificación acumulada</p>
+        </header>
+        @if (chartHasData(studentDecisionChart())) {
+          <div class="decision-chart">
+            @for (slice of studentDecisionChart(); track slice.label) {
+              <div class="decision-chart__item decision-chart__item--{{ slice.tone }}">
+                <span class="decision-chart__dot"></span>
+                <span>{{ slice.label }}</span>
+                <strong>{{ slice.value }}</strong>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        }
+      </article>
+    }
+  </section>
+
+  @if (isAdmin()) {
+    <section class="system-status pixel-panel" [class.system-status--ok]="systemStatus().ok" aria-label="Estado del sistema">
+      <div class="system-status__icon" aria-hidden="true"><mat-icon>{{ systemStatus().ok ? 'verified_user' : 'error_outline' }}</mat-icon></div>
+      <div>
+        <p class="pixel-section-title">Estado del sistema</p>
+        <h2>{{ systemStatus().label }}</h2>
+        <p>{{ systemStatus().detail }}</p>
+      </div>
+    </section>
+  }
+
+  @if (continuarEntrenamiento(); as training) {
+    <section class="training-panel pixel-panel training-panel--active" aria-labelledby="training-title">
+      <div class="training-panel__main">
+        <p class="pixel-section-title" id="training-title">
+          @if (isEstudiante()) { Continuar simulación } @else { Continuar entrenamiento }
+        </p>
+        <span class="pixel-badge pixel-badge--purple">Caso activo</span>
+        <h2 class="training-panel__case">{{ training.caso }}</h2>
+        <dl class="training-panel__meta">
+          <div><dt>Rol</dt><dd>{{ training.rol }}</dd></div>
+          <div><dt>Última acción</dt><dd>{{ training.ultimaAccion }}</dd></div>
+          <div><dt>Estado</dt><dd>{{ training.estado }}</dd></div>
+        </dl>
+      </div>
+      <div class="training-panel__progress">
+        <div class="progress-header">
+          <span>Progreso formativo</span>
+          <strong>{{ training.progreso > 0 ? training.progreso + '%' : 'Pendiente' }}</strong>
+        </div>
+        <div class="pixel-progress" aria-label="Progreso de entrenamiento">
+          <div class="pixel-progress__track">
+            @for (segment of progressSegments; track $index) {
+              <span class="pixel-progress__segment" [class.is-filled]="$index < filledProgressSegments()"></span>
+            }
+          </div>
+        </div>
+        <a class="pixel-button pixel-button--accent" routerLink="/portal/simulador">
+          <mat-icon aria-hidden="true">play_arrow</mat-icon>
+          Continuar simulación
+        </a>
+      </div>
+    </section>
+  } @else if (!loading() && !error() && !isAdmin()) {
+    <section class="dashboard-empty training-panel pixel-panel" aria-labelledby="training-empty-title">
+      <div class="dashboard-empty__icon" aria-hidden="true"><mat-icon>videogame_asset</mat-icon></div>
+      <div>
+        <h2 id="training-empty-title">
+          @if (isEstudiante()) { Continuar simulación } @else { Continuar entrenamiento }
+        </h2>
+        <p>No hay simulaciones activas en este momento.</p>
+        <p class="dashboard-empty__hint">
+          @if (isEstudiante()) {
+            Cuando tengas casos asignados, podrás retomarlos desde aquí.
+          } @else {
+            Cuando tus grupos inicien simulaciones, aparecerán aquí.
+          }
+        </p>
+        <a class="pixel-button" routerLink="/portal/simulador">Explorar simulaciones</a>
+      </div>
+    </section>
+  }
+
+  <div class="dashboard-grid">
+    <article class="pixel-card dashboard-panel" aria-labelledby="attempts-title">
+      <header class="dashboard-panel__head">
+        <div>
+          <p class="psy-eyebrow">
+            @if (isEstudiante()) { Mi historial } @else { Últimas sesiones }
+          </p>
+          <h2 id="attempts-title">
+            @if (isEstudiante()) { Historial de intentos } @else { Intentos recientes }
+          </h2>
+        </div>
+        @if (!isEstudiante()) {
+          <span class="pixel-badge pixel-badge--blue">Trazabilidad</span>
+        }
+      </header>
+
+      @if (loading()) {
+        <div class="table-skeleton" aria-busy="true">
+          <div class="psy-skeleton"></div><div class="psy-skeleton"></div><div class="psy-skeleton"></div>
+        </div>
+      } @else if (!rows().length) {
+        <div class="dashboard-empty dashboard-empty--compact">
+          <mat-icon aria-hidden="true">history</mat-icon>
+          <p>Aún no hay intentos registrados.</p>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table mat-table [dataSource]="rows()" class="attempts-table">
+            <ng-container matColumnDef="caso">
+              <th mat-header-cell *matHeaderCellDef scope="col">Caso</th>
+              <td mat-cell *matCellDef="let s">{{ s.casoTitulo }}</td>
+            </ng-container>
+            @if (!isEstudiante()) {
+              <ng-container matColumnDef="estudiante">
+                <th mat-header-cell *matHeaderCellDef scope="col">Estudiante</th>
+                <td mat-cell *matCellDef="let s">{{ s.estudiante }}</td>
+              </ng-container>
+            }
+            <ng-container matColumnDef="puntaje">
+              <th mat-header-cell *matHeaderCellDef scope="col">Puntaje</th>
+              <td mat-cell *matCellDef="let s" class="cell-mono">{{ s.puntajeLabel }}</td>
+            </ng-container>
+            <ng-container matColumnDef="estado">
+              <th mat-header-cell *matHeaderCellDef scope="col">Estado</th>
+              <td mat-cell *matCellDef="let s">
+                <span
+                  class="pixel-badge"
+                  [class.pixel-badge--green]="s.estado === 'Completado'"
+                  [class.pixel-badge--purple]="s.estado === 'En curso'"
+                  [class.pixel-badge--neutral]="s.estado === 'Pendiente'"
+                >{{ s.estado }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="accion">
+              <th mat-header-cell *matHeaderCellDef scope="col">Acción</th>
+              <td mat-cell *matCellDef="let s">
+                @if (isEstudiante()) {
+                  <a class="pixel-button pixel-button--mini" routerLink="/portal/simulador">Ver detalle</a>
+                } @else {
+                  <a class="pixel-button pixel-button--mini" routerLink="/portal/docente/trazabilidad">Ver trazabilidad</a>
+                }
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="tableColumns()"></tr>
+            <tr mat-row *matRowDef="let row; columns: tableColumns()"></tr>
+          </table>
+        </div>
+      }
+    </article>
+
+    @if (!isEstudiante()) {
+      <aside class="dashboard-side">
+        <article class="pixel-card dashboard-panel" aria-labelledby="gaps-title">
+          <p class="psy-eyebrow">Alertas formativas</p>
+          <h2 id="gaps-title">Lectura docente</h2>
+
+          @if (loading()) {
+            <div class="table-skeleton" aria-busy="true"><div class="psy-skeleton"></div></div>
+          } @else if (brechasSinDatosSuficientes()) {
+            <div class="dashboard-empty dashboard-empty--compact">
+              <mat-icon aria-hidden="true">insights</mat-icon>
+              <p>Sin datos suficientes todavía.</p>
+            </div>
+          } @else {
+            <div class="learning-gap-list">
+              @for (brecha of brechas(); track brecha.titulo) {
+                <article
+                  class="learning-gap-card"
+                  [class.learning-gap-card--green]="brecha.color === 'green'"
+                  [class.learning-gap-card--purple]="brecha.color === 'purple'"
+                  [class.learning-gap-card--orange]="brecha.color === 'orange'"
+                  [class.learning-gap-card--blue]="brecha.color === 'blue'"
+                >
+                  <div class="learning-gap-card__icon" aria-hidden="true"><mat-icon>{{ brecha.icon }}</mat-icon></div>
+                  <div class="learning-gap-card__body">
+                    <strong>{{ brecha.titulo }}</strong>
+                    <p>{{ brecha.texto }}</p>
+                  </div>
+                  <span class="learning-gap-card__status">{{ brecha.estado }}</span>
+                </article>
+              }
+            </div>
+          }
+        </article>
+
+        <section class="teacher-activity-card pixel-panel" aria-labelledby="teacher-title">
+          <p class="psy-eyebrow">Actividad docente</p>
+          <h2 id="teacher-title">Panel de seguimiento</h2>
+
+          @if (loading()) {
+            <div class="table-skeleton" aria-busy="true"><div class="psy-skeleton"></div></div>
+          } @else if (actividadDocenteVacia()) {
+            <div class="dashboard-empty dashboard-empty--compact">
+              <mat-icon aria-hidden="true">school</mat-icon>
+              <p>No hay actividad docente registrada con los filtros actuales.</p>
+            </div>
+          } @else {
+            <div class="teacher-activity-grid">
+              @for (item of actividadDocente(); track item.titulo) {
+                <article class="teacher-activity-card__item">
+                  <span class="pixel-badge pixel-badge--purple">{{ item.valor }}</span>
+                  <strong>{{ item.titulo }}</strong>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      </aside>
+    }
+  </div>
+</section>

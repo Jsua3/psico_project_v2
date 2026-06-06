@@ -1,0 +1,184 @@
+<main class="siep-login" [ngStyle]="layoutCssVars()">
+  <div class="siep-login__backdrop" aria-hidden="true"></div>
+
+  <a routerLink="/" class="siep-login__back" aria-label="Volver al inicio">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon>
+    <span>{{ brand.institution }}</span>
+  </a>
+
+  <div class="siep-login__stage">
+    <section class="siep-login__cluster" aria-label="Acceso al sistema SIEP">
+      <div class="siep-login__card-row">
+        @if (characterStageVisible()) {
+          <div class="siep-login__hero">
+            <div class="siep-login__character-wrap">
+              <div
+                id="characterStage"
+                #characterStage
+                class="siep-login__character"
+                aria-hidden="true"
+                data-siep-character-stage="single"
+              ></div>
+            </div>
+          </div>
+        }
+
+        <article
+          class="siep-login__card"
+          [class.siep-login__card--art]="loginCardArtLoaded()"
+        >
+          <header class="siep-login__card-head">
+            <p class="siep-login__kicker">Acceso institucional</p>
+            <h1 class="siep-login__logo">{{ brand.shortName }}</h1>
+            <p class="siep-login__subtitle">{{ brand.fullName }}</p>
+          </header>
+
+          <div class="siep-login__divider" aria-hidden="true"></div>
+
+          <form class="siep-login__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+            <div class="siep-login__field">
+              <label for="login-email">Correo institucional</label>
+              <div class="siep-login__input-wrap">
+                <mat-icon aria-hidden="true">person</mat-icon>
+                <input
+                  id="login-email"
+                  type="email"
+                  formControlName="email"
+                  autocomplete="email"
+                  placeholder="Correo institucional*"
+                />
+              </div>
+              @if (form.controls.email.touched && form.controls.email.hasError('required')) {
+                <span class="siep-login__error" role="alert">El correo es obligatorio.</span>
+              }
+              @if (form.controls.email.touched && form.controls.email.hasError('email')) {
+                <span class="siep-login__error" role="alert">Ingresa un correo institucional válido.</span>
+              }
+            </div>
+
+            <div class="siep-login__field">
+              <label for="login-password">Contraseña</label>
+              <div class="siep-login__input-wrap">
+                <mat-icon aria-hidden="true">lock</mat-icon>
+                <input
+                  id="login-password"
+                  [type]="hidePassword() ? 'password' : 'text'"
+                  formControlName="password"
+                  autocomplete="current-password"
+                  placeholder="Contraseña*"
+                />
+                <button
+                  class="siep-login__toggle"
+                  type="button"
+                  [attr.aria-label]="hidePassword() ? 'Mostrar contraseña' : 'Ocultar contraseña'"
+                  (click)="hidePassword.set(!hidePassword())"
+                >
+                  <mat-icon aria-hidden="true">{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
+                </button>
+              </div>
+              @if (form.controls.password.touched && form.controls.password.hasError('required')) {
+                <span class="siep-login__error" role="alert">La contraseña es obligatoria.</span>
+              }
+            </div>
+
+            <div class="siep-login__options">
+              <label class="siep-login__remember">
+                <input type="checkbox" formControlName="remember" />
+                <span>Recordar sesión</span>
+              </label>
+              <a class="siep-login__forgot" href="mailto:secretariapsicologia@cue.edu.co">
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
+
+            @if (error()) {
+              <p class="siep-login__error" role="alert">{{ error() }}</p>
+            }
+
+            @if (loading()) {
+              <mat-progress-bar mode="indeterminate" aria-label="Iniciando sesión"></mat-progress-bar>
+            }
+
+            <button class="siep-login__submit" type="submit" [disabled]="form.invalid || loading()">
+              <mat-icon aria-hidden="true">login</mat-icon>
+              Ingresar al sistema
+            </button>
+          </form>
+
+          <p class="siep-login__sso-divider" aria-hidden="true">o continúa con</p>
+
+          <div class="siep-login__sso" aria-label="Accesos SSO institucionales">
+            <button
+              class="siep-login__sso-btn siep-login__sso-btn--google"
+              type="button"
+              aria-label="Continuar con Google"
+              (click)="onGoogleSso()"
+            >
+              <span class="siep-login__sso-fallback">Google</span>
+            </button>
+            <button
+              class="siep-login__sso-btn siep-login__sso-btn--microsoft"
+              type="button"
+              aria-label="Continuar con Microsoft"
+              (click)="onMicrosoftSso()"
+            >
+              <span class="siep-login__sso-fallback">Microsoft</span>
+            </button>
+          </div>
+
+          @if (ssoNotice()) {
+            <p class="siep-login__error" role="status">{{ ssoNotice() }}</p>
+          }
+        </article>
+      </div>
+
+      <aside class="siep-login__pedagogy" aria-label="Enfoque pedagógico">
+        <div
+          class="siep-login__pedagogy-shell"
+          [class.siep-login__pedagogy-shell--art]="pedagogyPanelArtLoaded()"
+        >
+          <img
+            class="siep-login__pedagogy-board"
+            [class.siep-login__pedagogy-board--show]="pedagogyPanelArtLoaded()"
+            [src]="'/' + assets.panels.pedagogy"
+            width="562"
+            height="142"
+            [alt]="'Nuestro enfoque pedagógico. ' + pedagogyBoardAlt()"
+            (load)="onPedagogyPanelArtLoad()"
+            (error)="onPedagogyPanelArtError()"
+          />
+
+          @if (!pedagogyPanelArtLoaded()) {
+            <div class="siep-login__pedagogy-fallback" role="region" aria-labelledby="pedagogy-title">
+              <header class="siep-login__pedagogy-head">
+                <span class="siep-login__pedagogy-gem" aria-hidden="true"></span>
+                <h2 id="pedagogy-title" class="siep-login__pedagogy-title">NUESTRO ENFOQUE PEDAGÓGICO</h2>
+                <span class="siep-login__pedagogy-gem" aria-hidden="true"></span>
+              </header>
+
+              <div class="siep-login__pedagogy-grid">
+                @for (pillar of pillars; track pillar.key) {
+                  <article class="siep-login__pillar">
+                    <span class="siep-login__pillar-icon" aria-hidden="true">
+                      @if (!pillar.iconMissing) {
+                        <img
+                          [src]="'/' + pillar.icon"
+                          alt=""
+                          (error)="pillar.iconMissing = true"
+                        />
+                      } @else {
+                        <span>{{ pillar.short }}</span>
+                      }
+                    </span>
+                    <h3 [style.color]="pillar.color">{{ pillar.title }}</h3>
+                    <p>{{ pillar.description }}</p>
+                  </article>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </aside>
+    </section>
+  </div>
+</main>

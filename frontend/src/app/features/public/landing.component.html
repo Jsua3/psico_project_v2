@@ -1,0 +1,233 @@
+<div class="landing">
+  <header class="landing-nav" aria-label="Navegación pública">
+    <a class="landing-nav__brand" href="#inicio" [attr.aria-label]="brand.formalName">
+      <span class="landing-nav__icon" aria-hidden="true">
+        <mat-icon>psychology</mat-icon>
+      </span>
+      <span class="landing-nav__text">
+        <strong>{{ brand.shortName }}</strong>
+        <small>{{ brand.fullName }}</small>
+      </span>
+    </a>
+
+    <button
+      class="landing-nav__toggle"
+      type="button"
+      aria-label="Abrir menú"
+      (click)="menuOpen.set(!menuOpen())"
+    >
+      <mat-icon>{{ menuOpen() ? 'close' : 'menu' }}</mat-icon>
+    </button>
+
+    <nav class="landing-nav__links" [class.landing-nav__links--open]="menuOpen()">
+      <a href="#simulador" (click)="closeMenu()">Simulador</a>
+      <a href="#casos" (click)="closeMenu()">Casos</a>
+      <a href="#como-funciona" (click)="closeMenu()">Cómo funciona</a>
+      <a href="#roles" (click)="closeMenu()">Roles</a>
+      <a href="#etica" (click)="closeMenu()">Ética</a>
+      <a class="landing-btn landing-btn--sm" routerLink="/login">
+        Ingresar
+        <mat-icon>arrow_forward</mat-icon>
+      </a>
+    </nav>
+  </header>
+
+  <main id="inicio">
+    <section class="landing-hero" id="simulador" aria-labelledby="hero-title">
+      <div class="landing-hero__glow" aria-hidden="true"></div>
+      <div class="landing-wrap landing-hero__grid">
+        <div class="landing-hero__copy">
+          <h1 id="hero-title" class="landing-hero__title">
+            Entrena decisiones <span class="landing-accent">psicosociales</span> antes de enfrentarte a casos reales
+          </h1>
+          <p class="landing-hero__lead">
+            {{ brand.shortName }} es un simulador académico para practicar intervención, análisis ético, rutas de
+            atención y toma de decisiones en escenarios sensibles — con retroalimentación formativa y trazabilidad
+            docente.
+          </p>
+          <div class="landing-hero__actions">
+            <a class="landing-btn landing-btn--primary" routerLink="/login">
+              Ingresar al sistema
+              <mat-icon>arrow_forward</mat-icon>
+            </a>
+            <a class="landing-btn landing-btn--outline" href="#casos">Ver casos</a>
+            <a class="landing-btn landing-btn--outline" href="#como-funciona">Cómo funciona</a>
+          </div>
+          <ul class="landing-trust" aria-label="Compromisos formativos">
+            @for (item of trustItems; track item) {
+              <li>
+                <mat-icon>check_circle</mat-icon>
+                {{ item }}
+              </li>
+            }
+          </ul>
+        </div>
+
+        <aside class="landing-preview-pixel" aria-label="Vista previa del simulador">
+          <div class="landing-preview-pixel__head">
+            <span class="landing-preview-pixel__badge">Caso activo</span>
+            <h2>Violencia intrafamiliar</h2>
+          </div>
+
+          <div class="landing-preview-pixel__body">
+            <div class="landing-preview-pixel__scene">
+              <img
+                [src]="simulatorSceneSrc"
+                alt="Escena pixel-art de consulta psicosocial: psicóloga y consultante en espacio seguro"
+                width="640"
+                height="360"
+              />
+            </div>
+
+            <div class="landing-preview-pixel__info">
+              @for (info of caseInfo; track info.label) {
+                <article class="landing-preview-pixel__info-card">
+                  <span class="landing-preview-pixel__info-icon" aria-hidden="true">
+                    <mat-icon>{{ info.icon }}</mat-icon>
+                  </span>
+                  <div>
+                    <span class="landing-preview-pixel__info-label">{{ info.label }}</span>
+                    <p>{{ info.text }}</p>
+                  </div>
+                </article>
+              }
+            </div>
+          </div>
+
+          <p class="landing-preview-pixel__decisions-label">Decisiones disponibles</p>
+          <div class="landing-preview-pixel__decisions">
+            @for (decision of heroDecisions; track decision.label) {
+              <button type="button" class="landing-preview-pixel__decision" disabled>
+                <mat-icon aria-hidden="true">{{ decision.icon }}</mat-icon>
+                <span>{{ decision.label }}</span>
+              </button>
+            }
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="casos" class="landing-section landing-section--light">
+      <div class="landing-wrap">
+        <div class="landing-section__head">
+          <h2 class="landing-section__title">
+            Casos de <span class="landing-accent landing-accent--dark">entrenamiento</span>
+          </h2>
+          <a class="landing-link" href="#casos">Ver todos los casos <mat-icon>arrow_forward</mat-icon></a>
+        </div>
+        <div class="landing-grid landing-grid--3">
+          @for (trainingCase of trainingCases; track trainingCase.title) {
+            <article class="landing-case-card">
+              <span class="landing-case-card__icon" [style.background]="trainingCase.accent + '18'" [style.color]="trainingCase.accent">
+                <mat-icon>{{ trainingCase.icon }}</mat-icon>
+              </span>
+              <h3>{{ trainingCase.title }}</h3>
+              <p>{{ trainingCase.text }}</p>
+              <span class="landing-chip" [style.--chip-color]="trainingCase.accent">{{ trainingCase.tag }}</span>
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="landing-section landing-section--muted">
+      <div class="landing-wrap">
+        <h2 class="landing-section__title landing-section__title--center">
+          Cómo funciona <span class="landing-accent landing-accent--dark">SIEP</span>
+        </h2>
+        <div class="landing-workflow">
+          @for (step of workflow; track step.step; let last = $last) {
+            <article class="landing-workflow__step">
+              <span class="landing-workflow__num" [style.background]="step.accent">{{ step.step }}</span>
+              <span class="landing-workflow__icon" [style.background]="step.accent + '18'" [style.color]="step.accent">
+                <mat-icon>{{ step.icon }}</mat-icon>
+              </span>
+              <h3>{{ step.title }}</h3>
+              <p>{{ step.text }}</p>
+            </article>
+            @if (!last) {
+              <span class="landing-workflow__arrow" aria-hidden="true"></span>
+            }
+          }
+        </div>
+      </div>
+    </section>
+
+    <section id="roles" class="landing-section landing-section--light">
+      <div class="landing-wrap">
+        <h2 class="landing-section__title landing-section__title--center">
+          Roles en el <span class="landing-accent landing-accent--dark">sistema</span>
+        </h2>
+        <div class="landing-grid landing-grid--3">
+          @for (role of roles; track role.title) {
+            <article class="landing-role-card">
+              <span class="landing-role-card__icon" [style.background]="role.accent + '18'" [style.color]="role.accent">
+                <mat-icon>{{ role.icon }}</mat-icon>
+              </span>
+              <h3>{{ role.title }}</h3>
+              <p>{{ role.text }}</p>
+              <ul class="landing-role-card__features">
+                @for (feature of role.features; track feature) {
+                  <li>
+                    <span [style.background]="role.accent"></span>
+                    {{ feature }}
+                  </li>
+                }
+              </ul>
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section id="etica" class="landing-section landing-section--muted">
+      <div class="landing-wrap">
+        <h2 class="landing-section__title landing-section__title--center">
+          Ética y <span class="landing-accent landing-accent--dark">buenas prácticas</span>
+        </h2>
+        <div class="landing-ethics">
+          @for (item of ethicsItems; track item.title) {
+            <article class="landing-ethics__item">
+              <span class="landing-ethics__icon">
+                <mat-icon>{{ item.icon }}</mat-icon>
+              </span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-cta" aria-label="Llamado a la acción">
+      <div class="landing-wrap landing-cta__inner">
+        <span class="landing-cta__icon" aria-hidden="true">
+          <mat-icon>psychology</mat-icon>
+        </span>
+        <p class="landing-cta__text">
+          Prepárate para intervenir con criterio, empatía y ética.<br />
+          <strong>Practica hoy. Transforma mañana.</strong>
+        </p>
+        <a class="landing-btn landing-btn--primary landing-btn--lg" routerLink="/login">
+          Ingresar al sistema
+          <mat-icon>arrow_forward</mat-icon>
+        </a>
+      </div>
+    </section>
+
+    <footer class="landing-footer">
+      <div class="landing-wrap landing-footer__inner">
+        <p>
+          <mat-icon>apartment</mat-icon>
+          Proyecto académico vinculado al Programa de Psicología. {{ brand.institution }}.
+        </p>
+        <img
+          src="/assets/images/institution/logo-cue-ccaq-vertical.webp"
+          alt="Corporación Universitaria Empresarial Alexander Von Humboldt"
+          width="72"
+          height="36"
+        />
+      </div>
+    </footer>
+  </main>
+</div>

@@ -1,0 +1,32 @@
+{
+  "scenarioKey": "proteccion-nna",
+  "startRoomKey": "sala-nna",
+  "rooms": [
+    {
+      "key": "sala-nna",
+      "tiledMapKey": "map-nna-sala",
+      "tiledJsonPath": "/assets/game/maps/nna-sala.json",
+      "displayName": "Sala de Atención — Protección NNA",
+      "spawnX": 160,
+      "spawnY": 200,
+      "exits": [],
+      "npcs": [
+        {
+          "key": "defensor-familia",
+          "npcType": "colleague",
+          "displayName": "Defensor de Familia — ICBF",
+          "portrait": "👨‍⚖️",
+          "x": 300,
+          "y": 180,
+          "frameIndex": 428,
+          "dialogue": {
+            "lines": [
+              { "text": "Los niños que presencian violencia son víctimas directas. Ley 1098 — Art. 18.", "emotion": "neutral" },
+              { "text": "La separación de la madre no es la primera medida. El interés superior del niño indica mantener el vínculo materno cuando la madre es la víctima.", "emotion": "neutral" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,296 @@
+import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  ViewChild,
+  inject,
+  signal
+} from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { AuthService } from '../../core/auth/auth.service';
+import { APP_BRAND } from '../../core/config/brand.config';
+import {
+  LOGIN_ASSETS,
+  LOGIN_LAYOUT,
+  LOGIN_PEDAGOGY_PILLARS,
+  LOGIN_REMEMBER_EMAIL_KEY,
+  loginLayoutCssVars
+} from './login-assets.config';
+import {
+  LOGIN_CHARACTER_SCENE_KEY,
+  createLoginCharacterScene
+} from './login-character.scene';
+
+@Component({
+  selector: 'app-login',
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, MatIconModule, MatProgressBarModule],
+  templateUrl: './login.component.html',
+  styleUrl: './login.component.scss'
+})
+export class LoginComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('characterStage') private characterStage?: ElementRef<HTMLDivElement>;
+
+  readonly brand = APP_BRAND;
+  readonly assets = LOGIN_ASSETS;
+  readonly layoutCssVars = signal(loginLayoutCssVars(this.viewportWidth()));
+  readonly characterStageVisible = signal(true);
+  readonly pillars = LOGIN_PEDAGOGY_PILLARS.map(p => ({ ...p, iconMissing: true }));
+
+  private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly ngZone = inject(NgZone);
+
+  private phaserGame?: import('phaser').Game;
+  private resizeObserver?: ResizeObserver;
+  private windowResizeListener?: () => void;
+  private characterBootScheduled?: ReturnType<typeof setTimeout>;
+  private characterGameBooting = false;
+
+  readonly hidePassword = signal(true);
+  readonly loading = signal(false);
+  readonly error = signal('');
+  readonly ssoNotice = signal('');
+  readonly loginCardArtLoaded = signal(false);
+  readonly pedagogyPanelArtLoaded = signal(false);
+
+  readonly form = this.fb.nonNullable.group({
+    email: [this.loadRememberedEmail(), [Validators.required, Validators.email]],
+    password: ['', Validators.required],
+    remember: [true]
+  });
+
+  ngAfterViewInit() {
+    this.characterStageVisible.set(!this.isMobileViewport());
+    this.syncLayoutVars();
+    this.initCharacterScene();
+    if (typeof window !== 'undefined') {
+      this.windowResizeListener = () => this.onViewportResize();
+      window.addEventListener('resize', this.windowResizeListener);
+    }
+  }
+
+  ngOnDestroy() {
+    if (typeof window !== 'undefined' && this.windowResizeListener) {
+      window.removeEventListener('resize', this.windowResizeListener);
+    }
+    this.destroyCharacterGame();
+  }
+
+  onLoginCardArtLoad() {
+    this.loginCardArtLoaded.set(true);
+  }
+
+  onPedagogyPanelArtLoad() {
+    this.pedagogyPanelArtLoaded.set(true);
+  }
+
+  onPedagogyPanelArtError() {
+    this.pedagogyPanelArtLoaded.set(false);
+  }
+
+  pedagogyBoardAlt(): string {
+    return LOGIN_PEDAGOGY_PILLARS.map(
+      p => `${p.title}: ${p.description}`
+    ).join('. ');
+  }
+
+  onSubmit() {
+    if (this.loading()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    this.loading.set(true);
+    this.error.set('');
+    const { email, password, remember } = this.form.getRawValue();
+    if (remember) {
+      localStorage.setItem(LOGIN_REMEMBER_EMAIL_KEY, email);
+    } else {
+      localStorage.removeItem(LOGIN_REMEMBER_EMAIL_KEY);
+    }
+
+    this.auth.login(email, password).subscribe({
+      next: () => this.router.navigate(['/portal/dashboard']),
+      error: (error: unknown) => {
+        this.error.set(this.loginErrorMessage(error));
+        this.loading.set(false);
+      }
+    });
+  }
+
+  onGoogleSso() {
+    this.ssoNotice.set(
+      'El acceso con Google estará disponible cuando la institución active el proveedor SSO.'
+    );
+  }
+
+  onMicrosoftSso() {
+    this.ssoNotice.set(
+      'El acceso con Microsoft estará disponible cuando la institución active el proveedor SSO.'
+    );
+  }
+
+  private loadRememberedEmail(): string {
+    try {
+      return localStorage.getItem(LOGIN_REMEMBER_EMAIL_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private loginErrorMessage(error: unknown): string {
+    if (!(error instanceof HttpErrorResponse)) {
+      return 'No fue posible conectar con el servidor. Intenta nuevamente.';
+    }
+    if (error.status === 401) {
+      return 'Credenciales incorrectas.';
+    }
+    if (error.status === 403) {
+      return 'Tu usuario está inactivo. Contacta al administrador.';
+    }
+    if (error.status === 0) {
+      return 'No fue posible conectar con el servidor. Intenta nuevamente.';
+    }
+    return 'No fue posible iniciar sesión. Intenta nuevamente.';
+  }
+
+  private initCharacterScene() {
+    const host = this.characterStage?.nativeElement;
+    if (!host || typeof window === 'undefined') return;
+
+    if (this.isMobileViewport()) {
+      this.destroyCharacterGame();
+      return;
+    }
+
+    this.ngZone.runOutsideAngular(async () => {
+      const Phaser = await import('phaser');
+      const SceneClass = createLoginCharacterScene(Phaser);
+
+      const boot = () => {
+        if (this.isMobileViewport()) {
+          this.destroyCharacterGame();
+          return;
+        }
+
+        const { stageMinWidthPx, stageMinHeightPx } = LOGIN_LAYOUT.character;
+        const width = Math.max(
+          host.clientWidth,
+          stageMinWidthPx,
+          Math.round(host.getBoundingClientRect().width)
+        );
+        const height = Math.max(
+          host.clientHeight,
+          stageMinHeightPx,
+          Math.round(host.getBoundingClientRect().height)
+        );
+
+        if (this.phaserGame) {
+          this.phaserGame.scale.resize(width, height);
+          this.fitCharacterInScene();
+          return;
+        }
+
+        if (this.characterGameBooting) return;
+        this.characterGameBooting = true;
+        host.replaceChildren();
+
+        this.phaserGame = new Phaser.Game({
+          type: Phaser.AUTO,
+          parent: host,
+          width,
+          height,
+          transparent: true,
+          backgroundColor: 'rgba(0,0,0,0)',
+          pixelArt: true,
+          antialias: false,
+          roundPixels: true,
+          scene: SceneClass,
+          scale: {
+            mode: Phaser.Scale.RESIZE,
+            autoCenter: Phaser.Scale.NO_CENTER
+          }
+        });
+        this.characterGameBooting = false;
+      };
+
+      const scheduleBoot = () => {
+        if (this.characterBootScheduled) {
+          clearTimeout(this.characterBootScheduled);
+        }
+        this.characterBootScheduled = setTimeout(() => boot(), 32);
+      };
+
+      scheduleBoot();
+
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = new ResizeObserver(() => scheduleBoot());
+      this.resizeObserver.observe(host);
+    });
+  }
+
+  private destroyCharacterGame() {
+    if (this.characterBootScheduled) {
+      clearTimeout(this.characterBootScheduled);
+      this.characterBootScheduled = undefined;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = undefined;
+    this.phaserGame?.destroy(true);
+    this.phaserGame = undefined;
+    this.characterGameBooting = false;
+    this.characterStage?.nativeElement.replaceChildren();
+  }
+
+  private fitCharacterInScene() {
+    const scene = this.phaserGame?.scene.getScene(LOGIN_CHARACTER_SCENE_KEY);
+    if (scene && 'fitCharacter' in scene) {
+      (scene as { fitCharacter: () => void }).fitCharacter();
+    }
+  }
+
+  private isMobileViewport(): boolean {
+    return this.viewportWidth() <= LOGIN_LAYOUT.breakpoints.mobileMaxPx;
+  }
+
+  private viewportWidth(): number {
+    return typeof window !== 'undefined' ? window.innerWidth : 1366;
+  }
+
+  private syncLayoutVars() {
+    this.layoutCssVars.set(loginLayoutCssVars(this.viewportWidth()));
+  }
+
+  private onViewportResize() {
+    const mobile = this.isMobileViewport();
+    this.characterStageVisible.set(!mobile);
+    this.syncLayoutVars();
+
+    if (mobile) {
+      this.destroyCharacterGame();
+      return;
+    }
+
+    if (!this.phaserGame) {
+      setTimeout(() => this.initCharacterScene(), 0);
+      return;
+    }
+
+    this.fitCharacterInScene();
+    const host = this.characterStage?.nativeElement;
+    if (host) {
+      const w = Math.max(host.clientWidth, LOGIN_LAYOUT.character.stageMinWidthPx);
+      const h = Math.max(host.clientHeight, LOGIN_LAYOUT.character.stageMinHeightPx);
+      this.phaserGame.scale.resize(w, h);
+    }
+  }
+}
