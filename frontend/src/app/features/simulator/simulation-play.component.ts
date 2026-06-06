@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
 import {
+  AttemptCompletionReport,
   DialogueState, MapObjectState, ProgressMapState, SimulationAttemptState,
   SimulationFeedback, SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
@@ -28,6 +29,9 @@ import {
   getSceneInteractionDescription,
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
+import { AvatarFigureComponent } from '../character/avatar-figure.component';
+import { AvatarStore } from '../character/avatar.store';
+import { decisionTotal, performanceLabel } from './outcome.util';
 
 @Component({
   selector: 'app-simulation-play',
@@ -35,7 +39,8 @@ import {
   imports: [
     CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, MinimapComponent
+    ToolInventoryComponent, JournalPanelComponent, MinimapComponent,
+    AvatarFigureComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1">
@@ -273,53 +278,67 @@ import {
         </section>
 
         @if (game.status !== 'IN_PROGRESS') {
-          <section class="end-state-overlay liquid-glass"
-            [class.end-state--safe]="game.status === 'SAFE_EXITED'" role="alert">
-            <mat-icon>{{ game.status === 'COMPLETED' ? 'workspace_premium' : 'exit_to_app' }}</mat-icon>
-            <div>
-              <p class="psy-eyebrow">{{ game.status === 'COMPLETED' ? 'Cierre formativo' : 'Salida segura registrada' }}</p>
-              <h3>{{ game.completionReport?.summaryMessage ?? (game.status === 'COMPLETED'
-                ? 'El intento quedó cerrado para evaluación docente.'
-                : 'El intento fue pausado de forma limpia, sin penalización.') }}</h3>
-              @if (game.completionReport; as report) {
-                <div class="report-grid">
-                  <div><strong>Seguimiento formativo</strong><span>{{ report.finalScore }}</span></div>
-                  <div><strong>Estrés final</strong><span>{{ report.finalStress }}%</span></div>
-                  <div><strong>Confianza</strong><span>{{ report.metrics.userTrust }}%</span></div>
-                  <div><strong>Riesgo</strong><span>{{ report.metrics.victimRisk }}%</span></div>
-                  <div><strong>Tiempo total</strong><span>{{ formatDuration(report.totalDurationSeconds) }}</span></div>
+          <section class="outcome liquid-glass"
+            [class.outcome--safe]="game.status === 'SAFE_EXITED'" role="alertdialog"
+            aria-labelledby="outcome-title">
+            <header class="oc-head">
+              <div class="oc-avatar" aria-hidden="true">
+                <app-avatar-figure [config]="avatar()" [portrait]="true" />
+              </div>
+              <div class="oc-head__copy">
+                <p class="oc-eyebrow">{{ game.status === 'COMPLETED' ? '¡Simulación completada!' : 'Salida segura registrada' }}</p>
+                <h3 id="outcome-title">{{ game.completionReport?.summaryMessage ?? (game.status === 'COMPLETED'
+                  ? 'El intento quedó cerrado para evaluación docente.'
+                  : 'El intento fue pausado de forma limpia, sin penalización.') }}</h3>
+              </div>
+            </header>
+
+            @if (game.completionReport; as report) {
+              <div class="oc-metrics">
+                <div class="oc-metric"><span>Puntaje total</span><strong>{{ report.finalScore }}</strong></div>
+                <div class="oc-metric"><span>Escenarios</span><strong>{{ report.visitedNodeTitles.length }}</strong></div>
+                <div class="oc-metric"><span>Estrés final</span><strong>{{ report.finalStress }}%</strong></div>
+                <div class="oc-metric"><span>Tiempo</span><strong>{{ formatDuration(report.totalDurationSeconds) }}</strong></div>
+                <div class="oc-metric oc-metric--hi"><span>Desempeño</span><strong>{{ perf(report) }}</strong></div>
+              </div>
+
+              <div class="oc-block">
+                <p class="oc-label">Decisiones clave</p>
+                <div class="oc-bars">
+                  <div class="oc-bar"><span class="oc-bar__k">Adecuadas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--ok" [style.width.%]="barPct(report, report.adequateDecisions)"></i></div><span class="oc-bar__n">{{ report.adequateDecisions }}</span></div>
+                  <div class="oc-bar"><span class="oc-bar__k">Riesgosas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--warn" [style.width.%]="barPct(report, report.riskyDecisions)"></i></div><span class="oc-bar__n">{{ report.riskyDecisions }}</span></div>
+                  <div class="oc-bar"><span class="oc-bar__k">Inadecuadas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--bad" [style.width.%]="barPct(report, report.inadequateDecisions)"></i></div><span class="oc-bar__n">{{ report.inadequateDecisions }}</span></div>
                 </div>
-                <ul class="report-list">
-                  <li>Adecuadas: {{ report.adequateDecisions }}</li>
-                  <li>Riesgosas: {{ report.riskyDecisions }}</li>
-                  <li>Inadecuadas: {{ report.inadequateDecisions }}</li>
-                  @if (report.prohibitedDecisions) { <li>Alertas éticas: {{ report.prohibitedDecisions }}</li> }
-                </ul>
-                @if (report.phaseDurations.length) {
-                  <ul class="report-list">
-                    @for (phase of report.phaseDurations; track phase.nodeId + '-' + $index) {
-                      <li>{{ phase.nodeTitle }}: {{ formatDuration(phase.durationSeconds) }}</li>
-                    }
-                  </ul>
-                }
-                @if (report.competencies.length) {
-                  <p><strong>Competencias trabajadas:</strong> {{ report.competencies.join(' · ') }}</p>
-                }
-                @if (report.recommendations.length) {
-                  <p><strong>Recomendaciones:</strong> {{ report.recommendations.join(' ') }}</p>
-                }
+                <div class="oc-chips">
+                  <span class="oc-chip">Herramientas: {{ report.toolsUsed }}</span>
+                  <span class="oc-chip">Reflexiones: {{ report.reflectionsCount }}</span>
+                  @if (report.safeExitUsed) { <span class="oc-chip">Salida segura</span> }
+                  @if (report.prohibitedDecisions) { <span class="oc-chip oc-chip--alert">Alertas éticas: {{ report.prohibitedDecisions }}</span> }
+                </div>
+              </div>
+
+              @if (report.competencies.length) {
+                <div class="oc-block">
+                  <p class="oc-label">Competencias trabajadas</p>
+                  <div class="oc-tags">
+                    @for (c of report.competencies; track c) { <span class="oc-tag">{{ c }}</span> }
+                  </div>
+                </div>
               }
-              @if (game.supportResources.length) {
-                <ul class="support-list">
-                  @for (resource of game.supportResources; track resource) {
-                    <li>{{ resource }}</li>
-                  }
-                </ul>
+
+              @if (report.recommendations.length) {
+                <div class="oc-block oc-feedback">
+                  <p class="oc-label">Retroalimentación del sistema</p>
+                  @for (rec of report.recommendations; track rec) { <p class="oc-rec">{{ rec }}</p> }
+                </div>
               }
-            </div>
-            <a class="psy-button psy-button--primary" routerLink="/portal/simulador">
-              <mat-icon aria-hidden="true">arrow_back</mat-icon>Volver al simulador
-            </a>
+            }
+
+            <footer class="oc-actions">
+              <button type="button" class="oc-btn oc-btn--go" (click)="startNewAttempt()">Reintentar caso</button>
+              <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
+              <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+            </footer>
           </section>
         }
 
@@ -638,18 +657,60 @@ import {
     }
     .vignette--active { opacity: var(--vignette-opacity, 0); }
     app-journal-panel.journal-layer { position: absolute; top: 0; right: 0; bottom: 0; width: min(400px,88vw); z-index: 100; }
-    .end-state-overlay {
+    .outcome {
       position: absolute; inset: 0; z-index: 150; display: flex; flex-direction: column;
-      gap: 18px; align-items: center; justify-content: center; text-align: center;
-      padding: 32px; background: rgba(8,12,18,.92); color: #e8f0f4;
+      gap: 16px; align-items: stretch; justify-content: flex-start;
+      padding: clamp(20px, 4vh, 44px) clamp(20px, 6vw, 80px); overflow-y: auto;
+      background: linear-gradient(180deg, rgba(17,24,39,.96), rgba(14,19,34,.97)); color: var(--sim-ink);
     }
-    .end-state-overlay mat-icon {
-      font-size: 48px; width: 72px; height: 72px; display: grid; place-items: center;
-      border-radius: 22px; background: rgba(124,77,255,.16); color: #B69CFF;
+    .oc-head { display: flex; align-items: center; gap: 16px; }
+    .oc-avatar {
+      width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
+      background: rgba(124,77,255,.14); border: 1px solid rgba(182,156,255,.4);
+      display: grid; place-items: center;
     }
-    .end-state--safe mat-icon { color: rgba(232,240,244,.6); background: rgba(232,240,244,.06); }
-    .end-state-overlay h3 { margin: 0; font-family: 'Poppins', system-ui, sans-serif; font-size: 1.5rem; letter-spacing: 0; }
-    .end-state-overlay p  { margin: 0; color: rgba(232,240,244,.55); line-height: 1.6; max-width: 560px; }
+    .oc-avatar app-avatar-figure { width: 64px; height: 64px; }
+    .oc-eyebrow { margin: 0; color: var(--sim-lavender); font-size: .8rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .outcome--safe .oc-eyebrow { color: rgba(244,247,251,.7); }
+    .oc-head__copy h3 { margin: 4px 0 0; font-family: 'Poppins', system-ui, sans-serif; font-size: clamp(1.1rem, 2vw, 1.5rem); color: var(--sim-ink); }
+    .oc-metrics { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+    .oc-metric {
+      display: grid; gap: 4px; padding: 12px; border-radius: 14px;
+      background: var(--sim-surface); border: 1px solid var(--sim-border);
+    }
+    .oc-metric span { font-size: .68rem; color: var(--sim-ink-mute); text-transform: uppercase; letter-spacing: .05em; }
+    .oc-metric strong { font-size: 1.3rem; color: var(--sim-ink); font-weight: 800; }
+    .oc-metric--hi strong { color: var(--sim-lavender); }
+    .oc-block {
+      padding: 14px 16px; border-radius: 16px;
+      background: var(--sim-surface); border: 1px solid var(--sim-border);
+    }
+    .oc-label { margin: 0 0 10px; color: var(--sim-lavender); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .oc-bars { display: grid; gap: 8px; }
+    .oc-bar { display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 10px; }
+    .oc-bar__k { font-size: .8rem; color: var(--sim-ink-soft); }
+    .oc-bar__t { height: 9px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .oc-bar__f { display: block; height: 100%; border-radius: inherit; min-width: 3px; }
+    .oc-bar__f--ok   { background: #6EC67A; }
+    .oc-bar__f--warn { background: #F5B84B; }
+    .oc-bar__f--bad  { background: #E25A4F; }
+    .oc-bar__n { text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: var(--sim-ink); }
+    .oc-chips, .oc-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .oc-chip, .oc-tag {
+      padding: 5px 11px; border-radius: 999px; font-size: .76rem; font-weight: 700;
+      background: rgba(124,77,255,.16); border: 1px solid rgba(124,77,255,.4); color: #d6c6ff;
+    }
+    .oc-chip { background: var(--sim-surface-2); border-color: var(--sim-border); color: var(--sim-ink-soft); }
+    .oc-chip--alert { background: rgba(226,90,79,.16); border-color: rgba(226,90,79,.45); color: #f1a79f; }
+    .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft); font-size: .86rem; line-height: 1.55; }
+    .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
+    .oc-btn {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
+      padding: 8px 20px; border-radius: 12px; font-weight: 900; cursor: pointer; text-decoration: none;
+      border: 1px solid var(--sim-border); background: var(--sim-surface-2); color: var(--sim-ink);
+    }
+    .oc-btn--line { background: transparent; color: var(--sim-ink-soft); }
+    .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple), #6336e0); border-color: transparent; color: #fff; }
     .scene-fade {
       position: fixed; inset: 0; z-index: 200; background: #0a0f14; opacity: 0;
       pointer-events: none; transition: opacity 320ms ease;
@@ -686,16 +747,6 @@ import {
     }
     .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
     .resume-actions .psy-button { width: 100%; }
-    .report-grid {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0;
-    }
-    .report-grid div {
-      display: grid; gap: 4px; padding: 10px; border-radius: 12px;
-      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
-    }
-    .report-grid strong { font-size: .72rem; color: rgba(232,240,244,.55); text-transform: uppercase; letter-spacing: .06em; }
-    .report-grid span { font-size: 1.2rem; color: #B69CFF; font-weight: 800; }
-    .report-list, .support-list { text-align: left; margin: 10px auto; padding-left: 18px; color: rgba(232,240,244,.65); }
     @media (max-width: 1180px) {
       .simulator-hero {
         right: 14px;
@@ -808,6 +859,14 @@ export class SimulationPlayComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly audio = inject(AudioService);
+  private readonly avatarStore = inject(AvatarStore);
+  readonly avatar = this.avatarStore.avatar;
+
+  perf(r: AttemptCompletionReport): string { return performanceLabel(r); }
+  barPct(r: AttemptCompletionReport, n: number): number {
+    const total = decisionTotal(r);
+    return total === 0 ? 0 : Math.round((n / total) * 100);
+  }
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;

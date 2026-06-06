@@ -14,7 +14,7 @@ import { AvatarConfig, HAIR_COLORS, SKIN_TONES, hexOf } from './avatar.model';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <svg [attr.viewBox]="'0 0 120 175'" class="avatar-svg" role="img"
+    <svg [attr.viewBox]="portrait() ? '22 26 76 76' : '0 0 120 175'" class="avatar-svg" role="img"
       [attr.aria-label]="'Avatar del estudiante'">
       <!-- REEMPLAZO ARTE: sombra -->
       <ellipse cx="60" cy="168" rx="34" ry="6" fill="#000" opacity="0.28"/>
@@ -123,6 +123,7 @@ import { AvatarConfig, HAIR_COLORS, SKIN_TONES, hexOf } from './avatar.model';
 export class AvatarFigureComponent {
   readonly config = input.required<AvatarConfig>();
   readonly pose = input<'front' | 'side'>('front');
+  readonly portrait = input(false);
 
   readonly skin = computed(() => hexOf(SKIN_TONES, this.config().skinTone, '#E8B596'));
   readonly skinDark = computed(() => shade(this.skin(), -22));
