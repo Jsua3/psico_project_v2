@@ -124,7 +124,7 @@ export class AIAssistantComponent {
 
     try {
       const resp = await firstValueFrom(
-        this.http.post<{ response: string }>('/api/simulation/ai-assistant', {
+        this.http.post<{ response: string }>('/api/simulation/ai-assistant/', {
           attempt_id: this.attemptId(),
           question: q,
           current_node_id: this.currentNodeId(),

@@ -29,7 +29,12 @@ class AIAssistantView(APIView):
         attempt_id = request.data.get('attempt_id')
         question = request.data.get('question', '').strip()
         current_node_id = request.data.get('current_node_id')
-        decision_already_taken = request.data.get('decision_already_taken', False)
+        raw_taken = request.data.get('decision_already_taken', False)
+        # Normalise: JSON gives bool; form-encoded gives string "true"/"false"
+        if isinstance(raw_taken, str):
+            decision_already_taken = raw_taken.lower() in ('true', '1', 'yes')
+        else:
+            decision_already_taken = bool(raw_taken)
 
         if not question or not attempt_id:
             return Response({'error': 'Parámetros incompletos'}, status=400)
@@ -39,9 +44,11 @@ class AIAssistantView(APIView):
             attempt = SimulationAttempt.objects.select_related(
                 'case_version__simulation_case'
             ).get(id=attempt_id, student=request.user)
-        except Exception as exc:
-            logger.warning('AIAssistant: attempt not found: %s', exc)
+        except SimulationAttempt.DoesNotExist:
             return Response({'error': 'Intento no encontrado'}, status=404)
+        except Exception as exc:
+            logger.error('AIAssistant: unexpected error fetching attempt: %s', exc)
+            return Response({'error': 'Error interno'}, status=500)
 
         case_context = self._build_context(attempt, current_node_id, decision_already_taken)
 
