@@ -26,6 +26,8 @@ import {
 } from './scene-motion.util';
 import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { loadAvatarConfig } from '../character/avatar-config.model';
+import { AvatarRenderer } from './avatar-renderer';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -49,6 +51,9 @@ interface AmbientMover {
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
+  /** Renderer multicapa del avatar pixel-art. Cuando sus texturas existen, reemplaza
+   *  playerSprite como visual del jugador; el Container de physics sigue siendo this.player. */
+  private avatarRenderer?: AvatarRenderer;
   private lastDirection: 'down' | 'up' | 'left' | 'right' = 'down';
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
@@ -92,6 +97,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.load.on('loaderror', (_file: Phaser.Loader.File) => {
       // Missing asset — fallback rendering used
     });
+
+    // ── Avatar multicapa pixel-art — sprite sheets cargados opcionalmente ─────
+    // Los PNGs pueden no existir todavía (los crea el equipo de diseño).
+    // Si faltan, AvatarRenderer omite esas capas y el juego sigue funcionando.
+    const avatarConfig = loadAvatarConfig();
+    this.avatarRenderer = new AvatarRenderer(this, avatarConfig, 0, 0);
+    this.avatarRenderer.preload();
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ── Plain images for Tiled tilemap layer rendering (all 3 Kenney packs) ──
     // tiny-dungeon: 12×11 = 132 tiles  (GID  1–132)
@@ -172,11 +185,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.lastDirection = Math.abs(dx) >= Math.abs(dy)
         ? (dx > 0 ? 'right' : 'left')
         : (dy > 0 ? 'down' : 'up');
-      if (this.playerSprite) {
-        // Always set flip — resets correctly for up/down (was left from previous direction)
+
+      if (this.avatarRenderer?.isCreated()) {
+        // ── Avatar multicapa: animar walk + flip para izquierda ──────────────
+        if (!this.callbacks.reduceMotion) {
+          this.avatarRenderer.play('walk', this.lastDirection);
+        }
+        this.avatarRenderer.setFlipX(this.lastDirection === 'left');
+      } else if (this.playerSprite) {
+        // ── Fallback Kenney sprite ─────────────────────────────────────────────
         this.playerSprite.setFlipX(this.lastDirection === 'left');
         if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${this.lastDirection}`, true);
       }
+
       // ── Footstep audio: one random variant every STEP_INTERVAL ms ──────────
       if (!this.callbacks.reduceMotion) {
         this.stepTimer += delta;
@@ -187,7 +208,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
-      if (this.playerSprite) {
+
+      if (this.avatarRenderer?.isCreated()) {
+        // ── Avatar multicapa: frame idle estático ─────────────────────────────
+        this.avatarRenderer.showIdleFrame(this.lastDirection);
+        this.avatarRenderer.setFlipX(this.lastDirection === 'left');
+      } else if (this.playerSprite) {
+        // ── Fallback Kenney sprite ─────────────────────────────────────────────
         this.playerSprite.stop();
         // Show a clean standing frame instead of freezing mid-step
         const idleFrame =
@@ -218,6 +245,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateGuide(delta);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
+    // AvatarRenderer: sincronizar posición con el player container y aplicar Y-sort.
+    // El player container es la fuente de verdad de posición; el avatar renderer
+    // es solo el visual y se mueve en sincronía.
+    if (this.avatarRenderer?.isCreated() && this.player) {
+      this.avatarRenderer.setPosition(this.player.x, this.player.y);
+      this.avatarRenderer.setDepth(actorDepth(this.player.y));
+    }
     if (this.guideContainer) this.ysort(this.guideContainer);
     for (const mover of this.ambientMovers.values()) {
       const marker = this.markers.get(mover.key);
@@ -984,6 +1018,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   private createPlayer(x: number, y: number) {
     const shadow = this.add.ellipse(0, 14, 16, 5, 0x000000, .22);   // scaled down to match scale(1.5)
+
     if (this.assetsLoaded && this.textures.exists('characters')) {
       const sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
       // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
@@ -996,6 +1031,33 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const badge = this.add.rectangle(0,  8, 12,  7, 0xffffff, .9);
       this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
     }
+
+    // ── Avatar multicapa pixel-art (visual overlay sobre el player container) ─
+    // AvatarRenderer crea su propio Container independiente en la misma posición.
+    // El player container sigue siendo this.player (colisión + física manual).
+    // Si no hay texturas de avatar, el renderer crea un container vacío — sin crash.
+    if (this.avatarRenderer) {
+      // Reutilizamos la instancia precreada en preload(); actualizamos su posición.
+      // Primero destruimos un renderer previo si renderWorld() / renderRoom() lo reconstruye.
+      if (this.avatarRenderer.isCreated()) {
+        this.avatarRenderer.destroy();
+      }
+      // Crear el container del avatar en la misma posición que el player.
+      // AvatarRenderer.create() respeta startX/startY — los sobrescribimos con setPosition().
+      this.avatarRenderer.create();
+      this.avatarRenderer.setPosition(x, y);
+      this.avatarRenderer.setDepth(actorDepth(y));
+
+      // Si el avatar renderer tiene al menos una capa visible, ocultar el playerSprite
+      // para evitar doble visual (Kenney sprite + capas avatar).
+      if (this.avatarRenderer.isCreated() && this.playerSprite) {
+        // Mantener el sprite Kenney invisible — sirve de referencia de posición.
+        this.playerSprite.setVisible(false);
+        // El shadow sigue visible (forma parte del player container).
+        shadow.setVisible(true);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
   }
 
   private createMarker(object: MapObjectState) {
