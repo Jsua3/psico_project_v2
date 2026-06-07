@@ -838,6 +838,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
     this.audioDirector.setStressLevel(attempt.stressIndex);
+    this.gameWorld?.setStressLevel(attempt.stressIndex);
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -1011,6 +1012,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.loadProgressMap(updated);
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
+          this.gameWorld?.setStressLevel(updated.stressIndex);
           if (updated.status === 'COMPLETED') {
             this.audioDirector.playResolution();
           }
@@ -1036,6 +1038,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           const newStress = Math.max(0, Math.min(100, cur.stressIndex + result.stressDelta));
           this.attempt.set({ ...cur, stressIndex: newStress });
           this.audioDirector.setStressLevel(newStress);
+          this.gameWorld?.setStressLevel(newStress);
         }
         this.showToolFeedback(result);
         this.busy.set(false);

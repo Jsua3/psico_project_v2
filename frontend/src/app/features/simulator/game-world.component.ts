@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
@@ -28,6 +28,8 @@ import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import { loadAvatarConfig } from '../character/avatar-config.model';
 import { AvatarRenderer } from './avatar-renderer';
+import { VignettePipeline } from './effects/vignette-pipeline';
+import { GameFeelService } from './effects/game-feel.service';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -88,6 +90,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private readonly STEP_INTERVAL = 280; // ms — natural walking cadence (~215 steps/min)
   private interactionCooldown = 0;
   private readonly INTERACTION_COOLDOWN_MS = 260;
+
+  // ── Game feel ─────────────────────────────────────────────────────────────
+  /** WebGL vignette post-FX pipeline — null in Canvas mode or before create(). */
+  vignettePipeline: VignettePipeline | null = null;
+  /** Current stress level (0-100). Driven by Angular via setStressLevel(). */
+  currentStressLevel = 0;
+  // ─────────────────────────────────────────────────────────────────────────
 
   constructor(private readonly callbacks: WorldCallbacks) {
     super('data-driven-world');
@@ -164,8 +173,24 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.ready = true;
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
+
+    // ── WebGL Vignette PostFX Pipeline ────────────────────────────────────
+    // Only registered when the renderer is WebGL — safe no-op in Canvas mode.
+    const renderer = this.game.renderer;
+    if (renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) {
+      renderer.pipelines.addPostPipeline('VignettePipeline', VignettePipeline);
+      this.cameras.main.setPostPipeline(VignettePipeline);
+      this.vignettePipeline = this.cameras.main.getPostPipeline(VignettePipeline) as VignettePipeline;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     this.createAnimations();
     this.renderWorld();
+  }
+
+  /** Called by the Angular component when the stress index changes. */
+  setStressLevel(level: number): void {
+    this.currentStressLevel = level;
   }
 
   override update(time: number, delta: number) {
@@ -259,6 +284,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
+    this.updateVignette(time);
+  }
+
+  /** Drives the vignette intensity based on stress level. High stress (>85) pulses. */
+  private updateVignette(time: number): void {
+    if (!this.vignettePipeline) return;
+    if (this.currentStressLevel > 85) {
+      this.vignettePipeline.pulseForCrisis(time);
+    } else {
+      // Base intensity scales linearly: 0% stress → 0.2, 85% stress → 0.46
+      const baseIntensity = 0.2 + (this.currentStressLevel / 100) * 0.3;
+      this.vignettePipeline.setIntensity(baseIntensity);
+    }
   }
 
   setWorld(world: SimulationWorldState) {
@@ -275,12 +313,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   /**
    * Called by Angular when the player steps through an exit.
-   * Fades out, loads the new room, fades back in.
+   * Flashes white briefly, then fades out → loads new room → fades back in.
    */
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     if (!this.scenarioConfig) return;
     const roomConfig = this.scenarioConfig.rooms.find(r => r.key === targetRoomKey);
     if (!roomConfig) return;
+    // Subtle white flash signals the room boundary crossing before the dark fade.
+    this.cameras.main.flash(80, 255, 255, 255);
     this.cameras.main.fadeOut(180, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.renderRoom(roomConfig, entryX, entryY);
@@ -1379,7 +1419,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
 
-  constructor(private readonly zone: NgZone) {}
+  private readonly zone = inject(NgZone);
+  private readonly gameFeel = inject(GameFeelService);
 
   @ViewChild('gameHost')
   set host(value: ElementRef<HTMLDivElement> | undefined) {
@@ -1393,7 +1434,29 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['guide']) this.scene?.setGuide(this.guide());
   }
 
-  ngOnDestroy() { this.phaserGame?.destroy(true); }
+  ngOnDestroy() {
+    this.phaserGame?.destroy(true);
+    this.gameFeel.destroy();
+  }
+
+  /**
+   * Propagates the current stress index (0–100) to the Phaser scene so the
+   * vignette pipeline can adjust its intensity. Call from simulation-play
+   * whenever the stress value changes.
+   */
+  setStressLevel(level: number): void {
+    this.scene?.setStressLevel(level);
+  }
+
+  /** Trigger a camera shake — e.g. after a high-impact decision. */
+  shakeCamera(intensity = 0.003, duration = 200): void {
+    this.gameFeel.shakeCamera(intensity, duration);
+  }
+
+  /** Trigger a flash transition — e.g. after a critical decision. */
+  flashTransition(color = 0xffffff, duration = 150): void {
+    this.gameFeel.flashTransition(color, duration);
+  }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
   interactNearest() { this.scene?.interactNearest(); }
@@ -1435,6 +1498,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     window.setTimeout(() => {
       if (this.world()) this.scene?.setWorld(this.world()!);
       this.scene?.setGuide(this.guide());
+      // Init GameFeelService with the scene once Phaser's create() has run.
+      if (this.scene) this.gameFeel.init(this.scene);
     }, 0);
   }
 }
