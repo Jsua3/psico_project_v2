@@ -1,19 +1,5 @@
-import { Component, Input, OnChanges, computed, signal } from '@angular/core';
-
-export interface SocialNode {
-  id: string;
-  label: string;
-  type: 'patient' | 'family' | 'friend' | 'professional' | 'antagonist';
-  revealed: boolean;
-  affinity: number; // -1 a 1
-}
-
-export interface SocialEdge {
-  from: string;
-  to: string;
-  strength: number; // 0-1
-  type: 'support' | 'conflict' | 'neutral' | 'unknown';
-}
+import { Component, computed, input, signal } from '@angular/core';
+import { SocialNode, SocialEdge } from './social-map.model';
 
 @Component({
   selector: 'app-social-map',
@@ -22,8 +8,7 @@ export interface SocialEdge {
   template: `
     <div class="social-map-panel" [class.collapsed]="isCollapsed()">
       <button class="collapse-btn" (click)="toggleCollapse()"
-              [attr.aria-expanded]="!isCollapsed()"
-              aria-controls="social-map-svg">
+              [attr.aria-expanded]="!isCollapsed()">
         Red Social {{ isCollapsed() ? '▶' : '▼' }}
       </button>
       @if (!isCollapsed()) {
@@ -31,7 +16,7 @@ export interface SocialEdge {
              class="social-svg" id="social-map-svg"
              role="img" aria-label="Mapa de red social del paciente">
           <!-- Edges -->
-          @for (edge of visibleEdges(); track edge.from + edge.to) {
+          @for (edge of visibleEdges(); track edge.from + '->' + edge.to) {
             <line
               [attr.x1]="nodePositions()[edge.from]?.x"
               [attr.y1]="nodePositions()[edge.from]?.y"
@@ -87,24 +72,20 @@ export interface SocialEdge {
     .affinity   { fill: #F5B84B; font-size: 9px; }
   `]
 })
-export class SocialMapComponent implements OnChanges {
-  @Input() nodes: SocialNode[] = [];
-  @Input() edges: SocialEdge[] = [];
+export class SocialMapComponent {
+  readonly nodes = input<SocialNode[]>([]);
+  readonly edges = input<SocialEdge[]>([]);
 
   readonly svgWidth = 220;
   readonly svgHeight = 160;
-  isCollapsed = signal(false);
+  readonly isCollapsed = signal(false);
 
-  // Signals internos para que computed funcione con @Input
-  private readonly _nodes = signal<SocialNode[]>([]);
-  private readonly _edges = signal<SocialEdge[]>([]);
-
-  readonly visibleNodes = computed(() => this._nodes().filter(n => n.revealed));
+  readonly visibleNodes = computed(() => this.nodes().filter(n => n.revealed));
 
   readonly visibleEdges = computed(() =>
-    this._edges().filter(e =>
-      this._nodes().find(n => n.id === e.from)?.revealed &&
-      this._nodes().find(n => n.id === e.to)?.revealed
+    this.edges().filter(e =>
+      this.nodes().find(n => n.id === e.from)?.revealed &&
+      this.nodes().find(n => n.id === e.to)?.revealed
     )
   );
 
@@ -130,11 +111,6 @@ export class SocialMapComponent implements OnChanges {
     });
     return positions;
   });
-
-  ngOnChanges(): void {
-    this._nodes.set(this.nodes);
-    this._edges.set(this.edges);
-  }
 
   toggleCollapse(): void {
     this.isCollapsed.update(v => !v);

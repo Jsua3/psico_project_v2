@@ -15,6 +15,7 @@ import { MinimapComponent, MinimapStage } from './minimap.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
+import { SocialMapService } from './social-map/social-map.service';
 import {
   PROTOCOL_INFO_MESSAGE,
 } from './hospital-map.config';
@@ -739,6 +740,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly audioDirector = inject(AudioDirectorService);
+  private readonly socialMapService = inject(SocialMapService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -785,6 +787,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.audioDirector.dispose();
+    this.socialMapService.reset();
   }
 
   ngOnInit() {
@@ -833,6 +836,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
     this.audioDirector.init();
+    this.socialMapService.reset();
     this.attempt.set(attempt);
     this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
