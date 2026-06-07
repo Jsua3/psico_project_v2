@@ -1008,7 +1008,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
     // Apply verbal tension delta from chosen option's metadata before clearing the dialogue
     const chosenOption = this.dialogue()?.choices?.find(c => c.decisionOptionId === decisionOptionId);
-    const vtDelta = (chosenOption?.metadata?.['verbal_tension_delta'] as number | undefined) ?? 0;
+    const rawDelta = chosenOption?.metadata?.['verbal_tension_delta'];
+    const vtDelta = typeof rawDelta === 'number' && isFinite(rawDelta) ? rawDelta : 0;
     if (vtDelta !== 0) {
       this.verbalTension.update(t => Math.max(0, Math.min(1, t + vtDelta)));
       if (this.verbalTension() >= 0.9) {
@@ -1016,6 +1017,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       }
     }
 
+    const prevNodeKey = game.currentNode?.key ?? '';
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
@@ -1030,8 +1032,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
           this.gameWorld?.setStressLevel(updated.stressIndex);
-          // Partial verbal tension reset on scene/room transition
-          this.verbalTension.update(t => t * 0.5);
+          // Only reset verbal tension if the scene/node actually changed
+          const nextNodeKey = updated?.currentNode?.key ?? '';
+          if (nextNodeKey !== prevNodeKey) {
+            this.verbalTension.update(t => t * 0.5);
+          }
           if (updated.status === 'COMPLETED') {
             this.audioDirector.playResolution();
           }
@@ -1226,10 +1231,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private triggerPatientWithdrawal(): void {
-    // Emitir feedback al estudiante — el paciente se cierra
-    console.warn('[SIEP] Paciente cerrado por alta tensión verbal');
-    // Si hay currentDialogue, agregar una línea del narrador
-    // Por ahora solo log — integración completa en futuras iteraciones
+    // TODO(SIEP-VT): mostrar diálogo de cierre del paciente cuando tensión >= 90%
+    // El paciente debe emitir una frase de cierre y bloquear las opciones hasta que baje la tensión
   }
 
   private triggerFade(callback: () => void): void {
