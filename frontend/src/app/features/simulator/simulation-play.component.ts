@@ -15,6 +15,7 @@ import { MinimapComponent, MinimapStage } from './minimap.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioService } from './audio.service';
+import { AudioDirectorService } from './audio-director.service';
 import {
   PROTOCOL_INFO_MESSAGE,
 } from './hospital-map.config';
@@ -739,6 +740,7 @@ export class SimulationPlayComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly audio = inject(AudioService);
+  private readonly audioDirector = inject(AudioDirectorService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -828,10 +830,12 @@ export class SimulationPlayComponent implements OnInit {
   }
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
+    this.audioDirector.init();
     this.attempt.set(attempt);
     this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
+    this.audioDirector.setStressLevel(attempt.stressIndex);
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -1004,6 +1008,10 @@ export class SimulationPlayComponent implements OnInit {
           this.journalPanel?.clear();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
+          this.audioDirector.setStressLevel(updated.stressIndex);
+          if (updated.status === 'COMPLETED') {
+            this.audioDirector.playResolution();
+          }
           if (updated.feedback) {
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
@@ -1022,7 +1030,11 @@ export class SimulationPlayComponent implements OnInit {
       next: (result: ToolUseResult) => {
         this.world.set(result.world);
         const cur = this.attempt();
-        if (cur) this.attempt.set({ ...cur, stressIndex: Math.max(0, Math.min(100, cur.stressIndex + result.stressDelta)) });
+        if (cur) {
+          const newStress = Math.max(0, Math.min(100, cur.stressIndex + result.stressDelta));
+          this.attempt.set({ ...cur, stressIndex: newStress });
+          this.audioDirector.setStressLevel(newStress);
+        }
         this.showToolFeedback(result);
         this.busy.set(false);
       },
