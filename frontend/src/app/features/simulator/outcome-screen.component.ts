@@ -8,12 +8,12 @@ import { OutcomeTier, SimulationOutcome } from '../../core/models/simulation.mod
   imports: [CommonModule],
   template: `
     @if (outcome(); as o) {
-      <div class="outcome-overlay" role="dialog" aria-modal="true" aria-label="Resultado de la intervención">
+      <div class="outcome-overlay" role="dialog" aria-modal="true" aria-labelledby="outcome-title">
         <div class="outcome-card">
 
           <div class="outcome-header" [class]="'tier--' + o.tier">
             <span class="tier-icon" aria-hidden="true">{{ tierIcon(o.tier) }}</span>
-            <h2 class="tier-title">{{ tierLabel(o.tier) }}</h2>
+            <h2 id="outcome-title" class="tier-title">{{ tierLabel(o.tier) }}</h2>
             <p class="tier-sub">Resultado de tu intervención</p>
           </div>
 
