@@ -1,5 +1,5 @@
 import { CommonModule, NgClass, NgStyle } from '@angular/common';
-import { AfterViewChecked, Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, effect, inject, input, output, signal } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
@@ -87,7 +87,7 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
         <div class="portrait" aria-hidden="true">
           <!-- NPC portrait sprite — shows when portraitSrc is set -->
           @if (portraitSrc()) {
-            <div class="npc-portrait" [ngStyle]="getPortraitStyle(currentEmotion())"></div>
+            <div class="npc-portrait" [ngStyle]="portraitStyle()"></div>
           } @else {
             <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
               <circle cx="24" cy="18" r="9" fill="currentColor"/>
@@ -465,9 +465,23 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnCh
   readonly interruptionProgress = signal(100);
 
   private typewriterHandle: ReturnType<typeof setTimeout> | null = null;
+  private abortTypewriter = false;
   private countdownHandle: ReturnType<typeof setInterval> | null = null;
   private currentLineIndex = 0;
   private readonly audio = inject(AudioDirectorService);
+
+  /** Memoized portrait style — recomputes only when emotion or portraitSrc changes. */
+  readonly portraitStyle = computed(() => {
+    const emotion = this.currentEmotion();
+    const col = EMOTION_TO_COL[emotion] ?? 0;
+    return {
+      'background-position': `-${col * PORTRAIT_W}px 0px`,
+      'width':  `${PORTRAIT_W}px`,
+      'height': `${PORTRAIT_H}px`,
+      'background-image':  this.portraitSrc() ? `url(${this.portraitSrc()})` : 'none',
+      'background-repeat': 'no-repeat',
+    };
+  });
 
   constructor() {
     effect(() => {
@@ -587,18 +601,6 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnCh
     return this.dialogue()?.lines?.map(l => l.text).join(' ') ?? '';
   }
 
-  /** Calculate CSS background-position for portrait sprite sheet. */
-  getPortraitStyle(emotion: DialogueEmotion): { [key: string]: string } {
-    const col = EMOTION_TO_COL[emotion] ?? 0;
-    return {
-      'background-position': `-${col * PORTRAIT_W}px 0px`,
-      'width':  `${PORTRAIT_W}px`,
-      'height': `${PORTRAIT_H}px`,
-      'background-image':  `url(${this.portraitSrc()})`,
-      'background-repeat': 'no-repeat',
-    };
-  }
-
   // ─── Private helpers ───────────────────────────────────────────────────────
 
   private applyEmotion(emotion: DialogueEmotion): void {
@@ -618,20 +620,25 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnCh
    * a different delay (based on emotion speed), and supports 5% glitch effect.
    */
   private startTypewriter(text: string, emotion: DialogueEmotion): void {
+    this.abortTypewriter = false;
     this.displayedText.set('');
     this.isTypingComplete.set(false);
     let pos = 0;
 
+    // Capture style ONCE — emotion is fixed for the lifetime of this typewriter run
+    const style = EMOTION_STYLES[emotion];
+
     const tick = () => {
+      if (this.abortTypewriter) return; // early exit if stopped externally
       pos++;
 
       // Glitch effect: 5% chance to briefly show a random char, then correct itself
-      const style = EMOTION_STYLES[this.currentEmotion()];
       if (style.glitch && Math.random() < GLITCH_PROBABILITY && pos < text.length) {
         const randomChar = GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
         this.displayedText.set(text.slice(0, pos - 1) + randomChar);
         // Correct the glitch after 60ms
         this.typewriterHandle = setTimeout(() => {
+          if (this.abortTypewriter) return;
           this.displayedText.set(text.slice(0, pos));
           if (pos >= text.length) {
             this.isTypingComplete.set(true);
@@ -646,17 +653,16 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnCh
           this.isTypingComplete.set(true);
           this.typewriterHandle = null;
         } else {
-          const speed = EMOTION_STYLES[this.currentEmotion()].typingSpeed;
-          this.typewriterHandle = setTimeout(tick, speed);
+          this.typewriterHandle = setTimeout(tick, style.typingSpeed);
         }
       }
     };
 
-    const initialSpeed = EMOTION_STYLES[emotion].typingSpeed;
-    this.typewriterHandle = setTimeout(tick, initialSpeed);
+    this.typewriterHandle = setTimeout(tick, style.typingSpeed);
   }
 
   private stopTypewriter() {
+    this.abortTypewriter = true;
     if (this.typewriterHandle !== null) {
       clearTimeout(this.typewriterHandle);
       this.typewriterHandle = null;
