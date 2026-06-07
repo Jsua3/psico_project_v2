@@ -139,8 +139,11 @@ export class AvatarRenderer {
 
   destroy(): void {
     this.container?.destroy();
+    this.layers.clear();
     this.created = false;
   }
+
+  getLayerCount(): number { return this.layers.size; }
 
   // ── Texture key resolution ──────────────────────────────────────────────────
 

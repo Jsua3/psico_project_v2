@@ -1050,7 +1050,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
       // Si el avatar renderer tiene al menos una capa visible, ocultar el playerSprite
       // para evitar doble visual (Kenney sprite + capas avatar).
-      if (this.avatarRenderer.isCreated() && this.playerSprite) {
+      // getLayerCount() > 0 garantiza que no ocultamos el fallback cuando todas las
+      // texturas fallaron (renderer creado pero sin capas visibles).
+      if (this.avatarRenderer.isCreated() && this.avatarRenderer.getLayerCount() > 0 && this.playerSprite) {
         // Mantener el sprite Kenney invisible — sirve de referencia de posición.
         this.playerSprite.setVisible(false);
         // El shadow sigue visible (forma parte del player container).
