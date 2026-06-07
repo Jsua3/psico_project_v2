@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -735,7 +735,7 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
     }
   `]
 })
-export class SimulationPlayComponent implements OnInit {
+export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly audioDirector = inject(AudioDirectorService);
@@ -782,6 +782,10 @@ export class SimulationPlayComponent implements OnInit {
 
   private lastPosition: { x: number; y: number } | null = null;
   private positionSaveHandle: number | null = null;
+
+  ngOnDestroy(): void {
+    this.audioDirector.dispose();
+  }
 
   ngOnInit() {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));

@@ -111,6 +111,8 @@ export class AudioDirectorService {
 
   playResolution(): void {
     if (!this.initialized) return;
+    const res = this.stems.get('resolution');
+    if (res?.howl.playing()) return; // evita restart en llamadas múltiples
     this.setTargetVolume('ambient', 0.3);
     this.setTargetVolume('tension', 0);
     this.setTargetVolume('resolution', 1.0);
@@ -138,6 +140,15 @@ export class AudioDirectorService {
   stopAll(): void {
     this.stems.forEach(s => s.howl.stop());
     if (this.fadeInterval) clearInterval(this.fadeInterval);
+  }
+
+  dispose(): void {
+    this.stopAll();
+    this.stems.forEach(s => s.howl.unload());
+    this.sfx.forEach(h => h.unload());
+    this.stems.clear();
+    this.sfx.clear();
+    this.initialized = false;
   }
 
   private setTargetVolume(layer: MusicLayer, vol: number): void {
