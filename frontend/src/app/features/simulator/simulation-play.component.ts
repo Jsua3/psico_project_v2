@@ -14,7 +14,6 @@ import { JournalPanelComponent, JournalSaveState } from './journal-panel.compone
 import { MinimapComponent, MinimapStage } from './minimap.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
-import { AudioService } from './audio.service';
 import { AudioDirectorService } from './audio-director.service';
 import {
   PROTOCOL_INFO_MESSAGE,
@@ -739,7 +738,6 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
 export class SimulationPlayComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
-  private readonly audio = inject(AudioService);
   private readonly audioDirector = inject(AudioDirectorService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
@@ -1161,7 +1159,7 @@ export class SimulationPlayComponent implements OnInit {
   }
 
   private showToolFeedback(result: ToolUseResult): void {
-    this.audio.play('tool-use');
+    this.audioDirector.playSfx('ui_confirm');
     this.dialogue.set({
       key: `tool-feedback-${result.toolCode}-${Date.now()}`,
       speakerName: result.pertinent ? '✓ Herramienta pertinente' : 'ℹ Herramienta aplicada',
@@ -1202,7 +1200,7 @@ export class SimulationPlayComponent implements OnInit {
   }
 
   private triggerFade(callback: () => void): void {
-    this.audio.play('scene-transition');
+    this.audioDirector.playSfx('dialogue_advance');
     this.fadeActive.set(true);
     window.setTimeout(callback, 340);
   }

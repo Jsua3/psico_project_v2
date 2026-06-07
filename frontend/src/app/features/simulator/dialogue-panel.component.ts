@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { AfterViewChecked, Component, ElementRef, HostListener, OnDestroy, ViewChild, effect, inject, input, output, signal } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
-import { AudioService } from './audio.service';
+import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
 
 const CHARS_PER_SEC = 22;
@@ -302,7 +302,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   private typewriterHandle: ReturnType<typeof setInterval> | null = null;
   private currentLineIndex = 0;
-  private readonly audio = inject(AudioService);
+  private readonly audio = inject(AudioDirectorService);
 
   constructor() {
     effect(() => {
@@ -310,7 +310,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       this.stopTypewriter();
       this.currentLineIndex = 0;
       if (d?.lines?.length) {
-        this.audio.play('dialogue-open');
+        this.audio.playSfx('ui_select');
         const fullText = d.lines.map(l => l.text).join('\n');
         this.startTypewriter(fullText);
       } else {
@@ -321,7 +321,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   onChoiceHover(): void {
-    this.audio.play('choice-hover');
+    this.audio.playSfx('ui_select');
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -347,7 +347,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   handleChoice(choice: DialogueChoiceState) {
-    this.audio.play(choice.isProhibited ? 'choice-error' : 'choice-select');
+    this.audio.playSfx(choice.isProhibited ? 'ui_cancel' : 'ui_confirm');
     if (choice.decisionOptionId != null) {
       this.execute.emit(choice.decisionOptionId);
     } else if (choice.requiredToolCode != null) {
