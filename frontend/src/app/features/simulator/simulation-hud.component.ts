@@ -7,13 +7,14 @@ import { getProximityStepHint } from './risky-interaction.config';
 import { Heart, stressToHearts } from './stress-hearts.util';
 import { SocialMapComponent } from './social-map/social-map.component';
 import { SocialMapService } from './social-map/social-map.service';
+import { VerbalTensionComponent } from './verbal-tension.component';
 
 type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, MatIconModule, SocialMapComponent],
+  imports: [CommonModule, MatIconModule, SocialMapComponent, VerbalTensionComponent],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell liquid-glass"
@@ -101,8 +102,9 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             }
           </div>
 
-          <!-- RIGHT zone: status -->
+          <!-- RIGHT zone: status + verbal tension -->
           <div class="hud-zone hud-zone--right">
+            <app-verbal-tension [tension]="verbalTension()"></app-verbal-tension>
             <div class="hud-status" [class.hud-status--live]="game.status === 'IN_PROGRESS'">
               <span class="status-dot" aria-hidden="true"></span>
               <span>{{ statusLabel(game.status) }}</span>
@@ -151,7 +153,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-zone { display: flex; align-items: center; }
     .hud-zone--vitals { gap: 14px; flex-shrink: 0; }
     .hud-zone--center { flex: 1; min-width: 0; gap: 10px; justify-content: center; }
-    .hud-zone--right { flex-shrink: 0; margin-left: auto; }
+    .hud-zone--right { flex-shrink: 0; margin-left: auto; gap: 10px; }
 
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
@@ -248,6 +250,7 @@ export class SimulationHudComponent {
   readonly stressPulse = input(false);
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
+  readonly verbalTension = input<number>(0);
 
   readonly socialMapService = inject(SocialMapService);
 

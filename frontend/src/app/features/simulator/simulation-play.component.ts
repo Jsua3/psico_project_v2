@@ -123,7 +123,8 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
         }
 
         <app-simulation-hud class="hud-layer" [attempt]="game" [stressPulse]="stressPulse()"
-          [nearbyInteractionKey]="nearbyInteraction()?.key ?? null" />
+          [nearbyInteractionKey]="nearbyInteraction()?.key ?? null"
+          [verbalTension]="verbalTension()" />
         <app-minimap class="minimap-layer"
           [stages]="minimapStages()"
           [currentNodeKey]="game.currentNode.key"
@@ -764,6 +765,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
   readonly fadeActive   = signal(false);
+  readonly verbalTension = signal(0);
 
   readonly minimapStages = computed<MinimapStage[]>(() => {
     const map = this.progressMap();
@@ -1003,6 +1005,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const game = this.attempt();
     if (!game || this.busy()) return;
     this.busy.set(true);
+
+    // Apply verbal tension delta from chosen option's metadata before clearing the dialogue
+    const chosenOption = this.dialogue()?.choices?.find(c => c.decisionOptionId === decisionOptionId);
+    const vtDelta = (chosenOption?.metadata?.['verbal_tension_delta'] as number | undefined) ?? 0;
+    if (vtDelta !== 0) {
+      this.verbalTension.update(t => Math.max(0, Math.min(1, t + vtDelta)));
+      if (this.verbalTension() >= 0.9) {
+        this.triggerPatientWithdrawal();
+      }
+    }
+
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
@@ -1017,6 +1030,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
           this.gameWorld?.setStressLevel(updated.stressIndex);
+          // Partial verbal tension reset on scene/room transition
+          this.verbalTension.update(t => t * 0.5);
           if (updated.status === 'COMPLETED') {
             this.audioDirector.playResolution();
           }
@@ -1208,6 +1223,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       emotion: feedback.prohibitedConduct ? 'danger' : feedback.classification === 'ADEQUATE' ? 'positive' : 'neutral',
       lines, choices: []
     };
+  }
+
+  private triggerPatientWithdrawal(): void {
+    // Emitir feedback al estudiante — el paciente se cierra
+    console.warn('[SIEP] Paciente cerrado por alta tensión verbal');
+    // Si hay currentDialogue, agregar una línea del narrador
+    // Por ahora solo log — integración completa en futuras iteraciones
   }
 
   private triggerFade(callback: () => void): void {

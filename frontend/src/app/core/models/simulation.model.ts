@@ -219,6 +219,8 @@ export interface DialogueChoiceState {
   isRecommended?: boolean;
   /** UI hint: highlight choice as clinically prohibited (optional, backend may omit) */
   isProhibited?: boolean;
+  /** Optional metadata: e.g. verbal_tension_delta for Verbal Tension Box (RQ-NEG-003) */
+  metadata?: Record<string, unknown>;
 }
 
 export interface InteractionResult {
