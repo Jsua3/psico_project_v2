@@ -1,0 +1,140 @@
+[
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 1,
+    "fields": {
+      "name": "Hospital Psiquiátrico — Sala de Espera",
+      "scenario_type": "hospital_psiquiatrico",
+      "thumbnail_url": "/static/scenarios/hospital_espera_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "day",
+        "light_temperature": "cool",
+        "fog_density": 0.0,
+        "overlay_color": "#E8F4FF",
+        "overlay_alpha": 0.08,
+        "ambient_sounds": ["hospital_hvac", "distant_footsteps"],
+        "particle_effects": []
+      },
+      "tileset_key": "hospital_interior",
+      "spawn_x": 320,
+      "spawn_y": 400
+    }
+  },
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 2,
+    "fields": {
+      "name": "Hospital Psiquiátrico — Consultorio",
+      "scenario_type": "hospital_psiquiatrico",
+      "thumbnail_url": "/static/scenarios/hospital_consultorio_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "day",
+        "light_temperature": "cool",
+        "fog_density": 0.0,
+        "overlay_color": "#E8F4FF",
+        "overlay_alpha": 0.06,
+        "ambient_sounds": ["hospital_hvac"],
+        "particle_effects": []
+      },
+      "tileset_key": "hospital_interior",
+      "spawn_x": 200,
+      "spawn_y": 350
+    }
+  },
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 3,
+    "fields": {
+      "name": "Comisaría de Familia — Recepción",
+      "scenario_type": "comisaria_familia",
+      "thumbnail_url": "/static/scenarios/comisaria_recepcion_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "day",
+        "light_temperature": "neutral",
+        "fog_density": 0.0,
+        "overlay_color": "#F5F0E8",
+        "overlay_alpha": 0.05,
+        "ambient_sounds": ["office_ambience", "distant_voices"],
+        "particle_effects": []
+      },
+      "tileset_key": "comisaria_interior",
+      "spawn_x": 160,
+      "spawn_y": 320
+    }
+  },
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 4,
+    "fields": {
+      "name": "Comisaría de Familia — Sala de Entrevista",
+      "scenario_type": "comisaria_familia",
+      "thumbnail_url": "/static/scenarios/comisaria_entrevista_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "day",
+        "light_temperature": "warm",
+        "fog_density": 0.0,
+        "overlay_color": "#F0EBE0",
+        "overlay_alpha": 0.05,
+        "ambient_sounds": ["office_ambience"],
+        "particle_effects": []
+      },
+      "tileset_key": "comisaria_interior",
+      "spawn_x": 160,
+      "spawn_y": 380
+    }
+  },
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 5,
+    "fields": {
+      "name": "Vivienda Urbana — Sala",
+      "scenario_type": "vivienda_urbana",
+      "thumbnail_url": "/static/scenarios/vivienda_sala_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "afternoon",
+        "light_temperature": "warm",
+        "fog_density": 0.0,
+        "overlay_color": "#FFF5E0",
+        "overlay_alpha": 0.07,
+        "ambient_sounds": ["urban_traffic", "neighbor_sounds"],
+        "particle_effects": ["dust_motes"]
+      },
+      "tileset_key": "vivienda_interior",
+      "spawn_x": 300,
+      "spawn_y": 380
+    }
+  },
+  {
+    "model": "simulation.scenarioseed",
+    "pk": 6,
+    "fields": {
+      "name": "Vivienda Urbana — Cocina",
+      "scenario_type": "vivienda_urbana",
+      "thumbnail_url": "/static/scenarios/vivienda_cocina_thumb.png",
+      "default_map_width": 640,
+      "default_map_height": 480,
+      "ambient_json": {
+        "time_of_day": "afternoon",
+        "light_temperature": "warm",
+        "fog_density": 0.0,
+        "overlay_color": "#FFF0D5",
+        "overlay_alpha": 0.06,
+        "ambient_sounds": ["urban_traffic"],
+        "particle_effects": []
+      },
+      "tileset_key": "vivienda_interior",
+      "spawn_x": 200,
+      "spawn_y": 300
+    }
+  }
+]

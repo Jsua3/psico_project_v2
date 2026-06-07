@@ -1368,6 +1368,152 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 }
 
+// ─── Scenario Config Constants ────────────────────────────────────────────────
+// These are declarative seeds for designers and future case editors.
+// The Tiled map JSON files they reference do not exist yet — the Phaser preload
+// uses a 'loaderror' handler that silently skips missing assets, so this config
+// is safe to declare before the maps are authored.
+
+/**
+ * ScenarioConfig seed for Comisaría de Familia.
+ * Covers the two main rooms used in VBG-related cases: Recepción and Sala de
+ * Entrevista. Designers can wire these rooms to Tiled maps named
+ * comisaria-sala-espera.json and comisaria-entrevista.json respectively.
+ */
+export const COMISARIA_SCENARIO: ScenarioConfig = {
+  scenarioKey: 'comisaria_familia',
+  startRoomKey: 'recepcion',
+  rooms: [
+    {
+      key: 'recepcion',
+      tiledMapKey: 'comisaria-sala-espera',
+      tiledJsonPath: 'assets/game/maps/comisaria-sala-espera.json',
+      displayName: 'Comisaría de Familia — Recepción',
+      spawnX: 160,
+      spawnY: 320,
+      exits: [
+        {
+          objectName: 'EXIT_to_entrevista',
+          targetRoomKey: 'entrevista',
+          entryX: 160,
+          entryY: 380,
+        },
+      ],
+      npcs: [],
+    },
+    {
+      key: 'entrevista',
+      tiledMapKey: 'comisaria-entrevista',
+      tiledJsonPath: 'assets/game/maps/comisaria-entrevista.json',
+      displayName: 'Comisaría de Familia — Sala de Entrevista',
+      spawnX: 160,
+      spawnY: 380,
+      exits: [
+        {
+          objectName: 'EXIT_to_recepcion',
+          targetRoomKey: 'recepcion',
+          entryX: 160,
+          entryY: 320,
+        },
+      ],
+      npcs: [],
+    },
+  ],
+};
+
+/**
+ * ScenarioConfig seed for Hospital Psiquiátrico.
+ * Two rooms: Sala de Espera and Consultorio. Maps to be authored by the design
+ * team as hospital-espera.json and hospital-consultorio.json.
+ */
+export const HOSPITAL_PSIQUIATRICO_SCENARIO: ScenarioConfig = {
+  scenarioKey: 'hospital_psiquiatrico',
+  startRoomKey: 'sala-espera',
+  rooms: [
+    {
+      key: 'sala-espera',
+      tiledMapKey: 'hospital-espera',
+      tiledJsonPath: 'assets/game/maps/hospital-espera.json',
+      displayName: 'Hospital Psiquiátrico — Sala de Espera',
+      spawnX: 320,
+      spawnY: 400,
+      exits: [
+        {
+          objectName: 'EXIT_to_consultorio',
+          targetRoomKey: 'consultorio',
+          entryX: 200,
+          entryY: 350,
+        },
+      ],
+      npcs: [],
+    },
+    {
+      key: 'consultorio',
+      tiledMapKey: 'hospital-consultorio',
+      tiledJsonPath: 'assets/game/maps/hospital-consultorio.json',
+      displayName: 'Hospital Psiquiátrico — Consultorio',
+      spawnX: 200,
+      spawnY: 350,
+      exits: [
+        {
+          objectName: 'EXIT_to_sala_espera',
+          targetRoomKey: 'sala-espera',
+          entryX: 320,
+          entryY: 400,
+        },
+      ],
+      npcs: [],
+    },
+  ],
+};
+
+/**
+ * ScenarioConfig seed for Vivienda Urbana.
+ * Two rooms: Sala and Cocina. Maps to be authored as vivienda-sala.json and
+ * vivienda-cocina.json.
+ */
+export const VIVIENDA_URBANA_SCENARIO: ScenarioConfig = {
+  scenarioKey: 'vivienda_urbana',
+  startRoomKey: 'sala',
+  rooms: [
+    {
+      key: 'sala',
+      tiledMapKey: 'vivienda-sala',
+      tiledJsonPath: 'assets/game/maps/vivienda-sala.json',
+      displayName: 'Vivienda Urbana — Sala',
+      spawnX: 300,
+      spawnY: 380,
+      exits: [
+        {
+          objectName: 'EXIT_to_cocina',
+          targetRoomKey: 'cocina',
+          entryX: 200,
+          entryY: 300,
+        },
+      ],
+      npcs: [],
+    },
+    {
+      key: 'cocina',
+      tiledMapKey: 'vivienda-cocina',
+      tiledJsonPath: 'assets/game/maps/vivienda-cocina.json',
+      displayName: 'Vivienda Urbana — Cocina',
+      spawnX: 200,
+      spawnY: 300,
+      exits: [
+        {
+          objectName: 'EXIT_to_sala',
+          targetRoomKey: 'sala',
+          entryX: 300,
+          entryY: 380,
+        },
+      ],
+      npcs: [],
+    },
+  ],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Component({
   selector: 'app-game-world',
   standalone: true,
