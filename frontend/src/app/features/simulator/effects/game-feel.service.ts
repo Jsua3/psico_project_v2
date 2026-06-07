@@ -35,7 +35,7 @@ export class GameFeelService {
    * @param duration  Flash fade duration in ms (default 150).
    */
   flashTransition(color = 0xffffff, duration = 150): void {
-    if (!this.scene) return;
+    if (!this.scene || duration <= 0) return;
     const r = (color >> 16) & 255;
     const g = (color >> 8) & 255;
     const b = color & 255;
@@ -48,12 +48,8 @@ export class GameFeelService {
    * @param onMidpoint  Called when the screen is fully black (safe to swap content).
    */
   async fadeTransition(onMidpoint: () => void): Promise<void> {
-    return new Promise(resolve => {
-      if (!this.scene) {
-        onMidpoint();
-        resolve();
-        return;
-      }
+    const fadePromise = new Promise<void>(resolve => {
+      if (!this.scene) { onMidpoint(); resolve(); return; }
       this.scene.cameras.main.fadeOut(300, 0, 0, 0, (_: unknown, progress: number) => {
         if (progress === 1) {
           onMidpoint();
@@ -62,6 +58,8 @@ export class GameFeelService {
         }
       });
     });
+    const timeoutPromise = new Promise<void>(resolve => setTimeout(resolve, 700));
+    return Promise.race([fadePromise, timeoutPromise]);
   }
 
   /**
@@ -70,6 +68,7 @@ export class GameFeelService {
    * @param duration  Total animation duration in ms (default 120).
    */
   squishSprite(sprite: Phaser.GameObjects.Sprite, duration = 120): void {
+    if (!this.scene || !sprite) return;
     this.scene?.tweens.add({
       targets: sprite,
       scaleX: 0.85,

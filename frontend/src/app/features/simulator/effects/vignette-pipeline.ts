@@ -36,8 +36,8 @@ export class VignettePipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipe
   }
 
   setIntensity(v: number): void {
-    this._intensity = v;
-    this.set1f('uIntensity', v);
+    this._intensity = Math.max(0, Math.min(1, v));
+    this.set1f('uIntensity', this._intensity);
   }
 
   /** Animates the vignette with a slow pulse — called during high-stress (>85) moments. */
