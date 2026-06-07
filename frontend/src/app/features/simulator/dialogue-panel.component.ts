@@ -1,16 +1,69 @@
-import { CommonModule } from '@angular/common';
-import { AfterViewChecked, Component, ElementRef, HostListener, OnDestroy, ViewChild, effect, inject, input, output, signal } from '@angular/core';
+import { CommonModule, NgClass, NgStyle } from '@angular/common';
+import { AfterViewChecked, Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, effect, inject, input, output, signal } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
 
-const CHARS_PER_SEC = 22;
-const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
+// ─── Emotion system ───────────────────────────────────────────────────────────
+
+export type DialogueEmotion =
+  | 'neutral' | 'ansiedad' | 'tristeza' | 'enojo'
+  | 'disociacion' | 'crisis' | 'alivio' | 'esperanza';
+
+interface EmotionStyle {
+  typingSpeed: number;  // ms per character
+  color: string;
+  wobble: boolean;
+  glitch: boolean;
+  fontSize: string;
+  opacity: number;
+}
+
+const EMOTION_STYLES: Record<DialogueEmotion, EmotionStyle> = {
+  neutral:     { typingSpeed: 30,  color: '#F4F7FB', wobble: false, glitch: false, fontSize: '14px', opacity: 1   },
+  ansiedad:    { typingSpeed: 15,  color: '#F5B84B', wobble: true,  glitch: false, fontSize: '14px', opacity: 1   },
+  tristeza:    { typingSpeed: 55,  color: '#8899BB', wobble: false, glitch: false, fontSize: '14px', opacity: 0.9 },
+  enojo:       { typingSpeed: 10,  color: '#E25A4F', wobble: true,  glitch: false, fontSize: '15px', opacity: 1   },
+  disociacion: { typingSpeed: 40,  color: '#9988BB', wobble: false, glitch: true,  fontSize: '13px', opacity: 0.7 },
+  crisis:      { typingSpeed: 8,   color: '#E25A4F', wobble: true,  glitch: true,  fontSize: '15px', opacity: 1   },
+  alivio:      { typingSpeed: 35,  color: '#6EC67A', wobble: false, glitch: false, fontSize: '14px', opacity: 1   },
+  esperanza:   { typingSpeed: 32,  color: '#B69CFF', wobble: false, glitch: false, fontSize: '14px', opacity: 1   },
+};
+
+const GLITCH_CHARS = '!@#$%^&*<>?/\\|[]{}~`';
+const GLITCH_PROBABILITY = 0.05; // 5% chance per char reveal
+
+/** Resolve an arbitrary emotion string from the backend to a known DialogueEmotion. */
+function resolveEmotion(raw: string | null | undefined): DialogueEmotion {
+  if (!raw) return 'neutral';
+  const lower = raw.toLowerCase().trim() as DialogueEmotion;
+  return lower in EMOTION_STYLES ? lower : 'neutral';
+}
+
+// ─── QTE interruption config ──────────────────────────────────────────────────
+
+export interface InterruptionConfig {
+  prompt: string;
+  timeoutMs: number;
+  onSuccess: () => void;
+  onTimeout: () => void;
+}
+
+// ─── Portrait layout constants ────────────────────────────────────────────────
+
+const PORTRAIT_W = 64;
+const PORTRAIT_H = 80;
+const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
+  neutral: 0, alivio: 1, esperanza: 1,
+  tristeza: 2, enojo: 2,
+  ansiedad: 3, disociacion: 3,
+  crisis: 4,
+};
 
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, NgStyle, NgClass],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -19,13 +72,28 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
         [class.strip--supervisory]="d.speakerName === 'Supervisión clínica'"
         role="dialog"
         aria-modal="true"
-        [attr.aria-label]="d.speakerName + ': ' + fullText()">
+        [attr.aria-label]="d.speakerName + ': ' + fullText()"
+        (click)="onPanelClick()"
+        (keydown.enter)="onPanelClick()">
+
+        <!-- QTE Interruption banner -->
+        @if (showInterruption()) {
+          <div class="interruption-banner" role="alert" aria-live="assertive">
+            <span>{{ interruptionConfig?.prompt }}</span>
+            <div class="countdown-bar" [style.width.%]="interruptionProgress()"></div>
+          </div>
+        }
 
         <div class="portrait" aria-hidden="true">
-          <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-            <circle cx="24" cy="18" r="9" fill="currentColor"/>
-            <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-          </svg>
+          <!-- NPC portrait sprite — shows when portraitSrc is set -->
+          @if (portraitSrc()) {
+            <div class="npc-portrait" [ngStyle]="getPortraitStyle(currentEmotion())"></div>
+          } @else {
+            <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
+              <circle cx="24" cy="18" r="9" fill="currentColor"/>
+              <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
+            </svg>
+          }
           @if (d.emotion && d.emotion !== 'neutral') {
             <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
           }
@@ -34,7 +102,14 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
         <!-- Text area -->
         <div class="strip-body">
           <p class="speaker-name">{{ d.speakerName }}</p>
-          <p class="dialogue-text" role="status" aria-live="polite" aria-atomic="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
+          <p class="dialogue-text"
+             [ngClass]="{ wobble: dialogueTextStyle().wobble, glitch: dialogueTextStyle().glitch }"
+             [ngStyle]="{
+               color: dialogueTextStyle().color,
+               fontSize: dialogueTextStyle().fontSize,
+               opacity: dialogueTextStyle().opacity
+             }"
+             role="status" aria-live="polite" aria-atomic="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
 
           @if (isTypingComplete() && d.choices.length) {
             <div class="choices" role="group" aria-label="Opciones de intervención">
@@ -86,7 +161,8 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       width: 100%;
       min-height: 180px;
       display: flex;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: stretch;
       gap: 0;
       padding: 0;
       background: rgba(8,12,18,.95);
@@ -94,6 +170,19 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       backdrop-filter: blur(16px) saturate(110%);
       animation: strip-rise 160ms cubic-bezier(.2,.8,.2,1) both;
     }
+
+    /* Inner row containing portrait + body */
+    .dialogue-strip > :not(.interruption-banner) {
+      display: contents;
+    }
+    /* Override: make portrait + strip-body appear side-by-side below the banner */
+    .portrait, .strip-body {
+      display: flex;
+    }
+    .dialogue-strip {
+      flex-direction: column;
+    }
+
     .strip--warning {
       border-top-color: rgba(168,80,98,.6);
     }
@@ -102,18 +191,56 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       background: rgba(8,14,10,.95);
     }
 
+    /* QTE Banner */
+    .interruption-banner {
+      background: rgba(226, 90, 79, 0.9);
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin: 8px 8px 0;
+      font-weight: bold;
+      color: white;
+      font-size: .85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .countdown-bar {
+      height: 3px;
+      background: white;
+      transition: width 100ms linear;
+      border-radius: 2px;
+    }
+
+    /* Re-establish side-by-side layout for portrait + body */
     .portrait {
-      position: relative;
       flex-shrink: 0;
       width: 88px;
-      min-height: 180px;
+      min-height: 160px;
       display: grid;
       place-items: center;
       border-right: 1px solid rgba(182,156,255,.2);
       background: rgba(124,77,255,.08);
+      position: relative;
+      align-self: stretch;
     }
+
+    /* Wrap portrait + body in a flex row at the strip level */
+    .dialogue-strip {
+      display: flex;
+      flex-direction: column;
+    }
+    /* The content row (portrait + body) */
+    .dialogue-content-row {
+      display: flex;
+      flex-direction: row;
+    }
+
     .portrait-svg {
       color: #B69CFF;
+    }
+    .npc-portrait {
+      image-rendering: pixelated;
+      flex-shrink: 0;
     }
     .emotion-chip {
       position: absolute;
@@ -152,7 +279,27 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       color: rgba(232,240,244,.92);
       min-height: 1.6em;
       white-space: pre-line;
+      transition: color 200ms ease, opacity 200ms ease;
     }
+
+    /* Wobble animation */
+    .dialogue-text.wobble {
+      animation: wobble 0.3s infinite;
+    }
+    @keyframes wobble {
+      0%, 100% { transform: translateX(0); }
+      50%       { transform: translateX(2px); }
+    }
+
+    /* Glitch animation */
+    .dialogue-text.glitch {
+      animation: glitch-text 0.1s steps(2) infinite;
+    }
+    @keyframes glitch-text {
+      0%   { clip-path: inset(0 0 95% 0); transform: translate(-1px, 0); }
+      100% { clip-path: inset(90% 0 0 0);  transform: translate(1px, 0); }
+    }
+
     .cursor {
       display: inline-block;
       animation: blink .6s step-end infinite;
@@ -282,10 +429,12 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
     @media (prefers-reduced-motion: reduce) {
       .dialogue-strip { animation: none; }
       .cursor { animation: none; }
+      .dialogue-text.wobble { animation: none; }
+      .dialogue-text.glitch { animation: none; }
     }
   `]
 })
-export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
+export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnChanges {
   readonly dialogue    = input<DialogueState | null>(null);
   readonly interaction = input<MapObjectState | null>(null);
 
@@ -294,12 +443,29 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly useTool = output<string>();
   readonly frontendChoice = output<string>();
 
+  /** Optional portrait sprite sheet URL. If empty the SVG placeholder is shown. */
+  @Input() portraitSrc = signal<string>('');
+
+  /** Optional QTE interruption config. Set to trigger countdown banner. */
+  @Input() interruptionConfig?: InterruptionConfig;
+
   @ViewChild('dialogueBox') private dialogueBox?: ElementRef<HTMLDivElement>;
 
   readonly displayedText    = signal('');
   readonly isTypingComplete = signal(false);
 
-  private typewriterHandle: ReturnType<typeof setInterval> | null = null;
+  // ─── Emotion state ────────────────────────────────────────────────────────
+  readonly currentEmotion = signal<DialogueEmotion>('neutral');
+  readonly dialogueTextStyle = signal<{
+    color: string; fontSize: string; opacity: number; wobble: boolean; glitch: boolean;
+  }>({ color: '#F4F7FB', fontSize: '14px', opacity: 1, wobble: false, glitch: false });
+
+  // ─── QTE state ────────────────────────────────────────────────────────────
+  readonly showInterruption    = signal(false);
+  readonly interruptionProgress = signal(100);
+
+  private typewriterHandle: ReturnType<typeof setTimeout> | null = null;
+  private countdownHandle: ReturnType<typeof setInterval> | null = null;
   private currentLineIndex = 0;
   private readonly audio = inject(AudioDirectorService);
 
@@ -310,8 +476,11 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       this.currentLineIndex = 0;
       if (d?.lines?.length) {
         this.audio.playSfx('ui_select');
+        // Determine initial emotion from dialogue header
+        const emotion = resolveEmotion(d.emotion);
+        this.applyEmotion(emotion);
         const fullText = d.lines.map(l => l.text).join('\n');
-        this.startTypewriter(fullText);
+        this.startTypewriter(fullText, emotion);
       } else {
         this.displayedText.set('');
         this.isTypingComplete.set(true);
@@ -319,8 +488,21 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     });
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['interruptionConfig'] && this.interruptionConfig) {
+      this.startInterruptionCountdown();
+    }
+  }
+
   onChoiceHover(): void {
     this.audio.playSfx('ui_select');
+  }
+
+  /** Click anywhere on panel = respond to QTE (if active), otherwise no-op. */
+  onPanelClick(): void {
+    if (this.showInterruption() && this.interruptionConfig) {
+      this.resolveInterruption('success');
+    }
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -336,9 +518,21 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     }
 
     // Space or Enter: skip typewriter animation when still typing
+    // Also resolves QTE if active
     if ((e.key === ' ' || e.key === 'Enter') && !this.isTypingComplete()) {
       e.preventDefault();
-      this.skipTypewriter();
+      if (this.showInterruption() && this.interruptionConfig) {
+        this.resolveInterruption('success');
+      } else {
+        this.skipTypewriter();
+      }
+      return;
+    }
+
+    // Enter while typing complete + QTE active
+    if (e.key === 'Enter' && this.showInterruption() && this.interruptionConfig) {
+      e.preventDefault();
+      this.resolveInterruption('success');
       return;
     }
 
@@ -364,6 +558,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   ngOnDestroy() {
     this.stopTypewriter();
+    this.stopCountdown();
   }
 
   handleChoice(choice: DialogueChoiceState) {
@@ -392,24 +587,120 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return this.dialogue()?.lines?.map(l => l.text).join(' ') ?? '';
   }
 
-  private startTypewriter(text: string) {
+  /** Calculate CSS background-position for portrait sprite sheet. */
+  getPortraitStyle(emotion: DialogueEmotion): { [key: string]: string } {
+    const col = EMOTION_TO_COL[emotion] ?? 0;
+    return {
+      'background-position': `-${col * PORTRAIT_W}px 0px`,
+      'width':  `${PORTRAIT_W}px`,
+      'height': `${PORTRAIT_H}px`,
+      'background-image':  `url(${this.portraitSrc()})`,
+      'background-repeat': 'no-repeat',
+    };
+  }
+
+  // ─── Private helpers ───────────────────────────────────────────────────────
+
+  private applyEmotion(emotion: DialogueEmotion): void {
+    this.currentEmotion.set(emotion);
+    const style = EMOTION_STYLES[emotion];
+    this.dialogueTextStyle.set({
+      color:    style.color,
+      fontSize: style.fontSize,
+      opacity:  style.opacity,
+      wobble:   style.wobble,
+      glitch:   style.glitch,
+    });
+  }
+
+  /**
+   * Adaptive typewriter: uses setTimeout chain so each character can have
+   * a different delay (based on emotion speed), and supports 5% glitch effect.
+   */
+  private startTypewriter(text: string, emotion: DialogueEmotion): void {
     this.displayedText.set('');
     this.isTypingComplete.set(false);
     let pos = 0;
-    this.typewriterHandle = setInterval(() => {
+
+    const tick = () => {
       pos++;
-      this.displayedText.set(text.slice(0, pos));
-      if (pos >= text.length) {
-        this.stopTypewriter();
-        this.isTypingComplete.set(true);
+
+      // Glitch effect: 5% chance to briefly show a random char, then correct itself
+      const style = EMOTION_STYLES[this.currentEmotion()];
+      if (style.glitch && Math.random() < GLITCH_PROBABILITY && pos < text.length) {
+        const randomChar = GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+        this.displayedText.set(text.slice(0, pos - 1) + randomChar);
+        // Correct the glitch after 60ms
+        this.typewriterHandle = setTimeout(() => {
+          this.displayedText.set(text.slice(0, pos));
+          if (pos >= text.length) {
+            this.isTypingComplete.set(true);
+            this.typewriterHandle = null;
+          } else {
+            this.typewriterHandle = setTimeout(tick, style.typingSpeed);
+          }
+        }, 60);
+      } else {
+        this.displayedText.set(text.slice(0, pos));
+        if (pos >= text.length) {
+          this.isTypingComplete.set(true);
+          this.typewriterHandle = null;
+        } else {
+          const speed = EMOTION_STYLES[this.currentEmotion()].typingSpeed;
+          this.typewriterHandle = setTimeout(tick, speed);
+        }
       }
-    }, TYPEWRITER_INTERVAL_MS);
+    };
+
+    const initialSpeed = EMOTION_STYLES[emotion].typingSpeed;
+    this.typewriterHandle = setTimeout(tick, initialSpeed);
   }
 
   private stopTypewriter() {
     if (this.typewriterHandle !== null) {
-      clearInterval(this.typewriterHandle);
+      clearTimeout(this.typewriterHandle);
       this.typewriterHandle = null;
+    }
+  }
+
+  // ─── QTE countdown ─────────────────────────────────────────────────────────
+
+  private startInterruptionCountdown(): void {
+    if (!this.interruptionConfig) return;
+    this.stopCountdown();
+    this.showInterruption.set(true);
+    this.interruptionProgress.set(100);
+
+    const totalMs = this.interruptionConfig.timeoutMs;
+    const tickMs  = 100;
+    const steps   = totalMs / tickMs;
+    const decrementPerTick = 100 / steps;
+    let current = 100;
+
+    this.countdownHandle = setInterval(() => {
+      current -= decrementPerTick;
+      this.interruptionProgress.set(Math.max(0, current));
+      if (current <= 0) {
+        this.resolveInterruption('timeout');
+      }
+    }, tickMs);
+  }
+
+  private resolveInterruption(result: 'success' | 'timeout'): void {
+    this.stopCountdown();
+    this.showInterruption.set(false);
+    if (!this.interruptionConfig) return;
+    if (result === 'success') {
+      this.interruptionConfig.onSuccess();
+    } else {
+      this.interruptionConfig.onTimeout();
+    }
+  }
+
+  private stopCountdown(): void {
+    if (this.countdownHandle !== null) {
+      clearInterval(this.countdownHandle);
+      this.countdownHandle = null;
     }
   }
 }
