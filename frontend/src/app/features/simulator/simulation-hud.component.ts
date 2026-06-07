@@ -1,17 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
 import { getSceneObjective, getSceneProgress } from './scene-objectives.config';
 import { getProximityStepHint } from './risky-interaction.config';
 import { Heart, stressToHearts } from './stress-hearts.util';
+import { SocialMapComponent, SocialNode, SocialEdge } from './social-map/social-map.component';
 
 type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, SocialMapComponent],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell liquid-glass"
@@ -114,6 +115,13 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             <span><strong>Objetivo:</strong> {{ objective }}</span>
           </div>
         }
+
+        <div class="hud-social-panel">
+          <app-social-map
+            [nodes]="socialNodes()"
+            [edges]="socialEdges()">
+          </app-social-map>
+        </div>
       </div>
     }
   `,
@@ -219,6 +227,14 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .hud-patient { display: none; }
       .hud-objective-line span { font-size: .7rem; }
     }
+    .hud-social-panel {
+      padding: 8px 14px 10px;
+      border-top: 1px solid rgba(182,156,255,.1);
+    }
+    @media (max-width: 640px) {
+      .hud-social-panel { display: none; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
       .stress-track span { transition: none; }
@@ -231,6 +247,53 @@ export class SimulationHudComponent {
   readonly stressPulse = input(false);
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
+
+  // Social map state
+  readonly socialNodes = signal<SocialNode[]>([]);
+  readonly socialEdges = signal<SocialEdge[]>([]);
+
+  constructor() {
+    this.initSocialMap();
+  }
+
+  private initSocialMap(): void {
+    this.socialNodes.set([{
+      id: 'patient',
+      label: 'Paciente',
+      type: 'patient',
+      revealed: true,
+      affinity: 0,
+    }]);
+  }
+
+  revealSocialNode(node: SocialNode): void {
+    this.socialNodes.update(nodes => {
+      const existing = nodes.find(n => n.id === node.id);
+      if (existing) {
+        return nodes.map(n => n.id === node.id ? { ...n, ...node, revealed: true } : n);
+      }
+      return [...nodes, { ...node, revealed: true }];
+    });
+  }
+
+  updateSocialAffinity(nodeId: string, delta: number): void {
+    this.socialNodes.update(nodes =>
+      nodes.map(n => n.id === nodeId
+        ? { ...n, affinity: Math.max(-1, Math.min(1, n.affinity + delta)) }
+        : n
+      )
+    );
+  }
+
+  addSocialEdge(edge: SocialEdge): void {
+    this.socialEdges.update(edges => {
+      const existing = edges.find(e => e.from === edge.from && e.to === edge.to);
+      if (existing) {
+        return edges.map(e => (e.from === edge.from && e.to === edge.to) ? { ...e, ...edge } : e);
+      }
+      return [...edges, edge];
+    });
+  }
 
   readonly stressTier = computed<StressTier>(() => {
     const s = this.attempt()?.stressIndex ?? 0;
