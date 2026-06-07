@@ -108,6 +108,13 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
+# ── RF-027: Asistente IA Contextual ──────────────────────────────────────────
+# Proveedor soportado: 'openai' (default) o 'anthropic'.
+# Sin API key el asistente responde con un mensaje de configuración pendiente.
+AI_ASSISTANT_PROVIDER = os.environ.get('AI_ASSISTANT_PROVIDER', 'openai')
+AI_ASSISTANT_API_KEY = os.environ.get('AI_ASSISTANT_API_KEY', '')
+AI_ASSISTANT_MODEL = os.environ.get('AI_ASSISTANT_MODEL', 'gpt-4o-mini')
+
 LANGUAGE_CODE = "es"
 TIME_ZONE = "America/Bogota"
 USE_I18N = True

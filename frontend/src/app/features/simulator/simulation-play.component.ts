@@ -30,6 +30,7 @@ import {
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
+import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
 @Component({
   selector: 'app-simulation-play',
@@ -38,7 +39,8 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
     CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, MinimapComponent,
-    AttemptOutcomeComponent
+    AttemptOutcomeComponent,
+    AIAssistantComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1">
@@ -208,6 +210,13 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
             } @else {
               <p class="timeline-empty">No hay recursos adicionales para este escenario.</p>
             }
+          </section>
+
+          <section class="ai-assistant-section">
+            <app-ai-assistant
+              [attemptId]="game.attemptId"
+              [currentNodeId]="game.currentNode.key"
+              [decisionAlreadyTaken]="game.status !== 'IN_PROGRESS'" />
           </section>
         </aside>
 
@@ -513,6 +522,8 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
     .case-timeline ol,
     .support-resources ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
     .case-timeline li { color: var(--sim-ink-soft); font-size: .82rem; line-height: 1.4; }
+    .ai-assistant-section { display: grid; }
+    .ai-assistant-section app-ai-assistant { width: 100%; max-width: none; }
     .game-layer {
       position: absolute;
       inset: 198px 372px 124px 14px;

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.simulation.views.ai_assistant import AIAssistantView
 from apps.simulation.views.game_views import (
     ActiveAttemptView,
     AttemptView,
@@ -35,4 +36,5 @@ urlpatterns = [
     path("/attempts/<uuid:attempt_id>/interactions/<str:interaction_key>", InteractionView.as_view()),
     path("/attempts/<uuid:attempt_id>/tools/use", ToolUseView.as_view()),
     path("/attempts/<uuid:attempt_id>/safe-exit", SafeExitView.as_view()),
+    path("/ai-assistant", AIAssistantView.as_view(), name="ai-assistant"),
 ]
