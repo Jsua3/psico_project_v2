@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { APP_BRAND } from '../../core/config/brand.config';
 
@@ -44,8 +44,35 @@ interface EthicsItem {
 export class LandingComponent {
   readonly brand = APP_BRAND;
   readonly menuOpen = signal(false);
+  readonly caseInProgress = signal<{ id: string; title: string } | null>(null);
 
   readonly simulatorSceneSrc = '/assets/images/institution/landing1.png';
+
+  constructor(private router: Router) {
+    // SSR-safe: localStorage solo en browser
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('siep_current_attempt');
+        if (raw) {
+          const parsed = JSON.parse(raw) as { id?: string; title?: string };
+          if (parsed?.id && parsed?.title) {
+            this.caseInProgress.set({ id: parsed.id, title: parsed.title });
+          }
+        }
+      } catch {
+        // ignore corrupt localStorage
+      }
+    }
+  }
+
+  resumeCase(): void {
+    const p = this.caseInProgress();
+    if (p) this.router.navigate(['/portal/simulador', p.id]);
+  }
+
+  goToAvatarEditor(): void {
+    this.router.navigate(['/portal/personaje']);
+  }
 
   readonly caseInfo = [
     { icon: 'person', label: 'Rol', text: 'Psicólogo social en formación' },

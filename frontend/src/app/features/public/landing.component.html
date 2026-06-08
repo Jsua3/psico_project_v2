@@ -45,6 +45,18 @@
             atención y toma de decisiones en escenarios sensibles — con retroalimentación formativa y trazabilidad
             docente.
           </p>
+          @if (caseInProgress()) {
+            <div class="landing-in-progress" role="status" aria-live="polite">
+              <mat-icon aria-hidden="true">folder_open</mat-icon>
+              <span class="landing-in-progress__text">
+                Sesión en progreso: <strong>{{ caseInProgress()!.title }}</strong>
+              </span>
+              <button type="button" class="landing-btn landing-btn--sm landing-btn--resume" (click)="resumeCase()">
+                Continuar
+              </button>
+            </div>
+          }
+
           <div class="landing-hero__actions">
             <a class="landing-btn landing-btn--primary" routerLink="/login">
               Ingresar al sistema
@@ -52,6 +64,10 @@
             </a>
             <a class="landing-btn landing-btn--outline" href="#casos">Ver casos</a>
             <a class="landing-btn landing-btn--outline" href="#como-funciona">Cómo funciona</a>
+            <button type="button" class="landing-btn landing-btn--avatar" (click)="goToAvatarEditor()">
+              <mat-icon>palette</mat-icon>
+              Personalizar Personaje
+            </button>
           </div>
           <ul class="landing-trust" aria-label="Compromisos formativos">
             @for (item of trustItems; track item) {
