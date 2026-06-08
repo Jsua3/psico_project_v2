@@ -724,6 +724,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let actualMapW = 960, actualMapH = 528;
     let tiledObjects: Phaser.Types.Tilemaps.TiledObject[] = [];
 
+    // ── Dark procedural base — MUST come before buildTiledLayers ─────────────
+    // Phaser draws same-depth objects in insertion order. Floor tiles (depth 0)
+    // are inserted by buildTiledLayers next. This rect (also depth 0) is inserted
+    // first, so floor tiles render ON TOP of it — not hidden underneath.
+    this.add.rectangle(actualMapW / 2, actualMapH / 2, actualMapW - 40, actualMapH - 42, 0x131c28, 1).setDepth(0);
+    const gfx = this.add.graphics().setDepth(1);
+    gfx.lineStyle(1, 0x1c2d3e, 0.55);
+    for (let gx = 16; gx < actualMapW; gx += 32) gfx.lineBetween(gx, 0, gx, actualMapH);
+    for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (this.assetsLoaded) {
       try {
         const tilemap = this.make.tilemap({ key: roomConfig.tiledMapKey });
@@ -758,15 +769,6 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setZoom(2);
     cam.setBounds(0, 0, actualMapW, actualMapH);
-
-    // ── Dark procedural floor + subtle grid (mirrors renderWorld style) ───────
-    // Floor tile layer uses GID 0 (transparent) everywhere, so this dark rect IS the floor.
-    this.add.rectangle(actualMapW / 2, actualMapH / 2, actualMapW - 40, actualMapH - 42, 0x131c28, 1).setDepth(0);
-    const gfx = this.add.graphics().setDepth(1);
-    gfx.lineStyle(1, 0x1c2d3e, 0.55);
-    for (let gx = 16; gx < actualMapW; gx += 32) gfx.lineBetween(gx, 0, gx, actualMapH);
-    for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
-    // ─────────────────────────────────────────────────────────────────────────
 
     // Room border
     this.add.rectangle(actualMapW / 2, actualMapH / 2, actualMapW - 36, actualMapH - 38)
