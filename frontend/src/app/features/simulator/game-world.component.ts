@@ -835,7 +835,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const shadow = this.add.ellipse(0, 12, 14, 4, 0x000000, .18);
 
       let sprite: Phaser.GameObjects.GameObject;
-      if (this.assetsLoaded && this.textures.exists('characters')) {
+      const charTexKey = npc.characterId ? `npc_${npc.characterId}` : null;
+      if (charTexKey && this.textures.exists(charTexKey)) {
+        // NPC con sprite real v5.1 (128×180 px, escala 0.55 → ~70px en mapa)
+        sprite = (this.add.sprite(0, -16, charTexKey) as Phaser.GameObjects.Sprite)
+          .setScale(0.55)
+          .play(`${charTexKey}_idle_front`);
+      } else if (this.assetsLoaded && this.textures.exists('characters')) {
         sprite = this.add.sprite(0, 0, 'characters', npc.frameIndex).setScale(1.5);
       } else {
         sprite = this.add.circle(0, -8, 10, 0x4fa3a5, 1);
