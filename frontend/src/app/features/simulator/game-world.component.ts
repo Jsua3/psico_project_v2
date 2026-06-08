@@ -179,7 +179,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Copiados desde docs/assets_5.1_solucionado. Fallos silenciosos via loaderror.
     const charFrameOpts = { frameWidth: 128, frameHeight: 180 };
     for (const id of NPC_CHAR_IDS) {
-      this.load.spritesheet(`npc_${id}`, `assets/characters/sprite-sheets/${id}.png`, charFrameOpts);
+      this.load.spritesheet(`npc_${id}`, `/assets/characters/sprite-sheets/${id}.png`, charFrameOpts);
     }
     // ─────────────────────────────────────────────────────────────────────────
 
