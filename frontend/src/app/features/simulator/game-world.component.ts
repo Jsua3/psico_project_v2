@@ -202,6 +202,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────────────────
 
     this.createAnimations();
+    this.createNpcCharacterAnimations();
     this.renderWorld();
   }
 
@@ -485,6 +486,36 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const m = this.markers.get(key);
     if (!m || this.callbacks.reduceMotion) return;
     this.tweens.add({ targets: m, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
+  }
+
+  /**
+   * Registra las animaciones Phaser para los NPC character sprite sheets (v5.1).
+   * Idempotente: salta silenciosamente si la textura no cargó o la anim ya existe.
+   * Layout: IDLE_FRONT [0-1] 2fps · WALK_DOWN [2-5] · WALK_LEFT [6-9] ·
+   *         WALK_RIGHT [10-13] · WALK_UP [14-17] (todos 8 fps, loop:-1).
+   */
+  private createNpcCharacterAnimations(): void {
+    const defs: Array<{ suffix: string; frames: number[]; fps: number }> = [
+      { suffix: 'idle_front', frames: [0, 1],           fps: 2 },
+      { suffix: 'walk_down',  frames: [2, 3, 4, 5],     fps: 8 },
+      { suffix: 'walk_left',  frames: [6, 7, 8, 9],     fps: 8 },
+      { suffix: 'walk_right', frames: [10, 11, 12, 13], fps: 8 },
+      { suffix: 'walk_up',    frames: [14, 15, 16, 17], fps: 8 },
+    ];
+    for (const id of NPC_CHAR_IDS) {
+      const texKey = `npc_${id}`;
+      if (!this.textures.exists(texKey)) continue;
+      for (const d of defs) {
+        const animKey = `${texKey}_${d.suffix}`;
+        if (this.anims.exists(animKey)) continue;
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(texKey, { frames: d.frames }),
+          frameRate: d.fps,
+          repeat: -1,
+        });
+      }
+    }
   }
 
   private createAnimations() {
