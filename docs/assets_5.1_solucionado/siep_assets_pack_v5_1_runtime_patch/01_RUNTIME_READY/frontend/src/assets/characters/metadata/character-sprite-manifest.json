@@ -1,0 +1,242 @@
+[
+  {
+    "id": "orientadora-casual-female",
+    "title": "Orientadora casual femenina",
+    "runtimeSheet": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/orientadora-casual-female.runtime-18.png",
+    "referenceBoard": "01_RUNTIME_READY/frontend/src/assets/characters/reference-sheets/orientadora-casual-female.reference-board.png",
+    "frameWidth": 128,
+    "frameHeight": 180,
+    "totalFrames": 18,
+    "layout": {
+      "IDLE_FRONT": {
+        "frames": [
+          0,
+          1
+        ],
+        "fps": 2,
+        "loop": true
+      },
+      "WALK_DOWN": {
+        "frames": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_LEFT": {
+        "frames": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_RIGHT": {
+        "frames": [
+          10,
+          11,
+          12,
+          13
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_UP": {
+        "frames": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "fps": 8,
+        "loop": true
+      }
+    },
+    "individualFramesDir": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/orientadora-casual-female_frames"
+  },
+  {
+    "id": "doctor-male-labcoat",
+    "title": "Doctor masculino con bata",
+    "runtimeSheet": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/doctor-male-labcoat.runtime-18.png",
+    "referenceBoard": "01_RUNTIME_READY/frontend/src/assets/characters/reference-sheets/doctor-male-labcoat.reference-board.png",
+    "frameWidth": 128,
+    "frameHeight": 180,
+    "totalFrames": 18,
+    "layout": {
+      "IDLE_FRONT": {
+        "frames": [
+          0,
+          1
+        ],
+        "fps": 2,
+        "loop": true
+      },
+      "WALK_DOWN": {
+        "frames": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_LEFT": {
+        "frames": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_RIGHT": {
+        "frames": [
+          10,
+          11,
+          12,
+          13
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_UP": {
+        "frames": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "fps": 8,
+        "loop": true
+      }
+    },
+    "individualFramesDir": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/doctor-male-labcoat_frames"
+  },
+  {
+    "id": "orientadora-female-labcoat",
+    "title": "Orientadora femenina con bata",
+    "runtimeSheet": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/orientadora-female-labcoat.runtime-18.png",
+    "referenceBoard": "01_RUNTIME_READY/frontend/src/assets/characters/reference-sheets/orientadora-female-labcoat.reference-board.png",
+    "frameWidth": 128,
+    "frameHeight": 180,
+    "totalFrames": 18,
+    "layout": {
+      "IDLE_FRONT": {
+        "frames": [
+          0,
+          1
+        ],
+        "fps": 2,
+        "loop": true
+      },
+      "WALK_DOWN": {
+        "frames": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_LEFT": {
+        "frames": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_RIGHT": {
+        "frames": [
+          10,
+          11,
+          12,
+          13
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_UP": {
+        "frames": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "fps": 8,
+        "loop": true
+      }
+    },
+    "individualFramesDir": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/orientadora-female-labcoat_frames"
+  },
+  {
+    "id": "staff-male-glasses-beard",
+    "title": "Profesional masculino con gafas y barba",
+    "runtimeSheet": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/staff-male-glasses-beard.runtime-18.png",
+    "referenceBoard": "01_RUNTIME_READY/frontend/src/assets/characters/reference-sheets/staff-male-glasses-beard.reference-board.png",
+    "frameWidth": 128,
+    "frameHeight": 180,
+    "totalFrames": 18,
+    "layout": {
+      "IDLE_FRONT": {
+        "frames": [
+          0,
+          1
+        ],
+        "fps": 2,
+        "loop": true
+      },
+      "WALK_DOWN": {
+        "frames": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_LEFT": {
+        "frames": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_RIGHT": {
+        "frames": [
+          10,
+          11,
+          12,
+          13
+        ],
+        "fps": 8,
+        "loop": true
+      },
+      "WALK_UP": {
+        "frames": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "fps": 8,
+        "loop": true
+      }
+    },
+    "individualFramesDir": "01_RUNTIME_READY/frontend/src/assets/characters/sprite-sheets/staff-male-glasses-beard_frames"
+  }
+]
