@@ -50,6 +50,15 @@ interface AmbientMover {
   patrolIdx: number;
 }
 
+/** Ids de los NPC character sprite sheets (v5.1 — 128×180 px, 18 frames). */
+const NPC_CHAR_IDS = [
+  'doctor-male-labcoat',
+  'orientadora-casual-female',
+  'orientadora-female-labcoat',
+  'staff-male-glasses-beard',
+] as const;
+type NpcCharId = typeof NPC_CHAR_IDS[number];
+
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
@@ -165,6 +174,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.load.audio('step1', '/assets/game/audio/footstep_concrete_001.ogg');
     this.load.audio('step2', '/assets/game/audio/footstep_concrete_002.ogg');
     this.load.audio('proximity-blip', '/assets/game/audio/blip_select.ogg');
+
+    // ── NPC character sprite sheets (v5.1 — 128×180 px, 18 frames) ───────────
+    // Copiados desde docs/assets_5.1_solucionado. Fallos silenciosos via loaderror.
+    const charFrameOpts = { frameWidth: 128, frameHeight: 180 };
+    for (const id of NPC_CHAR_IDS) {
+      this.load.spritesheet(`npc_${id}`, `assets/characters/sprite-sheets/${id}.png`, charFrameOpts);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     this.load.once('complete', () => { this.assetsLoaded = true; });
   }
