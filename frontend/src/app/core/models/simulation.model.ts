@@ -707,6 +707,13 @@ export interface NpcConfig {
   y: number;
   /** Phaser frame index in the 'characters' spritesheet */
   frameIndex: number;
+  /**
+   * Optional: id del sprite sheet real del personaje (v5.1).
+   * Valores válidos: 'doctor-male-labcoat' | 'orientadora-casual-female' |
+   *   'orientadora-female-labcoat' | 'staff-male-glasses-beard'.
+   * Si está presente y el sprite cargó, se usa el personaje real en vez de Kenney.
+   */
+  characterId?: string;
   dialogue: NpcDialogue;
 }
 
