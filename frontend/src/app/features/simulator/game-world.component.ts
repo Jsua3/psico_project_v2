@@ -1453,7 +1453,38 @@ export const COMISARIA_SCENARIO: ScenarioConfig = {
           entryY: 380,
         },
       ],
-      npcs: [],
+      npcs: [
+        {
+          key: 'comisaria-supervisor',
+          npcType: 'supervisor',
+          displayName: 'Comisario/a de Familia',
+          portrait: '🧑‍⚕️',
+          x: 300,
+          y: 300,
+          frameIndex: 428, // KenneyCharFrames.NPC_SUPERVISOR_IDLE
+          characterId: 'doctor-male-labcoat',
+          dialogue: {
+            lines: [
+              { text: 'Buenos días. ¿En qué puedo orientarle?', emotion: 'neutral' },
+            ],
+          },
+        },
+        {
+          key: 'comisaria-staff',
+          npcType: 'witness',
+          displayName: 'Personal administrativo',
+          portrait: '🧑',
+          x: 500,
+          y: 350,
+          frameIndex: 428,
+          characterId: 'staff-male-glasses-beard',
+          dialogue: {
+            lines: [
+              { text: 'Por favor, espere un momento.', emotion: 'neutral' },
+            ],
+          },
+        },
+      ],
     },
     {
       key: 'entrevista',
@@ -1470,7 +1501,38 @@ export const COMISARIA_SCENARIO: ScenarioConfig = {
           entryY: 320,
         },
       ],
-      npcs: [],
+      npcs: [
+        {
+          key: 'comisaria-orientadora',
+          npcType: 'colleague',
+          displayName: 'Orientadora psicosocial',
+          portrait: '👩‍💼',
+          x: 350,
+          y: 260,
+          frameIndex: 266, // KenneyCharFrames.NPC_PATIENT_IDLE
+          characterId: 'orientadora-female-labcoat',
+          dialogue: {
+            lines: [
+              { text: 'Recuerda aplicar escucha activa y validar emociones antes de registrar.', emotion: 'calm' },
+            ],
+          },
+        },
+        {
+          key: 'comisaria-colega',
+          npcType: 'colleague',
+          displayName: 'Colega orientadora',
+          portrait: '👩',
+          x: 550,
+          y: 300,
+          frameIndex: 266,
+          characterId: 'orientadora-casual-female',
+          dialogue: {
+            lines: [
+              { text: 'Coordino el apoyo interinstitucional. ¿Necesitas algo?', emotion: 'neutral' },
+            ],
+          },
+        },
+      ],
     },
   ],
 };
