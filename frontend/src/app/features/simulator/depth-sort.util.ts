@@ -7,6 +7,7 @@
  * mapa y la UI usan bandas fijas por encima/por debajo.
  */
 export const DEPTH = {
+  BACK: -1,
   FLOOR: 0,
   GRID: 1,
   BACKGROUND: 1,

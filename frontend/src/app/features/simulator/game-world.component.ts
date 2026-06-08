@@ -546,7 +546,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const key = `authored-bg-${url}`;
     const place = () => {
       if (!this.textures.exists(key)) return;
-      this.add.image(0, 0, key).setOrigin(0, 0).setDisplaySize(mapW, mapH).setDepth(1);
+      this.add.image(0, 0, key).setOrigin(0, 0).setDisplaySize(mapW, mapH).setDepth(DEPTH.BACKGROUND);
     };
     if (this.textures.exists(key)) { place(); return; }
     this.load.image(key, url);
@@ -605,8 +605,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     // ── Layer 0-1: procedural dark floor + grid (always — permanent base) ──
     // Tiled floor tiles sit on top; GID 0 cells (empty) let this base show through.
-    this.add.rectangle(mapW/2, mapH/2, mapW-40, mapH-42, 0x131c28, 1).setDepth(0);
-    const g = this.add.graphics().setDepth(1);
+    this.add.rectangle(mapW/2, mapH/2, mapW-40, mapH-42, 0x131c28, 1).setDepth(DEPTH.FLOOR);
+    const g = this.add.graphics().setDepth(DEPTH.GRID);
     g.lineStyle(1, 0x1c2d3e, 0.65);
     for (let x = 56; x <= mapW-56; x += 32) g.lineBetween(x, 44, x, mapH-44);
     for (let y = 56; y <= mapH-56; y += 32) g.lineBetween(44, y, mapW-44, y);
@@ -724,17 +724,6 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let actualMapW = 960, actualMapH = 528;
     let tiledObjects: Phaser.Types.Tilemaps.TiledObject[] = [];
 
-    // ── Dark procedural base — MUST come before buildTiledLayers ─────────────
-    // Phaser draws same-depth objects in insertion order. Floor tiles (depth 0)
-    // are inserted by buildTiledLayers next. This rect (also depth 0) is inserted
-    // first, so floor tiles render ON TOP of it — not hidden underneath.
-    this.add.rectangle(actualMapW / 2, actualMapH / 2, actualMapW - 40, actualMapH - 42, 0x131c28, 1).setDepth(0);
-    const gfx = this.add.graphics().setDepth(1);
-    gfx.lineStyle(1, 0x1c2d3e, 0.55);
-    for (let gx = 16; gx < actualMapW; gx += 32) gfx.lineBetween(gx, 0, gx, actualMapH);
-    for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
-    // ─────────────────────────────────────────────────────────────────────────
-
     if (this.assetsLoaded) {
       try {
         const tilemap = this.make.tilemap({ key: roomConfig.tiledMapKey });
@@ -765,6 +754,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
         // Map not found — render empty room with fallback dimensions
       }
     }
+
+    // ── Dark procedural base (DEPTH.BACK = -1 is always behind FLOOR tiles regardless of insertion order) ──
+    this.add.rectangle(actualMapW / 2, actualMapH / 2, actualMapW - 40, actualMapH - 42, 0x131c28, 1).setDepth(DEPTH.BACK);
+    const gfx = this.add.graphics().setDepth(DEPTH.GRID);
+    gfx.lineStyle(1, 0x1c2d3e, 0.55);
+    for (let gx = 16; gx < actualMapW; gx += 32) gfx.lineBetween(gx, 0, gx, actualMapH);
+    for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
 
     const cam = this.cameras.main;
     cam.setZoom(2);

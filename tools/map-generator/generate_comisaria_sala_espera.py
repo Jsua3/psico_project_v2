@@ -21,14 +21,14 @@ def _ru(row1: int, col1: int) -> int:
     """GID rpg-urban por fila/columna 1-indexadas."""
     return 133 + (row1 - 1) * 27 + (col1 - 1)
 
-RU_FLOOR_GRAY    = _ru(1, 4)   # VALIDAR — suelo gris interior
-RU_FLOOR_GRAY2   = _ru(1, 5)   # VALIDAR — variante suelo (chequerboard)
-RU_CABINET_TOP   = _ru(4, 1)   # VALIDAR — parte superior fichero
-RU_CABINET_MID   = _ru(5, 1)   # VALIDAR — parte media fichero
-RU_CHAIR         = _ru(4, 7)   # VALIDAR — silla de espera
-RU_TABLE         = _ru(4, 9)   # VALIDAR — mesa pequeña
-RU_COUNTER_TOP   = _ru(6, 4)   # VALIDAR — superficie del mostrador
-RU_COUNTER_FRONT = _ru(7, 4)   # VALIDAR — frente del mostrador
+RU_FLOOR_GRAY    = _ru(5, 7)   # suelo beige interior (r5c7=247) — validado visualmente
+RU_FLOOR_GRAY2   = _ru(5, 6)   # variante suelo beige (r5c6=246)  — validado visualmente
+RU_CABINET_TOP   = _ru(11, 4)  # fichero marrón parte superior (r11c4=406) — validado
+RU_CABINET_MID   = _ru(11, 5)  # fichero marrón cajón (r11c5=407) — validado
+RU_CHAIR         = _ru(11, 9)  # butaca roja sala espera (r11c9=411) — validado
+RU_TABLE         = _ru(15, 4)  # mesa madera pequeña (r15c4=514) — validado
+RU_COUNTER_TOP   = _ru(13, 5)  # mostrador verde superficie (r13c5=461) — validado
+RU_COUNTER_FRONT = _ru(13, 9)  # mostrador verde frente (r13c9=465) — validado
 
 MAP_W, MAP_H = 60, 33
 
