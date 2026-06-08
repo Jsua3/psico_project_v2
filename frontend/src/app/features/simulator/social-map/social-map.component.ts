@@ -44,13 +44,23 @@ import { SocialNode, SocialEdge } from './social-map.model';
   `,
   styles: [`
     .social-map-panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      width: fit-content;
       background: rgba(17,24,39,0.85);
       border: 1px solid rgba(124,77,255,0.3);
       border-radius: 8px;
       padding: 8px;
       backdrop-filter: blur(8px);
     }
-    .social-map-panel.collapsed { padding-bottom: 4px; }
+    .social-map-panel.collapsed {
+      background: transparent;
+      border: none;
+      backdrop-filter: none;
+      padding: 4px 0;
+    }
     .collapse-btn {
       background: none; border: none; color: #B69CFF;
       cursor: pointer; font-size: 12px; padding: 0;
@@ -78,7 +88,7 @@ export class SocialMapComponent {
 
   readonly svgWidth = 220;
   readonly svgHeight = 160;
-  readonly isCollapsed = signal(false);
+  readonly isCollapsed = signal(true);
 
   readonly visibleNodes = computed(() => this.nodes().filter(n => n.revealed));
 

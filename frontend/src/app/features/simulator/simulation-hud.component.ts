@@ -231,8 +231,11 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .hud-objective-line span { font-size: .7rem; }
     }
     .hud-social-panel {
-      padding: 8px 14px 10px;
+      position: relative;
+      height: 36px;
+      padding: 6px 14px;
       border-top: 1px solid rgba(182,156,255,.1);
+      overflow: visible;
     }
     @media (max-width: 640px) {
       .hud-social-panel { display: none; }
