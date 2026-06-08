@@ -6,7 +6,7 @@ import { AvatarConfig } from '../character/avatar-config.model';
  *
  * Renderiza las capas del avatar (body → skin → uniform → labcoat → hair → face →
  * accessory) como sprites apilados en un Container. Cada capa es un sprite sheet de
- * 48×64 px con 48 frames (8 animaciones × 4-8 frames cada una).
+ * 48×64 px con 18 frames (5 animaciones: 1 idle + 4 walks).
  *
  * Si los PNGs de los sprite sheets NO existen todavía (serán generados por diseñadores),
  * el renderer no lanza ningún error: simplemente omite las capas cuyas texturas
@@ -20,7 +20,7 @@ import { AvatarConfig } from '../character/avatar-config.model';
 export class AvatarRenderer {
   private readonly layers = new Map<string, Phaser.GameObjects.Sprite>();
   private container!: Phaser.GameObjects.Container;
-  private currentAnim = 'idle_down';
+  private currentAnim = 'av_idle_front';
   private created = false;
 
   constructor(
@@ -96,10 +96,9 @@ export class AvatarRenderer {
    * Llamar en update(). No-op si la animación ya está activa.
    */
   play(state: 'idle' | 'walk', direction: 'down' | 'up' | 'left' | 'right'): void {
-    const animKey = `${state}_${direction}`;
-    if (animKey === this.currentAnim) return;
-    this.currentAnim = animKey;
-    const phaserKey = `av_${animKey}`;
+    const phaserKey = state === 'idle' ? 'av_idle_front' : `av_walk_${direction}`;
+    if (phaserKey === this.currentAnim) return;
+    this.currentAnim = phaserKey;
     this.layers.forEach(sprite => {
       if (sprite.anims && this.scene.anims.exists(phaserKey)) {
         sprite.play(phaserKey, true);
@@ -112,14 +111,11 @@ export class AvatarRenderer {
     this.layers.forEach(sprite => sprite.setFlipX(flip));
   }
 
-  /** Muestra el frame idle estático para la dirección dada (cuando está parado). */
-  showIdleFrame(direction: 'down' | 'up' | 'left' | 'right'): void {
-    // Frames idle: 0-3 → down, 4-7 → up, 8-11 → left, 12-15 → right
-    const baseFrame: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
-    const frame = baseFrame[direction] ?? 0;
+  /** Muestra el frame idle estático (frame 0) cuando el avatar está parado. */
+  showIdleFrame(_direction?: 'down' | 'up' | 'left' | 'right'): void {
     this.layers.forEach(sprite => {
       sprite.stop();
-      sprite.setFrame(frame);
+      sprite.setFrame(0);
     });
   }
 
@@ -164,33 +160,27 @@ export class AvatarRenderer {
   // ── Animation registration ──────────────────────────────────────────────────
 
   /**
-   * Registra las 8 animaciones del avatar en el AnimationManager global de Phaser.
+   * Registra las 5 animaciones del avatar en el AnimationManager global de Phaser.
    * Solo se crean si la textura 'av_body' existe (es la textura de referencia para
    * generar los números de frame). Idempotente: si ya existen, no hace nada.
    *
-   * Layout del sprite sheet (48 frames totales, izquierda→derecha, fila→fila):
-   *   Frames  0-3   idle_down  (4f, framerate 4)
-   *   Frames  4-7   idle_up    (4f)
-   *   Frames  8-11  idle_left  (4f)
-   *   Frames 12-15  idle_right (4f)
-   *   Frames 16-23  walk_down  (8f, framerate 8)
-   *   Frames 24-31  walk_up    (8f)
-   *   Frames 32-39  walk_left  (8f)
-   *   Frames 40-47  walk_right (8f)
+   * Layout del sprite sheet (18 frames totales, izquierda→derecha, fila→fila):
+   *   Frames  0-1   idle_front (2f, framerate 4)  — fila 1
+   *   Frames  2-5   walk_down  (4f, framerate 8)  — fila 2
+   *   Frames  6-9   walk_left  (4f)               — fila 3
+   *   Frames 10-13  walk_right (4f)               — fila 4
+   *   Frames 14-17  walk_up    (4f)               — fila 5
    */
   private createAnimations(): void {
     // Solo creamos animaciones si la textura de referencia existe
     if (!this.scene.textures.exists('av_body')) return;
 
     const defs: Array<{ key: string; frames: number[]; frameRate: number; repeat: number }> = [
-      { key: 'av_idle_down',  frames: [0, 1, 2, 1],           frameRate: 4, repeat: -1 },
-      { key: 'av_idle_up',    frames: [4, 5, 6, 5],           frameRate: 4, repeat: -1 },
-      { key: 'av_idle_left',  frames: [8, 9, 10, 9],          frameRate: 4, repeat: -1 },
-      { key: 'av_idle_right', frames: [12, 13, 14, 13],       frameRate: 4, repeat: -1 },
-      { key: 'av_walk_down',  frames: [16, 17, 18, 19, 20, 21, 22, 23], frameRate: 8, repeat: -1 },
-      { key: 'av_walk_up',    frames: [24, 25, 26, 27, 28, 29, 30, 31], frameRate: 8, repeat: -1 },
-      { key: 'av_walk_left',  frames: [32, 33, 34, 35, 36, 37, 38, 39], frameRate: 8, repeat: -1 },
-      { key: 'av_walk_right', frames: [40, 41, 42, 43, 44, 45, 46, 47], frameRate: 8, repeat: -1 },
+      { key: 'av_idle_front', frames: [0, 1],             frameRate: 4, repeat: -1 },
+      { key: 'av_walk_down',  frames: [2, 3, 4, 5],       frameRate: 8, repeat: -1 },
+      { key: 'av_walk_left',  frames: [6, 7, 8, 9],       frameRate: 8, repeat: -1 },
+      { key: 'av_walk_right', frames: [10, 11, 12, 13],   frameRate: 8, repeat: -1 },
+      { key: 'av_walk_up',    frames: [14, 15, 16, 17],   frameRate: 8, repeat: -1 },
     ];
 
     for (const def of defs) {
