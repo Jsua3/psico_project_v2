@@ -85,18 +85,23 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             }
           </div>
 
-          <!-- CENTER zone: location + step -->
+          <!-- CENTER zone: case title + scene + progress -->
           <div class="hud-zone hud-zone--center">
-            <div class="hud-scene">
-              <mat-icon aria-hidden="true">location_on</mat-icon>
-              <span>{{ game.currentNode.title }}</span>
-            </div>
-            @if (sceneProgress(); as progress) {
-              <div class="hud-step" aria-label="{{ progress.stepLabel }}">
-                <mat-icon aria-hidden="true">timeline</mat-icon>
-                <span>{{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
+            <div class="hud-case-block">
+              <p class="hud-case-title">{{ game.caseTitle }}</p>
+              <div class="hud-case-sub">
+                <mat-icon aria-hidden="true">location_on</mat-icon>
+                <span class="hud-scene-label">{{ game.currentNode.title }}</span>
+                @if (sceneProgress(); as progress) {
+                  <span class="hud-scene-step">· {{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
+                }
               </div>
-            }
+            </div>
+            <div class="hud-progress-track" aria-hidden="true" title="Progreso del caso">
+              @for (seg of progressSegments(); track $index) {
+                <span class="hud-seg" [class.hud-seg--done]="seg.done" [class.hud-seg--current]="seg.current"></span>
+              }
+            </div>
           </div>
 
           <!-- RIGHT zone: status + action buttons -->
@@ -149,9 +154,12 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-strip {
       display: flex;
       align-items: center;
-      gap: 16px;
-      height: 50px;
-      padding: 0 14px;
+      gap: 14px;
+      min-height: clamp(72px, 8vh, 104px);
+      padding: 0 clamp(10px, 1.5vw, 20px);
+    }
+    @media (max-width: 760px) {
+      .hud-strip { min-height: clamp(56px, 9vh, 72px); gap: 10px; }
     }
     .hud-zone { display: flex; align-items: center; }
     .hud-zone--vitals { gap: 14px; flex-shrink: 0; }
@@ -167,6 +175,57 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 8px; margin-right: 4px; border-right: 1px solid rgba(182,156,255,.18); }
     .brand-glyph { color: #B69CFF; flex-shrink: 0; }
     .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
+
+    /* ── Top bar enhancements ── */
+    .brand-glyph { width: 28px !important; height: 28px !important; }
+    .brand-word { font-size: 1rem !important; }
+
+    .hud-case-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .hud-case-title {
+      margin: 0;
+      font-family: 'Poppins', system-ui, sans-serif;
+      font-size: .82rem;
+      font-weight: 800;
+      color: rgba(232,240,244,.95);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 320px;
+    }
+    .hud-case-sub {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .hud-case-sub mat-icon { font-size: 13px; width: 13px; height: 13px; color: #B69CFF; flex-shrink: 0; }
+    .hud-scene-label { font-size: .72rem; color: rgba(232,240,244,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    .hud-scene-step { font-size: .68rem; color: rgba(182,156,255,.55); white-space: nowrap; flex-shrink: 0; }
+
+    .hud-progress-track {
+      display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+    }
+    .hud-seg {
+      width: 22px; height: 6px; border-radius: 3px;
+      background: rgba(182,156,255,.18);
+      border: 1px solid rgba(182,156,255,.2);
+      transition: background 300ms, border-color 300ms;
+    }
+    .hud-seg--done { background: rgba(124,77,255,.7); border-color: rgba(124,77,255,.6); }
+    .hud-seg--current { background: #B69CFF; border-color: #9B7FE8; box-shadow: 0 0 6px -2px rgba(182,156,255,.5); }
+
+    /* Boost action buttons size */
+    .hud-action-btn { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
+    .hud-action-btn mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
+
+    /* Score + stress bigger */
+    .hud-score strong { font-size: 1rem !important; }
+    .hud-score mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
+    .heart { width: 18px !important; height: 18px !important; }
+    .heart-svg { width: 18px !important; height: 18px !important; }
+    .stress-pct { font-size: .85rem !important; }
+
+    @media (max-width: 760px) {
+      .hud-case-title { max-width: 140px; font-size: .74rem !important; }
+      .hud-progress-track { display: none; }
+      .hud-case-sub mat-icon { display: none; }
+      .hud-scene-step { display: none; }
+    }
     .hud-hearts { display: inline-flex; align-items: center; gap: 2px; }
     .heart { display: inline-block; width: 15px; height: 15px; line-height: 0; }
     .heart-svg { width: 15px; height: 15px; display: block; }
@@ -295,6 +354,15 @@ export class SimulationHudComponent {
     }
     const nodeKey = this.attempt()?.currentNode.key;
     return getSceneProgress(nodeKey);
+  });
+
+  readonly progressSegments = computed(() => {
+    const progress = this.sceneProgress();
+    if (!progress || progress.total <= 0) return [];
+    return Array.from({ length: progress.total }, (_, i) => ({
+      done: i < progress.step - 1,
+      current: i === progress.step - 1
+    }));
   });
 
   statusLabel(status: SimulationAttemptState['status']) {
