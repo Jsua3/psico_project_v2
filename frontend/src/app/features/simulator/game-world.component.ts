@@ -30,6 +30,12 @@ import { loadAvatarConfig } from '../character/avatar-config.model';
 import { AvatarRenderer } from './avatar-renderer';
 import { VignettePipeline } from './effects/vignette-pipeline';
 import { GameFeelService } from './effects/game-feel.service';
+import {
+  NPC_CHARACTER_SPRITE_IDS,
+  NpcCharacterTextureKey,
+  npcCharacterSpriteForObject,
+  npcTextureKey,
+} from './character-sprite.util';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -51,17 +57,10 @@ interface AmbientMover {
 }
 
 /** Ids de los NPC character sprite sheets (v5.1 — 128×180 px, 18 frames). */
-const NPC_CHAR_IDS = [
-  'doctor-male-labcoat',
-  'orientadora-casual-female',
-  'orientadora-female-labcoat',
-  'staff-male-glasses-beard',
-] as const;
-type NpcCharId = typeof NPC_CHAR_IDS[number];
-
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
+  private playerCharacterTextureKey: NpcCharacterTextureKey | null = null;
   /** Renderer multicapa del avatar pixel-art. Cuando sus texturas existen, reemplaza
    *  playerSprite como visual del jugador; el Container de physics sigue siendo this.player. */
   private avatarRenderer?: AvatarRenderer;
@@ -78,6 +77,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private readonly markerData = new Map<string, MapObjectState>();
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
+  private authoredCollisionZones: Array<{ x: number; y: number; width: number; height: number }> = [];
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
   private readonly AMBIENT_RETARGET_MS = 2600;
   private guideEntry: SceneGuideEntry | null = null;
@@ -178,7 +178,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // ── NPC character sprite sheets (v5.1 — 128×180 px, 18 frames) ───────────
     // Copiados desde docs/assets_5.1_solucionado. Fallos silenciosos via loaderror.
     const charFrameOpts = { frameWidth: 128, frameHeight: 180 };
-    for (const id of NPC_CHAR_IDS) {
+    for (const id of NPC_CHARACTER_SPRITE_IDS) {
       this.load.spritesheet(`npc_${id}`, `/assets/characters/sprite-sheets/${id}.png`, charFrameOpts);
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -237,8 +237,16 @@ class DataDrivenWorldScene extends Phaser.Scene {
         this.avatarRenderer.setFlipX(this.lastDirection === 'left');
       } else if (this.playerSprite) {
         // ── Fallback Kenney sprite ─────────────────────────────────────────────
-        this.playerSprite.setFlipX(this.lastDirection === 'left');
-        if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${this.lastDirection}`, true);
+        if (this.playerCharacterTextureKey) {
+          this.playerSprite.setFlipX(false);
+          const animKey = this.characterWalkAnimationKey(this.playerCharacterTextureKey, this.lastDirection);
+          if (!this.callbacks.reduceMotion && this.anims.exists(animKey)) {
+            this.playerSprite.play(animKey, true);
+          }
+        } else {
+          this.playerSprite.setFlipX(this.lastDirection === 'left');
+          if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${this.lastDirection}`, true);
+        }
       }
 
       // ── Footstep audio: one random variant every STEP_INTERVAL ms ──────────
@@ -258,14 +266,18 @@ class DataDrivenWorldScene extends Phaser.Scene {
         this.avatarRenderer.setFlipX(this.lastDirection === 'left');
       } else if (this.playerSprite) {
         // ── Fallback Kenney sprite ─────────────────────────────────────────────
-        this.playerSprite.stop();
-        // Show a clean standing frame instead of freezing mid-step
-        const idleFrame =
-          this.lastDirection === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
-          this.lastDirection === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
-                                          KenneyCharFrames.PLAYER_WALK_RIGHT[0];
-        this.playerSprite.setFrame(idleFrame);
-        this.playerSprite.setFlipX(this.lastDirection === 'left');
+        if (this.playerCharacterTextureKey) {
+          this.showCharacterIdle(this.playerSprite, this.playerCharacterTextureKey, this.lastDirection);
+        } else {
+          this.playerSprite.stop();
+          // Show a clean standing frame instead of freezing mid-step
+          const idleFrame =
+            this.lastDirection === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
+            this.lastDirection === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
+                                            KenneyCharFrames.PLAYER_WALK_RIGHT[0];
+          this.playerSprite.setFrame(idleFrame);
+          this.playerSprite.setFlipX(this.lastDirection === 'left');
+        }
       }
     }
 
@@ -496,13 +508,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
    */
   private createNpcCharacterAnimations(): void {
     const defs: Array<{ suffix: string; frames: number[]; fps: number }> = [
-      { suffix: 'idle_front', frames: [0, 1],           fps: 2 },
+      { suffix: 'idle_front', frames: [2, 3],           fps: 2 },
       { suffix: 'walk_down',  frames: [2, 3, 4, 5],     fps: 8 },
       { suffix: 'walk_left',  frames: [6, 7, 8, 9],     fps: 8 },
       { suffix: 'walk_right', frames: [10, 11, 12, 13], fps: 8 },
       { suffix: 'walk_up',    frames: [14, 15, 16, 17], fps: 8 },
     ];
-    for (const id of NPC_CHAR_IDS) {
+    for (const id of NPC_CHARACTER_SPRITE_IDS) {
       const texKey = `npc_${id}`;
       if (!this.textures.exists(texKey)) continue;
       for (const d of defs) {
@@ -516,6 +528,53 @@ class DataDrivenWorldScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  private textureKeyForCharacterObject(object: MapObjectState): NpcCharacterTextureKey | null {
+    const id = npcCharacterSpriteForObject(object);
+    if (!id) return null;
+    const textureKey = npcTextureKey(id);
+    return this.textures.exists(textureKey) ? textureKey : null;
+  }
+
+  private defaultPlayerCharacterTextureKey(): NpcCharacterTextureKey | null {
+    const textureKey = npcTextureKey('orientadora-casual-female');
+    return this.textures.exists(textureKey) ? textureKey : null;
+  }
+
+  private createCharacterSprite(
+    textureKey: NpcCharacterTextureKey,
+    yOffset = -34,
+    scale = 0.42,
+  ): Phaser.GameObjects.Sprite {
+    const sprite = this.add.sprite(0, yOffset, textureKey).setScale(scale);
+    this.showCharacterIdle(sprite, textureKey, 'down');
+    return sprite;
+  }
+
+  private characterWalkAnimationKey(
+    textureKey: NpcCharacterTextureKey,
+    direction: 'down' | 'up' | 'left' | 'right',
+  ): string {
+    return `${textureKey}_walk_${direction}`;
+  }
+
+  private characterIdleFrame(direction: 'down' | 'up' | 'left' | 'right'): number {
+    if (direction === 'up') return 14;
+    if (direction === 'left') return 6;
+    if (direction === 'right') return 10;
+    return 2;
+  }
+
+  private showCharacterIdle(
+    sprite: Phaser.GameObjects.Sprite,
+    textureKey: NpcCharacterTextureKey,
+    direction: 'down' | 'up' | 'left' | 'right',
+  ): void {
+    sprite.stop();
+    sprite.setTexture(textureKey);
+    sprite.setFrame(this.characterIdleFrame(direction));
+    sprite.setFlipX(false);
   }
 
   private createAnimations() {
@@ -598,9 +657,16 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.ambientMovers.clear();
     this.tiledExits.clear();
     this.wallsLayer = undefined;
+    this.authoredCollisionZones = [];
 
     const mapKey  = this.world.map.key;
-    const { width: mapW, height: mapH } = this.world.map;
+    if (this.shouldUseClinicalOfficeScene(mapKey)) {
+      this.renderClinicalOfficeWorld(mapKey);
+      return;
+    }
+
+    let mapW = this.world.map.width;
+    let mapH = this.world.map.height;
     this.cameras.main.setBackgroundColor('#0e141a');
 
     // ── Layer 0-1: procedural dark floor + grid (always — permanent base) ──
@@ -631,6 +697,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
         if (tilesets.length > 0) {
           this.buildTiledLayers(tilemap, tilesets);
         }
+        mapW = tilemap.widthInPixels;
+        mapH = tilemap.heightInPixels;
         tiledObjects = tilemap.getObjectLayer('Objects')?.objects ?? [];
         hasTiledMap  = true;
       } catch {
@@ -647,9 +715,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Room border (depth 5) + title (depth 6) — always above tile layers (depth 2-3)
     this.add.rectangle(mapW/2, mapH/2, mapW-36, mapH-38)
       .setStrokeStyle(3, 0x4f7cac, .3).setFillStyle(0x000000, 0).setDepth(5);
-    this.add.text(16, 12, this.world.map.title, {
+    const mapTitle = this.add.text(16, 12, this.world.map.title, {
       fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
     }).setDepth(6).setScrollFactor(0);   // pin to screen — stays top-left as camera scrolls
+    mapTitle.setVisible(false);
     if (isHospitalMap(mapKey)) {
       this.add.text(56, 66, 'Hospital — Urgencia vital y crisis', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: 'rgba(157,192,232,.72)',
@@ -672,7 +741,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Tiled object "name" must match the backend MapObjectState "key".
     let mergedObjects = this.world.objects.map(obj => {
       const t = tiledObjects.find(o => o.name === obj.key);
-      return (t?.x != null && t?.y != null) ? { ...obj, x: t.x, y: t.y } : obj;
+      if (t?.x != null && t?.y != null) return { ...obj, x: t.x, y: t.y };
+      const p = this.toRenderPoint(obj.x, obj.y, mapW, mapH);
+      return { ...obj, x: p.x, y: p.y };
     });
     if (isHospitalMap(mapKey) || isComisariaMap(mapKey)) {
       mergedObjects = applySceneDisplayLabels(mergedObjects, mapKey);
@@ -680,12 +751,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     mergedObjects.forEach(obj => this.createMarker(obj));
     this.spawnAmbientDust(mapW, mapH);
-    this.createPlayer(this.world.player.x, this.world.player.y);
+    const playerPos = this.toRenderPoint(this.world.player.x, this.world.player.y, mapW, mapH);
+    this.createPlayer(playerPos.x, playerPos.y);
 
     // ── Camera: 2× zoom, smooth follow, clamp to map bounds ────────────────
     const cam = this.cameras.main;
     const az = Number((this.world.map.ambient as { cameraZoom?: unknown })?.cameraZoom);
-    cam.setZoom(Number.isFinite(az) && az > 0 ? az : 2);
+    cam.setZoom(Number.isFinite(az) && az > 0 ? az : 1.6);
     cam.setBounds(0, 0, mapW, mapH);
     cam.startFollow(this.player!, true, 0.12, 0.12);
     // startFollow args: target, roundPixels=true, lerpX=0.12, lerpY=0.12
@@ -696,6 +768,235 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction(true); // suppress blip on initial spawn
     this.buildGuide();
     this.applyLightingOverlay();
+  }
+
+  private shouldUseClinicalOfficeScene(mapKey: string | undefined | null): boolean {
+    const key = (mapKey ?? '').toLowerCase();
+    return ['comisaria', 'ruta', 'proteccion', 'orientacion', 'entrevista', 'sala-espera']
+      .some(part => key.includes(part));
+  }
+
+  private renderClinicalOfficeWorld(mapKey: string): void {
+    if (!this.world) return;
+
+    const mapW = 960;
+    const mapH = 540;
+    this.renderClinicalOfficeEnvironment(mapW, mapH, mapKey);
+
+    this.layoutClinicalOfficeObjects(this.world.objects, mapW, mapH)
+      .forEach(obj => this.createMarker(obj));
+
+    this.spawnAmbientDust(mapW, mapH);
+
+    const sourceW = this.world.map.width;
+    const sourceH = this.world.map.height;
+    const playerLooksGrid = this.world.player.x <= sourceW && this.world.player.y <= sourceH;
+    const playerPos = playerLooksGrid
+      ? { x: 480, y: 365 }
+      : {
+          x: Phaser.Math.Clamp(this.world.player.x, 84, mapW - 84),
+          y: Phaser.Math.Clamp(this.world.player.y, 210, mapH - 64),
+        };
+
+    this.createPlayer(playerPos.x, playerPos.y);
+
+    const cam = this.cameras.main;
+    cam.setZoom(1);
+    cam.setBounds(0, 0, mapW, mapH);
+    cam.centerOn(mapW / 2, mapH / 2);
+
+    this.refreshMarkerStates();
+    this.updateNearestInteraction(true);
+    this.buildGuide();
+    this.applyLightingOverlay();
+  }
+
+  private renderClinicalOfficeEnvironment(mapW: number, mapH: number, mapKey: string): void {
+    const g = this.add.graphics();
+    this.add.rectangle(mapW / 2, mapH / 2, mapW, mapH, 0x070a12, 1).setDepth(DEPTH.BACK);
+
+    g.setDepth(DEPTH.FLOOR);
+    g.fillStyle(0x171b2a, 1).fillRect(24, 26, mapW - 48, mapH - 54);
+    g.fillStyle(0x6d638f, 1).fillRect(48, 42, mapW - 96, 140);
+    g.fillStyle(0x867fa2, 1);
+    g.beginPath();
+    g.moveTo(48, 182);
+    g.lineTo(mapW - 48, 182);
+    g.lineTo(mapW - 28, mapH - 42);
+    g.lineTo(28, mapH - 42);
+    g.closePath();
+    g.fillPath();
+
+    g.lineStyle(2, 0x50476e, 0.85).strokeRect(48, 42, mapW - 96, mapH - 84);
+    g.lineStyle(1, 0x514b70, 0.28);
+    for (let y = 210; y < mapH - 56; y += 34) {
+      g.lineBetween(44, y, mapW - 44, y);
+    }
+    for (let x = 82; x < mapW - 72; x += 44) {
+      const lean = (x - mapW / 2) * 0.07;
+      g.lineBetween(x, 184, x + lean, mapH - 46);
+    }
+
+    g.fillStyle(0x3e3558, 0.9).fillRect(48, 166, mapW - 96, 18);
+    g.fillStyle(0x4b4265, 0.9).fillRect(48, 42, mapW - 96, 16);
+
+    this.authoredCollisionZones = [
+      { x: 30, y: 28, width: 18, height: mapH - 56 },
+      { x: mapW - 48, y: 28, width: 18, height: mapH - 56 },
+      { x: 48, y: 28, width: mapW - 96, height: 24 },
+      { x: 116, y: 126, width: 130, height: 92 },
+      { x: 384, y: 252, width: 304, height: 92 },
+      { x: 88, y: 294, width: 146, height: 86 },
+      { x: 740, y: 300, width: 118, height: 92 },
+    ];
+
+    // Door and wall details.
+    this.add.rectangle(250, 116, 62, 118, 0x7a4a2d).setStrokeStyle(3, 0x2b1b16, 0.85).setDepth(DEPTH.WALLS);
+    this.add.rectangle(250, 104, 34, 36, 0x9fb4c9, 0.75).setStrokeStyle(2, 0x42301f, 0.9).setDepth(DEPTH.WALLS + 1);
+    this.add.circle(277, 128, 4, 0xd4b06a, 1).setDepth(DEPTH.WALLS + 2);
+    this.add.circle(370, 104, 18, 0xe8edf4, 0.95).setStrokeStyle(3, 0x343547, 1).setDepth(DEPTH.WALLS + 1);
+    this.add.rectangle(618, 104, 84, 88, 0xdecda8, 0.95).setStrokeStyle(3, 0x4b3550, 0.9).setDepth(DEPTH.WALLS + 1);
+    this.add.text(578, 78, 'ESCUCHAR\nACOMPANAR\nPROTEGER', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '10px',
+      color: '#4a3b54',
+      align: 'center',
+      lineSpacing: 4,
+    }).setDepth(DEPTH.WALLS + 2);
+    this.add.rectangle(746, 116, 118, 82, 0x8a623e, 1).setStrokeStyle(3, 0x2b1b16, 0.85).setDepth(DEPTH.WALLS + 1);
+    this.add.rectangle(746, 116, 96, 60, 0x695f83, 0.85).setDepth(DEPTH.WALLS + 2);
+
+    // Furniture.
+    this.drawBookshelf(150, 162);
+    this.drawSofa(132, 330);
+    this.drawCoffeeTable(260, 374);
+    this.drawDesk(536, 296);
+    this.drawSideCabinet(788, 342);
+    this.drawPlant(90, 422, 1.05);
+    this.drawPlant(722, 190, 0.75);
+    this.drawPlant(844, 420, 0.95);
+
+    const roomTitle = mapKey.includes('comisaria') ? 'Comisaria de Familia' : 'Oficina de Orientacion Familiar';
+    this.add.text(64, 58, roomTitle, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px',
+      color: 'rgba(244,247,251,.56)',
+      fontStyle: 'bold',
+    }).setDepth(DEPTH.WALLS + 2);
+  }
+
+  private drawBookshelf(x: number, y: number): void {
+    const depth = DEPTH.ENVIRONMENT;
+    this.add.rectangle(x, y, 122, 78, 0x754a2c).setStrokeStyle(3, 0x2b1b16, 0.75).setDepth(depth);
+    this.add.rectangle(x, y - 10, 104, 10, 0x3f2d25).setDepth(depth + 1);
+    this.add.rectangle(x, y + 18, 104, 10, 0x3f2d25).setDepth(depth + 1);
+    [-42, -24, -6, 18, 38].forEach((dx, i) => {
+      this.add.rectangle(x + dx, y - 27, 10, 25, [0x315b70, 0x8a5934, 0x435b36, 0x714153, 0x2f496d][i], 1).setDepth(depth + 2);
+    });
+    [-36, -12, 10, 34].forEach((dx, i) => {
+      this.add.rectangle(x + dx, y + 5, 12, 25, [0x8a5934, 0x315b70, 0x435b36, 0x6f5a38][i], 1).setDepth(depth + 2);
+    });
+  }
+
+  private drawSofa(x: number, y: number): void {
+    const depth = actorDepth(y + 40);
+    this.add.rectangle(x, y + 22, 144, 48, 0x173b68).setStrokeStyle(3, 0x0b1d34, 0.9).setDepth(depth);
+    this.add.rectangle(x, y - 10, 136, 44, 0x1e4e86).setStrokeStyle(3, 0x0b1d34, 0.9).setDepth(depth + 1);
+    this.add.rectangle(x - 50, y - 8, 34, 42, 0x1b467a).setDepth(depth + 2);
+    this.add.rectangle(x, y - 8, 34, 42, 0x1b467a).setDepth(depth + 2);
+    this.add.rectangle(x + 50, y - 8, 34, 42, 0x1b467a).setDepth(depth + 2);
+  }
+
+  private drawCoffeeTable(x: number, y: number): void {
+    const depth = actorDepth(y);
+    this.add.rectangle(x, y, 92, 44, 0x6f4328).setStrokeStyle(3, 0x2b1b16, 0.75).setDepth(depth);
+    this.add.rectangle(x, y - 8, 74, 24, 0x8b5b34).setDepth(depth + 1);
+    this.add.rectangle(x - 10, y - 10, 28, 16, 0xb7a88e).setStrokeStyle(1, 0x43382f, 0.8).setDepth(depth + 2);
+    this.drawPlant(x + 26, y - 18, 0.38);
+  }
+
+  private drawDesk(x: number, y: number): void {
+    const depth = actorDepth(y + 50);
+    this.add.ellipse(x, y + 48, 286, 34, 0x000000, 0.16).setDepth(depth - 1);
+    this.add.rectangle(x, y + 16, 250, 70, 0x83512d).setStrokeStyle(3, 0x2b1b16, 0.9).setDepth(depth);
+    this.add.rectangle(x, y - 14, 270, 42, 0xa36b3a).setStrokeStyle(3, 0x3d281a, 0.85).setDepth(depth + 1);
+    this.add.rectangle(x - 64, y - 34, 42, 34, 0x1d2735).setStrokeStyle(2, 0x090d12, 1).setDepth(depth + 2);
+    this.add.rectangle(x - 64, y - 10, 58, 10, 0x121820).setDepth(depth + 2);
+    this.add.rectangle(x + 72, y - 22, 44, 30, 0xd6d1bf).setStrokeStyle(1, 0x615945, 0.9).setDepth(depth + 2);
+    this.drawPlant(x - 6, y - 24, 0.32);
+  }
+
+  private drawSideCabinet(x: number, y: number): void {
+    const depth = actorDepth(y + 40);
+    this.add.rectangle(x, y, 92, 86, 0x6a4025).setStrokeStyle(3, 0x2b1b16, 0.85).setDepth(depth);
+    this.add.rectangle(x, y - 18, 76, 22, 0x354a69).setDepth(depth + 1);
+    this.add.rectangle(x, y + 18, 76, 22, 0x2f425f).setDepth(depth + 1);
+    this.add.ellipse(x + 4, y - 54, 44, 22, 0x8b8d8c, 0.9).setStrokeStyle(2, 0x36393a, 0.9).setDepth(depth + 2);
+  }
+
+  private drawPlant(x: number, y: number, scale: number): void {
+    const depth = actorDepth(y);
+    this.add.ellipse(x, y + 12 * scale, 34 * scale, 14 * scale, 0x000000, 0.18).setDepth(depth - 1);
+    this.add.rectangle(x, y + 12 * scale, 26 * scale, 24 * scale, 0x4b3a30).setStrokeStyle(2, 0x221914, 0.8).setDepth(depth);
+    for (let i = 0; i < 6; i++) {
+      const angle = -80 + i * 32;
+      const leaf = this.add.ellipse(x, y - 6 * scale, 12 * scale, 42 * scale, 0x2f6f46, 0.95).setDepth(depth + 1);
+      leaf.setRotation(Phaser.Math.DegToRad(angle));
+    }
+  }
+
+  private layoutClinicalOfficeObjects(objects: MapObjectState[], mapW: number, mapH: number): MapObjectState[] {
+    const personSlots = [
+      { x: 548, y: 246 },
+      { x: 338, y: 326 },
+      { x: 706, y: 318 },
+      { x: 250, y: 328 },
+    ];
+    const toolSlots = [
+      { x: 632, y: 260 },
+      { x: 668, y: 282 },
+      { x: 438, y: 284 },
+      { x: 300, y: 370 },
+    ];
+    const miscSlots = [
+      { x: 250, y: 146 },
+      { x: 616, y: 112 },
+      { x: 746, y: 116 },
+      { x: 790, y: 344 },
+    ];
+    let personIdx = 0;
+    let toolIdx = 0;
+    let miscIdx = 0;
+
+    return objects.map(obj => {
+      const text = `${obj.key} ${obj.label} ${obj.interactionText} ${obj.interactionPrompt}`.toLowerCase();
+      let pos: { x: number; y: number };
+
+      if (obj.type === 'PERSON') {
+        if (text.includes('victima') || text.includes('maria') || text.includes('sobreviv') || text.includes('madre')) {
+          pos = { x: 338, y: 326 };
+        } else if (text.includes('orient') || text.includes('psicolog') || text.includes('lic.')) {
+          pos = { x: 548, y: 246 };
+        } else {
+          pos = personSlots[personIdx % personSlots.length];
+          personIdx += 1;
+        }
+      } else if (obj.type === 'TOOL') {
+        pos = toolSlots[toolIdx % toolSlots.length];
+        toolIdx += 1;
+      } else if (obj.type === 'EXIT' || obj.type === 'ROUTE') {
+        pos = { x: 250, y: 146 };
+      } else {
+        pos = miscSlots[miscIdx % miscSlots.length];
+        miscIdx += 1;
+      }
+
+      return {
+        ...obj,
+        x: Phaser.Math.Clamp(pos.x, 56, mapW - 56),
+        y: Phaser.Math.Clamp(pos.y, 72, mapH - 56),
+      };
+    });
   }
 
   /**
@@ -717,9 +1018,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.currentRoomKey = roomConfig.key;
 
     // Title pinned to screen
-    this.add.text(16, 12, roomConfig.displayName, {
+    const roomTitle = this.add.text(16, 12, roomConfig.displayName, {
       fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
     }).setDepth(6).setScrollFactor(0);
+
+    roomTitle.setVisible(false);
 
     let actualMapW = 960, actualMapH = 528;
     let tiledObjects: Phaser.Types.Tilemaps.TiledObject[] = [];
@@ -763,7 +1066,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
 
     const cam = this.cameras.main;
-    cam.setZoom(2);
+    cam.setZoom(1.6);
     cam.setBounds(0, 0, actualMapW, actualMapH);
 
     // Room border
@@ -848,7 +1151,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const label = this.add.text(0, -28, npc.displayName, {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8f0f4',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
-      }).setOrigin(0.5, 1);
+      }).setOrigin(0.5, 1).setVisible(false);
 
       const hint = this.add.text(0, -42, '▲ E', {
         fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
@@ -858,6 +1161,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.npcMarkers.set(npc.key, container);
       (container as unknown as Record<string, unknown>)['__npcConfig'] = npc;
       (container as unknown as Record<string, unknown>)['__hintSprite'] = hint;
+      (container as unknown as Record<string, unknown>)['__labelSprite'] = label;
     }
   }
 
@@ -868,7 +1172,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     for (const container of this.npcMarkers.values()) {
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
       const hint = (container as unknown as Record<string, unknown>)['__hintSprite'] as Phaser.GameObjects.Text;
+      const label = (container as unknown as Record<string, unknown>)['__labelSprite'] as Phaser.GameObjects.Text;
       if (hint) hint.setAlpha(dist <= this.NPC_INTERACT_RANGE ? 1 : 0);
+      if (label) label.setVisible(dist <= this.NPC_INTERACT_RANGE);
     }
   }
 
@@ -1146,9 +1452,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private createPlayer(x: number, y: number) {
-    const shadow = this.add.ellipse(0, 14, 16, 5, 0x000000, .22);   // scaled down to match scale(1.5)
+    const playerTextureKey = this.assetsLoaded ? this.defaultPlayerCharacterTextureKey() : null;
+    const shadow = this.add.ellipse(0, 14, playerTextureKey ? 28 : 16, playerTextureKey ? 8 : 5, 0x000000, .22);
+    this.playerSprite = undefined;
+    this.playerCharacterTextureKey = null;
 
-    if (this.assetsLoaded && this.textures.exists('characters')) {
+    if (playerTextureKey) {
+      const sprite = this.createCharacterSprite(playerTextureKey, -38, 0.45);
+      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
+      this.playerSprite = sprite;
+      this.playerCharacterTextureKey = playerTextureKey;
+    } else if (this.assetsLoaded && this.textures.exists('characters')) {
       const sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
       // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
       // (scale 2 at zoom 2 would be 64px = 2 full tiles — too dominant)
@@ -1165,7 +1479,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // AvatarRenderer crea su propio Container independiente en la misma posición.
     // El player container sigue siendo this.player (colisión + física manual).
     // Si no hay texturas de avatar, el renderer crea un container vacío — sin crash.
-    if (this.avatarRenderer) {
+    if (!this.playerCharacterTextureKey && this.avatarRenderer) {
       // Reutilizamos la instancia precreada en preload(); actualizamos su posición.
       // Primero destruimos un renderer previo si renderWorld() / renderRoom() lo reconstruye.
       if (this.avatarRenderer.isCreated()) {
@@ -1191,6 +1505,20 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────────────────────
   }
 
+  private toRenderPoint(x: number, y: number, renderW: number, renderH: number): { x: number; y: number } {
+    if (!this.world) return { x, y };
+    const sourceW = this.world.map.width;
+    const sourceH = this.world.map.height;
+    const renderLooksPixel = renderW > sourceW * 4 || renderH > sourceH * 4;
+    const pointLooksGrid = x >= 0 && y >= 0 && x <= sourceW && y <= sourceH;
+    if (!renderLooksPixel || !pointLooksGrid || sourceW <= 0 || sourceH <= 0) return { x, y };
+
+    return {
+      x: (x + 0.5) * (renderW / sourceW),
+      y: (y + 0.5) * (renderH / sourceH),
+    };
+  }
+
   private createMarker(object: MapObjectState) {
     const isExit = object.type === 'EXIT';
     const color  = Number.parseInt(object.color.replace('#', ''), 16) || 0x4fa3a5;
@@ -1198,13 +1526,16 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const label  = this.add.text(0, 28, displayLabel, {
       fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: 140 }
-    }).setOrigin(.5, 0);
+    }).setOrigin(.5, 0).setVisible(false);
 
     let main: Phaser.GameObjects.GameObject;
+    const characterTextureKey = this.textureKeyForCharacterObject(object);
 
     if (this.assetsLoaded) {
       if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
+      } else if (characterTextureKey) {
+        main = this.createCharacterSprite(characterTextureKey);
       } else if (object.type === 'PERSON' && this.textures.exists('characters')) {
         main = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE).setScale(2);
       } else if (this.textures.exists('dungeon-tiles')) {
@@ -1224,6 +1555,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const marker = this.add.container(object.x, object.y, [pulse, main, label]).setDepth(actorDepth(object.y));
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    (marker as unknown as Record<string, unknown>)['__labelSprite'] = label;
     this.applyAmbientLife(marker, object);
 
     if (isExit) {
@@ -1373,6 +1705,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * backend collision zones (legacy single-map mode).
    */
   private wouldCollide(x: number, y: number): boolean {
+    if (this.authoredCollisionZones.length) {
+      const pb = new Phaser.Geom.Rectangle(x - 15, y - 27, 30, 46);
+      return this.authoredCollisionZones.some(z =>
+        Phaser.Geom.Intersects.RectangleToRectangle(pb, new Phaser.Geom.Rectangle(z.x, z.y, z.width, z.height)));
+    }
+
     if (this.wallsLayer) {
       const hw = 8, hh = 10;
       const corners = [
@@ -1444,6 +1782,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       m.setScale(sel ? 1.12 : near ? 1.08 : 1);
       m.setAlpha(sel || near ? 1 : .88);
+      const label = (m as unknown as Record<string, unknown>)['__labelSprite'] as Phaser.GameObjects.Text;
+      if (label) label.setVisible(false);
     });
     this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey));
   }
@@ -1676,15 +2016,17 @@ export const VIVIENDA_URBANA_SCENARIO: ScenarioConfig = {
     <div class="touch-controls" aria-label="Controles táctiles">
       <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"    (click)="nudge('up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
       <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda" (click)="nudge('left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
-      <button type="button" class="psy-button psy-button--glass touch-interact"            (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
+      <button type="button" class="psy-button psy-button--glass touch-interact" aria-label="Interactuar" (click)="interactNearest()">
+        <mat-icon>touch_app</mat-icon><span class="touch-interact__label">Interactuar</span>
+      </button>
       <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"   (click)="nudge('right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
       <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"     (click)="nudge('down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
     </div>
   `,
   styles: [`
-    :host { display: block; width: 100%; height: 100%; }
-    .phaser-host { width: 100%; height: 100%; }
-    :host ::ng-deep .phaser-host canvas { display: block; width: 100% !important; height: 100% !important; }
+    :host { display: block; width: 100%; max-width: 100%; height: 100%; min-width: 0; overflow: hidden; }
+    .phaser-host { width: 100%; max-width: 100%; height: 100%; min-width: 0; overflow: hidden; }
+    :host ::ng-deep .phaser-host canvas { display: block; width: 100% !important; max-width: 100% !important; height: 100% !important; }
     .touch-controls {
       display: none;
       position: absolute;
@@ -1698,7 +2040,15 @@ export const VIVIENDA_URBANA_SCENARIO: ScenarioConfig = {
     }
     .touch-btn { background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5; }
     .touch-interact { font-size: .82rem; }
-    @media (max-width: 900px) { .touch-controls { display: grid; } }
+    @media (max-width: 900px) {
+      .touch-controls { display: grid; }
+      .touch-interact {
+        width: 52px;
+        min-width: 52px;
+        padding-inline: 0;
+      }
+      .touch-interact__label { display: none; }
+    }
   `]
 })
 export class GameWorldComponent implements OnChanges, OnDestroy {

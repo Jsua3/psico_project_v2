@@ -218,35 +218,24 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
   styles: [`
     .dialogue-strip {
       width: 100%;
-      min-height: 180px;
-      display: flex;
-      flex-direction: column;
+      min-height: clamp(190px, 24vh, 270px);
+      display: grid;
+      grid-template-columns: minmax(96px, 140px) minmax(0, 1fr);
       align-items: stretch;
       gap: 0;
       padding: 0;
-      background: rgba(8,12,18,.95);
-      border-top: 2px solid rgba(182,156,255,.4);
+      background: linear-gradient(180deg, rgba(12,17,30,.98), rgba(7,10,17,.98));
+      border: 1px solid rgba(182,156,255,.38);
+      box-shadow: inset 0 0 0 1px rgba(124,77,255,.12), 0 -18px 44px -30px rgba(124,77,255,.7);
       backdrop-filter: blur(16px) saturate(110%);
       animation: strip-rise 160ms cubic-bezier(.2,.8,.2,1) both;
     }
 
-    /* Inner row containing portrait + body */
-    .dialogue-strip > :not(.interruption-banner) {
-      display: contents;
-    }
-    /* Override: make portrait + strip-body appear side-by-side below the banner */
-    .portrait, .strip-body {
-      display: flex;
-    }
-    .dialogue-strip {
-      flex-direction: column;
-    }
-
     .strip--warning {
-      border-top-color: rgba(168,80,98,.6);
+      border-color: rgba(168,80,98,.62);
     }
     .strip--supervisory {
-      border-top-color: rgba(79,163,100,.6);
+      border-color: rgba(79,163,100,.62);
       background: rgba(8,14,10,.95);
     }
 
@@ -262,6 +251,7 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      grid-column: 1 / -1;
     }
     .countdown-bar {
       height: 3px;
@@ -270,32 +260,24 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       border-radius: 2px;
     }
 
-    /* Re-establish side-by-side layout for portrait + body */
     .portrait {
-      flex-shrink: 0;
-      width: 88px;
-      min-height: 160px;
+      grid-column: 1;
+      width: auto;
+      min-height: 100%;
       display: grid;
       place-items: center;
       border-right: 1px solid rgba(182,156,255,.2);
-      background: rgba(124,77,255,.08);
+      background:
+        radial-gradient(circle at 50% 55%, rgba(124,77,255,.22), transparent 48%),
+        rgba(124,77,255,.08);
       position: relative;
       align-self: stretch;
     }
 
-    /* Wrap portrait + body in a flex row at the strip level */
-    .dialogue-strip {
-      display: flex;
-      flex-direction: column;
-    }
-    /* The content row (portrait + body) */
-    .dialogue-content-row {
-      display: flex;
-      flex-direction: row;
-    }
-
     .portrait-svg {
       color: #B69CFF;
+      width: 58px;
+      height: 58px;
     }
     .npc-portrait {
       image-rendering: pixelated;
@@ -313,11 +295,12 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
     }
 
     .strip-body {
+      grid-column: 2;
       flex: 1;
-      padding: 16px 22px 16px 18px;
+      padding: clamp(16px, 2vw, 24px);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
       min-width: 0;
     }
     .speaker-name {
@@ -338,6 +321,7 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       color: rgba(232,240,244,.92);
       min-height: 1.6em;
       white-space: pre-line;
+      max-width: 66ch;
       transition: color 200ms ease, opacity 200ms ease;
     }
 
@@ -380,7 +364,7 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       align-items: start;
       min-height: 64px;
       padding: 11px 12px;
-      border-radius: 14px;
+      border-radius: 8px;
       border: 1px solid rgba(182,156,255,.3);
       background: rgba(255,255,255,.06);
       color: rgba(232,240,244,.9);
@@ -471,6 +455,10 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       padding: 9px 20px;
       min-height: 42px;
       cursor: pointer;
+      border-radius: 8px;
+      background: rgba(124,77,255,.18);
+      border-color: rgba(182,156,255,.4);
+      color: #E7DDFF;
     }
 
     @keyframes strip-rise {
@@ -482,8 +470,14 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       50%       { opacity: 0; }
     }
     @media (max-width: 560px) {
-      .portrait { width: 60px; min-height: 180px; }
+      .dialogue-strip {
+        grid-template-columns: 64px minmax(0, 1fr);
+        min-height: 210px;
+      }
+      .portrait { min-height: 100%; }
+      .portrait-svg { width: 40px; height: 40px; }
       .strip-body { padding: 12px 14px; }
+      .dialogue-text { font-size: .86rem !important; }
     }
     @media (prefers-reduced-motion: reduce) {
       .dialogue-strip { animation: none; }
@@ -494,9 +488,12 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
 
     /* ── Side-panel mode ── */
     .sp-root {
-      display: flex; flex-direction: column; height: 100%; padding: 14px;
-      background: rgba(8,12,18,.95); backdrop-filter: blur(18px);
-      color: rgba(232,240,244,.92); overflow-y: auto; gap: 12px;
+      display: flex; flex-direction: column; height: 100%; padding: 18px;
+      background: linear-gradient(180deg, rgba(12,17,30,.98), rgba(7,10,17,.98));
+      backdrop-filter: blur(18px);
+      color: rgba(232,240,244,.92); overflow-y: auto; gap: 14px;
+      border: 1px solid rgba(182,156,255,.26);
+      box-shadow: inset 0 0 0 1px rgba(124,77,255,.1);
     }
     .sp-root.sp--warning { border-left: 2px solid rgba(168,80,98,.6); }
     .sp-root.sp--supervisory { background: rgba(8,14,10,.95); }
@@ -505,7 +502,7 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       border-bottom: 1px solid rgba(182,156,255,.14); flex-shrink: 0;
     }
     .sp-portrait {
-      flex-shrink: 0; width: 38px; height: 38px;
+      flex-shrink: 0; width: 52px; height: 52px;
       display: grid; place-items: center; border-radius: 8px;
       background: rgba(124,77,255,.08); border: 1px solid rgba(182,156,255,.2);
       color: #B69CFF; position: relative;
@@ -528,17 +525,27 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       cursor: pointer; font-size: .82rem;
     }
     .sp-close:hover { background: rgba(168,80,98,.18); color: #c97a86; border-color: rgba(168,80,98,.4); }
-    .sp-text-box { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-    .sp-text { margin: 0; font-size: .92rem; line-height: 1.65; color: rgba(232,240,244,.9); white-space: pre-line; }
+    .sp-text-box {
+      flex: 0 0 auto;
+      min-height: 128px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(182,156,255,.18);
+      border-radius: 8px;
+      background: rgba(255,255,255,.035);
+    }
+    .sp-text { margin: 0; font-size: .94rem; line-height: 1.65; color: rgba(232,240,244,.9); white-space: pre-line; }
     .sp-skip {
       display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
       padding: 4px 10px; border: 1px solid rgba(182,156,255,.28); border-radius: 7px;
-      background: rgba(255,255,255,.05); color: rgba(232,240,244,.5); font-size: .74rem; cursor: pointer;
+      background: rgba(124,77,255,.12); color: rgba(232,240,244,.72); font-size: .74rem; cursor: pointer;
     }
-    .sp-choices { display: flex; flex-direction: column; gap: 7px; }
+    .sp-choices { display: flex; flex-direction: column; gap: 9px; }
     .sp-choice {
       display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start;
-      min-height: 48px; padding: 9px 10px; border-radius: 10px;
+      min-height: 56px; padding: 11px 12px; border-radius: 8px;
       border: 1px solid rgba(182,156,255,.28); background: rgba(255,255,255,.05);
       color: rgba(232,240,244,.88); font: inherit; font-size: .82rem;
       text-align: left; cursor: pointer; transition: border-color 120ms, background 120ms;

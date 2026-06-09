@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { MapObjectState } from '../../../core/models/simulation.model';
 import { SocialNode, SocialEdge } from './social-map.model';
 
 @Injectable({ providedIn: 'root' })
@@ -35,10 +36,40 @@ export class SocialMapService {
     });
   }
 
+  syncFromWorldObjects(objects: MapObjectState[]): void {
+    for (const object of objects) {
+      if (object.type !== 'PERSON') continue;
+      this.revealNode({
+        id: object.key,
+        label: object.label,
+        type: this.classifyPerson(object),
+        revealed: true,
+        affinity: 0,
+      });
+      this.addEdge({
+        from: 'patient',
+        to: object.key,
+        strength: 0.45,
+        type: 'unknown',
+      });
+    }
+  }
+
   reset(): void {
     this.nodes.set([
       { id: 'patient', label: 'Paciente', type: 'patient', revealed: true, affinity: 0 }
     ]);
     this.edges.set([]);
+  }
+
+  private classifyPerson(object: MapObjectState): SocialNode['type'] {
+    const text = `${object.label} ${object.interactionText} ${object.interactionPrompt}`.toLowerCase();
+    if (text.includes('orientador') || text.includes('psicolog') || text.includes('profesional') || text.includes('lic.')) {
+      return 'professional';
+    }
+    if (text.includes('agresor') || text.includes('riesgo') || text.includes('violencia')) {
+      return 'antagonist';
+    }
+    return 'family';
   }
 }

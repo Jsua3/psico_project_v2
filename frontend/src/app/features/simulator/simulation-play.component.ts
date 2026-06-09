@@ -268,6 +268,8 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       --sim-glow: 0 18px 48px -28px rgba(124,77,255,.6);
       position: fixed;
       inset: 0;
+      width: 100vw;
+      min-width: 0;
       overflow: hidden;
       color: var(--sim-ink);
       background:
@@ -279,12 +281,15 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     }
 
     /* ── FILA 1: HUD top bar ── */
-    app-simulation-hud.top-bar { display: block; z-index: 70; }
+    app-simulation-hud.top-bar { display: block; z-index: 70; min-width: 0; max-width: 100vw; }
 
     /* ── FILA 2: canvas zone ── */
     .canvas-zone {
       display: grid;
       grid-template-columns: 1fr;
+      width: 100%;
+      min-width: 0;
+      max-width: 100vw;
       min-height: 0;
       position: relative;
       overflow: hidden;
@@ -295,7 +300,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     }
     .game-canvas {
       grid-column: 1; grid-row: 1;
-      width: 100%; height: 100%; overflow: hidden;
+      width: 100%; max-width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden;
       border: 1px solid rgba(182,156,255,.18);
       background: #0e1322;
     }
@@ -319,7 +324,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       max-width: 220px; padding: 8px 12px;
       background: rgba(8,12,18,.82);
       border: 1px solid rgba(182,156,255,.28);
-      border-radius: 12px;
+      border-radius: 8px;
       backdrop-filter: blur(10px);
       pointer-events: none;
     }
@@ -333,7 +338,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     .proximity-hint {
       position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 50;
       max-width: min(520px, calc(100vw - 32px));
-      padding: 10px 14px; border-radius: 12px;
+      padding: 10px 14px; border-radius: 8px;
       background: rgba(8,12,18,.88); border: 1px solid rgba(182,156,255,.3);
       color: #e8f0f4; pointer-events: none;
       animation: hint-rise 160ms ease both;
@@ -355,13 +360,16 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       background: rgba(8,12,18,.88);
       border-top: 1px solid rgba(182,156,255,.14);
       z-index: 50;
+      min-width: 0;
+      max-width: 100vw;
+      overflow: hidden;
       min-height: 0;
     }
     .safe-exit {
       flex: 0 0 auto; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 2px;
       min-width: 62px; padding: 6px 8px;
-      border: 1px solid rgba(226,90,79,.4); border-radius: 10px;
+      border: 1px solid rgba(226,90,79,.4); border-radius: 8px;
       background: rgba(226,90,79,.1); color: rgba(230,130,110,.88);
       cursor: pointer; transition: border-color 140ms, background 140ms;
       font-family: inherit;
@@ -398,7 +406,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     }
     .overlay-panel {
       position: relative; width: min(560px, 88vw); max-height: 80vh;
-      overflow-y: auto; border-radius: 20px;
+      overflow-y: auto; border-radius: 10px;
       background: rgba(18,24,42,.95);
       border: 1px solid rgba(182,156,255,.22);
       backdrop-filter: blur(18px);
@@ -415,7 +423,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     /* ── Utility ── */
     .psy-button {
       display: inline-flex; align-items: center; justify-content: center;
-      min-height: 44px; padding: 10px 16px; border-radius: 12px;
+      min-height: 44px; padding: 10px 16px; border-radius: 8px;
       font-weight: 700; cursor: pointer; font: inherit;
     }
     .psy-button--primary {
@@ -435,7 +443,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
     .action-toast {
       position: absolute; top: 104px; left: 50%; transform: translateX(-50%);
       z-index: 320; max-width: min(92vw, 520px);
-      padding: 10px 16px; border-radius: 12px;
+      padding: 10px 16px; border-radius: 8px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
     .resume-overlay {
@@ -475,17 +483,24 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
     /* ── Mobile ── */
     @media (max-width: 760px) {
+      .canvas-zone {
+        width: 100vw;
+        max-width: 100vw;
+      }
       .game-container[data-mode="dialogue-right"] .canvas-zone {
         grid-template-columns: 1fr;
       }
       app-dialogue-panel.right-panel {
         position: fixed; bottom: 0; inset-inline: 0;
-        height: 65vh; z-index: 60;
+        height: auto; max-height: 62vh; z-index: 60;
         border-left: none; border-top: 1px solid rgba(182,156,255,.22);
         overflow-y: auto;
       }
       .context-bar { display: none; }
       .safe-exit__sub { display: none; }
+      .bottom-zone { padding: 6px 8px; gap: 6px; }
+      .safe-exit { min-width: 48px; padding-inline: 6px; }
+      .safe-exit__label { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .stress-vignette, .scene-fade { transition: none; }
@@ -1025,6 +1040,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.getWorld(attempt.attemptId, attempt.attemptToken).subscribe({
       next: world => {
         this.world.set(world);
+        this.socialMapService.syncFromWorldObjects(world.objects);
         this.loading.set(false);
         this.busy.set(false);
         window.setTimeout(() => this.fadeActive.set(false), 80);
