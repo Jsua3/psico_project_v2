@@ -56,16 +56,15 @@ const mockSimService = {
 };
 
 const mockAudioDirectorService = {
-  play: () => {},
-  playMusic: () => {},
-  stopMusic: () => {},
+  init: () => {},
   dispose: () => {},
   setMasterVolume: () => {},
-  setMusicVolume: () => {},
-  setSfxVolume: () => {},
   playSfx: () => {},
-  crossfadeTo: () => {},
-  updateStressLevel: () => {}
+  setStressLevel: () => {},
+  playResolution: () => {},
+  pause: () => {},
+  resume: () => {},
+  stopAll: () => {}
 };
 
 const mockSocialMapService = {
@@ -139,6 +138,13 @@ describe('SimulationPlayComponent — viewMode', () => {
     component.attempt.set(mockAttempt());
     component.dialogue.set(mockDialogue(true));
     component.selectedInteraction.set(mockInteraction('TOOL'));
+    expect(component.viewMode()).toBe('dialogue-cinematic');
+  });
+
+  it('returns "dialogue-cinematic" when dialogue has choices but selectedInteraction is null', () => {
+    component.attempt.set(mockAttempt());
+    component.dialogue.set(mockDialogue(true));
+    component.selectedInteraction.set(null);
     expect(component.viewMode()).toBe('dialogue-cinematic');
   });
 

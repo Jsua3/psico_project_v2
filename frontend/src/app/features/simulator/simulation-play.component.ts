@@ -792,7 +792,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (dlg) {
       const hasChoices = (dlg.choices?.length ?? 0) > 0;
       const isPerson   = this.selectedInteraction()?.type === 'PERSON';
-      return (hasChoices && isPerson) ? 'dialogue-right' : 'dialogue-cinematic';
+      const isWarning  = this.pendingRestrictedInteraction() !== null;
+      return (hasChoices && isPerson && !isWarning) ? 'dialogue-right' : 'dialogue-cinematic';
     }
     return 'explore';
   });
