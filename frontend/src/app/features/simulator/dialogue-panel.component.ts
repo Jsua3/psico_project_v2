@@ -66,94 +66,153 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
   imports: [CommonModule, NgStyle, NgClass],
   template: `
     @if (dialogue(); as d) {
-      <div #dialogueBox
-        class="dialogue-strip"
-        [class.strip--warning]="interaction()?.type === 'WARNING'"
-        [class.strip--supervisory]="d.speakerName === 'Supervisión clínica'"
-        role="dialog"
-        aria-modal="true"
-        [attr.aria-label]="d.speakerName + ': ' + fullText()"
-        (click)="onPanelClick()"
-        (keydown.enter)="onPanelClick()">
+      @if (mode() === 'side-panel') {
+        <div class="sp-root"
+          [class.sp--warning]="interaction()?.type === 'WARNING'"
+          [class.sp--supervisory]="d.speakerName === 'Supervisión clínica'"
+          role="dialog" aria-modal="false"
+          [attr.aria-label]="d.speakerName + ': ' + fullText()"
+          aria-live="polite">
 
-        <!-- QTE Interruption banner -->
-        @if (showInterruption()) {
-          <div class="interruption-banner" role="alert" aria-live="assertive">
-            <span>{{ interruptionConfig?.prompt }}</span>
-            <div class="countdown-bar" [style.width.%]="interruptionProgress()"></div>
+          <div class="sp-header">
+            <div class="sp-portrait" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="24" height="24">
+                <circle cx="24" cy="18" r="9" fill="currentColor"/>
+                <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
+              </svg>
+              @if (d.emotion && d.emotion !== 'neutral') {
+                <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
+              }
+            </div>
+            <div class="sp-identity">
+              <p class="sp-name">{{ d.speakerName }}</p>
+              @if (interaction()?.type === 'PERSON' && interaction()?.label) {
+                <p class="sp-role">{{ interaction()!.label }}</p>
+              }
+            </div>
+            <button type="button" class="sp-close" (click)="close.emit()" aria-label="Cerrar (Esc)">✕</button>
           </div>
-        }
 
-        <div class="portrait" aria-hidden="true">
-          <!-- NPC portrait sprite — shows when portraitSrc is set -->
-          @if (portraitSrc()) {
-            <div class="npc-portrait" [ngStyle]="portraitStyle()"></div>
-          } @else {
-            <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-              <circle cx="24" cy="18" r="9" fill="currentColor"/>
-              <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-            </svg>
-          }
-          @if (d.emotion && d.emotion !== 'neutral') {
-            <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
-          }
-        </div>
-
-        <!-- Text area -->
-        <div class="strip-body">
-          <p class="speaker-name">{{ d.speakerName }}</p>
-          <p class="dialogue-text"
-             [ngClass]="{ wobble: dialogueTextStyle().wobble, glitch: dialogueTextStyle().glitch }"
-             [ngStyle]="{
-               color: dialogueTextStyle().color,
-               fontSize: dialogueTextStyle().fontSize,
-               opacity: dialogueTextStyle().opacity
-             }"
-             role="status" aria-live="polite" aria-atomic="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
+          <div class="sp-text-box">
+            <p class="sp-text">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
+            @if (!isTypingComplete()) {
+              <button type="button" class="sp-skip" (click)="skipTypewriter()" aria-label="Saltar animación">▶ Saltar</button>
+            }
+          </div>
 
           @if (isTypingComplete() && d.choices.length) {
-            <div class="choices" role="group" aria-label="Opciones de intervención">
+            <div class="sp-choices" role="group" aria-label="Opciones de intervención">
               @for (choice of d.choices; track choice.key; let i = $index) {
-                <button
-                  type="button"
-                  class="choice-btn"
-                  [class.choice-btn--recommended]="choice.isRecommended"
-                  [class.choice-btn--prohibited]="choice.isProhibited"
-                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.isRecommended ? ' (recomendada)' : '') + (choice.isProhibited ? ' (contraindicada)' : '')"
+                <button type="button" class="sp-choice"
+                  [class.sp-choice--recommended]="choice.isRecommended"
+                  [class.sp-choice--prohibited]="choice.isProhibited"
                   (mouseenter)="onChoiceHover()"
                   (click)="handleChoice(choice)">
-                  <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
-                  <span class="choice-btn__icon" aria-hidden="true"></span>
-                  <span class="choice-btn__body">
-                    <span class="choice-btn__label">{{ choice.text }}</span>
-                    @if (choice.isRecommended) {
-                      <span class="choice-btn__meta">Recomendada</span>
-                    }
-                    @if (choice.isProhibited) {
-                      <span class="choice-btn__meta">Contraindicada</span>
-                    }
+                  <span class="sp-choice-num" aria-hidden="true">{{ i + 1 }}</span>
+                  <span class="sp-choice-body">
+                    <span class="sp-choice-text">{{ choice.text }}</span>
+                    @if (choice.isRecommended) { <span class="sp-choice-meta">Recomendada</span> }
+                    @if (choice.isProhibited) { <span class="sp-choice-meta sp-choice-meta--bad">Contraindicada</span> }
                   </span>
                 </button>
               }
             </div>
-          }
-
-          @if (!isTypingComplete()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
-              (click)="skipTypewriter()"
-              aria-label="Saltar animación de texto">
-              Saltar <span aria-hidden="true">▶</span>
-            </button>
-          }
-          @if (isTypingComplete() && !d.choices.length) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
-              (click)="close.emit()"
-              aria-label="Cerrar diálogo (Esc)">
+          } @else if (isTypingComplete() && !d.choices.length) {
+            <button type="button" class="sp-advance" (click)="close.emit()" aria-label="Cerrar diálogo (Esc)">
               Continuar <span aria-hidden="true">▶</span>
             </button>
           }
         </div>
-      </div>
+      } @else {
+        <div #dialogueBox
+          class="dialogue-strip"
+          [class.strip--warning]="interaction()?.type === 'WARNING'"
+          [class.strip--supervisory]="d.speakerName === 'Supervisión clínica'"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-label]="d.speakerName + ': ' + fullText()"
+          (click)="onPanelClick()"
+          (keydown.enter)="onPanelClick()">
+
+          <!-- QTE Interruption banner -->
+          @if (showInterruption()) {
+            <div class="interruption-banner" role="alert" aria-live="assertive">
+              <span>{{ interruptionConfig?.prompt }}</span>
+              <div class="countdown-bar" [style.width.%]="interruptionProgress()"></div>
+            </div>
+          }
+
+          <div class="portrait" aria-hidden="true">
+            <!-- NPC portrait sprite — shows when portraitSrc is set -->
+            @if (portraitSrc()) {
+              <div class="npc-portrait" [ngStyle]="portraitStyle()"></div>
+            } @else {
+              <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
+                <circle cx="24" cy="18" r="9" fill="currentColor"/>
+                <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
+              </svg>
+            }
+            @if (d.emotion && d.emotion !== 'neutral') {
+              <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
+            }
+          </div>
+
+          <!-- Text area -->
+          <div class="strip-body">
+            <p class="speaker-name">{{ d.speakerName }}</p>
+            <p class="dialogue-text"
+               [ngClass]="{ wobble: dialogueTextStyle().wobble, glitch: dialogueTextStyle().glitch }"
+               [ngStyle]="{
+                 color: dialogueTextStyle().color,
+                 fontSize: dialogueTextStyle().fontSize,
+                 opacity: dialogueTextStyle().opacity
+               }"
+               role="status" aria-live="polite" aria-atomic="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
+
+            @if (isTypingComplete() && d.choices.length) {
+              <div class="choices" role="group" aria-label="Opciones de intervención">
+                @for (choice of d.choices; track choice.key; let i = $index) {
+                  <button
+                    type="button"
+                    class="choice-btn"
+                    [class.choice-btn--recommended]="choice.isRecommended"
+                    [class.choice-btn--prohibited]="choice.isProhibited"
+                    [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.isRecommended ? ' (recomendada)' : '') + (choice.isProhibited ? ' (contraindicada)' : '')"
+                    (mouseenter)="onChoiceHover()"
+                    (click)="handleChoice(choice)">
+                    <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
+                    <span class="choice-btn__icon" aria-hidden="true"></span>
+                    <span class="choice-btn__body">
+                      <span class="choice-btn__label">{{ choice.text }}</span>
+                      @if (choice.isRecommended) {
+                        <span class="choice-btn__meta">Recomendada</span>
+                      }
+                      @if (choice.isProhibited) {
+                        <span class="choice-btn__meta">Contraindicada</span>
+                      }
+                    </span>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (!isTypingComplete()) {
+              <button type="button" class="close-btn psy-button psy-button--ghost"
+                (click)="skipTypewriter()"
+                aria-label="Saltar animación de texto">
+                Saltar <span aria-hidden="true">▶</span>
+              </button>
+            }
+            @if (isTypingComplete() && !d.choices.length) {
+              <button type="button" class="close-btn psy-button psy-button--ghost"
+                (click)="close.emit()"
+                aria-label="Cerrar diálogo (Esc)">
+                Continuar <span aria-hidden="true">▶</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
     }
   `,
   styles: [`
@@ -432,11 +491,82 @@ const EMOTION_TO_COL: Record<DialogueEmotion, number> = {
       .dialogue-text.wobble { animation: none; }
       .dialogue-text.glitch { animation: none; }
     }
+
+    /* ── Side-panel mode ── */
+    .sp-root {
+      display: flex; flex-direction: column; height: 100%; padding: 14px;
+      background: rgba(8,12,18,.95); backdrop-filter: blur(18px);
+      color: rgba(232,240,244,.92); overflow-y: auto; gap: 12px;
+    }
+    .sp-root.sp--warning { border-left: 2px solid rgba(168,80,98,.6); }
+    .sp-root.sp--supervisory { background: rgba(8,14,10,.95); }
+    .sp-header {
+      display: flex; align-items: center; gap: 10px; padding-bottom: 12px;
+      border-bottom: 1px solid rgba(182,156,255,.14); flex-shrink: 0;
+    }
+    .sp-portrait {
+      flex-shrink: 0; width: 38px; height: 38px;
+      display: grid; place-items: center; border-radius: 8px;
+      background: rgba(124,77,255,.08); border: 1px solid rgba(182,156,255,.2);
+      color: #B69CFF; position: relative;
+    }
+    .sp-identity { flex: 1; min-width: 0; }
+    .sp-name {
+      margin: 0; font-size: .68rem; font-weight: 900; letter-spacing: .12em;
+      text-transform: uppercase; color: #B69CFF;
+    }
+    .sp-root.sp--supervisory .sp-name { color: #5d9278; }
+    .sp-root.sp--warning .sp-name { color: #a85062; }
+    .sp-role {
+      margin: 2px 0 0; font-size: .68rem; color: rgba(232,240,244,.45);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .sp-close {
+      flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center;
+      border-radius: 6px; border: 1px solid rgba(182,156,255,.22);
+      background: rgba(255,255,255,.04); color: rgba(232,240,244,.4);
+      cursor: pointer; font-size: .82rem;
+    }
+    .sp-close:hover { background: rgba(168,80,98,.18); color: #c97a86; border-color: rgba(168,80,98,.4); }
+    .sp-text-box { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+    .sp-text { margin: 0; font-size: .92rem; line-height: 1.65; color: rgba(232,240,244,.9); white-space: pre-line; }
+    .sp-skip {
+      display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+      padding: 4px 10px; border: 1px solid rgba(182,156,255,.28); border-radius: 7px;
+      background: rgba(255,255,255,.05); color: rgba(232,240,244,.5); font-size: .74rem; cursor: pointer;
+    }
+    .sp-choices { display: flex; flex-direction: column; gap: 7px; }
+    .sp-choice {
+      display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start;
+      min-height: 48px; padding: 9px 10px; border-radius: 10px;
+      border: 1px solid rgba(182,156,255,.28); background: rgba(255,255,255,.05);
+      color: rgba(232,240,244,.88); font: inherit; font-size: .82rem;
+      text-align: left; cursor: pointer; transition: border-color 120ms, background 120ms;
+    }
+    .sp-choice:hover { border-color: rgba(182,156,255,.65); background: rgba(124,77,255,.14); }
+    .sp-choice--recommended { border-color: rgba(108,192,199,.45); background: rgba(108,192,199,.1); }
+    .sp-choice--recommended:hover { border-color: rgba(108,192,199,.8); }
+    .sp-choice--prohibited { border-color: rgba(168,80,98,.42); background: rgba(168,80,98,.08); }
+    .sp-choice--prohibited:hover { border-color: rgba(168,80,98,.65); }
+    .sp-choice-num {
+      font-family: 'JetBrains Mono', monospace; font-weight: 900;
+      font-size: .68rem; color: rgba(232,240,244,.35); padding-top: 2px;
+    }
+    .sp-choice-body { display: grid; gap: 3px; }
+    .sp-choice-text { font-size: .82rem; line-height: 1.35; }
+    .sp-choice-meta { font-size: .64rem; font-weight: 700; color: #B69CFF; }
+    .sp-choice-meta--bad { color: #c97a86; }
+    .sp-advance {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: auto; padding: 10px 14px; border: 1px solid rgba(182,156,255,.28);
+      border-radius: 10px; background: rgba(255,255,255,.05); color: rgba(232,240,244,.6); cursor: pointer;
+    }
   `]
 })
 export class DialoguePanelComponent implements AfterViewChecked, OnDestroy, OnChanges {
   readonly dialogue    = input<DialogueState | null>(null);
   readonly interaction = input<MapObjectState | null>(null);
+  readonly mode = input<'cinematic' | 'side-panel'>('cinematic');
 
   readonly close   = output<void>();
   readonly execute = output<number>();
