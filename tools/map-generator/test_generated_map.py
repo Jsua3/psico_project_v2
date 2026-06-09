@@ -63,7 +63,7 @@ def test_objects_layer_preserved():
     obj_layer = _layer(_load(), "Objects")
     assert obj_layer is not None, "Capa Objects no encontrada"
     names = {o["name"] for o in obj_layer["objects"]}
-    for expected in ("exit-to-consultorio", "familiar-comisaria", "colega-comisaria"):
+    for expected in ("EXIT_to_entrevista", "familiar-comisaria", "colega-comisaria"):
         assert expected in names, f"Objeto faltante: {expected}"
 
 
@@ -95,7 +95,7 @@ def test_walls_border_bottom_row_closed():
 
 
 def test_door_gap_on_right_wall_rows_14_to_16():
-    """El hueco de la puerta (exit-to-consultorio, col 59, filas 14-16) debe ser GID 0."""
+    """El hueco de la puerta (EXIT_to_entrevista, col 59, filas 14-16) debe ser GID 0."""
     layer = _layer(_load(), "walls")
     assert layer is not None, "Capa walls no encontrada"
     for r in (14, 15, 16):

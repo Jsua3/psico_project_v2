@@ -43,3 +43,8 @@ backend_django/media/
 
 # Docker / env
 # (*.env ya está cubierto por `.env.*` en la sección "Env / secrets" arriba)
+
+# Smoke test artifacts (screenshots + tile renders)
+tools/smoke-test/*.png
+tools/smoke-test/tiles/
+tools/smoke-test/smoke_report.json

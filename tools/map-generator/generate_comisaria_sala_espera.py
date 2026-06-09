@@ -42,7 +42,7 @@ def _paint_floor(r: int, c: int) -> int:
 
 
 def _paint_walls(r: int, c: int) -> int:
-    """Borde de 1 tile. Hueco en col 59, filas 14-16 (exit-to-consultorio)."""
+    """Borde de 1 tile. Hueco en col 59, filas 14-16 (EXIT_to_entrevista)."""
     on_border = (r == 0 or r == MAP_H - 1 or c == 0 or c == MAP_W - 1)
     if not on_border:
         return 0
@@ -78,15 +78,15 @@ def _paint_props_back(r: int, c: int) -> int:
 
 
 def _paint_props_front(r: int, c: int) -> int:
-    """Mostrador de recepción. Brazo L (rows 19-20, cols 8-9), cuerpo (rows 20-21, cols 8-36)."""
-    # Brazo L y borde superior-izquierdo: rows 19-20, cols 8-9
-    if r in (19, 20) and c in (8, 9):
-        return RU_COUNTER_FRONT
-    # Superficie del mostrador: row 20, cols 8-36 (nota: cols 8-9 ya asignados arriba → retorna FRONT)
+    """Mostrador de recepción. Brazo L (row 19, cols 8-9), cuerpo (rows 20-21, cols 8-36)."""
+    # Superficie del mostrador: row 20, cols 8-36 (incluye esquina L)
     if r == 20 and 8 <= c <= 36:
         return RU_COUNTER_TOP
     # Frente del mostrador: row 21, cols 8-36
     if r == 21 and 8 <= c <= 36:
+        return RU_COUNTER_FRONT
+    # Brazo L norte: row 19, cols 8-9
+    if r == 19 and c in (8, 9):
         return RU_COUNTER_FRONT
     return 0
 
@@ -123,7 +123,7 @@ _OBJECTS_LAYER = {
     "name": "Objects",
     "objects": [
         {
-            "height": 48, "id": 1, "name": "exit-to-consultorio",
+            "height": 48, "id": 1, "name": "EXIT_to_entrevista",
             "rotation": 0, "type": "EXIT", "visible": True, "width": 32,
             "x": 920, "y": 240,
         },
