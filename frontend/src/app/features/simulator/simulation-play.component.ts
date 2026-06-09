@@ -232,7 +232,9 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
                 (click)="socialMapOpen.set(false)">
                 <mat-icon>close</mat-icon>
               </button>
-              <app-social-map [nodes]="[]" [edges]="[]" />
+              <app-social-map
+                [nodes]="socialMapService.nodes()"
+                [edges]="socialMapService.edges()" />
             </div>
           </div>
         }
@@ -498,7 +500,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly audioDirector = inject(AudioDirectorService);
-  private readonly socialMapService = inject(SocialMapService);
+  protected readonly socialMapService = inject(SocialMapService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;

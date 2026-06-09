@@ -5,15 +5,13 @@ import { PatientState, SimulationAttemptState } from '../../core/models/simulati
 import { getSceneProgress } from './scene-objectives.config';
 import { getProximityStepHint } from './risky-interaction.config';
 import { Heart, stressToHearts } from './stress-hearts.util';
-import { SocialMapComponent } from './social-map/social-map.component';
-import { SocialMapService } from './social-map/social-map.service';
 
 type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, MatIconModule, SocialMapComponent],
+  imports: [CommonModule, MatIconModule],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell liquid-glass"
@@ -130,12 +128,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
           </div>
         </div>
 
-        <div class="hud-social-panel">
-          <app-social-map
-            [nodes]="socialMapService.nodes()"
-            [edges]="socialMapService.edges()">
-          </app-social-map>
-        </div>
       </div>
     }
   `,
@@ -230,17 +222,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .brand-word { display: none; }
       .hud-patient { display: none; }
     }
-    .hud-social-panel {
-      position: relative;
-      height: 36px;
-      padding: 6px 14px;
-      border-top: 1px solid rgba(182,156,255,.1);
-      overflow: visible;
-    }
-    @media (max-width: 640px) {
-      .hud-social-panel { display: none; }
-    }
-
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
       .stress-track span { transition: none; }
@@ -282,8 +263,6 @@ export class SimulationHudComponent {
   readonly openJournal     = output<void>();
   readonly openAI          = output<void>();
   readonly openSocialMap   = output<void>();
-
-  readonly socialMapService = inject(SocialMapService);
 
   readonly stressTier = computed<StressTier>(() => {
     const s = this.attempt()?.stressIndex ?? 0;
