@@ -277,6 +277,7 @@ export class SimulationHudComponent {
   readonly stressPulse = input(false);
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
+  // TODO: wire to verbal-tension visual indicator (planned feature)
   readonly verbalTension   = input<number>(0);
   readonly openJournal     = output<void>();
   readonly openAI          = output<void>();
