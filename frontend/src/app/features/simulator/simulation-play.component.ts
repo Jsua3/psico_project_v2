@@ -11,7 +11,7 @@ import {
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
-import { MinimapComponent, MinimapStage } from './minimap.component';
+import { SocialMapComponent } from './social-map/social-map.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
@@ -39,12 +39,11 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
   imports: [
     CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, MinimapComponent,
-    AttemptOutcomeComponent,
-    AIAssistantComponent
+    ToolInventoryComponent, JournalPanelComponent,
+    AttemptOutcomeComponent, AIAssistantComponent, SocialMapComponent
   ],
   template: `
-    <div class="game-container" id="main-content" tabindex="-1">
+    <div class="game-container" [attr.data-mode]="viewMode()">
       <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
 
       @if (loading()) {
@@ -62,7 +61,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
         <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
-          <article class="resume-card liquid-glass">
+          <article class="resume-card">
             <p class="psy-eyebrow">Intento en progreso</p>
             <h2 id="resume-title">Continuar simulación formativa</h2>
             <p>
@@ -88,181 +87,156 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       }
 
       @if (attempt(); as game) {
-        <header class="simulator-hero pixel-panel" aria-label="Encabezado del caso activo">
-          <div class="simulator-hero__copy">
-            <p class="pixel-kicker">Simulacion psicosocial en curso</p>
-            <h1>{{ game.caseTitle }}</h1>
-            <p>Analiza el escenario, toma una decision argumentada y registra tu reflexion formativa.</p>
-          </div>
-          <div class="simulator-hero__meta" aria-label="Estado del intento">
-            <span class="pixel-badge pixel-badge--purple">
-              <span class="badge-dot" aria-hidden="true"></span>{{ statusLabel(game.status) }}
-            </span>
-            <span class="pixel-badge pixel-badge--blue">
-              <span class="chip-mark" aria-hidden="true"></span>Psicologo social en formacion
-            </span>
-            <span class="pixel-badge pixel-badge--green">
-              <span class="chip-mark" aria-hidden="true"></span>{{ game.accumulatedScore }} pts
-            </span>
-            <a class="pixel-button pixel-button--compact" routerLink="/portal/simulador">
-              Volver
-            </a>
-          </div>
-          <div class="progress-segments" [attr.aria-label]="progressLabel()">
-            @for (segment of progressSegments(); track segment.index) {
-              <span class="progress-segment" [class.progress-segment--filled]="segment.filled"></span>
-            }
-          </div>
-          <p class="progress-label">{{ progressLabel() }}</p>
-        </header>
 
-        @if (world(); as w) {
-          <app-game-world #gameWorld id="game-area" class="game-layer" [world]="w"
-            [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
-            (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
-            (positionChange)="rememberPosition($event.x, $event.y)" />
-        } @else {
-          <div id="game-area" class="world-skeleton" aria-label="Cargando mapa"></div>
-        }
-
-        <app-simulation-hud class="hud-layer" [attempt]="game" [stressPulse]="stressPulse()"
+        <!-- FILA 1: top bar -->
+        <app-simulation-hud
+          class="top-bar"
+          [attempt]="game"
+          [stressPulse]="stressPulse()"
           [nearbyInteractionKey]="nearbyInteraction()?.key ?? null"
-          [verbalTension]="verbalTension()" />
-        <app-minimap class="minimap-layer"
-          [stages]="minimapStages()"
-          [currentNodeKey]="game.currentNode.key"
-          [visitedNodeKeys]="visitedNodeKeys()" />
-        <app-tool-inventory class="tools-layer" [tools]="world()?.tools ?? []"
-          [inventory]="world()?.inventory ?? []" (select)="selectTool($event)" />
+          [verbalTension]="game.stressIndex"
+          (openJournal)="journalOpen.set(true)"
+          (openAI)="aiAssistantOpen.set(true)"
+          (openSocialMap)="socialMapOpen.set(true)" />
 
-        <aside class="support-panel pixel-panel" aria-label="Panel de apoyo formativo">
-          <section class="scenario-panel">
-            <p class="pixel-section-title">Escenario actual</p>
-            <h2>{{ game.currentNode.title }}</h2>
-            <p>{{ game.currentNode.narrative || 'Este escenario aun no tiene narrativa disponible.' }}</p>
-            <div class="scenario-chips" aria-label="Datos clave del caso">
-              @if (world()?.map?.title) {
-                <span class="pixel-chip"><span class="chip-mark" aria-hidden="true"></span>{{ world()!.map.title }}</span>
-              }
-              <span class="pixel-chip"><span class="chip-mark" aria-hidden="true"></span>{{ currentStageLabel() }}</span>
-              @if (game.currentNode.terminal) {
-                <span class="pixel-chip pixel-chip--green"><span class="chip-mark" aria-hidden="true"></span>Cierre</span>
-              }
-              @if (game.currentNode.sensitiveContent) {
-                <span class="pixel-chip pixel-chip--orange"><span class="chip-mark" aria-hidden="true"></span>Contenido sensible</span>
-              }
-            </div>
-          </section>
-
-          @if (game.currentNode.warningMessage || game.currentNode.safeExitRequired) {
-            <section class="ethic-note" role="note">
-              <span class="note-mark" aria-hidden="true"></span>
-              <div>
-                <strong>Advertencia etica</strong>
-                <p>{{ game.currentNode.warningMessage || 'Este momento permite salida segura. Prioriza confidencialidad, cuidado del lenguaje y rutas institucionales.' }}</p>
-              </div>
-            </section>
+        <!-- FILA 2: canvas zone -->
+        <div class="canvas-zone">
+          @if (world(); as w) {
+            <app-game-world #gameWorld id="game-area" class="game-canvas"
+              [world]="w"
+              [nearbyInteraction]="nearbyInteraction()"
+              [selectedInteractionKey]="selectedInteraction()?.key ?? null"
+              (proximity)="nearbyInteraction.set($event)"
+              (interact)="openInteraction($event)"
+              (positionChange)="rememberPosition($event.x, $event.y)" />
+          } @else {
+            <div class="world-skeleton" aria-label="Cargando mapa"></div>
           }
 
-          <section class="decision-panel">
-            <div class="panel-head">
-              <p class="pixel-section-title">Toma de decisiones</p>
-              <span class="pixel-badge pixel-badge--neutral">{{ decisionCountLabel() }}</span>
+          @if (sceneObjective(); as obj) {
+            <div class="objective-card" role="status" aria-live="polite" aria-atomic="true">
+              <span class="obj-kicker">OBJETIVO ACTUAL</span>
+              <p class="obj-text">{{ obj }}</p>
             </div>
-            @if (selectedInteraction(); as interaction) {
-              <article class="reflection-box">
-                <strong>{{ interaction.label }}</strong>
-                <p>{{ interaction.interactionText || interaction.interactionPrompt || 'Revisa el dialogo activo para elegir la intervencion.' }}</p>
-              </article>
-            } @else {
-              <article class="simulator-empty simulator-empty--compact">
-                <span class="note-mark" aria-hidden="true"></span>
-                <p>Acercate a un actor, recurso o ruta del mapa y presiona E para abrir una decision formativa.</p>
-              </article>
-            }
-          </section>
+          }
 
-          <section class="case-timeline">
-            <div class="panel-head">
-              <p class="pixel-section-title">Trazabilidad</p>
-              <button class="pixel-icon-button" type="button" aria-label="Abrir bitacora" (click)="journalOpen.set(true)">
-                B
+          @if (nearbyInteraction(); as nb) {
+            <div class="proximity-hint"
+              [class.proximity-hint--rich]="proximityDescription(nb)"
+              aria-live="polite" aria-atomic="true">
+              <div class="proximity-hint__body">
+                <strong>{{ proximityLabel(nb) }}</strong>
+                @if (proximityDescription(nb); as desc) {
+                  <p>{{ desc }}</p>
+                }
+                <span class="proximity-hint__action"><kbd>E</kbd> Presiona E para interactuar</span>
+              </div>
+            </div>
+          }
+
+          @if (viewMode() === 'dialogue-right') {
+            <app-dialogue-panel
+              class="right-panel"
+              mode="side-panel"
+              [dialogue]="dialogue()"
+              [interaction]="selectedInteraction()"
+              (close)="closeDialogue()"
+              (execute)="executeDecision($event)"
+              (useTool)="useTool($event)"
+              (frontendChoice)="handleFrontendChoice($event)" />
+          }
+
+          @if (viewMode() === 'dialogue-cinematic') {
+            <app-dialogue-panel
+              class="dialogue-cinematic-layer"
+              mode="cinematic"
+              [dialogue]="dialogue()"
+              [interaction]="selectedInteraction()"
+              (close)="closeDialogue()"
+              (execute)="executeDecision($event)"
+              (useTool)="useTool($event)"
+              (frontendChoice)="handleFrontendChoice($event)" />
+          }
+        </div>
+
+        <!-- FILA 3: bottom zone -->
+        <div class="bottom-zone">
+          @if (game.status === 'IN_PROGRESS') {
+            <button class="safe-exit" type="button"
+              aria-label="Salida segura (Escape)"
+              (click)="safeExit()" [disabled]="busy()">
+              <mat-icon aria-hidden="true">exit_to_app</mat-icon>
+              <span class="safe-exit__label">SALIDA SEGURA</span>
+              <span class="safe-exit__sub">Esc</span>
+            </button>
+          }
+          <app-tool-inventory
+            class="tool-dock"
+            [tools]="world()?.tools ?? []"
+            [inventory]="world()?.inventory ?? []"
+            [selectedToolCode]="selectedToolCode()"
+            (select)="selectTool($event)" />
+          <div class="context-bar" aria-label="Contexto de la escena">
+            <span>{{ currentStageLabel() }}</span>
+            <span class="ctx-sep" aria-hidden="true">|</span>
+            <span class="ctx-location">{{ game.currentNode.title }}</span>
+            @if (contextTip(); as tip) {
+              <span class="ctx-sep" aria-hidden="true">|</span>
+              <span class="ctx-tip">{{ tip }}</span>
+            }
+          </div>
+        </div>
+
+        <!-- Non-grid overlays -->
+        <div class="stress-vignette"
+          [class.vignette--active]="stressVignetteLevel() > 0"
+          [style.--vignette-opacity]="stressVignetteLevel()"
+          aria-hidden="true"></div>
+
+        <app-journal-panel #journalPanel class="journal-layer"
+          [open]="journalOpen()"
+          [disabled]="game.status !== 'IN_PROGRESS' || busy()"
+          [message]="journalMessage()"
+          [saveState]="journalSaveState()"
+          [visitedStages]="visitedStageLabels()"
+          [supportResources]="supportResources()"
+          (save)="saveReflection($event)"
+          (closeSheet)="journalOpen.set(false)" />
+
+        @if (viewMode() === 'outcome') {
+          <app-attempt-outcome
+            [report]="game.completionReport"
+            [status]="game.status"
+            (retry)="startNewAttempt()" />
+        }
+
+        @if (aiAssistantOpen()) {
+          <div class="ai-overlay" role="dialog" aria-label="Asistente IA">
+            <div class="overlay-panel">
+              <button class="overlay-close" type="button" aria-label="Cerrar asistente"
+                (click)="aiAssistantOpen.set(false)">
+                <mat-icon>close</mat-icon>
               </button>
-            </div>
-            @if (visitedStageLabels().length) {
-              <ol>
-                @for (stage of visitedStageLabels(); track stage) {
-                  <li>{{ stage }}</li>
-                }
-              </ol>
-            } @else {
-              <p class="timeline-empty">Aun no hay decisiones registradas. Tu trazabilidad aparecera a medida que avances.</p>
-            }
-          </section>
-
-          <section class="support-resources">
-            <p class="pixel-section-title">Apoyo profesional</p>
-            @if (supportResources().length) {
-              <ul>
-                @for (resource of supportResources(); track resource) {
-                  <li>{{ resource }}</li>
-                }
-              </ul>
-            } @else {
-              <p class="timeline-empty">No hay recursos adicionales para este escenario.</p>
-            }
-          </section>
-
-          <section class="ai-assistant-section">
-            <app-ai-assistant
-              [attemptId]="game.attemptId"
-              [currentNodeId]="game.currentNode.key"
-              [decisionAlreadyTaken]="game.status !== 'IN_PROGRESS'" />
-          </section>
-        </aside>
-
-        @if (nearbyInteraction(); as nb) {
-          <div class="proximity-hint"
-            [class.proximity-hint--exit]="nb.type === 'EXIT'"
-            [class.proximity-hint--rich]="proximityDescription(nb)"
-            aria-live="polite" aria-atomic="true">
-            <div class="proximity-hint__body">
-              <strong>{{ proximityLabel(nb) }}</strong>
-              @if (proximityDescription(nb); as desc) {
-                <p>{{ desc }}</p>
-              }
-              <span class="proximity-hint__action"><kbd>E</kbd> Presiona E para interactuar</span>
+              <app-ai-assistant
+                [attemptId]="game.attemptId"
+                [currentNodeId]="game.currentNode.key"
+                [decisionAlreadyTaken]="game.status !== 'IN_PROGRESS'" />
             </div>
           </div>
         }
 
-        <button class="journal-toggle" type="button" aria-label="Abrir bitácora (J)"
-          [class.journal-toggle--active]="journalOpen()" (click)="journalOpen.set(!journalOpen())">
-          <mat-icon aria-hidden="true">menu_book</mat-icon>
-        </button>
-
-        @if (game.status === 'IN_PROGRESS') {
-          <button class="safe-exit-btn" type="button" (click)="safeExit()" [disabled]="busy()"
-            aria-label="Salida segura (Escape)">
-            <mat-icon aria-hidden="true">exit_to_app</mat-icon>
-          </button>
+        @if (socialMapOpen()) {
+          <div class="social-overlay" role="dialog" aria-label="Mapa social">
+            <div class="overlay-panel">
+              <button class="overlay-close" type="button" aria-label="Cerrar mapa social"
+                (click)="socialMapOpen.set(false)">
+                <mat-icon>close</mat-icon>
+              </button>
+              <app-social-map [nodes]="[]" [edges]="[]" />
+            </div>
+          </div>
         }
 
-        <div class="controls-hint" aria-hidden="true">Mover: WASD/flechas · E decisión o interacción · J bitácora reflexiva · Esc salida segura</div>
-
-        <app-dialogue-panel class="dialogue-layer" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-          (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
-          (frontendChoice)="handleFrontendChoice($event)" />
-
-        <div class="stress-vignette" [class.vignette--active]="stressVignetteLevel() > 0"
-          [style.--vignette-opacity]="stressVignetteLevel()" aria-hidden="true"></div>
-
-        <app-journal-panel #journalPanel class="journal-layer" [open]="journalOpen()"
-          [disabled]="game.status !== 'IN_PROGRESS' || busy()" [message]="journalMessage()"
-          [saveState]="journalSaveState()"
-          (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
-
-        <!-- Fase 7: screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
           <h4 class="sr-only">Escena: {{ game.currentNode.title }}</h4>
           <p class="sr-only">{{ game.currentNode.narrative }}</p>
@@ -272,21 +246,7 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
           @if (game.currentNode.sensitiveContent) {
             <p class="sr-only" role="note">Contenido sensible. Salida segura con Escape.</p>
           }
-          <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
         </section>
-
-        <!-- Fase 7: accessible interaction list -->
-        <section class="sr-only" aria-label="Lista accesible de puntos interactivos">
-          <div role="list">
-            @for (obj of world()?.objects ?? []; track obj.key) {
-              <button role="listitem" type="button" class="sr-only"
-                [attr.aria-label]="proximityLabel(obj) + ': ' + proximityDescription(obj)"
-                (click)="openInteraction(obj)">{{ proximityLabel(obj) }}</button>
-            }
-          </div>
-        </section>
-
-        <app-attempt-outcome [report]="game.completionReport" [status]="game.status" (retry)="startNewAttempt()" />
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
       }
@@ -298,18 +258,12 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       --sim-purple: #7C4DFF;
       --sim-lavender: #B69CFF;
       --sim-blue: #6CC0C7;
-      --sim-blue-deep: #B69CFF;
-      --sim-green: #6EC67A;
-      --sim-orange: #F5B84B;
-      --sim-red: #E25A4F;
       --sim-ink: #F4F7FB;
       --sim-ink-soft: rgba(244,247,251,.74);
-      --sim-ink-mute: rgba(244,247,251,.5);
       --sim-surface: rgba(27,33,51,.72);
       --sim-surface-2: rgba(18,24,42,.6);
       --sim-border: rgba(182,156,255,.22);
       --sim-glow: 0 18px 48px -28px rgba(124,77,255,.6);
-      --sim-pixel-shadow: 0 18px 48px -30px rgba(124,77,255,.5);
       position: fixed;
       inset: 0;
       overflow: hidden;
@@ -318,298 +272,157 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
         linear-gradient(90deg, rgba(124,77,255,.06) 1px, transparent 1px) 0 0 / 24px 24px,
         linear-gradient(rgba(124,77,255,.06) 1px, transparent 1px) 0 0 / 24px 24px,
         linear-gradient(180deg, #111827 0%, #0e1322 100%);
-    }
-    .pixel-panel {
-      background: var(--sim-surface);
-      backdrop-filter: blur(18px) saturate(125%);
-      border: 1px solid var(--sim-border);
-      border-radius: 20px;
-      box-shadow: var(--sim-glow);
-    }
-    .simulator-hero {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      right: 372px;
-      z-index: 70;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px 18px;
-      align-items: center;
-      padding: 16px 18px;
+      grid-template-rows: auto 1fr auto;
     }
-    .simulator-hero__copy { min-width: 0; }
-    .pixel-kicker,
-    .pixel-section-title {
-      margin: 0;
-      color: var(--sim-lavender);
-      font-size: .72rem;
-      font-weight: 900;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .simulator-hero h1 {
-      margin: 4px 0;
-      color: var(--sim-ink);
-      font-size: clamp(1.25rem, 2vw, 1.75rem);
-      line-height: 1.08;
-      letter-spacing: 0;
-      white-space: nowrap;
+
+    /* ── FILA 1: HUD top bar ── */
+    app-simulation-hud.top-bar { display: block; z-index: 70; }
+
+    /* ── FILA 2: canvas zone ── */
+    .canvas-zone {
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: 0;
+      position: relative;
       overflow: hidden;
-      text-overflow: ellipsis;
     }
-    .simulator-hero p:not(.pixel-kicker):not(.progress-label) {
-      margin: 0;
-      color: var(--sim-ink-soft);
-      font-size: .88rem;
-      line-height: 1.45;
+    .game-container[data-mode="dialogue-right"] .canvas-zone {
+      grid-template-columns: 1fr clamp(340px, 28vw, 480px);
+      transition: grid-template-columns 220ms ease;
     }
-    .simulator-hero__meta {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 8px;
-      max-width: 440px;
-    }
-    .pixel-badge,
-    .pixel-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 30px;
-      padding: 5px 10px;
-      border: 1px solid var(--sim-border);
-      border-radius: 999px;
-      background: var(--sim-surface-2);
-      color: var(--sim-lavender);
-      font-size: .74rem;
-      font-weight: 800;
-      line-height: 1.2;
-    }
-    .chip-mark {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-      background: currentColor;
-      flex: 0 0 auto;
-    }
-    .pixel-badge--purple { color: #d6c6ff; border-color: rgba(124,77,255,.45); background: rgba(124,77,255,.16); }
-    .pixel-badge--blue { color: #bfeef1; border-color: rgba(108,192,199,.4); background: rgba(108,192,199,.14); }
-    .pixel-badge--green,
-    .pixel-chip--green { color: #b7ecc0; border-color: rgba(110,198,122,.4); background: rgba(110,198,122,.14); }
-    .pixel-badge--neutral { color: var(--sim-ink-soft); border-color: var(--sim-border); background: var(--sim-surface-2); }
-    .pixel-chip--orange { color: #f7d79a; border-color: rgba(245,184,75,.42); background: rgba(245,184,75,.15); }
-    .badge-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-      background: currentColor;
-    }
-    .pixel-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      min-height: 40px;
-      padding: 8px 13px;
-      border: 1px solid rgba(182,156,255,.4);
-      border-radius: 12px;
-      background: rgba(124,77,255,.16);
-      color: #e7ddff;
-      font-weight: 900;
-      box-shadow: var(--sim-glow);
-      cursor: pointer;
-    }
-    .pixel-button--compact { min-height: 32px; padding: 5px 10px; font-size: .78rem; }
-    .pixel-button mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .progress-segments {
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(16px, 1fr));
-      gap: 5px;
-    }
-    .progress-segment {
-      height: 8px;
-      border-radius: 3px;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(182,156,255,.16);
-    }
-    .progress-segment--filled {
-      background: linear-gradient(90deg, var(--sim-purple), var(--sim-green));
-      border-color: rgba(74,124,89,.28);
-    }
-    .progress-label {
-      grid-column: 1 / -1;
-      margin: -2px 0 0;
-      color: var(--sim-ink-mute);
-      font-size: .74rem;
-      font-weight: 800;
-    }
-    .support-panel {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      bottom: 124px;
-      z-index: 65;
-      width: 342px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding: 16px;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-    .scenario-panel,
-    .decision-panel,
-    .case-timeline,
-    .support-resources { display: grid; gap: 10px; }
-    .scenario-panel h2 {
-      margin: 0;
-      color: var(--sim-ink);
-      font-size: 1.18rem;
-      line-height: 1.18;
-    }
-    .scenario-panel p:not(.pixel-section-title),
-    .reflection-box p,
-    .timeline-empty,
-    .support-resources li {
-      margin: 0;
-      color: var(--sim-ink-soft);
-      font-size: .84rem;
-      line-height: 1.55;
-    }
-    .scenario-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .ethic-note,
-    .reflection-box,
-    .simulator-empty {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 10px;
-      padding: 12px;
-      border: 1px solid rgba(245,184,75,.3);
-      border-radius: 14px;
-      background: rgba(245,184,75,.1);
-    }
-    .note-mark {
-      width: 24px;
-      height: 24px;
-      border-radius: 8px;
-      border: 2px solid currentColor;
-      color: var(--sim-orange);
-      background: rgba(255,255,255,.08);
-    }
-    .ethic-note strong,
-    .reflection-box strong { color: var(--sim-ink); font-size: .9rem; }
-    .ethic-note p { margin: 4px 0 0; color: #f0d9a8; font-size: .82rem; line-height: 1.5; }
-    .reflection-box {
-      grid-template-columns: minmax(0, 1fr);
-      border-color: rgba(124,77,255,.32);
-      background: rgba(124,77,255,.12);
-    }
-    .simulator-empty--compact { align-items: start; border-color: var(--sim-border); background: var(--sim-surface-2); }
-    .pixel-icon-button {
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(182,156,255,.35);
-      border-radius: 10px;
-      background: rgba(124,77,255,.14);
-      color: var(--sim-lavender);
-      cursor: pointer;
-    }
-    .pixel-icon-button mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .case-timeline ol,
-    .support-resources ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
-    .case-timeline li { color: var(--sim-ink-soft); font-size: .82rem; line-height: 1.4; }
-    .ai-assistant-section { display: grid; }
-    .ai-assistant-section app-ai-assistant { width: 100%; max-width: none; }
-    .game-layer {
-      position: absolute;
-      inset: 198px 372px 124px 14px;
-      z-index: 10;
-      overflow: hidden;
+    .game-canvas {
+      grid-column: 1; grid-row: 1;
+      width: 100%; height: 100%; overflow: hidden;
       border: 1px solid rgba(182,156,255,.18);
-      border-radius: 20px;
-      box-shadow: var(--sim-glow);
       background: #0e1322;
     }
-    .world-skeleton { position: absolute; inset: 198px 372px 124px 14px; z-index: 10; background: #0e1322; border-radius: 20px; }
-    app-simulation-hud.hud-layer { position: absolute; top: 198px; left: 24px; right: 382px; z-index: 50; }
-    app-minimap.minimap-layer { position: absolute; top: 252px; right: 386px; z-index: 55; }
-    app-tool-inventory.tools-layer { position: absolute; bottom: 118px; left: 12px; z-index: 50; }
+    .world-skeleton {
+      grid-column: 1; grid-row: 1;
+      width: 100%; height: 100%;
+      background: #0e1322;
+    }
+    app-dialogue-panel.right-panel {
+      grid-column: 2; grid-row: 1;
+      overflow-y: auto;
+      border-left: 1px solid rgba(182,156,255,.22);
+      background: rgba(8,12,18,.95);
+      backdrop-filter: blur(18px);
+    }
+    app-dialogue-panel.dialogue-cinematic-layer {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 60;
+    }
+    .objective-card {
+      position: absolute; top: 12px; left: 12px; z-index: 50;
+      max-width: 220px; padding: 8px 12px;
+      background: rgba(8,12,18,.82);
+      border: 1px solid rgba(182,156,255,.28);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+    .obj-kicker {
+      display: block; font-size: .6rem; font-weight: 900;
+      letter-spacing: .1em; color: var(--sim-lavender);
+      text-transform: uppercase; margin-bottom: 3px;
+    }
+    .obj-text { margin: 0; font-size: .78rem; color: var(--sim-ink-soft); line-height: 1.4; }
+
     .proximity-hint {
-      position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%); z-index: 50;
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 50;
       max-width: min(520px, calc(100vw - 32px));
       padding: 10px 14px; border-radius: 12px;
       background: rgba(8,12,18,.88); border: 1px solid rgba(182,156,255,.3);
       color: #e8f0f4; pointer-events: none;
       animation: hint-rise 160ms ease both;
     }
-    .proximity-hint--rich { text-align: left; }
     .proximity-hint__body { display: grid; gap: 4px; }
-    .proximity-hint__body strong {
-      font-size: .84rem;
-      color: #cdbcff;
-      line-height: 1.3;
+    .proximity-hint__body strong { font-size: .84rem; color: #cdbcff; line-height: 1.3; }
+    .proximity-hint__body p { margin: 0; font-size: .76rem; line-height: 1.4; color: rgba(232,240,244,.78); }
+    .proximity-hint__action { font-size: .74rem; color: rgba(232,240,244,.55); }
+    .proximity-hint__action kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2); border-radius: 4px; font-size: .7rem;
     }
-    .proximity-hint__body p {
-      margin: 0;
-      font-size: .76rem;
-      line-height: 1.4;
-      color: rgba(232,240,244,.78);
+
+    /* ── FILA 3: bottom zone ── */
+    .bottom-zone {
+      display: flex; align-items: stretch; gap: 8px;
+      padding: 8px 12px;
+      background: rgba(8,12,18,.88);
+      border-top: 1px solid rgba(182,156,255,.14);
+      z-index: 50;
+      min-height: 0;
     }
-    .proximity-hint__action {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: .7rem;
-      font-weight: 700;
-      color: rgba(182,156,255,.9);
-      margin-top: 2px;
+    .safe-exit {
+      flex: 0 0 auto; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2px;
+      min-width: 62px; padding: 6px 8px;
+      border: 1px solid rgba(226,90,79,.4); border-radius: 10px;
+      background: rgba(226,90,79,.1); color: rgba(230,130,110,.88);
+      cursor: pointer; transition: border-color 140ms, background 140ms;
+      font-family: inherit;
     }
-    .proximity-hint--exit { border-color: rgba(182,156,255,.6); }
-    .proximity-hint--exit .proximity-hint__body strong { color: #B69CFF; }
-    .proximity-hint kbd {
-      padding: 2px 7px; border-radius: 5px; background: rgba(124,77,255,.22);
-      border: 1px solid rgba(124,77,255,.35); font-size: .76rem;
-      font-family: 'JetBrains Mono', monospace; color: #c9b8ff;
+    .safe-exit:hover:not(:disabled) { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
+    .safe-exit:disabled { opacity: .35; cursor: not-allowed; }
+    .safe-exit mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .safe-exit__label { font-size: .54rem; font-weight: 900; letter-spacing: .06em; white-space: nowrap; }
+    .safe-exit__sub { font-size: .5rem; opacity: .6; }
+    app-tool-inventory.tool-dock { flex: 1; min-width: 0; }
+    .context-bar {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+      padding: 0 10px; border-left: 1px solid rgba(182,156,255,.12);
+      font-size: .66rem; color: rgba(232,240,244,.38);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
     }
-    .journal-toggle {
-      position: absolute; bottom: 118px; right: 12px; z-index: 50;
-      width: 44px; height: 44px; border: 1px solid rgba(182,156,255,.28); border-radius: 10px;
-      background: rgba(8,12,18,.76); color: rgba(182,156,255,.6); cursor: pointer;
-      display: grid; place-items: center; transition: border-color 160ms, color 160ms;
-    }
-    .journal-toggle--active { border-color: rgba(182,156,255,.75); color: #B69CFF; }
-    .safe-exit-btn {
-      position: absolute; top: 260px; left: 24px; z-index: 51;
-      width: 40px; height: 40px; border: 1px solid rgba(168,80,98,.3); border-radius: 10px;
-      background: rgba(8,12,18,.7); color: rgba(168,80,98,.6); cursor: pointer;
-      display: grid; place-items: center; transition: border-color 160ms, color 160ms;
-    }
-    .safe-exit-btn:hover { border-color: rgba(168,80,98,.6); color: rgba(168,80,98,.9); }
-    .safe-exit-btn:disabled { opacity: .35; cursor: not-allowed; }
-    .controls-hint {
-      position: absolute; bottom: 116px; left: 50%; transform: translateX(-50%); z-index: 50;
-      padding: 5px 12px; border-radius: 999px; background: rgba(8,12,18,.5);
-      color: rgba(232,240,244,.3); font-size: .66rem; font-weight: 700; letter-spacing: .05em;
-      pointer-events: none; white-space: nowrap;
-    }
-    app-dialogue-panel.dialogue-layer { position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; }
+    .ctx-sep { opacity: .28; }
+    .ctx-location { color: rgba(232,240,244,.52); }
+    .ctx-tip { color: rgba(182,156,255,.55); font-style: italic; }
+
+    /* ── Fixed overlays ── */
     .stress-vignette {
       position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: 0;
       transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
       background: radial-gradient(ellipse at center, transparent 55%, rgba(120,40,55,.22) 100%);
     }
     .vignette--active { opacity: var(--vignette-opacity, 0); }
-    app-journal-panel.journal-layer { position: absolute; top: 0; right: 0; bottom: 0; width: min(400px,88vw); z-index: 100; }
-    .scene-fade {
-      position: fixed; inset: 0; z-index: 200; background: #0a0f14; opacity: 0;
-      pointer-events: none; transition: opacity 320ms ease;
+    app-journal-panel.journal-layer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; }
+    .ai-overlay, .social-overlay {
+      position: fixed; inset: 0; z-index: 120;
+      display: grid; place-items: center;
+      background: rgba(8,12,18,.72);
+      backdrop-filter: blur(4px);
     }
-    .scene-fade--active { opacity: 1; pointer-events: auto; }
+    .overlay-panel {
+      position: relative; width: min(560px, 88vw); max-height: 80vh;
+      overflow-y: auto; border-radius: 20px;
+      background: rgba(18,24,42,.95);
+      border: 1px solid rgba(182,156,255,.22);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--sim-glow);
+    }
+    .overlay-close {
+      position: absolute; top: 12px; right: 12px;
+      width: 34px; height: 34px; display: grid; place-items: center;
+      border: 1px solid rgba(182,156,255,.28); border-radius: 8px;
+      background: rgba(8,12,18,.7); color: rgba(182,156,255,.6); cursor: pointer; z-index: 1;
+    }
+    .overlay-close:hover { background: rgba(168,80,98,.2); }
+
+    /* ── Utility ── */
+    .psy-button {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 44px; padding: 10px 16px; border-radius: 12px;
+      font-weight: 700; cursor: pointer; font: inherit;
+    }
+    .psy-button--primary {
+      background: rgba(124,77,255,.9); border: 1px solid rgba(124,77,255,.6); color: #fff;
+    }
+    .psy-button--ghost {
+      background: transparent; border: 1px solid rgba(182,156,255,.35); color: #B69CFF;
+      text-decoration: none;
+    }
     .loading-overlay { position: absolute; top: 0; left: 0; right: 0; z-index: 300; }
     .error-overlay {
       position: absolute; inset: 0; z-index: 300; display: flex; flex-direction: column;
@@ -617,135 +430,67 @@ import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
       background: rgba(8,12,18,.9); color: #e8f0f4; padding: 24px; text-align: center;
     }
     .error-overlay mat-icon { font-size: 36px; color: rgba(168,80,98,.8); }
-    .error-overlay p { margin: 0; color: rgba(232,240,244,.6); }
     .action-toast {
-      position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 320;
-      max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
+      position: absolute; top: 104px; left: 50%; transform: translateX(-50%);
+      z-index: 320; max-width: min(92vw, 520px);
+      padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
     .resume-overlay {
-      position: absolute; inset: 0; z-index: 400; display: grid; place-items: center;
-      padding: 24px; background: rgba(8,12,18,.88);
+      position: absolute; inset: 0; z-index: 400;
+      display: grid; place-items: center; padding: 24px;
+      background: rgba(8,12,18,.88);
     }
     .resume-card {
-      width: min(560px, 100%); padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
+      width: min(560px, 100%); padding: clamp(24px, 4vw, 36px);
+      color: #e8f0f4; background: var(--sim-surface); backdrop-filter: blur(18px);
+      border: 1px solid var(--sim-border); border-radius: 20px; box-shadow: var(--sim-glow);
     }
     .resume-card h2 { margin: 12px 0; color: #fff; font-size: 1.6rem; }
     .resume-card p { margin: 0; color: rgba(232,240,244,.72); line-height: 1.6; }
-    .resume-metrics {
-      display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0;
+    .psy-eyebrow {
+      margin: 0; color: var(--sim-lavender); font-size: .72rem;
+      font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
     }
+    .resume-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
     .resume-metrics span {
-      padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.08); font-size: .82rem; font-weight: 700;
+      padding: 8px 12px; border-radius: 999px;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      font-size: .82rem; font-weight: 700;
     }
     .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
-    .resume-actions .psy-button { width: 100%; }
-    @media (max-width: 1180px) {
-      .simulator-hero {
-        right: 14px;
-        grid-template-columns: minmax(0, 1fr);
-      }
-      .simulator-hero__meta { justify-content: flex-start; max-width: none; }
-      .support-panel {
-        top: auto;
-        left: 14px;
-        right: 14px;
-        bottom: 124px;
-        width: auto;
-        max-height: 210px;
-        display: grid;
-        grid-template-columns: repeat(4, minmax(220px, 1fr));
-        align-items: start;
-      }
-      .game-layer { inset: 210px 14px 344px 14px; }
-      .world-skeleton { inset: 210px 14px 344px 14px; }
-      app-simulation-hud.hud-layer { top: 210px; left: 24px; right: 24px; }
-      app-minimap.minimap-layer { top: 264px; right: 24px; }
-      app-tool-inventory.tools-layer,
-      .journal-toggle,
-      .proximity-hint { bottom: 352px; }
-      .controls-hint { display: none; }
+    .sr-only {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important;
     }
+    .sr-narrative-route { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+    .scene-fade {
+      position: fixed; inset: 0; z-index: 200; background: #0a0f14; opacity: 0;
+      pointer-events: none; transition: opacity 320ms ease;
+    }
+    .scene-fade--active { opacity: 1; pointer-events: auto; }
+
+    /* ── Mobile ── */
     @media (max-width: 760px) {
-      .game-container { overflow-y: auto; overflow-x: hidden; }
-      .simulator-hero {
-        position: relative;
-        top: auto;
-        left: auto;
-        right: auto;
-        margin: 10px;
-        padding: 14px;
+      .game-container[data-mode="dialogue-right"] .canvas-zone {
+        grid-template-columns: 1fr;
       }
-      .simulator-hero h1 { white-space: normal; }
-      .simulator-hero__meta,
-      .progress-segments,
-      .progress-label { display: none; }
-      .support-panel {
-        position: relative;
-        top: auto;
-        left: auto;
-        right: auto;
-        bottom: auto;
-        width: auto;
-        max-height: none;
-        margin: 10px;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
+      app-dialogue-panel.right-panel {
+        position: fixed; bottom: 0; inset-inline: 0;
+        height: 65vh; z-index: 60;
+        border-left: none; border-top: 1px solid rgba(182,156,255,.22);
+        overflow-y: auto;
       }
-      .game-layer {
-        position: relative;
-        inset: auto;
-        margin: 10px;
-        height: min(52vh, 440px);
-      }
-      .world-skeleton {
-        position: relative;
-        inset: auto;
-        margin: 10px;
-        height: min(52vh, 440px);
-      }
-      app-simulation-hud.hud-layer {
-        position: sticky;
-        top: 0;
-        left: auto;
-        right: auto;
-        display: block;
-        margin: 10px;
-      }
-      app-minimap.minimap-layer { display: none; }
-      app-tool-inventory.tools-layer {
-        position: fixed;
-        bottom: 116px;
-        left: 10px;
-      }
-      .journal-toggle {
-        position: fixed;
-        bottom: 116px;
-        right: 10px;
-      }
-      .safe-exit-btn {
-        position: fixed;
-        top: auto;
-        left: auto;
-        bottom: 168px;
-        right: 10px;
-      }
-      .proximity-hint {
-        position: absolute;
-        bottom: auto;
-        top: 428px;
-      }
-      app-dialogue-panel.dialogue-layer { position: fixed; }
-      app-journal-panel.journal-layer { position: fixed; }
-      .end-state-overlay { position: fixed; }
+      .context-bar { display: none; }
+      .safe-exit__sub { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stress-vignette, .scene-fade { transition: none; }
     }
     @keyframes hint-rise {
       from { opacity: 0; transform: translateX(-50%) translateY(6px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .stress-vignette, .scene-fade { transition: none; }
     }
   `]
 })
@@ -803,17 +548,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly selectedToolCode = computed(() =>
     this.dialogue() ? (this.selectedInteraction()?.toolCode ?? null) : null
   );
-
-  readonly minimapStages = computed<MinimapStage[]>(() => {
-    const map = this.progressMap();
-    if (map?.nodes.length) {
-      return map.nodes.map(node => ({ key: node.key, label: node.label }));
-    }
-    const game = this.attempt();
-    return game ? [{ key: game.currentNode.key, label: game.currentNode.title.slice(0, 14) }] : [];
-  });
-
-  readonly visitedNodeKeys = computed(() => this.progressMap()?.visitedNodeKeys ?? []);
 
   readonly stressVignetteLevel = computed(() => {
     const s = this.attempt()?.stressIndex ?? 0;
