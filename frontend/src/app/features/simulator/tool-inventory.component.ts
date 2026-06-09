@@ -8,88 +8,132 @@ import { ClinicalToolState } from '../../core/models/simulation.model';
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="tool-hud" role="toolbar" aria-label="Inventario clínico de herramientas">
+    <div class="tool-dock" role="toolbar" aria-label="Herramientas psicopedagógicas">
       @for (tool of tools(); track tool.code; let i = $index) {
         <button
-          class="tool-btn"
+          class="tool-card"
           type="button"
-          [class.tool-btn--owned]="inventory().includes(tool.code)"
-          [class.tool-btn--locked]="!inventory().includes(tool.code)"
+          [class.tool-card--owned]="inventory().includes(tool.code)"
+          [class.tool-card--locked]="!inventory().includes(tool.code)"
+          [class.tool-card--active]="tool.code === selectedToolCode()"
           [disabled]="!inventory().includes(tool.code)"
-          [title]="tool.label + ' — ' + (inventory().includes(tool.code) ? 'Disponible' : 'No disponible')"
           [attr.aria-label]="tool.label + ': ' + tool.description + '. ' + (inventory().includes(tool.code) ? 'Disponible.' : 'No disponible.')"
-          (click)="select.emit(tool.code)">
+          (click)="onSelect(tool)">
           <span class="tool-key" aria-hidden="true">{{ i + 1 }}</span>
-          <mat-icon aria-hidden="true">{{ tool.icon }}</mat-icon>
-          <span class="tool-code" aria-hidden="true">{{ tool.code.slice(0, 4) }}</span>
+          <mat-icon class="tool-icon" aria-hidden="true">{{ tool.icon }}</mat-icon>
+          <span class="tool-label">{{ tool.label }}</span>
+          <span class="tool-desc" [title]="tool.description">{{ tool.description }}</span>
         </button>
       }
     </div>
   `,
   styles: [`
-    .tool-hud {
+    .tool-dock {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       gap: 6px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      align-items: stretch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(124,77,255,.3) transparent;
+      height: 100%;
+      padding: 2px 0;
     }
-    .tool-btn {
-      position: relative;
+    .tool-card {
+      scroll-snap-align: start;
+      flex: 0 0 auto;
       display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
-      border: 1px solid rgba(182,156,255,.28);
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: auto 1fr;
+      column-gap: 8px;
+      row-gap: 2px;
+      min-width: 96px;
+      max-width: 136px;
+      padding: 7px 10px 7px 8px;
+      border: 1px solid rgba(182,156,255,.26);
       border-radius: 10px;
       background: rgba(8,12,18,.76);
-      color: rgba(182,156,255,.6);
+      color: rgba(182,156,255,.55);
       cursor: pointer;
-      padding: 0;
-      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
-    }
-    .tool-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .tool-btn--owned {
-      border-color: rgba(182,156,255,.55);
-      color: #B69CFF;
-    }
-    .tool-btn--owned:hover {
-      border-color: rgba(182,156,255,.9);
-      background: rgba(124,77,255,.18);
-      box-shadow: 0 0 14px -4px rgba(124,77,255,.5);
-    }
-    .tool-btn--locked {
-      opacity: .28;
-      cursor: default;
-    }
-    .tool-code {
-      position: absolute;
-      bottom: 2px;
-      right: 3px;
-      font-size: .5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 900;
-      letter-spacing: .02em;
-      opacity: .7;
-      pointer-events: none;
+      text-align: left;
+      position: relative;
+      transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+      font-family: inherit;
     }
     .tool-key {
       position: absolute;
-      top: 2px;
-      left: 4px;
+      top: 3px;
+      right: 5px;
       font-size: .56rem;
-      font-family: 'JetBrains Mono', monospace;
       font-weight: 900;
-      color: #cdbcff;
-      opacity: .85;
-      pointer-events: none;
+      color: rgba(182,156,255,.4);
+      font-family: 'JetBrains Mono', monospace;
     }
-    :focus-visible {
+    .tool-icon {
+      grid-row: 1 / 3;
+      grid-column: 1;
+      font-size: 22px !important;
+      width: 22px !important;
+      height: 22px !important;
+      align-self: center;
+      color: #B69CFF;
+      transition: color 140ms;
+    }
+    .tool-label {
+      grid-column: 2;
+      grid-row: 1;
+      font-size: .7rem;
+      font-weight: 800;
+      color: rgba(232,240,244,.82);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tool-desc {
+      grid-column: 1 / 3;
+      grid-row: 3;
+      font-size: .6rem;
+      color: rgba(232,240,244,.38);
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tool-card--owned {
+      border-color: rgba(182,156,255,.5);
+      color: #B69CFF;
+    }
+    .tool-card--owned:hover {
+      border-color: rgba(182,156,255,.85);
+      background: rgba(124,77,255,.16);
+      box-shadow: 0 0 12px -4px rgba(124,77,255,.45);
+    }
+    .tool-card--active {
+      border-color: rgba(124,77,255,.85) !important;
+      background: rgba(124,77,255,.22) !important;
+      box-shadow: 0 0 14px -4px rgba(124,77,255,.55) !important;
+    }
+    .tool-card--locked {
+      opacity: .22;
+      cursor: not-allowed;
+    }
+    .tool-card:focus-visible {
       outline: 2px solid rgba(182,156,255,.7);
       outline-offset: 2px;
     }
   `]
 })
 export class ToolInventoryComponent {
-  readonly tools = input<ClinicalToolState[]>([]);
-  readonly inventory = input<string[]>([]);
-  readonly select = output<string>();
+  readonly tools            = input<ClinicalToolState[]>([]);
+  readonly inventory        = input<string[]>([]);
+  readonly selectedToolCode  = input<string | null>(null);
+  readonly select           = output<string>();
+
+  onSelect(tool: ClinicalToolState): void {
+    if (this.inventory().includes(tool.code)) {
+      this.select.emit(tool.code);
+    }
+  }
 }
