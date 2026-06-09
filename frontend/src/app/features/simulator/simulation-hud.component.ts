@@ -167,18 +167,14 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-zone--right { flex-shrink: 0; margin-left: auto; gap: 10px; }
 
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-    .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
-    .hud-score strong { font-family: 'JetBrains Mono', monospace; font-size: .9rem; letter-spacing: .04em; }
+    .hud-score mat-icon { color: #B69CFF; font-size: 20px; width: 20px; height: 20px; }
+    .hud-score strong { font-family: 'JetBrains Mono', monospace; font-size: 1rem; letter-spacing: .04em; }
 
     .hud-stress { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .hud-stress--pulse { animation: stress-pulse .6s ease-out; }
     .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 8px; margin-right: 4px; border-right: 1px solid rgba(182,156,255,.18); }
-    .brand-glyph { color: #B69CFF; flex-shrink: 0; }
-    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
-
-    /* ── Top bar enhancements ── */
-    .brand-glyph { width: 28px !important; height: 28px !important; }
-    .brand-word { font-size: 1rem !important; }
+    .brand-glyph { color: #B69CFF; flex-shrink: 0; width: 28px; height: 28px; }
+    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: 1rem; letter-spacing: .12em; color: #E7DDFF; }
 
     .hud-case-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .hud-case-title {
@@ -209,17 +205,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-seg--done { background: rgba(124,77,255,.7); border-color: rgba(124,77,255,.6); }
     .hud-seg--current { background: #B69CFF; border-color: #9B7FE8; box-shadow: 0 0 6px -2px rgba(182,156,255,.5); }
 
-    /* Boost action buttons size */
-    .hud-action-btn { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
-    .hud-action-btn mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
-
-    /* Score + stress bigger */
-    .hud-score strong { font-size: 1rem !important; }
-    .hud-score mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
-    .heart { width: 18px !important; height: 18px !important; }
-    .heart-svg { width: 18px !important; height: 18px !important; }
-    .stress-pct { font-size: .85rem !important; }
-
     @media (max-width: 760px) {
       .hud-case-title { max-width: 140px; font-size: .74rem !important; }
       .hud-progress-track { display: none; }
@@ -227,14 +212,14 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .hud-scene-step { display: none; }
     }
     .hud-hearts { display: inline-flex; align-items: center; gap: 2px; }
-    .heart { display: inline-block; width: 15px; height: 15px; line-height: 0; }
-    .heart-svg { width: 15px; height: 15px; display: block; }
+    .heart { display: inline-block; width: 18px; height: 18px; line-height: 0; }
+    .heart-svg { width: 18px; height: 18px; display: block; }
     .heart-outline { fill: none; stroke: currentColor; stroke-width: 1.7; opacity: .6; }
     .heart-fill { fill: currentColor; clip-path: inset(0 100% 0 0); }
     .heart--half .heart-fill { clip-path: inset(0 50% 0 0); }
     .heart--full .heart-fill { clip-path: inset(0 0 0 0); }
     .heart--full .heart-outline { opacity: 1; }
-    .stress-pct { font-family: 'JetBrains Mono', monospace; font-size: .78rem; min-width: 38px; transition: color var(--psy-motion-ui); }
+    .stress-pct { font-family: 'JetBrains Mono', monospace; font-size: .85rem; min-width: 38px; transition: color var(--psy-motion-ui); }
 
     .hud-patient { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .patient-bars { display: flex; flex-direction: column; gap: 3px; }
@@ -242,18 +227,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .bar-icon { width: 12px; font-size: .62rem; line-height: 1; color: rgba(232,240,244,.7); font-weight: 800; text-align: center; }
     .mini-track { width: 56px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
     .mini-track span { display: block; height: 100%; border-radius: inherit; transition: width .5s ease, background .5s ease; }
-
-    .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
-    .hud-scene mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
-    .hud-scene span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: rgba(232,240,244,.7); }
-
-    .hud-step {
-      display: flex; align-items: center; gap: 5px; flex-shrink: 0;
-      padding: 4px 8px; border-radius: 8px;
-      background: rgba(79,122,172,.1); border: 1px solid rgba(79,122,172,.2);
-    }
-    .hud-step mat-icon { color: rgba(157,192,232,.85); font-size: 14px; width: 14px; height: 14px; }
-    .hud-step span { font-size: .68rem; font-weight: 700; color: rgba(157,192,232,.85); white-space: nowrap; }
 
     .hud-status { display: flex; align-items: center; gap: 5px; flex-shrink: 0; font-size: .7rem; color: rgba(232,240,244,.4); white-space: nowrap; }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); }
@@ -276,7 +249,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     @keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
     @media (max-width: 640px) {
-      .hud-scene { display: none; }
       .hud-zone--vitals { gap: 10px; }
       .brand-word { display: none; }
       .hud-patient { display: none; }
@@ -295,16 +267,16 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       border-left: 1px solid rgba(182,156,255,.16);
     }
     .hud-action-btn {
-      width: 32px; height: 32px;
+      width: 36px; height: 36px;
       display: grid; place-items: center;
       border: 1px solid rgba(182,156,255,.25);
-      border-radius: 8px;
+      border-radius: 10px;
       background: rgba(124,77,255,.08);
       color: rgba(182,156,255,.6);
       cursor: pointer;
       transition: border-color 140ms, background 140ms, color 140ms;
     }
-    .hud-action-btn mat-icon { font-size: 17px; width: 17px; height: 17px; }
+    .hud-action-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .hud-action-btn:hover {
       border-color: rgba(182,156,255,.6);
       background: rgba(124,77,255,.18);
