@@ -1,20 +1,19 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
-import { getSceneObjective, getSceneProgress } from './scene-objectives.config';
+import { getSceneProgress } from './scene-objectives.config';
 import { getProximityStepHint } from './risky-interaction.config';
 import { Heart, stressToHearts } from './stress-hearts.util';
 import { SocialMapComponent } from './social-map/social-map.component';
 import { SocialMapService } from './social-map/social-map.service';
-import { VerbalTensionComponent } from './verbal-tension.component';
 
 type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, MatIconModule, SocialMapComponent, VerbalTensionComponent],
+  imports: [CommonModule, MatIconModule, SocialMapComponent],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell liquid-glass"
@@ -102,22 +101,34 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             }
           </div>
 
-          <!-- RIGHT zone: status + verbal tension -->
+          <!-- RIGHT zone: status + action buttons -->
           <div class="hud-zone hud-zone--right">
-            <app-verbal-tension [tension]="verbalTension()"></app-verbal-tension>
             <div class="hud-status" [class.hud-status--live]="game.status === 'IN_PROGRESS'">
               <span class="status-dot" aria-hidden="true"></span>
               <span>{{ statusLabel(game.status) }}</span>
             </div>
+            <div class="hud-actions" aria-label="Acciones del simulador">
+              <button class="hud-action-btn" type="button"
+                aria-label="Bitácora de reflexión (J)"
+                title="Bitácora (J)"
+                (click)="openJournal.emit()">
+                <mat-icon aria-hidden="true">menu_book</mat-icon>
+              </button>
+              <button class="hud-action-btn" type="button"
+                aria-label="Mapa social de relaciones"
+                title="Mapa social"
+                (click)="openSocialMap.emit()">
+                <mat-icon aria-hidden="true">hub</mat-icon>
+              </button>
+              <button class="hud-action-btn" type="button"
+                aria-label="Asistente IA"
+                title="Asistente IA"
+                (click)="openAI.emit()">
+                <mat-icon aria-hidden="true">smart_toy</mat-icon>
+              </button>
+            </div>
           </div>
         </div>
-
-        @if (sceneObjective(); as objective) {
-          <div class="hud-objective-line" role="status" aria-label="Objetivo actual: {{ objective }}">
-            <mat-icon aria-hidden="true">flag</mat-icon>
-            <span><strong>Objetivo:</strong> {{ objective }}</span>
-          </div>
-        }
 
         <div class="hud-social-panel">
           <app-social-map
@@ -197,16 +208,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); }
     .hud-status--live .status-dot { background: #B69CFF; animation: dot-blink 2s ease-in-out infinite; }
 
-    .hud-objective-line {
-      display: flex; align-items: flex-start; gap: 6px;
-      padding: 5px 14px 7px;
-      border-top: 1px solid rgba(182,156,255,.16);
-      background: rgba(124,77,255,.08);
-    }
-    .hud-objective-line mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
-    .hud-objective-line span { font-size: .74rem; line-height: 1.3; color: rgba(232,240,244,.82); }
-    .hud-objective-line strong { color: #cdbcff; font-weight: 800; margin-right: 4px; }
-
     .sr-only {
       position: absolute !important;
       width: 1px !important; height: 1px !important;
@@ -228,7 +229,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .hud-zone--vitals { gap: 10px; }
       .brand-word { display: none; }
       .hud-patient { display: none; }
-      .hud-objective-line span { font-size: .7rem; }
     }
     .hud-social-panel {
       position: relative;
@@ -246,6 +246,30 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .stress-track span { transition: none; }
       .status-dot { animation: none !important; }
     }
+    .hud-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 10px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(182,156,255,.16);
+    }
+    .hud-action-btn {
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(182,156,255,.25);
+      border-radius: 8px;
+      background: rgba(124,77,255,.08);
+      color: rgba(182,156,255,.6);
+      cursor: pointer;
+      transition: border-color 140ms, background 140ms, color 140ms;
+    }
+    .hud-action-btn mat-icon { font-size: 17px; width: 17px; height: 17px; }
+    .hud-action-btn:hover {
+      border-color: rgba(182,156,255,.6);
+      background: rgba(124,77,255,.18);
+      color: #B69CFF;
+    }
   `]
 })
 export class SimulationHudComponent {
@@ -253,7 +277,10 @@ export class SimulationHudComponent {
   readonly stressPulse = input(false);
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
-  readonly verbalTension = input<number>(0);
+  readonly verbalTension   = input<number>(0);
+  readonly openJournal     = output<void>();
+  readonly openAI          = output<void>();
+  readonly openSocialMap   = output<void>();
 
   readonly socialMapService = inject(SocialMapService);
 
@@ -280,11 +307,6 @@ export class SimulationHudComponent {
     high:     'Estrés elevado — considere herramientas de contención',
     critical: 'Nivel crítico — priorice seguridad y autocuidado'
   })[this.stressTier()]);
-
-  readonly sceneObjective = computed(() => {
-    const nodeKey = this.attempt()?.currentNode.key;
-    return getSceneObjective(nodeKey);
-  });
 
   readonly sceneProgress = computed(() => {
     const proximityLabel = getProximityStepHint(this.nearbyInteractionKey());
