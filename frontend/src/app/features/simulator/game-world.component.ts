@@ -1024,28 +1024,65 @@ class DataDrivenWorldScene extends Phaser.Scene {
       padding: { x: 8, y: 4 },
     }).setDepth(6);
 
-    if (this.assetsLoaded && this.textures.exists('characters')) {
+    // ── Real character sprites (128×180px @0.55 → 70×99px) ───────────────────
+    // Textures loaded in preload(); animations in createNpcCharacterAnimations().
+    // Fallback: Kenney mushroom icon when real sprites aren't in the cache.
+    if (this.textures.exists('npc_orientadora-casual-female')) {
+      (this.add.sprite(180, 220, 'npc_orientadora-casual-female') as Phaser.GameObjects.Sprite)
+        .setScale(0.55).setDepth(8).play('npc_orientadora-casual-female_idle_front');
+      this.add.text(180, 276, 'Sobreviviente', {
+        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#ffd4c0',
+        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
+      }).setOrigin(0.5, 0).setDepth(8);
+    } else if (this.assetsLoaded && this.textures.exists('characters')) {
       this.add.sprite(180, 220, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
         .setScale(2).setDepth(8).setTint(0xffd4c0);
       this.add.text(180, 248, 'Sobreviviente', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#ffd4c0',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
+    }
 
+    if (this.textures.exists('npc_orientadora-female-labcoat')) {
+      (this.add.sprite(280, 200, 'npc_orientadora-female-labcoat') as Phaser.GameObjects.Sprite)
+        .setScale(0.55).setDepth(8).play('npc_orientadora-female-labcoat_idle_front');
+      this.add.text(280, 256, 'Psicóloga social', {
+        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#a8c8ff',
+        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
+      }).setOrigin(0.5, 0).setDepth(8);
+    } else if (this.assetsLoaded && this.textures.exists('characters')) {
       this.add.sprite(280, 200, 'characters', KenneyCharFrames.PLAYER_IDLE)
         .setScale(1.9).setDepth(8).setTint(0xa8c8ff);
       this.add.text(280, 228, 'Psicóloga social', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#a8c8ff',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
+    }
 
+    if (this.textures.exists('npc_doctor-male-labcoat')) {
+      (this.add.sprite(760, 90, 'npc_doctor-male-labcoat') as Phaser.GameObjects.Sprite)
+        .setScale(0.55).setDepth(8).play('npc_doctor-male-labcoat_idle_front');
+      this.add.text(760, 146, 'Funcionario de derechos', {
+        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
+        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
+      }).setOrigin(0.5, 0).setDepth(8);
+    } else if (this.assetsLoaded && this.textures.exists('characters')) {
       this.add.sprite(760, 90, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE)
         .setScale(2).setDepth(8);
       this.add.text(760, 118, 'Funcionario de derechos', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
+    }
 
+    if (this.textures.exists('npc_staff-male-glasses-beard')) {
+      (this.add.sprite(760, 400, 'npc_staff-male-glasses-beard') as Phaser.GameObjects.Sprite)
+        .setScale(0.55).setDepth(8).play('npc_staff-male-glasses-beard_idle_front');
+      this.add.text(760, 456, 'Trabajadora social', {
+        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8e8c8',
+        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
+      }).setOrigin(0.5, 0).setDepth(8);
+    } else if (this.assetsLoaded && this.textures.exists('characters')) {
       this.add.sprite(760, 400, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
         .setScale(1.85).setDepth(8).setTint(0xb8e8c8);
       this.add.text(760, 428, 'Trabajadora social', {
