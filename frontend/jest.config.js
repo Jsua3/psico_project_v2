@@ -14,6 +14,9 @@ module.exports = {
     }],
   },
   setupFilesAfterEnv: ['<rootDir>/setup-jest.ts'],
+  moduleNameMapper: {
+    '^phaser$': '<rootDir>/src/__mocks__/phaser.ts',
+  },
   globals: {
     'ts-jest': {
       tsconfig: 'tsconfig.spec.json',

@@ -29,6 +29,7 @@ import {
   getSceneInteractionDescription,
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
+import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
@@ -777,6 +778,30 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly journalOpen  = signal(false);
   readonly fadeActive   = signal(false);
   readonly verbalTension = signal(0);
+
+  // ── NEW: HUD redesign signals ──
+  readonly aiAssistantOpen  = signal(false);
+  readonly socialMapOpen    = signal(false);
+
+  readonly viewMode = computed<'explore' | 'dialogue-right' | 'dialogue-cinematic' | 'journal' | 'outcome'>(() => {
+    const att = this.attempt();
+    if (!att) return 'explore';
+    if (att.status === 'COMPLETED' || att.status === 'SAFE_EXITED') return 'outcome';
+    if (this.journalOpen()) return 'journal';
+    const dlg = this.dialogue();
+    if (dlg) {
+      const hasChoices = (dlg.choices?.length ?? 0) > 0;
+      const isPerson   = this.selectedInteraction()?.type === 'PERSON';
+      return (hasChoices && isPerson) ? 'dialogue-right' : 'dialogue-cinematic';
+    }
+    return 'explore';
+  });
+
+  readonly sceneObjective  = computed(() => getSceneObjective(this.attempt()?.currentNode.key) ?? null);
+  readonly contextTip      = computed(() => this.sceneObjective());
+  readonly selectedToolCode = computed(() =>
+    this.dialogue() ? (this.selectedInteraction()?.toolCode ?? null) : null
+  );
 
   readonly minimapStages = computed<MinimapStage[]>(() => {
     const map = this.progressMap();
