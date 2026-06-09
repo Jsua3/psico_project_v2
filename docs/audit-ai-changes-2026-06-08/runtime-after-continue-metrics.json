@@ -1,0 +1,465 @@
+{
+  "capturedAt": "2026-06-09T01:39:20.009Z",
+  "beforeResume": {
+    "text": "Saltar al contenido principal\nSaltar al juego\n\nINTENTO EN PROGRESO\n\nContinuar simulación formativa\n\nYa tienes un intento activo en Violencia Familiar y Tentativa de Feminicidio. Puedes retomarlo desde Comisaria de Familia: valoracion del riesgo o iniciar uno nuevo.\n\nPuntaje: 0\nEstrés: 0%\nRiesgo: 50%\nContinuar intento en progreso\nIniciar nuevo intento\nVolver al catálogo",
+    "buttons": [
+      "",
+      "",
+      "logout",
+      "Continuar intento en progreso",
+      "Iniciar nuevo intento"
+    ]
+  },
+  "desktop": {
+    "url": "http://localhost:4200/portal/simulador/1",
+    "h1": "Plataforma académica para la simulación, evaluación y trazabilidad de decisiones en casos psicosociales.",
+    "visibleText": "Saltar al contenido principal Saltar al juego SIMULACION PSICOSOCIAL EN CURSO Violencia Familiar y Tentativa de Feminicidio Analiza el escenario, toma una decision argumentada y registra tu reflexion formativa. En curso Psicologo social en formacion 0 pts Volver Progreso: 2 de 6 escenarios SIEP fact_check 0 0% location_on Comisaria de Familia: valoracion del riesgo timeline Paso 4 — Entrevista segura (4/6) TENSIÓN VERBAL En seguimiento flag Objetivo: Realiza entrevista segura, valora el riesgo de feminicidio y activa medidas de protección proporcionales. Red Social ▶ SALA DE URGEN… REVELACION DE… INFORME PSICO… COMISARIA DE … PROTECCION DE… CIERRE DEL CA… COMISARIA DE … · 4/6 1 psychology PAP 2 forum SPIK 3 monitoring RISK 4 health_and_safety SAFE 5 edit_note REFL ESCENARIO ACTUAL Comisaria de Familia: valoracion del riesgo En la Comisaria se debe valorar riesgo de feminicidio, factores agravantes y medidas de proteccion proporcionales. Comisaria de Familia: valoracion del riesgo Escenario 4 de 6 Contenido sensible Advertencia etica Decisiones que alerten al agresor pueden aumentar el riesgo. TOMA DE DECISIONES 2 opciones Acercate a un actor, recurso o ruta del mapa y presiona E para abrir una decision formativa. TRAZABILIDAD B Sala de urgen… APOYO PROFESIONAL Danger Assessment como referencia formativa. Ley 1761 de 2015. Orientación menu_book exit_to_app Mover: WASD/flechas · E decisión o interacción · J bitácora reflexiva · Esc salida segura menu_book Bitácora reflexiva close RAZONAMIENTO ÉTICO Y FORMATIVO ¿Qué señales de riesgo identificaste? ¿Qué decisión cambiarías si repitieras el caso? ¿Qué principio ético aplicaste? ¿Qué ruta institucional consideraste? ¿Cómo evitaste revictimizar a la persona afectada? encrypted Guardar bitácora lock Las bitácoras se cifran con AES-GCM antes de guardarse. Escena: Comisaria de Familia: valoracion del riesgo En la Comisaria se debe valorar riesgo de feminicidio, factores agravantes y medidas de proteccion proporcionales. Advertencia: Decisiones que alerten al agresor pueden aumentar el riesgo. Contenido sensible. Salida segura con Escape. Puntaje: 0. Estrés: 0%. Estado: En progreso. Acción riesgosa: contacto con agresor V",
+    "canvasInternal": {
+      "width": 960,
+      "height": 540
+    },
+    "rects": {
+      "canvas": {
+        "x": 15,
+        "y": 199,
+        "width": 1438,
+        "height": 898
+      },
+      "gameLayer": {
+        "x": 14,
+        "y": 198,
+        "width": 1440,
+        "height": 900
+      },
+      "hero": {
+        "x": 14,
+        "y": 14,
+        "width": 1054,
+        "height": 149.640625
+      },
+      "supportPanel": {
+        "x": 1084,
+        "y": 14,
+        "width": 342,
+        "height": 762
+      },
+      "hud": {
+        "x": 24,
+        "y": 198,
+        "width": 1034,
+        "height": 116
+      },
+      "minimap": {
+        "x": 903.9375,
+        "y": 252,
+        "width": 150.0625,
+        "height": 217
+      },
+      "tools": {
+        "x": 12,
+        "y": 538,
+        "width": 44,
+        "height": 244
+      },
+      "dialogue": {
+        "x": 0,
+        "y": 900,
+        "width": 1440,
+        "height": 0
+      }
+    },
+    "canvasParentClasses": "phaser-host"
+  },
+  "mobile": {
+    "visibleText": "Saltar al contenido principal Saltar al juego S SIEP Sistema de Entrenamiento Psicosocial dashboard Dashboard Seguimiento formativo play_circle Simulador Simulación formativa face Mi personaje Editor de avatar play_arrow Continuar simulación SIMULACION PSICOSOCIAL EN CURSO Violencia Familiar y Tentativa de Feminicidio Analiza el escenario, toma una decision argumentada y registra tu reflexion formativa. keyboard_arrow_up keyboard_arrow_left touch_app Interactuar keyboard_arrow_right keyboard_arrow_down fact_check 0 0% timeline Paso 4 — Entrevista segura (4/6) TENSIÓN VERBAL En seguimiento flag Objetivo: Realiza entrevista segura, valora el riesgo de feminicidio y activa medidas de protección proporcionales. 1 psychology PAP 2 forum SPIK 3 monitoring RISK 4 health_and_safety SAFE 5 edit_note REFL ESCENARIO ACTUAL Comisaria de Familia: valoracion del riesgo En la Comisaria se debe valorar riesgo de feminicidio, factores agravantes y medidas de proteccion proporcionales. Comisaria de Familia: valoracion del riesgo Escenario 4 de 6 Contenido sensible Advertencia etica Decisiones que alerten al agresor pueden aumentar el riesgo. TOMA DE DECISIONES 2 opciones Acercate a un actor, recurso o ruta del mapa y presiona E para abrir una decision formativa. TRAZABILIDAD B Sala de urgen… APOYO PROFESIONAL Danger Assessment como referencia formativa. Ley 1761 de 2015. Orientación menu_book exit_to_app menu_book Bitácora reflexiva close RAZONAMIENTO ÉTICO Y FORMATIVO ¿Qué señales de riesgo identificaste? ¿Qué decisión cambiarías si repitieras el caso? ¿Qué principio ético aplicaste? ¿Qué r",
+    "rects": {
+      "canvas": {
+        "x": 11,
+        "y": 158,
+        "width": 388,
+        "height": 436.875
+      },
+      "gameLayer": {
+        "x": 10,
+        "y": 157,
+        "width": 390,
+        "height": 438.875
+      },
+      "hero": {
+        "x": 10,
+        "y": 10,
+        "width": 370,
+        "height": 137
+      },
+      "supportPanel": {
+        "x": 10,
+        "y": 709,
+        "width": 370,
+        "height": 757.421875
+      },
+      "hud": {
+        "x": 10,
+        "y": 605.875,
+        "width": 370,
+        "height": 93.125
+      },
+      "minimap": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "tools": {
+        "x": 10,
+        "y": 484,
+        "width": 44,
+        "height": 244
+      }
+    }
+  },
+  "mapResponses": [
+    {
+      "status": 200,
+      "file": "urgencias-crisis.json",
+      "url": "http://localhost:4200/assets/game/maps/urgencias-crisis.json"
+    },
+    {
+      "status": 200,
+      "file": "ruta-proteccion.json",
+      "url": "http://localhost:4200/assets/game/maps/ruta-proteccion.json"
+    },
+    {
+      "status": 200,
+      "file": "informe-integral.json",
+      "url": "http://localhost:4200/assets/game/maps/informe-integral.json"
+    },
+    {
+      "status": 200,
+      "file": "valoracion-comisaria.json",
+      "url": "http://localhost:4200/assets/game/maps/valoracion-comisaria.json"
+    },
+    {
+      "status": 200,
+      "file": "proteccion-nna.json",
+      "url": "http://localhost:4200/assets/game/maps/proteccion-nna.json"
+    },
+    {
+      "status": 200,
+      "file": "cierre-seguimiento.json",
+      "url": "http://localhost:4200/assets/game/maps/cierre-seguimiento.json"
+    },
+    {
+      "status": 200,
+      "file": "comisaria-sala-espera.json",
+      "url": "http://localhost:4200/assets/game/maps/comisaria-sala-espera.json"
+    },
+    {
+      "status": 200,
+      "file": "comisaria-consultorio.json",
+      "url": "http://localhost:4200/assets/game/maps/comisaria-consultorio.json"
+    },
+    {
+      "status": 200,
+      "file": "comisaria-supervisor.json",
+      "url": "http://localhost:4200/assets/game/maps/comisaria-supervisor.json"
+    },
+    {
+      "status": 200,
+      "file": "urgencias-sala.json",
+      "url": "http://localhost:4200/assets/game/maps/urgencias-sala.json"
+    },
+    {
+      "status": 200,
+      "file": "ruta-sala.json",
+      "url": "http://localhost:4200/assets/game/maps/ruta-sala.json"
+    },
+    {
+      "status": 200,
+      "file": "informe-oficina.json",
+      "url": "http://localhost:4200/assets/game/maps/informe-oficina.json"
+    },
+    {
+      "status": 200,
+      "file": "nna-sala.json",
+      "url": "http://localhost:4200/assets/game/maps/nna-sala.json"
+    },
+    {
+      "status": 200,
+      "file": "cierre-sala.json",
+      "url": "http://localhost:4200/assets/game/maps/cierre-sala.json"
+    }
+  ],
+  "scenarioResponses": [],
+  "assetErrors": [
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/music/siep_ambient.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/music/siep_tension.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/music/siep_resolution.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/music/siep_crisis.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/footstep_tile.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/footstep_wood.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/door_open.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/ui_select.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/ui_confirm.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/ui_cancel.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/dialogue_advance.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/stress_high.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/crisis_start.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/audio/sfx/session_complete.ogg"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_body.png"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_skin_medium.png"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_uniform_clinic_white.png"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_labcoat.png"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_hair_0_0.png"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_face_0_0_0.png"
+    }
+  ],
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x52dc001bdc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x52dc001bdc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x52dc001bdc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x52dc001bdc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] landmark-one-main: Ensure the document has a main landmark [Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] page-has-heading-one: Ensure that the page, or at least one of its frames contains a level-one heading [Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_ambient.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_tension.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_resolution.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_crisis.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/footstep_tile.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/footstep_wood.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/door_open.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_select.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_confirm.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_cancel.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/dialogue_advance.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/stress_high.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/crisis_start.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/session_complete.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ]
+}

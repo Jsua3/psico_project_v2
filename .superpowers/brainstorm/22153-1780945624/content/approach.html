@@ -1,0 +1,126 @@
+<h2>¿Cómo reconstruir las capas 2.5D?</h2>
+<p class="subtitle">El motor ya funciona — <code>buildTiledLayers()</code> sabe leer <code>props_back / props_front</code>.<br>El problema: los mapas no tienen esas capas. Hay que dárselas.</p>
+
+<!-- ── Diagnóstico visual ───────────────────────────────── -->
+<div class="section">
+  <div class="label">Situación actual vs. contrato 2.5D</div>
+  <div class="split" style="gap:24px;margin-top:12px">
+
+    <div class="mockup" style="flex:1">
+      <div class="mockup-header" style="color:#e25a4f">❌ Ahora — comisaria-sala-espera.json</div>
+      <div class="mockup-body" style="padding:16px">
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+          <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:8px 12px;display:flex;justify-content:space-between">
+            <span>Objects</span><span style="color:#7d8290;font-size:11px">3 objetos (exits, NPCs)</span>
+          </div>
+          <div style="background:rgba(78,150,220,0.2);border:1px solid rgba(78,150,220,0.4);border-radius:4px;padding:8px 12px;display:flex;justify-content:space-between">
+            <span>Walls</span><span style="color:#7d8290;font-size:11px">193 tiles (solo borde)</span>
+          </div>
+          <div style="background:rgba(255,90,60,0.15);border:1px solid rgba(255,90,60,0.3);border-radius:4px;padding:8px 12px;display:flex;justify-content:space-between">
+            <span>Floor</span><span style="color:#e25a4f;font-size:11px">⚠ 0 tiles pintados</span>
+          </div>
+        </div>
+        <p style="font-size:11px;color:#7d8290;margin-top:12px">
+          <code>buildTiledLayers()</code> procesa Floor y Walls, pero sin <code>props_back</code> ni <code>props_front</code> no hay Y-sort para mobiliario.
+          El suelo aparece negro (procedural) porque Floor está vacío.
+        </p>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;font-size:24px;padding:0 8px">→</div>
+
+    <div class="mockup" style="flex:1">
+      <div class="mockup-header" style="color:#6ec67a">✅ Objetivo — contrato 2.5D completo</div>
+      <div class="mockup-body" style="padding:16px">
+        <div style="display:flex;flex-direction:column;gap:5px;font-size:12px">
+          <div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between;color:#7d8290"><span>overlay</span><span style="font-size:10px">300 000</span></div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between;color:#7d8290"><span>lighting</span><span style="font-size:10px">200 000</span></div>
+          <div style="background:rgba(230,120,40,0.25);border:1px solid rgba(230,120,40,0.5);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between"><span>props_front</span><span style="font-size:10px;color:#f5b84b">100 000 · tapa al jugador</span></div>
+          <div style="background:rgba(124,77,255,0.2);border:1px solid rgba(124,77,255,0.4);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between"><span>characters</span><span style="font-size:10px;color:#b69cff">1 000 + Y</span></div>
+          <div style="background:rgba(78,150,220,0.2);border:1px solid rgba(78,150,220,0.4);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between"><span>props_back</span><span style="font-size:10px;color:#6cc0c7">2 · detrás del jugador</span></div>
+          <div style="background:rgba(78,150,220,0.15);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between;color:#9dc0e8"><span>walls</span><span style="font-size:10px">3</span></div>
+          <div style="background:rgba(110,198,122,0.2);border:1px solid rgba(110,198,122,0.4);border-radius:3px;padding:6px 10px;display:flex;justify-content:space-between"><span>floor</span><span style="font-size:10px;color:#6ec67a">0 · tiles pintados</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── 3 enfoques ──────────────────────────────────────── -->
+<div class="section">
+  <div class="label">Elige el enfoque de implementación</div>
+</div>
+
+<div class="options" style="flex-direction:column;gap:16px">
+
+  <!-- Opción A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="align-items:flex-start">
+    <div class="letter">A</div>
+    <div class="content" style="flex:1">
+      <h3>Script Python → mapa completo con contenido real <span style="font-size:12px;font-weight:400;color:#6ec67a;margin-left:8px">⭐ Recomendado</span></h3>
+      <p>Un script genera la nueva versión de <code>comisaria-sala-espera.json</code> con todas las capas 2.5D y <strong>contenido pintado</strong>: suelo con tiles de tiny-dungeon, muebles en <code>props_back</code> (escritorios, sillas) y una barra de recepción en <code>props_front</code> que tapa al jugador cuando camina hacia el fondo. Los NPCs y exits del Objects layer se conservan.</p>
+      <div style="display:flex;gap:32px;margin-top:10px;font-size:12px">
+        <div>
+          <div style="color:#6ec67a;margin-bottom:4px">✅ Pros</div>
+          <div>• Causa raíz resuelta en datos</div>
+          <div>• Y-sort real con tiles</div>
+          <div>• Extensible a los otros 13 mapas</div>
+        </div>
+        <div>
+          <div style="color:#f5b84b;margin-bottom:4px">⚠ Consideraciones</div>
+          <div>• Hay que mapear GIDs del tileset</div>
+          <div>• ~2-3h de trabajo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)" style="align-items:flex-start">
+    <div class="letter">B</div>
+    <div class="content" style="flex:1">
+      <h3>Añadir capas vacías al JSON + arreglar depth procedural</h3>
+      <p>El script solo <em>añade</em> las capas <code>props_back</code>, <code>props_front</code>, <code>floor</code> al JSON existente (con tiles vacíos o mínimos). Paralelamente, se corrige <code>renderComisariaEnvironment()</code> para que use <code>actorDepth(y)</code> en lugar de depth fijo 7/8. El mobiliario sigue siendo procedural pero ahora se ordena por Y.</p>
+      <div style="display:flex;gap:32px;margin-top:10px;font-size:12px">
+        <div>
+          <div style="color:#6ec67a;margin-bottom:4px">✅ Pros</div>
+          <div>• Rápido (~1h)</div>
+          <div>• Mejora visible inmediata</div>
+        </div>
+        <div>
+          <div style="color:#e25a4f;margin-bottom:4px">⚠ Contras</div>
+          <div>• Props siguen siendo procedurales</div>
+          <div>• Resolución parcial del P0</div>
+          <div>• Deuda de autoría pendiente</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción C -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)" style="align-items:flex-start">
+    <div class="letter">C</div>
+    <div class="content" style="flex:1">
+      <h3>A + diseño completo de sala de espera con atlas Kenney</h3>
+      <p>Todo lo de la Opción A, pero con un diseño más elaborado: filas de sillas de espera, macetas, pósters en la pared posterior, ventana con barras, suelo con variación de tiles, counter de recepción como props_front sólido. Resultado: la sala de espera se ve como sala de espera de comisaría, no como un cuarto genérico.</p>
+      <div style="display:flex;gap:32px;margin-top:10px;font-size:12px">
+        <div>
+          <div style="color:#6ec67a;margin-bottom:4px">✅ Pros</div>
+          <div>• Máxima calidad visual</div>
+          <div>• Muestra el potencial real</div>
+        </div>
+        <div>
+          <div style="color:#f5b84b;margin-bottom:4px">⚠ Consideraciones</div>
+          <div>• ~4-5h de trabajo</div>
+          <div>• Necesita referencia del tileset</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p style="font-size:12px;color:#7d8290;margin-top:20px;text-align:center">
+  En todos los casos el escenario objetivo es <strong>comisaria-sala-espera</strong> — ya tiene NPCs con <code>characterId</code> asignado (R6), lo que hace la demo más completa.
+</p>

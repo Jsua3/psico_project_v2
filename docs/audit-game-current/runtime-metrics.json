@@ -1,0 +1,697 @@
+{
+  "catalog": {
+    "success": false,
+    "message": "No autenticado"
+  },
+  "caseVersionId": 1,
+  "desktopMetrics": {
+    "url": "http://localhost:4200/portal/simulador/1",
+    "title": "Violencia Familiar y Tentativa de Feminicidio",
+    "currentNode": "Sala de urgencias: primera escucha",
+    "error": "",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "rects": {
+      "canvas": {
+        "x": 15,
+        "y": 199,
+        "width": 1438,
+        "height": 898
+      },
+      "gameLayer": {
+        "x": 14,
+        "y": 198,
+        "width": 1440,
+        "height": 900
+      },
+      "hero": {
+        "x": 14,
+        "y": 14,
+        "width": 1054,
+        "height": 150
+      },
+      "supportPanel": {
+        "x": 1084,
+        "y": 14,
+        "width": 342,
+        "height": 762
+      },
+      "hud": {
+        "x": 24,
+        "y": 198,
+        "width": 1034,
+        "height": 116
+      },
+      "minimap": {
+        "x": 902,
+        "y": 252,
+        "width": 152,
+        "height": 217
+      },
+      "tools": {
+        "x": 12,
+        "y": 538,
+        "width": 44,
+        "height": 244
+      },
+      "dialogue": {
+        "x": 0,
+        "y": 900,
+        "width": 1440,
+        "height": 0
+      }
+    },
+    "canvasInternal": {
+      "width": 960,
+      "height": 540
+    },
+    "visibleTextSample": "Saltar al contenido principal Saltar al juego SIMULACION PSICOSOCIAL EN CURSO Violencia Familiar y Tentativa de Feminicidio Analiza el escenario, toma una decision argumentada y registra tu reflexion formativa. En curso Psicologo social en formacion 0 pts Volver Progreso: 1 de 6 escenarios SIEP fact_check 0 0% location_on Sala de urgencias: primera escucha timeline Paso 1 — Urgencia vital y crisis (1/6) TENSIÓN VERBAL En seguimiento flag Objetivo: Estabiliza emocionalmente a la familia y evita acciones prematuras que puedan aumentar la crisis. Red Social ▶ SALA DE URGEN… REVELACION DE… INFORME PSICO… COMISARIA DE … PROTECCION DE… CIERRE DEL CA… SALA DE URGEN… · 1/6 1 psychology PAP 2 forum SPIK 3 monitoring RISK 4 health_and_safety SAFE 5 edit_note REFL ESCENARIO ACTUAL Sala de urgencias: primera escucha Una mujer de 34 anos llega al servicio de urgencias con hematomas visibles, llanto contenido y temor por su vida y la de sus dos hijos. La estudiante debe decidir la primera intervencion psicologica. Sala de urgencias: primera escucha Escenario 1 de 6 Contenido sensible Advertencia etica Contenido sensible: violencia intrafamiliar y riesgo vital. TOMA DE DECISIONES 3 opciones Acerc"
+  },
+  "mobileMetrics": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "rects": {
+      "canvas": {
+        "x": 11,
+        "y": 158,
+        "width": 388,
+        "height": 437
+      },
+      "gameLayer": {
+        "x": 10,
+        "y": 157,
+        "width": 390,
+        "height": 439
+      },
+      "hero": {
+        "x": 10,
+        "y": 10,
+        "width": 370,
+        "height": 137
+      },
+      "supportPanel": {
+        "x": 10,
+        "y": 709,
+        "width": 370,
+        "height": 777
+      },
+      "hud": {
+        "x": 10,
+        "y": 606,
+        "width": 370,
+        "height": 93
+      },
+      "tools": {
+        "x": 10,
+        "y": 484,
+        "width": 44,
+        "height": 244
+      },
+      "dialogue": {
+        "x": 0,
+        "y": 844,
+        "width": 390,
+        "height": 0
+      }
+    },
+    "visibleTextSample": "Saltar al contenido principal Saltar al juego S SIEP Sistema de Entrenamiento Psicosocial dashboard Dashboard Seguimiento formativo play_circle Simulador Simulación formativa face Mi personaje Editor de avatar play_arrow Continuar simulación SIMULACION PSICOSOCIAL EN CURSO Violencia Familiar y Tentativa de Feminicidio Analiza el escenario, toma una decision argumentada y registra tu reflexion formativa. keyboard_arrow_up keyboard_arrow_left touch_app Interactuar keyboard_arrow_right keyboard_arrow_down fact_check 0 0% timeline Paso 1 — Urgencia vital y crisis (1/6) TENSIÓN VERBAL En seguimiento flag Objetivo: Estabiliza emocionalmente a la familia y evita acciones prematuras que puedan aumentar la crisis. 1 psychology PAP 2 forum SPIK 3 monitoring RISK 4 health_and_safety SAFE 5 edit_note REFL ESCENARIO ACTUAL Sala de urgencias: primera escucha Una mujer de 34 anos llega al servicio de urgencias con hematomas visibles, llanto contenido y temor por su vida y la de sus dos hijos. La estudiante debe decidir la primera intervencion psicologica. Sala de urgencias: primera escucha Escenario 1 de 6 Contenido sensible Advertencia etica Contenido sensible: violencia intrafamiliar y riesgo v"
+  },
+  "logs": [
+    {
+      "time": "2026-06-08T17:16:50.826Z",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "time": "2026-06-08T17:16:50.963Z",
+      "type": "log",
+      "text": "Angular is running in development mode."
+    },
+    {
+      "time": "2026-06-08T17:16:51.046Z",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "time": "2026-06-08T17:16:51.282Z",
+      "type": "startGroup",
+      "text": "%c[axe-core] Accessibility violations color:#E25A4F;font-weight:bold"
+    },
+    {
+      "time": "2026-06-08T17:16:51.284Z",
+      "type": "warning",
+      "text": "[MODERATE] landmark-one-main: Ensure the document has a main landmark [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:51.284Z",
+      "type": "warning",
+      "text": "[MODERATE] page-has-heading-one: Ensure that the page, or at least one of its frames contains a level-one heading [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:51.287Z",
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:51.287Z",
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:51.287Z",
+      "type": "endGroup",
+      "text": "console.groupEnd"
+    },
+    {
+      "time": "2026-06-08T17:16:52.019Z",
+      "type": "log",
+      "text": "%c %c %c %c %c Phaser v3.90.0 (WebGL | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+    },
+    {
+      "time": "2026-06-08T17:16:52.182Z",
+      "type": "warning",
+      "text": "[.WebGL-0x41ec001b1e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "time": "2026-06-08T17:16:52.184Z",
+      "type": "warning",
+      "text": "[.WebGL-0x41ec001b1e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "time": "2026-06-08T17:16:52.193Z",
+      "type": "warning",
+      "text": "[.WebGL-0x41ec001b1e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "time": "2026-06-08T17:16:52.210Z",
+      "type": "warning",
+      "text": "[.WebGL-0x41ec001b1e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "time": "2026-06-08T17:16:53.851Z",
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "time": "2026-06-08T17:16:53.853Z",
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "time": "2026-06-08T17:16:53.854Z",
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "time": "2026-06-08T17:16:54.003Z",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "time": "2026-06-08T17:16:54.054Z",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "time": "2026-06-08T17:16:54.109Z",
+      "type": "log",
+      "text": "Angular is running in development mode."
+    },
+    {
+      "time": "2026-06-08T17:16:54.178Z",
+      "type": "startGroup",
+      "text": "%c[axe-core] Accessibility violations color:#E25A4F;font-weight:bold"
+    },
+    {
+      "time": "2026-06-08T17:16:54.178Z",
+      "type": "warning",
+      "text": "[MODERATE] landmark-one-main: Ensure the document has a main landmark [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:54.179Z",
+      "type": "warning",
+      "text": "[MODERATE] page-has-heading-one: Ensure that the page, or at least one of its frames contains a level-one heading [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:54.179Z",
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:54.179Z",
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:54.179Z",
+      "type": "endGroup",
+      "text": "console.groupEnd"
+    },
+    {
+      "time": "2026-06-08T17:16:54.807Z",
+      "type": "log",
+      "text": "%c %c %c %c %c Phaser v3.90.0 (WebGL | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+    },
+    {
+      "time": "2026-06-08T17:16:57.452Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "time": "2026-06-08T17:16:57.603Z",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "time": "2026-06-08T17:16:57.629Z",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "time": "2026-06-08T17:16:57.678Z",
+      "type": "log",
+      "text": "Angular is running in development mode."
+    },
+    {
+      "time": "2026-06-08T17:16:57.762Z",
+      "type": "startGroup",
+      "text": "%c[axe-core] Accessibility violations color:#E25A4F;font-weight:bold"
+    },
+    {
+      "time": "2026-06-08T17:16:57.762Z",
+      "type": "warning",
+      "text": "[MODERATE] landmark-one-main: Ensure the document has a main landmark [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:57.762Z",
+      "type": "warning",
+      "text": "[MODERATE] page-has-heading-one: Ensure that the page, or at least one of its frames contains a level-one heading [Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:57.763Z",
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:57.763Z",
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "time": "2026-06-08T17:16:57.763Z",
+      "type": "endGroup",
+      "text": "console.groupEnd"
+    },
+    {
+      "time": "2026-06-08T17:17:00.325Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.328Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.329Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.339Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.340Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.340Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.341Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.341Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.342Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.342Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.342Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.345Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.345Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.345Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.346Z",
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_ambient.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.346Z",
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_tension.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.350Z",
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_resolution.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.350Z",
+      "type": "warning",
+      "text": "[AudioDirector] No se pudo cargar assets/audio/music/siep_crisis.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.350Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/footstep_tile.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.350Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/footstep_wood.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/door_open.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_select.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_confirm.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/ui_cancel.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/dialogue_advance.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/stress_high.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/crisis_start.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.351Z",
+      "type": "warning",
+      "text": "[AudioDirector] SFX error assets/audio/sfx/session_complete.ogg: Failed loading audio file with status: 404."
+    },
+    {
+      "time": "2026-06-08T17:17:00.469Z",
+      "type": "log",
+      "text": "%c %c %c %c %c Phaser v3.90.0 (WebGL | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+    },
+    {
+      "time": "2026-06-08T17:17:00.731Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.731Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.763Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.765Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.766Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "time": "2026-06-08T17:17:00.766Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "network": [
+    {
+      "time": "2026-06-08T17:16:53.598Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/auth/login"
+    },
+    {
+      "time": "2026-06-08T17:16:54.109Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/auth/me"
+    },
+    {
+      "time": "2026-06-08T17:16:54.806Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/simulation/catalog"
+    },
+    {
+      "time": "2026-06-08T17:16:57.451Z",
+      "status": 401,
+      "url": "http://localhost:4200/api/simulation/catalog"
+    },
+    {
+      "time": "2026-06-08T17:16:57.678Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/auth/me"
+    },
+    {
+      "time": "2026-06-08T17:16:57.964Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/simulation/cases/1/active-attempt"
+    },
+    {
+      "time": "2026-06-08T17:17:00.213Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/simulation/attempts"
+    },
+    {
+      "time": "2026-06-08T17:17:00.356Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/simulation/attempts/6340f21f-2bf4-43f5-b6d9-bfc75c0a2fd4/progress-map?attemptToken=1Q1fJmKcW27JsFiTRIcgClA_CAzauwIOCJVWT1fgMjg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.421Z",
+      "status": 200,
+      "url": "http://localhost:4200/api/simulation/attempts/6340f21f-2bf4-43f5-b6d9-bfc75c0a2fd4/world?attemptToken=1Q1fJmKcW27JsFiTRIcgClA_CAzauwIOCJVWT1fgMjg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.730Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_skin_medium.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.731Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_body.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.763Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_uniform_clinic_white.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.765Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_labcoat.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.766Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_hair_0_0.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.766Z",
+      "status": 404,
+      "url": "http://localhost:4200/assets/sprites/avatar/avatar_face_0_0_0.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.771Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/kenney/tiny-dungeon/Tilemap/tilemap_packed.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.771Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/kenney/tiny-town/Tilemap/tilemap_packed.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.771Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/kenney/rpg-urban-pack/Spritesheet/tilemap_packed.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.771Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/urgencias-crisis.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.813Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/informe-integral.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.813Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/comisaria-sala-espera.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.818Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/ruta-proteccion.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.818Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/valoracion-comisaria.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.818Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/proteccion-nna.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.824Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/cierre-seguimiento.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.832Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/comisaria-consultorio.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.833Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/comisaria-supervisor.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.835Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/urgencias-sala.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.837Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/informe-oficina.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.837Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/ruta-sala.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.837Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/nna-sala.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.850Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/maps/cierre-sala.json"
+    },
+    {
+      "time": "2026-06-08T17:17:00.867Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/audio/footstep_concrete_000.ogg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.867Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/audio/blip_select.ogg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.868Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/audio/footstep_concrete_001.ogg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.869Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/audio/footstep_concrete_002.ogg"
+    },
+    {
+      "time": "2026-06-08T17:17:00.870Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/characters/sprite-sheets/doctor-male-labcoat.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.870Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/characters/sprite-sheets/orientadora-casual-female.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.870Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/kenney/tiny-dungeon/Tilemap/tilemap_packed.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.871Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/game/kenney/rpg-urban-pack/Spritesheet/tilemap_packed.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.884Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/characters/sprite-sheets/orientadora-female-labcoat.png"
+    },
+    {
+      "time": "2026-06-08T17:17:00.885Z",
+      "status": 200,
+      "url": "http://localhost:4200/assets/characters/sprite-sheets/staff-male-glasses-beard.png"
+    }
+  ]
+}

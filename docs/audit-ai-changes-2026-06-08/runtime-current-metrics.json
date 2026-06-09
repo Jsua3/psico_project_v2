@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-06-09T01:38:22.602Z",
+  "desktop": {
+    "url": "http://localhost:4200/portal/simulador/1",
+    "h1": "Plataforma académica para la simulación, evaluación y trazabilidad de decisiones en casos psicosociales.",
+    "visibleText": "Saltar al contenido principal Saltar al juego INTENTO EN PROGRESO Continuar simulación formativa Ya tienes un intento activo en Violencia Familiar y Tentativa de Feminicidio. Puedes retomarlo desde Comisaria de Familia: valoracion del riesgo o iniciar uno nuevo. Puntaje: 0 Estrés: 0% Riesgo: 50% Continuar intento en progreso Iniciar nuevo intento Volver al catálogo",
+    "canvasInternal": null,
+    "rects": {
+      "canvas": null,
+      "gameLayer": null,
+      "hero": null,
+      "supportPanel": null,
+      "hud": null,
+      "minimap": null,
+      "tools": null,
+      "dialogue": null
+    },
+    "localStorageKeys": [
+      "psychosim_token",
+      "siep_login_email"
+    ]
+  },
+  "mobile": {
+    "visibleText": "Saltar al contenido principal Saltar al juego S SIEP Sistema de Entrenamiento Psicosocial dashboard Dashboard Seguimiento formativo play_circle Simulador Simulación formativa face Mi personaje Editor de avatar play_arrow Continuar simulación INTENTO EN PROGRESO Continuar simulación formativa Ya tienes un intento activo en Violencia Familiar y Tentativa de Feminicidio. Puedes retomarlo desde Comisaria de Familia: valoracion del riesgo o iniciar uno nuevo. Puntaje: 0 Estrés: 0% Riesgo: 50% Continuar intento en progreso Iniciar nuevo intento Volver al catálogo",
+    "rects": {
+      "canvas": null,
+      "gameLayer": null,
+      "hero": null,
+      "supportPanel": null,
+      "hud": null,
+      "minimap": null,
+      "tools": null
+    }
+  },
+  "mapResponses": [],
+  "scenarioResponses": [],
+  "assetErrors": [
+    {
+      "status": 404,
+      "url": "http://localhost:4200/api/simulation/attempts/history"
+    }
+  ],
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x5a5c001ba200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x5a5c001ba200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x5a5c001ba200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x5a5c001ba200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "warning",
+      "text": "NG0955: The provided track expression resulted in duplicated keys for a given collection. Adjust the tracking expression such that it uniquely identifies all the items in the collection. Duplicated keys were: \nkey \"Cargando…\" at index \"0\" and \"1\", \nkey \"Cargando…\" at index \"1\" and \"2\", \nkey \"Cargando…\" at index \"2\" and \"3\". Find more at https://v21.angular.dev/errors/NG0955"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] landmark-one-main: Ensure the document has a main landmark [Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] page-has-heading-one: Ensure that the page, or at least one of its frames contains a level-one heading [Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] region: Ensure all page content is contained by landmarks [Object, Object]"
+    },
+    {
+      "type": "warning",
+      "text": "[MODERATE] skip-link: Ensure all skip links have a focusable target [Object, Object]"
+    }
+  ]
+}

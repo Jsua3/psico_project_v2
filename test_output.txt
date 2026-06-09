@@ -1,0 +1,14 @@
+PASS  test_dimensions_60x33
+FAIL  test_door_gap_on_right_wall_rows_14_to_16: 'NoneType' object is not subscriptable
+FAIL  test_floor_has_tiles: Capa floor no encontrada
+PASS  test_map_file_exists
+PASS  test_objects_layer_preserved
+FAIL  test_props_back_has_furniture: Capa props_back no encontrada
+FAIL  test_props_front_has_counter: Capa props_front no encontrada
+FAIL  test_required_2_5d_layers_present: Capa requerida ausente: floor
+FAIL  test_rpg_urban_firstgid_is_133: tileset rpg-urban no encontrado
+FAIL  test_tilesets_include_both: rpg-urban ausente de tilesets
+FAIL  test_walls_border_bottom_row_closed: 'NoneType' object is not subscriptable
+FAIL  test_walls_border_top_row_closed: Capa walls no encontrada
+
+9 test(s) fallaron
