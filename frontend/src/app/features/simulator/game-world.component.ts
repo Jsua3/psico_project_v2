@@ -37,6 +37,7 @@ import {
 } from './authored-clinical-room.util';
 import {
   AVATAR_ANIM_KEYS,
+  AVATAR_DISPLAY_SCALE,
   AVATAR_IDLE_FRAMES,
   AVATAR_TEXTURE_KEY,
   AvatarLayerSpec,
@@ -83,6 +84,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private readonly npcMarkers   = new Map<string, Phaser.GameObjects.Container>();
   private readonly markers    = new Map<string, Phaser.GameObjects.Container>();
   private readonly markerData = new Map<string, MapObjectState>();
+  private readonly markerLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
@@ -306,10 +308,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
       ? { x: targetMarker.x, y: targetMarker.y }
       : targetData ? { x: targetData.x, y: targetData.y } : null;
 
-    const shadow = this.add.ellipse(0, 13, 15, 5, 0x000000, 0.2);
+    // En la sala autoría los actores Kenney van a 2.4 (spawnNpcs); el guía debe
+    // verse del mismo mundo que los demás NPCs.
+    const guideScale = this.authoredRoomActive ? 2.4 : 1.5;
+    const shadow = this.add.ellipse(0, this.authoredRoomActive ? 20 : 13, 15, 5, 0x000000, 0.2);
     let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
     if (this.assetsLoaded && this.textures.exists('characters')) {
-      sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE).setScale(1.5);
+      sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE).setScale(guideScale);
     } else {
       sprite = this.add.circle(0, -6, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
     }
@@ -493,6 +498,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
     this.ambientMovers.clear();
@@ -616,6 +622,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
     this.ambientMovers.clear();
@@ -762,15 +769,27 @@ class DataDrivenWorldScene extends Phaser.Scene {
       grid.lineBetween(roomLeft + 42, y, roomRight - 42, y);
     }
 
-    this.add.rectangle(mapW / 2, wallBottomY - 70, 270, 28, 0x1a2034, 0.9)
-      .setStrokeStyle(2, 0x8a6cff, 0.25)
+    // Zócalo en la unión pared/piso: una arista nítida refuerza la lectura
+    // 2.5D (fondo vs. suelo) más que cualquier textura.
+    const baseboard = this.add.graphics().setDepth(DEPTH.BACKGROUND + 1);
+    baseboard.lineStyle(4, 0x16121f, 0.95);
+    baseboard.lineBetween(144, wallBottomY, mapW - 144, wallBottomY);
+    baseboard.lineStyle(3, 0x16121f, 0.8);
+    baseboard.lineBetween(roomLeft + 26, floorBottomY, 144, wallBottomY);
+    baseboard.lineBetween(roomRight - 26, floorBottomY, mapW - 144, wallBottomY);
+    baseboard.lineStyle(1, 0x6f6396, 0.5);
+    baseboard.lineBetween(144, wallBottomY + 3, mapW - 144, wallBottomY + 3);
+
+    // Texto ambiental discreto: decorativo, no debe competir con el gameplay.
+    this.add.rectangle(mapW / 2, wallBottomY - 70, 270, 28, 0x1a2034, 0.6)
+      .setStrokeStyle(1, 0x8a6cff, 0.18)
       .setDepth(DEPTH.ENVIRONMENT);
     this.add.text(mapW / 2, wallBottomY - 76, 'ESCUCHAR  ACOMPANAR  PROTEGER', {
       fontFamily: 'monospace',
       fontSize: '10px',
-      color: '#c9b8ff',
+      color: '#9d8fd0',
       align: 'center',
-    }).setOrigin(0.5, 0).setDepth(DEPTH.ENVIRONMENT + 1);
+    }).setOrigin(0.5, 0).setAlpha(0.8).setDepth(DEPTH.ENVIRONMENT + 1);
 
     this.drawOfficeWindow(150, 114);
     this.drawBookshelf(760, 178, 'right');
@@ -792,25 +811,34 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private drawDesk(x: number, y: number): void {
-    this.add.rectangle(x, y, 290, 34, 0x8a5534, 1)
+    // 250/270 px de ancho (antes 290/310): el escritorio acompaña la escena sin
+    // dominarla. La colisión vive en AUTHORED_CLINICAL_COLLISIONS — mantener en sync.
+    this.drawFloorShadow(x, y + 54, 290, 26);
+    this.add.rectangle(x, y, 250, 34, 0x8a5534, 1)
       .setStrokeStyle(2, 0x352118, 0.85)
       .setDepth(actorDepth(y));
-    this.add.rectangle(x, y + 28, 310, 46, 0x6f432c, 1)
+    this.add.rectangle(x, y + 28, 270, 46, 0x6f432c, 1)
       .setStrokeStyle(2, 0x352118, 0.85)
       .setDepth(actorDepth(y + 28));
-    this.add.rectangle(x - 92, y + 30, 58, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
-    this.add.rectangle(x + 92, y + 30, 58, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
-    this.add.rectangle(x - 76, y - 30, 44, 34, 0x161b28, 1)
+    this.add.rectangle(x - 78, y + 30, 54, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
+    this.add.rectangle(x + 78, y + 30, 54, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
+    this.add.rectangle(x - 66, y - 30, 44, 34, 0x161b28, 1)
       .setStrokeStyle(2, 0x31384a, 1)
       .setDepth(actorDepth(y - 12));
-    this.add.rectangle(x - 76, y - 7, 60, 10, 0x101521, 1).setDepth(actorDepth(y - 7));
-    this.add.rectangle(x + 62, y - 20, 38, 26, 0xd8d4c7, 1)
+    this.add.rectangle(x - 66, y - 7, 60, 10, 0x101521, 1).setDepth(actorDepth(y - 7));
+    this.add.rectangle(x + 54, y - 20, 38, 26, 0xd8d4c7, 1)
       .setStrokeStyle(1, 0x51412e, 0.8)
       .setDepth(actorDepth(y - 8));
-    this.drawPlant(x + 18, y - 18, 0.55);
+    this.drawPlant(x + 14, y - 18, 0.55);
+  }
+
+  /** Sombra elíptica de contacto sobre el piso, bajo un mueble. */
+  private drawFloorShadow(x: number, y: number, w: number, h: number): void {
+    this.add.ellipse(x, y, w, h, 0x05070d, 0.3).setDepth(actorDepth(y) - 40);
   }
 
   private drawSofa(x: number, y: number): void {
+    this.drawFloorShadow(x, y + 34, 168, 22);
     this.add.rectangle(x, y, 150, 54, 0x244772, 1)
       .setStrokeStyle(2, 0x12253d, 0.9)
       .setDepth(actorDepth(y));
@@ -820,6 +848,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private drawCoffeeTable(x: number, y: number): void {
+    this.drawFloorShadow(x, y + 24, 102, 18);
     this.add.rectangle(x, y, 92, 42, 0x6a442c, 1)
       .setStrokeStyle(2, 0x332116, 0.85)
       .setDepth(actorDepth(y));
@@ -864,6 +893,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   private drawPlant(x: number, y: number, scale: number): void {
     const depth = actorDepth(y);
+    if (scale >= 1) this.drawFloorShadow(x, y + 30 * scale, 44 * scale, 12 * scale);
     this.add.rectangle(x, y + 18 * scale, 26 * scale, 24 * scale, 0x323847, 1)
       .setStrokeStyle(1, 0x111724, 0.9)
       .setDepth(depth);
@@ -928,10 +958,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
         sprite = this.add.circle(0, -8, 10, 0x4fa3a5, 1);
       }
 
+      // Nombre oculto hasta estar en rango: la escena no debe leerse como un
+      // diagrama etiquetado (updateNpcHints lo muestra junto al hint E).
       const label = this.add.text(0, -28, npc.displayName, {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8f0f4',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
-      }).setOrigin(0.5, 1);
+      }).setOrigin(0.5, 1).setAlpha(0);
 
       const hint = this.add.text(0, -42, '▲ E', {
         fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
@@ -941,6 +973,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.npcMarkers.set(npc.key, container);
       (container as unknown as Record<string, unknown>)['__npcConfig'] = npc;
       (container as unknown as Record<string, unknown>)['__hintSprite'] = hint;
+      (container as unknown as Record<string, unknown>)['__labelSprite'] = label;
     }
   }
 
@@ -950,8 +983,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (!this.player) return;
     for (const container of this.npcMarkers.values()) {
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
+      const near = dist <= this.NPC_INTERACT_RANGE;
       const hint = (container as unknown as Record<string, unknown>)['__hintSprite'] as Phaser.GameObjects.Text;
-      if (hint) hint.setAlpha(dist <= this.NPC_INTERACT_RANGE ? 1 : 0);
+      const label = (container as unknown as Record<string, unknown>)['__labelSprite'] as Phaser.GameObjects.Text;
+      if (hint) hint.setAlpha(near ? 1 : 0);
+      if (label) label.setAlpha(near ? 1 : 0);
     }
   }
 
@@ -1193,10 +1229,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   private createPlayer(x: number, y: number) {
     if (this.avatarReady && this.textures.exists(AVATAR_TEXTURE_KEY)) {
-      // Avatar modular del editor de personaje: frame 64×96 a escala 0.6 → ~38×58 px.
-      // Centro del sprite desplazado -10 para que los pies coincidan con el hitbox.
-      const shadow = this.add.ellipse(0, 22, 28, 9, 0x000000, .25);
-      const sprite = this.add.sprite(0, -10, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down).setScale(0.6);
+      // Avatar modular del editor de personaje (frame 64×96 × AVATAR_DISPLAY_SCALE).
+      // El centro del sprite sube para que los pies caigan sobre la sombra (y≈22),
+      // que es también la base del hitbox de colisión.
+      const shadow = this.add.ellipse(0, 22, 32, 10, 0x000000, .25);
+      const sprite = this.add.sprite(0, -14, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down)
+        .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
       return;
@@ -1260,10 +1298,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const isExit = object.type === 'EXIT';
     const color  = Number.parseInt(object.color.replace('#', ''), 16) || 0x4fa3a5;
     const displayLabel = getSceneDisplayLabel(object, this.world?.map.key);
+    // El label nace oculto: la escena se lee por iconos/rings y el texto solo
+    // aparece para la interacción cercana o seleccionada (refreshMarkerStates).
+    // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     const label  = this.add.text(0, 28, displayLabel, {
       fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: 140 }
-    }).setOrigin(.5, 0);
+    }).setOrigin(.5, 0).setAlpha(0);
 
     let main: Phaser.GameObjects.GameObject;
 
@@ -1290,6 +1331,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const marker = this.add.container(object.x, object.y, [pulse, main, label]).setDepth(actorDepth(object.y));
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    if (!isExit) this.markerLabels.set(object.key, label);
     this.applyAmbientLife(marker, object);
 
     if (isExit) {
@@ -1512,6 +1554,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       m.setScale(sel ? 1.12 : near ? 1.08 : 1);
       m.setAlpha(sel || near ? 1 : .88);
+      const label = this.markerLabels.get(key);
+      if (label) label.setAlpha(sel || near ? 1 : 0);
     });
     this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey));
   }
@@ -1544,7 +1588,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
   styles: [`
     :host { display: block; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }
-    :host ::ng-deep .phaser-host canvas { display: block; width: 100% !important; height: 100% !important; }
+    /* El tamaño del canvas lo gobierna Phaser Scale.FIT (aspect 16:9 intacto,
+       letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
+       desbordaba el viewport en mobile. */
+    :host ::ng-deep .phaser-host canvas { display: block; max-width: 100%; max-height: 100%; }
     .touch-controls {
       display: none;
       position: absolute;
@@ -1576,6 +1623,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
+  private hostResizeObserver?: ResizeObserver;
 
   constructor(private readonly zone: NgZone) {}
 
@@ -1592,7 +1640,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['guide']) this.scene?.setGuide(this.guide());
   }
 
-  ngOnDestroy() { this.phaserGame?.destroy(true); }
+  ngOnDestroy() {
+    this.hostResizeObserver?.disconnect();
+    this.phaserGame?.destroy(true);
+  }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
   interactNearest() { this.scene?.interactNearest(); }
@@ -1630,6 +1681,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
         scene: this.scene
       });
+      // Scale.FIT solo escucha resize de window; el contenedor también cambia
+      // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet).
+      if (typeof ResizeObserver !== 'undefined') {
+        this.hostResizeObserver = new ResizeObserver(() => this.phaserGame?.scale.refresh());
+        this.hostResizeObserver.observe(this.gameHost!.nativeElement);
+      }
     });
     window.setTimeout(() => {
       this.scene?.setScenarioConfig(this.scenarioConfig());

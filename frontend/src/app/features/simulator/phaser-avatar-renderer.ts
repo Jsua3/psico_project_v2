@@ -19,6 +19,14 @@ export const AVATAR_SHEET_HEIGHT = 288;
 export const AVATAR_FRAME_WIDTH = 64;
 export const AVATAR_FRAME_HEIGHT = 96;
 
+/**
+ * Escala de render del avatar modular dentro del mundo. El frame 64×96 trae
+ * bastante aire alrededor del cuerpo (~30×60 px útiles), así que 0.6 lo dejaba
+ * ilegible (auditoría fase 1.1). 0.85 lo vuelve protagonista (~51 px de cuerpo
+ * visible) sin desproporcionarlo frente a los NPC Kenney de la sala autoría.
+ */
+export const AVATAR_DISPLAY_SCALE = 0.85;
+
 /** Animaciones del avatar (no chocan con las `walk-*` de Kenney). */
 export const AVATAR_ANIM_KEYS = {
   down: 'avatar-walk-down',

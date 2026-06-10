@@ -1,0 +1,176 @@
+[
+  {
+    "innerWidth": 1600,
+    "innerHeight": 900,
+    "scrollWidth": 1600,
+    "bodyScrollWidth": 1600,
+    "canvasRect": {
+      "x": 13,
+      "y": 60,
+      "width": 1574,
+      "height": 773.796875,
+      "right": 1587,
+      "bottom": 833.796875
+    },
+    "canvasZoneRect": {
+      "x": 12,
+      "y": 59,
+      "width": 1576,
+      "height": 775.796875,
+      "right": 1588,
+      "bottom": 834.796875
+    },
+    "objectiveRect": {
+      "x": 23,
+      "y": 70,
+      "width": 400,
+      "height": 92.921875,
+      "right": 423,
+      "bottom": 162.921875
+    },
+    "bottomZoneRect": {
+      "x": 0,
+      "y": 834.796875,
+      "width": 1600,
+      "height": 65.203125,
+      "right": 1600,
+      "bottom": 900
+    },
+    "rightPanelRect": null,
+    "toolDockRect": {
+      "x": 158.8125,
+      "y": 842.796875,
+      "width": 516,
+      "height": 47.203125,
+      "right": 674.8125,
+      "bottom": 890
+    },
+    "oldClassCounts": {
+      "simulator-hero": 0,
+      "support-panel": 0,
+      "minimap-layer": 0,
+      "controls-hint": 0,
+      "journal-toggle": 0,
+      "safe-exit-btn": 0
+    },
+    "viewport": "desktop-1600x900",
+    "consoleErrors": [],
+    "asset404": []
+  },
+  {
+    "innerWidth": 1366,
+    "innerHeight": 768,
+    "scrollWidth": 1366,
+    "bodyScrollWidth": 1366,
+    "canvasRect": {
+      "x": 13,
+      "y": 60,
+      "width": 1340,
+      "height": 641.796875,
+      "right": 1353,
+      "bottom": 701.796875
+    },
+    "canvasZoneRect": {
+      "x": 12,
+      "y": 59,
+      "width": 1342,
+      "height": 643.796875,
+      "right": 1354,
+      "bottom": 702.796875
+    },
+    "objectiveRect": {
+      "x": 23,
+      "y": 70,
+      "width": 400,
+      "height": 92.921875,
+      "right": 423,
+      "bottom": 162.921875
+    },
+    "bottomZoneRect": {
+      "x": 0,
+      "y": 702.796875,
+      "width": 1366,
+      "height": 65.203125,
+      "right": 1366,
+      "bottom": 768
+    },
+    "rightPanelRect": null,
+    "toolDockRect": {
+      "x": 158.8125,
+      "y": 710.796875,
+      "width": 516,
+      "height": 47.203125,
+      "right": 674.8125,
+      "bottom": 758
+    },
+    "oldClassCounts": {
+      "simulator-hero": 0,
+      "support-panel": 0,
+      "minimap-layer": 0,
+      "controls-hint": 0,
+      "journal-toggle": 0,
+      "safe-exit-btn": 0
+    },
+    "viewport": "desktop-1366x768",
+    "consoleErrors": [],
+    "asset404": []
+  },
+  {
+    "innerWidth": 390,
+    "innerHeight": 844,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "canvasRect": {
+      "x": 9,
+      "y": 58,
+      "width": 514,
+      "height": 663.796875,
+      "right": 523,
+      "bottom": 721.796875
+    },
+    "canvasZoneRect": {
+      "x": 8,
+      "y": 57,
+      "width": 516,
+      "height": 665.796875,
+      "right": 524,
+      "bottom": 722.796875
+    },
+    "objectiveRect": {
+      "x": 19,
+      "y": 68,
+      "width": 494,
+      "height": 92.921875,
+      "right": 513,
+      "bottom": 160.921875
+    },
+    "bottomZoneRect": {
+      "x": 0,
+      "y": 722.796875,
+      "width": 532,
+      "height": 121.203125,
+      "right": 532,
+      "bottom": 844
+    },
+    "rightPanelRect": null,
+    "toolDockRect": {
+      "x": 8,
+      "y": 778.796875,
+      "width": 516,
+      "height": 47.203125,
+      "right": 524,
+      "bottom": 826
+    },
+    "oldClassCounts": {
+      "simulator-hero": 0,
+      "support-panel": 0,
+      "minimap-layer": 0,
+      "controls-hint": 0,
+      "journal-toggle": 0,
+      "safe-exit-btn": 0
+    },
+    "viewport": "mobile-390x844",
+    "consoleErrors": [],
+    "asset404": []
+  }
+]

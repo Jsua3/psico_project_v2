@@ -1,5 +1,6 @@
 import { defaultAvatar } from '../character/avatar-config.util';
 import {
+  AVATAR_DISPLAY_SCALE,
   AVATAR_FRAME_HEIGHT,
   AVATAR_FRAME_WIDTH,
   AVATAR_IDLE_FRAMES,
@@ -50,5 +51,12 @@ describe('phaser-avatar-renderer', () => {
     expect(AVATAR_WALK_FRAMES.side).toEqual([3, 4, 5]);
     expect(AVATAR_WALK_FRAMES.up).toEqual([6, 7, 8]);
     expect(AVATAR_IDLE_FRAMES).toEqual({ down: 1, side: 4, up: 7 });
+  });
+
+  it('mantiene la escala de render en el rango legible del MVP (fase 1.1)', () => {
+    // 0.6 dejaba al protagonista ilegible; por debajo de 0.72 vuelve a pasar,
+    // por encima de 0.85 desproporciona frente a los NPC de la sala autoría.
+    expect(AVATAR_DISPLAY_SCALE).toBeGreaterThanOrEqual(0.72);
+    expect(AVATAR_DISPLAY_SCALE).toBeLessThanOrEqual(0.85);
   });
 });

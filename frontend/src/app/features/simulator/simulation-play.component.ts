@@ -241,6 +241,10 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       inset: 0;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
+      /* La columna explícita clampa el track al viewport: sin ella, el
+         min-content de la bottom-zone (dock + salida segura) ensancha el track
+         implícito y desborda canvas + objective-card en mobile. */
+      grid-template-columns: minmax(0, 1fr);
       overflow: hidden;
       color: var(--sim-ink);
       background:
@@ -514,8 +518,24 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
         border-radius: 18px 18px 0 0;
         animation: sheet-up 200ms cubic-bezier(.2,.8,.2,1) both;
       }
-      .objective-card { max-width: calc(100% - 20px); }
+      .objective-card {
+        left: 8px;
+        right: 8px;
+        max-width: none;
+        width: auto;
+        padding: 7px 10px;
+      }
+      .objective-card__body p {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .objective-card__ethic { -webkit-line-clamp: 1; }
       .bottom-zone { flex-wrap: wrap; min-height: 0; padding: 6px 8px 8px; }
+      /* El dock cede ancho (flex-basis 0) y scrollea por dentro: nunca debe
+         empujar el ancho de la página. */
+      .tool-dock { flex: 1 1 0; }
       .context-bar { justify-content: center; flex-basis: 100%; order: 3; }
       .context-bar__hint { display: none; }
       .safe-exit__copy strong { font-size: .66rem; }
@@ -641,6 +661,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   handleGlobalInteraction(event: KeyboardEvent) {
+    // Si otro handler ya consumió la tecla (p. ej. el panel de diálogo cierra
+    // con Escape en document:keydown), no reinterpretarla aquí: sin esta
+    // guarda, un solo Escape cerraba el diálogo Y disparaba la salida segura.
+    if (event.defaultPrevented) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
 

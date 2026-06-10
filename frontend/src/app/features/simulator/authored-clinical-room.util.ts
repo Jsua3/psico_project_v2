@@ -48,7 +48,7 @@ export const AUTHORED_CLINICAL_COLLISIONS: readonly RoomRect[] = [
   { x: 0, y: 486, width: AUTHORED_ROOM_WIDTH, height: 60 },         // borde frontal
   { x: 0, y: 0, width: 96, height: AUTHORED_ROOM_HEIGHT },          // pared izquierda
   { x: 864, y: 0, width: 96, height: AUTHORED_ROOM_HEIGHT },        // pared derecha
-  { x: 345, y: 262, width: 310, height: 80 },                       // escritorio
+  { x: 365, y: 262, width: 270, height: 80 },                       // escritorio (250/270 px en drawDesk)
   { x: 121, y: 288, width: 138, height: 70 },                       // sofá
   { x: 254, y: 353, width: 92, height: 44 },                        // mesa de centro
   { x: 796, y: 366, width: 48, height: 44 },                        // planta derecha
