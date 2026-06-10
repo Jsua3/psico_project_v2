@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
-import { getSceneObjective, getSceneProgress } from './scene-objectives.config';
+import { getSceneProgress } from './scene-objectives.config';
 import { getProximityStepHint } from './risky-interaction.config';
 import { Heart, stressToHearts } from './stress-hearts.util';
 
@@ -11,10 +12,10 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, RouterLink, MatIconModule],
   template: `
     @if (attempt(); as game) {
-      <div class="hud-shell liquid-glass"
+      <div class="hud-shell"
         role="complementary"
         aria-label="Indicadores del simulador"
         [class.hud--stress-high]="stressTier() === 'high'"
@@ -31,22 +32,29 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             </svg>
             <span class="brand-word">SIEP</span>
           </div>
-          <!-- LEFT zone: case vitals -->
-          <div class="hud-zone hud-zone--vitals">
-            <div class="hud-score" aria-label="Seguimiento formativo: {{ game.accumulatedScore }} puntos">
-              <mat-icon aria-hidden="true">fact_check</mat-icon>
-              <strong>{{ game.accumulatedScore }}</strong>
-            </div>
 
-            <!-- Hidden progressbar for session progress (screen readers) -->
-            <div class="sr-only"
-              role="progressbar"
-              [attr.aria-valuenow]="game.stressIndex"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-label="Progreso de la sesión: puntaje {{ game.accumulatedScore }}">
-            </div>
+          <!-- Case + stage -->
+          <div class="hud-zone hud-zone--case">
+            <span class="hud-case" [title]="game.caseTitle">{{ game.caseTitle }}</span>
+            <span class="hud-stage-chip">{{ stageLabel() }}</span>
+          </div>
 
+          <!-- CENTER: location + step -->
+          <div class="hud-zone hud-zone--center">
+            <div class="hud-scene">
+              <mat-icon aria-hidden="true">location_on</mat-icon>
+              <span>{{ game.currentNode.title }}</span>
+            </div>
+            @if (sceneProgress(); as progress) {
+              <div class="hud-step" aria-label="{{ progress.stepLabel }}">
+                <mat-icon aria-hidden="true">timeline</mat-icon>
+                <span>{{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
+              </div>
+            }
+          </div>
+
+          <!-- RIGHT: vitals + actions -->
+          <div class="hud-zone hud-zone--right">
             <div class="hud-stress"
               [class.hud-stress--pulse]="stressPulse()"
               role="meter"
@@ -83,37 +91,26 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                 </div>
               </div>
             }
-          </div>
 
-          <!-- CENTER zone: location + step -->
-          <div class="hud-zone hud-zone--center">
-            <div class="hud-scene">
-              <mat-icon aria-hidden="true">location_on</mat-icon>
-              <span>{{ game.currentNode.title }}</span>
+            <div class="hud-score" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
+              [title]="progressLabel()">
+              <mat-icon aria-hidden="true">fact_check</mat-icon>
+              <strong>{{ game.accumulatedScore }}</strong>
             </div>
-            @if (sceneProgress(); as progress) {
-              <div class="hud-step" aria-label="{{ progress.stepLabel }}">
-                <mat-icon aria-hidden="true">timeline</mat-icon>
-                <span>{{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
-              </div>
-            }
-          </div>
 
-          <!-- RIGHT zone: status -->
-          <div class="hud-zone hud-zone--right">
-            <div class="hud-status" [class.hud-status--live]="game.status === 'IN_PROGRESS'">
-              <span class="status-dot" aria-hidden="true"></span>
-              <span>{{ statusLabel(game.status) }}</span>
+            <div class="hud-actions">
+              <button type="button" class="hud-action" [class.hud-action--active]="journalOpen()"
+                (click)="toggleJournal.emit()"
+                aria-label="Abrir bitácora reflexiva (J)" title="Bitácora (J)">
+                <mat-icon aria-hidden="true">menu_book</mat-icon>
+              </button>
+              <a class="hud-action" routerLink="/portal/simulador"
+                aria-label="Volver al catálogo de simulaciones" title="Volver al catálogo">
+                <mat-icon aria-hidden="true">logout</mat-icon>
+              </a>
             </div>
           </div>
         </div>
-
-        @if (sceneObjective(); as objective) {
-          <div class="hud-objective-line" role="status" aria-label="Objetivo actual: {{ objective }}">
-            <mat-icon aria-hidden="true">flag</mat-icon>
-            <span><strong>Objetivo:</strong> {{ objective }}</span>
-          </div>
-        }
       </div>
     }
   `,
@@ -121,11 +118,9 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-shell {
       display: flex;
       flex-direction: column;
-      border-radius: 0 0 16px 16px;
       background: rgba(8,12,18,.84);
       backdrop-filter: blur(18px) saturate(120%);
-      border: 1px solid rgba(182,156,255,.2);
-      border-top: none;
+      border-bottom: 1px solid rgba(182,156,255,.2);
       color: rgba(232,240,244,.9);
       transition: border-color var(--psy-motion-ui);
     }
@@ -135,14 +130,39 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-strip {
       display: flex;
       align-items: center;
-      gap: 16px;
-      height: 50px;
+      gap: 14px;
+      height: 48px;
       padding: 0 14px;
     }
     .hud-zone { display: flex; align-items: center; }
-    .hud-zone--vitals { gap: 14px; flex-shrink: 0; }
+    .hud-zone--case { gap: 10px; min-width: 0; flex-shrink: 1; }
     .hud-zone--center { flex: 1; min-width: 0; gap: 10px; justify-content: center; }
-    .hud-zone--right { flex-shrink: 0; margin-left: auto; }
+    .hud-zone--right { flex-shrink: 0; gap: 14px; margin-left: auto; }
+
+    .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 10px; border-right: 1px solid rgba(182,156,255,.18); }
+    .brand-glyph { color: #B69CFF; flex-shrink: 0; }
+    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
+
+    .hud-case {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 800;
+      font-size: .84rem;
+      color: rgba(244,247,251,.92);
+    }
+    .hud-stage-chip {
+      flex-shrink: 0;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(182,156,255,.3);
+      background: rgba(124,77,255,.14);
+      font-size: .66rem;
+      font-weight: 800;
+      color: #cdbcff;
+      white-space: nowrap;
+    }
 
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
@@ -150,9 +170,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 
     .hud-stress { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .hud-stress--pulse { animation: stress-pulse .6s ease-out; }
-    .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 8px; margin-right: 4px; border-right: 1px solid rgba(182,156,255,.18); }
-    .brand-glyph { color: #B69CFF; flex-shrink: 0; }
-    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
     .hud-hearts { display: inline-flex; align-items: center; gap: 2px; }
     .heart { display: inline-block; width: 15px; height: 15px; line-height: 0; }
     .heart-svg { width: 15px; height: 15px; display: block; }
@@ -182,47 +199,41 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-step mat-icon { color: rgba(157,192,232,.85); font-size: 14px; width: 14px; height: 14px; }
     .hud-step span { font-size: .68rem; font-weight: 700; color: rgba(157,192,232,.85); white-space: nowrap; }
 
-    .hud-status { display: flex; align-items: center; gap: 5px; flex-shrink: 0; font-size: .7rem; color: rgba(232,240,244,.4); white-space: nowrap; }
-    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); }
-    .hud-status--live .status-dot { background: #B69CFF; animation: dot-blink 2s ease-in-out infinite; }
-
-    .hud-objective-line {
-      display: flex; align-items: flex-start; gap: 6px;
-      padding: 5px 14px 7px;
-      border-top: 1px solid rgba(182,156,255,.16);
-      background: rgba(124,77,255,.08);
+    .hud-actions { display: flex; align-items: center; gap: 6px; }
+    .hud-action {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(182,156,255,.28);
+      border-radius: 9px;
+      background: rgba(8,12,18,.5);
+      color: rgba(182,156,255,.65);
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 160ms, color 160ms, background 160ms;
     }
-    .hud-objective-line mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
-    .hud-objective-line span { font-size: .74rem; line-height: 1.3; color: rgba(232,240,244,.82); }
-    .hud-objective-line strong { color: #cdbcff; font-weight: 800; margin-right: 4px; }
+    .hud-action:hover { border-color: rgba(182,156,255,.6); color: #B69CFF; }
+    .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
+    .hud-action mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
-    .sr-only {
-      position: absolute !important;
-      width: 1px !important; height: 1px !important;
-      padding: 0 !important; margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0,0,0,0) !important;
-      white-space: nowrap !important;
-      border: 0 !important;
-    }
     @keyframes stress-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(212,160,80,.4); }
       70%  { box-shadow: 0 0 0 6px rgba(212,160,80,0); }
       100% { box-shadow: none; }
     }
-    @keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
+    @media (max-width: 960px) {
+      .hud-zone--center { display: none; }
+    }
     @media (max-width: 640px) {
-      .hud-scene { display: none; }
-      .hud-zone--vitals { gap: 10px; }
+      .hud-strip { gap: 8px; padding: 0 10px; }
+      .hud-zone--case { display: none; }
       .brand-word { display: none; }
       .hud-patient { display: none; }
-      .hud-objective-line span { font-size: .7rem; }
     }
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
-      .stress-track span { transition: none; }
-      .status-dot { animation: none !important; }
     }
   `]
 })
@@ -231,6 +242,10 @@ export class SimulationHudComponent {
   readonly stressPulse = input(false);
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
+  readonly stageLabel = input('Escenario actual');
+  readonly progressLabel = input('');
+  readonly journalOpen = input(false);
+  readonly toggleJournal = output<void>();
 
   readonly stressTier = computed<StressTier>(() => {
     const s = this.attempt()?.stressIndex ?? 0;
@@ -256,11 +271,6 @@ export class SimulationHudComponent {
     critical: 'Nivel crítico — priorice seguridad y autocuidado'
   })[this.stressTier()]);
 
-  readonly sceneObjective = computed(() => {
-    const nodeKey = this.attempt()?.currentNode.key;
-    return getSceneObjective(nodeKey);
-  });
-
   readonly sceneProgress = computed(() => {
     const proximityLabel = getProximityStepHint(this.nearbyInteractionKey());
     if (proximityLabel) {
@@ -269,10 +279,6 @@ export class SimulationHudComponent {
     const nodeKey = this.attempt()?.currentNode.key;
     return getSceneProgress(nodeKey);
   });
-
-  statusLabel(status: SimulationAttemptState['status']) {
-    return { IN_PROGRESS: 'En seguimiento', COMPLETED: 'Finalizado', SAFE_EXITED: 'Salida segura' }[status];
-  }
 
   trustColor(v: number): string {
     if (v >= 60) return '#4fa3a5';

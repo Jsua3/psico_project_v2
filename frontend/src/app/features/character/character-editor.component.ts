@@ -211,12 +211,12 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
     .ce-toggle { width: fit-content; }
     .ce-stage { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; min-height: 420px; overflow: hidden; }
     .ce-halo { position: absolute; bottom: 70px; width: 220px; height: 60px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(124,77,255,.45), transparent 70%); filter: blur(6px); }
-    .ce-figure { position: relative; width: 230px; height: 330px; }
+    .ce-figure { position: relative; width: 220px; height: 330px; }
     .ce-pose { display: flex; gap: 8px; z-index: 1; }
     .ce-uniforms { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .ce-uniform { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 800; cursor: pointer; transition: all .15s; }
     .ce-uniform.sel { border-color: var(--pl); background: rgba(124,77,255,.16); color: #e7ddff; }
-    .ce-uniform-fig { width: 64px; height: 92px; }
+    .ce-uniform-fig { width: 64px; height: 96px; }
     .ce-summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
     .ce-summary li { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; }
     .ce-summary span { color: var(--ink-soft); }

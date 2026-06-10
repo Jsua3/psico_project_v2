@@ -3,78 +3,99 @@ import { Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { ClinicalToolState } from '../../core/models/simulation.model';
 
+/**
+ * Dock horizontal inferior de herramientas clínicas (HUD redesign).
+ * Cards compactas: atajo numérico + icono + nombre corto. Scroll horizontal
+ * cuando faltan píxeles; la salida segura vive FUERA de este dock (bloque
+ * separado a la izquierda en la bottom-zone del gameplay).
+ */
 @Component({
   selector: 'app-tool-inventory',
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="tool-hud" role="toolbar" aria-label="Inventario clínico de herramientas">
+    <div class="tool-dock" role="toolbar" aria-label="Inventario clínico de herramientas">
       @for (tool of tools(); track tool.code; let i = $index) {
         <button
-          class="tool-btn"
+          class="tool-card"
           type="button"
-          [class.tool-btn--owned]="inventory().includes(tool.code)"
-          [class.tool-btn--locked]="!inventory().includes(tool.code)"
+          [class.tool-card--owned]="inventory().includes(tool.code)"
+          [class.tool-card--locked]="!inventory().includes(tool.code)"
+          [class.tool-card--selected]="selectedToolCode() === tool.code"
           [disabled]="!inventory().includes(tool.code)"
-          [title]="tool.label + ' — ' + (inventory().includes(tool.code) ? 'Disponible' : 'No disponible')"
+          [title]="tool.label + ' — ' + tool.description"
           [attr.aria-label]="tool.label + ': ' + tool.description + '. ' + (inventory().includes(tool.code) ? 'Disponible.' : 'No disponible.')"
           (click)="select.emit(tool.code)">
           <span class="tool-key" aria-hidden="true">{{ i + 1 }}</span>
           <mat-icon aria-hidden="true">{{ tool.icon }}</mat-icon>
-          <span class="tool-code" aria-hidden="true">{{ tool.code.slice(0, 4) }}</span>
+          <span class="tool-name" aria-hidden="true">{{ tool.label }}</span>
         </button>
       }
     </div>
   `,
   styles: [`
-    .tool-hud {
+    .tool-dock {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      padding-bottom: 2px;
+    }
+    .tool-card {
+      position: relative;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-    }
-    .tool-btn {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      flex-shrink: 0;
+      min-width: 76px;
+      max-width: 104px;
+      padding: 6px 10px 5px;
       border: 1px solid rgba(182,156,255,.28);
-      border-radius: 10px;
+      border-radius: 11px;
       background: rgba(8,12,18,.76);
       color: rgba(182,156,255,.6);
       cursor: pointer;
-      padding: 0;
       transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
     }
-    .tool-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .tool-btn--owned {
-      border-color: rgba(182,156,255,.55);
+    .tool-card mat-icon { font-size: 19px; width: 19px; height: 19px; }
+    .tool-name {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .58rem;
+      font-weight: 800;
+      letter-spacing: .02em;
+      line-height: 1.1;
+    }
+    .tool-card--owned {
+      border-color: rgba(182,156,255,.5);
       color: #B69CFF;
     }
-    .tool-btn--owned:hover {
+    .tool-card--owned:hover {
       border-color: rgba(182,156,255,.9);
       background: rgba(124,77,255,.18);
       box-shadow: 0 0 14px -4px rgba(124,77,255,.5);
     }
-    .tool-btn--locked {
-      opacity: .28;
-      cursor: default;
+    .tool-card--selected {
+      border-color: rgba(182,156,255,.95);
+      background: rgba(124,77,255,.22);
+      color: #d6c6ff;
+      box-shadow: 0 0 16px -4px rgba(124,77,255,.65);
     }
-    .tool-code {
-      position: absolute;
-      bottom: 2px;
-      right: 3px;
-      font-size: .5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 900;
-      letter-spacing: .02em;
-      opacity: .7;
-      pointer-events: none;
+    .tool-card--locked {
+      opacity: .3;
+      cursor: default;
     }
     .tool-key {
       position: absolute;
-      top: 2px;
-      left: 4px;
+      top: 3px;
+      left: 6px;
       font-size: .56rem;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 900;
@@ -91,5 +112,6 @@ import { ClinicalToolState } from '../../core/models/simulation.model';
 export class ToolInventoryComponent {
   readonly tools = input<ClinicalToolState[]>([]);
   readonly inventory = input<string[]>([]);
+  readonly selectedToolCode = input<string | null>(null);
   readonly select = output<string>();
 }

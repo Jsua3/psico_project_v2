@@ -112,8 +112,8 @@ export const HOSPITAL_AMBIENT_ZONES: AmbientZoneDef[] = [
   {
     key: 'ambient:protocolo-noticia-dificil',
     label: 'Protocolo para noticia difícil',
-    x: 620,
-    y: 250,
+    x: 760,
+    y: 430,
     radius: 68,
   },
 ];

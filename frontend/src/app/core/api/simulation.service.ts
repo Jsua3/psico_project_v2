@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
+import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import {
   AttemptTrace,
   AttemptCompletionReport,
@@ -14,6 +15,7 @@ import {
   NodeUpsertRequest,
   RecentAttempt,
   RubricEvaluationView,
+  ScenarioConfig,
   SimulationAttemptState,
   SimulationCaseSummary,
   StudentAttemptSummary,
@@ -72,6 +74,11 @@ export class SimulationService {
     const params = new HttpParams().set('attemptToken', attemptToken);
     return this.http.get<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/world`, { params })
       .pipe(map(response => response.data));
+  }
+
+  getScenarioConfig(mapOrScenarioKey: string) {
+    const assetKey = resolveScenarioConfigAssetKey(mapOrScenarioKey);
+    return this.http.get<ScenarioConfig>(`/assets/game/scenarios/${assetKey}.json`);
   }
 
   /** Fase 5: walk-through spatial door — load the target room (non-scored). */

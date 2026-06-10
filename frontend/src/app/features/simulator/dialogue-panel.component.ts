@@ -15,6 +15,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
     @if (dialogue(); as d) {
       <div #dialogueBox
         class="dialogue-strip"
+        [class.dialogue-strip--side]="mode() === 'side'"
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="d.speakerName === 'Supervisión clínica'"
         role="dialog"
@@ -275,8 +276,42 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       0%, 100% { opacity: 1; }
       50%       { opacity: 0; }
     }
+    /* ── Modo lateral (panel derecho del HUD redesign) ──────────────────── */
+    .dialogue-strip--side {
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      border-top: none;
+      background: transparent;
+      backdrop-filter: none;
+      animation: none;
+      overflow-y: auto;
+    }
+    .dialogue-strip--side .portrait {
+      flex-direction: row;
+      width: 100%;
+      min-height: 0;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-start;
+      border-right: none;
+      border-bottom: 1px solid rgba(182,156,255,.18);
+    }
+    .dialogue-strip--side .portrait-svg { width: 30px; height: 30px; }
+    .dialogue-strip--side .emotion-chip { position: static; }
+    .dialogue-strip--side .strip-body {
+      padding: 12px 16px 16px;
+      gap: 10px;
+    }
+    .dialogue-strip--side .dialogue-text { font-size: .88rem; line-height: 1.55; }
+    .dialogue-strip--side .choices { grid-template-columns: minmax(0, 1fr); }
+    .dialogue-strip--side .choice-btn { min-height: 56px; }
+
     @media (max-width: 560px) {
       .portrait { width: 60px; min-height: 180px; }
+      .dialogue-strip--side .portrait { width: 100%; min-height: 0; }
       .strip-body { padding: 12px 14px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -288,6 +323,8 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
 export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly dialogue    = input<DialogueState | null>(null);
   readonly interaction = input<MapObjectState | null>(null);
+  /** 'cinematic' = franja inferior a lo ancho; 'side' = columna en panel derecho. */
+  readonly mode        = input<'cinematic' | 'side'>('cinematic');
 
   readonly close   = output<void>();
   readonly execute = output<number>();

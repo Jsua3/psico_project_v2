@@ -26,6 +26,26 @@ import {
 } from './scene-motion.util';
 import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import {
+  AUTHORED_CLINICAL_COLLISIONS,
+  AUTHORED_NPC_POSITIONS,
+  AUTHORED_PLAYER_SPAWN,
+  AUTHORED_ROOM_HEIGHT,
+  AUTHORED_ROOM_WIDTH,
+  authoredMarkerPosition,
+  isAuthoredClinicalRoomKey,
+} from './authored-clinical-room.util';
+import {
+  AVATAR_ANIM_KEYS,
+  AVATAR_IDLE_FRAMES,
+  AVATAR_TEXTURE_KEY,
+  AvatarLayerSpec,
+  avatarLayerSpecs,
+  composeAvatarTexture,
+  createAvatarAnimations,
+} from './phaser-avatar-renderer';
+import { parseAvatar } from '../character/avatar-config.util';
+import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -49,12 +69,15 @@ interface AmbientMover {
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
+  private avatarSpecs: AvatarLayerSpec[] = [];
+  private avatarReady = false;
   private lastDirection: 'down' | 'up' | 'left' | 'right' = 'down';
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
   private scenarioConfig?: ScenarioConfig;
   private currentRoomKey = '';
+  private authoredRoomActive = false;
   private dbDoorArmed = true;
   private readonly tiledExits   = new Map<string, { x: number; y: number; w: number; h: number }>();
   private readonly npcMarkers   = new Map<string, Phaser.GameObjects.Container>();
@@ -111,6 +134,16 @@ class DataDrivenWorldScene extends Phaser.Scene {
       '/assets/game/kenney/rpg-urban-pack/Spritesheet/tilemap_packed.png',
       { frameWidth: 16, frameHeight: 16 });
 
+    // ── Avatar modular del estudiante (config del editor de personaje) ──────
+    // Las capas se componen en create(); si faltan, el jugador cae al fallback.
+    const avatarConfig = parseAvatar(
+      typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
+    );
+    this.avatarSpecs = avatarLayerSpecs(avatarConfig);
+    for (const spec of this.avatarSpecs) {
+      this.load.image(spec.textureKey, spec.assetPath);
+    }
+
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
     // Rename the Tiled object "name" field to match your backend object keys.
     const scenarioKeys = [
@@ -152,6 +185,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
     this.createAnimations();
+    this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
+    if (this.avatarReady) createAvatarAnimations(this);
     this.renderWorld();
   }
 
@@ -172,11 +207,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.lastDirection = Math.abs(dx) >= Math.abs(dy)
         ? (dx > 0 ? 'right' : 'left')
         : (dy > 0 ? 'down' : 'up');
-      if (this.playerSprite) {
-        // Always set flip — resets correctly for up/down (was left from previous direction)
-        this.playerSprite.setFlipX(this.lastDirection === 'left');
-        if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${this.lastDirection}`, true);
-      }
+      this.playWalkAnimation(this.lastDirection);
       // ── Footstep audio: one random variant every STEP_INTERVAL ms ──────────
       if (!this.callbacks.reduceMotion) {
         this.stepTimer += delta;
@@ -187,16 +218,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
-      if (this.playerSprite) {
-        this.playerSprite.stop();
-        // Show a clean standing frame instead of freezing mid-step
-        const idleFrame =
-          this.lastDirection === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
-          this.lastDirection === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
-                                          KenneyCharFrames.PLAYER_WALK_RIGHT[0];
-        this.playerSprite.setFrame(idleFrame);
-        this.playerSprite.setFlipX(this.lastDirection === 'left');
-      }
+      this.setIdleFrame(this.lastDirection);
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
@@ -234,8 +256,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (this.ready) this.renderWorld();
   }
 
-  setScenarioConfig(config: ScenarioConfig) {
-    this.scenarioConfig = config;
+  setScenarioConfig(config: ScenarioConfig | null) {
+    this.scenarioConfig = config ?? undefined;
     if (this.ready && this.world) this.renderWorld();
   }
 
@@ -476,6 +498,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.ambientMovers.clear();
     this.tiledExits.clear();
     this.wallsLayer = undefined;
+    this.authoredRoomActive = false;
+    this.currentRoomKey = '';
 
     const mapKey  = this.world.map.key;
     const { width: mapW, height: mapH } = this.world.map;
@@ -581,6 +605,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * Called by renderWorld() in multi-room mode and by transitionToRoom().
    */
   private renderRoom(roomConfig: RoomConfig, spawnX: number, spawnY: number) {
+    // Si el mundo se refresca sin cambiar de sala (p. ej. al persistir la
+    // posición del jugador), conserva la posición actual: el re-render no debe
+    // teletransportar al jugador de vuelta al spawn.
+    const keepPosition = this.currentRoomKey === roomConfig.key && this.player
+      ? { x: this.player.x, y: this.player.y }
+      : null;
+
     this.cameras.main.stopFollow();
     this.children.removeAll(true);
     this.markers.clear();
@@ -594,15 +625,20 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0e141a');
     this.currentRoomKey = roomConfig.key;
 
-    // Title pinned to screen
-    this.add.text(16, 12, roomConfig.displayName, {
-      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
-    }).setDepth(6).setScrollFactor(0);
-
-    let actualMapW = 960, actualMapH = 528;
+    let actualMapW = AUTHORED_ROOM_WIDTH, actualMapH = AUTHORED_ROOM_HEIGHT;
     let tiledObjects: Phaser.Types.Tilemaps.TiledObject[] = [];
+    const authoredClinicalRoom = isAuthoredClinicalRoomKey(roomConfig.tiledMapKey);
+    this.authoredRoomActive = authoredClinicalRoom;
 
-    if (this.assetsLoaded) {
+    if (!authoredClinicalRoom) {
+      // Title pinned to screen (la sala autoría no lleva título pegado al mapa;
+      // la ubicación ya vive en la top bar del HUD)
+      this.add.text(16, 12, roomConfig.displayName, {
+        fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
+      }).setDepth(6).setScrollFactor(0);
+    }
+
+    if (this.assetsLoaded && !authoredClinicalRoom) {
       try {
         const tilemap = this.make.tilemap({ key: roomConfig.tiledMapKey });
         const ts1 = tilemap.addTilesetImage('tiny-dungeon', 'dungeon-img');
@@ -634,7 +670,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
 
     const cam = this.cameras.main;
-    cam.setZoom(2);
+    cam.setZoom(authoredClinicalRoom ? 1 : 2);
     cam.setBounds(0, 0, actualMapW, actualMapH);
 
     // ── Dark procedural floor + subtle grid (mirrors renderWorld style) ───────
@@ -644,6 +680,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     gfx.lineStyle(1, 0x1c2d3e, 0.55);
     for (let gx = 16; gx < actualMapW; gx += 32) gfx.lineBetween(gx, 0, gx, actualMapH);
     for (let gy = 16; gy < actualMapH; gy += 32) gfx.lineBetween(0, gy, actualMapW, gy);
+    if (authoredClinicalRoom) {
+      this.renderAuthoredClinicalOffice(actualMapW, actualMapH);
+    }
     // ─────────────────────────────────────────────────────────────────────────
 
     // Room border
@@ -652,21 +691,188 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     // Backend interactive objects (markers) — merge Tiled Objects-layer positions
     // (Tiled object "name" must match the backend MapObjectState "key").
+    // En la sala autoría las posiciones del seed pertenecen al tilemap viejo,
+    // así que se remapean a los puntos jugables de la sala.
     if (this.world) {
       const mergedObjects = this.world.objects.map(obj => {
+        if (authoredClinicalRoom) {
+          const authored = authoredMarkerPosition(obj.key);
+          if (authored) return { ...obj, x: authored.x, y: authored.y };
+        }
         const t = tiledObjects.find(o => o.name === obj.key);
         return (t?.x != null && t?.y != null) ? { ...obj, x: t.x, y: t.y } : obj;
       });
       mergedObjects.forEach(obj => this.createMarker(obj));
     }
 
-    this.spawnNpcs(roomConfig.npcs);
-    this.createPlayer(spawnX, spawnY);
-    cam.startFollow(this.player!, true, 0.12, 0.12);
+    this.spawnNpcs(authoredClinicalRoom ? this.positionAuthoredClinicalNpcs(roomConfig.npcs) : roomConfig.npcs);
+    const spawn = keepPosition ?? (authoredClinicalRoom
+      ? { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y }
+      : { x: spawnX, y: spawnY });
+    this.createPlayer(spawn.x, spawn.y);
+    if (authoredClinicalRoom) {
+      cam.centerOn(actualMapW / 2, actualMapH / 2);
+    } else {
+      cam.startFollow(this.player!, true, 0.12, 0.12);
+    }
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.buildGuide();
     this.applyLightingOverlay();
+  }
+
+  private positionAuthoredClinicalNpcs(npcs: NpcConfig[]): NpcConfig[] {
+    return npcs.map((npc, index) => {
+      const pos = AUTHORED_NPC_POSITIONS[index] ?? AUTHORED_NPC_POSITIONS[AUTHORED_NPC_POSITIONS.length - 1];
+      return { ...npc, x: pos.x, y: pos.y };
+    });
+  }
+
+  private renderAuthoredClinicalOffice(mapW: number, mapH: number): void {
+    const roomLeft = 58;
+    const roomRight = mapW - 58;
+    const backY = 76;
+    const wallBottomY = 220;
+    const floorBottomY = mapH - 38;
+
+    this.add.rectangle(mapW / 2, mapH / 2, mapW, mapH, 0x0c111d, 1).setDepth(0);
+
+    const shell = this.add.graphics().setDepth(DEPTH.BACKGROUND);
+    shell.fillStyle(0x24203b, 1);
+    shell.fillRect(roomLeft, backY, roomRight - roomLeft, wallBottomY - backY);
+    shell.fillStyle(0x31294a, 1);
+    shell.fillTriangle(roomLeft, backY, roomLeft, floorBottomY, 144, wallBottomY);
+    shell.fillTriangle(roomRight, backY, roomRight, floorBottomY, mapW - 144, wallBottomY);
+    shell.fillStyle(0x5b5279, 1);
+    shell.beginPath();
+    shell.moveTo(144, wallBottomY);
+    shell.lineTo(mapW - 144, wallBottomY);
+    shell.lineTo(roomRight - 26, floorBottomY);
+    shell.lineTo(roomLeft + 26, floorBottomY);
+    shell.closePath();
+    shell.fillPath();
+
+    const grid = this.add.graphics().setDepth(DEPTH.GRID);
+    grid.lineStyle(1, 0x877fb0, 0.22);
+    for (let x = 160; x <= mapW - 160; x += 48) {
+      grid.lineBetween(x, wallBottomY, x - 58, floorBottomY);
+      grid.lineBetween(x, wallBottomY, x + 58, floorBottomY);
+    }
+    for (let y = wallBottomY + 28; y < floorBottomY; y += 36) {
+      grid.lineBetween(roomLeft + 42, y, roomRight - 42, y);
+    }
+
+    this.add.rectangle(mapW / 2, wallBottomY - 70, 270, 28, 0x1a2034, 0.9)
+      .setStrokeStyle(2, 0x8a6cff, 0.25)
+      .setDepth(DEPTH.ENVIRONMENT);
+    this.add.text(mapW / 2, wallBottomY - 76, 'ESCUCHAR  ACOMPANAR  PROTEGER', {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#c9b8ff',
+      align: 'center',
+    }).setOrigin(0.5, 0).setDepth(DEPTH.ENVIRONMENT + 1);
+
+    this.drawOfficeWindow(150, 114);
+    this.drawBookshelf(760, 178, 'right');
+    this.drawBookshelf(178, 182, 'left');
+    this.drawPlant(820, 382, 1.15);
+    this.drawPlant(116, 392, 1.2);
+    this.drawSofa(190, 322);
+    this.drawCoffeeTable(300, 374);
+    this.drawDesk(500, 286);
+    this.drawPoster(682, 116);
+
+    const shade = this.add.graphics().setDepth(DEPTH.LIGHTING - 2).setScrollFactor(0);
+    shade.fillStyle(0x0b1020, 0.14);
+    shade.fillRect(0, 0, mapW, mapH);
+    // Luz cálida sutil sobre el área de atención — no debe lavar el gameplay.
+    const lamp = this.add.graphics().setDepth(DEPTH.LIGHTING - 1);
+    lamp.fillStyle(0xffd987, 0.07);
+    lamp.fillEllipse(mapW / 2, 190, 360, 170);
+  }
+
+  private drawDesk(x: number, y: number): void {
+    this.add.rectangle(x, y, 290, 34, 0x8a5534, 1)
+      .setStrokeStyle(2, 0x352118, 0.85)
+      .setDepth(actorDepth(y));
+    this.add.rectangle(x, y + 28, 310, 46, 0x6f432c, 1)
+      .setStrokeStyle(2, 0x352118, 0.85)
+      .setDepth(actorDepth(y + 28));
+    this.add.rectangle(x - 92, y + 30, 58, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
+    this.add.rectangle(x + 92, y + 30, 58, 32, 0x5a3525, 1).setDepth(actorDepth(y + 30));
+    this.add.rectangle(x - 76, y - 30, 44, 34, 0x161b28, 1)
+      .setStrokeStyle(2, 0x31384a, 1)
+      .setDepth(actorDepth(y - 12));
+    this.add.rectangle(x - 76, y - 7, 60, 10, 0x101521, 1).setDepth(actorDepth(y - 7));
+    this.add.rectangle(x + 62, y - 20, 38, 26, 0xd8d4c7, 1)
+      .setStrokeStyle(1, 0x51412e, 0.8)
+      .setDepth(actorDepth(y - 8));
+    this.drawPlant(x + 18, y - 18, 0.55);
+  }
+
+  private drawSofa(x: number, y: number): void {
+    this.add.rectangle(x, y, 150, 54, 0x244772, 1)
+      .setStrokeStyle(2, 0x12253d, 0.9)
+      .setDepth(actorDepth(y));
+    this.add.rectangle(x - 58, y, 22, 68, 0x1c3658, 1).setDepth(actorDepth(y + 1));
+    this.add.rectangle(x + 58, y, 22, 68, 0x1c3658, 1).setDepth(actorDepth(y + 1));
+    this.add.line(x, y - 2, -52, 0, 52, 0, 0x6f88aa, 0.45).setDepth(actorDepth(y + 2));
+  }
+
+  private drawCoffeeTable(x: number, y: number): void {
+    this.add.rectangle(x, y, 92, 42, 0x6a442c, 1)
+      .setStrokeStyle(2, 0x332116, 0.85)
+      .setDepth(actorDepth(y));
+    this.add.rectangle(x, y - 4, 46, 22, 0x352e32, 0.72).setDepth(actorDepth(y + 1));
+  }
+
+  private drawBookshelf(x: number, y: number, side: 'left' | 'right'): void {
+    const w = side === 'left' ? 112 : 130;
+    this.add.rectangle(x, y, w, 92, 0x6b442b, 1)
+      .setStrokeStyle(2, 0x301c13, 0.9)
+      .setDepth(DEPTH.ENVIRONMENT);
+    for (let row = 0; row < 2; row++) {
+      this.add.rectangle(x, y - 24 + row * 34, w - 16, 4, 0x2c1c13, 1).setDepth(DEPTH.ENVIRONMENT + 1);
+      for (let i = 0; i < 6; i++) {
+        const bx = x - w / 2 + 18 + i * 15;
+        const color = [0x7f3f3f, 0x2f6f6f, 0xa87934, 0x3f5f92][(i + row) % 4];
+        this.add.rectangle(bx, y - 42 + row * 34, 8, 24, color, 1).setDepth(DEPTH.ENVIRONMENT + 2);
+      }
+    }
+  }
+
+  private drawOfficeWindow(x: number, y: number): void {
+    this.add.rectangle(x, y, 138, 70, 0xe7c98b, 0.85)
+      .setStrokeStyle(3, 0x31213a, 0.9)
+      .setDepth(DEPTH.ENVIRONMENT);
+    for (let i = 0; i < 5; i++) {
+      this.add.rectangle(x, y - 26 + i * 13, 130, 5, 0xffe0a1, 0.55).setDepth(DEPTH.ENVIRONMENT + 1);
+    }
+  }
+
+  private drawPoster(x: number, y: number): void {
+    this.add.rectangle(x, y, 86, 78, 0xd8c5a5, 1)
+      .setStrokeStyle(2, 0x4b3527, 0.9)
+      .setDepth(DEPTH.ENVIRONMENT);
+    this.add.text(x, y - 21, 'CUIDAR\nTAMBIEN\nES PREVENIR', {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      color: '#5d3a55',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(DEPTH.ENVIRONMENT + 1);
+  }
+
+  private drawPlant(x: number, y: number, scale: number): void {
+    const depth = actorDepth(y);
+    this.add.rectangle(x, y + 18 * scale, 26 * scale, 24 * scale, 0x323847, 1)
+      .setStrokeStyle(1, 0x111724, 0.9)
+      .setDepth(depth);
+    const g = this.add.graphics().setDepth(depth + 1);
+    g.fillStyle(0x3d7a42, 1);
+    for (let i = 0; i < 7; i++) {
+      const angle = (-70 + i * 23) * Math.PI / 180;
+      g.fillEllipse(x + Math.cos(angle) * 12 * scale, y + Math.sin(angle) * 15 * scale, 14 * scale, 32 * scale);
+    }
   }
 
   private checkExitTriggers() {
@@ -709,12 +915,15 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private spawnNpcs(npcs: NpcConfig[]) {
+    // En la sala autoría los muebles son grandes: los NPCs suben de escala para
+    // mantener proporción con el avatar modular (~38×58 px).
+    const npcScale = this.authoredRoomActive ? 2.4 : 1.5;
     for (const npc of npcs) {
       const shadow = this.add.ellipse(0, 12, 14, 4, 0x000000, .18);
 
       let sprite: Phaser.GameObjects.GameObject;
       if (this.assetsLoaded && this.textures.exists('characters')) {
-        sprite = this.add.sprite(0, 0, 'characters', npc.frameIndex).setScale(1.5);
+        sprite = this.add.sprite(0, 0, 'characters', npc.frameIndex).setScale(npcScale);
       } else {
         sprite = this.add.circle(0, -8, 10, 0x4fa3a5, 1);
       }
@@ -983,6 +1192,15 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private createPlayer(x: number, y: number) {
+    if (this.avatarReady && this.textures.exists(AVATAR_TEXTURE_KEY)) {
+      // Avatar modular del editor de personaje: frame 64×96 a escala 0.6 → ~38×58 px.
+      // Centro del sprite desplazado -10 para que los pies coincidan con el hitbox.
+      const shadow = this.add.ellipse(0, 22, 28, 9, 0x000000, .25);
+      const sprite = this.add.sprite(0, -10, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down).setScale(0.6);
+      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
+      this.playerSprite = sprite;
+      return;
+    }
     const shadow = this.add.ellipse(0, 14, 16, 5, 0x000000, .22);   // scaled down to match scale(1.5)
     if (this.assetsLoaded && this.textures.exists('characters')) {
       const sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
@@ -996,6 +1214,46 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const badge = this.add.rectangle(0,  8, 12,  7, 0xffffff, .9);
       this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
     }
+  }
+
+  /**
+   * Caminata del jugador. El avatar modular usa filas down/side/up (la fila
+   * lateral mira a la IZQUIERDA → flip para la derecha); Kenney usa sus
+   * animaciones `walk-*` (fila lateral mira a la DERECHA → flip para izquierda).
+   */
+  private playWalkAnimation(direction: 'down' | 'up' | 'left' | 'right'): void {
+    if (!this.playerSprite) return;
+    if (this.avatarReady) {
+      this.playerSprite.setFlipX(direction === 'right');
+      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
+      const anim = direction === 'down' ? AVATAR_ANIM_KEYS.down
+        : direction === 'up' ? AVATAR_ANIM_KEYS.up
+        : AVATAR_ANIM_KEYS.side;
+      this.playerSprite.play(anim, true);
+      return;
+    }
+    this.playerSprite.setFlipX(direction === 'left');
+    if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${direction}`, true);
+  }
+
+  /** Frame de reposo limpio según la última dirección. */
+  private setIdleFrame(direction: 'down' | 'up' | 'left' | 'right'): void {
+    if (!this.playerSprite) return;
+    this.playerSprite.stop();
+    if (this.avatarReady) {
+      const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
+        : direction === 'down' ? AVATAR_IDLE_FRAMES.down
+        : AVATAR_IDLE_FRAMES.side;
+      this.playerSprite.setFrame(frame);
+      this.playerSprite.setFlipX(direction === 'right');
+      return;
+    }
+    const idleFrame =
+      direction === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
+      direction === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
+                             KenneyCharFrames.PLAYER_WALK_RIGHT[0];
+    this.playerSprite.setFrame(idleFrame);
+    this.playerSprite.setFlipX(direction === 'left');
   }
 
   private createMarker(object: MapObjectState) {
@@ -1013,7 +1271,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
       } else if (object.type === 'PERSON' && this.textures.exists('characters')) {
-        main = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE).setScale(2);
+        main = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
+          .setScale(this.authoredRoomActive ? 2.4 : 2);
       } else if (this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', this.frameForType(object.type)).setScale(2);
       } else {
@@ -1195,11 +1454,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (!this.world) return false;
     const pb = new Phaser.Geom.Rectangle(x - 15, y - 27, 30, 46);
     const mapKey = this.world.map.key;
-    const zones = isHospitalMap(mapKey)
-      ? HOSPITAL_COLLISIONS
-      : isComisariaMap(mapKey)
-        ? COMISARIA_COLLISIONS
-        : this.world.collisions.map(z => ({ x: z.x, y: z.y, width: z.width, height: z.height }));
+    const zones = this.authoredRoomActive
+      ? AUTHORED_CLINICAL_COLLISIONS
+      : isHospitalMap(mapKey)
+        ? HOSPITAL_COLLISIONS
+        : isComisariaMap(mapKey)
+          ? COMISARIA_COLLISIONS
+          : this.world.collisions.map(z => ({ x: z.x, y: z.y, width: z.width, height: z.height }));
     return zones.some(z =>
       Phaser.Geom.Intersects.RectangleToRectangle(pb, new Phaser.Geom.Rectangle(z.x, z.y, z.width, z.height)));
   }
@@ -1302,6 +1563,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
 })
 export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly world = input<SimulationWorldState | null>(null);
+  readonly scenarioConfig = input<ScenarioConfig | null>(null);
   readonly selectedInteractionKey = input<string | null>(null);
   readonly nearbyInteraction = input<MapObjectState | null>(null);
   readonly guide = input<SceneGuideEntry | null>(null);
@@ -1324,6 +1586,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['scenarioConfig']) this.scene?.setScenarioConfig(this.scenarioConfig());
     if (changes['world'] && this.world()) this.scene?.setWorld(this.world()!);
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
@@ -1334,7 +1597,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
   interactNearest() { this.scene?.interactNearest(); }
   focus(key: string) { this.scene?.focus(key); }
-  setScenarioConfig(config: ScenarioConfig) { this.scene?.setScenarioConfig(config); }
+  setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
@@ -1369,6 +1632,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       });
     });
     window.setTimeout(() => {
+      this.scene?.setScenarioConfig(this.scenarioConfig());
       if (this.world()) this.scene?.setWorld(this.world()!);
       this.scene?.setGuide(this.guide());
     }, 0);

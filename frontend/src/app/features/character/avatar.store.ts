@@ -2,7 +2,9 @@ import { Injectable, Optional, signal } from '@angular/core';
 import { AvatarConfig } from './avatar.model';
 import { defaultAvatar, parseAvatar, serializeAvatar } from './avatar-config.util';
 
-const KEY = 'psychosim_avatar';
+/** Clave compartida de persistencia del avatar (la lee también el runtime Phaser). */
+export const AVATAR_STORAGE_KEY = 'psychosim_avatar';
+const KEY = AVATAR_STORAGE_KEY;
 
 @Injectable({ providedIn: 'root' })
 export class AvatarStore {

@@ -35,12 +35,10 @@ export class AudioDirectorService {
     if (this.initialized) return;
     this.initialized = true;
 
-    const stemFiles: Record<MusicLayer, string> = {
-      ambient:    'assets/audio/music/siep_ambient.ogg',
-      tension:    'assets/audio/music/siep_tension.ogg',
-      resolution: 'assets/audio/music/siep_resolution.ogg',
-      crisis:     'assets/audio/music/siep_crisis.ogg',
-    };
+    // Música adaptativa: el proyecto aún NO tiene stems propios (siep_*.ogg).
+    // No se hace ninguna request hasta que existan los assets — los métodos de
+    // música degradan a no-op cuando `stems` está vacío (sin 404 en consola).
+    const stemFiles: Partial<Record<MusicLayer, string>> = {};
 
     for (const [layer, src] of Object.entries(stemFiles) as [MusicLayer, string][]) {
       const howl = new Howl({
@@ -53,17 +51,19 @@ export class AudioDirectorService {
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
     }
 
+    // SFX mapeados a assets reales del pack Kenney UI Audio (CC0) ya presente.
+    const base = 'assets/game/kenney/ui-audio/Audio';
     const sfxFiles: Record<SoundEffect, string> = {
-      footstep_tile:    'assets/audio/sfx/footstep_tile.ogg',
-      footstep_wood:    'assets/audio/sfx/footstep_wood.ogg',
-      door_open:        'assets/audio/sfx/door_open.ogg',
-      ui_select:        'assets/audio/sfx/ui_select.ogg',
-      ui_confirm:       'assets/audio/sfx/ui_confirm.ogg',
-      ui_cancel:        'assets/audio/sfx/ui_cancel.ogg',
-      dialogue_advance: 'assets/audio/sfx/dialogue_advance.ogg',
-      stress_high:      'assets/audio/sfx/stress_high.ogg',
-      crisis_start:     'assets/audio/sfx/crisis_start.ogg',
-      session_complete: 'assets/audio/sfx/session_complete.ogg',
+      footstep_tile:    'assets/game/audio/footstep_concrete_000.ogg',
+      footstep_wood:    'assets/game/audio/footstep_concrete_001.ogg',
+      door_open:        `${base}/switch3.ogg`,
+      ui_select:        `${base}/rollover1.ogg`,
+      ui_confirm:       `${base}/click1.ogg`,
+      ui_cancel:        `${base}/mouserelease1.ogg`,
+      dialogue_advance: `${base}/click2.ogg`,
+      stress_high:      `${base}/switch13.ogg`,
+      crisis_start:     `${base}/switch13.ogg`,
+      session_complete: `${base}/click5.ogg`,
     };
 
     for (const [key, src] of Object.entries(sfxFiles) as [SoundEffect, string][]) {
@@ -79,7 +79,7 @@ export class AudioDirectorService {
   }
 
   setStressLevel(stress: number): void {
-    if (!this.initialized) return;
+    if (!this.initialized || this.stems.size === 0) return;
 
     if (stress <= 30) {
       this.setTargetVolume('ambient', 1.0);
@@ -110,7 +110,7 @@ export class AudioDirectorService {
   }
 
   playResolution(): void {
-    if (!this.initialized) return;
+    if (!this.initialized || this.stems.size === 0) return;
     const res = this.stems.get('resolution');
     if (res?.howl.playing()) return; // evita restart en llamadas múltiples
     this.setTargetVolume('ambient', 0.3);
