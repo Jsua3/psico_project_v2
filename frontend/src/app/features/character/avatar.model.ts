@@ -35,6 +35,21 @@ export const HAIR_STYLES: readonly Option[] = [
   { id: 'recogido', label: 'Recogido' },
   { id: 'ninguno',  label: 'Sin cabello' },
 ];
+
+/**
+ * Variantes de cabello con arte REAL en runtime (fase C — UI honesta).
+ * El editor ofrece solo estas; internamente se siguen guardando
+ * hairStyle + hairColor (ver hairVariantId/hairVariantPatch).
+ */
+export type HairVariantId = 'short_black' | 'long_brown' | 'tied_brown' | 'red' | 'none';
+
+export const HAIR_VARIANTS: readonly { id: HairVariantId; label: string }[] = [
+  { id: 'short_black', label: 'Corto negro' },
+  { id: 'long_brown',  label: 'Largo castaño' },
+  { id: 'tied_brown',  label: 'Recogido castaño' },
+  { id: 'red',         label: 'Rojizo' },
+  { id: 'none',        label: 'Sin cabello' },
+];
 export const EYES: readonly Option[] = [
   { id: 'neutros', label: 'Neutros' },
   { id: 'amables', label: 'Amables' },

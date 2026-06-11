@@ -9,20 +9,28 @@ import {
   AVATAR_WALK_FRAMES,
   avatarFrameRects,
   avatarLayerSpecs,
+  avatarRowLayerOrder,
 } from './phaser-avatar-renderer';
 
 describe('phaser-avatar-renderer', () => {
-  it('expone las capas del avatar en orden de dibujo: cuerpo → pelo atrás → cara → pelo frente', () => {
+  it('expone las capas del avatar con su tipo para la composición por fila', () => {
     const specs = avatarLayerSpecs(defaultAvatar());
     expect(specs.map(s => s.textureKey)).toEqual([
-      'avatar-layer-body',
       'avatar-layer-hair-back-short-black',
+      'avatar-layer-body',
       'avatar-layer-face-neutral',
       'avatar-layer-hair-front-short-black',
     ]);
+    expect(specs.map(s => s.kind)).toEqual(['hairBack', 'body', 'face', 'hairFront']);
     for (const spec of specs) {
       expect(spec.assetPath).toMatch(/^\/assets\/characters\/modular\//);
     }
+  });
+
+  it('de frente/lado el pelo trasero va DETRÁS del cuerpo; de espaldas, encima', () => {
+    expect(avatarRowLayerOrder(0)).toEqual(['hairBack', 'body', 'face', 'hairFront']);
+    expect(avatarRowLayerOrder(1)).toEqual(['hairBack', 'body', 'face', 'hairFront']);
+    expect(avatarRowLayerOrder(2)).toEqual(['body', 'hairBack', 'face', 'hairFront']);
   });
 
   it('omite las capas de pelo cuando el estilo es "ninguno"', () => {
@@ -31,6 +39,14 @@ describe('phaser-avatar-renderer', () => {
       'avatar-layer-body',
       'avatar-layer-face-neutral',
     ]);
+  });
+
+  it('precarga las variantes de pelo promovidas en fase C', () => {
+    const specs = avatarLayerSpecs({ ...defaultAvatar(), hairStyle: 'recogido' });
+    expect(specs.map(s => s.assetPath)).toEqual(expect.arrayContaining([
+      '/assets/characters/modular/hair/hair_tied_brown_back.png',
+      '/assets/characters/modular/hair/hair_tied_brown_front.png',
+    ]));
   });
 
   it('genera 9 frames de 64×96 que cubren exactamente la hoja de 192×288', () => {

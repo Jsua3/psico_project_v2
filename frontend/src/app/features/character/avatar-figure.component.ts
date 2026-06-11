@@ -1,11 +1,16 @@
 import { Component, computed, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarConfig } from './avatar.model';
+import { hairVariantId } from './avatar-config.util';
 
 export type AvatarPreviewPose = 'front' | 'side';
 
+/** Tipo de capa del avatar modular (gobierna el orden de composición). */
+export type AvatarLayerKind = 'body' | 'hairBack' | 'face' | 'hairFront';
+
 export interface AvatarSpriteLayer {
   key: string;
+  kind: AvatarLayerKind;
   assetPath: string;
   backgroundImage: string;
   zIndex: number;
@@ -13,9 +18,10 @@ export interface AvatarSpriteLayer {
 
 const MODULAR_ASSET_BASE = '/assets/characters/modular';
 
-function layer(key: string, assetPath: string, zIndex: number): AvatarSpriteLayer {
+function layer(key: string, kind: AvatarLayerKind, assetPath: string, zIndex: number): AvatarSpriteLayer {
   return {
     key,
+    kind,
     assetPath,
     backgroundImage: `url("${assetPath}")`,
     zIndex,
@@ -34,20 +40,23 @@ export function avatarFramePosition(pose: AvatarPreviewPose): string {
 
 export function resolveAvatarSpriteLayers(config: AvatarConfig): AvatarSpriteLayer[] {
   const face = faceId(config);
-  const layers: AvatarSpriteLayer[] = [
-    layer('body', `${MODULAR_ASSET_BASE}/body/body_orientadora_purple.png`, 10),
-  ];
+  const variant = hairVariantId(config);
+  const layers: AvatarSpriteLayer[] = [];
 
-  // Primer corte estable: solo el pelo corto negro queda aprobado visualmente.
-  // Otros peinados siguen en el modelo, pero no se renderizan hasta tener arte limpio.
-  if (config.hairStyle !== 'ninguno') {
-    layers.push(layer('hair-back-short-black', `${MODULAR_ASSET_BASE}/hair/hair_short_black_back.png`, 20));
+  // Composición fase C: pelo atrás → cuerpo → cara → pelo frente. La masa
+  // trasera del pelo es opaca y va DETRÁS del cuerpo (en la vista de espaldas
+  // el runtime Phaser la sube por fila; el editor solo muestra frente/lado).
+  // Solo variantes con arte real (hairVariantId); 'none' omite ambas capas.
+  const variantKey = variant.replace(/_/g, '-');
+  if (variant !== 'none') {
+    layers.push(layer(`hair-back-${variantKey}`, 'hairBack', `${MODULAR_ASSET_BASE}/hair/hair_${variant}_back.png`, 5));
   }
 
-  layers.push(layer(`face-${face}`, `${MODULAR_ASSET_BASE}/face/face_${face}.png`, 30));
+  layers.push(layer('body', 'body', `${MODULAR_ASSET_BASE}/body/body_orientadora_purple.png`, 10));
+  layers.push(layer(`face-${face}`, 'face', `${MODULAR_ASSET_BASE}/face/face_${face}.png`, 30));
 
-  if (config.hairStyle !== 'ninguno') {
-    layers.push(layer('hair-front-short-black', `${MODULAR_ASSET_BASE}/hair/hair_short_black_front.png`, 40));
+  if (variant !== 'none') {
+    layers.push(layer(`hair-front-${variantKey}`, 'hairFront', `${MODULAR_ASSET_BASE}/hair/hair_${variant}_front.png`, 40));
   }
 
   return layers;

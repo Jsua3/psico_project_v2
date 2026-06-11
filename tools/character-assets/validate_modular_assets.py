@@ -1,0 +1,194 @@
+"""Valida los assets modulares del avatar PROMOVIDOS al runtime (fase C).
+
+Comprueba, sobre frontend/src/assets/characters/modular:
+  - dimensiones exactas 192x288 (3 cols x 3 filas, frame 64x96);
+  - alpha realmente transparente fuera del sprite (borde de la hoja limpio);
+  - cada frame requerido no esta vacio (cara/pelo-frente pueden faltar en la
+    fila de espalda);
+  - las capas de pelo no se desplazan contra el cuerpo mas alla de una
+    tolerancia razonable (centro horizontal y altura de copa por frame);
+  - genera un preview compuesto por variante y direccion.
+
+Uso:
+  python validate_modular_assets.py \
+      --preview ../../docs/audit-c-avatar-motion-2026-06-11/avatar-preview.png
+
+Exit 1 si falla cualquier criterio.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+ROOT = Path(__file__).resolve().parents[2]
+ASSETS = ROOT / "frontend" / "src" / "assets" / "characters" / "modular"
+
+SHEET_SIZE = (192, 288)
+FRAME_W, FRAME_H = 64, 96
+ALPHA_THRESHOLD = 8          # alpha <= esto cuenta como transparente
+MIN_FRAME_PIXELS = 30        # un frame "no vacio" tiene al menos estos px opacos
+                             # (la cara de perfil legitima ronda los 34-39 px)
+HAIR_CENTER_TOLERANCE = 8    # px de desvio horizontal pelo vs cuerpo
+HAIR_TOP_RANGE = (-16, 26)   # pelo.top - cuerpo.top dentro de este rango
+
+BODY = "body/body_orientadora_purple.png"
+FACES = ["face/face_neutral.png", "face/face_calm.png", "face/face_worried.png"]
+HAIR_VARIANTS = ["short_black", "long_brown", "tied_brown", "red"]
+
+# Filas: 0 = frente (down), 1 = lado, 2 = espalda (up).
+ALL_ROWS = (0, 1, 2)
+FRONT_SIDE_ROWS = (0, 1)     # cara y pelo-frente pueden no existir de espaldas
+
+
+def load_rgba(rel: str) -> np.ndarray:
+    return np.array(Image.open(ASSETS / rel).convert("RGBA"), dtype=np.uint8)
+
+
+def frame(arr: np.ndarray, row: int, col: int) -> np.ndarray:
+    return arr[row * FRAME_H:(row + 1) * FRAME_H, col * FRAME_W:(col + 1) * FRAME_W]
+
+
+def opaque_mask(arr: np.ndarray) -> np.ndarray:
+    return arr[:, :, 3] > ALPHA_THRESHOLD
+
+
+def bbox(mask: np.ndarray) -> tuple[int, int, int, int] | None:
+    ys, xs = np.nonzero(mask)
+    if not len(xs):
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+
+def check_sheet(rel: str, required_rows: tuple[int, ...], failures: list[str]) -> np.ndarray | None:
+    path = ASSETS / rel
+    if not path.exists():
+        failures.append(f"{rel}: NO EXISTE en runtime")
+        return None
+    arr = load_rgba(rel)
+    h, w = arr.shape[:2]
+    if (w, h) != SHEET_SIZE:
+        failures.append(f"{rel}: dimensiones {w}x{h} != {SHEET_SIZE[0]}x{SHEET_SIZE[1]}")
+        return None
+
+    # Borde de la hoja transparente (sin restos de fondo del arte crudo).
+    border = np.concatenate([arr[0, :, 3], arr[-1, :, 3], arr[:, 0, 3], arr[:, -1, 3]])
+    leaked = int((border > ALPHA_THRESHOLD).sum())
+    if leaked > 0:
+        failures.append(f"{rel}: {leaked} px opacos en el borde de la hoja (fondo sucio)")
+
+    for row in required_rows:
+        for col in range(3):
+            count = int(opaque_mask(frame(arr, row, col)).sum())
+            if count < MIN_FRAME_PIXELS:
+                failures.append(f"{rel}: frame fila {row} col {col} vacio ({count} px)")
+    return arr
+
+
+def check_hair_alignment(body: np.ndarray, rel: str, arr: np.ndarray,
+                         rows: tuple[int, ...], failures: list[str]) -> None:
+    for row in rows:
+        for col in range(3):
+            hair_box = bbox(opaque_mask(frame(arr, row, col)))
+            body_box = bbox(opaque_mask(frame(body, row, col)))
+            if hair_box is None or body_box is None:
+                continue
+            hair_cx = (hair_box[0] + hair_box[2]) / 2
+            body_cx = (body_box[0] + body_box[2]) / 2
+            if abs(hair_cx - body_cx) > HAIR_CENTER_TOLERANCE:
+                failures.append(
+                    f"{rel}: fila {row} col {col} centro pelo {hair_cx:.0f} vs cuerpo "
+                    f"{body_cx:.0f} (> {HAIR_CENTER_TOLERANCE} px)")
+            top_delta = hair_box[1] - body_box[1]
+            if not (HAIR_TOP_RANGE[0] <= top_delta <= HAIR_TOP_RANGE[1]):
+                failures.append(
+                    f"{rel}: fila {row} col {col} copa del pelo a {top_delta:+d} px del "
+                    f"cuerpo (rango {HAIR_TOP_RANGE})")
+
+
+def compose(variant: str, face_rel: str) -> Image.Image:
+    """Mismo orden por fila que el runtime: frente/lado → pelo-atrás DETRÁS
+    del cuerpo; espalda → pelo-atrás encima del cuerpo."""
+    def maybe(rel: str) -> Image.Image:
+        if (ASSETS / rel).exists():
+            return Image.open(ASSETS / rel).convert("RGBA")
+        return Image.new("RGBA", SHEET_SIZE, (0, 0, 0, 0))
+
+    body = maybe(BODY)
+    back = maybe(f"hair/hair_{variant}_back.png")
+    face = maybe(face_rel)
+    front = maybe(f"hair/hair_{variant}_front.png")
+
+    sheet = Image.new("RGBA", SHEET_SIZE, (0, 0, 0, 0))
+    for row in range(3):
+        order = (back, body, face, front) if row < 2 else (body, back, face, front)
+        for col in range(3):
+            box = (col * FRAME_W, row * FRAME_H, (col + 1) * FRAME_W, (row + 1) * FRAME_H)
+            tile = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
+            for layer in order:
+                tile.alpha_composite(layer.crop(box))
+            sheet.alpha_composite(tile, (box[0], box[1]))
+    return sheet
+
+
+def make_preview(out: Path) -> None:
+    scale = 3
+    cols = len(HAIR_VARIANTS) + 1                       # + variante "none"
+    tile_w, tile_h = FRAME_W * scale, FRAME_H * scale
+    preview = Image.new("RGBA", (tile_w * cols, tile_h * 3 + 26), (16, 18, 28, 255))
+    draw = ImageDraw.Draw(preview)
+
+    sheets = [(v, compose(v, FACES[0])) for v in HAIR_VARIANTS]
+    none_sheet = Image.new("RGBA", SHEET_SIZE, (0, 0, 0, 0))
+    none_sheet.alpha_composite(Image.open(ASSETS / BODY).convert("RGBA"))
+    none_sheet.alpha_composite(Image.open(ASSETS / FACES[0]).convert("RGBA"))
+    sheets.append(("none", none_sheet))
+
+    for idx, (variant, sheet) in enumerate(sheets):
+        for row in range(3):                            # frente / lado / espalda
+            tile = sheet.crop((FRAME_W, row * FRAME_H, FRAME_W * 2, (row + 1) * FRAME_H))
+            tile = tile.resize((tile_w, tile_h), Image.Resampling.NEAREST)
+            preview.alpha_composite(tile, (idx * tile_w, row * tile_h))
+        draw.text((idx * tile_w + 6, tile_h * 3 + 6), variant, fill=(220, 220, 235, 255))
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    preview.save(out)
+    print(f"preview -> {out}")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--preview", default=None,
+                    help="ruta del preview compuesto (PNG)")
+    args = ap.parse_args()
+
+    failures: list[str] = []
+    body = check_sheet(BODY, ALL_ROWS, failures)
+    for face in FACES:
+        check_sheet(face, FRONT_SIDE_ROWS, failures)
+
+    for variant in HAIR_VARIANTS:
+        back = check_sheet(f"hair/hair_{variant}_back.png", ALL_ROWS, failures)
+        front = check_sheet(f"hair/hair_{variant}_front.png", FRONT_SIDE_ROWS, failures)
+        if body is not None and back is not None:
+            check_hair_alignment(body, f"hair/hair_{variant}_back.png", back, ALL_ROWS, failures)
+        if body is not None and front is not None:
+            check_hair_alignment(body, f"hair/hair_{variant}_front.png", front, FRONT_SIDE_ROWS, failures)
+
+    if args.preview:
+        make_preview(Path(args.preview).resolve())
+
+    if failures:
+        for f in failures:
+            print(f"FAIL: {f}")
+        print(f"RESULTADO: {len(failures)} fallos")
+        return 1
+    print("RESULTADO: OK — assets modulares validos")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -4,13 +4,12 @@ import { Router, RouterLink } from '@angular/router';
 import { AvatarFigureComponent } from './avatar-figure.component';
 import { AvatarStore } from './avatar.store';
 import {
-  AvatarConfig, Uniform,
-  SKIN_TONES, HAIR_COLORS, HAIR_STYLES, EYES, BROWS, MOUTHS, ACCESSORIES, UNIFORMS,
+  AvatarConfig, HairVariantId, Uniform,
+  HAIR_VARIANTS, MOUTHS, UNIFORMS,
 } from './avatar.model';
+import { hairVariantId, hairVariantPatch } from './avatar-config.util';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-
-interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
 
 @Component({
   selector: 'app-character-editor',
@@ -32,45 +31,23 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
       </header>
 
       <div class="ce-grid">
-        <!-- IZQUIERDA: apariencia -->
+        <!-- IZQUIERDA: apariencia (solo controles con efecto visual real — fase C) -->
         <section class="ce-panel glass" aria-label="Apariencia">
-          <p class="ce-section">Rostro</p>
+          <p class="ce-section">Cabello</p>
 
-          <div class="ce-group" role="radiogroup" aria-label="Tono de piel">
-            <span class="ce-label">Tono de piel</span>
-            <div class="ce-swatches">
-              @for (o of skinTones; track o.id) {
-                <button type="button" class="ce-swatch" [class.sel]="avatar().skinTone === o.id"
-                  role="radio" [attr.aria-checked]="avatar().skinTone === o.id" [attr.aria-label]="o.label"
-                  [style.background]="o.value" (click)="store.update({ skinTone: o.id })"></button>
-              }
-            </div>
-          </div>
-
-          <div class="ce-group" role="radiogroup" aria-label="Ojos">
-            <span class="ce-label">Ojos</span>
+          <div class="ce-group" role="radiogroup" aria-label="Cabello">
             <div class="ce-opts">
-              @for (o of eyes; track o.id) {
-                <button type="button" class="ce-opt" [class.sel]="avatar().eyes === o.id"
-                  role="radio" [attr.aria-checked]="avatar().eyes === o.id"
-                  (click)="store.update({ eyes: o.id })">{{ o.label }}</button>
+              @for (o of hairVariants; track o.id) {
+                <button type="button" class="ce-opt" [class.sel]="hairVariant() === o.id"
+                  role="radio" [attr.aria-checked]="hairVariant() === o.id"
+                  (click)="setHairVariant(o.id)">{{ o.label }}</button>
               }
             </div>
           </div>
 
-          <div class="ce-group" role="radiogroup" aria-label="Cejas">
-            <span class="ce-label">Cejas</span>
-            <div class="ce-opts">
-              @for (o of brows; track o.id) {
-                <button type="button" class="ce-opt" [class.sel]="avatar().brows === o.id"
-                  role="radio" [attr.aria-checked]="avatar().brows === o.id"
-                  (click)="store.update({ brows: o.id })">{{ o.label }}</button>
-              }
-            </div>
-          </div>
+          <p class="ce-section">Expresión</p>
 
-          <div class="ce-group" role="radiogroup" aria-label="Boca">
-            <span class="ce-label">Boca</span>
+          <div class="ce-group" role="radiogroup" aria-label="Expresión">
             <div class="ce-opts">
               @for (o of mouths; track o.id) {
                 <button type="button" class="ce-opt" [class.sel]="avatar().mouth === o.id"
@@ -80,48 +57,9 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
             </div>
           </div>
 
-          <p class="ce-section">Cabello</p>
-
-          <div class="ce-group" role="radiogroup" aria-label="Peinado">
-            <span class="ce-label">Peinado</span>
-            <div class="ce-opts">
-              @for (o of hairStyles; track o.id) {
-                <button type="button" class="ce-opt" [class.sel]="avatar().hairStyle === o.id"
-                  role="radio" [attr.aria-checked]="avatar().hairStyle === o.id"
-                  (click)="store.update({ hairStyle: o.id })">{{ o.label }}</button>
-              }
-            </div>
-          </div>
-
-          <div class="ce-group">
-            <span class="ce-label">Flequillo</span>
-            <button type="button" class="ce-opt ce-toggle" [class.sel]="avatar().fringe"
-              [attr.aria-pressed]="avatar().fringe" (click)="store.update({ fringe: !avatar().fringe })">
-              {{ avatar().fringe ? 'Con flequillo' : 'Sin flequillo' }}
-            </button>
-          </div>
-
-          <div class="ce-group" role="radiogroup" aria-label="Color de cabello">
-            <span class="ce-label">Color de cabello</span>
-            <div class="ce-swatches">
-              @for (o of hairColors; track o.id) {
-                <button type="button" class="ce-swatch" [class.sel]="avatar().hairColor === o.id"
-                  role="radio" [attr.aria-checked]="avatar().hairColor === o.id" [attr.aria-label]="o.label"
-                  [style.background]="o.value" (click)="store.update({ hairColor: o.id })"></button>
-              }
-            </div>
-          </div>
-
-          <p class="ce-section">Accesorios</p>
-          <div class="ce-group" role="radiogroup" aria-label="Accesorios">
-            <div class="ce-opts">
-              @for (o of accessories; track o.id) {
-                <button type="button" class="ce-opt" [class.sel]="avatar().accessory === o.id"
-                  role="radio" [attr.aria-checked]="avatar().accessory === o.id"
-                  (click)="store.update({ accessory: o.id })">{{ o.label }}</button>
-              }
-            </div>
-          </div>
+          <p class="ce-note">Más opciones de piel, rostro y accesorios llegarán
+            cuando exista su arte definitivo. Aquí solo ves lo que tu avatar
+            realmente refleja.</p>
         </section>
 
         <!-- CENTRO: avatar -->
@@ -144,17 +82,12 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
             @for (u of uniforms; track u.id) {
               <button type="button" class="ce-uniform" [class.sel]="avatar().uniform === u.id"
                 role="radio" [attr.aria-checked]="avatar().uniform === u.id"
+                [disabled]="u.id === 'con-bata'"
                 (click)="store.update({ uniform: u.id })">
                 <app-avatar-figure class="ce-uniform-fig" [config]="withUniform(u.id)" />
                 <span>{{ u.label }}</span>
+                @if (u.id === 'con-bata') { <small class="ce-soon">Próximamente</small> }
               </button>
-            }
-          </div>
-
-          <p class="ce-section">Presets rápidos</p>
-          <div class="ce-opts">
-            @for (p of presets; track p.id) {
-              <button type="button" class="ce-opt" (click)="store.update(p.patch)">{{ p.label }}</button>
             }
           </div>
 
@@ -163,8 +96,8 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
             <li><span>Programa</span><strong>Psicología</strong></li>
             <li><span>Rol</span><strong>{{ roleLabel() }}</strong></li>
             <li><span>Uniforme</span><strong>{{ uniformLabel() }}</strong></li>
-            <li><span>Peinado</span><strong>{{ labelOf(hairStyles, avatar().hairStyle) }}</strong></li>
-            <li><span>Cabello</span><strong>{{ labelOf(hairColors, avatar().hairColor) }}</strong></li>
+            <li><span>Cabello</span><strong>{{ hairVariantLabel() }}</strong></li>
+            <li><span>Expresión</span><strong>{{ labelOf(mouths, avatar().mouth) }}</strong></li>
           </ul>
         </section>
       </div>
@@ -216,7 +149,10 @@ interface Preset { id: string; label: string; patch: Partial<AvatarConfig>; }
     .ce-uniforms { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .ce-uniform { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 800; cursor: pointer; transition: all .15s; }
     .ce-uniform.sel { border-color: var(--pl); background: rgba(124,77,255,.16); color: #e7ddff; }
+    .ce-uniform:disabled { opacity: .45; cursor: not-allowed; }
     .ce-uniform-fig { width: 64px; height: 96px; }
+    .ce-soon { color: var(--pl); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .ce-note { margin: 6px 0 0; color: var(--ink-soft); font-size: .76rem; line-height: 1.4; }
     .ce-summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
     .ce-summary li { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; }
     .ce-summary span { color: var(--ink-soft); }
@@ -241,20 +177,11 @@ export class CharacterEditorComponent {
   readonly avatar = this.store.avatar;
   readonly pose = signal<'front' | 'side'>('front');
 
-  readonly skinTones = SKIN_TONES;
-  readonly hairColors = HAIR_COLORS;
-  readonly hairStyles = HAIR_STYLES;
-  readonly eyes = EYES;
-  readonly brows = BROWS;
+  readonly hairVariants = HAIR_VARIANTS;
   readonly mouths = MOUTHS;
-  readonly accessories = ACCESSORIES;
   readonly uniforms = UNIFORMS;
 
-  readonly presets: Preset[] = [
-    { id: 'casual',    label: 'Casual',    patch: { uniform: 'sin-bata', accessory: 'ninguno' } },
-    { id: 'clinico',   label: 'Clínico',   patch: { uniform: 'con-bata', accessory: 'pin' } },
-    { id: 'academico', label: 'Académico', patch: { uniform: 'sin-bata', accessory: 'gafas' } },
-  ];
+  readonly hairVariant = computed(() => hairVariantId(this.avatar()));
 
   readonly roleLabel = computed(() => {
     const r = this.auth.currentUser()?.role;
@@ -264,10 +191,15 @@ export class CharacterEditorComponent {
   readonly uniformLabel = computed(() =>
     this.uniforms.find(u => u.id === this.avatar().uniform)?.label ?? '');
 
-  readonly avatarSummary = computed(() => {
-    const a = this.avatar();
-    return `Avatar con piel ${a.skinTone}, cabello ${this.labelOf(this.hairStyles, a.hairStyle)} ${a.hairColor}, ${this.uniformLabel()}.`;
-  });
+  readonly hairVariantLabel = computed(() =>
+    this.hairVariants.find(v => v.id === this.hairVariant())?.label ?? '');
+
+  readonly avatarSummary = computed(() =>
+    `Avatar con cabello ${this.hairVariantLabel()}, expresión ${this.labelOf(this.mouths, this.avatar().mouth)}, ${this.uniformLabel()}.`);
+
+  setHairVariant(id: HairVariantId): void {
+    this.store.update(hairVariantPatch(id));
+  }
 
   withUniform(u: Uniform): AvatarConfig {
     return { ...this.avatar(), uniform: u };

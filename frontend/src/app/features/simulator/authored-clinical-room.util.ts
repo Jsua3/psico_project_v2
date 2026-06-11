@@ -1,11 +1,12 @@
 /**
  * Sala clínica autoría (vertical slice urgencias-crisis).
  *
- * La sala se dibuja proceduralmente en game-world (renderAuthoredClinicalOffice)
- * sobre un lienzo de 960×528. Este helper centraliza la geometría jugable:
+ * La sala la pinta premium-clinical-room.renderer (vía el registry de fase C)
+ * sobre un lienzo de 960×528. Este helper centraliza la geometría JUGABLE:
  * colisiones, posiciones de marcadores backend y de NPCs, para que el render y
  * el gameplay compartan una sola fuente de verdad.
  */
+import { playerHitbox, rectsIntersect } from './player-motion.util';
 
 const AUTHORED_CLINICAL_ROOM_KEYS = new Set([
   'urgencias-crisis',
@@ -78,9 +79,11 @@ export function authoredMarkerPosition(key: string): { x: number; y: number } | 
   return AUTHORED_MARKER_POSITIONS[key] ?? null;
 }
 
-/** true si el AABB del jugador (30×46 centrado en x,y) toca alguna colisión. */
+/**
+ * true si el hitbox de PIES del jugador (player-motion.util) toca alguna
+ * colisión. (x, y) es el punto de pies — el mismo contrato que el runtime.
+ */
 export function collidesInAuthoredRoom(x: number, y: number): boolean {
-  const left = x - 15, top = y - 27, right = x + 15, bottom = y + 19;
-  return AUTHORED_CLINICAL_COLLISIONS.some(z =>
-    left < z.x + z.width && right > z.x && top < z.y + z.height && bottom > z.y);
+  const hb = playerHitbox(x, y);
+  return AUTHORED_CLINICAL_COLLISIONS.some(z => rectsIntersect(hb, z));
 }

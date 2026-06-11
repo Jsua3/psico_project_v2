@@ -1,0 +1,49 @@
+[
+  {
+    "innerWidth": 1600,
+    "innerHeight": 900,
+    "scrollWidth": 1600,
+    "bodyScrollWidth": 1600,
+    "canvasRect": null,
+    "avatarStored": null,
+    "label": "personaje-1600x900",
+    "consoleErrors": [],
+    "asset404": []
+  },
+  {
+    "innerWidth": 1600,
+    "innerHeight": 900,
+    "scrollWidth": 1600,
+    "bodyScrollWidth": 1600,
+    "canvasRect": {
+      "x": 112,
+      "y": 60,
+      "width": 1375.625,
+      "height": 773.796875,
+      "right": 1487.625,
+      "bottom": 833.796875
+    },
+    "avatarStored": null,
+    "label": "game-explore-1600x900",
+    "consoleErrors": [],
+    "asset404": []
+  },
+  {
+    "innerWidth": 1600,
+    "innerHeight": 900,
+    "scrollWidth": 1600,
+    "bodyScrollWidth": 1600,
+    "canvasRect": {
+      "x": 112,
+      "y": 60,
+      "width": 1375.625,
+      "height": 773.796875,
+      "right": 1487.625,
+      "bottom": 833.796875
+    },
+    "avatarStored": null,
+    "label": "game-moving-1600x900",
+    "consoleErrors": [],
+    "asset404": []
+  }
+]

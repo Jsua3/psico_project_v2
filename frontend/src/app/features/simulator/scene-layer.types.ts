@@ -1,10 +1,14 @@
+// Solo tipos: el import se elide en runtime (los specs corren sin canvas).
+import type Phaser from 'phaser';
+
 /**
- * Tipos de capas de escena 2.5D (preparación fase C).
+ * Contrato de escena 2.5D por capas (fase C).
  *
- * Contrato futuro: una sala se compone de capas apiladas y reutilizables.
- * Hoy solo la sala clínica premium (premium-clinical-room.renderer.ts) las
- * implementa con Graphics; la fase C podrá sustituir cada capa por bitmaps,
- * tilemaps o sistemas dinámicos sin tocar el gameplay.
+ * Una sala se compone de capas apiladas y reutilizables. Cada sala "premium"
+ * implementa un SceneRenderer que pinta SOLO arte; el gameplay (colisiones,
+ * actores, hints, input, API) vive fuera del renderer. El registry
+ * (scene-renderer.registry.ts) resuelve qué renderer pinta cada mapKey; si no
+ * hay renderer, el runtime usa el flujo Tiled/procedural existente.
  *
  *   background  → paredes, ventanas, decoración de muro
  *   floor       → piso con perspectiva, alfombras, zócalo
@@ -25,7 +29,7 @@ export type SceneLayerKind =
   | 'lighting'
   | 'uiHints';
 
-/** Capas que un renderer de sala premium debe pintar (las demás son del gameplay). */
+/** Capas que un renderer de sala debe pintar (las demás son del gameplay). */
 export const PREMIUM_RENDERER_LAYERS: readonly SceneLayerKind[] = [
   'background',
   'floor',
@@ -34,6 +38,9 @@ export const PREMIUM_RENDERER_LAYERS: readonly SceneLayerKind[] = [
   'frontProps',
   'lighting',
 ] as const;
+
+/** Capas que NUNCA pinta un renderer: pertenecen al gameplay. */
+export const GAMEPLAY_ONLY_LAYERS: readonly SceneLayerKind[] = ['actors', 'uiHints'] as const;
 
 export interface SceneRect {
   x: number;
@@ -47,23 +54,38 @@ export interface ScenePoint {
   y: number;
 }
 
-/** Opciones de render de una sala premium. */
-export interface PremiumClinicalRoomOptions {
+/** Opciones de render de una sala. */
+export interface SceneRendererOptions {
   width: number;
   height: number;
   /** true → sin tweens ni partículas (prefers-reduced-motion). */
   reduceMotion: boolean;
-  /** Tono ambiental autorado (calm | clinical | warm | tense). Reservado fase C. */
+  /** Tono ambiental autorado (calm | clinical | warm | tense). */
   ambientTone?: string;
 }
 
 /** Metadata visual que el renderer devuelve al gameplay. */
-export interface PremiumRoomRenderResult {
+export interface SceneRenderMetadata {
   bounds: { width: number; height: number };
-  /** Rect caminable (coincide con las colisiones de authored-clinical-room.util). */
+  /** Rect caminable (coincide con las colisiones jugables de la sala). */
   floorBounds: SceneRect;
   /** Puntos de interés visual (cámara/guía/futuras salas). */
   focusPoints: Record<string, ScenePoint>;
+  /** Zonas con oclusión de primer plano (frontProps) — fuera del piso jugable. */
+  occlusionZones: readonly SceneRect[];
   /** Capas efectivamente pintadas, en orden. */
   paintedLayers: readonly SceneLayerKind[];
+}
+
+/**
+ * Renderer de sala 2.5D. Pinta arte y devuelve metadata; NO maneja decisiones,
+ * diálogos, herramientas, API, estado del intento, interacción, input,
+ * persistencia ni colisiones (esas viven en los utils de gameplay).
+ */
+export interface SceneRenderer {
+  /** Identificador estable del renderer (logs/specs). */
+  key: string;
+  /** true si este renderer pinta el mapa indicado. */
+  supports(mapKey: string | null | undefined): boolean;
+  render(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata;
 }

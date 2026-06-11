@@ -33,9 +33,17 @@ import {
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
   authoredMarkerPosition,
-  isAuthoredClinicalRoomKey,
 } from './authored-clinical-room.util';
-import { renderPremiumClinicalRoom } from './premium-clinical-room.renderer';
+import { resolveSceneRenderer } from './scene-renderer.registry';
+import { SceneRenderMetadata } from './scene-layer.types';
+import {
+  PLAYER_SPRITE_OFFSET_Y,
+  PlayerDirection,
+  PlayerMotionInput,
+  computePlayerStep,
+  playerHitbox,
+  rectsIntersect,
+} from './player-motion.util';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -73,7 +81,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private playerSprite?: Phaser.GameObjects.Sprite;
   private avatarSpecs: AvatarLayerSpec[] = [];
   private avatarReady = false;
-  private lastDirection: 'down' | 'up' | 'left' | 'right' = 'down';
+  private lastDirection: PlayerDirection = 'down';
+  /** Última pose aplicada — la animación solo cambia si dirección/caminar cambió. */
+  private lastPose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -196,33 +206,38 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   override update(time: number, delta: number) {
     if (!this.player || !this.cursors || !this.keys || !this.world) return;
-    const left  = this.cursors.left.isDown  || this.keys['A'].isDown;
-    const right = this.cursors.right.isDown || this.keys['D'].isDown;
-    const up    = this.cursors.up.isDown    || this.keys['W'].isDown;
-    const down  = this.cursors.down.isDown  || this.keys['S'].isDown;
-    const speed = 176 * (delta / 1000);
-    const dx = Number(right) - Number(left);
-    const dy = Number(down)  - Number(up);
+    const input: PlayerMotionInput = {
+      left:  this.cursors.left.isDown  || this.keys['A'].isDown,
+      right: this.cursors.right.isDown || this.keys['D'].isDown,
+      up:    this.cursors.up.isDown    || this.keys['W'].isDown,
+      down:  this.cursors.down.isDown  || this.keys['S'].isDown,
+    };
+    // Helper puro (player-motion.util): normaliza diagonal, limita delta y
+    // resuelve dirección estable (sin parpadeo diagonal).
+    const step = computePlayerStep(input, this.lastDirection, delta);
 
-    if (dx !== 0 || dy !== 0) {
-      const len = Math.hypot(dx, dy);
-      this.movePlayer((dx / len) * speed, (dy / len) * speed);
-      this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
-      this.lastDirection = Math.abs(dx) >= Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
-      this.playWalkAnimation(this.lastDirection);
-      // ── Footstep audio: one random variant every STEP_INTERVAL ms ──────────
-      if (!this.callbacks.reduceMotion) {
-        this.stepTimer += delta;
-        if (this.stepTimer >= this.STEP_INTERVAL) {
-          this.stepTimer = 0;
-          this.sound.play(`step${Phaser.Math.Between(0, 2)}`, { volume: 0.35 });
+    if (step.moving) {
+      const moved = this.movePlayer(step.dx, step.dy);
+      this.lastDirection = step.direction;
+      if (moved) {
+        this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+        this.applyPlayerPose(step.direction, true);
+        // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
+        if (!this.callbacks.reduceMotion) {
+          this.stepTimer += delta;
+          if (this.stepTimer >= this.STEP_INTERVAL) {
+            this.stepTimer = 0;
+            this.sound.play(`step${Phaser.Math.Between(0, 2)}`, { volume: 0.35 });
+          }
         }
+      } else {
+        // Bloqueado del todo contra pared/mueble: sin avance real no debe
+        // correr la animación de caminata (ni sonar pasos).
+        this.applyPlayerPose(step.direction, false);
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
-      this.setIdleFrame(this.lastDirection);
+      this.applyPlayerPose(this.lastDirection, false);
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
@@ -313,7 +328,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // En la sala autoría los actores Kenney van a 2.4 (spawnNpcs); el guía debe
     // verse del mismo mundo que los demás NPCs.
     const guideScale = this.authoredRoomActive ? 2.4 : 1.5;
-    const shadow = this.add.ellipse(0, this.authoredRoomActive ? 20 : 13, 15, 5, 0x000000, 0.2);
+    const guideFeetY = this.authoredRoomActive ? 20 : 13;
+    const shadow = this.add.ellipse(0, guideFeetY, 15, 5, 0x000000, 0.2);
     let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
     if (this.assetsLoaded && this.textures.exists('characters')) {
       sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE).setScale(guideScale);
@@ -325,7 +341,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1);
 
-    this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]).setDepth(actorDepth(entry.spawnY));
+    this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]);
+    this.setFeetOffset(this.guideContainer, guideFeetY);
     this.guideSprite = sprite;
     this.guideBubble = this.buildGuideBubble(entry.hint);
 
@@ -513,6 +530,39 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const { width: mapW, height: mapH } = this.world.map;
     this.cameras.main.setBackgroundColor('#0e141a');
 
+    // ── Fase C: registry de renderers también en modo sala única ───────────
+    // Si hay renderer para este mapa, él pinta todas las capas visuales y aquí
+    // solo queda el gameplay (markers remapeados, jugador, cámara, guía).
+    const sceneRenderer = resolveSceneRenderer(mapKey);
+    if (sceneRenderer) {
+      this.authoredRoomActive = true;
+      const metadata = sceneRenderer.render(this, {
+        width: mapW,
+        height: mapH,
+        reduceMotion: this.callbacks.reduceMotion,
+        ambientTone: this.ambientTone(),
+      });
+      this.world.objects
+        .map(obj => {
+          const authored = authoredMarkerPosition(obj.key);
+          return authored ? { ...obj, x: authored.x, y: authored.y } : obj;
+        })
+        .forEach(obj => this.createMarker(obj));
+      // Posición persistida solo si sigue siendo jugable en la sala autoría.
+      const persisted = { x: this.world.player.x, y: this.world.player.y };
+      const spawn = this.wouldCollide(persisted.x, persisted.y) ? AUTHORED_PLAYER_SPAWN : persisted;
+      this.createPlayer(spawn.x, spawn.y);
+      const cam = this.cameras.main;
+      cam.setZoom(1);
+      cam.setBounds(0, 0, metadata.bounds.width, metadata.bounds.height);
+      cam.centerOn(metadata.bounds.width / 2, metadata.bounds.height / 2);
+      this.refreshMarkerStates();
+      this.updateNearestInteraction(true);
+      this.buildGuide();
+      this.playIntroFade();
+      return;
+    }
+
     // ── Layer 0-1: procedural dark floor + grid (always — permanent base) ──
     // Tiled floor tiles sit on top; GID 0 cells (empty) let this base show through.
     this.add.rectangle(mapW/2, mapH/2, mapW-40, mapH-42, 0x131c28, 1).setDepth(0);
@@ -637,7 +687,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     let actualMapW = AUTHORED_ROOM_WIDTH, actualMapH = AUTHORED_ROOM_HEIGHT;
     let tiledObjects: Phaser.Types.Tilemaps.TiledObject[] = [];
-    const authoredClinicalRoom = isAuthoredClinicalRoomKey(roomConfig.tiledMapKey);
+    // Fase C: el registry decide qué renderer pinta la sala; sin renderer se
+    // usa el flujo Tiled/procedural existente.
+    const sceneRenderer = resolveSceneRenderer(roomConfig.tiledMapKey);
+    const authoredClinicalRoom = sceneRenderer !== null;
     this.authoredRoomActive = authoredClinicalRoom;
 
     if (!authoredClinicalRoom) {
@@ -683,13 +736,15 @@ class DataDrivenWorldScene extends Phaser.Scene {
     cam.setZoom(authoredClinicalRoom ? 1 : 2);
     cam.setBounds(0, 0, actualMapW, actualMapH);
 
-    if (authoredClinicalRoom) {
+    let sceneMetadata: SceneRenderMetadata | null = null;
+    if (sceneRenderer) {
       // Sala premium: el renderer pinta TODAS las capas visuales (background,
       // floor, props, lighting). Sin grilla genérica ni borde de editor.
-      renderPremiumClinicalRoom(this, {
+      sceneMetadata = sceneRenderer.render(this, {
         width: actualMapW,
         height: actualMapH,
         reduceMotion: this.callbacks.reduceMotion,
+        ambientTone: this.ambientTone(),
       });
     } else {
       // ── Dark procedural floor + subtle grid (mirrors renderWorld style) ─────
@@ -734,7 +789,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.buildGuide();
-    this.applyLightingOverlay();
+    // Evitar doble lighting: si el renderer ya pintó su capa de luz, la viñeta
+    // genérica solo ensuciaría/oscurecería la escena premium.
+    if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
     this.playIntroFade();
   }
 
@@ -827,7 +884,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
         fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
       }).setOrigin(0.5, 1).setAlpha(0);
 
-      const container = this.add.container(npc.x, npc.y, [shadowSoft, shadow, sprite, label, hint]).setDepth(actorDepth(npc.y));
+      const container = this.add.container(npc.x, npc.y, [shadowSoft, shadow, sprite, label, hint]);
+      this.setFeetOffset(container, shY);   // la sombra marca los pies del NPC
       this.npcMarkers.set(npc.key, container);
       (container as unknown as Record<string, unknown>)['__npcConfig'] = npc;
       (container as unknown as Record<string, unknown>)['__hintSprite'] = hint;
@@ -1046,10 +1104,15 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * Viñeta de iluminación procedural (sin assets). Pineada a cámara, estática
    * (segura con prefers-reduced-motion). El tinte sigue `ambient.ambientTone`.
    */
-  private applyLightingOverlay(): void {
-    const tone = String(
+  /** Tono ambiental autorado del mapa actual (calm | clinical | warm | tense). */
+  private ambientTone(): string {
+    return String(
       (this.world?.map.ambient as { ambientTone?: unknown })?.ambientTone ?? 'calm',
     ).toLowerCase();
+  }
+
+  private applyLightingOverlay(): void {
+    const tone = this.ambientTone();
     const tint =
       tone === 'warm' ? 0x3a2a1a :
       tone === 'clinical' ? 0x1a2433 :
@@ -1087,32 +1150,44 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private createPlayer(x: number, y: number) {
+    this.lastPose = { direction: null, walking: false };
     if (this.avatarReady && this.textures.exists(AVATAR_TEXTURE_KEY)) {
-      // Avatar modular del editor de personaje (frame 64×96 × AVATAR_DISPLAY_SCALE).
-      // El centro del sprite sube para que los pies caigan sobre la sombra (y≈22),
-      // que es también la base del hitbox de colisión. Sombra en dos pasos:
-      // borde suave + núcleo — contraste con el piso sin parecer sticker.
-      const shadowSoft = this.add.ellipse(0, 22, 42, 13, 0x000000, .15);
-      const shadow = this.add.ellipse(0, 22, 28, 9, 0x000000, .27);
-      const sprite = this.add.sprite(0, -14, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down)
+      // Contrato de pies (player-motion.util): (x, y) del contenedor = punto de
+      // pies. Sombra centrada en los pies; el sprite sube PLAYER_SPRITE_OFFSET_Y.
+      // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
+      const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
+      const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
+      const sprite = this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down)
         .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
       return;
     }
-    const shadow = this.add.ellipse(0, 14, 16, 5, 0x000000, .22);   // scaled down to match scale(1.5)
+    // Fallback Kenney: mismo contrato de pies (sprite 16px × 1.5 → centro -11).
+    const shadow = this.add.ellipse(0, 0, 16, 5, 0x000000, .22);
     if (this.assetsLoaded && this.textures.exists('characters')) {
-      const sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
+      const sprite = this.add.sprite(0, -11, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
       // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
-      // (scale 2 at zoom 2 would be 64px = 2 full tiles — too dominant)
       this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
     } else {
-      const body  = this.add.rectangle(0,  4, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
-      const head  = this.add.circle(0, -18, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
-      const badge = this.add.rectangle(0,  8, 12,  7, 0xffffff, .9);
+      const body  = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
+      const head  = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
+      const badge = this.add.rectangle(0, -10, 12,  7, 0xffffff, .9);
       this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
     }
+  }
+
+  /**
+   * Aplica la pose (dirección + caminando/idle) SOLO si cambió desde el último
+   * frame: la animación no se reinicia en cada update y el idle es inmediato
+   * al soltar teclas o quedar bloqueado contra una pared.
+   */
+  private applyPlayerPose(direction: PlayerDirection, walking: boolean): void {
+    if (this.lastPose.direction === direction && this.lastPose.walking === walking) return;
+    this.lastPose = { direction, walking };
+    if (walking) this.playWalkAnimation(direction);
+    else this.setIdleFrame(direction);
   }
 
   /**
@@ -1120,7 +1195,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * lateral mira a la IZQUIERDA → flip para la derecha); Kenney usa sus
    * animaciones `walk-*` (fila lateral mira a la DERECHA → flip para izquierda).
    */
-  private playWalkAnimation(direction: 'down' | 'up' | 'left' | 'right'): void {
+  private playWalkAnimation(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
     if (this.avatarReady) {
       this.playerSprite.setFlipX(direction === 'right');
@@ -1136,7 +1211,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Frame de reposo limpio según la última dirección. */
-  private setIdleFrame(direction: 'down' | 'up' | 'left' | 'right'): void {
+  private setIdleFrame(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
     this.playerSprite.stop();
     if (this.avatarReady) {
@@ -1191,7 +1266,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     // Sombra de contacto: el icono queda asentado en el piso, no flotando.
     const markerShadow = this.add.ellipse(0, 16, 26, 8, 0x000000, .2);
-    const marker = this.add.container(object.x, object.y, [markerShadow, pulse, main, label]).setDepth(actorDepth(object.y));
+    const marker = this.add.container(object.x, object.y, [markerShadow, pulse, main, label]);
+    this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
     if (!isExit) this.markerLabels.set(object.key, label);
@@ -1320,35 +1396,49 @@ class DataDrivenWorldScene extends Phaser.Scene {
     return map[type] ?? KenneyDungeonFrames.DESK;
   }
 
-  /** Ordena un objeto de mundo por su Y (2.5D: más abajo = más al frente). */
+  /**
+   * Ordena un actor por la Y de sus PIES (2.5D: más abajo = más al frente).
+   * El jugador ya está anclado a pies (offset 0); NPCs/markers/guía guardan en
+   * `__feetOffset` la distancia centro→pies para comparar al mismo nivel.
+   */
   private ysort(obj: Phaser.GameObjects.Container): void {
-    obj.setDepth(actorDepth(obj.y));
+    const feetOffset = Number((obj as unknown as Record<string, unknown>)['__feetOffset'] ?? 0);
+    obj.setDepth(actorDepth(obj.y + feetOffset));
   }
 
-  private movePlayer(dx: number, dy: number) {
-    if (!this.player) return;
+  /** Registra la distancia centro→pies de un actor y lo ordena ya mismo. */
+  private setFeetOffset(obj: Phaser.GameObjects.Container, offset: number): void {
+    (obj as unknown as Record<string, unknown>)['__feetOffset'] = offset;
+    this.ysort(obj);
+  }
+
+  /** Mueve con sliding contra paredes. Devuelve true si hubo avance real. */
+  private movePlayer(dx: number, dy: number): boolean {
+    if (!this.player) return false;
     const nx = this.player.x + dx;
     const ny = this.player.y + dy;
     // Try full movement
-    if (!this.wouldCollide(nx, ny)) { this.player.setPosition(nx, ny); return; }
+    if (!this.wouldCollide(nx, ny)) { this.player.setPosition(nx, ny); return true; }
     // Slide along walls: try horizontal-only
-    if (!this.wouldCollide(nx, this.player.y)) { this.player.setPosition(nx, this.player.y); return; }
+    if (dx !== 0 && !this.wouldCollide(nx, this.player.y)) { this.player.setPosition(nx, this.player.y); return true; }
     // Slide along walls: try vertical-only
-    if (!this.wouldCollide(this.player.x, ny)) { this.player.setPosition(this.player.x, ny); return; }
-    // Fully blocked — do nothing
+    if (dy !== 0 && !this.wouldCollide(this.player.x, ny)) { this.player.setPosition(this.player.x, ny); return true; }
+    // Fully blocked
+    return false;
   }
 
   /**
-   * Returns true if placing the player center at (x, y) would overlap a wall tile.
-   * Checks 4 corners of a 16×20 hitbox. When no wallsLayer is present falls back to
-   * backend collision zones (legacy single-map mode).
+   * true si poner los PIES del jugador en (x, y) chocaría. Usa el hitbox de
+   * pies (player-motion.util): muebles y paredes bloquean pies; la cabeza y el
+   * pelo pueden solapar visualmente sin chocar. Con wallsLayer (Tiled) prueba
+   * las 4 esquinas del hitbox; si no, las zonas AABB de la sala/backend.
    */
   private wouldCollide(x: number, y: number): boolean {
+    const hb = playerHitbox(x, y);
     if (this.wallsLayer) {
-      const hw = 8, hh = 10;
       const corners = [
-        { x: x - hw, y: y - hh }, { x: x + hw, y: y - hh },
-        { x: x - hw, y: y + hh }, { x: x + hw, y: y + hh },
+        { x: hb.x, y: hb.y }, { x: hb.x + hb.width, y: hb.y },
+        { x: hb.x, y: hb.y + hb.height }, { x: hb.x + hb.width, y: hb.y + hb.height },
       ];
       return corners.some(pt => {
         const tile = this.wallsLayer!.getTileAtWorldXY(pt.x, pt.y);
@@ -1357,7 +1447,6 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
     // Legacy fallback: backend AABB zones
     if (!this.world) return false;
-    const pb = new Phaser.Geom.Rectangle(x - 15, y - 27, 30, 46);
     const mapKey = this.world.map.key;
     const zones = this.authoredRoomActive
       ? AUTHORED_CLINICAL_COLLISIONS
@@ -1366,8 +1455,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         : isComisariaMap(mapKey)
           ? COMISARIA_COLLISIONS
           : this.world.collisions.map(z => ({ x: z.x, y: z.y, width: z.width, height: z.height }));
-    return zones.some(z =>
-      Phaser.Geom.Intersects.RectangleToRectangle(pb, new Phaser.Geom.Rectangle(z.x, z.y, z.width, z.height)));
+    return zones.some(z => rectsIntersect(hb, z));
   }
 
   private updateNearestInteraction(suppressSound = false) {

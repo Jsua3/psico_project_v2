@@ -1098,6 +1098,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!game || !world || !this.lastPosition || game.status !== 'IN_PROGRESS') return;
     this.simulationService.updateWorldState(game.attemptId, game.attemptToken,
       this.lastPosition.x, this.lastPosition.y, world.map.key)
-      .subscribe({ next: u => this.world.set(u), error: () => undefined });
+      .subscribe({
+        // La posición se persiste en silencio: reemplazar `world` con el eco
+        // del backend re-renderizaba toda la escena Phaser en plena caminata
+        // (tirón visible). Solo se aplica si cambió algo de verdad (el mapa).
+        next: updated => {
+          const current = this.world();
+          if (!current || updated.map.key !== current.map.key) this.world.set(updated);
+        },
+        error: () => undefined,
+      });
   }
 }

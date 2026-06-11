@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { AvatarConfig } from '../character/avatar.model';
-import { resolveAvatarSpriteLayers } from '../character/avatar-figure.component';
+import { AvatarLayerKind, resolveAvatarSpriteLayers } from '../character/avatar-figure.component';
 
 /**
  * Avatar modular dentro de Phaser (Fase 4 del MVP).
@@ -49,6 +49,8 @@ export interface AvatarLayerSpec {
   textureKey: string;
   /** Ruta del asset (servible por el dev server). */
   assetPath: string;
+  /** Tipo de capa (gobierna el orden de composición por fila). */
+  kind: AvatarLayerKind;
 }
 
 /** Capas a precargar para un AvatarConfig, en orden de dibujo (z). */
@@ -56,7 +58,19 @@ export function avatarLayerSpecs(config: AvatarConfig): AvatarLayerSpec[] {
   return resolveAvatarSpriteLayers(config).map(layer => ({
     textureKey: `avatar-layer-${layer.key}`,
     assetPath: layer.assetPath,
+    kind: layer.kind,
   }));
+}
+
+/**
+ * Orden de composición por fila: de frente/lado la masa trasera del pelo va
+ * DETRÁS del cuerpo (es opaca y taparía la cara); de espaldas va encima del
+ * cráneo. La cara va sobre el cuerpo y el flequillo cierra.
+ */
+export function avatarRowLayerOrder(row: number): readonly AvatarLayerKind[] {
+  return row === 2
+    ? ['body', 'hairBack', 'face', 'hairFront']
+    : ['hairBack', 'body', 'face', 'hairFront'];
 }
 
 /** Geometría de los 9 frames (índice = fila*3 + columna). */
@@ -91,9 +105,19 @@ export function composeAvatarTexture(scene: Phaser.Scene, specs: AvatarLayerSpec
 
   const ctx = canvasTexture.getContext();
   ctx.imageSmoothingEnabled = false;
-  for (const spec of available) {
-    const source = scene.textures.get(spec.textureKey).getSourceImage();
-    ctx.drawImage(source as CanvasImageSource, 0, 0);
+  // Composición fila a fila: el orden de capas depende de la dirección
+  // (ver avatarRowLayerOrder) — la hoja completa no se puede apilar de una vez.
+  for (let row = 0; row < 3; row++) {
+    for (const kind of avatarRowLayerOrder(row)) {
+      const spec = available.find(s => s.kind === kind);
+      if (!spec) continue;
+      const source = scene.textures.get(spec.textureKey).getSourceImage();
+      ctx.drawImage(
+        source as CanvasImageSource,
+        0, row * AVATAR_FRAME_HEIGHT, AVATAR_SHEET_WIDTH, AVATAR_FRAME_HEIGHT,
+        0, row * AVATAR_FRAME_HEIGHT, AVATAR_SHEET_WIDTH, AVATAR_FRAME_HEIGHT,
+      );
+    }
   }
   canvasTexture.refresh();
 

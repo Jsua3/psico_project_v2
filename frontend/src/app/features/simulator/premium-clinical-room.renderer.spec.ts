@@ -4,6 +4,8 @@ import {
   PREMIUM_ROOM_FOCUS_POINTS,
   PREMIUM_ROOM_GEOMETRY,
   PREMIUM_ROOM_OCCLUSION_ZONES,
+  premiumClinicalRoomRenderer,
+  premiumRoomMetadata,
 } from './premium-clinical-room.renderer';
 import { PREMIUM_RENDERER_LAYERS } from './scene-layer.types';
 import {
@@ -22,6 +24,17 @@ describe('premium clinical room — contrato de capas (preparación C)', () => {
   it('no incluye capas que pertenecen al gameplay (actors / uiHints)', () => {
     expect(PREMIUM_RENDERER_LAYERS).not.toContain('actors');
     expect(PREMIUM_RENDERER_LAYERS).not.toContain('uiHints');
+  });
+
+  it('es un SceneRenderer registrable que soporta solo sus claves autoría', () => {
+    expect(premiumClinicalRoomRenderer.key).toBe('premium-clinical-room');
+    expect(premiumClinicalRoomRenderer.supports('urgencias-crisis')).toBe(true);
+    expect(premiumClinicalRoomRenderer.supports('comisaria-sala-espera')).toBe(false);
+    expect(premiumClinicalRoomRenderer.supports(null)).toBe(false);
+  });
+
+  it('su metadata pura incluye las zonas de oclusión frontal', () => {
+    expect(premiumRoomMetadata().occlusionZones).toEqual(PREMIUM_ROOM_OCCLUSION_ZONES);
   });
 });
 

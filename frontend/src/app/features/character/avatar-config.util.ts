@@ -1,5 +1,5 @@
 import {
-  AvatarConfig, Uniform,
+  AvatarConfig, HairVariantId, Uniform,
   SKIN_TONES, HAIR_COLORS, HAIR_STYLES, EYES, BROWS, MOUTHS, ACCESSORIES,
 } from './avatar.model';
 
@@ -41,6 +41,30 @@ export function coerceAvatar(x: unknown): AvatarConfig {
     accessory: pick(ACCESSORIES, a['accessory'], d.accessory),
     uniform: uni,
   };
+}
+
+/**
+ * Resuelve la variante de cabello con arte real para una config (fase C).
+ * La forma manda; el color desempata: cualquier estilo rojizo usa el set
+ * `red`, y los estilos sin asset propio caen a la silueta más cercana.
+ */
+export function hairVariantId(config: Pick<AvatarConfig, 'hairStyle' | 'hairColor'>): HairVariantId {
+  if (config.hairStyle === 'ninguno') return 'none';
+  if (config.hairColor === 'rojizo') return 'red';
+  if (config.hairStyle === 'recogido') return 'tied_brown';
+  if (config.hairStyle === 'largo' || config.hairStyle === 'medio') return 'long_brown';
+  return 'short_black';
+}
+
+/** Patch canónico (hairStyle + hairColor) que produce la variante pedida. */
+export function hairVariantPatch(id: HairVariantId): Partial<AvatarConfig> {
+  switch (id) {
+    case 'long_brown':  return { hairStyle: 'largo',    hairColor: 'castano' };
+    case 'tied_brown':  return { hairStyle: 'recogido', hairColor: 'castano' };
+    case 'red':         return { hairStyle: 'medio',    hairColor: 'rojizo' };
+    case 'none':        return { hairStyle: 'ninguno' };
+    default:            return { hairStyle: 'corto',    hairColor: 'negro' };
+  }
 }
 
 export function serializeAvatar(a: AvatarConfig): string { return JSON.stringify(a); }

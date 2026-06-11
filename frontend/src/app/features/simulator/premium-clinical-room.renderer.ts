@@ -1,17 +1,22 @@
 // Solo tipos: el import se elide en runtime (los specs corren sin canvas).
 import type Phaser from 'phaser';
 import { DEPTH, actorDepth } from './depth-sort.util';
-import { AUTHORED_ROOM_HEIGHT, AUTHORED_ROOM_WIDTH } from './authored-clinical-room.util';
+import {
+  AUTHORED_ROOM_HEIGHT,
+  AUTHORED_ROOM_WIDTH,
+  isAuthoredClinicalRoomKey,
+} from './authored-clinical-room.util';
 import {
   PREMIUM_RENDERER_LAYERS,
-  PremiumClinicalRoomOptions,
-  PremiumRoomRenderResult,
+  SceneRenderer,
+  SceneRendererOptions,
+  SceneRenderMetadata,
   ScenePoint,
   SceneRect,
 } from './scene-layer.types';
 
 /**
- * Sala clínica premium (fase A+B del MVP premium).
+ * Sala clínica premium (fase A+B del MVP premium, fase C: SceneRenderer).
  *
  * Pinta SOLO arte: composición pixel-art de la sala de urgencias/atención
  * psicosocial por capas (background → floor → backProps → midProps →
@@ -110,10 +115,21 @@ const PAL = {
 
 // ── API pública ───────────────────────────────────────────────────────────────
 
+/** Metadata visual de la sala premium (pura — testeable sin canvas). */
+export function premiumRoomMetadata(): SceneRenderMetadata {
+  return {
+    bounds: { ...PREMIUM_ROOM_BOUNDS },
+    floorBounds: { ...PREMIUM_FLOOR_BOUNDS },
+    focusPoints: PREMIUM_ROOM_FOCUS_POINTS,
+    occlusionZones: PREMIUM_ROOM_OCCLUSION_ZONES,
+    paintedLayers: PREMIUM_RENDERER_LAYERS,
+  };
+}
+
 export function renderPremiumClinicalRoom(
   scene: Phaser.Scene,
-  options: PremiumClinicalRoomOptions,
-): PremiumRoomRenderResult {
+  options: SceneRendererOptions,
+): SceneRenderMetadata {
   paintBackground(scene, options);
   paintFloor(scene);
   paintBackProps(scene);
@@ -121,13 +137,15 @@ export function renderPremiumClinicalRoom(
   paintFrontProps(scene);
   paintLighting(scene, options);
 
-  return {
-    bounds: { ...PREMIUM_ROOM_BOUNDS },
-    floorBounds: { ...PREMIUM_FLOOR_BOUNDS },
-    focusPoints: PREMIUM_ROOM_FOCUS_POINTS,
-    paintedLayers: PREMIUM_RENDERER_LAYERS,
-  };
+  return premiumRoomMetadata();
 }
+
+/** Renderer registrable de la sala clínica premium (urgencias y salas autoría). */
+export const premiumClinicalRoomRenderer: SceneRenderer = {
+  key: 'premium-clinical-room',
+  supports: mapKey => isAuthoredClinicalRoomKey(mapKey),
+  render: renderPremiumClinicalRoom,
+};
 
 // ── Helpers de dibujo (coordenadas centradas, como el resto del runtime) ─────
 
@@ -158,7 +176,7 @@ function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
 
 // ── background: paredes, ventana, decoración de muro ─────────────────────────
 
-function paintBackground(scene: Phaser.Scene, options: PremiumClinicalRoomOptions): void {
+function paintBackground(scene: Phaser.Scene, options: SceneRendererOptions): void {
   const { roomLeft, roomRight, backWallTopY, wallFloorSeamY, floorFrontY,
           floorBackLeftX, floorBackRightX } = PREMIUM_ROOM_GEOMETRY;
   const g = scene.add.graphics().setDepth(DEPTH.BACKGROUND);
@@ -582,7 +600,7 @@ function paintFrontProps(scene: Phaser.Scene): void {
 
 // ── lighting: pools cálidos, haz de ventana, partículas ──────────────────────
 
-function paintLighting(scene: Phaser.Scene, options: PremiumClinicalRoomOptions): void {
+function paintLighting(scene: Phaser.Scene, options: SceneRendererOptions): void {
   const g = scene.add.graphics().setDepth(DEPTH.LIGHTING - 2);
 
   // Sombra global muy sutil que unifica la paleta.
