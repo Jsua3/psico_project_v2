@@ -90,6 +90,31 @@ export function computePlayerStep(
   };
 }
 
+/** Sub-pasos de un nudge táctil: 4 × clamp(34 ms) ≈ 20 px a PLAYER_SPEED. */
+export const NUDGE_SUBSTEPS = 4;
+
+/** Input sintético de una sola dirección (los botones táctiles no combinan ejes). */
+export function nudgeInput(direction: PlayerDirection): PlayerMotionInput {
+  return {
+    left: direction === 'left',
+    right: direction === 'right',
+    up: direction === 'up',
+    down: direction === 'down',
+  };
+}
+
+/**
+ * Paso de nudge táctil: un sub-paso del MISMO contrato que WASD
+ * (computePlayerStep con el delta máximo por frame). El llamador lo aplica
+ * NUDGE_SUBSTEPS veces con colisión por sub-paso — sin túneles ni saltos fijos.
+ */
+export function computeNudgeStep(
+  direction: PlayerDirection,
+  lastDirection: PlayerDirection,
+): PlayerMotionStep {
+  return computePlayerStep(nudgeInput(direction), lastDirection, PLAYER_MAX_DELTA_MS);
+}
+
 /** Hitbox de pies para un punto de pies (x, y). */
 export function playerHitbox(x: number, y: number): SceneRect {
   const cx = x + PLAYER_FEET_OFFSET.x;

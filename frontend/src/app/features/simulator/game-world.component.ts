@@ -37,9 +37,11 @@ import {
 import { resolveSceneRenderer } from './scene-renderer.registry';
 import { SceneRenderMetadata } from './scene-layer.types';
 import {
+  NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
   PlayerDirection,
   PlayerMotionInput,
+  computeNudgeStep,
   computePlayerStep,
   playerHitbox,
   rectsIntersect,
@@ -423,10 +425,21 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') {
-    const d = 34;
-    const mv: Record<string, [number, number]> = { up:[0,-d], down:[0,d], left:[-d,0], right:[d,0] };
-    this.movePlayer(...mv[direction]);
-    if (this.player) this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+    if (!this.player) return;
+    // Mismo contrato que WASD (player-motion.util): sub-pasos con colisión y
+    // sliding, pose/dirección estables, sin caminar en el sitio contra paredes.
+    let moved = false;
+    for (let i = 0; i < NUDGE_SUBSTEPS; i++) {
+      const step = computeNudgeStep(direction, this.lastDirection);
+      if (!this.movePlayer(step.dx, step.dy)) break;
+      moved = true;
+    }
+    this.lastDirection = direction;
+    this.applyPlayerPose(direction, moved); // el update() del frame siguiente vuelve a idle
+    if (moved) {
+      this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+      this.ysort(this.player);
+    }
     this.updateNearestInteraction();
   }
 

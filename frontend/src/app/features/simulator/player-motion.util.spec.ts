@@ -1,8 +1,10 @@
 import {
+  NUDGE_SUBSTEPS,
   PLAYER_HITBOX,
   PLAYER_MAX_DELTA_MS,
   PLAYER_SPEED,
   PLAYER_SPRITE_OFFSET_Y,
+  computeNudgeStep,
   computePlayerStep,
   playerHitbox,
   rectsIntersect,
@@ -83,6 +85,37 @@ describe('playerHitbox — colisión de pies', () => {
     // El sprite sube ~76 px desde los pies; el hitbox solo 16 (zona de pies).
     expect(hb.y).toBe(-PLAYER_HITBOX.height);
     expect(Math.abs(PLAYER_SPRITE_OFFSET_Y)).toBeGreaterThan(PLAYER_HITBOX.height);
+  });
+});
+
+describe('computeNudgeStep (nudge táctil)', () => {
+  it('nudge right produce dirección right, solo eje X y moving=true', () => {
+    const step = computeNudgeStep('right', 'down');
+    expect(step.direction).toBe('right');
+    expect(step.moving).toBe(true);
+    expect(step.dx).toBeCloseTo(PLAYER_SPEED * (PLAYER_MAX_DELTA_MS / 1000), 5);
+    expect(step.dy).toBe(0);
+  });
+
+  it('no hay diagonal: cada llamada mueve un solo eje', () => {
+    for (const dir of ['up', 'down', 'left', 'right'] as const) {
+      const step = computeNudgeStep(dir, 'down');
+      expect(step.dx === 0 || step.dy === 0).toBe(true);
+      expect(Math.abs(step.dx) + Math.abs(step.dy)).toBeGreaterThan(0);
+      expect(step.direction).toBe(dir);
+    }
+  });
+
+  it('respeta PLAYER_SPEED con el delta clamp del contrato (sin salto fijo)', () => {
+    const step = computeNudgeStep('up', 'up');
+    expect(Math.hypot(step.dx, step.dy))
+      .toBeLessThanOrEqual(PLAYER_SPEED * (PLAYER_MAX_DELTA_MS / 1000) + 1e-9);
+  });
+
+  it('NUDGE_SUBSTEPS acota el desplazamiento total de un tap (~20px)', () => {
+    const total = NUDGE_SUBSTEPS * PLAYER_SPEED * (PLAYER_MAX_DELTA_MS / 1000);
+    expect(total).toBeGreaterThanOrEqual(16);
+    expect(total).toBeLessThanOrEqual(24);
   });
 });
 
