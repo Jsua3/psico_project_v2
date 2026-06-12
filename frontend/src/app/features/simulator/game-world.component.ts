@@ -312,6 +312,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   setWorld(world: SimulationWorldState) {
+    // Cambio de mapa (decisión o puerta): la sala previa ya no aplica. Sin este
+    // reset, keepPosition "conserva" la posición del render transicional y se
+    // pierde la entrada (entryX/entryY) que enter_room persistió en world.player.
+    if (this.world && this.world.map.key !== world.map.key) this.currentRoomKey = '';
     this.world = world;
     this.nearestKey = null;
     this.callbacks.onProximity(null);
@@ -1150,6 +1154,16 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
+  /** true si algún NPC está a distancia de diálogo del jugador. */
+  private isAnyNpcInRange(): boolean {
+    if (!this.player) return false;
+    for (const container of this.npcMarkers.values()) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
+      if (d <= this.NPC_INTERACT_RANGE) return true;
+    }
+    return false;
+  }
+
   private interactNearestNpc() {
     if (!this.player) return;
     let closestDist = this.NPC_INTERACT_RANGE;
@@ -1752,8 +1766,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
       if (d < nearestD) { nearest = { ...obj, x: ox, y: oy }; nearestD = d; }
     }
 
+    // Las zonas ambientales son sabor de último recurso: un NPC en rango de
+    // diálogo SIEMPRE gana (si no, la zona se roba la E junto a la enfermera).
     const ambientZones = getSceneAmbientZones(mapKey);
-    if (ambientZones.length && (!nearest || nearestD > 74)) {
+    if (ambientZones.length && !this.isAnyNpcInRange() && (!nearest || nearestD > 74)) {
       for (const zone of ambientZones) {
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.x, zone.y);
         if (d <= zone.radius && d < nearestD) {

@@ -20,8 +20,8 @@ DOORS = [
         "position": (912, 440),
         "metadata": {
             "targetNodeKey": "ruta-proteccion",
-            "entryX": 126,
-            "entryY": 364,
+            "entryX": 160,
+            "entryY": 452,
             "requiresNpcs": ["enfermera-urgencias"],
             "lockedMessage": (
                 "La sala de escucha se está preparando. Habla primero con la "

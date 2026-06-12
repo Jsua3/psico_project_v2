@@ -69,7 +69,7 @@ export const AUTHORED_MARKER_POSITIONS: Readonly<Record<string, { x: number; y: 
   'tool-bitacora':           { x: 648, y: 372 },  // bitácora sobre el escritorio
   // Puertas espaciales del caso competitivo (seed_competitive_doors):
   'puerta-sala-escucha':     { x: 838, y: 440 },  // puerta derecha-abajo → sala de escucha
-  'puerta-urgencias':        { x: 122, y: 316 },  // puerta izquierda → volver a urgencias
+  'puerta-urgencias':        { x: 122, y: 460 },  // puerta izquierda-abajo → volver a urgencias
   // Decisiones de la sala de escucha (mismas coords de marco que urgencias):
   'psiquiatria-aislada':     { x: 178, y: 268 },  // remisión aislada (riesgosa)
   'mediacion-prohibida':     { x: 806, y: 296 },  // mediación con agresor (prohibida)
