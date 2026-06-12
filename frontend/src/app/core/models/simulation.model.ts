@@ -219,6 +219,8 @@ export interface DialogueChoiceState {
   isRecommended?: boolean;
   /** UI hint: highlight choice as clinically prohibited (optional, backend may omit) */
   isProhibited?: boolean;
+  /** UI: la decisión se tomaría con información incompleta (gating frontend, Fase 9). */
+  evidenceWarning?: string;
 }
 
 export interface InteractionResult {

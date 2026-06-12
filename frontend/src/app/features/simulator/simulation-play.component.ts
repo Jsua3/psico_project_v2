@@ -5,9 +5,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
 import {
-  DialogueState, MapObjectState, NpcConfig, ProgressMapState, SimulationAttemptState,
-  ScenarioConfig, SimulationFeedback, SimulationWorldState, ToolUseResult
+  DialogueState, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
+  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
+  SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
+import {
+  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, applyFeedbackToPatient, parseInterventionRules,
+} from './patient-state.util';
+import { missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
@@ -89,6 +94,7 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
             [attempt]="game"
             [stressPulse]="stressPulse()"
             [nearbyInteractionKey]="nearbyInteraction()?.key ?? null"
+            [patientState]="patientState()"
             [stageLabel]="currentStageLabel()"
             [progressLabel]="progressLabel()"
             [journalOpen]="journalOpen()"
@@ -597,6 +603,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly journalOpen  = signal(false);
   readonly fadeActive   = signal(false);
 
+  /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
+  readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
+  private interventionRules: InterventionRuleSet = DEFAULT_INTERVENTION_RULES;
+  /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
+  private readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
+  private pendingEvidenceDecisionId: number | null = null;
+
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
     status: this.attempt()?.status ?? null,
@@ -629,6 +642,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.simulationService.getInterventionRules().subscribe({
+      next: raw => { this.interventionRules = parseInterventionRules(raw); },
+      error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
+    });
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) { this.error.set('Caso no encontrado.'); this.loading.set(false); return; }
 
@@ -675,6 +692,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private bootstrapAttempt(attempt: SimulationAttemptState) {
     this.audioDirector.init();
     this.attempt.set(attempt);
+    this.patientState.set(PATIENT_INITIAL_STATE);
+    this.viewedNpcKeys.set(new Set<string>());
+    this.pendingEvidenceDecisionId = null;
     this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
@@ -732,6 +752,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   handleFrontendChoice(key: string) {
+    if (key === 'frontend:cancel-evidence') {
+      this.pendingEvidenceDecisionId = null;
+      this.closeDialogue();
+      return;
+    }
+    if (key.startsWith('frontend:proceed-evidence:')) {
+      const id = Number(key.split(':')[2]);
+      this.dialogue.set(null);
+      if (Number.isFinite(id)) this.executeDecision(id);
+      return;
+    }
     if (key === 'frontend:cancel-restricted') {
       this.pendingRestrictedInteraction.set(null);
       this.closeDialogue();
@@ -766,11 +797,38 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: result => {
         this.world.set(result.world);
         this.selectedInteraction.set(result.interaction);
-        this.dialogue.set(result.dialogue ?? result.interaction.dialogue);
+        this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
         this.busy.set(false);
       },
       error: () => { this.showActionError('No pudimos abrir la interacción.'); this.busy.set(false); }
     });
+  }
+
+  /** Fase 9: líneas desbloqueadas por evidencia + marca de información incompleta
+   *  + alerta honesta en choices de decisiones prohibidas. Solo presentación. */
+  private decorateDialogue(dialogue: DialogueState | null): DialogueState | null {
+    if (!dialogue) return null;
+    const node = this.attempt()?.currentNode;
+    const def = nodeEvidence(node?.key);
+    const extras = unlockedExtraLines(def, dialogue.key, this.world(), this.viewedNpcKeys());
+    const lines = extras.length
+      ? [...dialogue.lines, ...extras.map((text, i) => ({
+          order: dialogue.lines.length + i + 1,
+          speakerName: dialogue.speakerName, text, emotion: 'positive',
+        }))]
+      : dialogue.lines;
+    const missing = missingEvidence(def, this.world(), this.viewedNpcKeys());
+    const optionById = new Map((node?.options ?? []).map(o => [o.id, o]));
+    const choices = dialogue.choices.map(choice => {
+      if (choice.decisionOptionId == null) return choice;
+      const option = optionById.get(choice.decisionOptionId);
+      return {
+        ...choice,
+        isProhibited: choice.isProhibited || option?.prohibitedConduct || false,
+        ...(missing.length && def ? { evidenceWarning: def.missingMessage } : {}),
+      };
+    });
+    return { ...dialogue, lines, choices };
   }
 
   private showRiskyActionWarning(interaction: MapObjectState) {
@@ -842,6 +900,20 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   executeDecision(decisionOptionId: number) {
     const game = this.attempt();
     if (!game || this.busy()) return;
+    if (!(game.currentNode.options ?? []).some(o => o.id === decisionOptionId)) {
+      // Decisión de otra etapa (sala visitada por puerta): feedback claro, sin 400.
+      this.showActionError('Esta intervención pertenece a otra etapa del caso. Vuelve cuando el flujo te lleve a esta sala.');
+      return;
+    }
+    const evidenceDef = nodeEvidence(game.currentNode.key);
+    const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
+    if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
+      this.pendingEvidenceDecisionId = decisionOptionId;
+      this.dialogue.set(this.buildEvidenceGateDialogue(evidenceDef.missingMessage, decisionOptionId));
+      this.announce(evidenceDef.missingMessage);
+      return;
+    }
+    this.pendingEvidenceDecisionId = null;
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
@@ -861,6 +933,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playSfx('session_complete');
           }
           if (updated.feedback) {
+            // Consecuencia visible: la paciente reacciona (HUD + tint/shake del NPC).
+            const nextPatient = applyFeedbackToPatient(this.patientState(), this.interventionRules, updated.feedback);
+            this.patientState.set(nextPatient);
+            this.gameWorld?.updatePatientVisualState(nextPatient);
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
@@ -911,6 +987,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
+    this.viewedNpcKeys.update(prev => new Set(prev).add(npc.key));
     if (!npc.dialogue?.lines?.length) return;
     this.dialogue.set({
       key: `npc-${npc.key}`,
@@ -1020,6 +1097,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(() => {
       if (this.dialogue()?.key?.startsWith('tool-feedback-')) this.dialogue.set(null);
     }, 5000);
+  }
+
+  /** Gate de evidencia (Fase 9): permite cancelar o decidir bajo registro. */
+  private buildEvidenceGateDialogue(message: string, decisionOptionId: number): DialogueState {
+    return {
+      key: `evidence-gate-${decisionOptionId}`,
+      speakerName: 'Criterio profesional', portraitKey: 'info', emotion: 'concerned',
+      lines: [
+        { order: 1, speakerName: 'Criterio profesional', text: message, emotion: 'concerned' },
+        { order: 2, speakerName: 'Criterio profesional', text: 'Puedes intervenir igualmente, pero quedará registrada como una decisión con información incompleta.', emotion: 'neutral' },
+      ],
+      choices: [
+        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {}, isRecommended: true },
+        { key: `frontend:proceed-evidence:${decisionOptionId}`, text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
+      ],
+    };
   }
 
   private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {

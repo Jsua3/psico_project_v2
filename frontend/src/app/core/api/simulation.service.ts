@@ -81,6 +81,11 @@ export class SimulationService {
     return this.http.get<ScenarioConfig>(`/assets/game/scenarios/${assetKey}.json`);
   }
 
+  /** Reglas de reacción del paciente (asset frontend versionado, Fase 8). */
+  getInterventionRules() {
+    return this.http.get<unknown>('/assets/game/scenarios/intervention-rules.json');
+  }
+
   /** Fase 5: walk-through spatial door — load the target room (non-scored). */
   enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, entryX: number, entryY: number) {
     return this.http.post<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/enter-room`, {

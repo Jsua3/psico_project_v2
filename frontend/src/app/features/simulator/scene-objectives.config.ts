@@ -9,6 +9,10 @@ export interface SceneProgressDef {
 
 export const SCENE_OBJECTIVES: Record<string, string> = {
   'urgencias-crisis': HOSPITAL_SCENE_OBJECTIVE,
+  'ruta-proteccion':
+    'Activa la ruta institucional con criterio: valora el riesgo con instrumento estructurado y prioriza la seguridad de la consultante y sus hijos.',
+  'informe-integral':
+    'Documenta un informe integral no revictimizante: motivo de consulta, estado mental, riesgo de feminicidio e impacto en los niños.',
   'valoracion-comisaria': COMISARIA_SCENE_OBJECTIVE,
   'proteccion-nna':
     'Protege a los menores expuestos a violencia, activa rutas NNA y documenta el interés superior del niño.',

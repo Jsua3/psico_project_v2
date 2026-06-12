@@ -52,7 +52,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
                   [class.choice-btn--prohibited]="choice.isProhibited"
                   [class.choice-btn--chosen]="chosenKey() === choice.key"
                   [style.--stagger]="i"
-                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.isRecommended ? ' (recomendada)' : '') + (choice.isProhibited ? ' (contraindicada)' : '')"
+                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.isRecommended ? ' (recomendada)' : '') + (choice.isProhibited ? ' (contraindicada)' : '') + (choice.evidenceWarning ? ' (información incompleta)' : '')"
                   (mouseenter)="onChoiceHover()"
                   (click)="handleChoice(choice)">
                   <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
@@ -64,6 +64,9 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
                     }
                     @if (choice.isProhibited) {
                       <span class="choice-btn__meta">Contraindicada</span>
+                    }
+                    @if (choice.evidenceWarning) {
+                      <span class="choice-btn__meta choice-btn__meta--evidence">Información incompleta</span>
                     }
                   </span>
                 </button>
@@ -294,6 +297,10 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       color: #bfeef1;
     }
     .choice-btn--recommended:hover { border-color: rgba(108,192,199,.85); background: rgba(108,192,199,.2); }
+    .choice-btn__meta--evidence {
+      border-color: rgba(245,184,75,.6);
+      color: #f5d49b;
+    }
     .choice-btn--prohibited {
       border-color: rgba(168,80,98,.45);
       background: rgba(168,80,98,.08);
