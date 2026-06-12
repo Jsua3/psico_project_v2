@@ -95,6 +95,43 @@ def feedback_dto(decision, effects, message):
     }
 
 
+TIMELINE_EVENT_TYPES = {
+    "DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED",
+    "TOOL_USED", "ROOM_ENTERED", "SAFE_EXIT_REQUESTED",
+}
+
+
+def _format_mmss(seconds):
+    if seconds is None:
+        return "--:--"
+    minutes, secs = divmod(max(0, int(seconds)), 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def build_timeline(attempt, events):
+    """Línea de tiempo de decisiones/acciones clave para el reporte del estudiante."""
+    start = attempt.started_at
+    timeline = []
+    for ev in events:
+        if ev.event_type not in TIMELINE_EVENT_TYPES:
+            continue
+        seconds = None
+        if start and ev.occurred_at:
+            seconds = int((ev.occurred_at - start).total_seconds())
+        decision = ev.decision_option if ev.decision_option_id else None
+        timeline.append({
+            "atSeconds": seconds,
+            "time": _format_mmss(seconds),
+            "type": ev.event_type,
+            "classification": decision.classification if decision else None,
+            "prohibited": bool(decision.prohibited_conduct) if decision else False,
+            "label": (decision.text if decision else ev.detail) or "",
+            "scoreDelta": ev.score_delta,
+            "stressDelta": ev.stress_delta,
+        })
+    return timeline
+
+
 def build_completion_report(attempt, events):
     adequate = risky = inadequate = prohibited = tools_used = 0
     visited = []
@@ -167,6 +204,11 @@ def build_completion_report(attempt, events):
         "competencies": competencies,
         "recommendations": recommendations,
         "summaryMessage": summary,
+        "totalDurationSeconds": (
+            int((attempt.ended_at - attempt.started_at).total_seconds())
+            if attempt.started_at and attempt.ended_at else None
+        ),
+        "timeline": build_timeline(attempt, events),
     }
 
 

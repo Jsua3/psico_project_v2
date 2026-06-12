@@ -1,6 +1,6 @@
 import { Component, inject, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AttemptCompletionReport, SimulationAttemptState } from '../../core/models/simulation.model';
+import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
 import { AvatarFigureComponent } from '../character/avatar-figure.component';
 import { AvatarStore } from '../character/avatar.store';
 import { decisionTotal, performanceLabel } from './outcome.util';
@@ -56,6 +56,37 @@ import { decisionTotal, performanceLabel } from './outcome.util';
               @if (r.prohibitedDecisions) { <span class="oc-chip oc-chip--alert">Alertas éticas: {{ r.prohibitedDecisions }}</span> }
             </div>
           </div>
+
+          <div class="oc-block">
+            <p class="oc-label">Consecuencias del caso</p>
+            <div class="oc-chips oc-chips--state">
+              <span class="oc-chip">Confianza final: {{ r.metrics.userTrust }}%</span>
+              <span class="oc-chip">Riesgo final: {{ r.metrics.victimRisk }}%</span>
+              <span class="oc-chip" [class.oc-chip--ok]="r.metrics.institutionalRouteActivated">
+                Ruta institucional: {{ r.metrics.institutionalRouteActivated ? 'activada' : 'no activada' }}
+              </span>
+              @if (r.metrics.revictimizationRisk) {
+                <span class="oc-chip oc-chip--alert">Riesgo de revictimización detectado</span>
+              }
+            </div>
+          </div>
+
+          @if (r.timeline?.length) {
+            <div class="oc-block">
+              <p class="oc-label">Línea de tiempo de decisiones clave</p>
+              <ol class="oc-timeline">
+                @for (t of r.timeline; track $index) {
+                  <li class="oc-tl" [attr.data-tl]="timelineTone(t)">
+                    <span class="oc-tl__time">{{ t.time }}</span>
+                    <span class="oc-tl__label">{{ t.label }}</span>
+                    @if (t.scoreDelta || t.stressDelta) {
+                      <span class="oc-tl__delta">{{ t.scoreDelta >= 0 ? '+' : '' }}{{ t.scoreDelta }} pts · estrés {{ t.stressDelta >= 0 ? '+' : '' }}{{ t.stressDelta }}%</span>
+                    }
+                  </li>
+                }
+              </ol>
+            </div>
+          }
 
           @if (r.competencies.length) {
             <div class="oc-block">
@@ -128,6 +159,21 @@ import { decisionTotal, performanceLabel } from './outcome.util';
     }
     .oc-chip { background: var(--sim-surface-2, rgba(18,24,42,.6)); border-color: var(--sim-border, rgba(182,156,255,.22)); color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-chip--alert { background: rgba(226,90,79,.16); border-color: rgba(226,90,79,.45); color: #f1a79f; }
+    .oc-chip--ok { border-color: rgba(110,198,122,.5); color: #a9e2b1; }
+    .oc-chips--state { margin-top: 0; }
+    .oc-timeline { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .oc-tl {
+      display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: baseline;
+      padding: 8px 10px; border-radius: 10px; border-left: 3px solid rgba(182,156,255,.4);
+      background: rgba(255,255,255,.04); font-size: .82rem;
+    }
+    .oc-tl[data-tl='ADEQUATE']   { border-left-color: #6EC67A; }
+    .oc-tl[data-tl='RISKY']      { border-left-color: #F5B84B; }
+    .oc-tl[data-tl='INADEQUATE'] { border-left-color: #E25A4F; }
+    .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
+    .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
+    .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
+    .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .72rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
@@ -148,6 +194,11 @@ export class AttemptOutcomeComponent {
   readonly retry = output<void>();
 
   perf(r: AttemptCompletionReport): string { return performanceLabel(r); }
+
+  /** Tono visual de una entrada del timeline: prohibida pisa la clasificación. */
+  timelineTone(t: AttemptTimelineEntry): string {
+    return t.prohibited ? 'PROHIBITED' : (t.classification ?? 'EVENT');
+  }
 
   barPct(r: AttemptCompletionReport, n: number): number {
     const total = decisionTotal(r);

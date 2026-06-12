@@ -65,4 +65,23 @@ describe('AttemptOutcomeComponent', () => {
     expect(component.formatDuration(40)).toBe('40 s');
     expect(component.formatDuration(null)).toBe('No disponible');
   });
+
+  it('timelineTone: prohibida pisa la clasificación; sin clasificación = evento', () => {
+    const base = { atSeconds: 10, time: '00:10', type: 'DECISION_SELECTED', label: 'x', scoreDelta: 5, stressDelta: -2 };
+    expect(component.timelineTone({ ...base, classification: 'ADEQUATE', prohibited: false })).toBe('ADEQUATE');
+    expect(component.timelineTone({ ...base, classification: 'INADEQUATE', prohibited: true })).toBe('PROHIBITED');
+    expect(component.timelineTone({ ...base, type: 'ROOM_ENTERED', classification: null, prohibited: false })).toBe('EVENT');
+  });
+
+  it('el reporte acepta una línea de tiempo opcional (contrato aditivo)', () => {
+    const report = makeReport({
+      timeline: [{
+        atSeconds: 135, time: '02:15', type: 'DECISION_SELECTED',
+        classification: 'ADEQUATE', prohibited: false,
+        label: 'Aplicar Primeros Auxilios Psicológicos', scoreDelta: 120, stressDelta: -10,
+      }],
+    });
+    expect(report.timeline![0].time).toBe('02:15');
+    expect(makeReport().timeline).toBeUndefined();
+  });
 });

@@ -56,6 +56,17 @@ export interface SimulationMetrics {
   revictimizationRisk: boolean;
 }
 
+export interface AttemptTimelineEntry {
+  atSeconds: number | null;
+  time: string;
+  type: string;
+  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE' | null;
+  prohibited: boolean;
+  label: string;
+  scoreDelta: number;
+  stressDelta: number;
+}
+
 export interface AttemptCompletionReport {
   attemptId: string;
   caseTitle: string;
@@ -76,6 +87,8 @@ export interface AttemptCompletionReport {
   competencies: string[];
   recommendations: string[];
   summaryMessage: string;
+  /** Línea de tiempo de decisiones/acciones clave (backend puede omitirla). */
+  timeline?: AttemptTimelineEntry[];
 }
 
 export interface PhaseDuration {

@@ -121,3 +121,31 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
     assert resp.data["message"] == "Salida segura registrada"
     assert resp.data["data"]["status"] == "SAFE_EXITED"
     assert len(resp.data["data"]["supportResources"]) == 3
+
+
+def test_completion_report_includes_timeline(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt = c.post("/api/simulation/attempts",
+                     {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+    attempt_id, token = attempt["attemptId"], attempt["attemptToken"]
+    option_id = attempt["currentNode"]["options"][0]["id"]
+    c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
+           {"attemptToken": token, "decisionOptionId": option_id}, format="json")
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report?attemptToken={token}"
+    ).data["data"]
+
+    assert "timeline" in report
+    decisions = [t for t in report["timeline"]
+                 if t["type"] in ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")]
+    assert decisions, "la decisión elegida debe aparecer en la línea de tiempo"
+    entry = decisions[0]
+    assert entry["label"]
+    assert entry["classification"] in ("ADEQUATE", "RISKY", "INADEQUATE")
+    assert entry["time"].count(":") == 1          # mm:ss
+    assert isinstance(entry["scoreDelta"], int)
+    assert isinstance(entry["stressDelta"], int)
+    assert report["totalDurationSeconds"] is None or report["totalDurationSeconds"] >= 0
