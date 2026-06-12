@@ -30,7 +30,6 @@ import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
-  AUTHORED_NPC_POSITIONS,
   AUTHORED_PLAYER_SPAWN,
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
@@ -836,7 +835,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
       mergedObjects.forEach(obj => this.createMarker(obj));
     }
 
-    this.spawnNpcs(authoredClinicalRoom ? this.positionAuthoredClinicalNpcs(roomConfig.npcs) : roomConfig.npcs);
+    // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
+    // red de seguridad (freeTileNear) si alguna cayera en colisión.
+    this.spawnNpcs(roomConfig.npcs);
     const spawn = keepPosition ?? (authoredClinicalRoom
       ? { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y }
       : { x: spawnX, y: spawnY });
@@ -860,13 +861,6 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (this.firstSceneFadeDone) return;
     this.firstSceneFadeDone = true;
     if (!this.callbacks.reduceMotion) this.cameras.main.fadeIn(300, 7, 10, 20);
-  }
-
-  private positionAuthoredClinicalNpcs(npcs: NpcConfig[]): NpcConfig[] {
-    return npcs.map((npc, index) => {
-      const pos = AUTHORED_NPC_POSITIONS[index] ?? AUTHORED_NPC_POSITIONS[AUTHORED_NPC_POSITIONS.length - 1];
-      return { ...npc, x: pos.x, y: pos.y };
-    });
   }
 
   private checkExitTriggers() {

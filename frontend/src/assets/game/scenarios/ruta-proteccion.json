@@ -6,9 +6,9 @@
       "key": "sala-atencion",
       "tiledMapKey": "map-ruta-sala",
       "tiledJsonPath": "/assets/game/maps/ruta-sala.json",
-      "displayName": "Sala de Atención — Ruta de Protección",
-      "spawnX": 160,
-      "spawnY": 200,
+      "displayName": "Sala de Escucha — Ruta de Protección",
+      "spawnX": 480,
+      "spawnY": 420,
       "exits": [],
       "npcs": [
         {
@@ -16,13 +16,36 @@
           "npcType": "colleague",
           "displayName": "Trabajadora social",
           "portrait": "👩‍💼",
-          "x": 300,
-          "y": 180,
+          "x": 736,
+          "y": 372,
           "frameIndex": 428,
+          "avatarPresetKey": "colega-clinica",
+          "facing": "down",
+          "emotion": "receptive",
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
-              { "text": "La Resolución 459/2012 del MSPS establece el protocolo que debemos seguir. ¿Ya activaste la notificación a la Comisaría de Familia?", "emotion": "neutral" },
+              { "text": "La Resolución 459 de 2012 del MSPS establece el protocolo que debemos seguir. ¿Ya activaste la notificación a la Comisaría de Familia?", "emotion": "neutral" },
               { "text": "El ICBF debe ser notificado si los menores estuvieron presentes durante la agresión. Eso es Ley 1098.", "emotion": "neutral" }
+            ]
+          }
+        },
+        {
+          "key": "supervisor-ruta",
+          "npcType": "supervisor",
+          "displayName": "Supervisora clínica",
+          "portrait": "👨‍💼",
+          "x": 320,
+          "y": 306,
+          "frameIndex": 428,
+          "avatarPresetKey": "supervisor-clinico",
+          "facing": "down",
+          "emotion": "neutral",
+          "motion": { "behavior": "attentive" },
+          "dialogue": {
+            "lines": [
+              { "text": "Antes de activar o descartar una ruta, valora el riesgo con un instrumento estructurado. La intuición no es evidencia.", "emotion": "neutral" },
+              { "text": "Si te falta contexto, vuelve a urgencias por la puerta. Las salas están conectadas por algo.", "emotion": "neutral" }
             ]
           }
         }

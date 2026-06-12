@@ -1,7 +1,5 @@
 import {
-  AUTHORED_CLINICAL_COLLISIONS,
   AUTHORED_MARKER_POSITIONS,
-  AUTHORED_NPC_POSITIONS,
   AUTHORED_PLAYER_SPAWN,
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
@@ -58,16 +56,8 @@ describe('authored clinical room geometry', () => {
     }
   });
 
-  it('keeps every NPC reachable for dialogue (free spot within talk range)', () => {
-    for (const pos of AUTHORED_NPC_POSITIONS) {
-      const reachable = [
-        [pos.x, pos.y + 50], [pos.x, pos.y - 50],
-        [pos.x + 50, pos.y], [pos.x - 50, pos.y],
-        [pos.x, pos.y],
-      ].some(([cx, cy]) => !collidesInAuthoredRoom(cx, cy));
-      expect(reachable).toBe(true);
-    }
-  });
+  // Las posiciones de NPC ahora viven en los JSON de escenario y las valida
+  // scenario-npc-configs.spec.ts contra las colisiones reales de la sala.
 
   it('resolves marker overrides by backend key', () => {
     expect(authoredMarkerPosition('escucha-segura')).not.toBeNull();

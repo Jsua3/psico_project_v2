@@ -26,6 +26,17 @@
           "x": 300,
           "y": 180,
           "frameIndex": 266,
+          "avatarPresetKey": "madre-vbg",
+          "facing": "down",
+          "emotion": "anxious",
+          "motion": {
+            "behavior": "pace",
+            "speed": 20,
+            "anchors": [
+              { "x": 286, "y": 180, "pauseMs": 1800, "face": "left" },
+              { "x": 318, "y": 188, "pauseMs": 1500, "face": "down" }
+            ]
+          },
           "dialogue": {
             "lines": [
               { "text": "Señora lleva años aguantando. Tiene dos niños, de 7 y 10 años. Esta mañana llegó al hospital con hematomas en el rostro y los brazos.", "emotion": "anxious" },
@@ -41,6 +52,10 @@
           "x": 420,
           "y": 240,
           "frameIndex": 428,
+          "avatarPresetKey": "colega-clinica",
+          "facing": "left",
+          "emotion": "receptive",
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Revisa el expediente antes de entrar al consultorio. La semana pasada él amenazó con un arma blanca — eso clasifica como riesgo alto de feminicidio.", "emotion": "neutral" },
@@ -80,6 +95,10 @@
           "x": 280,
           "y": 200,
           "frameIndex": 266,
+          "avatarPresetKey": "paciente-vbg",
+          "facing": "down",
+          "emotion": "closed",
+          "motion": { "behavior": "avoidant", "zone": { "x": 256, "y": 184, "width": 48, "height": 32 } },
           "dialogue": {
             "lines": [
               { "text": "...", "emotion": "anxious" },
@@ -113,6 +132,10 @@
           "x": 250,
           "y": 160,
           "frameIndex": 428,
+          "avatarPresetKey": "supervisor-clinico",
+          "facing": "down",
+          "emotion": "neutral",
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "¿Ya habló con la familia en la sala de espera? Ese contexto es crítico antes de entrar con la paciente.", "emotion": "neutral" },

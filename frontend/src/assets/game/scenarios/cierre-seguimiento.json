@@ -7,8 +7,8 @@
       "tiledMapKey": "map-cierre-sala",
       "tiledJsonPath": "/assets/game/maps/cierre-sala.json",
       "displayName": "Sala de Cierre y Seguimiento",
-      "spawnX": 160,
-      "spawnY": 200,
+      "spawnX": 480,
+      "spawnY": 420,
       "exits": [],
       "npcs": [
         {
@@ -16,9 +16,13 @@
           "npcType": "supervisor",
           "displayName": "Supervisión clínica",
           "portrait": "👨‍💼",
-          "x": 280,
-          "y": 180,
+          "x": 736,
+          "y": 372,
           "frameIndex": 428,
+          "avatarPresetKey": "supervisor-clinico",
+          "facing": "down",
+          "emotion": "neutral",
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "El plan de seguimiento debe incluir: atención semanal, articulación con casa refugio si el riesgo es alto, y coordinación activa con Fiscalía.", "emotion": "neutral" },

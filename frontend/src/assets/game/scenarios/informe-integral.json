@@ -7,8 +7,8 @@
       "tiledMapKey": "map-informe-oficina",
       "tiledJsonPath": "/assets/game/maps/informe-oficina.json",
       "displayName": "Oficina — Informe Psicológico Integral",
-      "spawnX": 160,
-      "spawnY": 200,
+      "spawnX": 480,
+      "spawnY": 420,
       "exits": [],
       "npcs": [
         {
@@ -16,9 +16,13 @@
           "npcType": "supervisor",
           "displayName": "Supervisión clínica",
           "portrait": "👨‍💼",
-          "x": 280,
-          "y": 180,
+          "x": 736,
+          "y": 372,
           "frameIndex": 428,
+          "avatarPresetKey": "supervisor-clinico",
+          "facing": "down",
+          "emotion": "neutral",
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "El informe debe incluir la valoración del riesgo de feminicidio — no solo los síntomas observados.", "emotion": "neutral" },

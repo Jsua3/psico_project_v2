@@ -69,12 +69,6 @@ export const AUTHORED_MARKER_POSITIONS: Readonly<Record<string, { x: number; y: 
   'tool-bitacora':           { x: 648, y: 372 },  // bitácora sobre el escritorio
 };
 
-/** Posiciones de NPCs en la sala autoría (alcanzables desde el piso). */
-export const AUTHORED_NPC_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
-  { x: 736, y: 372 },  // enfermera de turno, frente al escritorio
-  { x: 372, y: 430 },  // colega de guardia, en el piso central
-];
-
 export function authoredMarkerPosition(key: string): { x: number; y: number } | null {
   return AUTHORED_MARKER_POSITIONS[key] ?? null;
 }
