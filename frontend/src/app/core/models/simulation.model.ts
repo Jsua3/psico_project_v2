@@ -89,6 +89,18 @@ export interface AttemptCompletionReport {
   summaryMessage: string;
   /** Línea de tiempo de decisiones/acciones clave (backend puede omitirla). */
   timeline?: AttemptTimelineEntry[];
+  /** Efecto mariposa: final canónico del caso (solo intentos COMPLETED). */
+  ending?: AttemptEnding | null;
+}
+
+export interface AttemptEnding {
+  key: 'integral' | 'brechas' | 'riesgo' | 'critico';
+  title: string;
+  message: string;
+  tone: 'positive' | 'neutral' | 'warning' | 'critical';
+  severityCounts: Record<'recommended' | 'acceptable' | 'risky' | 'critical', number>;
+  caseFlags: Record<string, boolean>;
+  caseMetrics: Record<string, number>;
 }
 
 export interface PhaseDuration {
@@ -718,7 +730,10 @@ export type NpcAvatarPresetKey =
   | 'colega-clinica'
   | 'supervisor-clinico'
   | 'seguridad'
-  | 'adolescente-nna';
+  | 'adolescente-nna'
+  | 'psicologa-hospitalaria'
+  | 'funcionaria-recepcion'
+  | 'comisaria-profesional';
 
 export type NpcMotionBehavior =
   | 'idle'

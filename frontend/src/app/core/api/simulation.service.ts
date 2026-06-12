@@ -86,10 +86,12 @@ export class SimulationService {
     return this.http.get<unknown>('/assets/game/scenarios/intervention-rules.json');
   }
 
-  /** Fase 5: walk-through spatial door — load the target room (non-scored). */
-  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, entryX: number, entryY: number) {
+  /** Fase 5: walk-through spatial door — load the target room (non-scored).
+   *  doorKey (opcional, caso PDF): el backend valida que la puerta exista en la
+   *  sala actual, apunte al destino y cumpla sus condiciones requires*. */
+  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, entryX: number, entryY: number, doorKey?: string) {
     return this.http.post<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/enter-room`, {
-      attemptToken, targetNodeKey, entryX, entryY,
+      attemptToken, targetNodeKey, entryX, entryY, ...(doorKey ? { doorKey } : {}),
     }).pipe(map(response => response.data));
   }
 

@@ -34,6 +34,32 @@ import { decisionTotal, performanceLabel } from './outcome.util';
         </header>
 
         @if (report(); as r) {
+          @if (r.ending; as ending) {
+            <div class="oc-ending" [attr.data-tone]="ending.tone" role="status">
+              <p class="oc-ending__title">{{ ending.title }}</p>
+              <p class="oc-ending__message">{{ ending.message }}</p>
+              <div class="oc-chips oc-chips--state">
+                <span class="oc-chip">Recomendadas: {{ ending.severityCounts.recommended }}</span>
+                <span class="oc-chip">Aceptables: {{ ending.severityCounts.acceptable }}</span>
+                <span class="oc-chip">Riesgosas: {{ ending.severityCounts.risky }}</span>
+                @if (ending.severityCounts.critical) {
+                  <span class="oc-chip oc-chip--alert">Críticas: {{ ending.severityCounts.critical }}</span>
+                }
+              </div>
+            </div>
+            <div class="oc-block">
+              <p class="oc-label">Métricas del caso</p>
+              <div class="oc-bars">
+                @for (metric of caseMetricRows(ending.caseMetrics); track metric.key) {
+                  <div class="oc-bar">
+                    <span class="oc-bar__k">{{ metric.label }}</span>
+                    <div class="oc-bar__t"><i [class]="'oc-bar__f ' + metric.cls" [style.width.%]="metric.value"></i></div>
+                    <span class="oc-bar__n">{{ metric.value }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
           <div class="oc-metrics">
             <div class="oc-metric"><span>Puntaje total</span><strong>{{ r.finalScore }}</strong></div>
             <div class="oc-metric"><span>Escenarios</span><strong>{{ r.visitedNodeTitles.length }}</strong></div>
@@ -142,6 +168,16 @@ import { decisionTotal, performanceLabel } from './outcome.util';
       padding: 14px 16px; border-radius: 16px;
       background: var(--sim-surface, rgba(27,33,51,.72)); border: 1px solid var(--sim-border, rgba(182,156,255,.22));
     }
+    .oc-ending {
+      padding: 16px 18px; border-radius: 16px;
+      background: rgba(124,77,255,.12); border: 1px solid rgba(182,156,255,.4);
+    }
+    .oc-ending[data-tone='positive'] { background: rgba(110,198,122,.12); border-color: rgba(110,198,122,.5); }
+    .oc-ending[data-tone='warning']  { background: rgba(245,184,75,.10); border-color: rgba(245,184,75,.45); }
+    .oc-ending[data-tone='critical'] { background: rgba(226,90,79,.12); border-color: rgba(226,90,79,.5); }
+    .oc-ending__title { margin: 0; font-weight: 900; letter-spacing: .04em; font-size: .95rem; color: var(--sim-ink, #F4F7FB); }
+    .oc-ending__message { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.55; }
+    .oc-bar__f--mid { background: #B69CFF; }
     .oc-label { margin: 0 0 10px; color: var(--sim-lavender, #B69CFF); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
     .oc-bars { display: grid; gap: 8px; }
     .oc-bar { display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 10px; }
@@ -203,6 +239,34 @@ export class AttemptOutcomeComponent {
   barPct(r: AttemptCompletionReport, n: number): number {
     const total = decisionTotal(r);
     return total === 0 ? 0 : Math.round((n / total) * 100);
+  }
+
+  /** Métricas del caso (0-100) en filas presentables; verde alto = deseable,
+   *  rojo alto = riesgo (crisis_emocional y riesgo_victima invierten el tono). */
+  caseMetricRows(metrics: Record<string, number>): Array<{ key: string; label: string; value: number; cls: string }> {
+    const labels: Record<string, string> = {
+      confianza: 'Confianza',
+      crisis_emocional: 'Crisis emocional',
+      riesgo_victima: 'Riesgo de la víctima',
+      rigor_tecnico: 'Rigor técnico',
+      etica_profesional: 'Ética profesional',
+      ruta_institucional: 'Ruta institucional',
+      calidad_duelo: 'Manejo del duelo',
+    };
+    const inverted = new Set(['crisis_emocional', 'riesgo_victima']);
+    return Object.keys(labels)
+      .filter(key => typeof metrics[key] === 'number')
+      .map(key => {
+        const value = Math.max(0, Math.min(100, metrics[key]));
+        const good = inverted.has(key) ? value <= 40 : value >= 60;
+        const bad = inverted.has(key) ? value >= 60 : value <= 40;
+        return {
+          key,
+          label: labels[key],
+          value,
+          cls: good ? 'oc-bar__f--ok' : bad ? 'oc-bar__f--bad' : 'oc-bar__f--mid',
+        };
+      });
   }
 
   formatDuration(seconds: number | null | undefined): string {

@@ -6,6 +6,7 @@ from apps.simulation.models import (
     DecisionOption,
     ReflectionJournal,
 )
+from apps.simulation.services import case_effects
 
 SAFE_EXIT_RESOURCES = [
     "Puedes pausar el intento y retomarlo con acompañamiento docente.",
@@ -209,6 +210,8 @@ def build_completion_report(attempt, events):
             if attempt.started_at and attempt.ended_at else None
         ),
         "timeline": build_timeline(attempt, events),
+        # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
+        "ending": case_effects.compute_ending(attempt, events),
     }
 
 

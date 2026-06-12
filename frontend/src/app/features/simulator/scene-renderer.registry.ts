@@ -1,5 +1,6 @@
 import { SceneRenderer } from './scene-layer.types';
 import { premiumClinicalRoomRenderer } from './premium-clinical-room.renderer';
+import { CASE_PDF_ROOM_RENDERERS } from './case-pdf-rooms.renderer';
 
 /**
  * Registry de renderers de escena 2.5D (fase C).
@@ -11,6 +12,7 @@ import { premiumClinicalRoomRenderer } from './premium-clinical-room.renderer';
  */
 const SCENE_RENDERERS: readonly SceneRenderer[] = [
   premiumClinicalRoomRenderer,
+  ...CASE_PDF_ROOM_RENDERERS,
 ];
 
 /** Resuelve el renderer que soporta el mapa, o null (flujo Tiled/procedural). */

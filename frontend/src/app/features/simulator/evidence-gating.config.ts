@@ -19,22 +19,27 @@ export interface NodeEvidenceDef {
 }
 
 export const NODE_EVIDENCE: Record<string, NodeEvidenceDef> = {
-  'urgencias-crisis': {
+  // ── Caso PDF: Violencia Familiar y Tentativa de Feminicidio ──
+  'hospital-urgencias': {
     npcs: ['enfermera-urgencias'],
     tools: ['PAP'],
-    missingMessage: 'Información insuficiente: habla con la enfermera de turno y aplica Primeros Auxilios Psicológicos antes de definir la intervención.',
+    missingMessage: 'Información insuficiente: habla con la enfermera de urgencias y aplica Primeros Auxilios Psicológicos antes de definir el foco de la intervención.',
     unlockLines: [{
-      dialogueKey: 'escucha-segura',
-      lines: ['(Respira más despacio y te sostiene la mirada.) La semana pasada… él me amenazó con un cuchillo. No lo había contado. Tengo miedo por mis hijos.'],
+      dialogueKey: 'familia-duelo',
+      lines: ['(La madre respira un poco más despacio y te sostiene la mirada.) Gracias por quedarse… nadie nos había explicado nada. Solo díganme la verdad cuando se pueda.'],
     }],
   },
-  'ruta-proteccion': {
-    tools: ['RISK_METER'],
-    missingMessage: 'Información insuficiente: aplica la valoración estructurada de riesgo antes de activar o descartar una ruta.',
+  'hospital-accion-etica': {
+    tools: ['SPIKES'],
+    missingMessage: 'Información insuficiente: revisa el protocolo EPICEE/SPIKES del estante antes de definir la actuación técnica y ética.',
   },
-  'valoracion-comisaria': {
+  'hospital-cierre-bloque': {
     tools: ['RISK_METER'],
-    missingMessage: 'Información insuficiente: usa el instrumento de valoración estructurada antes de proponer medidas de protección.',
+    missingMessage: 'Información insuficiente: aplica el instrumento de valoración de riesgo antes de definir la prioridad psicosocial.',
+  },
+  'comisaria-accion-final': {
+    tools: ['RISK_METER'],
+    missingMessage: 'Información insuficiente: usa el instrumento de valoración estructurada antes de cerrar la actuación.',
   },
 };
 

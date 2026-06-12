@@ -155,10 +155,21 @@ def world_for_attempt(attempt):
 
 
 @transaction.atomic
-def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, actor):
+def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, actor,
+               door_key=None):
     """Fase 5 — spatial door: load the target room's map for the attempt at the entry
     point, WITHOUT advancing the DAG or scoring. Decoupled from the node via
-    flags.syncedNodeId so the next /world load won't reset it (until a decision does)."""
+    flags.syncedNodeId so the next /world load won't reset it (until a decision does).
+
+    Caso PDF — validación de puerta: `door_key` es OPCIONAL por compatibilidad
+    (clientes legacy solo envían targetNodeKey). Cuando llega, la puerta debe
+    existir como objeto EXIT del mapa actual, su metadata.targetNodeKey debe
+    coincidir con el destino solicitado y sus condiciones `requires*`
+    verificables en backend deben cumplirse (requiresInspected contra objetos
+    inspeccionados, requiresTools contra inventario, requiresNodes contra el
+    nodo actual del DAG). `requiresNpcs` se valida solo en frontend: los
+    diálogos de NPCs ambientales no se persisten en el world state.
+    """
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     _require_in_progress(attempt)
     target = (
@@ -170,6 +181,8 @@ def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, act
     if not target:
         raise NotFound(f"No hay sala para el nodo destino: {target_node_key}")
     state = require_world_state(attempt)
+    if door_key:
+        _validate_door(attempt, state, door_key, target_node_key)
     state.scene_map = target
     state.player_x = _clamp(_int(entry_x), 0, target.width or 960)
     state.player_y = _clamp(_int(entry_y), 0, target.height or 540)
@@ -179,6 +192,32 @@ def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, act
     state.save()
     _save_event(attempt, "ROOM_ENTERED", f"Puerta hacia sala {target_node_key}")
     return _to_world_state(attempt, state)
+
+
+def _validate_door(attempt, state, door_key, target_node_key):
+    """La puerta debe existir en el mapa ACTUAL, apuntar al destino solicitado
+    y tener sus condiciones backend-verificables cumplidas."""
+    door = MapObject.objects.filter(
+        scene_map_id=state.scene_map_id, object_key=door_key, object_type="EXIT"
+    ).first()
+    if not door:
+        raise NotFound(f"La puerta no existe en la sala actual: {door_key}")
+    meta = _read_map(door.metadata_json)
+    if meta.get("targetNodeKey") != target_node_key:
+        raise ValidationError("La puerta no conduce a la sala solicitada")
+
+    locked_message = meta.get("lockedMessage") or "La puerta está bloqueada."
+    inspected = set(_read_string_list(state.inspected_object_keys_json))
+    for required in meta.get("requiresInspected") or []:
+        if required not in inspected:
+            raise ValidationError(locked_message)
+    inventory = set(_read_string_list(state.inventory_json))
+    for required in meta.get("requiresTools") or []:
+        if required not in inventory:
+            raise ValidationError(locked_message)
+    required_nodes = meta.get("requiresNodes") or []
+    if required_nodes and attempt.current_node.node_key not in required_nodes:
+        raise ValidationError(locked_message)
 
 
 # ─── internals ────────────────────────────────────────────────────────────────

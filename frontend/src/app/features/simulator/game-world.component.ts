@@ -36,6 +36,7 @@ import {
   authoredMarkerPosition,
 } from './authored-clinical-room.util';
 import { resolveSceneRenderer } from './scene-renderer.registry';
+import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
 import {
   NUDGE_SUBSTEPS,
@@ -1738,13 +1739,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Legacy fallback: backend AABB zones
     if (!this.world) return false;
     const mapKey = this.world.map.key;
-    const zones = this.authoredRoomActive
-      ? AUTHORED_CLINICAL_COLLISIONS
-      : isHospitalMap(mapKey)
-        ? HOSPITAL_COLLISIONS
-        : isComisariaMap(mapKey)
-          ? COMISARIA_COLLISIONS
-          : this.world.collisions.map(z => ({ x: z.x, y: z.y, width: z.width, height: z.height }));
+    // Salas del caso PDF: geometría propia por sala (espejo del seed backend).
+    const caseZones = caseRoomCollisions(mapKey);
+    const zones = caseZones
+      ? caseZones
+      : this.authoredRoomActive
+        ? AUTHORED_CLINICAL_COLLISIONS
+        : isHospitalMap(mapKey)
+          ? HOSPITAL_COLLISIONS
+          : isComisariaMap(mapKey)
+            ? COMISARIA_COLLISIONS
+            : this.world.collisions.map(z => ({ x: z.x, y: z.y, width: z.width, height: z.height }));
     return zones.some(z => rectsIntersect(hb, z));
   }
 

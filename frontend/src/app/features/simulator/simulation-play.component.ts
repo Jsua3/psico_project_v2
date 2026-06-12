@@ -60,6 +60,20 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       @if (actionError()) {
         <div class="action-toast" role="alert">{{ actionError() }}</div>
       }
+      @if (doorNotice()) {
+        <div class="door-notice" role="alert">
+          <mat-icon aria-hidden="true">lock</mat-icon>
+          <span>{{ doorNotice() }}</span>
+        </div>
+      }
+      @if (roomBanner()) {
+        <div class="room-banner" role="status">{{ roomBanner() }}</div>
+      }
+      @if (transitionNote()) {
+        <div class="transition-note" role="status">
+          <p>{{ transitionNote() }}</p>
+        </div>
+      }
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
         <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
@@ -97,6 +111,7 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
             [patientState]="patientState()"
             [stageLabel]="currentStageLabel()"
             [progressLabel]="progressLabel()"
+            [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
             (toggleJournal)="journalOpen.set(!journalOpen())" />
         </header>
@@ -497,6 +512,36 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
+    .door-notice {
+      position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 320;
+      display: flex; align-items: center; gap: 10px;
+      max-width: min(92vw, 560px); padding: 12px 18px; border-radius: 14px;
+      background: rgba(24,30,46,.94); border: 1px solid rgba(245,184,75,.45);
+      color: #ffe2ae; font-weight: 600; text-align: left;
+      animation: door-notice-in 220ms ease;
+    }
+    .door-notice mat-icon { color: #F5B84B; flex-shrink: 0; }
+    @keyframes door-notice-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+    .room-banner {
+      position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 320;
+      padding: 10px 22px; border-radius: 999px;
+      background: rgba(18,24,42,.9); border: 1px solid var(--sim-border);
+      color: var(--sim-ink); font-weight: 800; letter-spacing: .04em;
+      animation: room-banner-in 260ms ease;
+      pointer-events: none;
+    }
+    @keyframes room-banner-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+    .transition-note {
+      position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
+      background: rgba(6,9,16,.92); pointer-events: none;
+      animation: transition-note-in 420ms ease;
+    }
+    .transition-note p {
+      max-width: min(88vw, 640px); margin: 0; padding: 0 24px; text-align: center;
+      color: #f4f7fb; font-size: clamp(1.05rem, 2.4vw, 1.45rem); font-weight: 600;
+      line-height: 1.6; letter-spacing: .02em; font-style: italic;
+    }
+    @keyframes transition-note-in { from { opacity: 0; } }
     .resume-overlay {
       position: absolute; inset: 0; z-index: 400; display: grid; place-items: center;
       padding: 24px; background: rgba(8,12,18,.88);
@@ -573,6 +618,7 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
     @media (prefers-reduced-motion: reduce) {
       .stress-vignette, .scene-fade { transition: none; }
       .right-panel, .context-bar__interaction, .overlay-backdrop { animation: none; }
+      .door-notice, .room-banner, .transition-note { animation: none; }
     }
   `]
 })
@@ -604,6 +650,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
   readonly fadeActive   = signal(false);
+  /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
+  readonly doorNotice   = signal('');
+  /** Nombre de la sala al entrar (1-2 s). */
+  readonly roomBanner   = signal('');
+  /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
+  readonly transitionNote = signal('');
+  private readonly seenTransitionMapKeys = new Set<string>();
 
   /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
   readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
@@ -816,34 +869,35 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return typeof target === 'string' && target ? target : null;
   }
 
-  /** Fase 10: puerta espacial NO puntuada — usa el enterRoom existente. */
+  /** Fase 10: puerta espacial NO puntuada — usa el enterRoom existente.
+   *  Caso PDF: envía doorKey (el backend re-valida puerta y requisitos), y la
+   *  puerta bloqueada muestra un aviso transitorio, no un DialoguePanel. */
   private tryOpenDoor(door: MapObjectState) {
     const game = this.attempt();
     const target = this.doorTargetNodeKey(door);
     if (!game || !target || this.busy()) return;
     const meta = (door.metadata ?? {}) as {
       entryX?: number; entryY?: number; requiresNpcs?: string[];
-      requiresTools?: string[]; requiresInspected?: string[]; lockedMessage?: string;
+      requiresTools?: string[]; requiresInspected?: string[];
+      requiresNodes?: string[]; lockedMessage?: string;
     };
     const missing = missingEvidence(
       { npcs: meta.requiresNpcs, tools: meta.requiresTools, inspected: meta.requiresInspected, missingMessage: '' },
       this.world(), this.viewedNpcKeys(),
     );
-    if (missing.length) {
+    const stageLocked = (meta.requiresNodes?.length ?? 0) > 0
+      && !meta.requiresNodes!.includes(game.currentNode.key);
+    if (missing.length || stageLocked) {
       const message = meta.lockedMessage ?? 'Aún no puedes pasar: te falta información clave de esta sala.';
       this.audioDirector.playSfx('ui_cancel');
-      this.dialogue.set({
-        key: `door-locked-${door.key}`, speakerName: door.label, portraitKey: 'door', emotion: 'neutral',
-        lines: [{ order: 1, speakerName: door.label, text: message, emotion: 'neutral' }],
-        choices: [],
-      });
-      this.announce(message);
+      this.showDoorNotice(message);
       return;
     }
     this.busy.set(true);
     this.triggerFade(() => {
       this.simulationService.enterRoom(
-        game.attemptId, game.attemptToken, target, Number(meta.entryX ?? 0), Number(meta.entryY ?? 0),
+        game.attemptId, game.attemptToken, target,
+        Number(meta.entryX ?? 0), Number(meta.entryY ?? 0), door.key,
       ).subscribe({
         next: world => {
           this.selectedInteraction.set(null);
@@ -855,6 +909,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
       });
     });
+  }
+
+  private doorNoticeTimer: number | null = null;
+
+  private showDoorNotice(message: string): void {
+    this.doorNotice.set(message);
+    this.announce(message);
+    if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
+    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), 4200);
   }
 
   onRoomExit(event: { targetRoomKey: string; entryX: number; entryY: number }) {
@@ -1239,10 +1302,27 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private applyLoadedWorld(world: SimulationWorldState): void {
+    const previousMapKey = this.world()?.map.key ?? null;
     this.world.set(world);
     this.loading.set(false);
     this.busy.set(false);
     window.setTimeout(() => this.fadeActive.set(false), 80);
+    if (previousMapKey && previousMapKey !== world.map.key) {
+      this.announceRoomChange(world);
+    }
+  }
+
+  /** Al cambiar de sala (puerta o decisión): nombre de la sala 1-2 s y, si el
+   *  mapa trae texto de transición autorado (salto temporal), overlay breve. */
+  private announceRoomChange(world: SimulationWorldState): void {
+    this.roomBanner.set(world.map.title);
+    window.setTimeout(() => this.roomBanner.set(''), 2200);
+    const transition = (world.map.ambient as Record<string, unknown> | undefined)?.['transitionText'];
+    if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
+      this.seenTransitionMapKeys.add(world.map.key);
+      this.transitionNote.set(transition);
+      window.setTimeout(() => this.transitionNote.set(''), 4200);
+    }
   }
 
   private announce(message: string): void {

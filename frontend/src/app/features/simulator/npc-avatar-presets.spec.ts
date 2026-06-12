@@ -11,10 +11,11 @@ import { NpcAvatarPresetKey } from '../../core/models/simulation.model';
 const PRESET_KEYS = Object.keys(NPC_AVATAR_PRESETS) as NpcAvatarPresetKey[];
 
 describe('npc-avatar-presets', () => {
-  it('cubre los 6 presets del caso competitivo', () => {
+  it('cubre los presets del caso competitivo + caso PDF', () => {
     expect(PRESET_KEYS.sort()).toEqual([
-      'adolescente-nna', 'colega-clinica', 'madre-vbg',
-      'paciente-vbg', 'seguridad', 'supervisor-clinico',
+      'adolescente-nna', 'colega-clinica', 'comisaria-profesional',
+      'funcionaria-recepcion', 'madre-vbg', 'paciente-vbg',
+      'psicologa-hospitalaria', 'seguridad', 'supervisor-clinico',
     ]);
   });
 
@@ -48,5 +49,9 @@ describe('npc-avatar-presets', () => {
       expect(NPC_AVATAR_PRESETS[preset]).toBeDefined();
     }
     expect(MAP_OBJECT_PRESETS['escucha-segura']).toBe('paciente-vbg');
+    // Caso PDF: actores de decisión renderizados con preset modular.
+    expect(MAP_OBJECT_PRESETS['familia-duelo']).toBe('madre-vbg');
+    expect(MAP_OBJECT_PRESETS['sobreviviente-consulta']).toBe('paciente-vbg');
+    expect(MAP_OBJECT_PRESETS['profesional-psicosocial']).toBe('comisaria-profesional');
   });
 });

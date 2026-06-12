@@ -49,12 +49,16 @@ def test_model_columns_match_schema(model):
 
 @pytest.mark.django_db
 def test_reference_case_seed_present():
-    # The Flyway seed ships SIM-VBG-001 with 6 nodes / 12 decisions.
+    # seed_caso_pdf publica el caso PDF: 8 nodos (7 etapas + nodo-sala
+    # comisaria-recepcion) y 19 opciones (3+3+4 hospital, 3+3+3 comisaría).
     case = SimulationCase.objects.filter(code="SIM-VBG-001").first()
     assert case is not None
+    assert case.title == "Violencia Familiar y Tentativa de Feminicidio"
     published = CaseVersion.objects.filter(
         simulation_case=case, status="PUBLISHED"
     ).first()
     assert published is not None
-    assert SimulationNode.objects.filter(case_version=published).count() == 6
-    assert DecisionOption.objects.filter(case_version=published).count() == 12
+    assert SimulationNode.objects.filter(case_version=published).count() == 8
+    assert DecisionOption.objects.filter(case_version=published).count() == 19
+    start = SimulationNode.objects.get(case_version=published, start_node=True)
+    assert start.node_key == "hospital-urgencias"

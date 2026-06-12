@@ -45,6 +45,22 @@ export const NPC_AVATAR_PRESETS: Record<NpcAvatarPresetKey, AvatarConfig> = {
     eyes: 'neutros', brows: 'suaves', mouth: 'seria', accessory: 'ninguno',
     uniform: 'sin-bata',
   },
+  // ── Caso PDF (hospital + comisaría) ──
+  'psicologa-hospitalaria': {
+    skinTone: 'media', hairStyle: 'recogido', hairColor: 'castano', fringe: false,
+    eyes: 'amables', brows: 'suaves', mouth: 'neutra', accessory: 'pin',
+    uniform: 'sin-bata',
+  },
+  'funcionaria-recepcion': {
+    skinTone: 'clara', hairStyle: 'medio', hairColor: 'rojizo', fringe: false,
+    eyes: 'neutros', brows: 'rectas', mouth: 'neutra', accessory: 'ninguno',
+    uniform: 'sin-bata',
+  },
+  'comisaria-profesional': {
+    skinTone: 'morena', hairStyle: 'corto', hairColor: 'negro', fringe: false,
+    eyes: 'atentos', brows: 'rectas', mouth: 'neutra', accessory: 'pin',
+    uniform: 'sin-bata',
+  },
 };
 
 export interface NpcPresetRenderHints {
@@ -55,20 +71,29 @@ export interface NpcPresetRenderHints {
 }
 
 export const NPC_PRESET_RENDER: Record<NpcAvatarPresetKey, NpcPresetRenderHints> = {
-  'madre-vbg':          { scale: 0.82 },
-  'paciente-vbg':       { scale: 0.78, tint: 0xf3ecff },
-  'colega-clinica':     { scale: 0.82 },
-  'supervisor-clinico': { scale: 0.84 },
-  'seguridad':          { scale: 0.84, tint: 0xdde6f2 },
-  'adolescente-nna':    { scale: 0.72 },
+  'madre-vbg':              { scale: 0.82 },
+  'paciente-vbg':           { scale: 0.78, tint: 0xf3ecff },
+  'colega-clinica':         { scale: 0.82 },
+  'supervisor-clinico':     { scale: 0.84 },
+  'seguridad':              { scale: 0.84, tint: 0xdde6f2 },
+  'adolescente-nna':        { scale: 0.72 },
+  'psicologa-hospitalaria': { scale: 0.82 },
+  'funcionaria-recepcion':  { scale: 0.80, tint: 0xf0f4ff },
+  'comisaria-profesional':  { scale: 0.84 },
 };
 
 /**
- * Markers PERSON del backend que deben renderizarse con preset modular
- * (la consultante 'escucha-segura' es la paciente del caso).
+ * Markers PERSON del backend que deben renderizarse con preset modular.
+ * Caso PDF: actores de decisión/contexto sembrados por seed_caso_pdf.
  */
 export const MAP_OBJECT_PRESETS: Record<string, NpcAvatarPresetKey> = {
-  'escucha-segura': 'paciente-vbg',
+  'escucha-segura': 'paciente-vbg',           // legacy (caso v1)
+  'familia-crisis': 'madre-vbg',              // urgencias: madre de la sobreviviente
+  'familia-duelo': 'madre-vbg',               // sala de escucha: decisión H1
+  'psicologa-acompanante': 'psicologa-hospitalaria',  // sala de escucha: H3
+  'funcionaria-recepcion': 'funcionaria-recepcion',   // comisaría recepción
+  'sobreviviente-consulta': 'paciente-vbg',   // consultorio: decisión C1
+  'profesional-psicosocial': 'comisaria-profesional', // consultorio: C3
 };
 
 export function npcPresetConfig(key: string | undefined | null): AvatarConfig | null {

@@ -174,6 +174,7 @@ class EnterRoomView(APIView):
             request.data.get("entryX"),
             request.data.get("entryY"),
             request.user,
+            door_key=request.data.get("doorKey"),
         )
         return api_ok(result, message="Sala cambiada")
 

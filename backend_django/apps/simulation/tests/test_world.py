@@ -189,40 +189,47 @@ def test_enter_room_invalid_node(estudiante, case_version_id):
     assert resp.status_code in (400, 404)
 
 
-def test_seed_competitive_doors_idempotente_y_jugable(estudiante, case_version_id):
+def test_seed_caso_pdf_idempotente_y_puertas_jugables(estudiante, case_version_id):
     import json as _json
     from django.core.management import call_command
     from apps.simulation.models import MapObject, SceneMap
 
-    call_command("seed_competitive_doors", case_version=case_version_id)
-    call_command("seed_competitive_doors", case_version=case_version_id)  # idempotente
+    call_command("seed_caso_pdf")
+    call_command("seed_caso_pdf")  # idempotente
 
     urgencias = SceneMap.objects.filter(
-        case_version_id=case_version_id, node__node_key="urgencias-crisis"
+        case_version_id=case_version_id, node__node_key="hospital-urgencias"
     ).first()
+    assert urgencias is not None
     doors = MapObject.objects.filter(scene_map_id=urgencias.id, object_key="puerta-sala-escucha")
     assert doors.count() == 1
     door = doors.first()
     assert door.object_type == "EXIT"
     meta = _json.loads(door.metadata_json)
-    assert meta["targetNodeKey"] == "ruta-proteccion"
-    assert meta["requiresNpcs"] == ["enfermera-urgencias"]
+    assert meta["targetNodeKey"] == "hospital-sala-escucha"
+    assert meta["requiresInspected"] == ["familia-crisis"]
+    assert meta["lockedMessage"]
 
-    ruta = SceneMap.objects.filter(
-        case_version_id=case_version_id, node__node_key="ruta-proteccion"
+    escucha = SceneMap.objects.filter(
+        case_version_id=case_version_id, node__node_key="hospital-sala-escucha"
     ).first()
-    back = MapObject.objects.filter(scene_map_id=ruta.id, object_key="puerta-urgencias").first()
+    back = MapObject.objects.filter(scene_map_id=escucha.id, object_key="puerta-urgencias").first()
     assert back is not None
-    assert _json.loads(back.metadata_json)["targetNodeKey"] == "urgencias-crisis"
+    assert _json.loads(back.metadata_json)["targetNodeKey"] == "hospital-urgencias"
 
-    # la puerta es jugable con el endpoint enter-room existente
+    # la puerta es jugable con enter-room una vez cumplido el requisito
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
+    c.post(
+        f"/api/simulation/attempts/{attempt_id}/interactions/familia-crisis",
+        {"attemptToken": token}, format="json",
+    )
     resp = c.post(
         f"/api/simulation/attempts/{attempt_id}/enter-room",
         {"attemptToken": token, "targetNodeKey": meta["targetNodeKey"],
-         "entryX": meta["entryX"], "entryY": meta["entryY"]},
+         "entryX": meta["entryX"], "entryY": meta["entryY"],
+         "doorKey": "puerta-sala-escucha"},
         format="json",
     )
     assert resp.status_code == 200
-    assert resp.data["data"]["map"]["key"] == "ruta-proteccion"
+    assert resp.data["data"]["map"]["key"] == "hospital-sala-escucha"

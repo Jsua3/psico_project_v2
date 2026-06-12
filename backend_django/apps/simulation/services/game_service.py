@@ -16,7 +16,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
-from . import crypto_service, decision_effects
+from . import case_effects, crypto_service, decision_effects
 from .audit_service import auditable
 
 
@@ -198,6 +198,10 @@ def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
 
     effects = decision_effects.resolve(decision)
     decision_effects.apply(attempt, effects)
+    # Efecto mariposa del caso: flags clínicos + métricas acumulativas (se
+    # aplica ANTES de avanzar el nodo — el world state sigue sincronizado al
+    # nodo actual y el próximo /world hará el reset de sala que corresponda).
+    case_effects.apply_case_effects(attempt, decision)
     event_type = "PROHIBITED_DECISION_SELECTED" if decision.prohibited_conduct else "DECISION_SELECTED"
 
     message = decision_effects.format_feedback(decision, effects)

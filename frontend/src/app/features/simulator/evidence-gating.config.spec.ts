@@ -18,8 +18,8 @@ describe('evidence-gating.config', () => {
     expect(toolUsed(worldWith({ usedToolKeys: ['RISK_METER'] }), 'PAP')).toBe(false);
   });
 
-  it('urgencias exige enfermera + PAP; reporta exactamente lo que falta', () => {
-    const def = nodeEvidence('urgencias-crisis')!;
+  it('urgencias (caso PDF) exige enfermera + PAP; reporta exactamente lo que falta', () => {
+    const def = nodeEvidence('hospital-urgencias')!;
     expect(missingEvidence(def, worldWith({}), new Set()))
       .toEqual(['npc:enfermera-urgencias', 'tool:PAP']);
     expect(missingEvidence(def, worldWith({ usedToolKeys: ['PAP'] }), new Set(['enfermera-urgencias'])))
@@ -27,15 +27,15 @@ describe('evidence-gating.config', () => {
   });
 
   it('las líneas extra solo se desbloquean con la evidencia completa y el diálogo correcto', () => {
-    const def = nodeEvidence('urgencias-crisis')!;
+    const def = nodeEvidence('hospital-urgencias')!;
     const ready = worldWith({ usedToolKeys: ['PAP'] });
-    expect(unlockedExtraLines(def, 'escucha-segura', worldWith({}), new Set())).toEqual([]);
+    expect(unlockedExtraLines(def, 'familia-duelo', worldWith({}), new Set())).toEqual([]);
     expect(unlockedExtraLines(def, 'otro-dialogo', ready, new Set(['enfermera-urgencias']))).toEqual([]);
-    expect(unlockedExtraLines(def, 'escucha-segura', ready, new Set(['enfermera-urgencias'])).length).toBeGreaterThan(0);
+    expect(unlockedExtraLines(def, 'familia-duelo', ready, new Set(['enfermera-urgencias'])).length).toBeGreaterThan(0);
   });
 
   it('nodos sin definición no bloquean nada', () => {
-    expect(nodeEvidence('cierre-seguimiento')).toBeNull();
+    expect(nodeEvidence('cierre-caso')).toBeNull();
     expect(missingEvidence(null, worldWith({}), new Set())).toEqual([]);
   });
 

@@ -43,7 +43,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
           <div class="hud-zone hud-zone--center">
             <div class="hud-scene">
               <mat-icon aria-hidden="true">location_on</mat-icon>
-              <span>{{ game.currentNode.title }}</span>
+              <span>{{ locationLabel() || game.currentNode.title }}</span>
             </div>
             @if (sceneProgress(); as progress) {
               <div class="hud-step" aria-label="{{ progress.stepLabel }}">
@@ -257,6 +257,8 @@ export class SimulationHudComponent {
   readonly patientState = input<PatientState | null>(null);
   readonly stageLabel = input('Escenario actual');
   readonly progressLabel = input('');
+  /** Sala física actual (world.map.title); con puertas puede diferir del nodo DAG. */
+  readonly locationLabel = input('');
   readonly journalOpen = input(false);
   readonly toggleJournal = output<void>();
 
