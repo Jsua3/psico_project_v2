@@ -187,3 +187,42 @@ def test_enter_room_invalid_node(estudiante, case_version_id):
         format="json",
     )
     assert resp.status_code in (400, 404)
+
+
+def test_seed_competitive_doors_idempotente_y_jugable(estudiante, case_version_id):
+    import json as _json
+    from django.core.management import call_command
+    from apps.simulation.models import MapObject, SceneMap
+
+    call_command("seed_competitive_doors", case_version=case_version_id)
+    call_command("seed_competitive_doors", case_version=case_version_id)  # idempotente
+
+    urgencias = SceneMap.objects.filter(
+        case_version_id=case_version_id, node__node_key="urgencias-crisis"
+    ).first()
+    doors = MapObject.objects.filter(scene_map_id=urgencias.id, object_key="puerta-sala-escucha")
+    assert doors.count() == 1
+    door = doors.first()
+    assert door.object_type == "EXIT"
+    meta = _json.loads(door.metadata_json)
+    assert meta["targetNodeKey"] == "ruta-proteccion"
+    assert meta["requiresNpcs"] == ["enfermera-urgencias"]
+
+    ruta = SceneMap.objects.filter(
+        case_version_id=case_version_id, node__node_key="ruta-proteccion"
+    ).first()
+    back = MapObject.objects.filter(scene_map_id=ruta.id, object_key="puerta-urgencias").first()
+    assert back is not None
+    assert _json.loads(back.metadata_json)["targetNodeKey"] == "urgencias-crisis"
+
+    # la puerta es jugable con el endpoint enter-room existente
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/enter-room",
+        {"attemptToken": token, "targetNodeKey": meta["targetNodeKey"],
+         "entryX": meta["entryX"], "entryY": meta["entryY"]},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["data"]["map"]["key"] == "ruta-proteccion"

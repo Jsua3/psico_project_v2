@@ -125,6 +125,8 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
                 [motionPaused]="worldMotionPaused()"
                 (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
+                (roomExit)="onRoomExit($event)"
+                (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
             } @else {
               <div id="game-area" class="world-skeleton" aria-label="Cargando mapa"></div>
@@ -738,6 +740,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
 
+    if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
+      this.tryOpenDoor(interaction);
+      return;
+    }
+
     if (isSceneAmbientInteraction(interaction.key)) {
       this.showAmbientDialogue(interaction);
       return;
@@ -802,6 +809,64 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       },
       error: () => { this.showActionError('No pudimos abrir la interacción.'); this.busy.set(false); }
     });
+  }
+
+  private doorTargetNodeKey(obj: MapObjectState): string | null {
+    const target = (obj.metadata as { targetNodeKey?: unknown } | undefined)?.targetNodeKey;
+    return typeof target === 'string' && target ? target : null;
+  }
+
+  /** Fase 10: puerta espacial NO puntuada — usa el enterRoom existente. */
+  private tryOpenDoor(door: MapObjectState) {
+    const game = this.attempt();
+    const target = this.doorTargetNodeKey(door);
+    if (!game || !target || this.busy()) return;
+    const meta = (door.metadata ?? {}) as {
+      entryX?: number; entryY?: number; requiresNpcs?: string[];
+      requiresTools?: string[]; requiresInspected?: string[]; lockedMessage?: string;
+    };
+    const missing = missingEvidence(
+      { npcs: meta.requiresNpcs, tools: meta.requiresTools, inspected: meta.requiresInspected, missingMessage: '' },
+      this.world(), this.viewedNpcKeys(),
+    );
+    if (missing.length) {
+      const message = meta.lockedMessage ?? 'Aún no puedes pasar: te falta información clave de esta sala.';
+      this.audioDirector.playSfx('ui_cancel');
+      this.dialogue.set({
+        key: `door-locked-${door.key}`, speakerName: door.label, portraitKey: 'door', emotion: 'neutral',
+        lines: [{ order: 1, speakerName: door.label, text: message, emotion: 'neutral' }],
+        choices: [],
+      });
+      this.announce(message);
+      return;
+    }
+    this.busy.set(true);
+    this.triggerFade(() => {
+      this.simulationService.enterRoom(
+        game.attemptId, game.attemptToken, target, Number(meta.entryX ?? 0), Number(meta.entryY ?? 0),
+      ).subscribe({
+        next: world => {
+          this.selectedInteraction.set(null);
+          this.nearbyInteraction.set(null);
+          this.dialogue.set(null);
+          this.applyWorldWithScenario(world);
+          this.announce(`Entraste a ${world.map.title}.`);
+        },
+        error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
+      });
+    });
+  }
+
+  onRoomExit(event: { targetRoomKey: string; entryX: number; entryY: number }) {
+    this.gameWorld?.transitionToRoom(event.targetRoomKey, event.entryX, event.entryY);
+  }
+
+  /** Disparo walk-over legacy (mapas sin scenarioConfig) — misma puerta gateada. */
+  onDoorTrigger(event: { targetNodeKey: string; entryX: number; entryY: number }) {
+    const door = this.world()?.objects.find(
+      o => o.type === 'EXIT' && this.doorTargetNodeKey(o) === event.targetNodeKey,
+    );
+    if (door) this.tryOpenDoor(door);
   }
 
   /** Fase 9: líneas desbloqueadas por evidencia + marca de información incompleta
@@ -1151,24 +1216,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private loadWorld(attempt: SimulationAttemptState) {
     this.simulationService.getWorld(attempt.attemptId, attempt.attemptToken).subscribe({
-      next: world => {
-        this.scenarioConfig.set(null);
-        this.simulationService.getScenarioConfig(world.map.key).subscribe({
-          next: config => {
-            this.scenarioConfig.set(config);
-            this.applyLoadedWorld(world);
-          },
-          error: () => {
-            this.applyLoadedWorld(world);
-          }
-        });
-      },
+      next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
         this.loading.set(false);
         this.busy.set(false);
         this.fadeActive.set(false);
       }
+    });
+  }
+
+  /** Carga el ScenarioConfig que corresponde al mapa del mundo y aplica ambos. */
+  private applyWorldWithScenario(world: SimulationWorldState): void {
+    this.scenarioConfig.set(null);
+    this.simulationService.getScenarioConfig(world.map.key).subscribe({
+      next: config => {
+        this.scenarioConfig.set(config);
+        this.applyLoadedWorld(world);
+      },
+      error: () => this.applyLoadedWorld(world),
     });
   }
 

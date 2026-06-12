@@ -838,8 +838,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
     this.spawnNpcs(roomConfig.npcs);
+    // Fase 10: enter_room persiste entryX/entryY en world.player — la posición
+    // del backend manda si es jugable; si no (coords del seed viejo), spawn autoría.
+    const persisted = this.world ? { x: this.world.player.x, y: this.world.player.y } : null;
     const spawn = keepPosition ?? (authoredClinicalRoom
-      ? { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y }
+      ? (persisted && !this.wouldCollide(persisted.x, persisted.y)
+          ? persisted
+          : { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y })
       : { x: spawnX, y: spawnY });
     this.createPlayer(spawn.x, spawn.y);
     if (authoredClinicalRoom) {
@@ -1498,7 +1503,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let main: Phaser.GameObjects.GameObject;
 
     if (this.assetsLoaded) {
-      if (isExit && this.textures.exists('dungeon-tiles')) {
+      if (isExit && this.authoredRoomActive) {
+        // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
+        const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
+        const doorPanel = this.add.rectangle(0, -10, 24, 36, 0x2a2348, 1);
+        const doorKnob = this.add.circle(7, -8, 2.5, 0xb69cff, 1);
+        main = this.add.container(0, 0, [doorFrame, doorPanel, doorKnob]);
+      } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
       } else if (object.type === 'PERSON' && MAP_OBJECT_PRESETS[object.key]
           && this.ensureNpcComposite(MAP_OBJECT_PRESETS[object.key])) {

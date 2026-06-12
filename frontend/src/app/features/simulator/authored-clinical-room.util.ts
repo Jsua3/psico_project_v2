@@ -67,6 +67,15 @@ export const AUTHORED_MARKER_POSITIONS: Readonly<Record<string, { x: number; y: 
   'aviso-policial':          { x: 806, y: 296 },  // cartelera de ruta VBG
   'tool-pap':                { x: 318, y: 428 },  // kit PAP frente a la mesa
   'tool-bitacora':           { x: 648, y: 372 },  // bitácora sobre el escritorio
+  // Puertas espaciales del caso competitivo (seed_competitive_doors):
+  'puerta-sala-escucha':     { x: 838, y: 440 },  // puerta derecha-abajo → sala de escucha
+  'puerta-urgencias':        { x: 122, y: 316 },  // puerta izquierda → volver a urgencias
+  // Decisiones de la sala de escucha (mismas coords de marco que urgencias):
+  'psiquiatria-aislada':     { x: 178, y: 268 },  // remisión aislada (riesgosa)
+  'mediacion-prohibida':     { x: 806, y: 296 },  // mediación con agresor (prohibida)
+  'ruta-vbg':                { x: 168, y: 408 },  // activar ruta VBG junto al sofá
+  'tool-ruta':               { x: 318, y: 428 },  // ruta de protección
+  'tool-riesgo':             { x: 648, y: 372 },  // medidor de riesgo sobre el escritorio
 };
 
 export function authoredMarkerPosition(key: string): { x: number; y: number } | null {
