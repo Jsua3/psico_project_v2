@@ -1129,6 +1129,11 @@ class Command(BaseCommand):
                 n_doors += int(is_exit)
                 dialogue = obj.get("dialogue")
                 choices = obj.get("choices", [])
+                # Interacciones exploratorias (expediente, zona restringida,
+                # registros): sin diálogo explícito, su texto se muestra como
+                # una línea — si no, la interacción registra pero no se VE.
+                if not dialogue and not choices and obj["type"] in ("OBJECT", "PERSON"):
+                    dialogue = (obj["label"], [(obj.get("text", obj["label"]), "neutral")])
                 if dialogue or choices:
                     speaker = dialogue[0] if dialogue else obj["label"]
                     tree = DialogueTree.objects.create(
