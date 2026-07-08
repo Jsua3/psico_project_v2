@@ -393,7 +393,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * (o si la imagen falló al cargar) → el panel muestra la silueta SVG.
    */
   portraitSrc(d: DialogueState): string | null {
-    const asset = resolvePortraitAsset(d.portraitKey, d.emotion);
+    const asset = resolvePortraitAsset(d.portraitKey, d.emotion, d.speakerName);
     return asset && this.failedPortrait() !== asset ? asset : null;
   }
 
