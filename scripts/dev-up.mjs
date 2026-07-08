@@ -121,16 +121,36 @@ function ensureFrontendDeps() {
   run('npm', ['install'], { cwd: FRONTEND });
 }
 
+// Tablas jalonadoras del esquema del simulador, de la más antigua a la más
+// reciente (simulation_rubric_assignments la crea la migración simulation/0004).
+// Si falta cualquiera, la BD viene de una versión anterior y hay que correr
+// el bootstrap (idempotente) para completar el esquema.
+const REQUIRED_SIM_TABLES = [
+  'simulation_cases',
+  'grupo_case_version',
+  'simulation_rubric_assignments',
+];
+
 function simulationSchemaReady() {
+  const regclassList = REQUIRED_SIM_TABLES
+    .map((t) => `to_regclass('public.${t}')`)
+    .join(', ');
   const result = spawnSync(
     venvPython(),
     [
       'manage.py',
       'shell',
       '-c',
-      "from django.db import connection; c=connection.cursor(); c.execute(\"SELECT to_regclass('public.simulation_cases')\"); raise SystemExit(0 if c.fetchone()[0] else 1)",
+      `from django.db import connection; c=connection.cursor(); c.execute("SELECT ${regclassList}"); raise SystemExit(0 if all(c.fetchone()) else 1)`,
     ],
-    { cwd: BACKEND, stdio: 'pipe', shell: isWin },
+    // NOTA: sin `shell: isWin` a propósito. Este argumento -c contiene
+    // comillas dobles embebidas; con shell:true en Windows, Node delega en
+    // cmd.exe /c, que no las escapa (ver DEP0190) y rompe el parseo del
+    // comando, haciendo que este chequeo falle SIEMPRE y dispare el
+    // bootstrap destructivo en cada arranque sin importar el esquema real.
+    // spawnSync invoca el .exe directamente (ruta absoluta), no necesita
+    // shell, igual que venvPythonVersion() más arriba.
+    { cwd: BACKEND, stdio: 'pipe' },
   );
   return result.status === 0;
 }
