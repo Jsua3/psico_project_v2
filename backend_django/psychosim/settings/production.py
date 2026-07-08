@@ -35,7 +35,21 @@ def _split_csv(value):
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
 
-ALLOWED_HOSTS = _split_csv(_require_env("DJANGO_ALLOWED_HOSTS"))
+# Hosts permitidos: lo configurado en DJANGO_ALLOWED_HOSTS MÁS el dominio público
+# que Railway inyecta automáticamente (RAILWAY_PUBLIC_DOMAIN). Así el deploy
+# funciona aunque la variable esté vacía o desactualizada tras generar el dominio.
+_railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+ALLOWED_HOSTS = _split_csv(os.environ.get("DJANGO_ALLOWED_HOSTS"))
+if _railway_domain and _railway_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_railway_domain)
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "Define DJANGO_ALLOWED_HOSTS (o despliega en Railway, que provee "
+        "RAILWAY_PUBLIC_DOMAIN) para psychosim.settings.production"
+    )
+
+# CSRF: confía en el origen https del dominio público (por si algún flujo usa CSRF).
+CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h and h != "*"]
 
 # base.py already read SECRET_KEY from DJANGO_SECRET_KEY; require it explicitly
 # and refuse the insecure development default.
@@ -43,15 +57,22 @@ SECRET_KEY = _require_env("DJANGO_SECRET_KEY")  # noqa: F811
 if SECRET_KEY == "django-insecure-change-in-production":
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must not be the insecure default in production")
 
-# DB password and JWT secret must be provided (not the dev fallbacks).
-_require_env("DB_PASSWORD")
+# La base de datos llega como DATABASE_URL (Railway) o como variables DB_*.
+# Solo exigimos DB_PASSWORD cuando NO se usa DATABASE_URL.
+if not os.environ.get("DATABASE_URL"):
+    _require_env("DB_PASSWORD")
 _require_env("JWT_SECRET")
 
-# CORS — restrict to explicitly configured frontend origins.
+# CORS — al servir el SPA desde el mismo servicio Django el origen es el mismo y
+# no hace falta CORS; si el frontend vive en otro dominio, se listan aquí.
 CORS_ALLOWED_ORIGINS = _split_csv(os.environ.get("CORS_ALLOWED_ORIGINS"))
+
+# Railway termina TLS en el borde: las cookies seguras y la cabecera de proxy
+# funcionan, pero el redirect a HTTPS lo maneja la plataforma. Por defecto NO
+# forzamos el redirect en Django para evitar bucles; se puede activar con env.
+SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() == "true"
 
 # HTTPS hardening (assumes a TLS-terminating reverse proxy in front).
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "true").lower() == "true"

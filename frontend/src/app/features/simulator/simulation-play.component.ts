@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
 import {
   DialogueState, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
@@ -12,7 +13,7 @@ import {
 import {
   DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, applyFeedbackToPatient, parseInterventionRules,
 } from './patient-state.util';
-import { missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
+import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
@@ -32,9 +33,23 @@ import {
   getSceneInteractionDescription,
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
+import { getSceneGuide } from './scene-guide.config';
 import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
+import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
+
+const SIMULATOR_INTRO_VIDEO = 'assets/video/fondoHabitacion.mp4';
+const CASE_INTRO_TITLE = 'Contexto inicial del caso';
+const CASE_INTRO_AUDIO = 'PsicoLament';
+const CASE_INTRO_PARAGRAPHS = [
+  'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
+  'Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.',
+  'En horas de la tarde, el hombre había tenido un altercado verbal con su pareja. Hubo groserías, maltrato psicológico y chantaje emocional: le dijo que sin él no era nadie, que era una mujer mantenida y que estaba seguro de que ella le era infiel.',
+  'Esa noche, cuando él entra a la residencia, la mujer le reclama por llegar tarde y haberse perdido toda la tarde.',
+  'El hombre, sin mediar palabra, saca una navaja y hiere a la niña de 3 años, causándole la muerte de manera inmediata. Luego hiere a la mujer con 28 heridas de arma cortopunzante, dejándola gravemente herida.',
+  'Tu intervención inicia en urgencias. Lee el contexto con cuidado: cada conversación, herramienta y decisión puede cambiar el curso de la atención.'
+];
 
 @Component({
   selector: 'app-simulation-play',
@@ -42,7 +57,8 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
   imports: [
     CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
+    AIAssistantComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -103,6 +119,59 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       }
 
       @if (attempt(); as game) {
+        @if (showIntroVideo()) {
+          <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
+            <article class="intro-video-card">
+              <header class="intro-video-card__header">
+                <p class="psy-eyebrow">Introducción</p>
+                <h2 id="intro-video-title">Antes de comenzar</h2>
+                <span>Contexto visual del escenario</span>
+              </header>
+
+              <div class="intro-video-card__media">
+                <video #introVideo class="intro-video" [src]="introVideoSrc" playsinline
+                  (loadeddata)="playIntroVideo()" (ended)="onIntroVideoEnded()"></video>
+              </div>
+
+              <footer class="intro-video-card__actions">
+                @if (introVideoEnded()) {
+                  <span>Video completado. Continúa para leer el contexto del caso.</span>
+                } @else {
+                  <span>Reproduce el video o continúa cuando quieras.</span>
+                }
+                <button class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
+                  {{ introVideoEnded() ? 'Continuar' : 'Saltar video' }}
+                </button>
+              </footer>
+            </article>
+          </section>
+        }
+
+        @if (showCaseIntro()) {
+          <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
+            <article class="case-intro-card">
+              <header class="case-intro-card__header">
+                <p class="psy-eyebrow">Primera escena</p>
+                <h2 id="case-intro-title">{{ caseIntroTitle }}</h2>
+                <span>{{ caseIntroAudio }} está sonando</span>
+              </header>
+
+              <div class="case-intro-card__body" tabindex="0" aria-label="Contexto narrativo del caso">
+                @for (paragraph of caseIntroParagraphs; track paragraph) {
+                  <p>{{ paragraph }}</p>
+                }
+              </div>
+
+              <footer class="case-intro-card__actions">
+                <span>Lee el contexto completo antes de iniciar la intervención.</span>
+                <button class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
+                  Continuar
+                </button>
+              </footer>
+            </article>
+          </section>
+        }
+
         <header class="top-bar">
           <app-simulation-hud
             [attempt]="game"
@@ -113,8 +182,22 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
             [progressLabel]="progressLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
-            (toggleJournal)="journalOpen.set(!journalOpen())" />
+            [aiAssistantOpen]="aiAssistantOpen()"
+            [musicMuted]="musicMuted()"
+            [sfxMuted]="sfxMuted()"
+            [reduceMotion]="reduceMotion()"
+            (toggleJournal)="journalOpen.set(!journalOpen())"
+            (toggleAI)="aiAssistantOpen.set(!aiAssistantOpen())"
+            (toggleMusic)="toggleMusicMute()"
+            (toggleSfx)="toggleSfxMute()"
+            (toggleReduceMotion)="toggleReduceMotion()" />
         </header>
+
+        <button type="button" class="guide-chatbot-button psy-button psy-button--primary" [class.guide-chatbot-button--active]="aiAssistantOpen()"
+          (click)="aiAssistantOpen.set(!aiAssistantOpen())" aria-label="Abrir Instructor guia chatbot">
+          <mat-icon aria-hidden="true">psychology</mat-icon>
+          <span>Instructor guia chatbot</span>
+        </button>
 
         <main class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación">
@@ -136,8 +219,11 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
             @if (world(); as w) {
               <app-game-world #gameWorld id="game-area" class="game-surface" [world]="w"
                 [scenarioConfig]="scenarioConfig()"
+                [guide]="sceneGuide()"
                 [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
                 [motionPaused]="worldMotionPaused()"
+                [sfxMuted]="sfxMuted()"
+                [reduceMotion]="reduceMotion()"
                 (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
@@ -214,6 +300,13 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
           [timeline]="visitedStageLabels()"
           [resources]="supportResources()"
           (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
+
+        <app-ai-assistant
+          [open]="aiAssistantOpen()"
+          [attemptId]="game.attemptId"
+          [currentNodeId]="game.currentNode.key"
+          [decisionAlreadyTaken]="game.feedback !== null || game.status !== 'IN_PROGRESS'"
+          (close)="aiAssistantOpen.set(false)" />
 
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
@@ -356,6 +449,7 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
     .vignette--active { opacity: var(--vignette-opacity, 0); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
+    .guide-chatbot-button { position: absolute; top: 60px; right: 16px; z-index: 168; gap: 8px; max-width: min(260px, calc(100vw - 32px)); }
     .right-panel {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -486,6 +580,177 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       color: rgba(201,184,255,.6);
     }
 
+    .intro-video-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 390;
+      display: grid;
+      place-items: center;
+      padding: clamp(14px, 4vw, 32px);
+      background:
+        radial-gradient(circle at 50% 20%, rgba(124,77,255,.16), transparent 40%),
+        rgba(5,8,14,.92);
+      backdrop-filter: blur(8px);
+    }
+    .intro-video-card {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      width: min(860px, 100%);
+      max-height: min(88vh, 760px);
+      border: 1px solid rgba(182,156,255,.34);
+      border-radius: 18px;
+      overflow: hidden;
+      color: var(--sim-ink);
+      background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.04),
+        0 28px 80px -36px rgba(124,77,255,.75);
+    }
+    .intro-video-card__header {
+      display: grid;
+      gap: 8px;
+      padding: clamp(18px, 4vw, 28px) clamp(18px, 4vw, 32px) 16px;
+      border-bottom: 1px solid rgba(182,156,255,.18);
+      background: rgba(124,77,255,.08);
+    }
+    .intro-video-card__header h2 {
+      margin: 0;
+      font-size: clamp(1.25rem, 3.6vw, 2rem);
+      line-height: 1.15;
+      color: #fff;
+    }
+    .intro-video-card__header span {
+      width: fit-content;
+      padding: 5px 10px;
+      border: 1px solid rgba(108,192,199,.32);
+      border-radius: 999px;
+      color: #bdeef2;
+      background: rgba(108,192,199,.1);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+    .intro-video-card__media {
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      padding: 12px clamp(14px, 3vw, 24px);
+      background: #05080e;
+    }
+    .intro-video {
+      display: block;
+      width: 100%;
+      max-height: min(52vh, 420px);
+      border-radius: 12px;
+      border: 1px solid rgba(182,156,255,.24);
+      background: #000;
+      object-fit: contain;
+    }
+    .intro-video-card__actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px clamp(18px, 4vw, 32px);
+      border-top: 1px solid rgba(182,156,255,.18);
+      background: rgba(5,8,14,.62);
+    }
+    .intro-video-card__actions span {
+      color: rgba(244,247,251,.58);
+      font-size: .78rem;
+      line-height: 1.4;
+    }
+    .intro-video-card__actions .psy-button {
+      flex-shrink: 0;
+      min-width: 140px;
+    }
+
+    .case-intro-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 380;
+      display: grid;
+      place-items: center;
+      padding: clamp(14px, 4vw, 32px);
+      background:
+        radial-gradient(circle at 50% 20%, rgba(124,77,255,.16), transparent 40%),
+        rgba(5,8,14,.9);
+      backdrop-filter: blur(8px);
+    }
+    .case-intro-card {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      width: min(760px, 100%);
+      max-height: min(86vh, 720px);
+      border: 1px solid rgba(182,156,255,.34);
+      border-radius: 18px;
+      overflow: hidden;
+      color: var(--sim-ink);
+      background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.04),
+        0 28px 80px -36px rgba(124,77,255,.75);
+    }
+    .case-intro-card__header {
+      display: grid;
+      gap: 8px;
+      padding: clamp(18px, 4vw, 28px) clamp(18px, 4vw, 32px) 16px;
+      border-bottom: 1px solid rgba(182,156,255,.18);
+      background: rgba(124,77,255,.08);
+    }
+    .case-intro-card__header h2 {
+      margin: 0;
+      font-size: clamp(1.25rem, 3.6vw, 2rem);
+      line-height: 1.15;
+      color: #fff;
+    }
+    .case-intro-card__header span {
+      width: fit-content;
+      padding: 5px 10px;
+      border: 1px solid rgba(108,192,199,.32);
+      border-radius: 999px;
+      color: #bdeef2;
+      background: rgba(108,192,199,.1);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+    .case-intro-card__body {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px clamp(18px, 4vw, 34px);
+      scrollbar-color: rgba(182,156,255,.45) rgba(255,255,255,.06);
+    }
+    .case-intro-card__body:focus-visible {
+      outline: 2px solid rgba(108,192,199,.75);
+      outline-offset: -4px;
+    }
+    .case-intro-card__body p {
+      margin: 0 0 14px;
+      color: rgba(244,247,251,.84);
+      font-size: clamp(.92rem, 2vw, 1rem);
+      line-height: 1.7;
+    }
+    .case-intro-card__body p:last-child { margin-bottom: 0; color: #f3dfb5; }
+    .case-intro-card__actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px clamp(18px, 4vw, 32px);
+      border-top: 1px solid rgba(182,156,255,.18);
+      background: rgba(5,8,14,.62);
+    }
+    .case-intro-card__actions span {
+      color: rgba(244,247,251,.58);
+      font-size: .78rem;
+      line-height: 1.4;
+    }
+    .case-intro-card__actions .psy-button {
+      flex-shrink: 0;
+      min-width: 140px;
+    }
+
     /* ── Overlays ────────────────────────────────────────────────────────── */
     .dialogue-cinematic { position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; }
     .overlay-backdrop {
@@ -610,6 +875,20 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
       .context-bar { justify-content: center; flex-basis: 100%; order: 3; }
       .context-bar__hint { display: none; }
       .safe-exit__copy strong { font-size: .66rem; }
+      .case-intro-overlay { padding: 10px; }
+      .case-intro-card { max-height: 90vh; border-radius: 14px; }
+      .case-intro-card__actions {
+        display: grid;
+        justify-items: stretch;
+      }
+      .case-intro-card__actions .psy-button { width: 100%; }
+      .intro-video-overlay { padding: 10px; }
+      .intro-video-card { max-height: 92vh; border-radius: 14px; }
+      .intro-video-card__actions {
+        display: grid;
+        justify-items: stretch;
+      }
+      .intro-video-card__actions .psy-button { width: 100%; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
@@ -624,11 +903,13 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
 })
 export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
+  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly audioDirector = inject(AudioDirectorService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
+  @ViewChild('introVideo')   private introVideoRef?: ElementRef<HTMLVideoElement>;
 
   readonly attempt    = signal<SimulationAttemptState | null>(null);
   readonly pendingActiveAttempt = signal<SimulationAttemptState | null>(null);
@@ -649,6 +930,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly stressPulse = signal(false);
   readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
+  readonly aiAssistantOpen = signal(false);
   readonly fadeActive   = signal(false);
   /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
   readonly doorNotice   = signal('');
@@ -656,6 +938,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
+  readonly showIntroVideo = signal(false);
+  readonly introVideoEnded = signal(false);
+  readonly introVideoSrc = SIMULATOR_INTRO_VIDEO;
+  readonly showCaseIntro = signal(false);
+  readonly caseIntroTitle = CASE_INTRO_TITLE;
+  readonly caseIntroAudio = CASE_INTRO_AUDIO;
+  readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
+  readonly musicMuted = signal(false);
+  readonly sfxMuted = signal(false);
+  readonly reduceMotion = signal(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   private readonly seenTransitionMapKeys = new Set<string>();
 
   /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
@@ -673,10 +965,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }));
 
   readonly sceneObjective = computed(() => getSceneObjective(this.attempt()?.currentNode.key));
+  readonly sceneGuide = computed(() => {
+    const guide = getSceneGuide(this.attempt()?.currentNode.key);
+    const world = this.world();
+    if (!guide || !world?.objects.some(object => object.key === guide.targetKey)) return null;
+    return guide;
+  });
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly worldMotionPaused = computed(() =>
-    this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+    this.showIntroVideo() || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
@@ -693,6 +991,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private positionSaveHandle: number | null = null;
 
   ngOnDestroy(): void {
+    this.introVideoRef?.nativeElement?.pause();
+    this.audioDirector.stopIntroLament();
     this.audioDirector.dispose();
   }
 
@@ -746,9 +1046,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
     this.audioDirector.init();
+    this.musicMuted.set(this.audioDirector.isMusicMuted());
+    this.sfxMuted.set(this.audioDirector.isSfxMuted());
     this.attempt.set(attempt);
     this.patientState.set(PATIENT_INITIAL_STATE);
-    this.viewedNpcKeys.set(new Set<string>());
+    this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
     this.pendingEvidenceDecisionId = null;
     this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
@@ -764,6 +1066,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (event.defaultPrevented) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
+
+    if (this.showIntroVideo()) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.continueFromIntroVideo();
+      }
+      return;
+    }
+
+    if (this.showCaseIntro()) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.continueFromCaseIntro();
+      }
+      return;
+    }
 
     if (event.key === 'Escape') {
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
@@ -856,6 +1174,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.openInteraction(game.attemptId, game.attemptToken, interaction.key).subscribe({
       next: result => {
         this.world.set(result.world);
+        this.mergeViewedNpcKeysFromWorld(result.world);
         this.selectedInteraction.set(result.interaction);
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
         this.busy.set(false);
@@ -932,28 +1251,30 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (door) this.tryOpenDoor(door);
   }
 
-  /** Fase 9: líneas desbloqueadas por evidencia + marca de información incompleta
-   *  + alerta honesta en choices de decisiones prohibidas. Solo presentación. */
+  /** Fase 9: líneas desbloqueadas por evidencia. Las opciones no revelan
+   * su resultado pedagógico antes de responder. */
   private decorateDialogue(dialogue: DialogueState | null): DialogueState | null {
     if (!dialogue) return null;
     const node = this.attempt()?.currentNode;
-    const def = nodeEvidence(node?.key);
-    const extras = unlockedExtraLines(def, dialogue.key, this.world(), this.viewedNpcKeys());
+    const nodeDef = nodeEvidence(node?.key);
+    const extras = unlockedExtraLines(nodeDef, dialogue.key, this.world(), this.viewedNpcKeys());
     const lines = extras.length
       ? [...dialogue.lines, ...extras.map((text, i) => ({
           order: dialogue.lines.length + i + 1,
           speakerName: dialogue.speakerName, text, emotion: 'positive',
         }))]
       : dialogue.lines;
-    const missing = missingEvidence(def, this.world(), this.viewedNpcKeys());
     const optionById = new Map((node?.options ?? []).map(o => [o.id, o]));
     const choices = dialogue.choices.map(choice => {
       if (choice.decisionOptionId == null) return choice;
       const option = optionById.get(choice.decisionOptionId);
+      const evidenceDef = mergeEvidence(nodeDef, choiceEvidence(choice));
+      const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
+      const evidenceMessage = evidenceDef && missing.length ? this.evidenceMissingMessage(evidenceDef, missing) : null;
       return {
         ...choice,
         isProhibited: choice.isProhibited || option?.prohibitedConduct || false,
-        ...(missing.length && def ? { evidenceWarning: def.missingMessage } : {}),
+        ...(evidenceMessage ? { evidenceWarning: evidenceMessage } : {}),
       };
     });
     return { ...dialogue, lines, choices };
@@ -1033,12 +1354,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.showActionError('Esta intervención pertenece a otra etapa del caso. Vuelve cuando el flujo te lleve a esta sala.');
       return;
     }
-    const evidenceDef = nodeEvidence(game.currentNode.key);
+    const selectedChoice = this.dialogue()?.choices.find(choice => choice.decisionOptionId === decisionOptionId);
+    const evidenceDef = mergeEvidence(nodeEvidence(game.currentNode.key), choiceEvidence(selectedChoice));
     const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
     if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
       this.pendingEvidenceDecisionId = decisionOptionId;
-      this.dialogue.set(this.buildEvidenceGateDialogue(evidenceDef.missingMessage, decisionOptionId));
-      this.announce(evidenceDef.missingMessage);
+      const message = this.evidenceMissingMessage(evidenceDef, missing);
+      this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
+      this.announce(message);
       return;
     }
     this.pendingEvidenceDecisionId = null;
@@ -1061,10 +1384,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playSfx('session_complete');
           }
           if (updated.feedback) {
-            // Consecuencia visible: la paciente reacciona (HUD + tint/shake del NPC).
-            const nextPatient = applyFeedbackToPatient(this.patientState(), this.interventionRules, updated.feedback);
-            this.patientState.set(nextPatient);
-            this.gameWorld?.updatePatientVisualState(nextPatient);
+            const retryRequired = this.feedbackRequiresRetry(updated.feedback);
+            if (!retryRequired) {
+              // Consecuencia visible: la paciente reacciona (HUD + tint/shake del NPC).
+              const nextPatient = applyFeedbackToPatient(this.patientState(), this.interventionRules, updated.feedback);
+              this.patientState.set(nextPatient);
+              this.gameWorld?.updatePatientVisualState(nextPatient);
+            }
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
@@ -1081,6 +1407,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.useTool(game.attemptId, game.attemptToken, toolCode, target).subscribe({
       next: (result: ToolUseResult) => {
         this.world.set(result.world);
+        this.mergeViewedNpcKeysFromWorld(result.world);
         const cur = this.attempt();
         if (cur) {
           const newStress = Math.max(0, Math.min(100, cur.stressIndex + result.stressDelta));
@@ -1115,7 +1442,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
-    this.viewedNpcKeys.update(prev => new Set(prev).add(npc.key));
+    this.viewedNpcKeys.update(prev => {
+      const next = new Set(prev).add(npc.key);
+      this.persistViewedNpcKeys(next);
+      return next;
+    });
+    const game = this.attempt();
+    if (game?.status === 'IN_PROGRESS') {
+      this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
+        next: world => this.mergeViewedNpcKeysFromWorld(world),
+        error: () => this.showActionError('No pudimos guardar la interaccion con el NPC.'),
+      });
+    }
     if (!npc.dialogue?.lines?.length) return;
     this.dialogue.set({
       key: `npc-${npc.key}`,
@@ -1227,6 +1565,64 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, 5000);
   }
 
+  toggleMusicMute(): void {
+    const muted = this.audioDirector.toggleMusicMuted();
+    this.musicMuted.set(muted);
+    if (!muted) this.audioDirector.setStressLevel(this.attempt()?.stressIndex ?? 0);
+    this.announce(muted ? 'Musica silenciada.' : 'Musica activada.');
+  }
+
+  toggleSfxMute(): void {
+    const muted = this.audioDirector.toggleSfxMuted();
+    this.sfxMuted.set(muted);
+    this.announce(muted ? 'Sonidos de acciones silenciados.' : 'Sonidos de acciones activados.');
+  }
+
+  toggleReduceMotion(): void {
+    const reduced = !this.reduceMotion();
+    this.reduceMotion.set(reduced);
+    this.announce(reduced ? 'Movimiento reducido activado.' : 'Movimiento reducido desactivado.');
+  }
+
+  private evidenceMissingMessage(def: NodeEvidenceDef, missing: string[]): string {
+    const items = missing
+      .map(item => this.evidenceMissingItemLabel(item))
+      .filter((item): item is string => item.length > 0);
+    if (!items.length) return def.missingMessage;
+    return `Información incompleta: falta ${this.joinSpanish(items)} antes de decidir.`;
+  }
+
+  private evidenceMissingItemLabel(item: string): string {
+    const [kind, key] = item.split(':', 2);
+    if (!key) return '';
+    if (kind === 'npc') return `hablar con ${this.evidenceNpcLabel(key)}`;
+    if (kind === 'tool') return `tener o usar ${this.evidenceToolLabel(key)}`;
+    if (kind === 'inspected') return `revisar ${this.evidenceObjectLabel(key)}`;
+    return key;
+  }
+
+  private evidenceNpcLabel(key: string): string {
+    const fromScenario = this.scenarioConfig()
+      ?.rooms.flatMap(room => room.npcs)
+      .find(npc => npc.key === key)?.displayName;
+    if (fromScenario) return fromScenario;
+    return this.evidenceObjectLabel(key);
+  }
+
+  private evidenceToolLabel(code: string): string {
+    return this.world()?.tools.find(tool => tool.code === code)?.label ?? code;
+  }
+
+  private evidenceObjectLabel(key: string): string {
+    return this.world()?.objects.find(obj => obj.key === key)?.label ?? key;
+  }
+
+  private joinSpanish(items: string[]): string {
+    if (items.length <= 1) return items[0] ?? '';
+    if (items.length === 2) return `${items[0]} y ${items[1]}`;
+    return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+  }
+
   /** Gate de evidencia (Fase 9): permite cancelar o decidir bajo registro. */
   private buildEvidenceGateDialogue(message: string, decisionOptionId: number): DialogueState {
     return {
@@ -1244,18 +1640,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {
+    const retryRequired = this.feedbackRequiresRetry(feedback);
     const lines: DialogueState['lines'] = [
       { order: 1, speakerName: 'Supervisión clínica', text: feedback.message, emotion: feedback.prohibitedConduct ? 'danger' : 'neutral' }
     ];
     if (feedback.prohibitionReason) {
       lines.push({ order: 2, speakerName: 'Supervisión clínica', text: feedback.prohibitionReason, emotion: 'danger' });
     }
-    lines.push({
-      order: lines.length + 1,
-      speakerName: '',
-      text: `Puntaje ${feedback.scoreDelta >= 0 ? '+' : ''}${feedback.scoreDelta} · Estrés ${feedback.stressDelta >= 0 ? '+' : ''}${feedback.stressDelta}% · Confianza ${feedback.trustDelta >= 0 ? '+' : ''}${feedback.trustDelta} · Riesgo ${feedback.victimRiskDelta >= 0 ? '+' : ''}${feedback.victimRiskDelta}`,
-      emotion: 'neutral'
-    });
+    if (retryRequired) {
+      lines.push({
+        order: lines.length + 1,
+        speakerName: '',
+        text: 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.',
+        emotion: 'concerned'
+      });
+    } else {
+      lines.push({
+        order: lines.length + 1,
+        speakerName: '',
+        text: `Puntaje ${feedback.scoreDelta >= 0 ? '+' : ''}${feedback.scoreDelta} · Estrés ${feedback.stressDelta >= 0 ? '+' : ''}${feedback.stressDelta}% · Confianza ${feedback.trustDelta >= 0 ? '+' : ''}${feedback.trustDelta} · Riesgo ${feedback.victimRiskDelta >= 0 ? '+' : ''}${feedback.victimRiskDelta}`,
+        emotion: 'neutral'
+      });
+    }
     return {
       key: `supervision-${Date.now()}`, speakerName: 'Supervisión clínica',
       portraitKey: null,
@@ -1304,12 +1710,63 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private applyLoadedWorld(world: SimulationWorldState): void {
     const previousMapKey = this.world()?.map.key ?? null;
     this.world.set(world);
+    this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
     window.setTimeout(() => this.fadeActive.set(false), 80);
     if (previousMapKey && previousMapKey !== world.map.key) {
       this.announceRoomChange(world);
     }
+    this.maybeShowInitialCaseIntro(world);
+  }
+
+  private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
+    const attempt = this.attempt();
+    if (!attempt || attempt.status !== 'IN_PROGRESS') return;
+    if (attempt.currentNode.key !== 'hospital-urgencias' || world.map.key !== 'hospital-urgencias') return;
+    const storageKey = this.caseIntroStorageKey(attempt);
+    if (sessionStorage.getItem(storageKey) === 'read') return;
+    if (!this.reduceMotion()) {
+      this.introVideoEnded.set(false);
+      this.showIntroVideo.set(true);
+      return;
+    }
+    this.revealCaseIntro();
+  }
+
+  playIntroVideo(): void {
+    const video = this.introVideoRef?.nativeElement;
+    if (!video || this.introVideoEnded()) return;
+    void video.play().catch(() => undefined);
+  }
+
+  onIntroVideoEnded(): void {
+    this.introVideoEnded.set(true);
+  }
+
+  continueFromIntroVideo(): void {
+    this.introVideoRef?.nativeElement?.pause();
+    this.showIntroVideo.set(false);
+    this.introVideoEnded.set(false);
+    this.revealCaseIntro();
+  }
+
+  private revealCaseIntro(): void {
+    this.showCaseIntro.set(true);
+    this.audioDirector.playIntroLament();
+  }
+
+  continueFromCaseIntro(): void {
+    const attempt = this.attempt();
+    if (attempt) sessionStorage.setItem(this.caseIntroStorageKey(attempt), 'read');
+    this.showCaseIntro.set(false);
+    this.audioDirector.stopIntroLament();
+    this.audioDirector.setStressLevel(attempt?.stressIndex ?? 0);
+    this.announce('Introducción completada. Inicia la intervención en urgencias.');
+  }
+
+  private caseIntroStorageKey(attempt: SimulationAttemptState): string {
+    return `siep_case_intro_${attempt.caseVersionId}_${attempt.attemptId}`;
   }
 
   /** Al cambiar de sala (puerta o decisión): nombre de la sala 1-2 s y, si el
@@ -1333,7 +1790,59 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private persistAttemptToken(attempt: SimulationAttemptState) {
     sessionStorage.setItem(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
-      attemptToken: attempt.attemptToken
+      attemptToken: attempt.attemptToken,
+      viewedNpcKeys: Array.from(this.viewedNpcKeys()),
+    }));
+  }
+
+  private feedbackRequiresRetry(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct' | 'retryRequired'>): boolean {
+    // El backend es la autoridad: solo concede reintento en la 1ª respuesta mala
+    // (regla de 2 oportunidades). La 2ª respuesta riesgosa/inadecuada queda
+    // registrada y llega con retryRequired=false (aunque la clasificación sea mala).
+    if (typeof feedback.retryRequired === 'boolean') return feedback.retryRequired;
+    // Fallback para respuestas legacy sin el flag.
+    return feedback.prohibitedConduct || feedback.classification === 'INADEQUATE' || feedback.classification === 'RISKY';
+  }
+
+  private restoreViewedNpcKeys(attempt: SimulationAttemptState): ReadonlySet<string> {
+    try {
+      const raw = sessionStorage.getItem(`siep_attempt_${attempt.caseVersionId}`);
+      if (!raw) return new Set<string>();
+      const parsed = JSON.parse(raw) as { attemptId?: unknown; viewedNpcKeys?: unknown };
+      if (parsed.attemptId !== attempt.attemptId || !Array.isArray(parsed.viewedNpcKeys)) {
+        return new Set<string>();
+      }
+      return new Set(parsed.viewedNpcKeys.filter((key): key is string => typeof key === 'string' && key.length > 0));
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private mergeViewedNpcKeysFromWorld(world: SimulationWorldState): void {
+    const fromDb = this.viewedNpcKeysFromWorld(world);
+    if (!fromDb.length) return;
+    this.viewedNpcKeys.update(prev => {
+      const next = new Set(prev);
+      fromDb.forEach(key => next.add(key));
+      this.persistViewedNpcKeys(next);
+      return next;
+    });
+  }
+
+  private viewedNpcKeysFromWorld(world: SimulationWorldState): string[] {
+    const raw = world.flags?.['viewedNpcKeys'];
+    return Array.isArray(raw)
+      ? raw.filter((key): key is string => typeof key === 'string' && key.length > 0)
+      : [];
+  }
+
+  private persistViewedNpcKeys(keys: ReadonlySet<string> = this.viewedNpcKeys()): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    sessionStorage.setItem(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
+      attemptId: attempt.attemptId,
+      attemptToken: attempt.attemptToken,
+      viewedNpcKeys: Array.from(keys),
     }));
   }
 
