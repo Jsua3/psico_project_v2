@@ -3,6 +3,7 @@ import { AfterViewChecked, Component, ElementRef, HostListener, OnDestroy, ViewC
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
+import { resolvePortraitAsset } from './portrait-resolver.util';
 
 const CHARS_PER_SEC = 22;
 const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
@@ -23,10 +24,14 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
         [attr.aria-label]="d.speakerName + ': ' + fullText()">
 
         <div class="portrait" aria-hidden="true" [style.color]="emotionColor(d.emotion)">
-          <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-            <circle cx="24" cy="18" r="9" fill="currentColor"/>
-            <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-          </svg>
+          @if (portraitSrc(d); as src) {
+            <img class="portrait-img" [src]="src" alt="" (error)="onPortraitError(src)" />
+          } @else {
+            <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
+              <circle cx="24" cy="18" r="9" fill="currentColor"/>
+              <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
+            </svg>
+          }
           @if (d.emotion && d.emotion !== 'neutral') {
             <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
           }
@@ -117,6 +122,14 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
     }
     .portrait-svg {
       color: #B69CFF;
+    }
+    .portrait-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: bottom center;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,.35));
     }
     .emotion-chip {
       position: absolute;
@@ -350,6 +363,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly isTypingComplete = signal(false);
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
+  /** Retrato cuya carga falló: cae a la silueta SVG (spike de retratos NPC). */
+  private readonly failedPortrait = signal<string | null>(null);
 
   private typewriterHandle: ReturnType<typeof setInterval> | null = null;
   private confirmHandle: ReturnType<typeof setTimeout> | null = null;
@@ -371,6 +386,19 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
         this.isTypingComplete.set(true);
       }
     });
+  }
+
+  /**
+   * Ruta del retrato pixel-art para la línea actual, o `null` si no hay retrato
+   * (o si la imagen falló al cargar) → el panel muestra la silueta SVG.
+   */
+  portraitSrc(d: DialogueState): string | null {
+    const asset = resolvePortraitAsset(d.portraitKey, d.emotion);
+    return asset && this.failedPortrait() !== asset ? asset : null;
+  }
+
+  onPortraitError(src: string): void {
+    this.failedPortrait.set(src);
   }
 
   /** Color del retrato/etiqueta según la emoción del hablante. */
