@@ -7,7 +7,7 @@ import { AvatarLayerKind, resolveAvatarSpriteLayers } from '../character/avatar-
  *
  * Los assets modulares (`/assets/characters/modular/...`) son hojas de
  * 192×288 px = 3 columnas (frames de caminata) × 3 filas (direcciones):
- *   fila 0 = frente (down) · fila 1 = lado (mira a la IZQUIERDA) · fila 2 = espalda (up)
+ *   fila 0 = frente (down) · fila 1 = lado (mira a la DERECHA) · fila 2 = espalda (up)
  *
  * La composición por capas (cuerpo → pelo atrás → cara → pelo frente) se hace
  * una vez en un CanvasTexture y se registra como spritesheet de 9 frames.
@@ -34,8 +34,8 @@ export const AVATAR_ANIM_KEYS = {
   up: 'avatar-walk-up',
 } as const;
 
-/** Frame de reposo por dirección (columna central de cada fila). */
-export const AVATAR_IDLE_FRAMES = { down: 1, side: 4, up: 7 } as const;
+/** Frame de reposo por direccion (primera columna de cada fila, segun manifest). */
+export const AVATAR_IDLE_FRAMES = { down: 0, side: 3, up: 6 } as const;
 
 /** Frames de caminata por dirección (fila completa). */
 export const AVATAR_WALK_FRAMES = {
@@ -43,6 +43,14 @@ export const AVATAR_WALK_FRAMES = {
   side: [3, 4, 5],
   up: [6, 7, 8],
 } as const;
+
+/**
+ * The modular side row faces right. Flip only when the actor moves or rests
+ * to the left; otherwise face/hair layers appear mirrored.
+ */
+export function modularAvatarFlipX(direction: 'down' | 'up' | 'left' | 'right'): boolean {
+  return direction === 'left';
+}
 
 export interface AvatarLayerSpec {
   /** Clave de textura Phaser para precargar la capa. */
@@ -68,9 +76,12 @@ export function avatarLayerSpecs(config: AvatarConfig): AvatarLayerSpec[] {
  * cráneo. La cara va sobre el cuerpo y el flequillo cierra.
  */
 export function avatarRowLayerOrder(row: number): readonly AvatarLayerKind[] {
-  return row === 2
-    ? ['body', 'hairBack', 'face', 'hairFront']
-    : ['hairBack', 'body', 'face', 'hairFront'];
+  // Frente: el flequillo va SOBRE el rostro (cae sobre la frente).
+  if (row === 0) return ['hairBack', 'body', 'face', 'hairFront'];
+  // Lateral: el rostro (ojo/nariz de perfil) va SOBRE el flequillo para que el
+  // cabello no tape la cara de perfil.
+  if (row === 1) return ['hairBack', 'body', 'hairFront', 'face'];
+  return ['body', 'hairBack', 'hairFront'];
 }
 
 /** Geometría de los 9 frames (índice = fila*3 + columna). */

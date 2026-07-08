@@ -23,7 +23,8 @@ PUBLISHED del caso pasan a ARCHIVED para que el catálogo muestre solo esta.
 """
 import json
 
-from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
@@ -45,6 +46,9 @@ from apps.simulation.models import (
 )
 
 CASE_CODE = "SIM-VBG-001"
+#: Casos legacy del mismo dominio que deben retirarse del catálogo al sembrar
+#: el canónico (evita que aparezcan casos de feminicidio duplicados).
+LEGACY_DUPLICATE_CASE_CODES = ("SOC-FEM-001", "VBG-001")
 CASE_TITLE = "Violencia Familiar y Tentativa de Feminicidio"
 CASE_DESCRIPTION = (
     "Caso formativo basado en el documento canónico de Psicología Social: "
@@ -76,6 +80,44 @@ TIME_JUMP_TEXT = (
     "restablecimiento de derechos."
 )
 
+DEFAULT_RUBRIC = {
+    "name": "Rúbrica formativa — Violencia de género y rutas de protección",
+    "description": (
+        "Evaluación por competencias psicosociales del caso SIM-VBG-001: "
+        "contención, marco normativo, intervención ética y reflexión profesional."
+    ),
+    "criteria": [
+        {
+            "competency": "CONTENCION",
+            "title": "Contención emocional y manejo de crisis",
+            "description": "Identifica necesidades inmediatas y estabiliza a la víctima y su red de apoyo.",
+            "max_score": 5,
+            "display_order": 1,
+        },
+        {
+            "competency": "MARCO_NORMATIVO",
+            "title": "Marco normativo y rutas de atención",
+            "description": "Aplica referentes legales y activa rutas institucionales adecuadas.",
+            "max_score": 5,
+            "display_order": 2,
+        },
+        {
+            "competency": "INTERVENCION_ETICA",
+            "title": "Intervención técnica y ética",
+            "description": "Toma decisiones clínicas que minimizan revictimización y riesgo.",
+            "max_score": 5,
+            "display_order": 3,
+        },
+        {
+            "competency": "REFLEXION",
+            "title": "Reflexión profesional",
+            "description": "Registra aprendizajes y justifica el criterio de intervención.",
+            "max_score": 5,
+            "display_order": 4,
+        },
+    ],
+}
+
 LOCKED_ESCUCHA = (
     "Primero identifica la necesidad de contención: habla con la familia en crisis."
 )
@@ -94,8 +136,8 @@ NODES = [
         "narrative": (
             "Son las 11 de la noche. Una mujer de 22 años ingresa a urgencias "
             "con 28 heridas de arma cortopunzante tras una tentativa de "
-            "feminicidio; su hija de 3 años falleció en el ataque. La madre y "
-            "los hermanos de la sobreviviente llegan alterados exigiendo ver a "
+            "feminicidio; su hija de 3 años falleció en el ataque. La madre de "
+            "la sobreviviente y sus hermanos llegan alterados exigiendo ver a "
             "la niña. Estabiliza emocionalmente a la familia y evita acciones "
             "prematuras que aumenten la crisis."
         ),
@@ -180,7 +222,7 @@ DECISIONS = [
             {
                 "key": "h1-noticia-sin-protocolo",
                 "text": (
-                    "Notificar de inmediato la muerte de la niña a la madre y la "
+                    "Notificar de inmediato la muerte de la niña a la abuela y la "
                     "familia, sin estabilización previa ni protocolo."
                 ),
                 "classification": "INADEQUATE",
@@ -635,8 +677,8 @@ _ESCUCHA_DECISION_OBJECTS = [
         "key": "familia-duelo", "label": "Familia en crisis", "type": "PERSON",
         "pos": (168, 408), "icon": "person", "short": "FAM",
         "prompt": "Acompañar a la familia",
-        "text": "La madre y los hermanos de la sobreviviente esperan noticias de la niña.",
-        "dialogue": ("Madre de la sobreviviente", [
+        "text": "La abuela de la niña y los hermanos de la sobreviviente esperan noticias.",
+        "dialogue": ("Abuela de la niña", [
             ("¡Por favor! Nadie nos dice nada de la niña… ¿dónde está mi nieta? ¡Quiero verla!", "anxious"),
             ("Mi hija sigue en cirugía… dicen que son 28 heridas. ¿Quién pudo hacerle esto?", "negative"),
             ("(La familia está en crisis. Define el foco inmediato de tu intervención.)", "neutral"),
@@ -745,8 +787,8 @@ MAP_OBJECTS = {
             "key": "familia-crisis", "label": "Familia en crisis", "type": "PERSON",
             "pos": (190, 420), "icon": "person", "short": "FAM",
             "prompt": "Hablar con la familia en crisis",
-            "text": "La madre y los hermanos de la sobreviviente exigen ver a la niña.",
-            "dialogue": ("Madre de la sobreviviente", [
+            "text": "La abuela de la niña y los hermanos de la sobreviviente exigen verla.",
+            "dialogue": ("Abuela de la niña", [
                 ("¡Déjenme pasar! ¡Quiero ver a mi nieta y a mi hija! ¿Por qué nadie nos dice nada?", "anxious"),
                 ("Llegamos apenas supimos… ¿están bien? ¡Dígame que están bien!", "anxious"),
                 ("(La familia necesita contención antes de cualquier información difícil. "
@@ -841,7 +883,7 @@ MAP_OBJECTS = {
             "pos": (168, 408), "icon": "person", "short": "FAM",
             "prompt": "Despedirte de la familia",
             "text": "La familia quedó contenida y orientada.",
-            "dialogue": ("Madre de la sobreviviente", [
+            "dialogue": ("Abuela de la niña", [
                 ("Gracias por no dejarnos solas en esto…", "sad"),
                 ("Sé que viene un camino largo. ¿Qué sigue ahora para mi hija?", "neutral"),
             ]),
@@ -984,9 +1026,32 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        User = get_user_model()
+        creator = User.objects.filter(email="admin@psychosim.edu.co").first()
+        if not creator:
+            creator = User.objects.create_user(
+                email="admin@psychosim.edu.co",
+                password="Admin123!",
+                nombre="Admin",
+                apellido="SIEP",
+                role="ADMIN",
+                activo=True,
+            )
+        elif not creator.check_password("Admin123!"):
+            creator.set_password("Admin123!")
+            creator.activo = True
+            creator.role = "ADMIN"
+            creator.save()
+
         case = SimulationCase.objects.filter(code=options["case_code"]).first()
         if not case:
-            raise CommandError(f"No existe el caso {options['case_code']}")
+            case = SimulationCase.objects.create(
+                code=options["case_code"],
+                title=CASE_TITLE,
+                description=CASE_DESCRIPTION,
+                active=True,
+                created_by=creator,
+            )
 
         case.title = CASE_TITLE
         case.description = CASE_DESCRIPTION
@@ -1186,16 +1251,103 @@ class Command(BaseCommand):
                         display_order=criterion.display_order,
                     )
                 self.stdout.write(f"Rúbrica clonada desde la versión {source_rubric.case_version_id}")
+            else:
+                rubric = Rubric.objects.create(
+                    case_version=version,
+                    name=DEFAULT_RUBRIC["name"],
+                    description=DEFAULT_RUBRIC["description"],
+                    active=True,
+                    created_by=case.created_by,
+                )
+                for criterion in DEFAULT_RUBRIC["criteria"]:
+                    RubricCriterion.objects.create(
+                        rubric=rubric,
+                        competency=criterion["competency"],
+                        title=criterion["title"],
+                        description=criterion["description"],
+                        max_score=criterion["max_score"],
+                        display_order=criterion["display_order"],
+                    )
+                self.stdout.write("Rúbrica canónica creada para la versión publicada.")
 
         # ── Archivar otras versiones publicadas (catálogo = solo esta) ───────
+        if not Rubric.objects.filter(case_version_id=version.id, active=True).exists():
+            rubric = Rubric.objects.create(
+                case_version=version,
+                name="Rubrica formativa SIM-VBG-001",
+                description=(
+                    "Evaluacion docente del recorrido: contencion en crisis, "
+                    "marco normativo, enfoque de derechos, etica profesional "
+                    "y articulacion institucional."
+                ),
+                active=True,
+                created_by=creator,
+            )
+            default_criteria = [
+                (
+                    "INTERVENCION_CRISIS",
+                    "Contencion y primeros auxilios psicologicos",
+                    "Evalua estabilizacion emocional, escucha activa y manejo de noticia dificil.",
+                    20,
+                ),
+                (
+                    "MARCO_NORMATIVO",
+                    "Aplicacion del marco normativo",
+                    "Valora el uso pertinente de Resolucion 459, Ley 1257, Ley 2126 y Ley 1098.",
+                    20,
+                ),
+                (
+                    "ENFOQUE_DERECHOS",
+                    "Proteccion, riesgo y no revictimizacion",
+                    "Mide valoracion de riesgo, medidas de proteccion y rechazo de practicas revictimizantes.",
+                    20,
+                ),
+                (
+                    "ETICA_PROFESIONAL",
+                    "Decision tecnica y etica",
+                    "Valora confidencialidad, prudencia, limites profesionales y actuacion interdisciplinaria.",
+                    20,
+                ),
+                (
+                    "TRAZABILIDAD",
+                    "Reflexion y trazabilidad del caso",
+                    "Evalua coherencia del recorrido, uso de herramientas y reflexion pedagogica.",
+                    20,
+                ),
+            ]
+            for order, (competency, title, description, max_score) in enumerate(default_criteria, start=1):
+                RubricCriterion.objects.create(
+                    rubric=rubric,
+                    competency=competency,
+                    title=title,
+                    description=description,
+                    max_score=max_score,
+                    display_order=order,
+                )
+            self.stdout.write("Rubrica formativa creada para SIM-VBG-001")
+
         archived = (
             CaseVersion.objects.filter(simulation_case=case, status="PUBLISHED")
             .exclude(pk=version.id)
             .update(status="ARCHIVED")
         )
 
+        # ── Retirar casos legacy duplicados del mismo dominio ────────────────
+        # SOC-FEM-001 es el caso de feminicidio previo (mismo PDF, código viejo)
+        # que quedaba publicado junto al canónico SIM-VBG-001. Se desactiva y se
+        # archivan sus versiones para que el catálogo muestre un único caso.
+        legacy_cases = SimulationCase.objects.filter(
+            code__in=LEGACY_DUPLICATE_CASE_CODES
+        ).exclude(pk=case.id)
+        legacy_versions_archived = CaseVersion.objects.filter(
+            simulation_case__in=legacy_cases, status="PUBLISHED"
+        ).update(status="ARCHIVED")
+        legacy_deactivated = legacy_cases.update(active=False)
+
         self.stdout.write(self.style.SUCCESS(
             f"Caso PDF sembrado: versión {version.semantic_version} (id {version.id}) — "
             f"{len(nodes)} nodos, {len(option_by_key)} opciones, {len(MAPS)} mapas, "
-            f"{n_objects} objetos ({n_doors} puertas). Versiones archivadas: {archived}."
+            f"{n_objects} objetos ({n_doors} puertas). Versiones archivadas: {archived}. "
+            f"Casos legacy retirados: {legacy_deactivated} "
+            f"(versiones archivadas: {legacy_versions_archived})."
         ))

@@ -1,11 +1,9 @@
 import { Component, computed, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AvatarConfig } from './avatar.model';
-import { hairVariantId } from './avatar-config.util';
+import { AvatarConfig, EXPRESSIONS, Expression, LEGACY_MOUTH_TO_EXPRESSION } from './avatar.model';
+import { bodyAssetName, hairVariantId } from './avatar-config.util';
 
 export type AvatarPreviewPose = 'front' | 'side';
-
-/** Tipo de capa del avatar modular (gobierna el orden de composición). */
 export type AvatarLayerKind = 'body' | 'hairBack' | 'face' | 'hairFront';
 
 export interface AvatarSpriteLayer {
@@ -28,35 +26,46 @@ function layer(key: string, kind: AvatarLayerKind, assetPath: string, zIndex: nu
   };
 }
 
-function faceId(config: AvatarConfig): 'neutral' | 'calm' | 'worried' {
-  if (config.mouth === 'sonrisa') return 'calm';
-  if (config.mouth === 'seria') return 'worried';
-  return 'neutral';
+const EXPRESSION_IDS = new Set<string>(EXPRESSIONS.map(e => e.id));
+
+/** Resuelve el id de expresión (hoja face_{id}.png) a partir del campo `mouth`. */
+function faceId(config: AvatarConfig): Expression {
+  const raw = config.mouth;
+  if (EXPRESSION_IDS.has(raw)) return raw as Expression;
+  return LEGACY_MOUTH_TO_EXPRESSION[raw] ?? 'neutral';
 }
 
 export function avatarFramePosition(pose: AvatarPreviewPose): string {
   return pose === 'side' ? '0% 50%' : '0% 0%';
 }
 
-export function resolveAvatarSpriteLayers(config: AvatarConfig): AvatarSpriteLayer[] {
+export function resolveAvatarSpriteLayers(config: AvatarConfig, pose: AvatarPreviewPose = 'front'): AvatarSpriteLayer[] {
   const face = faceId(config);
   const variant = hairVariantId(config);
   const layers: AvatarSpriteLayer[] = [];
 
-  // Composición fase C: pelo atrás → cuerpo → cara → pelo frente. La masa
-  // trasera del pelo es opaca y va DETRÁS del cuerpo (en la vista de espaldas
-  // el runtime Phaser la sube por fila; el editor solo muestra frente/lado).
-  // Solo variantes con arte real (hairVariantId); 'none' omite ambas capas.
-  const variantKey = variant.replace(/_/g, '-');
+  // Lateral: el rostro de perfil va SOBRE el flequillo (si no, el cabello lo
+  // tapa). De frente el flequillo cae sobre la frente (rostro debajo).
+  const faceZ = pose === 'side' ? 45 : 30;
+  const hairFrontZ = pose === 'side' ? 40 : 40;
+
   if (variant !== 'none') {
+    const variantKey = variant.replace(/_/g, '-');
     layers.push(layer(`hair-back-${variantKey}`, 'hairBack', `${MODULAR_ASSET_BASE}/hair/hair_${variant}_back.png`, 5));
   }
 
-  layers.push(layer('body', 'body', `${MODULAR_ASSET_BASE}/body/body_orientadora_purple.png`, 10));
-  layers.push(layer(`face-${face}`, 'face', `${MODULAR_ASSET_BASE}/face/face_${face}.png`, 30));
+  layers.push(layer(
+    `body-${config.gender}-${config.clothingColor}`,
+    'body',
+    `${MODULAR_ASSET_BASE}/body/${bodyAssetName(config)}`,
+    10,
+  ));
+
+  layers.push(layer(`face-${face}`, 'face', `${MODULAR_ASSET_BASE}/face/face_${face}.png`, faceZ));
 
   if (variant !== 'none') {
-    layers.push(layer(`hair-front-${variantKey}`, 'hairFront', `${MODULAR_ASSET_BASE}/hair/hair_${variant}_front.png`, 40));
+    const variantKey = variant.replace(/_/g, '-');
+    layers.push(layer(`hair-front-${variantKey}`, 'hairFront', `${MODULAR_ASSET_BASE}/hair/hair_${variant}_front.png`, hairFrontZ));
   }
 
   return layers;
@@ -68,7 +77,8 @@ export function resolveAvatarSpriteLayers(config: AvatarConfig): AvatarSpriteLay
   imports: [CommonModule],
   template: `
     <div class="avatar-pixel" [class.avatar-pixel--portrait]="portrait()" role="img"
-      [attr.aria-label]="'Avatar pixel art del estudiante'">
+      [style.transform]="flipX() ? 'scaleX(-1)' : null"
+      [attr.aria-label]="'Avatar pixel art'">
       <span class="avatar-shadow" aria-hidden="true"></span>
       @for (layer of layers(); track layer.key) {
         <span class="avatar-layer" aria-hidden="true"
@@ -139,7 +149,9 @@ export class AvatarFigureComponent {
   readonly config = input.required<AvatarConfig>();
   readonly pose = input<AvatarPreviewPose>('front');
   readonly portrait = input(false);
+  /** Espeja horizontalmente (lateral mirando a la izquierda). */
+  readonly flipX = input(false);
 
-  readonly layers = computed(() => resolveAvatarSpriteLayers(this.config()));
+  readonly layers = computed(() => resolveAvatarSpriteLayers(this.config(), this.pose()));
   readonly framePosition = computed(() => avatarFramePosition(this.pose()));
 }

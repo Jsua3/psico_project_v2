@@ -28,6 +28,12 @@ import {
   WorldValidationState
 } from '../models/simulation.model';
 
+export interface CaseCreateRequest {
+  title: string;
+  code?: string | null;
+  description?: string | null;
+}
+
 interface ApiResponse<T> {
   data: T;
 }
@@ -118,6 +124,12 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
+  recordNpcInteraction(attemptId: string, attemptToken: string, npcKey: string) {
+    return this.http.post<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/npcs/${encodeURIComponent(npcKey)}`, {
+      attemptToken
+    }).pipe(map(response => response.data));
+  }
+
   chooseDecision(attemptId: string, attemptToken: string, decisionOptionId: number) {
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/decisions`, {
       attemptToken,
@@ -167,12 +179,12 @@ export class SimulationService {
   }
 
   rubric(attemptId: string) {
-    return this.http.get<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation`)
+    return this.http.get<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation/`)
       .pipe(map(response => response.data));
   }
 
   saveRubric(attemptId: string, rubricId: number, comment: string, scores: { criterionId: number; score: number; comment: string }[]) {
-    return this.http.post<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation`, {
+    return this.http.put<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation/`, {
       rubricId,
       comment,
       scores
@@ -191,6 +203,16 @@ export class SimulationService {
 
   cloneCaseVersion(caseVersionId: number) {
     return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/clone-version`, {})
+      .pipe(map(response => response.data));
+  }
+
+  listAuthoringCases() {
+    return this.http.get<ApiResponse<SimulationCaseSummary[]>>('/api/admin/cases')
+      .pipe(map(response => response.data));
+  }
+
+  createCase(body: CaseCreateRequest) {
+    return this.http.post<ApiResponse<CaseEditorView>>('/api/admin/cases', body)
       .pipe(map(response => response.data));
   }
 

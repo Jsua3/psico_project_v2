@@ -14,24 +14,30 @@ class RecentAttemptsView(APIView):
     permission_classes = [IsProfesorOrAdmin]
 
     def get(self, request):
-        return api_ok(instructor_service.recent_attempts())
+        return api_ok(instructor_service.recent_attempts(request.user))
 
 
 class AttemptTraceView(APIView):
     permission_classes = [IsProfesorOrAdmin]
 
     def get(self, request, attempt_id):
-        return api_ok(instructor_service.trace(attempt_id))
+        return api_ok(instructor_service.trace(attempt_id, request.user))
 
 
 class RubricEvaluationView(APIView):
     permission_classes = [IsProfesorOrAdmin]
 
     def get(self, request, attempt_id):
-        return api_ok(instructor_service.rubric(attempt_id))
+        return api_ok(instructor_service.rubric(attempt_id, request.user))
 
     def post(self, request, attempt_id):
         return api_ok(
             instructor_service.save_rubric(attempt_id, request.data, request.user),
             message="Rubrica guardada",
         )
+
+    def put(self, request, attempt_id):
+        return self.post(request, attempt_id)
+
+    def patch(self, request, attempt_id):
+        return self.post(request, attempt_id)

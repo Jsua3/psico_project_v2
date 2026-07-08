@@ -28,7 +28,7 @@ class CasesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return api_ok(game_service.list_published_cases())
+        return api_ok(game_service.list_published_cases(request.user))
 
 
 class StartAttemptView(APIView):
@@ -67,6 +67,20 @@ class CompletionReportView(APIView):
     def get(self, request, attempt_id):
         token = request.query_params.get("attemptToken")
         return api_ok(game_service.get_completion_report(attempt_id, token, request.user))
+
+
+class AttemptHistoryView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def get(self, request):
+        return api_ok(game_service.list_attempt_history(request.user))
+
+
+class StudentReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        return api_ok(game_service.get_student_report(attempt_id, request.user))
 
 
 class ProgressMapView(APIView):
@@ -135,6 +149,7 @@ class WorldStateView(APIView):
             _int(request.data.get("playerX")),
             _int(request.data.get("playerY")),
             request.user,
+            current_map_key=request.data.get("currentMapKey"),
         )
         return api_ok(state, message="Estado de mundo actualizado")
 
@@ -161,6 +176,16 @@ class ToolUseView(APIView):
             request.user,
         )
         return api_ok(result, message="Herramienta usada")
+
+
+class NpcInteractionView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def post(self, request, attempt_id, npc_key):
+        result = world_service.record_npc_interaction(
+            attempt_id, request.data.get("attemptToken"), npc_key, request.user,
+        )
+        return api_ok(result, message="Interaccion con NPC registrada")
 
 
 class EnterRoomView(APIView):

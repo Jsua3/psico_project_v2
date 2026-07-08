@@ -36,6 +36,22 @@ export class AuthService {
       }));
   }
 
+  loginWithGoogle(credential: string) {
+    return this.http.post<ApiResponse<LoginResponse>>(`${this.API}/google`, { credential })
+      .pipe(tap(res => {
+        this.saveSession(res.data.token, res.data.user);
+      }));
+  }
+
+  requestAccess(payload: { nombre: string; apellido: string; email: string }) {
+    return this.http.post<ApiResponse<{ id: number }>>(`${this.API}/access-request`, payload);
+  }
+
+  googleConfig() {
+    return this.http.get<ApiResponse<{ clientId: string; enabled: boolean }>>(`${this.API}/google/config`)
+      .pipe(map(res => res.data));
+  }
+
   saveSession(token: string, user: User): void {
     if (!token || this.isTokenExpired(token)) {
       this.clearSession();

@@ -61,6 +61,7 @@ import {
   composeAvatarTextureAs,
   createAvatarAnimations,
   createAvatarAnimationsFor,
+  modularAvatarFlipX,
   npcAvatarAnimKeys,
   npcAvatarTextureKey,
 } from './phaser-avatar-renderer';
@@ -69,9 +70,11 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
-import { parseAvatar } from '../character/avatar-config.util';
+import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcAvatarPresetKey, NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
+import { AvatarConfig, CLOTHING_COLORS, EXPRESSIONS, GENDER_OPTIONS } from '../character/avatar.model';
+import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-catalog.config';
 
 interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
@@ -81,6 +84,7 @@ interface WorldCallbacks {
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
   reduceMotion:  boolean;
+  sfxMuted:       boolean;
 }
 
 interface AmbientMover {
@@ -120,6 +124,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private currentRoomKey = '';
   private authoredRoomActive = false;
   private dbDoorArmed = true;
+  /** Histéresis de puertas BD: dispara al acercarse (≤30) pero solo re-arma al
+   *  alejarse bien (≥72). Evita el rebote cuando el punto de entrada de una sala
+   *  queda cerca de la puerta de regreso (el armado inmediato disparaba de vuelta). */
+  private readonly doorTriggerDist = 30;
+  private readonly doorRearmDist = 72;
   private readonly tiledExits   = new Map<string, { x: number; y: number; w: number; h: number }>();
   private readonly npcMarkers   = new Map<string, Phaser.GameObjects.Container>();
   private readonly markers    = new Map<string, Phaser.GameObjects.Container>();
@@ -199,6 +208,29 @@ class DataDrivenWorldScene extends Phaser.Scene {
         this.load.image(spec.textureKey, spec.assetPath);
       }
     }
+    for (const template of AUTHORING_NPC_TEMPLATES) {
+      for (const spec of avatarLayerSpecs(template.avatar)) {
+        this.load.image(spec.textureKey, spec.assetPath);
+      }
+    }
+    for (const hair of AUTHORING_HAIR_VARIANTS) {
+      for (const spec of avatarLayerSpecs({ ...defaultAvatar(), ...hairVariantPatch(hair.id) })) {
+        this.load.image(spec.textureKey, spec.assetPath);
+      }
+    }
+    // Todas las hojas de expresión (cualquier avatar/NPC puede usar cualquiera).
+    for (const expr of EXPRESSIONS) {
+      for (const spec of avatarLayerSpecs({ ...defaultAvatar(), mouth: expr.id })) {
+        this.load.image(spec.textureKey, spec.assetPath);
+      }
+    }
+    for (const gender of GENDER_OPTIONS) {
+      for (const clothingColor of CLOTHING_COLORS) {
+        for (const spec of avatarLayerSpecs({ ...defaultAvatar(), gender: gender.id, clothingColor: clothingColor.id, hairStyle: 'ninguno' })) {
+          this.load.image(spec.textureKey, spec.assetPath);
+        }
+      }
+    }
 
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
     // Rename the Tiled object "name" field to match your backend object keys.
@@ -265,7 +297,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
         this.applyPlayerPose(step.direction, true);
         // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
-        if (!this.callbacks.reduceMotion) {
+        if (!this.callbacks.reduceMotion && !this.callbacks.sfxMuted) {
           this.stepTimer += delta;
           if (this.stepTimer >= this.STEP_INTERVAL) {
             this.stepTimer = 0;
@@ -316,7 +348,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Cambio de mapa (decisión o puerta): la sala previa ya no aplica. Sin este
     // reset, keepPosition "conserva" la posición del render transicional y se
     // pierde la entrada (entryX/entryY) que enter_room persistió en world.player.
-    if (this.world && this.world.map.key !== world.map.key) this.currentRoomKey = '';
+    if (this.world && this.world.map.key !== world.map.key) {
+      this.currentRoomKey = '';
+      // Recién entrado a una sala: desarmar hasta alejarse de la puerta de regreso
+      // (la histéresis de checkDbDoorTriggers re-arma al superar doorRearmDist).
+      this.dbDoorArmed = false;
+    }
     this.world = world;
     this.nearestKey = null;
     this.callbacks.onProximity(null);
@@ -330,6 +367,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   /** Pausa el movimiento del mundo (NPCs y ambient) sin congelar al jugador. */
   setMotionPaused(paused: boolean) { this.motionPaused = paused; }
+
+  setReduceMotion(reduced: boolean) { this.callbacks.reduceMotion = reduced; }
+
+  setSfxMuted(muted: boolean) {
+    this.callbacks.sfxMuted = muted;
+    const sound = this.sound as Phaser.Sound.BaseSoundManager | undefined;
+    if (!sound) return;
+    try {
+      sound.mute = muted;
+    } catch {
+      // Phaser can call this after the scene has been destroyed during route changes.
+    }
+  }
 
   /**
    * Called by Angular when the player steps through an exit.
@@ -569,9 +619,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     // Multi-room mode: delegate to renderRoom() when a ScenarioConfig is loaded
     if (this.scenarioConfig) {
-      const startRoom = this.scenarioConfig.rooms.find(r => r.key === this.scenarioConfig!.startRoomKey)
+      const room = this.roomForCurrentWorld()
+        ?? this.scenarioConfig.rooms.find(r => r.key === this.scenarioConfig!.startRoomKey)
         ?? this.scenarioConfig.rooms[0];
-      this.renderRoom(startRoom, startRoom.spawnX, startRoom.spawnY);
+      this.renderRoom(room, room.spawnX, room.spawnY);
       return;
     }
 
@@ -605,7 +656,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         reduceMotion: this.callbacks.reduceMotion,
         ambientTone: this.ambientTone(),
       });
-      this.world.objects
+      this.renderableWorldObjects()
         .map(obj => {
           const authored = authoredMarkerPosition(obj.key);
           return authored ? { ...obj, x: authored.x, y: authored.y } : obj;
@@ -693,7 +744,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     // Merge Tiled object positions with backend objects.
     // Tiled object "name" must match the backend MapObjectState "key".
-    let mergedObjects = this.world.objects.map(obj => {
+    let mergedObjects = this.renderableWorldObjects().map(obj => {
       const t = tiledObjects.find(o => o.name === obj.key);
       return (t?.x != null && t?.y != null) ? { ...obj, x: t.x, y: t.y } : obj;
     });
@@ -829,7 +880,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // En la sala autoría las posiciones del seed pertenecen al tilemap viejo,
     // así que se remapean a los puntos jugables de la sala.
     if (this.world) {
-      const mergedObjects = this.world.objects.map(obj => {
+      const mergedObjects = this.renderableWorldObjects().map(obj => {
         if (authoredClinicalRoom) {
           const authored = authoredMarkerPosition(obj.key);
           if (authored) return { ...obj, x: authored.x, y: authored.y };
@@ -894,22 +945,30 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private checkDbDoorTriggers() {
     if (!this.player || !this.world || this.scenarioConfig) return;
     const px = this.player.x, py = this.player.y;
-    let onDoor = false;
+    // Resolver la puerta MÁS CERCANA (no la primera del arreglo): si dos puertas
+    // caen en rango, se cruza la que el jugador realmente tiene encima.
+    let nearest: { target: string; entryX: number; entryY: number } | null = null;
+    let nearestDist = Infinity;
     for (const obj of this.world.objects) {
       if ((obj.type || '').toUpperCase() !== 'EXIT') continue;
       const meta = obj.metadata as { targetNodeKey?: string; entryX?: number; entryY?: number } | undefined;
       const target = meta?.targetNodeKey;
       if (!target) continue;
-      if (Phaser.Math.Distance.Between(px, py, obj.x, obj.y) <= 30) {
-        onDoor = true;
-        if (this.dbDoorArmed) {
-          this.dbDoorArmed = false;
-          this.callbacks.onEnterRoom(target, Number(meta?.entryX ?? obj.x), Number(meta?.entryY ?? obj.y));
-        }
-        break;
+      const d = Phaser.Math.Distance.Between(px, py, obj.x, obj.y);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = { target, entryX: Number(meta?.entryX ?? obj.x), entryY: Number(meta?.entryY ?? obj.y) };
       }
     }
-    if (!onDoor) this.dbDoorArmed = true;
+    // Dispara solo si está armado y el jugador está sobre la puerta.
+    if (nearest && this.dbDoorArmed && nearestDist <= this.doorTriggerDist) {
+      this.dbDoorArmed = false;
+      this.callbacks.onEnterRoom(nearest.target, nearest.entryX, nearest.entryY);
+      return;
+    }
+    // Re-arma SOLO cuando se aleja claramente de toda puerta (histéresis): así, al
+    // entrar a una sala junto a la puerta de regreso, no se dispara de inmediato.
+    if (nearestDist >= this.doorRearmDist) this.dbDoorArmed = true;
   }
 
   /** Compone (una vez) textura+anims del preset modular. false → fallback Kenney. */
@@ -921,6 +980,46 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (!ok) return false;
     createAvatarAnimationsFor(this, npcAvatarTextureKey(presetKey), npcAvatarAnimKeys(presetKey));
     this.npcCompositesReady.add(presetKey);
+    return true;
+  }
+
+  private roomForCurrentWorld(): RoomConfig | null {
+    if (!this.world || !this.scenarioConfig) return null;
+    const mapKey = this.world.map.key;
+    const baseKey = mapKey.replace(/-(accion|cierre|marco)$/i, '');
+    const candidates = new Set([mapKey, `map-${mapKey}`, baseKey, `map-${baseKey}`]);
+    const direct = this.scenarioConfig.rooms.find(room =>
+      candidates.has(room.key) || candidates.has(room.tiledMapKey)
+    );
+    if (direct) return direct;
+    return this.scenarioConfig.rooms.find(room => room.key === this.currentRoomKey) ?? null;
+  }
+
+  private renderableWorldObjects(): MapObjectState[] {
+    const inventory = new Set(this.world?.inventory ?? []);
+    return (this.world?.objects ?? []).filter(object =>
+      !(object.type === 'TOOL' && object.toolCode && inventory.has(object.toolCode))
+    );
+  }
+
+  private objectAvatarTextureKey(objectKey: string): string {
+    return `object-avatar-${objectKey}`;
+  }
+
+  private objectAvatarConfig(object: MapObjectState): AvatarConfig | null {
+    const meta = object.metadata as { avatar?: unknown } | undefined;
+    if (!meta?.avatar) return null;
+    return coerceAvatar(meta.avatar);
+  }
+
+  private ensureObjectAvatarComposite(object: MapObjectState): boolean {
+    const key = this.objectAvatarTextureKey(object.key);
+    if (this.npcCompositesReady.has(key)) return true;
+    const config = this.objectAvatarConfig(object);
+    if (!config) return false;
+    const ok = composeAvatarTextureAs(this, key, avatarLayerSpecs(config));
+    if (!ok) return false;
+    this.npcCompositesReady.add(key);
     return true;
   }
 
@@ -947,7 +1046,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (!sprite) return;
     if (!mover.presetKey) { sprite.setFlipX(direction === 'left'); return; }  // legacy: solo flip
     if (walking && !this.callbacks.reduceMotion) {
-      sprite.setFlipX(direction === 'right');
+      sprite.setFlipX(modularAvatarFlipX(direction));
       const keys = npcAvatarAnimKeys(mover.presetKey);
       sprite.play(direction === 'down' ? keys.down : direction === 'up' ? keys.up : keys.side, true);
       return;
@@ -1036,7 +1135,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Frame de reposo del NPC modular según dirección (la fila lateral mira a la IZQUIERDA). */
+  /** Frame de reposo del NPC modular según dirección. */
   private applyNpcFacing(container: Phaser.GameObjects.Container, direction: 'down' | 'up' | 'left' | 'right'): void {
     const sprite = (container as unknown as Record<string, unknown>)['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
     if (!sprite) return;
@@ -1045,7 +1144,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       : direction === 'down' ? AVATAR_IDLE_FRAMES.down
       : AVATAR_IDLE_FRAMES.side;
     sprite.setFrame(frame);
-    sprite.setFlipX(direction === 'right');
+    sprite.setFlipX(modularAvatarFlipX(direction));
   }
 
   private spawnNpcs(npcs: NpcConfig[]) {
@@ -1266,7 +1365,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       // Family NPCs near escucha-segura zone
       this.add.sprite(150, 248, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
         .setScale(2).setDepth(8).setTint(0xffc8b0);
-      this.add.text(150, 276, 'Madre', {
+      this.add.text(150, 276, 'Abuela', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8c4b8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
@@ -1465,13 +1564,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   /**
    * Caminata del jugador. El avatar modular usa filas down/side/up (la fila
-   * lateral mira a la IZQUIERDA → flip para la derecha); Kenney usa sus
+   * lateral mira a la DERECHA → flip para la izquierda); Kenney usa sus
    * animaciones `walk-*` (fila lateral mira a la DERECHA → flip para izquierda).
    */
   private playWalkAnimation(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
     if (this.avatarReady) {
-      this.playerSprite.setFlipX(direction === 'right');
+      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
       if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
       const anim = direction === 'down' ? AVATAR_ANIM_KEYS.down
         : direction === 'up' ? AVATAR_ANIM_KEYS.up
@@ -1492,7 +1591,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         : direction === 'down' ? AVATAR_IDLE_FRAMES.down
         : AVATAR_IDLE_FRAMES.side;
       this.playerSprite.setFrame(frame);
-      this.playerSprite.setFlipX(direction === 'right');
+      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
       return;
     }
     const idleFrame =
@@ -1526,6 +1625,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
         main = this.add.container(0, 0, [doorFrame, doorPanel, doorKnob]);
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
+      } else if (object.type === 'TOOL') {
+        main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+      } else if (object.type === 'PERSON' && this.objectAvatarConfig(object)
+          && this.ensureObjectAvatarComposite(object)) {
+        const scale = Number((object.metadata as { scale?: unknown } | undefined)?.scale ?? 0.82);
+        const personSprite = this.add.sprite(0, -Math.round(42 * scale) + 16,
+          this.objectAvatarTextureKey(object.key), AVATAR_IDLE_FRAMES.down).setScale(scale);
+        main = personSprite;
       } else if (object.type === 'PERSON' && MAP_OBJECT_PRESETS[object.key]
           && this.ensureNpcComposite(MAP_OBJECT_PRESETS[object.key])) {
         // Persona del caso con preset modular (p. ej. la consultante): mismo
@@ -1678,10 +1785,27 @@ class DataDrivenWorldScene extends Phaser.Scene {
     return this.add.container(0, 0, [glow, base]);
   }
 
+  private buildToolMarker(color: number, label: string): Phaser.GameObjects.Container {
+    const glow = this.add.circle(0, 0, 30, color, .14);
+    const base = this.add.rectangle(0, 0, 42, 28, color, .9)
+      .setStrokeStyle(3, 0xffffff, .92);
+    const shine = this.add.rectangle(-7, -7, 22, 3, 0xffffff, .28);
+    const text = this.add.text(0, 0, label.slice(0, 4).toUpperCase(), {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '10px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(.5);
+    if (!this.callbacks.reduceMotion) {
+      this.tweens.add({ targets: glow, scale: 1.15, alpha: .07, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+    return this.add.container(0, 0, [glow, base, shine, text]);
+  }
+
   private frameForType(type: string): number {
     const map: Record<string, number> = {
       PERSON: KenneyDungeonFrames.DESK, OBJECT: KenneyDungeonFrames.CABINET,
-      ROUTE: KenneyDungeonFrames.PLANT, TOOL: KenneyDungeonFrames.CHAIR,
+      ROUTE: KenneyDungeonFrames.PLANT, TOOL: KenneyDungeonFrames.CABINET,
       WARNING: KenneyDungeonFrames.DESK
     };
     return map[type] ?? KenneyDungeonFrames.DESK;
@@ -1758,13 +1882,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
     const mapKey = this.world.map.key;
     const objects = (isHospitalMap(mapKey) || isComisariaMap(mapKey))
-      ? applySceneDisplayLabels(this.world.objects, mapKey)
-      : this.world.objects;
+      ? applySceneDisplayLabels(this.renderableWorldObjects(), mapKey)
+      : this.renderableWorldObjects();
 
     let nearest: MapObjectState | null = null;
     let nearestD = Infinity;
     for (const obj of objects) {
       const marker = this.markers.get(obj.key);
+      if (!marker && obj.type === 'TOOL') continue;
       const ox = marker?.x ?? obj.x;
       const oy = marker?.y ?? obj.y;
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, ox, oy);
@@ -1791,7 +1916,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.refreshMarkerStates();
       // Play blip only when *entering* range (nextKey goes null → key), not on every frame.
       // suppressSound=true on spawn/world-switch to avoid a false-positive blip on load.
-      if (nextKey && !this.callbacks.reduceMotion && !suppressSound) {
+      if (nextKey && !this.callbacks.reduceMotion && !this.callbacks.sfxMuted && !suppressSound) {
         this.sound.play('proximity-blip', { volume: 0.45 });
       }
     }
@@ -1864,6 +1989,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly guide = input<SceneGuideEntry | null>(null);
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);
+  readonly sfxMuted = input(false);
+  readonly reduceMotion = input<boolean | null>(null);
   readonly proximity = output<MapObjectState | null>();
   readonly interact = output<MapObjectState>();
   readonly positionChange = output<{ x: number; y: number }>();
@@ -1889,6 +2016,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
+    if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
+    if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
   }
 
   ngOnDestroy() {
@@ -1909,7 +2038,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   private boot() {
     if (!this.gameHost || this.phaserGame) return;
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const reduceMotion = this.effectiveReduceMotion();
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
@@ -1921,6 +2050,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
+        sfxMuted: this.sfxMuted(),
       });
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
@@ -1944,6 +2074,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       if (this.world()) this.scene?.setWorld(this.world()!);
       this.scene?.setGuide(this.guide());
       this.scene?.setMotionPaused(this.motionPaused());
+      this.scene?.setSfxMuted(this.sfxMuted());
+      this.scene?.setReduceMotion(this.effectiveReduceMotion());
     }, 0);
+  }
+
+  private effectiveReduceMotion(): boolean {
+    return this.reduceMotion() ?? (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   }
 }

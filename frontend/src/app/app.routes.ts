@@ -40,6 +40,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/character/character-editor.component').then(m => m.CharacterEditorComponent)
       },
       {
+        path: 'casos',
+        canActivate: [roleGuard('ADMIN')],
+        loadComponent: () => import('./features/simulator/case-authoring-hub.component').then(m => m.CaseAuthoringHubComponent)
+      },
+      {
         path: 'casos/:caseVersionId/editor',
         canActivate: [roleGuard('ADMIN')],
         loadComponent: () => import('./features/simulator/case-editor.component').then(m => m.CaseEditorComponent)
@@ -50,13 +55,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/simulator/instructor-trace.component').then(m => m.InstructorTraceComponent)
       },
       {
-        path: 'grupos',
+        path: 'rubricas',
         canActivate: [roleGuard('PROFESOR', 'ADMIN')],
+        loadComponent: () => import('./features/admin/rubrics.component').then(m => m.RubricsComponent)
+      },
+      {
+        path: 'grupos',
+        canActivate: [roleGuard('PROFESOR')],
         loadComponent: () => import('./features/grupos/grupo-list.component').then(m => m.GrupoListComponent)
       },
       {
         path: 'reportes',
-        canActivate: [roleGuard('PROFESOR', 'ADMIN')],
+        canActivate: [roleGuard('PROFESOR')],
         loadComponent: () => import('./features/reportes/reporte-grupo.component').then(m => m.ReporteGrupoComponent)
       },
       {
@@ -68,7 +78,9 @@ export const routes: Routes = [
   },
   { path: 'dashboard', redirectTo: 'portal/dashboard', pathMatch: 'full' },
   { path: 'simulador', redirectTo: 'portal/simulador', pathMatch: 'full' },
+  { path: 'casos', redirectTo: 'portal/casos', pathMatch: 'full' },
   { path: 'docente', redirectTo: 'portal/docente/trazabilidad', pathMatch: 'full' },
+  { path: 'rubricas', redirectTo: 'portal/rubricas', pathMatch: 'full' },
   { path: 'grupos', redirectTo: 'portal/grupos', pathMatch: 'full' },
   { path: 'reportes', redirectTo: 'portal/reportes', pathMatch: 'full' },
   { path: 'usuarios', redirectTo: 'portal/admin/usuarios', pathMatch: 'full' },
