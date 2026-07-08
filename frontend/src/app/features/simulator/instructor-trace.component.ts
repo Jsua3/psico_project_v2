@@ -308,7 +308,7 @@ interface FeedbackPanelView {
               </div>
             }
 
-            @if ((item.phaseDurations ?? []).length) {
+            @if (item.phaseDurations.length) {
               <section class="trace-timeline pixel-panel" aria-labelledby="phase-duration-title">
                 <div class="panel-heading panel-heading--row">
                   <div>

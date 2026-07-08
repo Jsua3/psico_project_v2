@@ -16,34 +16,5 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    container_name: psychosim-backend
-    environment:
-      SERVER_PORT: 8080
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/psychosim
-      SPRING_DATASOURCE_USERNAME: psychosim
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-psychosim_secret}
-      JWT_SECRET: ${JWT_SECRET:-psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
-      JWT_EXPIRATION_HOURS: 8
-    ports:
-      - "8090:8080"
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: on-failure
-
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
-    container_name: psychosim-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-
 volumes:
   postgres_data:

@@ -7,7 +7,7 @@ Simulación formativa tipo **RPG clínico top-down**: el estudiante explora mapa
 ## Estructura del monorepo
 
 ```
-psico_project_v2/
+psico_project_v3/
   backend_django/    ← API Django 5.1 + DRF (Python 3.12)
   frontend/          ← App Angular 21 (Signals + Phaser 3 + Konva.js)
   docker-compose.yml ← Servicio PostgreSQL 16 para desarrollo local
@@ -161,3 +161,30 @@ Ver [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md) para la arquitectura comp
 | Base de datos | PostgreSQL 16 (esquema gestionado por Flyway) |
 | Auth | JWT (simplejwt) — claims `userId` + `role` |
 | Cifrado | AES-GCM para bitácoras de reflexión |
+
+## Solución de problemas (Windows)
+
+### El venv del backend no arranca / `npm run up` falla en `ensureVenv()`
+
+Si `backend_django\.venv\Scripts\python.exe` da "El sistema no puede
+encontrar la ruta especificada", el venv fue creado con el **Python de la
+Microsoft Store** (alias `WindowsApps`), que genera venvs rotos. Recrear con
+la instalación real:
+
+```powershell
+Remove-Item backend_django\.venv -Recurse -Force
+& C:\Python313\python.exe -m venv backend_django\.venv
+backend_django\.venv\Scripts\python.exe -m pip install -r backend_django\requirements.txt
+```
+
+### Errores `relation "..." does not exist` con una BD existente
+
+El contenedor `psychosim-db` puede venir con un volumen de una versión
+anterior del proyecto. `npm run up` detecta el esquema incompleto y corre el
+bootstrap solo; si necesitas forzarlo a mano (es idempotente, pero re-siembra
+el caso demo y elimina sus intentos):
+
+```powershell
+cd backend_django
+.\.venv\Scripts\python.exe manage.py bootstrap_dev_db
+```

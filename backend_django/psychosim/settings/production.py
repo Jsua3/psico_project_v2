@@ -10,7 +10,7 @@ Required environment variables:
 Optional:
     CORS_ALLOWED_ORIGINS (comma-separated), REFLECTION_ENCRYPTION_KEY
     (defaults to JWT_SECRET, like Spring), DB_NAME/DB_USER/DB_HOST/DB_PORT,
-    DJANGO_SECURE_SSL_REDIRECT (default "true").
+    DJANGO_SECURE_SSL_REDIRECT (default "false").
 """
 import os
 
