@@ -37,16 +37,14 @@ const EMOTION_TO_VARIANT: Record<string, string> = {
   vulnerable: 'worried',
   concerned: 'worried',
   danger: 'sad',
-  positive: 'neutral', // aún no hay retrato "happy"; se usa neutral
+  positive: 'happy',
 };
 
 const DEFAULT_VARIANT = 'neutral';
 
-/** Slugs que solo tienen retrato neutral (no generamos variantes que su diálogo nunca emite). */
+/** Slugs que solo tienen retrato neutral (líneas procedimentales, sin variantes emocionales). */
 const NEUTRAL_ONLY_SLUGS = new Set([
-  'madre-vbg',
   'funcionaria-recepcion',
-  'psicologa-hospitalaria',
   'comisaria-profesional',
 ]);
 

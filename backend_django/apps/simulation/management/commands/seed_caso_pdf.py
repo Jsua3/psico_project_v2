@@ -49,6 +49,19 @@ CASE_CODE = "SIM-VBG-001"
 #: Casos legacy del mismo dominio que deben retirarse del catálogo al sembrar
 #: el canónico (evita que aparezcan casos de feminicidio duplicados).
 LEGACY_DUPLICATE_CASE_CODES = ("SOC-FEM-001", "VBG-001")
+
+#: Vocabulario de emoción del guion (por línea) → vocabulario del frontend
+#: (positive/concerned/danger/neutral) que gobierna el retrato de diálogo
+#: (portrait-resolver.util.ts) y el color de la etiqueta del panel.
+_TREE_EMOTION = {
+    "anxious": "concerned",
+    "worried": "concerned",
+    "negative": "concerned",
+    "sad": "danger",
+    "relieved": "positive",
+    "positive": "positive",
+    "neutral": "neutral",
+}
 CASE_TITLE = "Violencia Familiar y Tentativa de Feminicidio"
 CASE_DESCRIPTION = (
     "Caso formativo basado en el documento canónico de Psicología Social: "
@@ -704,7 +717,7 @@ _ESCUCHA_DECISION_OBJECTS = [
         "text": "La psicóloga hospitalaria coordina la propuesta de intervención.",
         "dialogue": ("Psicóloga hospitalaria", [
             ("La familia sigue en la sala y la sobreviviente saldrá de cirugía en unas "
-             "horas. El equipo espera tu propuesta.", "neutral"),
+             "horas. El equipo espera tu propuesta.", "positive"),
             ("(Define qué hacer —y qué evitar— técnica y éticamente.)", "neutral"),
         ]),
         "choices": _H3_CHOICES,
@@ -884,7 +897,7 @@ MAP_OBJECTS = {
             "prompt": "Despedirte de la familia",
             "text": "La familia quedó contenida y orientada.",
             "dialogue": ("Abuela de la niña", [
-                ("Gracias por no dejarnos solas en esto…", "sad"),
+                ("Gracias por no dejarnos solas en esto…", "relieved"),
                 ("Sé que viene un camino largo. ¿Qué sigue ahora para mi hija?", "neutral"),
             ]),
         },
@@ -1201,13 +1214,18 @@ class Command(BaseCommand):
                     dialogue = (obj["label"], [(obj.get("text", obj["label"]), "neutral")])
                 if dialogue or choices:
                     speaker = dialogue[0] if dialogue else obj["label"]
+                    # La emoción del ÁRBOL gobierna el retrato de diálogo y la
+                    # etiqueta del panel. Se deriva de la primera línea, mapeando
+                    # el vocabulario de guion al del frontend (positive/concerned/
+                    # danger/neutral) para que retrato y color coincidan.
+                    first_line_emotion = dialogue[1][0][1] if (dialogue and dialogue[1]) else "neutral"
                     tree = DialogueTree.objects.create(
                         scene_map=scene_map,
                         map_object=map_object,
                         tree_key=obj["key"],
                         speaker_name=speaker,
                         portrait_key=None,
-                        emotion="neutral",
+                        emotion=_TREE_EMOTION.get(first_line_emotion, "neutral"),
                     )
                     if dialogue:
                         for order, (text, emotion) in enumerate(dialogue[1], start=1):
