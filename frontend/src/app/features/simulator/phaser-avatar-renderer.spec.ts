@@ -38,6 +38,13 @@ describe('phaser-avatar-renderer', () => {
     expect(avatarRowLayerOrder(2)).toEqual(['body', 'hairBack', 'hairFront']);
   });
 
+  it('fuerza la cara neutral en el sprite del mapa (solución C: emoción en retratos)', () => {
+    const specs = avatarLayerSpecs({ ...defaultAvatar(), mouth: 'angry' });
+    const faceLayer = specs.find(s => s.kind === 'face');
+    expect(faceLayer?.textureKey).toBe('avatar-layer-face-neutral');
+    expect(faceLayer?.assetPath).toBe('/assets/characters/modular/face/face_neutral.png');
+  });
+
   it('omite las capas de pelo cuando el estilo es "ninguno"', () => {
     const specs = avatarLayerSpecs({ ...defaultAvatar(), hairStyle: 'ninguno' });
     expect(specs.map(s => s.textureKey)).toEqual([

@@ -87,11 +87,12 @@ def place_face(pose_path: Path, target_w: int, cx2: float, top_y2: float) -> Ima
     return frame
 
 
-def build_faces(anchor: dict, front_w=40, side_w=24, front_top=None, side_top=None) -> None:
+def build_faces(anchor: dict, front_w=27, side_w=17, front_top=None, side_top=None) -> None:
     exp_dir = LEGACY / "face" / "expressions"
-    # Por defecto: rasgos centrados sobre la cabeza (top + 14px 2x, calibrado visual).
-    ftop = front_top if front_top is not None else anchor["head_top2"] + 14
-    stop = side_top if side_top is not None else anchor["head_top2"] + 13
+    # Rasgos a ~65% del ancho de cabeza, centrados en la zona de ojos (solución C:
+    # cara pequeña que encaja; la emoción vive en los retratos de diálogo).
+    ftop = front_top if front_top is not None else anchor["head_top2"] + 12
+    stop = side_top if side_top is not None else anchor["head_top2"] + 11
     (OUT / "face").mkdir(parents=True, exist_ok=True)
     for expr in EXPRESSIONS:
         sheet = Image.new("RGBA", SHEET2, (0, 0, 0, 0))
@@ -194,8 +195,8 @@ def main() -> None:
     ap.add_argument("--hair", action="store_true")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--preview", action="store_true")
-    ap.add_argument("--front-w", type=int, default=40)
-    ap.add_argument("--side-w", type=int, default=24)
+    ap.add_argument("--front-w", type=int, default=27)
+    ap.add_argument("--side-w", type=int, default=17)
     ap.add_argument("--front-top", type=float, default=None)
     ap.add_argument("--side-top", type=float, default=None)
     ap.add_argument("--method", default="lanczos", choices=["lanczos", "nearest"])

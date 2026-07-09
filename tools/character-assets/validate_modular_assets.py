@@ -28,7 +28,7 @@ SHEET_SIZE = (384, 576)
 FRAME_W, FRAME_H = 128, 192
 ALPHA_THRESHOLD = 8            # alpha <= esto cuenta como transparente
 MIN_FRAME_PIXELS = 120         # cuerpo/pelo: frame "no vacio" (2x del original 30)
-MIN_FACE_PIXELS = 60           # las caras son mas pequeñas (solo cabeza)
+MIN_FACE_PIXELS = 45           # caras pequeñas que encajan en la cabeza (solución C)
 HAIR_CENTER_TOLERANCE = 16     # px de desvio horizontal pelo vs cuerpo (2x)
 HAIR_TOP_RANGE = (-32, 52)     # pelo.top - cuerpo.top dentro de este rango (2x)
 

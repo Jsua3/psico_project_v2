@@ -65,9 +65,17 @@ export interface AvatarLayerSpec {
   kind: AvatarLayerKind;
 }
 
-/** Capas a precargar para un AvatarConfig, en orden de dibujo (z). */
+/**
+ * Capas a precargar para un AvatarConfig, en orden de dibujo (z).
+ *
+ * Solución C (2026-07-09): el sprite del MAPA siempre usa la cara neutral, sin
+ * importar la expresión elegida/base. La emoción vive en los retratos de
+ * diálogo (`portrait-resolver.util.ts`), no en el sprite de ~54px. El editor
+ * conserva el selector de expresión (reservado para un futuro retrato del
+ * jugador); este único punto de composición de Phaser lo normaliza a neutral.
+ */
 export function avatarLayerSpecs(config: AvatarConfig): AvatarLayerSpec[] {
-  return resolveAvatarSpriteLayers(config).map(layer => ({
+  return resolveAvatarSpriteLayers({ ...config, mouth: 'neutral' }).map(layer => ({
     textureKey: `avatar-layer-${layer.key}`,
     assetPath: layer.assetPath,
     kind: layer.kind,
