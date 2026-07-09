@@ -1,12 +1,13 @@
 /**
- * Sprites pixel-art de las herramientas clínicas del mapa.
+ * Sprites pixel-art de los objetos del mapa (herramientas y objetos de escenario).
  *
- * Reemplazan el marcador abstracto (`buildToolMarker`: badge de color + código)
- * por un ítem reconocible. Si un `toolCode` no tiene sprite (o el asset no cargó),
- * el resolver devuelve `null` y el marcador cae al badge — degradación elegante.
+ * Reemplazan los marcadores abstractos (`buildToolMarker`: badge + código; o el
+ * tile genérico de `dungeon-tiles` para los OBJECT) por un ítem reconocible. Si
+ * un objeto no tiene sprite (o el asset no cargó), el resolver devuelve `null` y
+ * el marcador cae a su representación previa — degradación elegante.
  */
 
-/** tool_code → nombre base del asset en `assets/game/objects/`. */
+/** tool_code → nombre base del asset (herramientas que el jugador recoge). */
 const TOOL_SPRITE: Record<string, string> = {
   PAP: 'tool_pap',
   SPIKES: 'tool_spikes',
@@ -15,15 +16,24 @@ const TOOL_SPRITE: Record<string, string> = {
   RISK_METER: 'tool_risk_meter',
 };
 
-/** Clave de textura Phaser para un sprite de herramienta. */
-export function toolSpriteTextureKey(assetName: string): string {
+/** short_code → nombre base del asset (objetos de escenario interactivos, tipo OBJECT). */
+const OBJECT_SPRITE: Record<string, string> = {
+  EXP: 'object_expediente',
+  LEY: 'object_marco_normativo',
+  REG: 'object_registro',
+  RES: 'object_acceso_restringido',
+  FIN: 'object_cierre',
+};
+
+/** Clave de textura Phaser para un sprite de objeto. */
+export function objectTextureKey(assetName: string): string {
   return `object-${assetName}`;
 }
 
-/** Lista de { textureKey, assetPath } para precargar todos los sprites de herramienta. */
-export function toolSpriteSpecs(): { textureKey: string; assetPath: string }[] {
-  return Object.values(TOOL_SPRITE).map(name => ({
-    textureKey: toolSpriteTextureKey(name),
+/** { textureKey, assetPath } de todos los sprites (herramientas + escenario) para precargar. */
+export function objectSpriteSpecs(): { textureKey: string; assetPath: string }[] {
+  return [...Object.values(TOOL_SPRITE), ...Object.values(OBJECT_SPRITE)].map(name => ({
+    textureKey: objectTextureKey(name),
     assetPath: `/assets/game/objects/${name}.png`,
   }));
 }
@@ -35,9 +45,16 @@ export function resolveToolSprite(toolCode: string | null | undefined): string |
   return name ? `/assets/game/objects/${name}.png` : null;
 }
 
-/** Clave de textura Phaser para un `toolCode`, o `null` si no hay sprite. */
+/** Clave de textura Phaser para un `toolCode` (TOOL), o `null`. */
 export function resolveToolTextureKey(toolCode: string | null | undefined): string | null {
   if (!toolCode) return null;
   const name = TOOL_SPRITE[toolCode];
-  return name ? toolSpriteTextureKey(name) : null;
+  return name ? objectTextureKey(name) : null;
+}
+
+/** Clave de textura Phaser para un `shortCode` (OBJECT de escenario), o `null`. */
+export function resolveObjectTextureKey(shortCode: string | null | undefined): string | null {
+  if (!shortCode) return null;
+  const name = OBJECT_SPRITE[shortCode];
+  return name ? objectTextureKey(name) : null;
 }
