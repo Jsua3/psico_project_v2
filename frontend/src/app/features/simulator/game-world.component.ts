@@ -70,6 +70,7 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
+import { resolveToolTextureKey, toolSpriteSpecs } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcAvatarPresetKey, NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
@@ -107,6 +108,9 @@ interface NpcMover {
   /** null = sprite legacy (solo flip, sin animaciones modulares). */
   presetKey: string | null;
 }
+
+/** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
+const TOOL_SPRITE_SCALE = 0.62;
 
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -230,6 +234,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
           this.load.image(spec.textureKey, spec.assetPath);
         }
       }
+    }
+
+    // ── Sprites pixel-art de las herramientas (fallback al badge si faltan) ──
+    for (const spec of toolSpriteSpecs()) {
+      this.load.image(spec.textureKey, spec.assetPath);
     }
 
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
@@ -1626,7 +1635,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
       } else if (object.type === 'TOOL') {
-        main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        const toolTex = resolveToolTextureKey(object.toolCode);
+        main = (toolTex && this.textures.exists(toolTex))
+          ? this.add.image(0, -6, toolTex).setScale(TOOL_SPRITE_SCALE)
+          : this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
       } else if (object.type === 'PERSON' && this.objectAvatarConfig(object)
           && this.ensureObjectAvatarComposite(object)) {
         const scale = Number((object.metadata as { scale?: unknown } | undefined)?.scale ?? 0.82);
