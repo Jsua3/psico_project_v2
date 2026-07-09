@@ -130,6 +130,63 @@ def face_preview(anchor: dict, out: Path) -> None:
     print(f"preview -> {out}")
 
 
+# ---------------- CUERPOS / CABELLOS ----------------
+
+def remaster_sheet(src_path: Path, method: str = "lanczos", colors: int = 32) -> Image.Image:
+    """Re-masteriza un sheet 192x288 a 384x576 preservando el registro de los 9 frames.
+
+    Escala CADA frame por separado (evita sangrado entre frames contiguos),
+    re-cuantiza a paleta limitada (mantiene el look pixel-art) y binariza el alfa.
+    """
+    src = Image.open(src_path).convert("RGBA")
+    out = Image.new("RGBA", SHEET2, (0, 0, 0, 0))
+    resample = Image.LANCZOS if method == "lanczos" else Image.NEAREST
+    for row in range(3):
+        for col in range(3):
+            frame = src.crop((col * FW1, row * FH1, (col + 1) * FW1, (row + 1) * FH1))
+            frame = frame.resize((FW2, FH2), resample)
+            out.alpha_composite(frame, (col * FW2, row * FH2))
+    # Cuantizar RGB a paleta limitada, conservar alfa binarizado.
+    r, g, b, a = out.split()
+    rgb = Image.merge("RGB", (r, g, b))
+    rgb_q = rgb.quantize(colors=colors, method=Image.FASTOCTREE, dither=Image.Dither.NONE).convert("RGB")
+    a_bin = a.point(lambda v: 255 if v >= 96 else 0)
+    return Image.merge("RGBA", (*rgb_q.split(), a_bin))
+
+
+def build_bodies(method: str = "lanczos") -> None:
+    (OUT / "body").mkdir(parents=True, exist_ok=True)
+    for p in sorted((LEGACY / "body").glob("*.png")):
+        remaster_sheet(p, method).save(OUT / "body" / p.name)
+        print(f"body/{p.name}")
+
+
+def build_hair(method: str = "lanczos") -> None:
+    (OUT / "hair").mkdir(parents=True, exist_ok=True)
+    for p in sorted((LEGACY / "hair").glob("*.png")):
+        remaster_sheet(p, method).save(OUT / "hair" / p.name)
+        print(f"hair/{p.name}")
+
+
+def body_compare_preview(out: Path, names: list[str], method: str) -> None:
+    """Compara, por cuerpo: legacy 1x escalado a display vs nuevo 2x, mismo tamaño en pantalla."""
+    from PIL import ImageDraw
+    disp_w, disp_h = FW2 * 2, FH2 * 2   # tamaño de display comun
+    cols = len(names)
+    canvas = Image.new("RGBA", (disp_w * cols, disp_h * 2 + 40), (22, 18, 34, 255))
+    d = ImageDraw.Draw(canvas)
+    d.text((6, 6), "LEGACY 1x (arriba)  vs  NUEVO 2x (abajo)", fill=(230, 220, 245, 255))
+    for i, name in enumerate(names):
+        leg = Image.open(LEGACY / "body" / name).convert("RGBA").crop((0, 0, FW1, FH1)).resize((disp_w, disp_h), Image.NEAREST)
+        new = Image.open(OUT / "body" / name).convert("RGBA").crop((0, 0, FW2, FH2)).resize((disp_w, disp_h), Image.NEAREST)
+        canvas.alpha_composite(leg, (i * disp_w, 22))
+        canvas.alpha_composite(new, (i * disp_w, 22 + disp_h))
+        d.text((i * disp_w + 4, 22 + disp_h * 2 + 2), name.replace("body_", "").replace(".png", ""), fill=(210, 205, 230, 255))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(out)
+    print(f"preview -> {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--faces", action="store_true")
@@ -141,6 +198,7 @@ def main() -> None:
     ap.add_argument("--side-w", type=int, default=24)
     ap.add_argument("--front-top", type=float, default=None)
     ap.add_argument("--side-top", type=float, default=None)
+    ap.add_argument("--method", default="lanczos", choices=["lanczos", "nearest"])
     args = ap.parse_args()
 
     anchor = head_anchor()
@@ -150,6 +208,16 @@ def main() -> None:
         build_faces(anchor, args.front_w, args.side_w, args.front_top, args.side_top)
         if args.preview:
             face_preview(anchor, SCRATCH / "faces_preview.png")
+
+    if args.bodies or args.all:
+        build_bodies(args.method)
+        if args.preview:
+            body_compare_preview(SCRATCH / "bodies_preview.png",
+                                 ["body_female_purple.png", "body_male_blue.png", "body_female_green.png"],
+                                 args.method)
+
+    if args.hair or args.all:
+        build_hair(args.method)
 
 
 if __name__ == "__main__":
