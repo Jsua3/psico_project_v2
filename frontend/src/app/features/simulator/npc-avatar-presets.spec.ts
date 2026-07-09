@@ -28,15 +28,15 @@ describe('npc-avatar-presets', () => {
     }
   });
 
-  it('escalas dentro del rango del spec: adultos 0.78-0.85, adolescente 0.70-0.76', () => {
+  it('escalas dentro del rango del spec (frames 2×): adultos 0.39-0.42, adolescente 0.35-0.38', () => {
     for (const key of PRESET_KEYS) {
       const { scale } = NPC_PRESET_RENDER[key];
       if (key === 'adolescente-nna') {
-        expect(scale).toBeGreaterThanOrEqual(0.70);
-        expect(scale).toBeLessThanOrEqual(0.76);
+        expect(scale).toBeGreaterThanOrEqual(0.35);
+        expect(scale).toBeLessThanOrEqual(0.38);
       } else {
-        expect(scale).toBeGreaterThanOrEqual(0.78);
-        expect(scale).toBeLessThanOrEqual(0.85);
+        expect(scale).toBeGreaterThanOrEqual(0.39);
+        expect(scale).toBeLessThanOrEqual(0.42);
       }
     }
   });
