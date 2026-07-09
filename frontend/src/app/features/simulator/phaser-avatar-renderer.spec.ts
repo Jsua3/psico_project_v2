@@ -54,7 +54,7 @@ describe('phaser-avatar-renderer', () => {
     ]));
   });
 
-  it('genera 9 frames de 64x96 que cubren exactamente la hoja de 192x288', () => {
+  it('genera 9 frames de 128x192 que cubren exactamente la hoja de 384x576', () => {
     const rects = avatarFrameRects();
     expect(rects).toHaveLength(9);
     expect(rects[0]).toEqual({ index: 0, x: 0, y: 0, width: AVATAR_FRAME_WIDTH, height: AVATAR_FRAME_HEIGHT });
@@ -107,8 +107,8 @@ describe('phaser-avatar-renderer', () => {
     });
   });
 
-  it('mantiene la escala de render en el rango legible del MVP', () => {
-    expect(AVATAR_DISPLAY_SCALE).toBeGreaterThanOrEqual(0.72);
-    expect(AVATAR_DISPLAY_SCALE).toBeLessThanOrEqual(0.85);
+  it('mantiene la escala de render en el rango legible del MVP (frames 2×)', () => {
+    expect(AVATAR_DISPLAY_SCALE).toBeGreaterThanOrEqual(0.36);
+    expect(AVATAR_DISPLAY_SCALE).toBeLessThanOrEqual(0.45);
   });
 });

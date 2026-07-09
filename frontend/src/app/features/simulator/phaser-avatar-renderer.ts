@@ -6,26 +6,30 @@ import { AvatarLayerKind, resolveAvatarSpriteLayers } from '../character/avatar-
  * Avatar modular dentro de Phaser (Fase 4 del MVP).
  *
  * Los assets modulares (`/assets/characters/modular/...`) son hojas de
- * 192×288 px = 3 columnas (frames de caminata) × 3 filas (direcciones):
+ * 384×576 px = 3 columnas (frames de caminata) × 3 filas (direcciones):
  *   fila 0 = frente (down) · fila 1 = lado (mira a la DERECHA) · fila 2 = espalda (up)
+ *
+ * Reconstrucción 2× (2026-07-08): frames 128×192 (antes 64×96) para que las
+ * caras (arte expressions/) se lean; el tamaño en pantalla se mantiene bajando
+ * la escala de render a la mitad. El set 1× original queda en `modular-legacy/`.
  *
  * La composición por capas (cuerpo → pelo atrás → cara → pelo frente) se hace
  * una vez en un CanvasTexture y se registra como spritesheet de 9 frames.
  */
 
 export const AVATAR_TEXTURE_KEY = 'player-avatar-composite';
-export const AVATAR_SHEET_WIDTH = 192;
-export const AVATAR_SHEET_HEIGHT = 288;
-export const AVATAR_FRAME_WIDTH = 64;
-export const AVATAR_FRAME_HEIGHT = 96;
+export const AVATAR_SHEET_WIDTH = 384;
+export const AVATAR_SHEET_HEIGHT = 576;
+export const AVATAR_FRAME_WIDTH = 128;
+export const AVATAR_FRAME_HEIGHT = 192;
 
 /**
- * Escala de render del avatar modular dentro del mundo. El frame 64×96 trae
- * bastante aire alrededor del cuerpo (~30×60 px útiles), así que 0.6 lo dejaba
- * ilegible (auditoría fase 1.1). 0.85 lo vuelve protagonista (~51 px de cuerpo
- * visible) sin desproporcionarlo frente a los NPC Kenney de la sala autoría.
+ * Escala de render del avatar modular dentro del mundo. Con el frame a 2×
+ * (128×192) la escala es la mitad de la del set 1× (0.85 → 0.425), de modo que
+ * el tamaño EN PANTALLA no cambia (128×0.425 = 64×0.85 = 54.4 px) pero el
+ * detalle se duplica.
  */
-export const AVATAR_DISPLAY_SCALE = 0.85;
+export const AVATAR_DISPLAY_SCALE = 0.425;
 
 /** Animaciones del avatar (no chocan con las `walk-*` de Kenney). */
 export const AVATAR_ANIM_KEYS = {

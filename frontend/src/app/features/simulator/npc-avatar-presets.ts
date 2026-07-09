@@ -94,22 +94,26 @@ export function emotionToExpression(
 }
 
 export interface NpcPresetRenderHints {
-  /** Escala de render (jugador = 0.85; adultos 0.78-0.85; adolescente 0.70-0.76). */
+  /**
+   * Escala de render (jugador = 0.425 con frames 2×; adultos 0.39-0.42,
+   * adolescente 0.35-0.38). La mitad de los valores del set 1× — mismo tamaño
+   * en pantalla con el doble de detalle (reconstrucción 2× 2026-07-08).
+   */
   scale: number;
   /** Tint sutil para diferenciar presets que comparten pelo (opcional). */
   tint?: number;
 }
 
 export const NPC_PRESET_RENDER: Record<NpcAvatarPresetKey, NpcPresetRenderHints> = {
-  'madre-vbg':              { scale: 0.82 },
-  'paciente-vbg':           { scale: 0.78, tint: 0xf3ecff },
-  'colega-clinica':         { scale: 0.82 },
-  'supervisor-clinico':     { scale: 0.84 },
-  'seguridad':              { scale: 0.84, tint: 0xdde6f2 },
-  'adolescente-nna':        { scale: 0.72 },
-  'psicologa-hospitalaria': { scale: 0.82 },
-  'funcionaria-recepcion':  { scale: 0.80, tint: 0xf0f4ff },
-  'comisaria-profesional':  { scale: 0.84 },
+  'madre-vbg':              { scale: 0.41 },
+  'paciente-vbg':           { scale: 0.39, tint: 0xf3ecff },
+  'colega-clinica':         { scale: 0.41 },
+  'supervisor-clinico':     { scale: 0.42 },
+  'seguridad':              { scale: 0.42, tint: 0xdde6f2 },
+  'adolescente-nna':        { scale: 0.36 },
+  'psicologa-hospitalaria': { scale: 0.41 },
+  'funcionaria-recepcion':  { scale: 0.40, tint: 0xf0f4ff },
+  'comisaria-profesional':  { scale: 0.42 },
 };
 
 /**
