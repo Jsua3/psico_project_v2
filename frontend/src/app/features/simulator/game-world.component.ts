@@ -70,6 +70,7 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
+import { doorSpriteSpecs, resolveDoorTextureKey } from './door-sprite.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
@@ -111,6 +112,11 @@ interface NpcMover {
 
 /** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
 const TOOL_SPRITE_SCALE = 0.62;
+
+/** Escala de render de las puertas (asset 48×64 → 41×54 px). */
+const DOOR_SPRITE_SCALE = 0.85;
+/** Centro del sprite de puerta: asienta su base en la sombra de contacto (y=16). */
+const DOOR_SPRITE_Y = -11;
 
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -236,8 +242,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       }
     }
 
-    // ── Sprites pixel-art de objetos (herramientas + escenario); fallback si faltan ──
-    for (const spec of objectSpriteSpecs()) {
+    // ── Sprites pixel-art de objetos (herramientas + escenario) y puertas; fallback si faltan ──
+    for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs()]) {
       this.load.image(spec.textureKey, spec.assetPath);
     }
 
@@ -1631,7 +1637,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let main: Phaser.GameObjects.GameObject;
 
     if (this.assetsLoaded) {
-      if (isExit && this.authoredRoomActive) {
+      if (isExit && this.loadedTexture(resolveDoorTextureKey(object.key))) {
+        // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
+        // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
+        // rompe la regla de la sala premium. Si el asset falta, caen las ramas de abajo.
+        main = this.add.image(0, DOOR_SPRITE_Y, resolveDoorTextureKey(object.key)!).setScale(DOOR_SPRITE_SCALE);
+      } else if (isExit && this.authoredRoomActive) {
         // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
         const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
         const doorPanel = this.add.rectangle(0, -10, 24, 36, 0x2a2348, 1);
