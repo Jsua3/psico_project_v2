@@ -68,8 +68,44 @@ Carpeta propia `doors/` — no `objects/` — porque tienen otra geometría (ret
 - `ng build` OK · los 5 assets servidos (200).
 - Smoke: la puerta se ve como puerta pixel-art, el hint sigue apareciendo al acercarse y el tránsito entre salas sigue funcionando.
 
+## Adenda: puertas laterales en 3/4
+
+Las **10 instancias de puerta del seed están contra un muro lateral** (`x = 122` o `x = 838`, con `ROOM_W = 960` y las bandas de pared en 0–96 y 864–960). Ninguna está en el muro del fondo. Como `case-pdf-rooms.renderer` pinta la sala como una caja de un punto de fuga —muro del fondo de frente, laterales como triángulos que fugan hacia atrás— una puerta lateral dibujada de frente rompe la perspectiva.
+
+### Orientación derivada de los datos
+
+`doorFacing(x, mapWidth)` decide el muro por posición, sin metadata nueva ni tocar el seed:
+
+- `x / mapWidth ≤ 0.35` → muro izquierdo → la cara mira a la **derecha**.
+- `x / mapWidth ≥ 0.65` → muro derecho → **espejo** (`setFlipX`).
+- En medio → `null` → se dibuja la variante frontal (muro del fondo).
+
+Solo hacen falta **5 assets laterales**, no 10: la puerta del muro derecho es el espejo pixel-perfecto de la del izquierdo.
+
+### El arte se deriva geométricamente, no se regenera
+
+Dos intentos generativos fallaron y quedan documentados para no repetirlos:
+
+1. **`z_image` desde cero** ("three-quarter perspective…"): metió piso, zócalo y esquinas de habitación pese a pedir lo contrario, y el ángulo salió inconsistente entre las cinco — con espejo habrían quedado incoherentes.
+2. **`flux_kontext` rotando la frontal**: conservó la identidad, pero apenas rotó (varias quedaron casi de frente) y `enhance_prompt` reescribió las instrucciones, devolviendo sombras y piso.
+
+Una puerta es una losa plana: rotarla contra un muro lateral **es** una proyección de un punto de fuga. `sidify_door.py` la aplica sobre el recorte frontal de plena resolución:
+
+- recorta apéndices delgados laterales (columnas con menos del 20 % de alto de contenido) — si no, la deformación los proyecta lejos del cuerpo y quedan como motas;
+- deforma con `Image.PERSPECTIVE`: bordes izquierdo y derecho verticales, superior e inferior convergiendo a la derecha (`SQUASH = 0.62`, `FAR_HEIGHT = 0.80`);
+- el resultado pasa por el mismo `pixelate_door.py`.
+
+Ventajas sobre lo generativo: identidad exacta con la frontal ya commiteada, el ángulo es un número y no una súplica en un prompt, y el espejo es exacto.
+
+**Verificación de dirección** (no a ojo): en cada asset lateral, el alto de contenido a 3 px del borde izquierdo debe superar al del borde derecho — el borde cercano es más alto. Las 5 lo cumplen.
+
+### Assets
+
+`door_{...}_side.png` (48×64) junto a las frontales. `doorSpriteSpecs()` precarga las 10.
+
 ## No-objetivos
 
 - No se toca el mobiliario Kenney (lote futuro).
 - No se toca backend/esquema ni el seed: el mapeo vive en el frontend, keyed por `object_key` ya existente.
 - No se anima la puerta (abrir/cerrar). Sprite estático, como los demás objetos.
+- La variante en 3/4 no revela la profundidad del marco (jamba): a 41 px de ancho es invisible.

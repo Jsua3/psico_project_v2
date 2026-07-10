@@ -70,7 +70,7 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
-import { doorSpriteSpecs, resolveDoorTextureKey } from './door-sprite.util';
+import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
@@ -1622,6 +1622,23 @@ class DataDrivenWorldScene extends Phaser.Scene {
     return key && this.textures.exists(key) ? key : null;
   }
 
+  /**
+   * Sprite de una puerta, o `null` si no hay arte para ella (→ fallback del marcador).
+   *
+   * Contra un muro lateral se usa la variante en 3/4; el asset está dibujado
+   * mirando a la derecha (muro izquierdo) y el muro derecho es su espejo, así que
+   * ahí basta con `flipX`. Sin muro lateral (o sin asset lateral) cae a la frontal.
+   */
+  private buildDoorSprite(object: MapObjectState): Phaser.GameObjects.Image | null {
+    const facing = doorFacing(object.x, this.world?.map.width ?? AUTHORED_ROOM_WIDTH);
+    const sideKey = facing ? this.loadedTexture(resolveDoorSideTextureKey(object.key)) : null;
+    const key = sideKey ?? this.loadedTexture(resolveDoorTextureKey(object.key));
+    if (!key) return null;
+    return this.add.image(0, DOOR_SPRITE_Y, key)
+      .setScale(DOOR_SPRITE_SCALE)
+      .setFlipX(sideKey != null && facing === 'left');
+  }
+
   private createMarker(object: MapObjectState) {
     const isExit = object.type === 'EXIT';
     const color  = Number.parseInt(object.color.replace('#', ''), 16) || 0x4fa3a5;
@@ -1637,11 +1654,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let main: Phaser.GameObjects.GameObject;
 
     if (this.assetsLoaded) {
-      if (isExit && this.loadedTexture(resolveDoorTextureKey(object.key))) {
+      const doorSprite = isExit ? this.buildDoorSprite(object) : null;
+      if (doorSprite) {
         // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
         // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
         // rompe la regla de la sala premium. Si el asset falta, caen las ramas de abajo.
-        main = this.add.image(0, DOOR_SPRITE_Y, resolveDoorTextureKey(object.key)!).setScale(DOOR_SPRITE_SCALE);
+        main = doorSprite;
       } else if (isExit && this.authoredRoomActive) {
         // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
         const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
