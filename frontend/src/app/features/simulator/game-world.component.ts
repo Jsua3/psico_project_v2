@@ -114,10 +114,15 @@ interface NpcMover {
 /** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
 const TOOL_SPRITE_SCALE = 0.62;
 
-/** Escala de render de las puertas (asset 48×64 → 41×54 px). */
-const DOOR_SPRITE_SCALE = 0.85;
-/** Centro del sprite de puerta: asienta su base en la sombra de contacto (y=16). */
-const DOOR_SPRITE_Y = -11;
+/**
+ * Escala de render de las puertas (asset 48×64 → 70×93 px). Anclada al personaje
+ * (caja ~82 px ≈ 1.7 m ⇒ ~46 px/m): una puerta real mide ~2 m, así que debe quedar
+ * por encima de la cabeza del avatar. La escala anterior (0.85) venía del tamaño
+ * del marker Kenney viejo y dejaba las puertas más bajas que la gente.
+ */
+const DOOR_SPRITE_SCALE = 1.45;
+/** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
+const DOOR_SPRITE_FEET_Y = 16;
 
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -1635,7 +1640,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const sideKey = facing ? this.loadedTexture(resolveDoorSideTextureKey(object.key)) : null;
     const key = sideKey ?? this.loadedTexture(resolveDoorTextureKey(object.key));
     if (!key) return null;
-    return this.add.image(0, DOOR_SPRITE_Y, key)
+    return this.add.image(0, DOOR_SPRITE_FEET_Y, key)
+      .setOrigin(0.5, 1)
       .setScale(DOOR_SPRITE_SCALE)
       .setFlipX(sideKey != null && facing === 'left');
   }
@@ -1725,7 +1731,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       const hintTx = this.add.text(0, 0, `E  ${object.label} →`, {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
-      const hint = this.add.container(object.x, object.y - 50, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
+      // A -90 para librar la puerta a escala real (93 px de alto, base en y+16).
+      const hint = this.add.container(object.x, object.y - 90, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
       this.doorHints.set(object.key, hint);
     }
   }
