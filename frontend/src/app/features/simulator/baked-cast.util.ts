@@ -23,8 +23,11 @@ export const PLAYABLE_CAST: readonly CastMember[] = [
   { id: 'valentina', label: 'Valentina' },
   { id: 'andres', label: 'Andrés' },
   { id: 'camila', label: 'Camila' },
+  { id: 'daniela', label: 'Daniela' },
   { id: 'jorge', label: 'Jorge' },
   { id: 'luisa', label: 'Luisa' },
+  { id: 'mateo', label: 'Mateo' },
+  { id: 'samuel', label: 'Samuel' },
 ];
 
 /**
