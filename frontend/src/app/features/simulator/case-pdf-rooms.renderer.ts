@@ -160,13 +160,34 @@ function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
 }
 
 /**
+ * Altura MÁXIMA en pantalla de cada mueble, anclada al personaje (~82 px de caja
+ * ≈ 1.7 m ⇒ ~46 px/m). Es la vara de medir real del juego: el footprint de
+ * colisión es una huella de gameplay (generosa por diseño) y NO sirve como
+ * referencia visual — escalar solo por su ancho infló los muebles hasta 3-4
+ * personajes de alto.
+ */
+const FURNITURE_MAX_H: Record<FurnitureKey, number> = {
+  counter: 66,         // 1.1 m de mueble + monitor
+  gurney: 52,          // colchón a la cadera (~1 m) + baranda
+  waiting_chairs: 44,  // respaldo ~0.9 m
+  plant: 56,           // planta de piso ~1.2 m
+  sofa: 52,            // respaldo ~1 m
+  coffee_table: 26,    // mesa baja ~0.5 m
+  shelf: 88,           // estante alto ~1.9 m
+  chair: 44,           // silla ~0.9 m
+  file_cabinet: 60,    // archivador ~1.3 m
+  desk: 68,            // tablero 0.75 m + lámpara
+};
+
+/**
  * Dibuja un mueble como sprite pixel-art, o devuelve `false` si no hay textura
  * (→ el `paintX` cae a su cuerpo vectorial).
  *
  * Conserva la sombra de contacto y la profundidad `actorDepth(feetY)` que usaba
  * el vector, así el mueble queda asentado y ordenado igual respecto al jugador.
- * El sprite se ancla por su base (origin y=1) en la línea de pies y se escala por
- * ancho, respetando el aspect del asset.
+ * El sprite se ancla por su base (origin y=1) en la línea de pies y se escala al
+ * ancho del footprint, pero SIN superar su altura métrica (FURNITURE_MAX_H):
+ * gana el tope más restrictivo, respetando siempre el aspect del asset.
  */
 function paintFurnitureSprite(
   scene: Phaser.Scene, key: FurnitureKey, cx: number, feetY: number,
@@ -178,9 +199,10 @@ function paintFurnitureSprite(
   const g = scene.add.graphics().setDepth(depth);
   contactShadow(g, cx, feetY, shadowW, shadowH, shadowAlpha);
   const src = scene.textures.get(texKey).getSourceImage();
+  const scale = Math.min(visualW / src.width, FURNITURE_MAX_H[key] / src.height);
   scene.add.image(cx, feetY + shadowH * 0.15, texKey)
     .setOrigin(0.5, 1)
-    .setScale(visualW / src.width)
+    .setScale(scale)
     .setDepth(depth);
   return true;
 }
