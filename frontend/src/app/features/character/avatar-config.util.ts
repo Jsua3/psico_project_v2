@@ -96,7 +96,7 @@ export function coerceAvatar(x: unknown): AvatarConfig {
     ? LEGACY_MOUTH_TO_EXPRESSION[rawMouth]
     : pick(MOUTHS, rawMouth, d.mouth);
 
-  return {
+  const config: AvatarConfig = {
     gender: pick(GENDER_OPTIONS, a['gender'], d.gender),
     clothingColor: pick(CLOTHING_COLORS, a['clothingColor'], d.clothingColor),
     skinTone: pick(SKIN_TONES, a['skinTone'], d.skinTone),
@@ -109,6 +109,10 @@ export function coerceAvatar(x: unknown): AvatarConfig {
     accessory: pick(ACCESSORIES, a['accessory'], d.accessory),
     uniform: uni,
   };
+  // Elenco horneado (opcional): se conserva tal cual; quién valida contra el
+  // elenco vigente es resolveCastId (simulator/baked-cast.util) al renderizar.
+  if (typeof a['castId'] === 'string' && a['castId']) config.castId = a['castId'];
+  return config;
 }
 
 export function hairVariantId(config: Pick<AvatarConfig, 'hairStyle' | 'hairColor'>): HairVariantId {

@@ -53,6 +53,7 @@ import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
   AVATAR_FRAME_HEIGHT,
+  AVATAR_FRAME_WIDTH,
   AVATAR_IDLE_FRAMES,
   AVATAR_TEXTURE_KEY,
   AvatarLayerSpec,
@@ -70,6 +71,7 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
+import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId, resolveCastId } from './baked-cast.util';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
@@ -129,8 +131,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
   private avatarSpecs: AvatarLayerSpec[] = [];
+  /** Personaje del elenco horneado elegido (null → composición modular). */
+  private playerCastId: string | null = null;
+  /** Textura efectiva del sprite del jugador (elenco u hoja compuesta). */
+  private playerTextureKey = AVATAR_TEXTURE_KEY;
   private avatarReady = false;
   private readonly npcCompositesReady = new Set<string>();
+  /** Texturas horneadas activas por preset (si no está, usa la compuesta). */
+  private readonly npcBakedTexture = new Map<string, string>();
   private lastDirection: PlayerDirection = 'down';
   /** Última pose aplicada — la animación solo cambia si dirección/caminar cambió. */
   private lastPose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
@@ -215,9 +223,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const avatarConfig = parseAvatar(
       typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
     );
+    this.playerCastId = resolveCastId(avatarConfig.castId);
     this.avatarSpecs = avatarLayerSpecs(avatarConfig);
     for (const spec of this.avatarSpecs) {
       this.load.image(spec.textureKey, spec.assetPath);
+    }
+
+    // ── Elenco horneado (jugables + NPCs): hojas con el contrato modular 2×.
+    //    Si una falta, el 'loaderror' la ignora y ese actor cae al modular. ──
+    for (const id of castSheetIds()) {
+      this.load.spritesheet(castTextureKey(id), castAssetPath(id),
+        { frameWidth: AVATAR_FRAME_WIDTH, frameHeight: AVATAR_FRAME_HEIGHT });
     }
 
     // ── Capas modulares de los presets de NPC (mismas hojas que el avatar;
@@ -299,8 +315,18 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
     this.createAnimations();
-    this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
-    if (this.avatarReady) createAvatarAnimations(this);
+    // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
+    // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
+    // composición modular de siempre.
+    if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
+      this.playerTextureKey = castTextureKey(this.playerCastId);
+      createAvatarAnimationsFor(this, this.playerTextureKey, AVATAR_ANIM_KEYS);
+      this.avatarReady = true;
+    } else {
+      this.playerTextureKey = AVATAR_TEXTURE_KEY;
+      this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
+      if (this.avatarReady) createAvatarAnimations(this);
+    }
     this.renderWorld();
   }
 
@@ -1003,9 +1029,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (nearestDist >= this.doorRearmDist) this.dbDoorArmed = true;
   }
 
-  /** Compone (una vez) textura+anims del preset modular. false → fallback Kenney. */
+  /**
+   * Prepara (una vez) textura+anims del NPC. Prefiere su hoja HORNEADA del
+   * elenco si cargó; si no, compone el preset modular. false → fallback Kenney.
+   */
   private ensureNpcComposite(presetKey: NpcAvatarPresetKey): boolean {
     if (this.npcCompositesReady.has(presetKey)) return true;
+    const bakedId = npcCastSheetId(presetKey);
+    if (bakedId && this.textures.exists(castTextureKey(bakedId))) {
+      createAvatarAnimationsFor(this, castTextureKey(bakedId), npcAvatarAnimKeys(presetKey));
+      this.npcBakedTexture.set(presetKey, castTextureKey(bakedId));
+      this.npcCompositesReady.add(presetKey);
+      return true;
+    }
     const config = npcPresetConfig(presetKey);
     if (!config) return false;
     const ok = composeAvatarTextureAs(this, npcAvatarTextureKey(presetKey), avatarLayerSpecs(config));
@@ -1013,6 +1049,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
     createAvatarAnimationsFor(this, npcAvatarTextureKey(presetKey), npcAvatarAnimKeys(presetKey));
     this.npcCompositesReady.add(presetKey);
     return true;
+  }
+
+  /** Textura efectiva del NPC: hoja horneada si existe, si no la compuesta. */
+  private npcTextureKey(presetKey: NpcAvatarPresetKey): string {
+    return this.npcBakedTexture.get(presetKey) ?? npcAvatarTextureKey(presetKey);
   }
 
   private roomForCurrentWorld(): RoomConfig | null {
@@ -1203,9 +1244,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const spriteOffsetY = -Math.round(42 * scale);
         const shadowSoft = this.add.ellipse(0, 0, 42 * scale, 13 * scale, 0x000000, .15);
         const shadow = this.add.ellipse(0, 0, 28 * scale, 9 * scale, 0x000000, .27);
-        const npcSprite = this.add.sprite(0, spriteOffsetY, npcAvatarTextureKey(presetKey), AVATAR_IDLE_FRAMES.down)
+        const npcSprite = this.add.sprite(0, spriteOffsetY, this.npcTextureKey(presetKey), AVATAR_IDLE_FRAMES.down)
           .setScale(scale);
-        const baseTint = render.tint ?? null;
+        // El tint diferenciaba presets que compartían capas; una hoja horneada
+        // ya trae la identidad en el arte y el tint solo la ensuciaría.
+        const baseTint = this.npcBakedTexture.has(presetKey) ? null : (render.tint ?? null);
         if (baseTint != null) npcSprite.setTint(baseTint);
 
         const headY = spriteOffsetY - Math.round((AVATAR_FRAME_HEIGHT / 2) * scale);
@@ -1557,13 +1600,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   private createPlayer(x: number, y: number) {
     this.lastPose = { direction: null, walking: false };
-    if (this.avatarReady && this.textures.exists(AVATAR_TEXTURE_KEY)) {
+    if (this.avatarReady && this.textures.exists(this.playerTextureKey)) {
       // Contrato de pies (player-motion.util): (x, y) del contenedor = punto de
       // pies. Sombra centrada en los pies; el sprite sube PLAYER_SPRITE_OFFSET_Y.
       // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
       const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
       const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
-      const sprite = this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, AVATAR_TEXTURE_KEY, AVATAR_IDLE_FRAMES.down)
+      const sprite = this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
         .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
@@ -1737,9 +1780,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const presetKey = MAP_OBJECT_PRESETS[object.key];
         const render = NPC_PRESET_RENDER[presetKey];
         const personSprite = this.add.sprite(0, -Math.round(42 * render.scale) + 16,
-          npcAvatarTextureKey(presetKey), AVATAR_IDLE_FRAMES.down).setScale(render.scale);
-        if (render.tint != null) personSprite.setTint(render.tint);
-        (personSprite as unknown as Record<string, unknown>)['__personBaseTint'] = render.tint ?? null;
+          this.npcTextureKey(presetKey), AVATAR_IDLE_FRAMES.down).setScale(render.scale);
+        const personTint = this.npcBakedTexture.has(presetKey) ? null : (render.tint ?? null);
+        if (personTint != null) personSprite.setTint(personTint);
+        (personSprite as unknown as Record<string, unknown>)['__personBaseTint'] = personTint;
         this.registerLivingActor(`person-${object.key}`, personSprite, () => false);
         main = personSprite;
       } else if (object.type === 'PERSON' && this.textures.exists('characters')) {
