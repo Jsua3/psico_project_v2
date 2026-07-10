@@ -71,6 +71,7 @@ import {
   npcPresetConfig,
 } from './npc-avatar-presets';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
+import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
@@ -242,8 +243,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       }
     }
 
-    // ── Sprites pixel-art de objetos (herramientas + escenario) y puertas; fallback si faltan ──
-    for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs()]) {
+    // ── Sprites pixel-art de objetos (herramientas + escenario), puertas y mobiliario; fallback si faltan ──
+    for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs(), ...furnitureSpriteSpecs()]) {
       this.load.image(spec.textureKey, spec.assetPath);
     }
 
