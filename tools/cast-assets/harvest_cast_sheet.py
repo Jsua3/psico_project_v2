@@ -116,10 +116,12 @@ def has_eyes(head_arr, skin):
 def classify_view(blob):
     """'front' | 'back' | 'side-left' | 'side-right'.
 
-    Frente/espalda se separan por OJOS (pixeles oscuros dentro de piel dilatada
-    en la cabeza), no solo por proporcion de piel: un perfil con flequillo puede
-    tener poca piel y una espalda con orejas puede tener algo. El lado se decide
-    por el corrimiento del centroide de piel respecto a la cabeza.
+    El discriminador frente/espalda es el COMPONENTE DE PIEL MAS GRANDE de la
+    region de cabeza: de frente/perfil es la cara (masa grande); de espaldas lo
+    unico visible son orejas (motas diminutas). Los "ojos" solos engañan: la
+    oreja + pelo oscuro adyacente tambien da pixeles oscuros junto a piel.
+    El lado se decide por el corrimiento del centroide de LA CARA (no de toda
+    la piel, que incluye manos) respecto al eje de la cabeza.
     """
     arr = np.array(blob)
     head = arr[: int(blob.height * 0.42)]
@@ -127,13 +129,20 @@ def classify_view(blob):
     if solid.sum() == 0:
         return "back"
     skin = skin_mask(head)
-    if skin.sum() / solid.sum() < 0.04 or not has_eyes(head, skin):
+    lbl, n = ndimage.label(skin)
+    if n == 0:
         return "back"
-    xs = np.nonzero(skin.any(axis=0))[0]
+    areas = ndimage.sum(skin, lbl, range(1, n + 1))
+    if float(areas.max()) / solid.sum() < 0.05:
+        return "back"  # solo orejas: espalda
+    face = (lbl == (int(areas.argmax()) + 1))
+    if not has_eyes(head, face):
+        return "back"
+    xs = np.nonzero(face.any(axis=0))[0]
     center = np.nonzero(solid.any(axis=0))[0].mean()
-    skin_c = xs.mean()
-    if abs(skin_c - center) > blob.width * 0.075:
-        return "side-left" if skin_c < center else "side-right"
+    face_c = xs.mean()
+    if abs(face_c - center) > blob.width * 0.075:
+        return "side-left" if face_c < center else "side-right"
     return "front"
 
 
@@ -226,8 +235,11 @@ def harvest(grid_paths, strip_path, out_path, preview_path=None, report=False):
 
     if report:
         print(f"cosecha: front={len(buckets['front'])} back={len(buckets['back'])} side={len(sides)}")
-    missing = [name for name, blobs in
-               (("front", buckets["front"]), ("back", buckets["back"]), ("side", sides)) if len(blobs) < 2]
+    # espalda basta con 1 (el espejo del paso da la pierna contraria); las
+    # demas vistas necesitan 2+ para tener un paso real ademas del idle.
+    missing = [name for name, blobs, need in
+               (("front", buckets["front"], 2), ("back", buckets["back"], 1), ("side", sides, 2))
+               if len(blobs) < need]
     if missing:
         raise SystemExit(f"faltan vistas {missing} — regenerar (gratis) y re-cosechar")
 
@@ -272,12 +284,99 @@ def harvest(grid_paths, strip_path, out_path, preview_path=None, report=False):
     print(f"{out_path}  384x576  (3x3 contrato modular, pies y={FEET_Y})")
 
 
+def collect_blobs(sources):
+    """Todos los blobs de todas las fuentes, en orden estable de entrada."""
+    blobs = []
+    for path in sources:
+        blobs += extract_blobs(remove_white_bg(Image.open(path)))
+    return blobs
+
+
+def make_gallery(sources, gallery_path, height=160):
+    """Hoja de contactos numerada: el humano (o el agente) elige las vistas.
+
+    La clasificacion automatica por heuristica de pixeles NO generaliza entre
+    los sub-estilos que produce z_image (en los estilos gruesos toda celda
+    tiene parches de piel y pixeles oscuros: cuello/orejas parecen caras).
+    """
+    from PIL import ImageDraw
+    blobs = collect_blobs(sources)
+    if not blobs:
+        raise SystemExit("sin blobs — revisar fuentes")
+    widths = [max(28, round(b.width * height / b.height)) for b in blobs]
+    cv = Image.new("RGB", (sum(widths) + 8 * len(blobs) + 8, height + 20), (255, 255, 255))
+    d = ImageDraw.Draw(cv)
+    x = 8
+    for i, (b, w) in enumerate(zip(blobs, widths)):
+        th = b.resize((w, height))
+        cv.paste(th, (x, 0), th)
+        d.text((x + w // 2 - 4, height + 4), str(i), fill=(0, 0, 0))
+        x += w + 8
+    cv.save(gallery_path)
+    print(f"{gallery_path}  {len(blobs)} blobs")
+
+
+def assemble_from_picks(sources, picks, out_path, preview_path=None):
+    """Ensambla la hoja 3x3 desde indices elegidos a mano sobre la galeria.
+
+    picks = {"front": [i, ...], "side": [i, ...], "back": [i, ...]}
+    En side, un indice negativo (-i) significa "usar el blob i espejado"
+    (para perfiles que miran a la izquierda). Filas cortas se completan con
+    espejo (front/back) o repitiendo el idle (side).
+    """
+    blobs = collect_blobs(sources)
+    rows = []
+    for name in ("front", "side", "back"):
+        sel = []
+        for idx in picks.get(name, []):
+            b = blobs[abs(idx)]
+            if idx < 0:
+                b = b.transpose(Image.FLIP_LEFT_RIGHT)
+            sel.append(b)
+        if not sel:
+            raise SystemExit(f"pick vacio para {name}")
+        cells = [register_cell(b) for b in sel]
+        while len(cells) < 3:
+            if name in ("front", "back"):
+                cells.append(cells[-1].transpose(Image.FLIP_LEFT_RIGHT))
+            else:
+                cells.append(cells[0])
+        rows.append(cells[:3])
+    cells = quantize_joint([c for row in rows for c in row])
+    sheet = Image.new("RGBA", (FRAME_W * 3, FRAME_H * 3), (0, 0, 0, 0))
+    for i, cell in enumerate(cells):
+        sheet.alpha_composite(cell, ((i % 3) * FRAME_W, (i // 3) * FRAME_H))
+    sheet.save(out_path)
+    if preview_path:
+        sheet.resize((FRAME_W * 6, FRAME_H * 6), Image.NEAREST).save(preview_path)
+    print(f"{out_path}  384x576  (3x3 contrato modular, picks manuales)")
+
+
+def parse_picks(spec):
+    """"front=0,2 side=1,-3 back=8" -> dict de listas de enteros."""
+    picks = {}
+    for part in spec.split():
+        name, idxs = part.split("=")
+        picks[name] = [int(v) for v in idxs.split(",") if v != ""]
+    return picks
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
-    ap.add_argument("--grid", action="append", required=True, help="rejilla(s) RPG Maker")
-    ap.add_argument("--strip", required=True, help="tira de perfil")
+    ap.add_argument("--grid", action="append", default=[], help="rejilla(s) RPG Maker")
+    ap.add_argument("--strip", default=None, help="tira de perfil")
     ap.add_argument("--preview", default=None)
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--gallery", default=None,
+                    help="solo genera la hoja de contactos numerada y sale")
+    ap.add_argument("--pick", default=None,
+                    help='indices manuales: "front=0,2 side=1,-3 back=8" (negativo = espejar)')
     args = ap.parse_args()
-    harvest(args.grid, args.strip, args.out, args.preview, args.report)
+    sources = list(args.grid) + ([args.strip] if args.strip else [])
+    if args.gallery:
+        make_gallery(sources, args.gallery)
+    elif args.pick:
+        assemble_from_picks(sources, parse_picks(args.pick), args.out, args.preview)
+    else:
+        harvest(args.grid, args.strip, args.out, args.preview, args.report)

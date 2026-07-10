@@ -38,6 +38,18 @@ describe('avatar-config', () => {
     const a = { ...defaultAvatar(), hairStyle: 'largo' as const, uniform: 'con-bata' as const };
     expect(parseAvatar(serializeAvatar(a))).toEqual(a);
   });
+
+  it('conserva castId (elenco horneado) y lo omite si no es string', () => {
+    expect(coerceAvatar({ ...defaultAvatar(), castId: 'valentina' }).castId).toBe('valentina');
+    expect(coerceAvatar({ ...defaultAvatar(), castId: 42 }).castId).toBeUndefined();
+    expect(coerceAvatar({ ...defaultAvatar(), castId: '' }).castId).toBeUndefined();
+    expect(coerceAvatar(defaultAvatar()).castId).toBeUndefined();
+  });
+
+  it('castId sobrevive el roundtrip serialize -> parse', () => {
+    const a = { ...defaultAvatar(), castId: 'valentina' };
+    expect(parseAvatar(serializeAvatar(a)).castId).toBe('valentina');
+  });
 });
 
 describe('variantes de cabello con arte real', () => {

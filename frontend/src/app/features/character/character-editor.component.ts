@@ -18,6 +18,7 @@ import {
 } from './avatar.model';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
+import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
 
 @Component({
   selector: 'app-character-editor',
@@ -40,6 +41,27 @@ import { NotificationService } from '../../core/notifications/notification.servi
 
       <div class="ce-grid">
         <section class="ce-panel glass" aria-label="Apariencia">
+          <p class="ce-section">Personaje</p>
+          <div class="ce-cast" role="radiogroup" aria-label="Personaje del elenco">
+            @for (m of playableCast; track m.id) {
+              <button type="button" class="ce-cast-card" [class.sel]="avatar().castId === m.id"
+                role="radio" [attr.aria-checked]="avatar().castId === m.id"
+                (click)="selectCast(m.id)">
+                <span class="ce-cast-thumb" [style.background-image]="castThumb(m.id)"></span>
+                <span>{{ m.label }}</span>
+              </button>
+            }
+            <button type="button" class="ce-cast-card" [class.sel]="!avatar().castId"
+              role="radio" [attr.aria-checked]="!avatar().castId"
+              (click)="selectCast(null)">
+              <span class="ce-cast-thumb ce-cast-thumb--classic">✎</span>
+              <span>Clásico</span>
+            </button>
+          </div>
+          @if (avatar().castId) {
+            <p class="ce-hint">Con un personaje del elenco, las opciones de abajo solo aplican al modo clásico.</p>
+          }
+
           <p class="ce-section">Cuerpo</p>
           <div class="ce-opts" role="radiogroup" aria-label="Genero">
             @for (o of genderOptions; track o.id) {
@@ -162,6 +184,13 @@ import { NotificationService } from '../../core/notifications/notification.servi
     .ce-panel { padding: 16px; display: grid; gap: 12px; max-height: calc(100vh - 230px); overflow-y: auto; }
     .ce-section { margin: 4px 0 0; color: var(--pl); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
     .ce-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ce-cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+    .ce-cast-card { display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .74rem; font-weight: 800; cursor: pointer; transition: all .15s; }
+    .ce-cast-card:hover { border-color: rgba(182,156,255,.5); color: var(--ink); }
+    .ce-cast-card.sel { border-color: var(--pl); background: rgba(124,77,255,.18); color: #e7ddff; }
+    .ce-cast-thumb { width: 52px; height: 78px; border-radius: 8px; background-color: rgba(18,24,42,.8); background-size: 300% 300%; background-position: 0% 0%; image-rendering: pixelated; }
+    .ce-cast-thumb--classic { display: grid; place-items: center; font-size: 1.5rem; color: var(--pl); }
+    .ce-hint { margin: 0; color: var(--ink-soft); font-size: .74rem; }
     .ce-opt { padding: 6px 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 700; cursor: pointer; transition: all .15s; }
     .ce-opt:hover { border-color: rgba(182,156,255,.5); color: var(--ink); }
     .ce-opt.sel { background: rgba(124,77,255,.2); border-color: var(--pl); color: #e7ddff; }
@@ -210,6 +239,16 @@ export class CharacterEditorComponent {
   readonly hairColors = HAIR_COLORS;
   readonly mouths = MOUTHS;
   readonly uniforms = UNIFORMS;
+  readonly playableCast = PLAYABLE_CAST;
+
+  /** Miniatura del elenco: frame 0 (idle de frente) de su hoja 3×3. */
+  castThumb(id: string): string {
+    return `url('${castAssetPath(id)}')`;
+  }
+
+  selectCast(id: string | null): void {
+    this.store.update({ castId: id ?? undefined });
+  }
 
   readonly roleLabel = computed(() => {
     const r = this.auth.currentUser()?.role;

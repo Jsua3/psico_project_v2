@@ -21,6 +21,8 @@ export interface CastMember {
 /** Personajes jugables (el editor los ofrece como "elige tu personaje"). */
 export const PLAYABLE_CAST: readonly CastMember[] = [
   { id: 'valentina', label: 'Valentina' },
+  { id: 'camila', label: 'Camila' },
+  { id: 'jorge', label: 'Jorge' },
 ];
 
 /**
