@@ -10,6 +10,7 @@ import {
   ScenePoint,
   SceneRect,
 } from './scene-layer.types';
+import { FurnitureKey, resolveFurnitureTextureKey } from './furniture-sprite.util';
 
 /**
  * Salas del caso PDF «Violencia Familiar y Tentativa de Feminicidio».
@@ -158,6 +159,32 @@ function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
   ellipseC(g, cx, cy, w * 0.68, h * 0.68, SHADOW, alpha);
 }
 
+/**
+ * Dibuja un mueble como sprite pixel-art, o devuelve `false` si no hay textura
+ * (→ el `paintX` cae a su cuerpo vectorial).
+ *
+ * Conserva la sombra de contacto y la profundidad `actorDepth(feetY)` que usaba
+ * el vector, así el mueble queda asentado y ordenado igual respecto al jugador.
+ * El sprite se ancla por su base (origin y=1) en la línea de pies y se escala por
+ * ancho, respetando el aspect del asset.
+ */
+function paintFurnitureSprite(
+  scene: Phaser.Scene, key: FurnitureKey, cx: number, feetY: number,
+  visualW: number, shadowW: number, shadowH: number, shadowAlpha = 0.3,
+): boolean {
+  const texKey = resolveFurnitureTextureKey(key);
+  if (!texKey || !scene.textures.exists(texKey)) return false;
+  const depth = actorDepth(feetY);
+  const g = scene.add.graphics().setDepth(depth);
+  contactShadow(g, cx, feetY, shadowW, shadowH, shadowAlpha);
+  const src = scene.textures.get(texKey).getSourceImage();
+  scene.add.image(cx, feetY + shadowH * 0.15, texKey)
+    .setOrigin(0.5, 1)
+    .setScale(visualW / src.width)
+    .setDepth(depth);
+  return true;
+}
+
 // ── Estructura compartida: paredes + piso en perspectiva ──────────────────────
 
 function paintShell(scene: Phaser.Scene, options: SceneRendererOptions, pal: RoomPalette): void {
@@ -251,6 +278,7 @@ function paintLighting(scene: Phaser.Scene, pal: RoomPalette, pools: ScenePoint[
 /** Mostrador institucional (triage/recepción): frente con panel y tapa clara. */
 function paintCounter(scene: Phaser.Scene, cx: number, cy: number, w: number,
                       front: number, top: number, accent: number): void {
+  if (paintFurnitureSprite(scene, 'counter', cx, cy + 32, w + 16, w + 24, 22, 0.3)) return;
   const g = scene.add.graphics().setDepth(actorDepth(cy + 30));
   contactShadow(g, cx, cy + 32, w + 24, 22, 0.3);
   rectC(g, cx, cy + 12, w, 44, front);                       // frente
@@ -265,6 +293,7 @@ function paintCounter(scene: Phaser.Scene, cx: number, cy: number, w: number,
 
 /** Fila de sillas de espera unidas (3 asientos). */
 function paintWaitingChairs(scene: Phaser.Scene, cx: number, cy: number, color: number): void {
+  if (paintFurnitureSprite(scene, 'waiting_chairs', cx, cy + 22, 156, 160, 16, 0.26)) return;
   const g = scene.add.graphics().setDepth(actorDepth(cy + 18));
   contactShadow(g, cx, cy + 22, 160, 16, 0.26);
   rectC(g, cx, cy + 16, 150, 5, 0x222733);                   // riel
@@ -278,6 +307,7 @@ function paintWaitingChairs(scene: Phaser.Scene, cx: number, cy: number, color: 
 
 /** Archivadores metálicos (2 módulos con cajones). */
 function paintFileCabinets(scene: Phaser.Scene, cx: number, cy: number, w: number): void {
+  if (paintFurnitureSprite(scene, 'file_cabinet', cx, cy + 32, w, w + 16, 16, 0.28)) return;
   const g = scene.add.graphics().setDepth(actorDepth(cy + 20));
   contactShadow(g, cx, cy + 26, w + 16, 16, 0.28);
   for (const side of [-w / 4 - 2, w / 4 + 2]) {
@@ -293,6 +323,7 @@ function paintFileCabinets(scene: Phaser.Scene, cx: number, cy: number, w: numbe
 
 /** Planta de piso (maceta + follaje en racimos). */
 function paintPlant(scene: Phaser.Scene, x: number, y: number, s = 1): void {
+  if (paintFurnitureSprite(scene, 'plant', x, y + 18 * s, 48 * s, 44 * s, 12 * s, 0.3)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 16 * s));
   contactShadow(g, x, y + 18 * s, 44 * s, 12 * s, 0.3);
   rectC(g, x, y + 8 * s, 26 * s, 18 * s, 0x3a4152);
@@ -305,6 +336,7 @@ function paintPlant(scene: Phaser.Scene, x: number, y: number, s = 1): void {
 
 /** Escritorio de madera (consultorio/atención). */
 function paintDesk(scene: Phaser.Scene, x: number, y: number, w: number): void {
+  if (paintFurnitureSprite(scene, 'desk', x, y + 42, w + 24, w + 60, 24, 0.32)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 40));
   contactShadow(g, x, y + 42, w + 60, 24, 0.32);
   for (const side of [-w / 2 + 30, w / 2 - 30]) {
@@ -327,6 +359,7 @@ function paintDesk(scene: Phaser.Scene, x: number, y: number, w: number): void {
 
 /** Silla individual simple frente al escritorio. */
 function paintChair(scene: Phaser.Scene, x: number, y: number, color: number): void {
+  if (paintFurnitureSprite(scene, 'chair', x, y + 14, 40, 40, 10, 0.24)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 12));
   contactShadow(g, x, y + 14, 40, 10, 0.24);
   rectC(g, x, y + 4, 36, 10, color);                         // asiento
@@ -337,6 +370,7 @@ function paintChair(scene: Phaser.Scene, x: number, y: number, color: number): v
 
 /** Sofá de escucha (mismo idioma que la sala premium, tono cálido). */
 function paintSofa(scene: Phaser.Scene, x: number, y: number): void {
+  if (paintFurnitureSprite(scene, 'sofa', x, y + 40, 146, 150, 22, 0.3)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 36));
   contactShadow(g, x, y + 40, 150, 22, 0.3);
   rectC(g, x, y - 6, 130, 30, 0x6a4250);                     // respaldo
@@ -354,6 +388,7 @@ function paintSofa(scene: Phaser.Scene, x: number, y: number): void {
 
 /** Mesa de centro pequeña. */
 function paintCoffeeTable(scene: Phaser.Scene, x: number, y: number): void {
+  if (paintFurnitureSprite(scene, 'coffee_table', x, y + 16, 96, 100, 14, 0.26)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 14));
   contactShadow(g, x, y + 16, 100, 14, 0.26);
   rectC(g, x, y, 90, 12, WOOD_TOP);
@@ -366,6 +401,7 @@ function paintCoffeeTable(scene: Phaser.Scene, x: number, y: number): void {
 
 /** Camilla hospitalaria con sábana y baranda. */
 function paintGurney(scene: Phaser.Scene, x: number, y: number): void {
+  if (paintFurnitureSprite(scene, 'gurney', x, y + 28, 122, 120, 16, 0.28)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 24));
   contactShadow(g, x, y + 28, 120, 16, 0.28);
   for (const side of [-44, 44]) rectC(g, x + side, y + 18, 8, 22, 0x3a4152);
@@ -379,6 +415,7 @@ function paintGurney(scene: Phaser.Scene, x: number, y: number): void {
 
 /** Estante bajo de protocolos (sala de escucha). */
 function paintLowCabinet(scene: Phaser.Scene, x: number, y: number, w: number, accent: number): void {
+  if (paintFurnitureSprite(scene, 'shelf', x, y + 24, w, w + 14, 14, 0.26)) return;
   const g = scene.add.graphics().setDepth(actorDepth(y + 18));
   contactShadow(g, x, y + 24, w + 14, 14, 0.26);
   rectC(g, x, y, w, 48, 0x4a3a2c);

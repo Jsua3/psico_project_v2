@@ -70,6 +70,9 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
+import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
+import { furnitureSpriteSpecs } from './furniture-sprite.util';
+import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcAvatarPresetKey, NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
@@ -107,6 +110,14 @@ interface NpcMover {
   /** null = sprite legacy (solo flip, sin animaciones modulares). */
   presetKey: string | null;
 }
+
+/** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
+const TOOL_SPRITE_SCALE = 0.62;
+
+/** Escala de render de las puertas (asset 48×64 → 41×54 px). */
+const DOOR_SPRITE_SCALE = 0.85;
+/** Centro del sprite de puerta: asienta su base en la sombra de contacto (y=16). */
+const DOOR_SPRITE_Y = -11;
 
 class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -230,6 +241,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
           this.load.image(spec.textureKey, spec.assetPath);
         }
       }
+    }
+
+    // ── Sprites pixel-art de objetos (herramientas + escenario), puertas y mobiliario; fallback si faltan ──
+    for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs(), ...furnitureSpriteSpecs()]) {
+      this.load.image(spec.textureKey, spec.assetPath);
     }
 
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
@@ -1602,6 +1618,28 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.playerSprite.setFlipX(direction === 'left');
   }
 
+  /** Devuelve la clave si su textura ya cargó; si no, null (→ fallback del marcador). */
+  private loadedTexture(key: string | null): string | null {
+    return key && this.textures.exists(key) ? key : null;
+  }
+
+  /**
+   * Sprite de una puerta, o `null` si no hay arte para ella (→ fallback del marcador).
+   *
+   * Contra un muro lateral se usa la variante en 3/4; el asset está dibujado
+   * mirando a la derecha (muro izquierdo) y el muro derecho es su espejo, así que
+   * ahí basta con `flipX`. Sin muro lateral (o sin asset lateral) cae a la frontal.
+   */
+  private buildDoorSprite(object: MapObjectState): Phaser.GameObjects.Image | null {
+    const facing = doorFacing(object.x, this.world?.map.width ?? AUTHORED_ROOM_WIDTH);
+    const sideKey = facing ? this.loadedTexture(resolveDoorSideTextureKey(object.key)) : null;
+    const key = sideKey ?? this.loadedTexture(resolveDoorTextureKey(object.key));
+    if (!key) return null;
+    return this.add.image(0, DOOR_SPRITE_Y, key)
+      .setScale(DOOR_SPRITE_SCALE)
+      .setFlipX(sideKey != null && facing === 'left');
+  }
+
   private createMarker(object: MapObjectState) {
     const isExit = object.type === 'EXIT';
     const color  = Number.parseInt(object.color.replace('#', ''), 16) || 0x4fa3a5;
@@ -1617,7 +1655,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
     let main: Phaser.GameObjects.GameObject;
 
     if (this.assetsLoaded) {
-      if (isExit && this.authoredRoomActive) {
+      const doorSprite = isExit ? this.buildDoorSprite(object) : null;
+      if (doorSprite) {
+        // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
+        // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
+        // rompe la regla de la sala premium. Si el asset falta, caen las ramas de abajo.
+        main = doorSprite;
+      } else if (isExit && this.authoredRoomActive) {
         // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
         const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
         const doorPanel = this.add.rectangle(0, -10, 24, 36, 0x2a2348, 1);
@@ -1626,7 +1670,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
       } else if (object.type === 'TOOL') {
-        main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        const toolTex = resolveToolTextureKey(object.toolCode);
+        main = (toolTex && this.textures.exists(toolTex))
+          ? this.add.image(0, -6, toolTex).setScale(TOOL_SPRITE_SCALE)
+          : this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+      } else if (object.type === 'OBJECT' && this.loadedTexture(resolveObjectTextureKey(object.shortCode))) {
+        main = this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!).setScale(TOOL_SPRITE_SCALE);
       } else if (object.type === 'PERSON' && this.objectAvatarConfig(object)
           && this.ensureObjectAvatarComposite(object)) {
         const scale = Number((object.metadata as { scale?: unknown } | undefined)?.scale ?? 0.82);
