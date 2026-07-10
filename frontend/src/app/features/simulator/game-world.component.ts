@@ -70,6 +70,7 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
+import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
@@ -153,6 +154,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly npcMovers = new Map<string, NpcMover>();
+  /** Actores vivos: respiración en idle + rebote al caminar (character-motion.util). */
+  private readonly livingActors = new Map<string, {
+    sprite: Phaser.GameObjects.Sprite; actor: LivingActor; isWalking: () => boolean;
+  }>();
   /** El mundo se congela con diálogo/journal/outcome abiertos (Fase 5/13). */
   private motionPaused = false;
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
@@ -353,6 +358,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
     this.updateGuide(delta);
+    this.updateLivingActors(time);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
     if (this.guideContainer) this.ysort(this.guideContainer);
@@ -466,6 +472,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]);
     this.setFeetOffset(this.guideContainer, guideFeetY);
     this.guideSprite = sprite;
+    if (sprite instanceof Phaser.GameObjects.Sprite) {
+      this.registerLivingActor('guide', sprite, () => this.guideTarget != null && !this.guideArrived);
+    }
     this.guideBubble = this.buildGuideBubble(entry.hint);
 
     this.guideTarget = targetPos
@@ -656,6 +665,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.livingActors.clear();
     this.tiledExits.clear();
     this.wallsLayer = undefined;
     this.authoredRoomActive = false;
@@ -815,6 +825,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.livingActors.clear();
     this.tiledExits.clear();
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
@@ -1209,6 +1220,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, npcSprite, label, hint]);
         this.setFeetOffset(container, 0);   // pies = origen del contenedor
         this.npcMarkers.set(npc.key, container);
+        this.registerLivingActor(`npc-${npc.key}`, npcSprite,
+          () => this.npcMovers.get(npc.key)?.lastPose.walking ?? false);
         const bag = container as unknown as Record<string, unknown>;
         bag['__npcConfig'] = npc;
         bag['__hintSprite'] = hint;
@@ -1554,6 +1567,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
+      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
       return;
     }
     // Fallback Kenney: mismo contrato de pies (sprite 16px × 1.5 → centro -11).
@@ -1563,11 +1577,37 @@ class DataDrivenWorldScene extends Phaser.Scene {
       // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
       this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
+      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
     } else {
       const body  = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
       const head  = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
       const badge = this.add.rectangle(0, -10, 12,  7, 0xffffff, .9);
       this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
+    }
+  }
+
+  /**
+   * Registra un sprite como "actor vivo": respira en reposo y rebota al caminar.
+   * Captura sus valores base en el momento del registro; si se re-registra la
+   * misma clave (cambio de sala), el nuevo sprite reemplaza al anterior.
+   */
+  private registerLivingActor(key: string, sprite: Phaser.GameObjects.Sprite, isWalking: () => boolean): void {
+    this.livingActors.set(key, {
+      sprite,
+      actor: makeLivingActor(key, sprite.scaleY, sprite.y, sprite.displayHeight / 2),
+      isWalking,
+    });
+  }
+
+  /** Aplica respiración/rebote a todos los actores vivos (los muertos se purgan). */
+  private updateLivingActors(time: number): void {
+    if (this.livingActors.size === 0) return;
+    const amps = motionAmplitudes(this.callbacks.reduceMotion);
+    for (const [key, entry] of this.livingActors) {
+      if (!entry.sprite.active) { this.livingActors.delete(key); continue; }
+      const pose = livingPose(entry.actor, time, entry.isWalking(), amps);
+      entry.sprite.scaleY = pose.scaleY;
+      entry.sprite.y = pose.y;
     }
   }
 
@@ -1687,6 +1727,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
         const scale = Number((object.metadata as { scale?: unknown } | undefined)?.scale ?? 0.82);
         const personSprite = this.add.sprite(0, -Math.round(42 * scale) + 16,
           this.objectAvatarTextureKey(object.key), AVATAR_IDLE_FRAMES.down).setScale(scale);
+        this.registerLivingActor(`person-${object.key}`, personSprite, () => false);
         main = personSprite;
       } else if (object.type === 'PERSON' && MAP_OBJECT_PRESETS[object.key]
           && this.ensureNpcComposite(MAP_OBJECT_PRESETS[object.key])) {
@@ -1699,6 +1740,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
           npcAvatarTextureKey(presetKey), AVATAR_IDLE_FRAMES.down).setScale(render.scale);
         if (render.tint != null) personSprite.setTint(render.tint);
         (personSprite as unknown as Record<string, unknown>)['__personBaseTint'] = render.tint ?? null;
+        this.registerLivingActor(`person-${object.key}`, personSprite, () => false);
         main = personSprite;
       } else if (object.type === 'PERSON' && this.textures.exists('characters')) {
         main = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)

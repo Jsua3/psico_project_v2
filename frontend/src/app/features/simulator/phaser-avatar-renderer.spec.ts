@@ -74,10 +74,19 @@ describe('phaser-avatar-renderer', () => {
     });
   });
 
-  it('las animaciones usan la fila correcta y el idle es la primera columna', () => {
-    expect(AVATAR_WALK_FRAMES.down).toEqual([0, 1, 2]);
-    expect(AVATAR_WALK_FRAMES.side).toEqual([3, 4, 5]);
-    expect(AVATAR_WALK_FRAMES.up).toEqual([6, 7, 8]);
+  it('la caminata es un ciclo ping-pong de 4 tiempos dentro de su fila', () => {
+    // paso-apoyo-paso-apoyo: cols 1-2 son pasos, col 0 es el apoyo/reposo.
+    expect(AVATAR_WALK_FRAMES.down).toEqual([1, 0, 2, 0]);
+    expect(AVATAR_WALK_FRAMES.side).toEqual([4, 3, 5, 3]);
+    expect(AVATAR_WALK_FRAMES.up).toEqual([7, 6, 8, 6]);
+    // cada secuencia vive en su fila (fila = idle..idle+2)
+    for (const dir of ['down', 'side', 'up'] as const) {
+      const idle = AVATAR_IDLE_FRAMES[dir];
+      for (const f of AVATAR_WALK_FRAMES[dir]) {
+        expect(f).toBeGreaterThanOrEqual(idle);
+        expect(f).toBeLessThanOrEqual(idle + 2);
+      }
+    }
     expect(AVATAR_IDLE_FRAMES).toEqual({ down: 0, side: 3, up: 6 });
   });
 
