@@ -1,0 +1,28 @@
+# Base de datos DESECHABLE para pruebas backend de SIEP v3 (ENV-01).
+#
+# - Proyecto Compose propio y distinto del de desarrollo.
+# - Nombre de base distinto (psychosim_test) y usuario propio.
+# - Datos en tmpfs: el contenido desaparece al detener el contenedor; no hay
+#   volumen persistente que pueda confundirse con datos de desarrollo.
+# - Puerto configurable vía SIEP_TEST_DB_PORT (por defecto 5544).
+#
+# Uso previsto: npm run test:backend (scripts/test-backend.mjs valida labels y
+# DSN antes de sembrar o ejecutar nada).
+name: psico-project-v3-test
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: psychosim_test
+      POSTGRES_USER: psychosim_test
+      POSTGRES_PASSWORD: ${SIEP_TEST_DB_PASSWORD:-psychosim_test_only}
+    ports:
+      - "${SIEP_TEST_DB_PORT:-5544}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psychosim_test -d psychosim_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

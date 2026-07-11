@@ -10,10 +10,19 @@ import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  DEV_COMPOSE_PROJECT,
+  assessContainerOwnership,
+  assessVolumeOwnership,
+  decideSchemaGateAction,
+} from './dev-environment-guard.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND = join(ROOT, 'backend_django');
 const FRONTEND = join(ROOT, 'frontend');
 const isWin = process.platform === 'win32';
+// Puerto publicado de la BD propia; los procesos Django hijos reciben DB_PORT.
+const DB_PORT = process.env.DB_PORT ?? process.env.SIEP_DB_PORT ?? '5433';
 
 function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, {
@@ -146,63 +155,111 @@ function simulationSchemaReady() {
     // NOTA: sin `shell: isWin` a propósito. Este argumento -c contiene
     // comillas dobles embebidas; con shell:true en Windows, Node delega en
     // cmd.exe /c, que no las escapa (ver DEP0190) y rompe el parseo del
-    // comando, haciendo que este chequeo falle SIEMPRE y dispare el
-    // bootstrap destructivo en cada arranque sin importar el esquema real.
-    // spawnSync invoca el .exe directamente (ruta absoluta), no necesita
-    // shell, igual que venvPythonVersion() más arriba.
-    { cwd: BACKEND, stdio: 'pipe' },
+    // comando, haciendo que este chequeo falle SIEMPRE sin importar el
+    // esquema real. spawnSync invoca el .exe directamente (ruta absoluta),
+    // no necesita shell, igual que venvPythonVersion() más arriba.
+    { cwd: BACKEND, stdio: 'pipe', env: { ...process.env, DB_PORT } },
   );
   return result.status === 0;
 }
 
 function ensureDevDatabase() {
-  if (simulationSchemaReady()) {
+  // El bootstrap automático se eliminó a propósito (ENV-01): si el esquema
+  // no está, npm run up se DETIENE y remite al comando explícito protegido.
+  const action = decideSchemaGateAction({ schemaReady: simulationSchemaReady() });
+  if (action === 'start') {
     return;
   }
-  console.log('[siep] Inicializando esquema del simulador y caso demo...');
-  run(venvPython(), ['manage.py', 'bootstrap_dev_db'], { cwd: BACKEND });
+  console.error('[siep] La base de datos no tiene el esquema del simulador.');
+  console.error(`[siep] Chequeo fallido: faltan una o más tablas centinela (${REQUIRED_SIM_TABLES.join(', ')}).`);
+  console.error('[siep] npm run up NO siembra bases de datos automáticamente.');
+  console.error('[siep] Si esta base es local, propia de este checkout y reemplazable, ejecuta:');
+  console.error('[siep]     npm run db:bootstrap -- --yes');
+  process.exit(1);
+}
+
+function composeDev(args, opts = {}) {
+  return spawnSync('docker', ['compose', '-p', DEV_COMPOSE_PROJECT, ...args], {
+    cwd: ROOT,
+    stdio: 'pipe',
+    shell: isWin,
+    encoding: 'utf8',
+    ...opts,
+  });
+}
+
+function resolveOwnDbContainer() {
+  const ps = composeDev(['ps', '-q', 'db']);
+  const id = (ps.stdout ?? '').trim();
+  if (!id) {
+    return null;
+  }
+  // Sin shell: cmd.exe rompe '{{json .Config.Labels}}' (espacio embebido).
+  const labelsResult = spawnSync('docker', ['inspect', id, '--format', '{{json .Config.Labels}}'], {
+    stdio: 'pipe', encoding: 'utf8',
+  });
+  if (labelsResult.status !== 0) {
+    console.error('[siep] docker inspect falló; no se puede demostrar la pertenencia del contenedor.');
+    process.exit(1);
+  }
+  const labels = JSON.parse(labelsResult.stdout.trim());
+  const ownership = assessContainerOwnership({
+    labels,
+    expectedProject: DEV_COMPOSE_PROJECT,
+    checkoutDir: ROOT,
+  });
+  if (!ownership.ok) {
+    console.error(`[siep] ${ownership.reason}`);
+    process.exit(1);
+  }
+  const mountsResult = spawnSync('docker', ['inspect', id, '--format', '{{json .Mounts}}'], {
+    stdio: 'pipe', encoding: 'utf8',
+  });
+  const volumes = assessVolumeOwnership({
+    mounts: JSON.parse((mountsResult.stdout ?? '[]').trim()),
+    expectedProject: DEV_COMPOSE_PROJECT,
+  });
+  if (!volumes.ok) {
+    console.error(`[siep] ${volumes.reason}`);
+    process.exit(1);
+  }
+  return id;
 }
 
 async function startDb() {
-  const existing = spawnSync(
-    'docker',
-    ['ps', '-a', '--filter', 'name=^psychosim-db$', '--format', '{{.Names}}'],
-    { stdio: 'pipe', shell: isWin, encoding: 'utf8' },
-  );
-  const containerName = (existing.stdout ?? '').trim();
-
-  if (containerName === 'psychosim-db') {
-    console.log('[siep] Reutilizando contenedor PostgreSQL existente...');
-    run('docker', ['start', 'psychosim-db'], { allowFail: false });
-  } else {
-    console.log('[siep] Iniciando PostgreSQL (Docker)...');
-    const compose = spawnSync('docker', ['compose', 'up', '-d', 'db'], {
-      cwd: ROOT,
-      stdio: 'pipe',
-      shell: isWin,
-      encoding: 'utf8',
-    });
-    if (compose.status !== 0) {
-      const output = `${compose.stderr ?? ''}${compose.stdout ?? ''}`;
-      if (output.includes('already in use')) {
-        console.log('[siep] Contenedor ya existe; arrancándolo...');
-        run('docker', ['start', 'psychosim-db']);
-      } else {
-        process.stderr.write(output);
-        process.exit(compose.status ?? 1);
-      }
+  console.log(`[siep] Iniciando PostgreSQL propio (proyecto Compose ${DEV_COMPOSE_PROJECT}, puerto ${DB_PORT})...`);
+  const compose = composeDev(['up', '-d', 'db'], {
+    env: { ...process.env, SIEP_DB_PORT: DB_PORT },
+  });
+  if (compose.status !== 0) {
+    const output = `${compose.stderr ?? ''}${compose.stdout ?? ''}`;
+    if (/port is already allocated|address already in use|bind for/i.test(output)) {
+      console.error(`[siep] El puerto ${DB_PORT} ya está ocupado (posiblemente por la BD de OTRO checkout,`);
+      console.error('[siep] p. ej. el contenedor psychosim-db del proyecto psicologia_proyecto).');
+      console.error('[siep] Este script no detiene ni reutiliza recursos ajenos. Opciones:');
+      console.error('[siep]   - exporta SIEP_DB_PORT con un puerto libre (p. ej. 5435) y repite npm run up;');
+      console.error('[siep]   - o detén tú mismo el stack del otro checkout si ya no lo usas.');
+      process.exit(1);
     }
+    process.stderr.write(output);
+    process.exit(compose.status ?? 1);
+  }
+
+  const containerId = resolveOwnDbContainer();
+  if (!containerId) {
+    console.error('[siep] No se encontró el contenedor db del proyecto tras el arranque.');
+    process.exit(1);
   }
 
   console.log('[siep] Esperando que PostgreSQL esté listo...');
   for (let attempt = 1; attempt <= 30; attempt += 1) {
     const result = spawnSync(
       'docker',
-      ['exec', 'psychosim-db', 'pg_isready', '-U', 'psychosim'],
+      ['exec', containerId, 'pg_isready', '-U', 'psychosim'],
       { stdio: 'pipe', shell: isWin },
     );
     if (result.status === 0) {
-      console.log('[siep] PostgreSQL listo en localhost:5433');
+      console.log(`[siep] PostgreSQL listo en localhost:${DB_PORT}`);
       return;
     }
     await sleep(1000);
@@ -212,8 +269,8 @@ async function startDb() {
   process.exit(1);
 }
 
-function spawnProc(label, cmd, args, cwd) {
-  const child = spawn(cmd, args, { cwd, stdio: 'inherit', shell: isWin });
+function spawnProc(label, cmd, args, cwd, env = process.env) {
+  const child = spawn(cmd, args, { cwd, stdio: 'inherit', shell: isWin, env });
   child.on('exit', (code) => {
     if (code != null && code !== 0) {
       console.error(`[siep] ${label} terminó con código ${code}`);
@@ -234,7 +291,7 @@ async function main() {
   console.log('[siep] Ctrl+C detiene backend y frontend (la BD sigue en Docker)\n');
 
   const children = [
-    spawnProc('backend', venvPython(), ['manage.py', 'runserver', '8091'], BACKEND),
+    spawnProc('backend', venvPython(), ['manage.py', 'runserver', '8091'], BACKEND, { ...process.env, DB_PORT }),
     spawnProc('frontend', 'npm', ['start'], FRONTEND),
   ];
 

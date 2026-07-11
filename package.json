@@ -5,10 +5,13 @@
   "description": "SIEP — Sistema de Entrenamiento Psicosocial",
   "scripts": {
     "up": "node scripts/dev-up.mjs",
-    "down": "docker compose stop db",
+    "down": "docker compose -p psico-project-v3 stop db",
+    "db:bootstrap": "node scripts/db-bootstrap.mjs",
     "install:all": "npm install --prefix frontend",
     "check:backend": "node scripts/run-backend.mjs check",
-    "test:backend": "node scripts/run-backend.mjs pytest -q",
+    "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "test:backend": "node scripts/test-backend.mjs",
+    "test:backend:down": "node scripts/test-backend.mjs --down",
     "test:api:e2e": "node scripts/api-e2e.mjs",
     "test:frontend": "npm test --prefix frontend -- --runInBand",
     "build:frontend": "npm run build --prefix frontend"
