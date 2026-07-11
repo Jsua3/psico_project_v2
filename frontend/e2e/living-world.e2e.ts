@@ -30,8 +30,9 @@ test('menu world renders full-bleed with no shell sidebar', async ({ page }) => 
 test('in-case world loads with the HUD', async ({ page }) => {
   await login(page);
   await page.goto('/portal/jugar');
-  // Enter the first available case via the accessible door button.
-  await page.locator('ul.sr-only button:not([disabled])').first().click();
+  // Enter the first available case via the VISIBLE banner button (the player
+  // spawns next to the first door, so the banner is present on load).
+  await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
   // Puede aparecer el prompt de reanudación si ya hay un intento en curso.
   const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
