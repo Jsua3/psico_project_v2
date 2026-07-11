@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -37,6 +37,7 @@ import { getSceneGuide } from './scene-guide.config';
 import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
+import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
 const SIMULATOR_INTRO_VIDEO = 'assets/video/fondoHabitacion.mp4';
@@ -119,6 +120,40 @@ const CASE_INTRO_PARAGRAPHS = [
       }
 
       @if (attempt(); as game) {
+        @if (showContentWarning()) {
+          <section class="case-intro-overlay content-warning-overlay" role="dialog" aria-modal="true" aria-labelledby="content-warning-title">
+            <article class="case-intro-card content-warning-card">
+              <header class="case-intro-card__header">
+                <p class="psy-eyebrow">Aviso de contenido</p>
+                <h2 id="content-warning-title">Antes de entrar al caso</h2>
+                <span>Simulación formativa con datos ficticios</span>
+              </header>
+
+              <div class="case-intro-card__body">
+                <p>
+                  Este caso presenta una situación ficticia de violencia basada en género
+                  y crisis familiar. Algunas escenas incluyen relatos y decisiones
+                  emocionalmente exigentes.
+                </p>
+                <p>
+                  Durante el caso tendrás disponible la salida segura (<kbd>Esc</kbd>).
+                  Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
+                  cuando lo decidas.
+                </p>
+              </div>
+
+              <footer class="case-intro-card__actions">
+                <button class="psy-button psy-button--ghost" type="button" (click)="declineContentWarning()">
+                  Volver al catálogo
+                </button>
+                <button class="psy-button psy-button--primary" type="button" autofocus (click)="acceptContentWarning()">
+                  Continuar
+                </button>
+              </footer>
+            </article>
+          </section>
+        }
+
         @if (showIntroVideo()) {
           <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
             <article class="intro-video-card">
@@ -580,6 +615,10 @@ const CASE_INTRO_PARAGRAPHS = [
       color: rgba(201,184,255,.6);
     }
 
+    /* Advertencia de contenido (ETH-01): variante del card de intro. */
+    .case-intro-overlay.content-warning-overlay { z-index: 395; }
+    .case-intro-card.content-warning-card { width: min(640px, 100%); }
+
     .intro-video-overlay {
       position: absolute;
       inset: 0;
@@ -905,6 +944,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
@@ -938,6 +978,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
+  /** Advertencia de contenido: ETH-01 — precede a video, narrativa y gameplay. */
+  readonly showContentWarning = signal(false);
   readonly showIntroVideo = signal(false);
   readonly introVideoEnded = signal(false);
   readonly introVideoSrc = SIMULATOR_INTRO_VIDEO;
@@ -974,7 +1016,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly worldMotionPaused = computed(() =>
-    this.showIntroVideo() || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+    this.showContentWarning() || this.showIntroVideo() || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
@@ -1066,6 +1108,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (event.defaultPrevented) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
+
+    if (this.showContentWarning()) {
+      // El consentimiento exige activación explícita de sus botones (Tab +
+      // Enter/click). Se traga Escape para que no caiga en la salida segura,
+      // que mutaría el intento en backend sin decisión informada.
+      if (event.key === 'Escape') event.preventDefault();
+      return;
+    }
 
     if (this.showIntroVideo()) {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -1722,16 +1772,55 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
     const attempt = this.attempt();
-    if (!attempt || attempt.status !== 'IN_PROGRESS') return;
-    if (attempt.currentNode.key !== 'hospital-urgencias' || world.map.key !== 'hospital-urgencias') return;
-    const storageKey = this.caseIntroStorageKey(attempt);
-    if (sessionStorage.getItem(storageKey) === 'read') return;
-    if (!this.reduceMotion()) {
-      this.introVideoEnded.set(false);
-      this.showIntroVideo.set(true);
-      return;
+    if (!attempt) return;
+    this.applyIntroStep(this.resolveIntroStepFor(attempt, world.map.key));
+  }
+
+  private resolveIntroStepFor(attempt: SimulationAttemptState, mapKey: string | null): IntroGateStep {
+    return resolveIntroStep({
+      attemptStatus: attempt.status,
+      nodeKey: attempt.currentNode.key,
+      mapKey,
+      consentGiven: sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given',
+      introRead: sessionStorage.getItem(this.caseIntroStorageKey(attempt)) === 'read',
+      reduceMotion: this.reduceMotion(),
+    });
+  }
+
+  private applyIntroStep(step: IntroGateStep): void {
+    switch (step) {
+      case 'consent':
+        this.showContentWarning.set(true);
+        return;
+      case 'video':
+        this.introVideoEnded.set(false);
+        this.showIntroVideo.set(true);
+        return;
+      case 'narrative':
+        this.revealCaseIntro();
+        return;
+      default:
+        return;
     }
-    this.revealCaseIntro();
+  }
+
+  acceptContentWarning(): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    sessionStorage.setItem(this.caseConsentStorageKey(attempt), 'given');
+    this.showContentWarning.set(false);
+    this.announce('Continuaste al caso.');
+    this.applyIntroStep(this.resolveIntroStepFor(attempt, this.world()?.map.key ?? null));
+  }
+
+  declineContentWarning(): void {
+    this.showContentWarning.set(false);
+    this.announce('Volviste al catálogo. Puedes retomar el caso cuando lo decidas.');
+    void this.router.navigate(['/portal/simulador']);
+  }
+
+  private caseConsentStorageKey(attempt: SimulationAttemptState): string {
+    return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
   }
 
   playIntroVideo(): void {
