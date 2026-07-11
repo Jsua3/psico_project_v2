@@ -79,7 +79,7 @@ export class DashboardChartsComponent {
     }
 
     const completed = attempts.filter(a => a.status === 'COMPLETED' || a.status === 'SAFE_EXITED').length;
-    const inProgress = attempts.filter(a => a.status === 'IN_PROGRESS').length;
+    const inProgress = attempts.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED').length;
     const other = attempts.length - completed - inProgress;
     const items = [
       { label: 'Completados', value: completed, tone: 'green' as const },

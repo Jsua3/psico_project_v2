@@ -8,6 +8,7 @@ from shared.response import api_ok
 
 from apps.simulation.serializers.requests import (
     ReflectionRequest,
+    ResumeAttemptRequest,
     SafeExitRequest,
     SelectDecisionRequest,
     StartAttemptRequest,
@@ -127,7 +128,19 @@ class SafeExitView(APIView):
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["reason"], request.user,
         )
-        return api_ok(state, message="Salida segura registrada")
+        return api_ok(state, message="Pausa segura registrada")
+
+
+class ResumeAttemptView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def post(self, request, attempt_id):
+        ser = ResumeAttemptRequest(data=request.data)
+        ser.is_valid(raise_exception=True)
+        state = game_service.resume_attempt(
+            attempt_id, ser.validated_data["attemptToken"], request.user,
+        )
+        return api_ok(state, message="Intento reanudado")
 
 
 # ─── Explorable world (SimulationWorldService) ───────────────────────────────

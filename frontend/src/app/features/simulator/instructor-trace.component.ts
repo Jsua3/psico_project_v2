@@ -1369,8 +1369,9 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
     const normalized = (status ?? '').toUpperCase();
     if (normalized === 'COMPLETED') return 'Finalizado';
     if (normalized === 'IN_PROGRESS') return 'En curso';
+    if (normalized === 'PAUSED') return 'En pausa (reanudable)';
     if (normalized === 'PENDING') return 'Pendiente';
-    if (normalized === 'SAFE_EXITED') return 'Salida segura';
+    if (normalized === 'SAFE_EXITED') return 'Cerrado con salida segura';
     return this.clean(status, 'Sin estado');
   }
 

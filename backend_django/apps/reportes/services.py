@@ -177,6 +177,7 @@ def _build_simulation_report(grupo, case_version_id):
 
     completados = sum(1 for a in attempts if a.status == "COMPLETED")
     en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
+    en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
     salida_segura = sum(1 for a in attempts if a.status == "SAFE_EXITED")
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje_promedio = (
@@ -198,6 +199,7 @@ def _build_simulation_report(grupo, case_version_id):
         "totalIntentos": len(attempts),
         "intentosCompletados": completados,
         "intentosEnProgreso": en_progreso,
+        "intentosEnPausa": en_pausa,
         "intentosSalidaSegura": salida_segura,
         "puntajePromedio": float(puntaje_promedio),
         "decisionesAdecuadas": _count_decisions(attempt_ids, "ADEQUATE"),
@@ -212,6 +214,7 @@ def _build_simulation_report(grupo, case_version_id):
 def _estudiante_sim_dto(student, attempts):
     completados = sum(1 for a in attempts if a.status == "COMPLETED")
     en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
+    en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
     salida_segura = sum(1 for a in attempts if a.status == "SAFE_EXITED")
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje = sum(a.accumulated_score for a in scored) / len(scored) if scored else 0.0
@@ -219,6 +222,8 @@ def _estudiante_sim_dto(student, attempts):
 
     if en_progreso > 0:
         estado = "EN_PROGRESO"
+    elif en_pausa > 0:
+        estado = "EN_PAUSA"
     elif completados > 0:
         estado = "COMPLETADO"
     elif salida_segura > 0:
@@ -232,6 +237,7 @@ def _estudiante_sim_dto(student, attempts):
         "totalIntentos": len(attempts),
         "intentosCompletados": completados,
         "intentosEnProgreso": en_progreso,
+        "intentosEnPausa": en_pausa,
         "intentosSalidaSegura": salida_segura,
         "puntajePromedio": float(puntaje),
         "decisionesAdecuadas": _count_decisions(attempt_ids, "ADEQUATE"),

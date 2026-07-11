@@ -86,6 +86,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       getWorld: jest.fn(() => EMPTY),
       getScenarioConfig: jest.fn(() => EMPTY),
       safeExit: jest.fn(() => EMPTY),
+      resumeAttempt: jest.fn(() => of(makeAttempt())),
     };
     audio = {
       init: jest.fn(),
@@ -202,6 +203,21 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(component.showIntroVideo()).toBe(false);
     expect(component.worldStarted()).toBe(false);
     expect(audio.init).not.toHaveBeenCalled();
+    expect(sim.getWorld).not.toHaveBeenCalled();
+  });
+
+  it('reanudar un intento PAUSED pasa por el endpoint de resume y vuelve a pedir consentimiento', () => {
+    setup(makeAttempt({ status: 'PAUSED' }));
+    component.ngOnInit();
+    expect(component.showResumePrompt()).toBe(true);
+
+    component.resumeAttempt();
+
+    expect(sim.resumeAttempt).toHaveBeenCalledWith('attempt-1', 'token-1');
+    // El backend devolvió IN_PROGRESS (mismo attemptId); sin consentimiento
+    // registrado, el gate ETH-01 vuelve a mostrarse antes de cargar nada.
+    expect(component.attempt()?.status).toBe('IN_PROGRESS');
+    expect(component.showContentWarning()).toBe(true);
     expect(sim.getWorld).not.toHaveBeenCalled();
   });
 

@@ -109,7 +109,7 @@ const CASE_INTRO_PARAGRAPHS = [
             </div>
             <div class="resume-actions">
               <button class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
-                Continuar intento en progreso
+                {{ active.status === 'PAUSED' ? 'Reanudar intento en pausa' : 'Continuar intento en progreso' }}
               </button>
               <button class="psy-button psy-button--ghost" type="button" (click)="startNewAttempt()">
                 Iniciar nuevo intento
@@ -370,7 +370,8 @@ const CASE_INTRO_PARAGRAPHS = [
           </div>
         </section>
 
-        <app-attempt-outcome [report]="game.completionReport" [status]="game.status" (retry)="startNewAttempt()" />
+        <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
+          (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
         }
@@ -1054,7 +1055,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
-        if (active?.status === 'IN_PROGRESS') {
+        if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
           this.pendingActiveAttempt.set(active);
           this.showResumePrompt.set(true);
           this.loading.set(false);
@@ -1071,7 +1072,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!active) return;
     this.showResumePrompt.set(false);
     this.loading.set(true);
+    if (active.status === 'PAUSED') {
+      // Pausa reanudable real (ETH-02 A): transición explícita en backend,
+      // mismo attemptId; el consentimiento se vuelve a pedir en bootstrap.
+      this.simulationService.resumeAttempt(active.attemptId, active.attemptToken).subscribe({
+        next: attempt => this.bootstrapAttempt(attempt),
+        error: () => { this.error.set('No pudimos reanudar el intento.'); this.loading.set(false); },
+      });
+      return;
+    }
     this.bootstrapAttempt(active);
+  }
+
+  /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
+  resumeCurrentAttempt(): void {
+    const current = this.attempt();
+    if (!current || current.status !== 'PAUSED' || this.busy()) return;
+    this.busy.set(true);
+    this.simulationService.resumeAttempt(current.attemptId, current.attemptToken).subscribe({
+      next: attempt => {
+        this.busy.set(false);
+        this.attempt.set(attempt);
+        this.audioDirector.setStressLevel(attempt.stressIndex);
+        this.announce('Intento reanudado. Continúas exactamente donde quedaste.');
+      },
+      error: () => { this.showActionError('No pudimos reanudar el intento.'); this.busy.set(false); },
+    });
   }
 
   startNewAttempt() {
@@ -1618,7 +1644,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   statusLabelA11y(status: SimulationAttemptState['status']): string {
-    return { IN_PROGRESS:'En progreso', COMPLETED:'Finalizado', SAFE_EXITED:'Pausado con salida segura' }[status];
+    return {
+      IN_PROGRESS: 'En progreso',
+      PAUSED: 'En pausa segura (reanudable)',
+      COMPLETED: 'Finalizado',
+      SAFE_EXITED: 'Cerrado con salida segura',
+    }[status];
   }
 
   private showToolFeedback(result: ToolUseResult): void {

@@ -19,17 +19,15 @@ import { decisionTotal, performanceLabel } from './outcome.util';
   template: `
     @if (status() !== 'IN_PROGRESS') {
       <section class="outcome liquid-glass"
-        [class.outcome--safe]="status() === 'SAFE_EXITED'" role="alertdialog"
+        [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'" role="alertdialog"
         aria-labelledby="outcome-title">
         <header class="oc-head">
           <div class="oc-avatar" aria-hidden="true">
             <app-avatar-figure [config]="avatar()" [portrait]="true" />
           </div>
           <div class="oc-head__copy">
-            <p class="oc-eyebrow">{{ status() === 'COMPLETED' ? '¡Simulación completada!' : 'Salida segura registrada' }}</p>
-            <h3 id="outcome-title">{{ report()?.summaryMessage ?? (status() === 'COMPLETED'
-              ? 'El intento quedó cerrado para evaluación docente.'
-              : 'El intento fue pausado de forma limpia, sin penalización.') }}</h3>
+            <p class="oc-eyebrow">{{ eyebrow() }}</p>
+            <h3 id="outcome-title">{{ report()?.summaryMessage ?? headline() }}</h3>
           </div>
         </header>
 
@@ -132,8 +130,14 @@ import { decisionTotal, performanceLabel } from './outcome.util';
         }
 
         <footer class="oc-actions">
-          @if (status() === 'SAFE_EXITED') {
-            <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Volver al juego</button>
+          @if (status() === 'PAUSED') {
+            <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
+            <button type="button" class="oc-btn oc-btn--go" (click)="resume.emit()">Reanudar este intento</button>
+            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+          } @else if (status() === 'SAFE_EXITED') {
+            <!-- Cierre terminal honesto: la única continuación es un intento nuevo. -->
+            <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Iniciar un nuevo intento</button>
+            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
           } @else {
             <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
             <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
@@ -232,6 +236,26 @@ export class AttemptOutcomeComponent {
   readonly report = input<AttemptCompletionReport | null>(null);
   readonly status = input.required<SimulationAttemptState['status']>();
   readonly retry = output<void>();
+  /** Pausa reanudable (ETH-02 A): reanuda el MISMO intento, no crea uno nuevo. */
+  readonly resume = output<void>();
+
+  /** Encabezado corto por estado — lenguaje honesto, sin fingir pausa en cierres. */
+  eyebrow(status: SimulationAttemptState['status'] = this.status()): string {
+    switch (status) {
+      case 'COMPLETED': return '¡Simulación completada!';
+      case 'PAUSED': return 'Pausa segura activa';
+      default: return 'Salida segura registrada';
+    }
+  }
+
+  /** Titular de respaldo cuando el backend no envía summaryMessage. */
+  headline(status: SimulationAttemptState['status'] = this.status()): string {
+    switch (status) {
+      case 'COMPLETED': return 'El intento quedó cerrado para evaluación docente.';
+      case 'PAUSED': return 'Tu intento quedó guardado tal cual; puedes reanudarlo cuando lo decidas.';
+      default: return 'El intento quedó cerrado sin penalización.';
+    }
+  }
 
   perf(r: AttemptCompletionReport): string { return performanceLabel(r); }
 

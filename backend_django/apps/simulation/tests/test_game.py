@@ -294,8 +294,8 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
         format="json",
     )
     assert resp.status_code == 200
-    assert resp.data["message"] == "Salida segura registrada"
-    assert resp.data["data"]["status"] == "SAFE_EXITED"
+    assert resp.data["message"] == "Pausa segura registrada"
+    assert resp.data["data"]["status"] == "PAUSED"
     assert len(resp.data["data"]["supportResources"]) == 3
 
 

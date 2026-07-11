@@ -20,3 +20,7 @@ class ReflectionRequest(serializers.Serializer):
 class SafeExitRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
     reason = serializers.CharField(required=False, allow_blank=True, allow_null=True, default=None)
+
+
+class ResumeAttemptRequest(serializers.Serializer):
+    attemptToken = serializers.CharField()

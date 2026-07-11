@@ -34,7 +34,7 @@ test('in-case world loads with the HUD', async ({ page }) => {
   await page.locator('ul.sr-only button:not([disabled])').first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
   // Puede aparecer el prompt de reanudación si ya hay un intento en curso.
-  const resume = page.getByRole('button', { name: /continuar intento en progreso/i });
+  const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
   if (await resume.count()) {
     await resume.click();
   }

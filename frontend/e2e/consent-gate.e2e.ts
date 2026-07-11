@@ -27,7 +27,7 @@ async function openCase(page: Page) {
   await page.goto('/portal/simulador');
   await page.getByRole('button', { name: /iniciar simulación/i }).first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
-  const resume = page.getByRole('button', { name: /continuar intento en progreso/i });
+  const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
   if (await resume.count()) {
     await resume.click();
   }

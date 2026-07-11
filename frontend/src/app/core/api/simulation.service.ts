@@ -152,6 +152,13 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
+  /** Reanuda un intento en pausa segura (mismo attemptId, estado intacto). */
+  resumeAttempt(attemptId: string, attemptToken: string) {
+    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/resume`, {
+      attemptToken
+    }).pipe(map(response => response.data));
+  }
+
   getCompletionReport(attemptId: string, attemptToken: string) {
     const params = new HttpParams().set('attemptToken', attemptToken);
     return this.http.get<ApiResponse<AttemptCompletionReport>>(`${this.API}/attempts/${attemptId}/completion-report`, { params })
