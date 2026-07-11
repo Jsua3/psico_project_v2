@@ -1,3 +1,4 @@
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -56,7 +57,7 @@ const CASE_INTRO_PARAGRAPHS = [
   selector: 'app-simulation-play',
   standalone: true,
   imports: [
-    CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
+    A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     AIAssistantComponent
@@ -121,15 +122,16 @@ const CASE_INTRO_PARAGRAPHS = [
 
       @if (attempt(); as game) {
         @if (showContentWarning()) {
-          <section class="case-intro-overlay content-warning-overlay" role="dialog" aria-modal="true" aria-labelledby="content-warning-title">
-            <article class="case-intro-card content-warning-card">
+          <section class="case-intro-overlay content-warning-overlay" role="dialog" aria-modal="true"
+            aria-labelledby="content-warning-title" aria-describedby="content-warning-body">
+            <article class="case-intro-card content-warning-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Aviso de contenido</p>
                 <h2 id="content-warning-title">Antes de entrar al caso</h2>
                 <span>Simulación formativa con datos ficticios</span>
               </header>
 
-              <div class="case-intro-card__body">
+              <div class="case-intro-card__body" id="content-warning-body">
                 <p>
                   Este caso presenta una situación ficticia de violencia basada en género
                   y crisis familiar. Algunas escenas incluyen relatos y decisiones
@@ -146,7 +148,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 <button class="psy-button psy-button--ghost" type="button" (click)="declineContentWarning()">
                   Volver al catálogo
                 </button>
-                <button class="psy-button psy-button--primary" type="button" autofocus (click)="acceptContentWarning()">
+                <button class="psy-button psy-button--primary" type="button" cdkFocusInitial (click)="acceptContentWarning()">
                   Continuar
                 </button>
               </footer>
@@ -154,6 +156,7 @@ const CASE_INTRO_PARAGRAPHS = [
           </section>
         }
 
+        @if (worldStarted()) {
         @if (showIntroVideo()) {
           <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
             <article class="intro-video-card">
@@ -370,6 +373,7 @@ const CASE_INTRO_PARAGRAPHS = [
         <app-attempt-outcome [report]="game.completionReport" [status]="game.status" (retry)="startNewAttempt()" />
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
+        }
       }
     </div>
   `,
@@ -980,6 +984,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly transitionNote = signal('');
   /** Advertencia de contenido: ETH-01 — precede a video, narrativa y gameplay. */
   readonly showContentWarning = signal(false);
+  /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
+  readonly worldStarted = signal(false);
   readonly showIntroVideo = signal(false);
   readonly introVideoEnded = signal(false);
   readonly introVideoSrc = SIMULATOR_INTRO_VIDEO;
@@ -1087,14 +1093,34 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
+    this.attempt.set(attempt);
+    this.persistAttemptToken(attempt);
+    // ETH-01: sin consentimiento no se inicializa audio, ni se pide el mundo,
+    // ni se monta el HUD. Solo queda en pantalla la advertencia.
+    if (attempt.status === 'IN_PROGRESS' && !this.hasContentConsent(attempt)) {
+      this.worldStarted.set(false);
+      this.loading.set(false);
+      this.showContentWarning.set(true);
+      return;
+    }
+    this.startWorld(attempt);
+  }
+
+  private hasContentConsent(attempt: SimulationAttemptState): boolean {
+    return sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given';
+  }
+
+  /** Arranque real (post-consentimiento). Idempotente ante dobles llamadas. */
+  private startWorld(attempt: SimulationAttemptState) {
+    if (this.worldStarted()) return;
+    this.worldStarted.set(true);
+    this.loading.set(true);
     this.audioDirector.init();
     this.musicMuted.set(this.audioDirector.isMusicMuted());
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
-    this.attempt.set(attempt);
     this.patientState.set(PATIENT_INITIAL_STATE);
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
     this.pendingEvidenceDecisionId = null;
-    this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
     this.audioDirector.setStressLevel(attempt.stressIndex);
@@ -1809,8 +1835,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!attempt) return;
     sessionStorage.setItem(this.caseConsentStorageKey(attempt), 'given');
     this.showContentWarning.set(false);
-    this.announce('Continuaste al caso.');
-    this.applyIntroStep(this.resolveIntroStepFor(attempt, this.world()?.map.key ?? null));
+    this.announce('Continuaste al caso. Cargando el escenario.');
+    this.startWorld(attempt);
   }
 
   declineContentWarning(): void {

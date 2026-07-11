@@ -8,8 +8,8 @@ import { test, expect, Page } from '@playwright/test';
  * If the login form selectors differ, adjust `login()` to match the real form.
  */
 
-const EMAIL = 'estudiante@psychosim.edu.co';
-const PASSWORD = 'Estudiante123!';
+const EMAIL = process.env.E2E_STUDENT_EMAIL ?? 'estudiante@psychosim.edu.co';
+const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
 
 async function login(page: Page) {
   await page.goto('/');
@@ -33,6 +33,16 @@ test('in-case world loads with the HUD', async ({ page }) => {
   // Enter the first available case via the accessible door button.
   await page.locator('ul.sr-only button:not([disabled])').first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
+  // Puede aparecer el prompt de reanudación si ya hay un intento en curso.
+  const resume = page.getByRole('button', { name: /continuar intento en progreso/i });
+  if (await resume.count()) {
+    await resume.click();
+  }
+  // ETH-01: el mundo no existe hasta aceptar la advertencia de contenido.
+  await page.getByRole('dialog')
+    .filter({ hasText: 'Antes de entrar al caso' })
+    .getByRole('button', { name: /^continuar$/i })
+    .click();
   await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('app-simulation-hud')).toBeVisible();
 });
