@@ -3,7 +3,6 @@ import { test } from 'node:test';
 
 import {
   DEV_COMPOSE_PROJECT,
-  TEST_COMPOSE_PROJECT,
   TEST_COMPOSE_FILE,
   assessContainerOwnership,
   assessDevelopmentDatabaseTarget,
@@ -16,6 +15,7 @@ import {
 } from './dev-environment-guard.mjs';
 
 const CHECKOUT = 'D:/Sua_Files/IdeaProjects/psico_project_v3';
+const TEST_COMPOSE_PROJECT = 'psico-project-v3-test-a1b2c3d4e5';
 
 function ownLabels(project = DEV_COMPOSE_PROJECT) {
   return {
@@ -353,9 +353,16 @@ test('una tabla centinela ausente detiene el arranque y NUNCA dispara bootstrap'
   assert.equal(decideSchemaGateAction({ schemaReady: false }), 'halt');
 });
 
-test('la limpieza siempre apunta al proyecto y archivo Compose de test', () => {
-  const args = buildTestComposeArgs(['down', '--volumes', '--remove-orphans']);
+test('Compose de test exige un proyecto explícito y lo incluye en cada comando', () => {
+  const args = buildTestComposeArgs(TEST_COMPOSE_PROJECT, ['down', '--volumes']);
   assert.deepEqual(args.slice(0, 5), ['compose', '-p', TEST_COMPOSE_PROJECT, '-f', TEST_COMPOSE_FILE]);
   assert.ok(args.includes('down'));
   assert.ok(!args.includes(DEV_COMPOSE_PROJECT));
+});
+
+test('Compose de test nunca cae en un proyecto global si falta el proyecto explícito', () => {
+  assert.throws(
+    () => buildTestComposeArgs(undefined, ['up', '-d', 'db']),
+    /proyecto/i,
+  );
 });

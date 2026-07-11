@@ -1,55 +1,37 @@
 #!/usr/bin/env node
 /**
- * Ejecuta la suite backend contra la base DESECHABLE de pruebas (ENV-01).
- *
- * Flujo:
- *   1. Levanta docker-compose.test.yml (proyecto Compose propio, tmpfs).
- *   2. Verifica labels/mounts del contenedor: si no pertenece a este checkout
- *      y al proyecto de test, aborta sin tocarlo.
- *   3. Verifica el DSN de test con las guardas puras (nunca psychosim ni el
- *      DSN de desarrollo).
- *   4. Siembra el esquema con bootstrap_dev_db (permitido SOLO aquí, dentro
- *      del contenedor desechable validado).
- *   5. Corre pytest con psychosim.settings.test.
+ * Ejecuta pytest contra PostgreSQL desechable y aislado por checkout.
+ * El lifecycle demuestra ownership antes de reutilizar o destruir recursos y
+ * siempre intenta el teardown verificado después de iniciar Compose.
  *
  * Uso:
  *   node scripts/test-backend.mjs [args de pytest...]
- *   node scripts/test-backend.mjs --down    # limpieza (solo proyecto de test)
+ *   node scripts/test-backend.mjs --down
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { assessTestDatabaseTarget } from './dev-environment-guard.mjs';
 import {
-  TEST_COMPOSE_PROJECT,
-  assessContainerOwnership,
-  assessVolumeOwnership,
-  assessTestDatabaseTarget,
-  buildTestComposeArgs,
-} from './dev-environment-guard.mjs';
+  createTestDatabaseRuntime,
+  deriveTestComposeProject,
+  formatErrorDetails,
+  removeOwnedTestDatabase,
+  withOwnedTestDatabase,
+} from './test-runner-support.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND = join(ROOT, 'backend_django');
+const PROJECT = deriveTestComposeProject(ROOT);
 const isWin = process.platform === 'win32';
+let interruptedExitCode = null;
+let activeRuntime;
 
-const TEST_DB = {
-  name: process.env.SIEP_TEST_DB_NAME ?? 'psychosim_test',
-  host: process.env.SIEP_TEST_DB_HOST ?? '127.0.0.1',
-  port: process.env.SIEP_TEST_DB_PORT ?? '5544',
-  user: process.env.SIEP_TEST_DB_USER ?? 'psychosim_test',
-  password: process.env.SIEP_TEST_DB_PASSWORD ?? 'psychosim_test_only',
-};
-
-// Sin shell: docker es un .exe y cmd.exe rompe argumentos con espacios como
-// --format '{{json .Config.Labels}}' (mismo motivo que el chequeo de dev-up).
+// Docker se ejecuta sin shell; así cada argumento conserva su frontera.
 function run(cmd, args, opts = {}) {
   return spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', stdio: 'pipe', ...opts });
-}
-
-function fail(message) {
-  console.error(`[siep:test-backend] ${message}`);
-  process.exit(1);
 }
 
 function venvPython() {
@@ -58,47 +40,16 @@ function venvPython() {
     : join(BACKEND, '.venv', 'bin', 'python');
 }
 
-function compose(args, opts = {}) {
-  return run('docker', buildTestComposeArgs(args), opts);
+function childEnvironment(runtime) {
+  return {
+    ...runtime.env,
+    DJANGO_SETTINGS_MODULE: 'psychosim.settings.test',
+  };
 }
 
-function teardown() {
-  console.log(`[siep:test-backend] Eliminando recursos del proyecto ${TEST_COMPOSE_PROJECT}...`);
-  const result = compose(['down', '--volumes', '--remove-orphans'], { stdio: 'inherit' });
-  process.exit(result.status ?? 1);
-}
-
-function inspectContainer(id, format) {
-  const result = run('docker', ['inspect', id, '--format', format]);
-  if (result.status !== 0) {
-    fail(`docker inspect falló: ${result.stderr}`);
-  }
-  return JSON.parse(result.stdout.trim());
-}
-
-function guardContainer(id) {
-  const labels = inspectContainer(id, '{{json .Config.Labels}}');
-  const ownership = assessContainerOwnership({
-    labels,
-    expectedProject: TEST_COMPOSE_PROJECT,
-    checkoutDir: ROOT,
-  });
-  if (!ownership.ok) fail(ownership.reason);
-
-  const mounts = inspectContainer(id, '{{json .Mounts}}');
-  const volumes = assessVolumeOwnership({ mounts, expectedProject: TEST_COMPOSE_PROJECT });
-  if (!volumes.ok) fail(volumes.reason);
-}
-
-function main() {
-  const args = process.argv.slice(2);
-  if (args.includes('--down')) {
-    teardown();
-    return;
-  }
-
+function assertSafeTestTarget(runtime) {
   const dsnGuard = assessTestDatabaseTarget({
-    test: TEST_DB,
+    test: runtime.database,
     dev: {
       name: process.env.DB_NAME ?? 'psychosim',
       host: process.env.DB_HOST ?? 'localhost',
@@ -106,57 +57,92 @@ function main() {
     },
     databaseUrl: process.env.DATABASE_URL,
   });
-  if (!dsnGuard.ok) fail(dsnGuard.reason);
-
-  if (!existsSync(venvPython())) {
-    fail('No existe backend_django/.venv. Ejecuta primero: npm run up (o crea el venv con Python 3.12/3.13).');
-  }
-
-  console.log(`[siep:test-backend] Levantando BD desechable (${TEST_COMPOSE_PROJECT}, puerto ${TEST_DB.port})...`);
-  const up = compose(['up', '-d', '--wait', 'db']);
-  if (up.status !== 0) {
-    const output = `${up.stderr ?? ''}${up.stdout ?? ''}`;
-    if (/port is already allocated|address already in use|bind/i.test(output)) {
-      fail(
-        `El puerto ${TEST_DB.port} está ocupado por otro proceso/contenedor. ` +
-        'Configura SIEP_TEST_DB_PORT con un puerto libre. No se toca ningún recurso ajeno.',
-      );
-    }
-    fail(`docker compose up falló:\n${output}`);
-  }
-
-  const psResult = compose(['ps', '-q', 'db']);
-  const containerId = (psResult.stdout ?? '').trim();
-  if (!containerId) fail('No se encontró el contenedor de la BD de pruebas tras el arranque.');
-  guardContainer(containerId);
-
-  const childEnv = {
-    ...process.env,
-    DJANGO_SETTINGS_MODULE: 'psychosim.settings.test',
-    SIEP_TEST_DB_NAME: TEST_DB.name,
-    SIEP_TEST_DB_HOST: TEST_DB.host,
-    SIEP_TEST_DB_PORT: TEST_DB.port,
-    SIEP_TEST_DB_USER: TEST_DB.user,
-    SIEP_TEST_DB_PASSWORD: TEST_DB.password,
-  };
-
-  console.log('[siep:test-backend] Sembrando esquema en la BD desechable (bootstrap_dev_db)...');
-  const bootstrap = spawnSync(
-    venvPython(),
-    ['manage.py', 'bootstrap_dev_db'],
-    { cwd: BACKEND, stdio: 'pipe', encoding: 'utf8', env: childEnv },
-  );
-  if (bootstrap.status !== 0) {
-    fail(`bootstrap_dev_db en la BD de pruebas falló:\n${bootstrap.stderr ?? bootstrap.stdout ?? ''}`);
-  }
-
-  console.log('[siep:test-backend] Ejecutando pytest (psychosim.settings.test)...');
-  const pytest = spawnSync(
-    venvPython(),
-    ['-m', 'pytest', ...(args.length ? args : ['-q'])],
-    { cwd: BACKEND, stdio: 'inherit', env: childEnv },
-  );
-  process.exit(pytest.status ?? 1);
+  if (!dsnGuard.ok) throw new Error(dsnGuard.reason);
 }
 
-main();
+function commandFailure(label, result) {
+  const output = `${result?.stderr ?? ''}${result?.stdout ?? ''}${result?.error?.message ?? ''}`.trim();
+  return new Error(output ? `${label} falló:\n${output}` : `${label} falló.`);
+}
+
+function redact(message, runtime) {
+  let safe = String(message ?? 'Error desconocido.');
+  for (const secret of [runtime?.database?.password, process.env.SIEP_TEST_DB_PASSWORD]) {
+    if (secret) safe = safe.replaceAll(secret, '[REDACTED]');
+  }
+  return safe;
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  activeRuntime = createTestDatabaseRuntime(process.env);
+  activeRuntime.env = {
+    ...activeRuntime.env,
+    SIEP_TEST_CHECKOUT_ID: PROJECT,
+  };
+  const runtime = activeRuntime;
+
+  if (args.includes('--down')) {
+    console.log(`[siep:test-backend] Limpiando recursos propios del proyecto ${PROJECT}...`);
+    await removeOwnedTestDatabase({
+      project: PROJECT,
+      checkoutDir: ROOT,
+      composeEnv: runtime.env,
+      run,
+    });
+    return 0;
+  }
+
+  assertSafeTestTarget(runtime);
+  if (!existsSync(venvPython())) {
+    throw new Error('No existe backend_django/.venv. Ejecuta primero: npm run up (o crea el venv con Python 3.12/3.13).');
+  }
+
+  console.log(`[siep:test-backend] BD desechable ${PROJECT} en 127.0.0.1:${runtime.database.port}...`);
+  return withOwnedTestDatabase({
+    project: PROJECT,
+    checkoutDir: ROOT,
+    composeEnv: runtime.env,
+    run,
+    work: async () => {
+      const env = childEnvironment(runtime);
+      console.log('[siep:test-backend] Sembrando esquema en la BD desechable (bootstrap_dev_db)...');
+      const bootstrap = spawnSync(
+        venvPython(),
+        ['manage.py', 'bootstrap_dev_db'],
+        { cwd: BACKEND, stdio: 'pipe', encoding: 'utf8', env },
+      );
+      if (bootstrap.status !== 0) {
+        throw commandFailure('bootstrap_dev_db en la BD de pruebas', bootstrap);
+      }
+
+      console.log('[siep:test-backend] Ejecutando pytest (psychosim.settings.test)...');
+      const pytest = spawnSync(
+        venvPython(),
+        ['-m', 'pytest', ...(args.length ? args : ['-q'])],
+        { cwd: BACKEND, stdio: 'inherit', env },
+      );
+      return pytest.status ?? 1;
+    },
+  });
+}
+
+function recordSignal(exitCode) {
+  interruptedExitCode ??= exitCode;
+}
+
+process.on('SIGINT', () => recordSignal(130));
+process.on('SIGTERM', () => recordSignal(143));
+
+main()
+  .then((status) => {
+    process.exitCode = interruptedExitCode ?? status;
+  })
+  .catch((error) => {
+    const details = formatErrorDetails(error);
+    const message = /port is already allocated|address already in use|bind/i.test(details)
+      ? `El puerto de la BD de pruebas está ocupado. Configura SIEP_TEST_DB_PORT con un puerto libre; no se tocó ningún recurso ajeno.\n${details}`
+      : details;
+    console.error(`[siep:test-backend] ${redact(message, activeRuntime)}`);
+    process.exitCode = interruptedExitCode ?? 1;
+  });

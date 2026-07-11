@@ -11,8 +11,6 @@
 
 /** Proyecto Compose del stack de desarrollo de ESTE checkout. */
 export const DEV_COMPOSE_PROJECT = 'psico-project-v3';
-/** Proyecto Compose de la base de pruebas desechable de ESTE checkout. */
-export const TEST_COMPOSE_PROJECT = 'psico-project-v3-test';
 /** Archivo Compose de la base de pruebas. */
 export const TEST_COMPOSE_FILE = 'docker-compose.test.yml';
 /** Nombres de BD que jamás pueden usarse como target de pruebas. */
@@ -203,6 +201,12 @@ export function decideSchemaGateAction({ schemaReady }) {
  * Argumentos Compose siempre acotados al proyecto y archivo de test, para que
  * cualquier limpieza (`down --volumes`) sea incapaz de alcanzar otros stacks.
  */
-export function buildTestComposeArgs(subcommand) {
-  return ['compose', '-p', TEST_COMPOSE_PROJECT, '-f', TEST_COMPOSE_FILE, ...subcommand];
+export function buildTestComposeArgs(project, subcommand) {
+  if (!String(project ?? '').trim()) {
+    throw new TypeError('Se requiere el proyecto Compose de test explícito.');
+  }
+  if (!Array.isArray(subcommand)) {
+    throw new TypeError('Se requiere el subcomando Compose como una lista de argumentos.');
+  }
+  return ['compose', '-p', project, '-f', TEST_COMPOSE_FILE, ...subcommand];
 }
