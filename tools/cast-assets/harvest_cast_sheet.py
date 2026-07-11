@@ -52,7 +52,7 @@ def remove_white_bg(im, tol=42):
     return Image.fromarray(out, "RGBA")
 
 
-def extract_blobs(im):
+def extract_blobs(im, loose=False):
     """Componentes conexos del alfa = candidatos a frame (tolera rejillas torcidas).
 
     Filtros aprendidos de las sondas:
@@ -61,7 +61,12 @@ def extract_blobs(im):
       * aspecto w/h fuera de [0.35, 0.75] = dos personajes fusionados o una
         mota -> descartar;
       * altura fuera de ±20% de la mediana de la MISMA fuente = busto/escala rota.
+
+    `loose` relaja aspecto y regla de piernas para sub-estilos anchos/chunky:
+    con --gallery/--pick un humano filtra el ruido, y los filtros estrictos
+    llegan a vaciar una rejilla valida entera (paso con el guarda de seguridad).
     """
+    max_aspect = 0.95 if loose else 0.75
     a = np.array(im)[:, :, 3] >= ALPHA_CUT
     H, W = a.shape
     lbl, n = ndimage.label(a)
@@ -73,7 +78,7 @@ def extract_blobs(im):
         if ys.min() <= 1 or xs.min() <= 1 or ys.max() >= H - 2 or xs.max() >= W - 2:
             continue  # recortado por el borde
         w, h = xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
-        if not (0.35 <= w / h <= 0.75):
+        if not (0.35 <= w / h <= max_aspect):
             continue  # fusion de dos personajes o mota ancha
         # regla de piernas: en la banda inferior debe haber MUESCA entre las
         # piernas (columna transparente dentro del contorno) o pies angostos.
@@ -86,7 +91,7 @@ def extract_blobs(im):
         span = idx.max() - idx.min() + 1
         has_gap = (span - cols.sum()) > max(2, 0.04 * w)
         narrow_feet = cols.sum() <= 0.60 * w
-        if not (has_gap or narrow_feet):
+        if not loose and not (has_gap or narrow_feet):
             continue
         crop = im.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
         sub = (lbl[ys.min():ys.max() + 1, xs.min():xs.max() + 1] == i)
@@ -284,15 +289,15 @@ def harvest(grid_paths, strip_path, out_path, preview_path=None, report=False):
     print(f"{out_path}  384x576  (3x3 contrato modular, pies y={FEET_Y})")
 
 
-def collect_blobs(sources):
+def collect_blobs(sources, loose=False):
     """Todos los blobs de todas las fuentes, en orden estable de entrada."""
     blobs = []
     for path in sources:
-        blobs += extract_blobs(remove_white_bg(Image.open(path)))
+        blobs += extract_blobs(remove_white_bg(Image.open(path)), loose=loose)
     return blobs
 
 
-def make_gallery(sources, gallery_path, height=160):
+def make_gallery(sources, gallery_path, height=160, loose=False):
     """Hoja de contactos numerada: el humano (o el agente) elige las vistas.
 
     La clasificacion automatica por heuristica de pixeles NO generaliza entre
@@ -300,7 +305,7 @@ def make_gallery(sources, gallery_path, height=160):
     tiene parches de piel y pixeles oscuros: cuello/orejas parecen caras).
     """
     from PIL import ImageDraw
-    blobs = collect_blobs(sources)
+    blobs = collect_blobs(sources, loose=loose)
     if not blobs:
         raise SystemExit("sin blobs — revisar fuentes")
     widths = [max(28, round(b.width * height / b.height)) for b in blobs]
@@ -316,7 +321,7 @@ def make_gallery(sources, gallery_path, height=160):
     print(f"{gallery_path}  {len(blobs)} blobs")
 
 
-def assemble_from_picks(sources, picks, out_path, preview_path=None):
+def assemble_from_picks(sources, picks, out_path, preview_path=None, loose=False):
     """Ensambla la hoja 3x3 desde indices elegidos a mano sobre la galeria.
 
     picks = {"front": [i, ...], "side": [i, ...], "back": [i, ...]}
@@ -324,7 +329,7 @@ def assemble_from_picks(sources, picks, out_path, preview_path=None):
     (para perfiles que miran a la izquierda). Filas cortas se completan con
     espejo (front/back) o repitiendo el idle (side).
     """
-    blobs = collect_blobs(sources)
+    blobs = collect_blobs(sources, loose=loose)
     rows = []
     for name in ("front", "side", "back"):
         sel = []
@@ -372,11 +377,13 @@ if __name__ == "__main__":
                     help="solo genera la hoja de contactos numerada y sale")
     ap.add_argument("--pick", default=None,
                     help='indices manuales: "front=0,2 side=1,-3 back=8" (negativo = espejar)')
+    ap.add_argument("--loose", action="store_true",
+                    help="relaja filtros de blob (sub-estilos anchos); solo con --gallery/--pick")
     args = ap.parse_args()
     sources = list(args.grid) + ([args.strip] if args.strip else [])
     if args.gallery:
-        make_gallery(sources, args.gallery)
+        make_gallery(sources, args.gallery, loose=args.loose)
     elif args.pick:
-        assemble_from_picks(sources, parse_picks(args.pick), args.out, args.preview)
+        assemble_from_picks(sources, parse_picks(args.pick), args.out, args.preview, loose=args.loose)
     else:
         harvest(args.grid, args.strip, args.out, args.preview, args.report)

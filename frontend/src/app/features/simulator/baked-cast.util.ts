@@ -38,7 +38,17 @@ export const PLAYABLE_CAST: readonly CastMember[] = [
  * Hojas horneadas de NPCs del caso, por clave de preset. Se llena a medida que
  * se hornean; un preset sin entrada sigue usando su composición modular.
  */
-export const NPC_CAST: Readonly<Partial<Record<string, string>>> = {};
+export const NPC_CAST: Readonly<Partial<Record<string, string>>> = {
+  'madre-vbg': 'npc_madre-vbg',
+  'paciente-vbg': 'npc_paciente-vbg',
+  'colega-clinica': 'npc_colega-clinica',
+  'supervisor-clinico': 'npc_supervisor-clinico',
+  'seguridad': 'npc_seguridad',
+  'adolescente-nna': 'npc_adolescente-nna',
+  'psicologa-hospitalaria': 'npc_psicologa-hospitalaria',
+  'funcionaria-recepcion': 'npc_funcionaria-recepcion',
+  'comisaria-profesional': 'npc_comisaria-profesional',
+};
 
 /** Clave de textura Phaser de un miembro del elenco. */
 export function castTextureKey(id: string): string {
