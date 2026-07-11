@@ -19,6 +19,12 @@ export interface AvatarConfig {
   mouth: string;
   accessory: string;
   uniform: Uniform;
+  /**
+   * Personaje del elenco horneado elegido en el editor. Si está presente (y su
+   * hoja cargó), el sprite del mapa usa esa hoja en vez de la composición
+   * modular por capas; el resto del config queda como modo clásico/fallback.
+   */
+  castId?: string;
 }
 
 export interface Option { id: string; label: string; value?: string; }

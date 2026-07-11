@@ -41,12 +41,20 @@ export const AVATAR_ANIM_KEYS = {
 /** Frame de reposo por direccion (primera columna de cada fila, segun manifest). */
 export const AVATAR_IDLE_FRAMES = { down: 0, side: 3, up: 6 } as const;
 
-/** Frames de caminata por dirección (fila completa). */
+/**
+ * Frames de caminata por dirección, en ciclo PING-PONG de 4 tiempos
+ * (paso-apoyo-paso-apoyo). Con 3 frames por fila (col 0 = apoyo/reposo,
+ * cols 1-2 = pasos), el loop lineal [0,1,2] se lee como un trote entrecortado;
+ * la secuencia [1,0,2,0] es el ciclo de caminata estándar de los RPG.
+ */
 export const AVATAR_WALK_FRAMES = {
-  down: [0, 1, 2],
-  side: [3, 4, 5],
-  up: [6, 7, 8],
+  down: [1, 0, 2, 0],
+  side: [4, 3, 5, 3],
+  up: [7, 6, 8, 6],
 } as const;
+
+/** Cadencia de la caminata (ticks del ciclo por segundo). */
+export const AVATAR_WALK_FRAME_RATE = 8;
 
 /**
  * The modular side row faces right. Flip only when the actor moves or rests
@@ -187,7 +195,7 @@ export function createAvatarAnimationsFor(
     scene.anims.create({
       key,
       frames: AVATAR_WALK_FRAMES[dir].map(frame => ({ key: textureKey, frame })),
-      frameRate: 7,
+      frameRate: AVATAR_WALK_FRAME_RATE,
       repeat: -1,
     });
   }
