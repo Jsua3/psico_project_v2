@@ -27,6 +27,11 @@ function normalizePath(value) {
     .toLowerCase();
 }
 
+function normalizeDevelopmentDatabaseHost(value) {
+  const host = String(value ?? '').toLowerCase();
+  return host === '[::1]' ? '::1' : host;
+}
+
 /**
  * ¿El contenedor pertenece a este checkout y a este proyecto Compose?
  * Requiere que los labels de Compose declaren el proyecto esperado y que el
@@ -74,6 +79,83 @@ export function assessVolumeOwnership({ mounts, expectedProject }) {
     return { ok: false, reason: `Montaje de tipo "${mount.Type}" no permitido en la BD (${mount.Destination ?? '?'}).` };
   }
   return { ok: true, reason: '' };
+}
+
+/**
+ * El target efectivo de Django debe coincidir con la base local de desarrollo
+ * que se pretende sembrar. DATABASE_URL siempre invalida el bootstrap porque
+ * settings/base.py le da precedencia sobre las variables DB_*.
+ */
+export function assessDevelopmentDatabaseTarget({ databaseUrl, expected, effective }) {
+  if (String(databaseUrl ?? '').trim()) {
+    return {
+      ok: false,
+      reason: 'DATABASE_URL está definido; el bootstrap de desarrollo solo admite configuración DB_* local saneada.',
+    };
+  }
+
+  const fields = ['name', 'host', 'port', 'user'];
+  for (const source of ['expected', 'effective']) {
+    const target = source === 'expected' ? expected : effective;
+    for (const field of fields) {
+      if (!String(target?.[field] ?? '').trim()) {
+        return { ok: false, reason: `Falta ${source}.${field}; no se puede demostrar el target de desarrollo.` };
+      }
+    }
+  }
+
+  const effectiveHost = normalizeDevelopmentDatabaseHost(effective.host);
+  const expectedHost = normalizeDevelopmentDatabaseHost(expected.host);
+  if (!LOCAL_HOSTS.has(effectiveHost)) {
+    return { ok: false, reason: 'El host efectivo de Django no es loopback; no se ejecuta bootstrap.' };
+  }
+  if (effectiveHost !== expectedHost) {
+    return { ok: false, reason: 'El host efectivo de la base no coincide con el esperado.' };
+  }
+  if (String(effective.name) !== String(expected.name)) {
+    return { ok: false, reason: 'El nombre efectivo de la base no coincide con el esperado.' };
+  }
+  if (String(effective.user) !== String(expected.user)) {
+    return { ok: false, reason: 'El usuario efectivo de la base no coincide con el esperado.' };
+  }
+  if (String(effective.port) !== String(expected.port)) {
+    return { ok: false, reason: 'El puerto efectivo de la base no coincide con el esperado.' };
+  }
+  return { ok: true, reason: '' };
+}
+
+/**
+ * Copia el entorno, elimina la fuente con mayor precedencia y fija el DSN
+ * local que el bootstrap validará contra la configuración efectiva de Django.
+ */
+export function buildSanitizedDatabaseEnv(base, expected) {
+  const env = { ...base };
+  for (const key of Object.keys(env)) {
+    const normalizedKey = key.toUpperCase();
+    // DATABASE_URL y libpq PG* pueden sobreponer el DSN; DB_* debe ser la única autoridad.
+    if (normalizedKey === 'DATABASE_URL' || normalizedKey.startsWith('PG')) delete env[key];
+  }
+  env.DB_NAME = expected.name;
+  env.DB_HOST = expected.host;
+  env.DB_PORT = expected.port;
+  env.DB_USER = expected.user;
+  env.DB_PASSWORD = expected.password;
+  return env;
+}
+
+/** Extrae el objeto JSON de la última línea no vacía del probe de Django. */
+export function parseLastJsonObjectLine(output) {
+  const lines = String(output ?? '').split(/\r?\n/);
+  let index = lines.length - 1;
+  while (index >= 0 && !lines[index].trim()) index -= 1;
+  if (index < 0) return null;
+
+  try {
+    const parsed = JSON.parse(lines[index].trim());
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

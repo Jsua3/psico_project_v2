@@ -6,10 +6,13 @@ import {
   TEST_COMPOSE_PROJECT,
   TEST_COMPOSE_FILE,
   assessContainerOwnership,
+  assessDevelopmentDatabaseTarget,
   assessVolumeOwnership,
   assessTestDatabaseTarget,
+  buildSanitizedDatabaseEnv,
   buildTestComposeArgs,
   decideSchemaGateAction,
+  parseLastJsonObjectLine,
 } from './dev-environment-guard.mjs';
 
 const CHECKOUT = 'D:/Sua_Files/IdeaProjects/psico_project_v3';
@@ -19,6 +22,24 @@ function ownLabels(project = DEV_COMPOSE_PROJECT) {
     'com.docker.compose.project': project,
     'com.docker.compose.project.working_dir': 'D:\\Sua_Files\\IdeaProjects\\psico_project_v3',
     'com.docker.compose.service': 'db',
+  };
+}
+
+const EXPECTED_DEV_DATABASE = {
+  name: 'psychosim',
+  host: '127.0.0.1',
+  port: '5433',
+  user: 'psychosim',
+  password: 'local-secret',
+};
+
+function effectiveDevelopmentDatabase(overrides = {}) {
+  return {
+    name: EXPECTED_DEV_DATABASE.name,
+    host: EXPECTED_DEV_DATABASE.host,
+    port: EXPECTED_DEV_DATABASE.port,
+    user: EXPECTED_DEV_DATABASE.user,
+    ...overrides,
   };
 }
 
@@ -132,6 +153,199 @@ test('base de test aislada y local es aceptada', () => {
     dev: { name: 'psychosim', host: 'localhost', port: '5433' },
   });
   assert.equal(result.ok, true);
+});
+
+test('DATABASE_URL es rechazada para bootstrap aunque el puerto efectivo coincida', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    databaseUrl: 'postgresql://usuario:secreto@db.remota/psychosim',
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase(),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /DATABASE_URL/);
+  assert.doesNotMatch(result.reason, /secreto/);
+});
+
+test('host remoto efectivo es rechazado para bootstrap', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase({ host: 'db.produccion.edu.co' }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /host/i);
+});
+
+test('nombre efectivo distinto del esperado es rechazado para bootstrap', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase({ name: 'otra_base' }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /nombre/i);
+});
+
+test('usuario efectivo distinto del esperado es rechazado para bootstrap', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase({ user: 'otro_usuario' }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /usuario/i);
+});
+
+test('puerto efectivo distinto del esperado es rechazado para bootstrap', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase({ port: '5432' }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /puerto/i);
+});
+
+test('whitespace periférico hace distintos nombre, usuario y puerto efectivos', () => {
+  for (const field of ['name', 'user', 'port']) {
+    const effective = effectiveDevelopmentDatabase({
+      [field]: `${EXPECTED_DEV_DATABASE[field]} `,
+    });
+    const result = assessDevelopmentDatabaseTarget({
+      expected: EXPECTED_DEV_DATABASE,
+      effective,
+    });
+    assert.equal(result.ok, false, `se esperaba rechazo por whitespace en ${field}`);
+  }
+});
+
+test('target de desarrollo local exacto es aceptado para bootstrap', () => {
+  const result = assessDevelopmentDatabaseTarget({
+    expected: EXPECTED_DEV_DATABASE,
+    effective: effectiveDevelopmentDatabase(),
+  });
+  assert.deepEqual(result, { ok: true, reason: '' });
+});
+
+test('host efectivo debe coincidir con el esperado salvo case y corchetes IPv6', () => {
+  for (const host of ['localhost', '::1', '[::1]']) {
+    const result = assessDevelopmentDatabaseTarget({
+      expected: EXPECTED_DEV_DATABASE,
+      effective: effectiveDevelopmentDatabase({ host }),
+    });
+    assert.equal(result.ok, false, `se esperaba rechazo para alias loopback ${host}`);
+    assert.match(result.reason, /host/i);
+  }
+
+  for (const [expectedHost, effectiveHost] of [['LOCALHOST', 'localhost'], ['[::1]', '::1']]) {
+    const result = assessDevelopmentDatabaseTarget({
+      expected: { ...EXPECTED_DEV_DATABASE, host: expectedHost },
+      effective: effectiveDevelopmentDatabase({ host: effectiveHost }),
+    });
+    assert.equal(result.ok, true, `se esperaba aceptar ${expectedHost} y ${effectiveHost}`);
+  }
+});
+
+test('campos faltantes del target de desarrollo son rechazados', () => {
+  for (const source of ['expected', 'effective']) {
+    for (const field of ['name', 'host', 'port', 'user']) {
+      const target = {
+        expected: { ...EXPECTED_DEV_DATABASE },
+        effective: effectiveDevelopmentDatabase(),
+      };
+      delete target[source][field];
+      const result = assessDevelopmentDatabaseTarget(target);
+      assert.equal(result.ok, false, `se esperaba rechazo sin ${source}.${field}`);
+      assert.match(result.reason, /falta/i);
+    }
+  }
+});
+
+test('entorno saneado elimina DATABASE_URL y fija el DSN local preservando otras variables', () => {
+  const result = buildSanitizedDatabaseEnv(
+    {
+      DATABASE_URL: 'postgresql://usuario:secreto@db.remota/psychosim',
+      DB_NAME: 'otra_base',
+      DB_HOST: 'db.remota',
+      DB_PORT: '5432',
+      DB_USER: 'otro_usuario',
+      DB_PASSWORD: 'otro-secreto',
+      DJANGO_SETTINGS_MODULE: 'psychosim.settings.local',
+    },
+    EXPECTED_DEV_DATABASE,
+  );
+
+  assert.equal(Object.hasOwn(result, 'DATABASE_URL'), false);
+  assert.deepEqual(
+    {
+      DB_NAME: result.DB_NAME,
+      DB_HOST: result.DB_HOST,
+      DB_PORT: result.DB_PORT,
+      DB_USER: result.DB_USER,
+      DB_PASSWORD: result.DB_PASSWORD,
+    },
+    {
+      DB_NAME: EXPECTED_DEV_DATABASE.name,
+      DB_HOST: EXPECTED_DEV_DATABASE.host,
+      DB_PORT: EXPECTED_DEV_DATABASE.port,
+      DB_USER: EXPECTED_DEV_DATABASE.user,
+      DB_PASSWORD: EXPECTED_DEV_DATABASE.password,
+    },
+  );
+  assert.equal(result.DJANGO_SETTINGS_MODULE, 'psychosim.settings.local');
+});
+
+test('entorno saneado elimina DATABASE_URL sin distinguir mayúsculas en Windows', () => {
+  const result = buildSanitizedDatabaseEnv(
+    { Database_Url: 'sentinel-nonempty' },
+    EXPECTED_DEV_DATABASE,
+  );
+
+  assert.equal(
+    Object.keys(result).some((key) => key.toUpperCase() === 'DATABASE_URL'),
+    false,
+  );
+});
+
+test('entorno saneado elimina variables libpq PG* con cualquier casing y conserva variables ajenas', () => {
+  const libpqKeys = [
+    'PGHOSTADDR',
+    'PGSERVICE',
+    'PGSERVICEFILE',
+    'PGHOST',
+    'PGPORT',
+    'PGDATABASE',
+    'PGUSER',
+    'PGPASSWORD',
+    'PGOPTIONS',
+    'PGPASSFILE',
+  ];
+  const base = Object.fromEntries(
+    libpqKeys.map((key) => [`${key[0]}${key.slice(1).toLowerCase()}`, 'sentinel']),
+  );
+  base.PROJECT_FLAG = 'preserved';
+
+  const result = buildSanitizedDatabaseEnv(base, EXPECTED_DEV_DATABASE);
+  const normalizedKeys = Object.keys(result).map((key) => key.toUpperCase());
+
+  for (const key of libpqKeys) {
+    assert.equal(normalizedKeys.includes(key), false, `se esperaba purgar ${key}`);
+  }
+  assert.equal(result.PROJECT_FLAG, 'preserved');
+});
+
+test('parser del probe acepta el objeto JSON de la última línea con blancos finales', () => {
+  const result = parseLastJsonObjectLine('aviso previo\n{"NAME":"psychosim","HOST":"localhost"}\r\n\n  \n');
+
+  assert.deepEqual(result, { NAME: 'psychosim', HOST: 'localhost' });
+});
+
+test('parser del probe rechaza basura después de un JSON válido', () => {
+  const result = parseLastJsonObjectLine('{"NAME":"psychosim"}\nwarning\n\n');
+
+  assert.equal(result, null);
+});
+
+test('parser del probe rechaza array y null como última línea JSON', () => {
+  for (const output of ['[]\n', 'null\n']) {
+    assert.equal(parseLastJsonObjectLine(output), null);
+  }
 });
 
 test('una tabla centinela ausente detiene el arranque y NUNCA dispara bootstrap', () => {

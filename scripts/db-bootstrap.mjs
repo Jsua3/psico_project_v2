@@ -19,12 +19,21 @@ import { fileURLToPath } from 'node:url';
 import {
   DEV_COMPOSE_PROJECT,
   assessContainerOwnership,
+  assessDevelopmentDatabaseTarget,
   assessVolumeOwnership,
+  buildSanitizedDatabaseEnv,
+  parseLastJsonObjectLine,
 } from './dev-environment-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND = join(ROOT, 'backend_django');
 const isWin = process.platform === 'win32';
+const DATABASE_SETTINGS_PROBE = [
+  'import json',
+  'from django.db import connection',
+  'settings = connection.settings_dict',
+  'print(json.dumps({"NAME": settings.get("NAME"), "HOST": settings.get("HOST"), "PORT": settings.get("PORT"), "USER": settings.get("USER")}))',
+].join('; ');
 
 // Sin shell: docker es un .exe y cmd.exe rompe argumentos con espacios como
 // --format '{{json .Config.Labels}}'.
@@ -88,15 +97,55 @@ function main() {
     );
   }
 
+  const expected = {
+    name: process.env.DB_NAME ?? 'psychosim',
+    host: process.env.DB_HOST ?? 'localhost',
+    port: dbPort,
+    user: process.env.DB_USER ?? 'psychosim',
+    password: process.env.DB_PASSWORD ?? 'psychosim_secret',
+  };
+  const configuredTarget = assessDevelopmentDatabaseTarget({
+    databaseUrl: process.env.DATABASE_URL,
+    expected,
+    effective: expected,
+  });
+  if (!configuredTarget.ok) fail(configuredTarget.reason);
+
+  const childEnv = buildSanitizedDatabaseEnv(process.env, expected);
+
   if (!existsSync(venvPython())) {
     fail('No existe backend_django/.venv. Ejecuta primero: npm run up');
   }
+
+  const probe = spawnSync(
+    venvPython(),
+    ['manage.py', 'shell', '-c', DATABASE_SETTINGS_PROBE],
+    { cwd: BACKEND, encoding: 'utf8', stdio: 'pipe', env: childEnv },
+  );
+  if (probe.status !== 0) {
+    fail(`No se pudo verificar el target efectivo de Django (status ${probe.status ?? 'desconocido'}).`);
+  }
+  const probedSettings = parseLastJsonObjectLine(probe.stdout);
+  if (!probedSettings) {
+    fail('El probe de Django no devolvió una última línea JSON válida; no se ejecuta bootstrap.');
+  }
+  const effectiveTarget = assessDevelopmentDatabaseTarget({
+    databaseUrl: childEnv.DATABASE_URL,
+    expected,
+    effective: {
+      name: probedSettings.NAME,
+      host: probedSettings.HOST,
+      port: probedSettings.PORT,
+      user: probedSettings.USER,
+    },
+  });
+  if (!effectiveTarget.ok) fail(effectiveTarget.reason);
 
   console.log('[siep:db-bootstrap] Guardas OK. Ejecutando manage.py bootstrap_dev_db...');
   const result = spawnSync(
     venvPython(),
     ['manage.py', 'bootstrap_dev_db'],
-    { cwd: BACKEND, stdio: 'inherit', env: { ...process.env, DB_PORT: dbPort } },
+    { cwd: BACKEND, stdio: 'inherit', env: childEnv },
   );
   process.exit(result.status ?? 1);
 }
