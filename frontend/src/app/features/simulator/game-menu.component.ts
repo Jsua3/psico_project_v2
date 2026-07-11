@@ -231,7 +231,12 @@ class ClinicMenuScene extends Phaser.Scene {
       @if (error()) {
         <div class="menu-error" role="alert"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
       }
+      <!-- GAME-09: además de las teclas de Phaser, el host enfocable maneja
+           E/Enter/Espacio a nivel DOM — ruta determinista para teclado y
+           lectores; la guardia entering() garantiza UNA sola navegación. -->
       <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()"
+           (keydown.e)="enterFocused($event)" (keydown.enter)="enterFocused($event)"
+           (keydown.space)="enterFocused($event)"
            aria-label="Menú de casos. Flechas o A/D para moverte, toca el suelo para caminar, E para entrar a una puerta disponible."></div>
 
       @if (focused(); as f) {
@@ -349,6 +354,15 @@ export class GameMenuComponent implements OnDestroy {
 
   focusCanvas() {
     this.host?.nativeElement.focus({ preventScroll: true });
+  }
+
+  /** Entrada por teclado a la puerta enfocada (E/Enter/Espacio sobre el host). */
+  enterFocused(event: Event) {
+    const f = this.focused();
+    if (!f) return;
+    event.preventDefault();
+    if (!f.unlocked) return;
+    this.enter(f.caseVersionId);
   }
 
   enter(caseVersionId: number) {

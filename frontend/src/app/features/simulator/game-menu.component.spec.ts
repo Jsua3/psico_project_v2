@@ -79,4 +79,23 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     jest.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
   });
+
+  it('enterFocused (tecla E DOM) entra a la puerta enfocada disponible', () => {
+    component.catalog.set([makeItem()]);
+    component.focused.set(makeItem());
+    const event = new KeyboardEvent('keydown', { key: 'e', cancelable: true });
+    component.enterFocused(event);
+    expect(event.defaultPrevented).toBe(true);
+    jest.advanceTimersByTime(1000);
+    expect(router.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('enterFocused no hace nada sin puerta cerca o con puerta bloqueada', () => {
+    component.catalog.set([makeItem({ unlocked: false })]);
+    component.enterFocused(new KeyboardEvent('keydown', { key: 'e' }));
+    component.focused.set(makeItem({ unlocked: false }));
+    component.enterFocused(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
+    jest.advanceTimersByTime(1000);
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
 });

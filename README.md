@@ -92,6 +92,8 @@ coincide con desarrollo/producción o si el nombre es `psychosim`:
 npm run test:backend          # levanta la BD de test, siembra y ejecuta pytest
 npm run test:backend:down     # elimina SOLO los recursos del proyecto de test
 npm run test:scripts          # tests de las guardas de entorno (node --test)
+npm run test:e2e              # Playwright contra un stack aislado completo
+                              # (BD desechable + Django :8093 + Angular :4315)
 ```
 
 ## Grupos — importar estudiantes por Excel

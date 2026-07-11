@@ -50,3 +50,8 @@ backend_django/staticfiles/
 
 # Docker / env
 # (*.env ya está cubierto por `.env.*` en la sección "Env / secrets" arriba)
+
+# Playwright (artefactos E2E fuera del control de versiones)
+frontend/test-results/
+frontend/playwright-report/
+

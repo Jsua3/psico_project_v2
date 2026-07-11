@@ -15,10 +15,12 @@ const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
 const SENSITIVE_MEDIA = /assets\/(video|game\/audio)\//;
 
 async function login(page: Page) {
-  await page.goto('/');
-  await page.getByLabel(/correo|email/i).fill(EMAIL);
-  await page.getByLabel(/contraseña|password/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /ingresar|entrar|iniciar/i }).click();
+  await page.goto('/login');
+  // La página tiene DOS formularios (solicitar acceso + login): el email del
+  // login no tiene label con "correo", así que se resuelve por tipo/orden.
+  await page.locator('input[type="email"]').last().fill(EMAIL);
+  await page.locator('input[type="password"]').last().fill(PASSWORD);
+  await page.getByRole('button', { name: /^ingresar$/i }).click();
   await page.waitForURL(/\/portal\//);
 }
 
@@ -27,7 +29,10 @@ async function openCase(page: Page) {
   await page.goto('/portal/simulador');
   await page.getByRole('button', { name: /iniciar simulación/i }).first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
+  // Espera determinista: aparece el prompt de reanudación (si hay intento
+  // activo) O directamente la advertencia de contenido — sin carreras.
   const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
+  await expect(consentDialog(page).or(resume).first()).toBeVisible({ timeout: 15_000 });
   if (await resume.count()) {
     await resume.click();
   }

@@ -12,10 +12,12 @@ const EMAIL = process.env.E2E_STUDENT_EMAIL ?? 'estudiante@psychosim.edu.co';
 const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
 
 async function login(page: Page) {
-  await page.goto('/');
-  await page.getByLabel(/correo|email/i).fill(EMAIL);
-  await page.getByLabel(/contraseña|password/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /ingresar|entrar|iniciar/i }).click();
+  await page.goto('/login');
+  // La página tiene DOS formularios (solicitar acceso + login): el email del
+  // login no tiene label con "correo", así que se resuelve por tipo/orden.
+  await page.locator('input[type="email"]').last().fill(EMAIL);
+  await page.locator('input[type="password"]').last().fill(PASSWORD);
+  await page.getByRole('button', { name: /^ingresar$/i }).click();
   await page.waitForURL(/\/portal\//);
 }
 
@@ -77,7 +79,9 @@ test('la tecla E con el canvas enfocado entra al caso', async ({ page }) => {
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
   // El foco inicial es programático; un click lo recupera si se perdió.
-  await page.locator('.phaser-host').click();
+  // Se clickea SOBRE el jugador (spawn x=220 junto a la primera puerta): un
+  // click en otro punto del suelo lo haría caminar hacia allá (tap-to-walk).
+  await page.locator('.phaser-host').click({ position: { x: 293, y: 509 } });
   await page.keyboard.press('e');
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: 10_000 });
 });
