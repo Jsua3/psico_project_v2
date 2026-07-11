@@ -31,6 +31,7 @@ desktop.ini
 .idea/
 .vscode/
 .superpowers/
+.worktrees/
 
 # ── Frontend Angular ──────────────────────────────────────
 frontend/node_modules/
