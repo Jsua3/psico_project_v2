@@ -156,11 +156,13 @@ class WorldStateView(APIView):
     permission_classes = [IsEstudianteOrAdmin]
 
     def patch(self, request, attempt_id):
+        # Valores crudos a propósito: la validación estricta (entero finito,
+        # límites, plausibilidad, colisión) es autoridad del servicio (GAME-01).
         state = world_service.update_position(
             attempt_id,
             request.data.get("attemptToken"),
-            _int(request.data.get("playerX")),
-            _int(request.data.get("playerY")),
+            request.data.get("playerX"),
+            request.data.get("playerY"),
             request.user,
             current_map_key=request.data.get("currentMapKey"),
         )

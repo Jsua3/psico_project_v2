@@ -5,6 +5,8 @@ The explorable-world runtime: world snapshot, player movement, object interactio
 Reuses game_service's token hashing + owner/staff attempt guard.
 """
 import json
+import math
+import re
 
 from django.db import transaction
 from django.utils import timezone
@@ -42,6 +44,81 @@ def _clamp(value, low, high):
     return max(low, min(high, value))
 
 
+# ─── autoridad del servidor (GAME-01) ────────────────────────────────────────
+#: Velocidad máxima plausible del jugador (código actual ~150 px/s, histórico
+#: ~220): margen amplio para no rechazar movimiento legítimo.
+PLAYER_MAX_SPEED_PPS = 300
+#: Margen base del presupuesto de desplazamiento (jitter, primer sync).
+POSITION_BASE_ALLOWANCE_PX = 240
+#: Tope del presupuesto: pasado este tiempo el delta ya no crece (el clamp a
+#: los límites del mapa acota el resto).
+POSITION_BUDGET_MAX_SECONDS = 30
+#: Distancia máxima (al rectángulo del objeto) para interactuar/usar puertas.
+INTERACTION_RANGE_PX = 120
+#: Claves canónicas de NPC: slug en minúsculas.
+NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def _require_finite_int(value, name):
+    if isinstance(value, bool) or value is None:
+        raise ValidationError(f"{name} es obligatorio y debe ser un entero")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValidationError(f"{name} debe ser un entero")
+
+
+def _rect_distance(px, py, rect_x, rect_y, rect_w, rect_h):
+    dx = max(rect_x - px, 0, px - (rect_x + (rect_w or 0)))
+    dy = max(rect_y - py, 0, py - (rect_y + (rect_h or 0)))
+    return math.hypot(dx, dy)
+
+
+def _require_nearby(world_state, map_object, what="el objeto"):
+    distance = _rect_distance(
+        world_state.player_x, world_state.player_y,
+        map_object.position_x, map_object.position_y,
+        map_object.width, map_object.height,
+    )
+    if distance > INTERACTION_RANGE_PX:
+        raise ValidationError(f"Estás demasiado lejos de {what} para interactuar")
+
+
+def _position_blocked(scene_map_id, x, y):
+    """¿El punto (pies del jugador) cae dentro de la autoridad espacial del
+    backend? Fuente canónica: collision_zones + map_objects con collision."""
+    for zone in CollisionZone.objects.filter(scene_map_id=scene_map_id):
+        if zone.position_x <= x < zone.position_x + zone.width \
+                and zone.position_y <= y < zone.position_y + zone.height:
+            return True
+    for obj in MapObject.objects.filter(scene_map_id=scene_map_id, collision=True, visible=True):
+        if obj.position_x <= x < obj.position_x + (obj.width or 0) \
+                and obj.position_y <= y < obj.position_y + (obj.height or 0):
+            return True
+    return False
+
+
+def _stamp_position_sync(world_state, flags=None):
+    flags = flags if flags is not None else _read_map(world_state.flags_json)
+    flags["positionSyncedAt"] = timezone.now().timestamp()
+    world_state.flags_json = _write_map(flags)
+    return flags
+
+
+def _require_plausible_displacement(world_state, x, y):
+    """Presupuesto temporal: velocidad_máx × tiempo desde el último sync de
+    posición + margen. Sin ancla (estados legados) se acepta y se ancla."""
+    flags = _read_map(world_state.flags_json)
+    synced_at = flags.get("positionSyncedAt")
+    if not isinstance(synced_at, (int, float)):
+        return
+    elapsed = min(max(timezone.now().timestamp() - synced_at, 0.0), POSITION_BUDGET_MAX_SECONDS)
+    allowed = POSITION_BASE_ALLOWANCE_PX + PLAYER_MAX_SPEED_PPS * elapsed
+    delta = math.hypot(x - world_state.player_x, y - world_state.player_y)
+    if delta > allowed:
+        raise ValidationError("Desplazamiento no plausible para el tiempo transcurrido")
+
+
 # ─── public API ───────────────────────────────────────────────────────────────
 @transaction.atomic
 def get_world(attempt_id, attempt_token, actor):
@@ -53,13 +130,29 @@ def get_world(attempt_id, attempt_token, actor):
 @transaction.atomic
 def update_position(attempt_id, attempt_token, player_x, player_y, actor,
                     current_map_key=None):
+    """Movimiento validado en servidor (GAME-01/4A): números finitos, mapa
+    actual obligatorio, límites del mapa, desplazamiento plausible en el
+    tiempo transcurrido y punto fuera de la autoridad espacial de colisión."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     _require_in_progress(attempt)
     world_state = require_world_state(attempt)
-    if current_map_key and current_map_key != world_state.scene_map.map_key:
+    if not current_map_key or not str(current_map_key).strip():
+        raise ValidationError("currentMapKey es obligatorio")
+    if current_map_key != world_state.scene_map.map_key:
+        # Carrera benigna tras un cambio de sala: eco sin mutación ni evento.
         return _to_world_state(attempt, world_state)
-    world_state.player_x = _clamp(player_x, 0, world_state.scene_map.width or 960)
-    world_state.player_y = _clamp(player_y, 0, world_state.scene_map.height or 540)
+    x = _require_finite_int(player_x, "playerX")
+    y = _require_finite_int(player_y, "playerY")
+    map_w = world_state.scene_map.width or 960
+    map_h = world_state.scene_map.height or 540
+    if not (0 <= x <= map_w and 0 <= y <= map_h):
+        raise ValidationError("La posición está fuera de los límites del mapa")
+    _require_plausible_displacement(world_state, x, y)
+    if _position_blocked(world_state.scene_map_id, x, y):
+        raise ValidationError("La posición cae dentro de un obstáculo del mapa")
+    world_state.player_x = x
+    world_state.player_y = y
+    _stamp_position_sync(world_state)
     world_state.save()
     _save_event(attempt, "WORLD_POSITION_UPDATED", "Posicion de jugador actualizada")
     return _to_world_state(attempt, world_state)
@@ -71,10 +164,11 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
     _require_in_progress(attempt)
     world_state = require_world_state(attempt)
     map_object = MapObject.objects.filter(
-        scene_map_id=world_state.scene_map_id, object_key=interaction_key
+        scene_map_id=world_state.scene_map_id, object_key=interaction_key, visible=True
     ).first()
     if not map_object:
         raise NotFound("Interaccion no encontrada")
+    _require_nearby(world_state, map_object)
 
     world_state.inspected_object_keys_json = _append_unique(
         world_state.inspected_object_keys_json, map_object.object_key
@@ -117,6 +211,10 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
 
 @transaction.atomic
 def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor):
+    """Uso de herramienta autoritativo (GAME-01/4C): exige inventario, valida
+    el target (existencia + cercanía), no considera pertinente el uso sin
+    target salvo herramienta declarada global, y es idempotente ante
+    reintentos (un solo evento y un solo efecto de estrés)."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     world_state = require_world_state(attempt)
     if attempt.status != "IN_PROGRESS":
@@ -127,27 +225,47 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     if not tool:
         raise NotFound("Herramienta no encontrada")
 
-    world_state.inventory_json = _append_unique(world_state.inventory_json, tool_code)
+    inventory = _read_string_list(world_state.inventory_json)
+    if tool_code not in inventory:
+        raise ValidationError("La herramienta no está en tu inventario; recógela primero")
 
-    usage_key = (
-        tool_code
-        if not target_interaction_key or not target_interaction_key.strip()
-        else f"{tool_code}@{target_interaction_key}"
-    )
+    target_key = (target_interaction_key or "").strip() or None
+    if target_key:
+        target_obj = MapObject.objects.filter(
+            scene_map_id=world_state.scene_map_id, object_key=target_key, visible=True
+        ).first()
+        if not target_obj:
+            raise NotFound("El objetivo de la herramienta no existe en la sala actual")
+        _require_nearby(world_state, target_obj, "el objetivo")
+
+    pertinent = _evaluate_tool_pertinence(tool, target_key, world_state)
+    feedback_message = _generate_tool_feedback(tool, target_key, pertinent)
+
+    usage_key = tool_code if not target_key else f"{tool_code}@{target_key}"
+    already_used = usage_key in _read_string_list(world_state.used_tool_keys_json)
+    if already_used:
+        # Reintento de la misma acción: sin nuevo evento ni doble efecto.
+        return {
+            "world": _to_world_state(attempt, world_state),
+            "toolCode": tool_code,
+            "targetKey": target_key,
+            "pertinent": pertinent,
+            "stressDelta": 0,
+            "feedbackMessage": feedback_message,
+            "alreadyUsed": True,
+        }
+
     world_state.used_tool_keys_json = _append_unique(world_state.used_tool_keys_json, usage_key)
     world_state.save()
 
-    pertinent = _evaluate_tool_pertinence(tool_code, target_interaction_key, world_state)
     stress_delta = -5 if pertinent else 3
-    feedback_message = _generate_tool_feedback(tool, target_interaction_key, pertinent)
-
     attempt.stress_index = _clamp(attempt.stress_index + stress_delta, 0, 100)
     attempt.save()
 
     sign = "+" if stress_delta >= 0 else ""
     detail = (
         f"Herramienta usada: {tool_code}"
-        + (f" sobre {target_interaction_key}" if target_interaction_key is not None else "")
+        + (f" sobre {target_key}" if target_key is not None else "")
         + f" — {'pertinente' if pertinent else 'no pertinente'}"
         + f" (estres {sign}{stress_delta}%)"
     )
@@ -156,21 +274,37 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     return {
         "world": _to_world_state(attempt, world_state),
         "toolCode": tool_code,
-        "targetKey": target_interaction_key,
+        "targetKey": target_key,
         "pertinent": pertinent,
         "stressDelta": stress_delta,
         "feedbackMessage": feedback_message,
+        "alreadyUsed": False,
     }
 
 
 @transaction.atomic
 def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
+    """NPC autoritativo (GAME-01/4B): clave canónica (slug) y pertenencia a la
+    sala actual. La lista autorada vive en ambient_json["ambientNpcKeys"]
+    (NPCs ambientales del ScenarioConfig) más los objetos PERSON del mapa.
+    Si el mapa no autoró la lista (contenido legado), solo se valida el
+    formato — documentado como modo observación."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     _require_in_progress(attempt)
     npc_key = (npc_key or "").strip()
-    if not npc_key:
-        raise ValidationError("La clave del NPC es obligatoria")
+    if not npc_key or not NPC_KEY_RE.match(npc_key):
+        raise ValidationError("La clave del NPC no es válida")
     world_state = require_world_state(attempt)
+    ambient = _read_map(world_state.scene_map.ambient_json)
+    authored = ambient.get("ambientNpcKeys")
+    if isinstance(authored, list):
+        person_keys = set(
+            MapObject.objects.filter(
+                scene_map_id=world_state.scene_map_id, object_type="PERSON"
+            ).values_list("object_key", flat=True)
+        )
+        if npc_key not in set(authored) | person_keys:
+            raise NotFound("El NPC no existe en la sala actual")
     flags = _read_map(world_state.flags_json)
     viewed = flags.get("viewedNpcKeys")
     if not isinstance(viewed, list):
@@ -206,6 +340,10 @@ def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, act
     """
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     _require_in_progress(attempt)
+    if not door_key or not str(door_key).strip():
+        # GAME-01/4D: el bypass sin puerta se eliminó; todos los consumidores
+        # actuales (frontend) envían doorKey.
+        raise ValidationError("doorKey es obligatorio para cambiar de sala")
     target = (
         SceneMap.objects.select_related("node")
         .filter(node__case_version_id=attempt.current_node.case_version_id,
@@ -215,22 +353,23 @@ def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, act
     if not target:
         raise NotFound(f"No hay sala para el nodo destino: {target_node_key}")
     state = require_world_state(attempt)
-    if door_key:
-        _validate_door(attempt, state, door_key, target_node_key)
+    _validate_door(attempt, state, door_key, target_node_key)
     state.scene_map = target
     state.player_x = _clamp(_int(entry_x), 0, target.width or 960)
     state.player_y = _clamp(_int(entry_y), 0, target.height or 540)
     flags = _read_map(state.flags_json)
     flags["syncedNodeId"] = attempt.current_node_id  # keep — door room is intentional
-    state.flags_json = _write_map(flags)
+    _stamp_position_sync(state, flags)
     state.save()
     _save_event(attempt, "ROOM_ENTERED", f"Puerta hacia sala {target_node_key}")
     return _to_world_state(attempt, state)
 
 
 def _validate_door(attempt, state, door_key, target_node_key):
-    """La puerta debe existir en el mapa ACTUAL, apuntar al destino solicitado
-    y tener sus condiciones backend-verificables cumplidas."""
+    """La puerta debe existir en el mapa ACTUAL, estar al alcance del jugador,
+    apuntar al destino solicitado y tener TODAS sus condiciones verificables
+    cumplidas (requiresInspected, requiresTools, requiresNodes y requiresNpcs
+    — los NPCs vistos sí se persisten en flags.viewedNpcKeys)."""
     door = MapObject.objects.filter(
         scene_map_id=state.scene_map_id, object_key=door_key, object_type="EXIT"
     ).first()
@@ -239,6 +378,7 @@ def _validate_door(attempt, state, door_key, target_node_key):
     meta = _read_map(door.metadata_json)
     if meta.get("targetNodeKey") != target_node_key:
         raise ValidationError("La puerta no conduce a la sala solicitada")
+    _require_nearby(state, door, "la puerta")
 
     locked_message = meta.get("lockedMessage") or "La puerta está bloqueada."
     inspected = set(_read_string_list(state.inspected_object_keys_json))
@@ -252,6 +392,12 @@ def _validate_door(attempt, state, door_key, target_node_key):
     required_nodes = meta.get("requiresNodes") or []
     if required_nodes and attempt.current_node.node_key not in required_nodes:
         raise ValidationError(locked_message)
+    flags = _read_map(state.flags_json)
+    viewed_npcs = flags.get("viewedNpcKeys")
+    viewed_npcs = set(viewed_npcs) if isinstance(viewed_npcs, list) else set()
+    for required in meta.get("requiresNpcs") or []:
+        if required not in viewed_npcs:
+            raise ValidationError(locked_message)
 
 
 # ─── internals ────────────────────────────────────────────────────────────────
@@ -280,7 +426,7 @@ def require_world_state(attempt):
         state.player_x = expected_map.spawn_x
         state.player_y = expected_map.spawn_y
         flags["syncedNodeId"] = attempt.current_node_id
-        state.flags_json = _write_map(flags)
+        _stamp_position_sync(state, flags)
     state.save()  # updated_at is auto_now
     return state
 
@@ -290,21 +436,27 @@ def _require_in_progress(attempt):
         raise ValidationError("El intento ya no acepta interacciones en el mundo")
 
 
-def _evaluate_tool_pertinence(tool_code, target_key, world_state):
-    if not target_key or not target_key.strip():
-        return True
+def _is_global_tool(tool):
+    """Una herramienta solo es aplicable sin objetivo si su categoría la
+    declara explícitamente global (GAME-01/4C)."""
+    return (tool.category or "").strip().lower() == "global"
+
+
+def _evaluate_tool_pertinence(tool, target_key, world_state):
+    if not target_key:
+        return _is_global_tool(tool)
     obj = MapObject.objects.filter(
         scene_map_id=world_state.scene_map_id, object_key=target_key
     ).first()
     if not obj:
         return False
-    if tool_code == obj.tool_code:
+    if tool.tool_code == obj.tool_code:
         return True
     tree = DialogueTree.objects.filter(map_object_id=obj.id).first()
     if not tree:
         return False
     return DialogueChoice.objects.filter(
-        dialogue_tree_id=tree.id, required_tool_code=tool_code
+        dialogue_tree_id=tree.id, required_tool_code=tool.tool_code
     ).exists()
 
 

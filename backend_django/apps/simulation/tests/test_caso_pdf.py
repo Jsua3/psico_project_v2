@@ -70,6 +70,32 @@ def _inspect(client, attempt_id, token, key):
     return resp.data["data"]
 
 
+def _move(client, attempt_id, token, map_key, *points):
+    """Camina en pasos plausibles (GAME-01: el servidor valida desplazamiento,
+    proximidad y colisiones)."""
+    for x, y in points:
+        resp = client.patch(
+            f"/api/simulation/attempts/{attempt_id}/world-state",
+            {"attemptToken": token, "playerX": x, "playerY": y, "currentMapKey": map_key},
+            format="json",
+        )
+        assert resp.status_code == 200, f"mover a ({x},{y}): {resp.data}"
+
+
+#: Rutas plausibles en hospital-urgencias (spawn 480,430).
+PATH_TO_FAMILIA = ((340, 430), (250, 430))
+PATH_TO_DOOR = ((430, 435), (610, 440), (790, 445))
+#: Ruta en hospital-sala-escucha desde el entry (160,452) hasta salida-institucional (838,440).
+PATH_TO_SALIDA = ((340, 450), (520, 445), (700, 442), (820, 440))
+
+
+def _inspect_familia_cerca(client, attempt_id, token):
+    """Materializa el world state, camina hasta la familia y la inspecciona."""
+    _world(client, attempt_id, token)
+    _move(client, attempt_id, token, "hospital-urgencias", *PATH_TO_FAMILIA)
+    return _inspect(client, attempt_id, token, "familia-crisis")
+
+
 def _enter(client, attempt_id, token, target, door_key=None, entry=(160, 452)):
     body = {"attemptToken": token, "targetNodeKey": target,
             "entryX": entry[0], "entryY": entry[1]}
@@ -95,11 +121,16 @@ def _decide(client, attempt_id, token, option_key, case_version_id):
 def test_door_locked_until_familia_inspected(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    # Sin hablar con la familia: bloqueada (requiresInspected).
+    _world(c, attempt_id, token)
+    # Junto a la puerta pero sin hablar con la familia: bloqueada (requiresInspected).
+    _move(c, attempt_id, token, "hospital-urgencias", *PATH_TO_DOOR)
     resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 400
     # Tras la interacción: pasa.
+    _move(c, attempt_id, token, "hospital-urgencias", *reversed(PATH_TO_DOOR))
+    _move(c, attempt_id, token, "hospital-urgencias", *PATH_TO_FAMILIA)
     _inspect(c, attempt_id, token, "familia-crisis")
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-sala-escucha"
@@ -116,7 +147,7 @@ def test_door_nonexistent_key_404(estudiante, case_version_id):
 def test_door_target_mismatch_400(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
     # puerta-sala-escucha NO conduce a comisaria-recepcion.
     resp = _enter(c, attempt_id, token, "comisaria-recepcion", "puerta-sala-escucha")
     assert resp.status_code == 400
@@ -125,9 +156,11 @@ def test_door_target_mismatch_400(estudiante, case_version_id):
 def test_salida_institucional_locked_by_node(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     assert _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha").status_code == 200
     # En etapa hospitalaria la salida institucional sigue bloqueada (requiresNodes).
+    _move(c, attempt_id, token, "hospital-sala-escucha", *PATH_TO_SALIDA)
     resp = _enter(c, attempt_id, token, "comisaria-recepcion", "salida-institucional")
     assert resp.status_code == 400
 
@@ -135,11 +168,12 @@ def test_salida_institucional_locked_by_node(estudiante, case_version_id):
 def test_door_room_persists_after_reload(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     again = _world(c, attempt_id, token)
     assert again["map"]["key"] == "hospital-sala-escucha"
-    # Y la vuelta funciona.
+    # Y la vuelta funciona (el entry 160,452 queda junto a puerta-urgencias).
     resp = _enter(c, attempt_id, token, "hospital-urgencias", "puerta-urgencias", entry=(786, 440))
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-urgencias"
@@ -148,7 +182,8 @@ def test_door_room_persists_after_reload(estudiante, case_version_id):
 def test_entry_coordinates_clamped(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha",
                   entry=(99999, -50))
     assert resp.status_code == 200
@@ -303,7 +338,8 @@ def test_final_brechas_con_parciales(estudiante, case_version_id):
 def test_cambiar_sala_no_puntua_ni_avanza(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     state = c.get(
         f"/api/simulation/attempts/{attempt_id}?attemptToken={token}"

@@ -1037,6 +1037,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   });
 
   private lastPosition: { x: number; y: number } | null = null;
+  private lastSyncedPosition: { x: number; y: number } | null = null;
   private positionSaveHandle: number | null = null;
 
   ngOnDestroy(): void {
@@ -1269,6 +1270,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private openBackendInteraction(interaction: MapObjectState) {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
+    this.withSyncedPosition(() => this.doOpenBackendInteraction(interaction));
+  }
+
+  private doOpenBackendInteraction(interaction: MapObjectState) {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') return;
 
     this.selectedInteraction.set(interaction);
     this.gameWorld?.focus(interaction.key);
@@ -1315,7 +1322,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
     this.busy.set(true);
-    this.triggerFade(() => {
+    this.withSyncedPosition(() => this.triggerFade(() => {
       this.simulationService.enterRoom(
         game.attemptId, game.attemptToken, target,
         Number(meta.entryX ?? 0), Number(meta.entryY ?? 0), door.key,
@@ -1329,7 +1336,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         },
         error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
       });
-    });
+    }));
   }
 
   private doorNoticeTimer: number | null = null;
@@ -1504,6 +1511,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   useTool(toolCode: string) {
     const game = this.attempt();
     const target = this.selectedInteraction()?.key ?? null;
+    if (!game || this.busy()) return;
+    this.withSyncedPosition(() => this.doUseTool(toolCode, target));
+  }
+
+  private doUseTool(toolCode: string, target: string | null) {
+    const game = this.attempt();
     if (!game || this.busy()) return;
     this.busy.set(true);
     this.simulationService.useTool(game.attemptId, game.attemptToken, toolCode, target).subscribe({
@@ -1822,6 +1835,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.busy.set(false);
     window.setTimeout(() => this.fadeActive.set(false), 80);
     if (previousMapKey && previousMapKey !== world.map.key) {
+      // La posición pendiente pertenece a la sala anterior: descartarla evita
+      // que un flush posterior envíe coordenadas del mapa viejo.
+      this.lastPosition = null;
+      this.lastSyncedPosition = null;
       this.announceRoomChange(world);
     }
     this.maybeShowInitialCaseIntro(world);
@@ -1995,17 +2012,47 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private persistPosition() {
     const game = this.attempt(), world = this.world();
     if (!game || !world || !this.lastPosition || game.status !== 'IN_PROGRESS') return;
+    const synced = { ...this.lastPosition };
     this.simulationService.updateWorldState(game.attemptId, game.attemptToken,
-      this.lastPosition.x, this.lastPosition.y, world.map.key)
+      synced.x, synced.y, world.map.key)
       .subscribe({
         // La posición se persiste en silencio: reemplazar `world` con el eco
         // del backend re-renderizaba toda la escena Phaser en plena caminata
         // (tirón visible). Solo se aplica si cambió algo de verdad (el mapa).
         next: updated => {
+          this.lastSyncedPosition = synced;
           const current = this.world();
           if (!current || updated.map.key !== current.map.key) this.world.set(updated);
         },
         error: () => undefined,
+      });
+  }
+
+  /** GAME-01: el backend valida proximidad contra la posición PERSISTIDA.
+   *  Antes de una acción validada (interacción, herramienta, puerta) se
+   *  sincroniza la posición pendiente del debounce para cubrir la carrera
+   *  "moverse y pulsar E antes de persistir". Si el flush falla, la acción
+   *  continúa y es el backend quien decide. */
+  private withSyncedPosition(next: () => void): void {
+    const game = this.attempt(), world = this.world();
+    const pending = this.lastPosition && (
+      !this.lastSyncedPosition
+      || this.lastSyncedPosition.x !== this.lastPosition.x
+      || this.lastSyncedPosition.y !== this.lastPosition.y);
+    if (!game || !world || !pending || game.status !== 'IN_PROGRESS') {
+      next();
+      return;
+    }
+    if (this.positionSaveHandle) {
+      window.clearTimeout(this.positionSaveHandle);
+      this.positionSaveHandle = null;
+    }
+    const synced = { ...this.lastPosition! };
+    this.simulationService.updateWorldState(game.attemptId, game.attemptToken,
+      synced.x, synced.y, world.map.key)
+      .subscribe({
+        next: () => { this.lastSyncedPosition = synced; next(); },
+        error: () => next(),
       });
   }
 }
