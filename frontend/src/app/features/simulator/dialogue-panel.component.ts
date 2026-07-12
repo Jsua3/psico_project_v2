@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import { AfterViewChecked, Component, ElementRef, HostListener, OnDestroy, ViewChild, effect, inject, input, output, signal } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
@@ -11,10 +12,12 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [A11yModule, CommonModule],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
         class="dialogue-strip"
         [class.dialogue-strip--side]="mode() === 'side'"
         [class.strip--warning]="interaction()?.type === 'WARNING'"
@@ -72,14 +75,14 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
           }
 
           @if (!isTypingComplete()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
+            <button cdkFocusInitial type="button" class="close-btn psy-button psy-button--ghost"
               (click)="skipTypewriter()"
               aria-label="Saltar animación de texto">
               Saltar <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && !d.choices.length) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
+            <button cdkFocusInitial type="button" class="close-btn psy-button psy-button--ghost"
               (click)="close.emit()"
               aria-label="Cerrar diálogo (Esc)">
               Continuar <span aria-hidden="true">▶</span>

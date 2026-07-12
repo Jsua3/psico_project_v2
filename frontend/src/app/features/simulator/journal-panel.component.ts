@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import { Component, effect, inject, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,9 +14,11 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 @Component({
   selector: 'app-journal-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [A11yModule, CommonModule, FormsModule, MatIconModule],
   template: `
     <div class="journal-modal"
+      [cdkTrapFocus]="open()"
+      [cdkTrapFocusAutoCapture]="open()"
       [class.journal-modal--open]="open()"
       role="dialog"
       aria-modal="true"
@@ -28,7 +31,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
           <h3 id="journal-heading">Bitácora reflexiva</h3>
           <p class="psy-eyebrow sheet-sub">Razonamiento ético y formativo</p>
         </div>
-        <button class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
+        <button cdkFocusInitial class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
           <mat-icon>close</mat-icon>
         </button>
       </div>

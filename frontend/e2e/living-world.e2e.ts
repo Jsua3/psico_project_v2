@@ -21,6 +21,26 @@ async function login(page: Page) {
   await page.waitForURL(/\/portal\//);
 }
 
+async function enterPlayableCase(page: Page) {
+  await page.goto('/portal/jugar');
+  await page.getByRole('button', { name: /entrar al caso/i }).click();
+  await page.waitForURL(/\/portal\/simulador\/\d+/);
+  const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
+  const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
+  await expect(consent.or(resume).first()).toBeVisible({ timeout: 15_000 });
+  if (await resume.count()) await resume.click();
+  await consent.getByRole('button', { name: /^continuar$/i }).click();
+
+  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
+  await expect(introVideo).toBeVisible({ timeout: 15_000 });
+  await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
+
+  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+  await expect(caseIntro).toBeVisible({ timeout: 15_000 });
+  await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+  await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
+}
+
 test('menu world renders full-bleed with no shell sidebar', async ({ page }) => {
   await login(page);
   await page.goto('/portal/jugar');
@@ -51,4 +71,20 @@ test('in-case world loads with the HUD', async ({ page }) => {
   await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('app-simulation-hud')).toBeVisible();
   await expect(page.locator('button.sr-only')).toHaveCount(0);
+});
+
+test('journal traps keyboard focus while it blocks the world', async ({ page }) => {
+  await login(page);
+  await enterPlayableCase(page);
+  await page.keyboard.press('j');
+  const journal = page.getByRole('dialog', { name: /bitácora reflexiva cifrada/i });
+  await expect(journal).toBeVisible();
+
+  for (let i = 0; i < 8; i += 1) {
+    await page.keyboard.press('Tab');
+    const focusedInsideJournal = await page.evaluate(() =>
+      Boolean(document.activeElement?.closest('.journal-modal')),
+    );
+    expect(focusedInsideJournal).toBe(true);
+  }
 });

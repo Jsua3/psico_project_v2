@@ -95,7 +95,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
         <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
-          <article class="resume-card liquid-glass">
+          <article class="resume-card liquid-glass" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
             <p class="psy-eyebrow">Intento en progreso</p>
             <h2 id="resume-title">Continuar simulación formativa</h2>
             <p>
@@ -108,7 +108,7 @@ const CASE_INTRO_PARAGRAPHS = [
               <span>Riesgo: {{ active.metrics.victimRisk }}%</span>
             </div>
             <div class="resume-actions">
-              <button class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
+              <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
                 {{ active.status === 'PAUSED' ? 'Reanudar intento en pausa' : 'Continuar intento en progreso' }}
               </button>
               <button class="psy-button psy-button--ghost" type="button" (click)="startNewAttempt()">
@@ -159,7 +159,7 @@ const CASE_INTRO_PARAGRAPHS = [
         @if (worldStarted()) {
         @if (showIntroVideo()) {
           <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
-            <article class="intro-video-card">
+            <article class="intro-video-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="intro-video-card__header">
                 <p class="psy-eyebrow">Introducción</p>
                 <h2 id="intro-video-title">Antes de comenzar</h2>
@@ -177,7 +177,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 } @else {
                   <span>Reproduce el video o continúa cuando quieras.</span>
                 }
-                <button class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
+                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
                   {{ introVideoEnded() ? 'Continuar' : 'Saltar video' }}
                 </button>
               </footer>
@@ -187,7 +187,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (showCaseIntro()) {
           <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
-            <article class="case-intro-card">
+            <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Primera escena</p>
                 <h2 id="case-intro-title">{{ caseIntroTitle }}</h2>
@@ -202,7 +202,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
               <footer class="case-intro-card__actions">
                 <span>Lee el contexto completo antes de iniciar la intervención.</span>
-                <button class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
+                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                   Continuar
                 </button>
               </footer>
@@ -210,7 +210,7 @@ const CASE_INTRO_PARAGRAPHS = [
           </section>
         }
 
-        <header class="top-bar">
+        <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           <app-simulation-hud
             [attempt]="game"
             [stressPulse]="stressPulse()"
@@ -232,13 +232,15 @@ const CASE_INTRO_PARAGRAPHS = [
         </header>
 
         <button type="button" class="guide-chatbot-button psy-button psy-button--primary" [class.guide-chatbot-button--active]="aiAssistantOpen()"
+          [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null"
           (click)="aiAssistantOpen.set(!aiAssistantOpen())" aria-label="Abrir Instructor guia chatbot">
           <mat-icon aria-hidden="true">psychology</mat-icon>
           <span>Instructor guia chatbot</span>
         </button>
 
         <main class="main-zone">
-          <section class="canvas-zone" aria-label="Escena de la simulación">
+          <section class="canvas-zone" aria-label="Escena de la simulación"
+            [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
             @if (sceneObjective(); as objective) {
               <div class="objective-card" role="status">
                 <mat-icon aria-hidden="true">flag</mat-icon>
@@ -292,7 +294,7 @@ const CASE_INTRO_PARAGRAPHS = [
           }
         </main>
 
-        <footer class="bottom-zone">
+        <footer class="bottom-zone" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
             <button class="safe-exit" type="button" (click)="safeExit()" [disabled]="busy()"
               aria-label="Salida segura (Escape)">
