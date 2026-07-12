@@ -12,7 +12,7 @@ import {
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import {
-  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, applyFeedbackToPatient, parseInterventionRules,
+  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
 } from './patient-state.util';
 import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
 import { DialoguePanelComponent } from './dialogue-panel.component';
@@ -1486,14 +1486,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.announce(message);
       return;
     }
+    const evidenceOverride = Boolean(
+      evidenceDef && missing.length && this.pendingEvidenceDecisionId === decisionOptionId,
+    );
     this.pendingEvidenceDecisionId = null;
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
-      this.simulationService.chooseDecision(game.attemptId, game.attemptToken, decisionOptionId).subscribe({
+      this.simulationService.chooseDecision(
+        game.attemptId, game.attemptToken, decisionOptionId,
+        evidenceOverride, evidenceOverride ? missing : [],
+      ).subscribe({
         next: updated => {
           this.attempt.set(updated);
+          this.hydrateClinicalState(updated);
           this.persistAttemptToken(updated);
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
@@ -1506,13 +1513,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playSfx('session_complete');
           }
           if (updated.feedback) {
-            const retryRequired = this.feedbackRequiresRetry(updated.feedback);
-            if (!retryRequired) {
-              // Consecuencia visible: la paciente reacciona (HUD + tint/shake del NPC).
-              const nextPatient = applyFeedbackToPatient(this.patientState(), this.interventionRules, updated.feedback);
-              this.patientState.set(nextPatient);
-              this.gameWorld?.updatePatientVisualState(nextPatient);
-            }
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
@@ -1852,6 +1852,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private applyLoadedWorld(world: SimulationWorldState): void {
     const previousMapKey = this.world()?.map.key ?? null;
     this.world.set(world);
+    this.hydrateClinicalState(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
@@ -1864,6 +1865,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.announceRoomChange(world);
     }
     this.maybeShowInitialCaseIntro(world);
+  }
+
+  private hydrateClinicalState(attempt: SimulationAttemptState | null): void {
+    const patient = attempt?.clinicalState?.patient;
+    if (!patient) return;
+    this.patientState.set(patient);
+    this.gameWorld?.updatePatientVisualState(patient);
   }
 
   private maybeShowInitialCaseIntro(world: SimulationWorldState): void {

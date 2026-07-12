@@ -136,10 +136,18 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
-  chooseDecision(attemptId: string, attemptToken: string, decisionOptionId: number) {
+  chooseDecision(
+    attemptId: string,
+    attemptToken: string,
+    decisionOptionId: number,
+    evidenceOverride = false,
+    missingEvidence: string[] = [],
+  ) {
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/decisions`, {
       attemptToken,
-      decisionOptionId
+      decisionOptionId,
+      evidenceOverride,
+      missingEvidence,
     }).pipe(map(response => response.data));
   }
 

@@ -299,6 +299,24 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(component.dialogue()?.key).toBe(`npc-${npc.key}`);
   });
 
+  it('hidrata el estado de paciente desde clinicalState al cargar el mundo', () => {
+    setup(makeAttempt());
+    const patient = {
+      emotionalState: 65,
+      trustLevel: 65,
+      openness: 65,
+      crisisLevel: 30,
+    };
+    component.attempt.set(makeAttempt({ clinicalState: { papApplied: true, patient } }));
+
+    (component as any).applyLoadedWorld({
+      map: { key: 'hospital-urgencias' },
+      flags: {},
+    } as SimulationWorldState);
+
+    expect(component.patientState()).toEqual(patient);
+  });
+
   it('expone un control de interacción únicamente para el objeto cercano sin overlay', () => {
     setup(makeAttempt());
     component.attempt.set(makeAttempt());
