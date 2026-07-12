@@ -71,3 +71,12 @@ No se observaron warnings de `staticfiles`, deprecación `ts-jest`, opciones dup
 - Tras ese gate: cero contenedores del proyecto Compose de pruebas y cero listeners en los puertos 5544, 8093 y 4315.
 
 Todavía faltan el bucle clínico completo, diálogo por intervención, Axe y la matriz de cuatro viewports. La geometría visual de Tiled/TypeScript no se declara una segunda autoridad: para `SIM-VBG-001`, el backend decide la aceptación espacial y el gate final debe demostrar que el recorrido visual no presenta bloqueos.
+
+## Addendum CLINICAL-LOOP-01 — 2026-07-12
+
+- Una decisión que el estudiante confirma pese a evidencia faltante recibe `evidenceOverride` y una lista acotada de etiquetas; Django normaliza esas etiquetas y las adjunta solamente al evento de decisión que realmente se comprometió. Los reintentos no generan una falsa traza de override.
+- `clinicalState` se deriva de `AttemptWorldState.flags_json`: PAP aplicado, estado emocional, confianza, apertura y nivel de crisis proceden de flags y métricas persistidas. El DTO está disponible al iniciar, decidir, refrescar y reanudar.
+- El HUD y la reacción visual de la paciente ya no calculan consecuencias con el reducer del navegador tras una decisión; se hidratan desde `clinicalState` retornado por el servidor. La evidencia confirmada se conserva entre el diálogo de confirmación y el envío de la decisión.
+- Evidencia fresca: 30 pruebas backend de decisiones/caso, 47 suites / 297 pruebas frontend, E2E aislado con matriz API 16/16 y Playwright 12/12, todas con salida 0.
+
+El contenido clínico autorado todavía requiere revisión SME. También permanecen pendientes el diálogo por intervención, Axe en estados dinámicos y la matriz real de `1600×900`, `1366×768`, `390×844` y `412×915`; este addendum no declara el objetivo global terminado.
