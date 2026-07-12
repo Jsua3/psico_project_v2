@@ -241,6 +241,8 @@ def test_use_tool_requires_inventory_and_no_target_is_not_pertinent(estudiante, 
 def test_record_npc_interaction_persists_in_world_flags(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
+    _move(c, attempt_id, token, world["map"]["key"], (560, 380))
     resp = c.post(
         f"/api/simulation/attempts/{attempt_id}/npcs/enfermera-urgencias",
         {"attemptToken": token},

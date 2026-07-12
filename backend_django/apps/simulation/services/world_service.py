@@ -309,29 +309,47 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     }
 
 
+def _require_nearby_ambient_npc(world_state, npc_key):
+    """Resolve NPC geometry from the current server-owned map before crediting it."""
+    ambient_npcs = _read_map(world_state.scene_map.ambient_json).get("ambientNpcs")
+    if isinstance(ambient_npcs, list):
+        for npc in ambient_npcs:
+            if not isinstance(npc, dict) or npc.get("key") != npc_key:
+                continue
+            x = _require_finite_int(npc.get("x"), "posición X del NPC")
+            y = _require_finite_int(npc.get("y"), "posición Y del NPC")
+            radius = _require_finite_int(npc.get("interactionRadius"), "radio del NPC")
+            if radius <= 0:
+                raise ValidationError("El radio de interacción del NPC debe ser positivo")
+            if math.hypot(world_state.player_x - x, world_state.player_y - y) > radius:
+                raise ValidationError("Estás demasiado lejos del NPC para interactuar")
+            return
+
+    person = MapObject.objects.filter(
+        scene_map_id=world_state.scene_map_id,
+        object_type="PERSON",
+        object_key=npc_key,
+        visible=True,
+    ).first()
+    if person:
+        _require_nearby(world_state, person, "el NPC")
+        return
+
+    if not isinstance(ambient_npcs, list):
+        raise ValidationError("La sala no autoró NPCs ambientales con posición")
+    raise NotFound("El NPC no existe en la sala actual")
+
+
 @transaction.atomic
 def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
-    """NPC autoritativo (GAME-01/4B): clave canónica (slug) y pertenencia a la
-    sala actual. La lista autorada vive en ambient_json["ambientNpcKeys"]
-    (NPCs ambientales del ScenarioConfig) más los objetos PERSON del mapa.
-    Si el mapa no autoró la lista (contenido legado), solo se valida el
-    formato — documentado como modo observación."""
+    """Credit only a current-room NPC whose server-owned geometry is nearby."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     _require_in_progress(attempt)
     npc_key = (npc_key or "").strip()
     if not npc_key or not NPC_KEY_RE.match(npc_key):
         raise ValidationError("La clave del NPC no es válida")
     world_state = require_world_state(attempt)
-    ambient = _read_map(world_state.scene_map.ambient_json)
-    authored = ambient.get("ambientNpcKeys")
-    if isinstance(authored, list):
-        person_keys = set(
-            MapObject.objects.filter(
-                scene_map_id=world_state.scene_map_id, object_type="PERSON"
-            ).values_list("object_key", flat=True)
-        )
-        if npc_key not in set(authored) | person_keys:
-            raise NotFound("El NPC no existe en la sala actual")
+    _require_nearby_ambient_npc(world_state, npc_key)
     flags = _read_map(world_state.flags_json)
     viewed = flags.get("viewedNpcKeys")
     if not isinstance(viewed, list):

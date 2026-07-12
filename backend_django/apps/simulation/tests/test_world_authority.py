@@ -223,7 +223,8 @@ def test_npc_inventado_o_malformado_rechazado(estudiante, case_version_id):
 def test_npc_canonico_aceptado(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _world(c, attempt_id, token)
+    world = _world(c, attempt_id, token)
+    assert _move(c, attempt_id, token, 560, 380, world["map"]["key"]).status_code == 200
 
     resp = c.post(
         f"/api/simulation/attempts/{attempt_id}/npcs/enfermera-urgencias",
@@ -231,6 +232,21 @@ def test_npc_canonico_aceptado(estudiante, case_version_id):
     )
     assert resp.status_code == 200
     assert "enfermera-urgencias" in resp.data["data"]["flags"]["viewedNpcKeys"]
+
+
+def test_npc_remoto_rechazado_sin_evidencia_ni_evento(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    _world(c, attempt_id, token)  # spawn (480, 430); nurse is authored at (560, 330)
+
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/npcs/enfermera-urgencias",
+        {"attemptToken": token}, format="json",
+    )
+
+    assert resp.status_code == 400
+    assert _events(attempt_id, "NPC_DIALOGUE_VIEWED") == 0
+    assert _world(c, attempt_id, token)["flags"].get("viewedNpcKeys") in (None, [])
 
 
 # ─── 4C: herramientas ────────────────────────────────────────────────────────

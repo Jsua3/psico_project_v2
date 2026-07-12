@@ -559,6 +559,29 @@ FURNITURE = {
 }
 
 #: room_kind por mapa (qué set de muebles/colisiones usa).
+AMBIENT_NPC_INTERACTION_RADIUS = 60
+
+
+def _ambient_npc(key, x, y):
+    return {
+        "key": key,
+        "x": x,
+        "y": y,
+        "interactionRadius": AMBIENT_NPC_INTERACTION_RADIUS,
+    }
+
+
+def _ambient(music, mood, ambient_npcs, **extra):
+    """Persist one canonical NPC spatial contract plus a legacy key projection."""
+    return {
+        "music": music,
+        "mood": mood,
+        **extra,
+        "ambientNpcs": ambient_npcs,
+        "ambientNpcKeys": [npc["key"] for npc in ambient_npcs],
+    }
+
+
 MAPS = [
     {
         "node": "hospital-urgencias",
@@ -567,10 +590,15 @@ MAPS = [
         "kind": "hospital-urgencias",
         "spawn": (480, 430),
         "theme": "hospital-urgencias",
-        # ambientNpcKeys: lista canónica de NPCs ambientales (ScenarioConfig del
-        # frontend) que el backend acepta en record_npc_interaction (GAME-01/4B).
-        "ambient": {"music": "none", "mood": "clinical-urgent",
-                     "ambientNpcKeys": ["enfermera-urgencias", "medico-guardia", "psicologa-orientadora"]},
+        # ambientNpcs es el contrato espacial canónico para record_npc_interaction.
+        "ambient": _ambient(
+            "none", "clinical-urgent",
+            [
+                _ambient_npc("enfermera-urgencias", 560, 330),
+                _ambient_npc("medico-guardia", 640, 290),
+                _ambient_npc("psicologa-orientadora", 780, 440),
+            ],
+        ),
     },
     {
         "node": "hospital-sala-escucha",
@@ -579,8 +607,10 @@ MAPS = [
         "kind": "hospital-sala-escucha",
         "spawn": (480, 430),
         "theme": "hospital-escucha",
-        "ambient": {"music": "none", "mood": "warm-private",
-                     "ambientNpcKeys": ["trabajadora-social"]},
+        "ambient": _ambient(
+            "none", "warm-private",
+            [_ambient_npc("trabajadora-social", 480, 380)],
+        ),
     },
     {
         "node": "hospital-accion-etica",
@@ -589,8 +619,10 @@ MAPS = [
         "kind": "hospital-sala-escucha",
         "spawn": (480, 430),
         "theme": "hospital-escucha",
-        "ambient": {"music": "none", "mood": "warm-private",
-                     "ambientNpcKeys": ["trabajadora-social"]},
+        "ambient": _ambient(
+            "none", "warm-private",
+            [_ambient_npc("trabajadora-social", 480, 380)],
+        ),
     },
     {
         "node": "hospital-cierre-bloque",
@@ -599,8 +631,10 @@ MAPS = [
         "kind": "hospital-sala-escucha",
         "spawn": (480, 430),
         "theme": "hospital-escucha",
-        "ambient": {"music": "none", "mood": "warm-private",
-                     "ambientNpcKeys": ["trabajadora-social"]},
+        "ambient": _ambient(
+            "none", "warm-private",
+            [_ambient_npc("trabajadora-social", 480, 380)],
+        ),
     },
     {
         "node": "comisaria-recepcion",
@@ -609,9 +643,15 @@ MAPS = [
         "kind": "comisaria-recepcion",
         "spawn": (160, 452),
         "theme": "comisaria-recepcion",
-        "ambient": {"music": "none", "mood": "institutional",
-                     "transitionText": TIME_JUMP_TEXT,
-                     "ambientNpcKeys": ["orientadora-juridica", "sobreviviente-espera", "madre-acompanante"]},
+        "ambient": _ambient(
+            "none", "institutional",
+            [
+                _ambient_npc("orientadora-juridica", 320, 360),
+                _ambient_npc("sobreviviente-espera", 180, 380),
+                _ambient_npc("madre-acompanante", 230, 396),
+            ],
+            transitionText=TIME_JUMP_TEXT,
+        ),
     },
     {
         "node": "comisaria-consultorio",
@@ -620,9 +660,10 @@ MAPS = [
         "kind": "comisaria-consultorio",
         "spawn": (480, 430),
         "theme": "comisaria-consultorio",
-        "ambient": {"music": "none", "mood": "reserved",
-                     "ambientNpcKeys": ["apoyo-psicosocial", "familiar-comisaria", "colega-comisaria",
-                                        "paciente-comisaria", "supervisor-comisaria", "supervisor-cierre"]},
+        "ambient": _ambient(
+            "none", "reserved",
+            [_ambient_npc("apoyo-psicosocial", 660, 430)],
+        ),
     },
     {
         "node": "comisaria-accion-final",
@@ -631,9 +672,10 @@ MAPS = [
         "kind": "comisaria-consultorio",
         "spawn": (480, 430),
         "theme": "comisaria-consultorio",
-        "ambient": {"music": "none", "mood": "reserved",
-                     "ambientNpcKeys": ["apoyo-psicosocial", "familiar-comisaria", "colega-comisaria",
-                                        "paciente-comisaria", "supervisor-comisaria", "supervisor-cierre"]},
+        "ambient": _ambient(
+            "none", "reserved",
+            [_ambient_npc("apoyo-psicosocial", 660, 430)],
+        ),
     },
     {
         "node": "cierre-caso",
@@ -642,9 +684,10 @@ MAPS = [
         "kind": "comisaria-consultorio",
         "spawn": (480, 430),
         "theme": "comisaria-consultorio",
-        "ambient": {"music": "none", "mood": "reserved",
-                     "ambientNpcKeys": ["apoyo-psicosocial", "familiar-comisaria", "colega-comisaria",
-                                        "paciente-comisaria", "supervisor-comisaria", "supervisor-cierre"]},
+        "ambient": _ambient(
+            "none", "reserved",
+            [_ambient_npc("apoyo-psicosocial", 660, 430)],
+        ),
     },
 ]
 
