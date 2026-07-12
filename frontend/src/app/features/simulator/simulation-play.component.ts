@@ -1002,6 +1002,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   private readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
+  private pendingEvidenceMissing: string[] = [];
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
@@ -1481,22 +1482,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
     if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
       this.pendingEvidenceDecisionId = decisionOptionId;
+      this.pendingEvidenceMissing = [...missing];
       const message = this.evidenceMissingMessage(evidenceDef, missing);
       this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
       this.announce(message);
       return;
     }
-    const evidenceOverride = Boolean(
-      evidenceDef && missing.length && this.pendingEvidenceDecisionId === decisionOptionId,
-    );
+    const evidenceOverride = this.pendingEvidenceDecisionId === decisionOptionId
+      && this.pendingEvidenceMissing.length > 0;
+    const confirmedMissingEvidence = evidenceOverride ? this.pendingEvidenceMissing : [];
     this.pendingEvidenceDecisionId = null;
+    this.pendingEvidenceMissing = [];
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
       this.simulationService.chooseDecision(
         game.attemptId, game.attemptToken, decisionOptionId,
-        evidenceOverride, evidenceOverride ? missing : [],
+        evidenceOverride, confirmedMissingEvidence,
       ).subscribe({
         next: updated => {
           this.attempt.set(updated);
