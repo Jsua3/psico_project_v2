@@ -53,3 +53,10 @@ No se observaron warnings de `staticfiles`, deprecación `ts-jest`, opciones dup
 - Los overlays de reanudación, video, contexto, diálogo y bitácora tienen focus trap; las zonas de HUD, canvas y acciones de fondo quedan `inert` y ocultas al árbol de accesibilidad mientras el overlay bloquea.
 - Evidencia fresca: `npm run test:frontend` pasó **47 suites / 294 pruebas**; `npm run build:frontend` pasó sin warnings; `npm run test:e2e` pasó **matriz API 16/16 + Playwright 12/12**. El recorrido Playwright tabuló ocho ciclos dentro de la bitácora sin perder el foco y confirmó la ausencia de `button.sr-only` en el caso.
 - Sigue pendiente ejecutar Axe tras los estados dinámicos y la matriz completa `1600×900`, `1366×768`, `390×844`, `412×915`; por eso este addendum no declara cerrada la dimensión de accesibilidad.
+
+## Addendum GAME-DOOR-ENTRY-01 — 2026-07-12
+
+- `enter_room` ya no acepta coordenadas de entrada: tras validar `doorKey`, destino, proximidad y requisitos, el backend toma `entryX`/`entryY` del metadato autorado de esa puerta.
+- La regresión adversarial envía `(99999, -50)` para `puerta-sala-escucha` y recibe el spawn autorado `(160, 452)`; el cliente Angular ya no serializa esos campos.
+- Evidencia fresca: 52 pruebas espaciales backend, 47 suites / 295 pruebas frontend y E2E aislado con matriz API 16/16 más Playwright 12/12, todos verdes.
+- El alcance no resuelve todavía hitbox completo del jugador ni la paridad formal entre colisiones Tiled y `collision_zones` backend; ambos permanecen en GAME-SPATIAL-02.
