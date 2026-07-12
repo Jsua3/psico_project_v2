@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
@@ -39,6 +39,189 @@ export function parseLoopbackPort(value, label) {
   return raw;
 }
 
+export function parseAttestationNonce(value, label = 'nonce de atestacion') {
+  const raw = typeof value === 'string' ? value : '';
+  if (!/^[A-Za-z0-9_-]{32,}$/.test(raw)) {
+    throw new TypeError(`${label} debe ser base64url y tener al menos 32 caracteres.`);
+  }
+  return raw;
+}
+
+function requireCommandPart(value, label) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`Se requiere ${label}.`);
+  }
+  return value;
+}
+
+export function buildAngularCommand({ node, cli, port, proxy, attestationNonce } = {}) {
+  const command = requireCommandPart(node, 'el ejecutable de Node');
+  const cliPath = requireCommandPart(cli, 'el CLI local de Angular');
+  const proxyPath = requireCommandPart(proxy, 'el proxy config de Angular');
+  const parsedPort = parseLoopbackPort(port, 'SIEP_E2E_WEB_PORT');
+  const nonce = parseAttestationNonce(attestationNonce, 'El nonce de atestacion Angular');
+  return {
+    command,
+    args: [
+      cliPath,
+      'serve',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      parsedPort,
+      '--proxy-config',
+      proxyPath,
+      '--headers',
+      'X-SIEP-Test-Environment=isolated',
+      '--headers',
+      `X-SIEP-Test-Run=${nonce}`,
+    ],
+    options: { shell: false },
+  };
+}
+
+export function buildPlaywrightCommand({ node, cli, extraArgs = [] } = {}) {
+  const command = requireCommandPart(node, 'el ejecutable de Node');
+  const cliPath = requireCommandPart(cli, 'el CLI local de Playwright');
+  if (!Array.isArray(extraArgs)) throw new TypeError('extraArgs debe ser un array.');
+  return {
+    command,
+    args: [cliPath, 'test', ...extraArgs],
+    options: { shell: false },
+  };
+}
+
+export function buildApiMatrixCommand({ node, script } = {}) {
+  return {
+    command: requireCommandPart(node, 'el ejecutable de Node'),
+    args: [requireCommandPart(script, 'el script de matriz API')],
+    options: { shell: false },
+  };
+}
+
+export function parseE2ERunnerArgs(argv = []) {
+  if (!Array.isArray(argv)) throw new TypeError('argv debe ser un array.');
+  return {
+    apiOnly: argv.includes('--api-only'),
+    playwrightArgs: argv.filter((arg) => arg !== '--api-only'),
+  };
+}
+
+export function requireExistingFile(path, label, existsSyncImpl = existsSync) {
+  const filePath = requireCommandPart(path, 'la ruta local requerida');
+  const fileLabel = requireCommandPart(label, 'la etiqueta del archivo requerido');
+  if (typeof existsSyncImpl !== 'function') throw new TypeError('Se requiere existsSync.');
+  if (!existsSyncImpl(filePath)) {
+    throw new Error(`${fileLabel} local no existe: ${filePath}`);
+  }
+  return filePath;
+}
+
+function rejectedApiTarget(reason) {
+  return { ok: false, reason };
+}
+
+export function assessApiE2ETarget({ apiBase, expectedAttestation } = {}) {
+  if (typeof apiBase !== 'string' || apiBase.length === 0) {
+    return rejectedApiTarget('SIEP_API_BASE es obligatorio y no tiene default.');
+  }
+
+  let target;
+  try {
+    target = new URL(apiBase);
+  } catch {
+    return rejectedApiTarget('SIEP_API_BASE no es una URL valida.');
+  }
+
+  if (target.protocol !== 'http:') {
+    return rejectedApiTarget('SIEP_API_BASE debe usar http dentro del stack local aislado.');
+  }
+  if (target.username || target.password) {
+    return rejectedApiTarget('SIEP_API_BASE no puede incluir credenciales.');
+  }
+  if (target.search || target.hash) {
+    return rejectedApiTarget('SIEP_API_BASE no puede incluir query ni fragment.');
+  }
+  if (target.pathname !== '/api') {
+    return rejectedApiTarget('SIEP_API_BASE debe apuntar exactamente a /api.');
+  }
+
+  const hostname = target.hostname.toLowerCase();
+  if (hostname !== '127.0.0.1' && hostname !== 'localhost') {
+    return rejectedApiTarget('SIEP_API_BASE debe usar el loopback 127.0.0.1.');
+  }
+
+  let port;
+  try {
+    port = parseLoopbackPort(target.port, 'SIEP_API_BASE port');
+  } catch (error) {
+    return rejectedApiTarget(error.message);
+  }
+
+  const canonicalBase = `http://127.0.0.1:${port}/api`;
+  if (canonicalBase === 'http://127.0.0.1:8091/api') {
+    return rejectedApiTarget('SIEP_API_BASE no puede apuntar al target compartido de desarrollo.');
+  }
+  if (expectedAttestation !== 'isolated') {
+    return rejectedApiTarget('SIEP_API_EXPECTED_ATTESTATION debe ser literalmente isolated.');
+  }
+
+  return {
+    ok: true,
+    apiBase: canonicalBase,
+    expectedAttestation,
+  };
+}
+
+const API_CREDENTIAL_FIELDS = Object.freeze({
+  ADMIN: Object.freeze({
+    email: 'SIEP_API_ADMIN_EMAIL',
+    password: 'SIEP_API_ADMIN_PASSWORD',
+  }),
+  PROFESOR: Object.freeze({
+    email: 'SIEP_API_PROFESOR_EMAIL',
+    password: 'SIEP_API_PROFESOR_PASSWORD',
+  }),
+  ESTUDIANTE: Object.freeze({
+    email: 'SIEP_API_ESTUDIANTE_EMAIL',
+    password: 'SIEP_API_ESTUDIANTE_PASSWORD',
+  }),
+});
+
+export function createApiE2EConfig(env = {}) {
+  const target = assessApiE2ETarget({
+    apiBase: env.SIEP_API_BASE,
+    expectedAttestation: env.SIEP_API_EXPECTED_ATTESTATION,
+  });
+  if (!target.ok) throw new TypeError(target.reason);
+  const expectedAttestationNonce = parseAttestationNonce(
+    env.SIEP_API_EXPECTED_ATTESTATION_NONCE,
+    'SIEP_API_EXPECTED_ATTESTATION_NONCE',
+  );
+
+  const requiredCredentials = Object.values(API_CREDENTIAL_FIELDS).flatMap(Object.values);
+  const missing = requiredCredentials.filter((name) => (
+    typeof env[name] !== 'string' || env[name].trim().length === 0
+  ));
+  if (missing.length > 0) {
+    throw new TypeError(`Faltan credenciales API explicitas: ${missing.join(', ')}.`);
+  }
+
+  const users = {};
+  for (const [role, fields] of Object.entries(API_CREDENTIAL_FIELDS)) {
+    users[role] = {
+      email: env[fields.email],
+      password: env[fields.password],
+    };
+  }
+  return {
+    apiBase: target.apiBase,
+    expectedAttestation: target.expectedAttestation,
+    expectedAttestationNonce,
+    users,
+  };
+}
+
 export function createEphemeralPassword(randomBytesImpl = randomBytes) {
   const password = Buffer.from(randomBytesImpl(32)).toString('base64url');
   if (password.length < 32) {
@@ -54,6 +237,7 @@ function sanitizeBackendProcessEnv(baseEnv) {
     if (normalizedKey === 'DATABASE_URL') continue;
     if (normalizedKey.startsWith('PG')) continue;
     if (normalizedKey === 'SIEP_TEST_DB_PASSWORD') continue;
+    if (normalizedKey === 'SIEP_TEST_ATTESTATION_NONCE') continue;
     env[key] = value;
   }
   return env;
@@ -67,6 +251,26 @@ function canonicalLoopbackHost(value) {
   throw new TypeError('SIEP_TEST_DB_HOST debe ser un host loopback local.');
 }
 
+function createDomainSeparatedEphemeralSecret(domain, randomBytesImpl) {
+  const entropy = Buffer.from(randomBytesImpl(32));
+  return createHash('sha256').update(domain).update(entropy).digest('base64url');
+}
+
+export function assertDistinctTestPorts({ dbPort, apiPort, webPort } = {}) {
+  const ports = {
+    dbPort: parseLoopbackPort(dbPort, 'SIEP_TEST_DB_PORT'),
+    apiPort: parseLoopbackPort(apiPort, 'SIEP_E2E_API_PORT'),
+    webPort: webPort === undefined
+      ? undefined
+      : parseLoopbackPort(webPort, 'SIEP_E2E_WEB_PORT'),
+  };
+  const definedPorts = Object.values(ports).filter((port) => port !== undefined);
+  if (new Set(definedPorts).size !== definedPorts.length) {
+    throw new Error('Los puertos aislados de BD, API y web deben ser distintos.');
+  }
+  return ports;
+}
+
 export function createFrontendProcessEnv(baseEnv = {}) {
   const env = {};
   for (const [key, value] of Object.entries(baseEnv)) {
@@ -74,6 +278,8 @@ export function createFrontendProcessEnv(baseEnv = {}) {
     if (normalizedKey === 'DATABASE_URL') continue;
     if (normalizedKey.startsWith('PG')) continue;
     if (normalizedKey.startsWith('SIEP_TEST_DB_')) continue;
+    if (normalizedKey.startsWith('SIEP_API_')) continue;
+    if (normalizedKey.startsWith('E2E_STUDENT_')) continue;
     env[key] = value;
   }
   return env;
@@ -166,12 +372,14 @@ export function formatErrorDetails(error) {
 }
 
 export function createTestDatabaseRuntime(baseEnv = {}, randomBytesImpl = randomBytes) {
+  const password = createDomainSeparatedEphemeralSecret('siep-test-db-password', randomBytesImpl);
+  const attestationNonce = createDomainSeparatedEphemeralSecret('siep-test-attestation-nonce', randomBytesImpl);
   const database = {
     name: baseEnv.SIEP_TEST_DB_NAME ?? 'psychosim_test',
     host: canonicalLoopbackHost(baseEnv.SIEP_TEST_DB_HOST ?? '127.0.0.1'),
     port: parseLoopbackPort(baseEnv.SIEP_TEST_DB_PORT ?? '5544', 'SIEP_TEST_DB_PORT'),
     user: baseEnv.SIEP_TEST_DB_USER ?? 'psychosim_test',
-    password: createEphemeralPassword(randomBytesImpl),
+    password,
   };
   const env = {
     ...sanitizeBackendProcessEnv(baseEnv),
@@ -180,8 +388,9 @@ export function createTestDatabaseRuntime(baseEnv = {}, randomBytesImpl = random
     SIEP_TEST_DB_PORT: database.port,
     SIEP_TEST_DB_USER: database.user,
     SIEP_TEST_DB_PASSWORD: database.password,
+    SIEP_TEST_ATTESTATION_NONCE: attestationNonce,
   };
-  return { database, env };
+  return { database, env, attestationNonce };
 }
 
 function commandError(label, result) {

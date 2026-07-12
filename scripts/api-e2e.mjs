@@ -1,109 +1,109 @@
 #!/usr/bin/env node
 /**
- * Prueba HTTP end-to-end contra el backend vivo (localhost:8091 por defecto).
- * Requiere stack levantado con usuarios demo (npm run up / bootstrap_dev_db).
- *
- * Uso: npm run test:api:e2e
- *      SIEP_API_BASE=http://127.0.0.1:8091/api npm run test:api:e2e
+ * Matriz HTTP end-to-end contra un backend de test local y atestado.
+ * El target y las seis credenciales son obligatorios; este script no tiene
+ * defaults de desarrollo y valida la configuracion antes de tocar la red.
  */
-import { dirname, join } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const API_BASE = (process.env.SIEP_API_BASE ?? 'http://localhost:8091/api').replace(/\/$/, '');
+import { createApiE2EConfig } from './test-runner-support.mjs';
 
-const DEMO_USERS = {
-  ADMIN: { email: 'admin@psychosim.edu.co', password: 'Admin123!' },
-  PROFESOR: { email: 'profesora@psychosim.edu.co', password: 'Profesor123!' },
-  ESTUDIANTE: { email: 'estudiante@psychosim.edu.co', password: 'Estudiante123!' },
-};
+const TEST_ENVIRONMENT_HEADER = 'x-siep-test-environment';
 
-const failures = [];
+function createRequester(apiBase, fetchImpl) {
+  return async function request(method, path, { token, body } = {}) {
+    const headers = { Accept: 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-function fail(name, detail) {
-  failures.push({ name, detail });
-  console.error(`  FAIL  ${name}: ${detail}`);
-}
-
-function pass(name) {
-  console.log(`  OK    ${name}`);
-}
-
-async function request(method, path, { token, body } = {}) {
-  const headers = { Accept: 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  let data = null;
-  const text = await res.text();
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
+    const response = await fetchImpl(`${apiBase}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = null;
+    const text = await response.text();
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
     }
-  }
-  return { status: res.status, data };
-}
-
-async function login(role) {
-  const creds = DEMO_USERS[role];
-  const res = await request('POST', '/auth/login', { body: creds });
-  if (res.status !== 200 || !res.data?.data?.token) {
-    throw new Error(`login ${role} -> ${res.status} ${JSON.stringify(res.data)}`);
-  }
-  return {
-    token: res.data.data.token,
-    user: res.data.data.user,
+    return {
+      status: response.status,
+      data,
+      headers: response.headers,
+    };
   };
 }
 
-function expectStatus(name, actual, expected) {
-  const ok = Array.isArray(expected)
-    ? expected.includes(actual)
-    : actual === expected;
-  if (ok) {
-    pass(name);
-  } else {
-    fail(name, `esperado ${expected}, recibido ${actual}`);
-  }
+export async function ensureServer({
+  request,
+  expectedAttestation,
+  expectedAttestationNonce,
+}) {
+  const response = await request('GET', '/auth/me');
+  return response.status === 401
+    && response.headers.get(TEST_ENVIRONMENT_HEADER) === expectedAttestation
+    && response.headers.get('x-siep-test-run') === expectedAttestationNonce
+    && response.headers.get('cache-control') === 'no-store';
 }
 
-async function ensureServer() {
-  try {
-    const res = await request('GET', '/auth/me');
-    if (res.status === 401) {
-      return true;
-    }
-    if (res.status >= 500) {
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error(`[siep] No se pudo conectar a ${API_BASE}: ${err.message}`);
-    return false;
+function redactError(error, env) {
+  let message = String(error?.message ?? error ?? 'Error desconocido.');
+  for (const name of [
+    'SIEP_API_ADMIN_PASSWORD',
+    'SIEP_API_PROFESOR_PASSWORD',
+    'SIEP_API_ESTUDIANTE_PASSWORD',
+  ]) {
+    const secret = env?.[name];
+    if (secret) message = message.replaceAll(secret, '[REDACTED]');
   }
+  return message;
 }
 
-async function main() {
-  console.log(`[siep] API e2e — base ${API_BASE}`);
+export async function main(env = process.env, fetchImpl = globalThis.fetch) {
+  const config = createApiE2EConfig(env);
+  if (typeof fetchImpl !== 'function') throw new TypeError('No existe una implementacion de fetch.');
 
-  if (!(await ensureServer())) {
-    console.error('[siep] Levanta el backend (npm run up) antes de ejecutar esta prueba.');
-    process.exit(1);
+  const request = createRequester(config.apiBase, fetchImpl);
+  const failures = [];
+  const fail = (name, detail) => {
+    failures.push({ name, detail });
+    console.error(`  FAIL  ${name}: ${detail}`);
+  };
+  const pass = (name) => console.log(`  OK    ${name}`);
+  const expectStatus = (name, actual, expected) => {
+    const accepted = Array.isArray(expected) ? expected.includes(actual) : actual === expected;
+    if (accepted) pass(name);
+    else fail(name, `esperado ${expected}, recibido ${actual}`);
+  };
+  const login = async (role) => {
+    const response = await request('POST', '/auth/login', { body: config.users[role] });
+    if (response.status !== 200 || !response.data?.data?.token) {
+      throw new Error(`login ${role} respondio ${response.status}`);
+    }
+    return {
+      token: response.data.data.token,
+      user: response.data.data.user,
+    };
+  };
+
+  console.log(`[siep] API e2e aislada - base ${config.apiBase}`);
+  if (!(await ensureServer({
+    request,
+    expectedAttestation: config.expectedAttestation,
+    expectedAttestationNonce: config.expectedAttestationNonce,
+  }))) {
+    console.error('[siep] El backend no demostro status 401 y atestacion isolated; matriz cancelada.');
+    return 1;
   }
 
-  // Sin token / token inválido
   expectStatus('GET /auth/me sin token -> 401', (await request('GET', '/auth/me')).status, 401);
   expectStatus(
-    'GET /auth/me token inválido -> 401',
+    'GET /auth/me token invalido -> 401',
     (await request('GET', '/auth/me', { token: 'token-invalido.e2e' })).status,
     401,
   );
@@ -113,9 +113,8 @@ async function main() {
     401,
   );
 
-  // Login por rol
   const tokens = {};
-  for (const role of Object.keys(DEMO_USERS)) {
+  for (const role of Object.keys(config.users)) {
     try {
       const session = await login(role);
       tokens[role] = session.token;
@@ -124,17 +123,16 @@ async function main() {
       } else {
         pass(`login ${role}`);
       }
-    } catch (err) {
-      fail(`login ${role}`, err.message);
+    } catch (error) {
+      fail(`login ${role}`, error.message);
     }
   }
 
   if (!tokens.ADMIN || !tokens.PROFESOR || !tokens.ESTUDIANTE) {
-    console.error('[siep] Faltan credenciales demo. Ejecuta: manage.py bootstrap_dev_db');
-    process.exit(1);
+    console.error('[siep] Las credenciales explicitas no autenticaron los tres roles.');
+    return 1;
   }
 
-  // Matriz de permisos
   expectStatus(
     'ESTUDIANTE GET /simulation/cases -> 200',
     (await request('GET', '/simulation/cases', { token: tokens.ESTUDIANTE })).status,
@@ -182,19 +180,34 @@ async function main() {
   );
 
   const loginBad = await request('POST', '/auth/login', {
-    body: { email: DEMO_USERS.ADMIN.email, password: 'wrong-password' },
+    body: {
+      email: config.users.ADMIN.email,
+      password: `${config.users.ADMIN.password}__invalid__`,
+    },
   });
-  expectStatus('POST /auth/login credenciales inválidas -> 401', loginBad.status, 401);
+  expectStatus('POST /auth/login credenciales invalidas -> 401', loginBad.status, 401);
 
   console.log('');
-  if (failures.length) {
+  if (failures.length > 0) {
     console.error(`[siep] ${failures.length} fallo(s) en la matriz API.`);
-    process.exit(1);
+    return 1;
   }
-  console.log('[siep] Matriz API e2e: PASS');
+  console.log('[siep] Matriz API e2e: PASS (16/16)');
+  return 0;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+function isMainModule() {
+  return Boolean(process.argv[1])
+    && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+}
+
+if (isMainModule()) {
+  main()
+    .then((status) => {
+      process.exitCode = status;
+    })
+    .catch((error) => {
+      console.error(`[siep:api-e2e] ${redactError(error, process.env)}`);
+      process.exitCode = 1;
+    });
+}

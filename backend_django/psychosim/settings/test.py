@@ -22,6 +22,10 @@ from .base import *  # noqa: F401,F403
 DEBUG = False
 # El test client de Django usa el host "testserver".
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
+MIDDLEWARE = [
+    *MIDDLEWARE,  # noqa: F405
+    "shared.test_attestation.TestEnvironmentAttestationMiddleware",
+]
 
 _REQUIRED_VARS = (
     "SIEP_TEST_DB_NAME",
@@ -29,6 +33,7 @@ _REQUIRED_VARS = (
     "SIEP_TEST_DB_PORT",
     "SIEP_TEST_DB_USER",
     "SIEP_TEST_DB_PASSWORD",
+    "SIEP_TEST_ATTESTATION_NONCE",
 )
 _missing = [name for name in _REQUIRED_VARS if not os.environ.get(name)]
 if _missing:
@@ -41,6 +46,7 @@ if _missing:
 _TEST_NAME = os.environ["SIEP_TEST_DB_NAME"]
 _TEST_HOST = os.environ["SIEP_TEST_DB_HOST"]
 _TEST_PORT = os.environ["SIEP_TEST_DB_PORT"]
+SIEP_TEST_ATTESTATION_NONCE = os.environ["SIEP_TEST_ATTESTATION_NONCE"]
 
 # Guardas anti-coincidencia: mismo espíritu que scripts/dev-environment-guard.mjs.
 if os.environ.get("DATABASE_URL"):
