@@ -45,3 +45,11 @@ No se observaron warnings de `staticfiles`, deprecación `ts-jest`, opciones dup
 - La autoridad espacial backend sigue necesitando una traducción formal que garantice paridad con las geometrías visuales Tiled/TypeScript.
 - Contenido sensible, recursos de apoyo y textos clínicos requieren la revisión SME correspondiente.
 - La migración de la BD de desarrollo a un Compose propio sigue siendo una decisión del usuario; estos gates no tocaron esa base compartida.
+
+## Addendum A11Y-INPUT-01 — 2026-07-12
+
+- `SimulationPlayComponent` ahora calcula `inputBlocked` como fuente única para overlays, teclado, movimiento de Phaser y entradas que abrirían interacciones, NPCs, puertas, herramientas o salida segura.
+- La acción accesible ya no es una lista oculta de todos los objetos del mapa: solo aparece un botón visible para `nearbyInteraction`, el mismo objeto que el jugador puede alcanzar en el mundo.
+- Los overlays de reanudación, video, contexto, diálogo y bitácora tienen focus trap; las zonas de HUD, canvas y acciones de fondo quedan `inert` y ocultas al árbol de accesibilidad mientras el overlay bloquea.
+- Evidencia fresca: `npm run test:frontend` pasó **47 suites / 294 pruebas**; `npm run build:frontend` pasó sin warnings; `npm run test:e2e` pasó **matriz API 16/16 + Playwright 12/12**. El recorrido Playwright tabuló ocho ciclos dentro de la bitácora sin perder el foco y confirmó la ausencia de `button.sr-only` en el caso.
+- Sigue pendiente ejecutar Axe tras los estados dinámicos y la matriz completa `1600×900`, `1366×768`, `390×844`, `412×915`; por eso este addendum no declara cerrada la dimensión de accesibilidad.
