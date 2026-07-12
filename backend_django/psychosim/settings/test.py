@@ -22,10 +22,13 @@ from .base import *  # noqa: F401,F403
 DEBUG = False
 # El test client de Django usa el host "testserver".
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
+# WhiteNoise sirve los estáticos de producción, pero en test intenta inspeccionar
+# STATIC_ROOT (que no debe existir ni se necesita para la API).
 MIDDLEWARE = [
-    *MIDDLEWARE,  # noqa: F405
-    "shared.test_attestation.TestEnvironmentAttestationMiddleware",
+    middleware for middleware in MIDDLEWARE  # noqa: F405
+    if middleware != "whitenoise.middleware.WhiteNoiseMiddleware"
 ]
+MIDDLEWARE.append("shared.test_attestation.TestEnvironmentAttestationMiddleware")
 
 _REQUIRED_VARS = (
     "SIEP_TEST_DB_NAME",
