@@ -227,6 +227,21 @@ def read_case_state(attempt):
     return flags, metrics
 
 
+def clinical_state(attempt):
+    """Clinical HUD projection derived only from persisted attempt world state."""
+    flags, metrics = read_case_state(attempt)
+    trust = metrics["confianza"]
+    return {
+        "papApplied": bool(flags.get("pap_aplicado")),
+        "patient": {
+            "emotionalState": metrics["calidad_duelo"],
+            "trustLevel": trust,
+            "openness": trust,
+            "crisisLevel": metrics["crisis_emocional"],
+        },
+    }
+
+
 def apply_case_effects(attempt, decision):
     """Aplica flags + métricas de la opción al estado del mundo del intento.
 

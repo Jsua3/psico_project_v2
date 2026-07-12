@@ -239,6 +239,7 @@ def attempt_state(attempt, raw_token, feedback, events=None):
         "accumulatedScore": attempt.accumulated_score,
         "stressIndex": attempt.stress_index,
         "metrics": metrics(attempt),
+        "clinicalState": case_effects.clinical_state(attempt),
         "currentNode": node_state(attempt.current_node, in_progress),
         "feedback": feedback,
         "completionReport": completion_report,

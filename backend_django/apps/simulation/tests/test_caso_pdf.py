@@ -199,6 +199,15 @@ def test_decision_hospital_recomendada_aplica_flags(estudiante, case_version_id)
     _world(c, attempt_id, token)  # materializa el world state
     state = _decide(c, attempt_id, token, "h1-pap-contencion", case_version_id)
     assert state["feedback"]["classification"] == "ADEQUATE"
+    assert state["clinicalState"] == {
+        "papApplied": True,
+        "patient": {
+            "emotionalState": 65,
+            "trustLevel": 65,
+            "openness": 65,
+            "crisisLevel": 30,
+        },
+    }
     world = _world(c, attempt_id, token)
     flags = world["flags"]["caseFlags"]
     metrics = world["flags"]["caseMetrics"]

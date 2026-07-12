@@ -42,6 +42,7 @@ export interface SimulationAttemptState {
   accumulatedScore: number;
   stressIndex: number;
   metrics: SimulationMetrics;
+  clinicalState?: ClinicalState;
   currentNode: SimulationNodeState;
   feedback: SimulationFeedback | null;
   completionReport: AttemptCompletionReport | null;
@@ -55,6 +56,11 @@ export interface SimulationMetrics {
   userTrust: number;
   institutionalRouteActivated: boolean;
   revictimizationRisk: boolean;
+}
+
+export interface ClinicalState {
+  papApplied: boolean;
+  patient: PatientState;
 }
 
 export interface AttemptTimelineEntry {
