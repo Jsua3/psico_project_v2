@@ -31,7 +31,7 @@
 | `npm run test:api:e2e` | **16/16 PASS** contra el backend aislado (`SIEP_API_BASE=:8093`) · exit 0 |
 | `npm run test:e2e` (Playwright, stack aislado) | **11/11 passed** (18.3 s) · exit 0 |
 
-Warnings conocidos que persisten (preexistentes, clasificados): `staticfiles/` ausente en pytest (toolchain), config `ts-jest` obsoleta (deprecation, no bloqueante).
+Los warnings `staticfiles/` de WhiteNoise y `ts-jest` obsoleto fueron eliminados y re-verificados el 2026-07-12; véase `2026-07-11-calidad-9-10-evidencia.md`.
 
 ## Evidencia live
 
@@ -59,3 +59,10 @@ Warnings conocidos que persisten (preexistentes, clasificados): `staticfiles/` a
 ## Próximo paso recomendado
 
 Decidir la migración de la BD de desarrollo al proyecto Compose propio (`npm run up` + `npm run db:bootstrap -- --yes` con puerto libre) y continuar con A11Y-01 (focus traps globales + Axe + matriz de viewports completa).
+
+## Addendum 2026-07-12 — runner efímero y evidencia actualizada
+
+- El runner ya no deja un contenedor activo a la espera de `test:backend:down`: cada ejecución deriva el proyecto Compose desde el checkout, prueba ownership y ejecuta teardown en `finally`. La comprobación posterior confirmó cero contenedores, redes y volúmenes de `psico-project-v3-test-7b12c7b1e9`.
+- La atestación pasó de una cabecera estática a un nonce efímero por ejecución para backend y Angular; antes de enviar credenciales, el runner exige que ambos devuelvan exactamente ese nonce.
+- Los cuatro GET privados de intento (`attempt`, `progress-map`, `world`, `completion-report`) aceptan solo `X-SIEP-Attempt-Token`, responden `Cache-Control: no-store` y ya no escriben el token en la URL.
+- El detalle verificable de comandos, conteos, puertos libres y límites restantes se registra en `2026-07-11-calidad-9-10-evidencia.md`.
