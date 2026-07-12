@@ -57,6 +57,8 @@ POSITION_BUDGET_MAX_SECONDS = 30
 INTERACTION_RANGE_PX = 120
 #: Claves canónicas de NPC: slug en minúsculas.
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+PLAYER_HITBOX_WIDTH = 22
+PLAYER_HITBOX_HEIGHT = 16
 
 
 def _require_finite_int(value, name):
@@ -74,6 +76,25 @@ def _rect_distance(px, py, rect_x, rect_y, rect_w, rect_h):
     return math.hypot(dx, dy)
 
 
+def _player_hitbox(x, y):
+    """Feet rectangle shared with frontend/player-motion.util.ts."""
+    return (
+        x - PLAYER_HITBOX_WIDTH // 2,
+        y - PLAYER_HITBOX_HEIGHT,
+        PLAYER_HITBOX_WIDTH,
+        PLAYER_HITBOX_HEIGHT,
+    )
+
+
+def _rectangles_intersect(a_x, a_y, a_w, a_h, b_x, b_y, b_w, b_h):
+    return (
+        a_x < b_x + b_w
+        and a_x + a_w > b_x
+        and a_y < b_y + b_h
+        and a_y + a_h > b_y
+    )
+
+
 def _require_nearby(world_state, map_object, what="el objeto"):
     distance = _rect_distance(
         world_state.player_x, world_state.player_y,
@@ -85,15 +106,19 @@ def _require_nearby(world_state, map_object, what="el objeto"):
 
 
 def _position_blocked(scene_map_id, x, y):
-    """¿El punto (pies del jugador) cae dentro de la autoridad espacial del
-    backend? Fuente canónica: collision_zones + map_objects con collision."""
+    """¿El hitbox completo de pies solapa la geometría autoritativa del mapa?"""
+    player_x, player_y, player_w, player_h = _player_hitbox(x, y)
     for zone in CollisionZone.objects.filter(scene_map_id=scene_map_id):
-        if zone.position_x <= x < zone.position_x + zone.width \
-                and zone.position_y <= y < zone.position_y + zone.height:
+        if _rectangles_intersect(
+            player_x, player_y, player_w, player_h,
+            zone.position_x, zone.position_y, zone.width, zone.height,
+        ):
             return True
     for obj in MapObject.objects.filter(scene_map_id=scene_map_id, collision=True, visible=True):
-        if obj.position_x <= x < obj.position_x + (obj.width or 0) \
-                and obj.position_y <= y < obj.position_y + (obj.height or 0):
+        if _rectangles_intersect(
+            player_x, player_y, player_w, player_h,
+            obj.position_x, obj.position_y, obj.width or 0, obj.height or 0,
+        ):
             return True
     return False
 
@@ -145,7 +170,9 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
     y = _require_finite_int(player_y, "playerY")
     map_w = world_state.scene_map.width or 960
     map_h = world_state.scene_map.height or 540
-    if not (0 <= x <= map_w and 0 <= y <= map_h):
+    hitbox_x, hitbox_y, hitbox_w, hitbox_h = _player_hitbox(x, y)
+    if not (0 <= hitbox_x and hitbox_x + hitbox_w <= map_w
+            and 0 <= hitbox_y and hitbox_y + hitbox_h <= map_h):
         raise ValidationError("La posición está fuera de los límites del mapa")
     _require_plausible_displacement(world_state, x, y)
     if _position_blocked(world_state.scene_map_id, x, y):

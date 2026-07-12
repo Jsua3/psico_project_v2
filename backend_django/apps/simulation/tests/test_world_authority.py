@@ -111,6 +111,18 @@ def test_dentro_de_collider_rechazado(estudiante, case_version_id):
     assert _player(attempt_id) == (480, 430)
 
 
+def test_hitbox_completo_no_puede_solapar_collider(estudiante, case_version_id):
+    """El punto de pies queda fuera del mostrador, pero su hitbox invade x=380."""
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+
+    resp = _move(c, attempt_id, token, 370, 300, world["map"]["key"])
+
+    assert resp.status_code == 400
+    assert _player(attempt_id) == (480, 430)
+
+
 def test_map_key_obligatorio_y_mapa_falso_no_muta(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
