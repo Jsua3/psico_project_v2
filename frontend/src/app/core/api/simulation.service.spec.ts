@@ -34,4 +34,24 @@ describe('SimulationService private attempt GETs', () => {
     expect(request.request.headers.get('X-SIEP-Attempt-Token')).toBe(attemptToken);
     request.flush({ data: {} });
   });
+
+  it('enters a room with the authored door key, never client coordinates', () => {
+    const enterRoom = service.enterRoom.bind(service) as unknown as (
+      attemptId: string,
+      attemptToken: string,
+      targetNodeKey: string,
+      doorKey: string,
+    ) => ReturnType<SimulationService['enterRoom']>;
+
+    enterRoom('attempt-private-1', attemptToken, 'hospital-sala-escucha', 'puerta-sala-escucha').subscribe();
+
+    const request = httpMock.expectOne('/api/simulation/attempts/attempt-private-1/enter-room');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      attemptToken,
+      targetNodeKey: 'hospital-sala-escucha',
+      doorKey: 'puerta-sala-escucha',
+    });
+    request.flush({ data: {} });
+  });
 });

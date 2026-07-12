@@ -1319,7 +1319,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const target = this.doorTargetNodeKey(door);
     if (!game || !target || this.inputBlocked() || this.busy()) return;
     const meta = (door.metadata ?? {}) as {
-      entryX?: number; entryY?: number; requiresNpcs?: string[];
+      requiresNpcs?: string[];
       requiresTools?: string[]; requiresInspected?: string[];
       requiresNodes?: string[]; lockedMessage?: string;
     };
@@ -1338,8 +1338,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.withSyncedPosition(() => this.triggerFade(() => {
       this.simulationService.enterRoom(
-        game.attemptId, game.attemptToken, target,
-        Number(meta.entryX ?? 0), Number(meta.entryY ?? 0), door.key,
+        game.attemptId, game.attemptToken, target, door.key,
       ).subscribe({
         next: world => {
           this.selectedInteraction.set(null);

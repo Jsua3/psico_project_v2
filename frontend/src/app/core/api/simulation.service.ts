@@ -100,11 +100,10 @@ export class SimulationService {
   }
 
   /** Fase 5: walk-through spatial door — load the target room (non-scored).
-   *  doorKey (opcional, caso PDF): el backend valida que la puerta exista en la
-   *  sala actual, apunte al destino y cumpla sus condiciones requires*. */
-  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, entryX: number, entryY: number, doorKey?: string) {
+   *  doorKey es obligatorio; el backend deriva la entrada desde sus metadatos. */
+  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, doorKey: string) {
     return this.http.post<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/enter-room`, {
-      attemptToken, targetNodeKey, entryX, entryY, ...(doorKey ? { doorKey } : {}),
+      attemptToken, targetNodeKey, doorKey,
     }).pipe(map(response => response.data));
   }
 
