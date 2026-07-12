@@ -298,8 +298,20 @@ def get_student_report(attempt_id, actor):
     return dto.build_completion_report(attempt, events)
 
 
+def _override_evidence_labels(missing_evidence):
+    labels = []
+    for raw in missing_evidence or []:
+        label = " ".join(str(raw).split())
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
 @transaction.atomic
-def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
+def choose_decision(
+    attempt_id, attempt_token, decision_option_id, actor,
+    evidence_override=False, missing_evidence=None,
+):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if attempt.status != "IN_PROGRESS":
         raise ValidationError("El intento ya no acepta decisiones")
@@ -351,6 +363,10 @@ def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
     event_type = "PROHIBITED_DECISION_SELECTED" if decision.prohibited_conduct else "DECISION_SELECTED"
 
     message = decision_effects.format_feedback(decision, effects)
+    if evidence_override:
+        labels = _override_evidence_labels(missing_evidence)
+        if labels:
+            message = f"{message} | Override de evidencia: {', '.join(labels)}"
     attempt.current_node = decision.target_node
 
     _save_event(attempt, event_type, decision.source_node, decision, effects.score_delta, effects.stress_delta, message)

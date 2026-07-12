@@ -77,6 +77,37 @@ def test_start_attempt_requires_group_case_assignment(estudiante, case_version_i
     assert resp.status_code == 403
 
 
+def test_decision_override_persists_missing_evidence(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-OVERRIDE")
+    c = cl(estudiante)
+    attempt = c.post(
+        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json",
+    ).data["data"]
+    option_id = next(
+        option["id"] for option in attempt["currentNode"]["options"]
+        if option["classification"] == "ADEQUATE"
+    )
+
+    response = c.post(
+        f"/api/simulation/attempts/{attempt['attemptId']}/decisions",
+        {
+            "attemptToken": attempt["attemptToken"],
+            "decisionOptionId": option_id,
+            "evidenceOverride": True,
+            "missingEvidence": ["Hablar con la familia", "Usar PAP"],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    event = AttemptEvent.objects.get(
+        attempt_id=attempt["attemptId"], decision_option_id=option_id,
+    )
+    assert "override de evidencia" in event.detail.lower()
+    assert "Hablar con la familia" in event.detail
+    assert "Usar PAP" in event.detail
+
+
 def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case_version_id):
     assign_case_to_student(estudiante, case_version_id, "SIM-FULL")
     c = cl(estudiante)

@@ -116,6 +116,8 @@ class DecisionsView(APIView):
         state = game_service.choose_decision(
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["decisionOptionId"], request.user,
+            evidence_override=ser.validated_data["evidenceOverride"],
+            missing_evidence=ser.validated_data["missingEvidence"],
         )
         return api_ok(state, message="Decision procesada")
 

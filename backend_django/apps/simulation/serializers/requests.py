@@ -9,6 +9,13 @@ class StartAttemptRequest(serializers.Serializer):
 class SelectDecisionRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
     decisionOptionId = serializers.IntegerField()
+    evidenceOverride = serializers.BooleanField(required=False, default=False)
+    missingEvidence = serializers.ListField(
+        child=serializers.CharField(max_length=160),
+        required=False,
+        default=list,
+        max_length=8,
+    )
 
 
 class ReflectionRequest(serializers.Serializer):
