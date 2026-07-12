@@ -21,14 +21,17 @@ from .test_world import _assign_case_to_student, _start, case_version_id, cl, es
 
 User = get_user_model()
 
-WORLD = "/api/simulation/attempts/{}/world?attemptToken={}"
+WORLD = "/api/simulation/attempts/{}/world"
 STATE = "/api/simulation/attempts/{}/world-state"
 TOOLS = "/api/simulation/attempts/{}/tools/use"
 DOOR = "/api/simulation/attempts/{}/enter-room"
 
 
 def _world(c, attempt_id, token):
-    return c.get(WORLD.format(attempt_id, token)).data["data"]
+    return c.get(
+        WORLD.format(attempt_id),
+        HTTP_X_SIEP_ATTEMPT_TOKEN=token,
+    ).data["data"]
 
 
 def _move(c, attempt_id, token, x, y, map_key):

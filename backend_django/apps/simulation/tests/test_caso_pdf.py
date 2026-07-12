@@ -57,7 +57,8 @@ def _start(client, case_version_id):
 
 def _world(client, attempt_id, token):
     return client.get(
-        f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}/world",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=token,
     ).data["data"]
 
 
@@ -342,7 +343,8 @@ def test_cambiar_sala_no_puntua_ni_avanza(estudiante, case_version_id):
     _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     state = c.get(
-        f"/api/simulation/attempts/{attempt_id}?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=token,
     ).data["data"]
     assert state["accumulatedScore"] == 0
     assert state["currentNode"]["key"] == "hospital-urgencias"  # el DAG no avanzó

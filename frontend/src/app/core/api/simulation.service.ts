@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import {
@@ -43,6 +43,10 @@ export class SimulationService {
   private readonly http = inject(HttpClient);
   private readonly API = '/api/simulation';
 
+  private attemptOptions(attemptToken: string) {
+    return { headers: new HttpHeaders({ 'X-SIEP-Attempt-Token': attemptToken }) };
+  }
+
   listCases() {
     return this.http.get<ApiResponse<SimulationCaseSummary[]>>(`${this.API}/cases`)
       .pipe(map(response => response.data));
@@ -65,20 +69,23 @@ export class SimulationService {
   }
 
   getProgressMap(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<ProgressMapState>>(`${this.API}/attempts/${attemptId}/progress-map`, { params })
+    return this.http.get<ApiResponse<ProgressMapState>>(
+      `${this.API}/attempts/${attemptId}/progress-map`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
   getAttempt(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}`, { params })
+    return this.http.get<ApiResponse<SimulationAttemptState>>(
+      `${this.API}/attempts/${attemptId}`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
   getWorld(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/world`, { params })
+    return this.http.get<ApiResponse<SimulationWorldState>>(
+      `${this.API}/attempts/${attemptId}/world`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
@@ -160,8 +167,9 @@ export class SimulationService {
   }
 
   getCompletionReport(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<AttemptCompletionReport>>(`${this.API}/attempts/${attemptId}/completion-report`, { params })
+    return this.http.get<ApiResponse<AttemptCompletionReport>>(
+      `${this.API}/attempts/${attemptId}/completion-report`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 

@@ -15,6 +15,18 @@ from apps.simulation.serializers.requests import (
 )
 from apps.simulation.services import game_service, world_service
 
+ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
+
+
+def _attempt_token(request):
+    return request.headers.get(ATTEMPT_TOKEN_HEADER)
+
+
+def _private_ok(data):
+    response = api_ok(data)
+    response["Cache-Control"] = "no-store"
+    return response
+
 
 def _int(value, default=0):
     if value is None:
@@ -58,16 +70,18 @@ class AttemptView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_attempt(attempt_id, token, request.user))
+        return _private_ok(game_service.get_attempt(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class CompletionReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_completion_report(attempt_id, token, request.user))
+        return _private_ok(game_service.get_completion_report(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class AttemptHistoryView(APIView):
@@ -88,8 +102,9 @@ class ProgressMapView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_progress_map(attempt_id, token, request.user))
+        return _private_ok(game_service.get_progress_map(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class DecisionsView(APIView):
@@ -148,8 +163,9 @@ class WorldView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(world_service.get_world(attempt_id, token, request.user))
+        return _private_ok(world_service.get_world(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class WorldStateView(APIView):

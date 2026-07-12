@@ -18,6 +18,10 @@ def cl(user):
     return c
 
 
+def attempt_headers(token):
+    return {"HTTP_X_SIEP_ATTEMPT_TOKEN": token}
+
+
 @pytest.fixture
 def estudiante(db, case_version_id):
     user = User.objects.create_user(
@@ -105,7 +109,7 @@ def _inspect_familia(client, attempt_id, token, map_key="hospital-urgencias"):
 def test_get_world_returns_scene(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    resp = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}")
+    resp = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token))
     assert resp.status_code == 200
     world = resp.data["data"]
     assert world["attemptId"] == attempt_id
@@ -123,7 +127,7 @@ def test_get_world_returns_scene(estudiante, case_version_id):
 def test_update_world_state_records_and_rejects_out_of_bounds(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     resp = c.patch(
         f"/api/simulation/attempts/{attempt_id}/world-state",
         {"attemptToken": token, "playerX": 340, "playerY": 430, "currentMapKey": world["map"]["key"]},
@@ -145,7 +149,7 @@ def test_update_world_state_records_and_rejects_out_of_bounds(estudiante, case_v
 def test_update_world_state_ignores_stale_map_key_after_room_change(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    initial = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    initial = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     _inspect_familia(c, attempt_id, token, initial["map"]["key"])
     _move(c, attempt_id, token, initial["map"]["key"], *PATH_TO_DOOR)
     entered = c.post(
@@ -169,7 +173,7 @@ def test_update_world_state_ignores_stale_map_key_after_room_change(estudiante, 
 def test_interaction_marks_inspected(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     resp = _inspect_familia(c, attempt_id, token, world["map"]["key"])
     assert resp.data["message"] == "Interaccion registrada"
     result = resp.data["data"]
@@ -181,7 +185,7 @@ def test_interaction_marks_inspected(estudiante, case_version_id):
 def test_tool_object_disappears_after_pickup(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     tool = next(obj for obj in world["objects"] if obj["type"] == "TOOL" and obj["toolCode"])
 
     resp = c.post(
@@ -195,14 +199,14 @@ def test_tool_object_disappears_after_pickup(estudiante, case_version_id):
     assert tool["toolCode"] in updated["inventory"]
     assert tool["key"] not in {obj["key"] for obj in updated["objects"]}
 
-    again = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    again = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     assert tool["key"] not in {obj["key"] for obj in again["objects"]}
 
 
 def test_use_tool_requires_inventory_and_no_target_is_not_pertinent(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
 
     # GAME-01/4C: sin recogerla, use_tool ya no regala la herramienta.
     rejected = c.post(
@@ -246,7 +250,7 @@ def test_record_npc_interaction_persists_in_world_flags(estudiante, case_version
     assert resp.data["message"] == "Interaccion con NPC registrada"
     assert resp.data["data"]["flags"]["viewedNpcKeys"] == ["enfermera-urgencias"]
 
-    again = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}")
+    again = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token))
     assert again.status_code == 200
     assert again.data["data"]["flags"]["viewedNpcKeys"] == ["enfermera-urgencias"]
 
@@ -254,7 +258,7 @@ def test_record_npc_interaction_persists_in_world_flags(estudiante, case_version
 def test_person_map_interaction_persists_as_viewed_npc(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     resp = _inspect_familia(c, attempt_id, token, world["map"]["key"])
     viewed = resp.data["data"]["world"]["flags"]["viewedNpcKeys"]
     assert "familia-crisis" in viewed
@@ -266,12 +270,12 @@ def test_staff_can_view_world_but_other_student_cannot(estudiante, otro_estudian
     attempt_id, token = _start(c, case_version_id)
     # Professor (staff, non-owner) may view.
     staff_resp = cl(profesor).get(
-        f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)
     )
     assert staff_resp.status_code == 200
     # A different student (non-owner, non-staff) may not.
     other_resp = cl(otro_estudiante).get(
-        f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)
     )
     assert other_resp.status_code == 403
 
@@ -286,7 +290,7 @@ def test_world_requires_token(estudiante, case_version_id):
 def test_world_objects_expose_movement_fields(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    world = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    world = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     assert world["objects"], "expected at least one world object in SIM-VBG-001"
     for obj in world["objects"]:
         assert "movementPattern" in obj
@@ -301,7 +305,7 @@ def test_world_objects_expose_movement_fields(estudiante, case_version_id):
 def test_enter_room_moves_and_persists(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    cur = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]["map"]["key"]
+    cur = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]["map"]["key"]
     _inspect_familia(c, attempt_id, token, cur)
     _move(c, attempt_id, token, cur, *PATH_TO_DOOR)
 
@@ -314,7 +318,7 @@ def test_enter_room_moves_and_persists(estudiante, case_version_id):
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-sala-escucha"
     # persists across a fresh /world load (door room is NOT reset to the DAG node's map)
-    again = c.get(f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}").data["data"]
+    again = c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)).data["data"]
     assert again["map"]["key"] == "hospital-sala-escucha"
 
 
