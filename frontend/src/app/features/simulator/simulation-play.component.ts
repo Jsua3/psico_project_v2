@@ -1022,8 +1022,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   });
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
-  readonly worldMotionPaused = computed(() =>
-    this.showContentWarning() || this.showIntroVideo() || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+  readonly inputBlocked = computed(() =>
+    this.showResumePrompt() || this.showContentWarning() || this.showIntroVideo()
+    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
+    || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+
+  readonly worldMotionPaused = computed(() => this.inputBlocked());
 
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
@@ -1194,13 +1198,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if ((event.key === 'j' || event.key === 'J') && tag !== 'INPUT' && tag !== 'TEXTAREA' && !editable) {
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+
+    if (this.inputBlocked()) {
+      if (['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
       this.journalOpen.set(!this.journalOpen());
       return;
     }
-
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
 
     if (['e','E',' ','Enter'].includes(event.key)) {
       const nb = this.nearbyInteraction();
@@ -1212,7 +1221,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') return;
+    if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
 
     if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
       this.tryOpenDoor(interaction);
@@ -1269,7 +1278,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private openBackendInteraction(interaction: MapObjectState) {
     const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') return;
+    if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
     this.withSyncedPosition(() => this.doOpenBackendInteraction(interaction));
   }
 
@@ -1303,7 +1312,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private tryOpenDoor(door: MapObjectState) {
     const game = this.attempt();
     const target = this.doorTargetNodeKey(door);
-    if (!game || !target || this.busy()) return;
+    if (!game || !target || this.inputBlocked() || this.busy()) return;
     const meta = (door.metadata ?? {}) as {
       entryX?: number; entryY?: number; requiresNpcs?: string[];
       requiresTools?: string[]; requiresInspected?: string[];
@@ -1538,7 +1547,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   selectTool(toolCode: string) {
     const tool = this.world()?.tools.find(t => t.code === toolCode);
-    if (!tool) return;
+    if (!tool || this.inputBlocked() || this.busy()) return;
     this.audioDirector.playSfx('ui_select');
     this.dialogue.set({
       key: tool.code, speakerName: 'Herramienta profesional', portraitKey: tool.icon, emotion: 'neutral',
@@ -1557,6 +1566,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
+    if (this.inputBlocked() || this.busy()) return;
     this.viewedNpcKeys.update(prev => {
       const next = new Set(prev).add(npc.key);
       this.persistViewedNpcKeys(next);
@@ -1606,7 +1616,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   safeExit() {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game || this.inputBlocked() || this.busy()) return;
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
     this.busy.set(true);

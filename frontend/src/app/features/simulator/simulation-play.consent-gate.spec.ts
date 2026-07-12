@@ -18,7 +18,7 @@ import { EMPTY, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { SimulationAttemptState } from '../../core/models/simulation.model';
+import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
 
@@ -64,6 +64,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     getWorld: jest.Mock;
     getScenarioConfig: jest.Mock;
     safeExit: jest.Mock;
+    recordNpcInteraction: jest.Mock;
   };
   let audio: {
     init: jest.Mock;
@@ -73,6 +74,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     dispose: jest.Mock;
     stopIntroLament: jest.Mock;
     playIntroLament: jest.Mock;
+    playSfx: jest.Mock;
   };
   let router: { navigate: jest.Mock };
 
@@ -86,6 +88,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       getWorld: jest.fn(() => EMPTY),
       getScenarioConfig: jest.fn(() => EMPTY),
       safeExit: jest.fn(() => EMPTY),
+      recordNpcInteraction: jest.fn(() => EMPTY),
       resumeAttempt: jest.fn(() => of(makeAttempt())),
     };
     audio = {
@@ -96,6 +99,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       dispose: jest.fn(),
       stopIntroLament: jest.fn(),
       playIntroLament: jest.fn(),
+      playSfx: jest.fn(),
     };
     router = { navigate: jest.fn() };
 
@@ -233,5 +237,43 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(component.showContentWarning()).toBe(true);
     expect(component.worldStarted()).toBe(false);
     expect(sim.getWorld).not.toHaveBeenCalled();
+  });
+
+  it('deriva un único bloqueo de input para consentimiento, diálogo y bitácora', () => {
+    setup(makeAttempt());
+
+    component.showContentWarning.set(true);
+    expect(component.inputBlocked()).toBe(true);
+
+    component.showContentWarning.set(false);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    expect(component.inputBlocked()).toBe(true);
+
+    component.dialogue.set(null);
+    component.journalOpen.set(true);
+    expect(component.inputBlocked()).toBe(true);
+  });
+
+  it('no abre una interacción cercana con E mientras un overlay bloquea el mundo', () => {
+    setup(makeAttempt());
+    component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    const open = jest.spyOn(component, 'openInteraction');
+
+    component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('no acredita NPC ni permite salida segura desde controles de fondo bloqueados', () => {
+    setup(makeAttempt());
+    component.attempt.set(makeAttempt());
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+
+    component.openNpcDialogue({ key: 'enfermera-urgencias', dialogue: { lines: [] } } as NpcConfig);
+    component.safeExit();
+
+    expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
+    expect(sim.safeExit).not.toHaveBeenCalled();
   });
 });
