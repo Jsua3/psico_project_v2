@@ -60,3 +60,14 @@ No se observaron warnings de `staticfiles`, deprecación `ts-jest`, opciones dup
 - La regresión adversarial envía `(99999, -50)` para `puerta-sala-escucha` y recibe el spawn autorado `(160, 452)`; el cliente Angular ya no serializa esos campos.
 - Evidencia fresca: 52 pruebas espaciales backend, 47 suites / 295 pruebas frontend y E2E aislado con matriz API 16/16 más Playwright 12/12, todos verdes.
 - El alcance no resuelve todavía hitbox completo del jugador ni la paridad formal entre colisiones Tiled y `collision_zones` backend; ambos permanecen en GAME-SPATIAL-02.
+
+## Addendum GAME-SPATIAL-02b — 2026-07-12
+
+- El servidor ya valida el mismo rectángulo de pies de **22×16 px** que usa el cliente: `x - 11 .. x + 11` y `y - 16 .. y`. Una posición cuyo punto no cae en el mueble, pero cuyo hitbox sí lo solapa, se rechaza sin mutar el intento.
+- Los NPCs ambientales del corte `SIM-VBG-001` se siembran como `ambientNpcs` con `key`, `x`, `y` e `interactionRadius`; `ambientNpcKeys` queda como proyección derivada, no como una segunda lista autoritativa. Las claves históricas que no representan un NPC visible del mapa actual ya no se aceptan por mera declaración.
+- `record_npc_interaction` deriva la geometría de `ambient_json` o del rectángulo autorado de un objeto `PERSON`, rechaza solicitudes remotas antes de escribir `viewedNpcKeys` o un evento, y no acepta contenido ambiental sin posición.
+- El cliente ya no acredita un NPC de forma optimista: espera el `2xx`, hidrata `viewedNpcKeys` desde el mundo devuelto y solo entonces abre el diálogo. Un error conserva la evidencia sin cambios.
+- Evidencia fresca: 54 pruebas backend espaciales, 47 suites / 296 pruebas frontend, y E2E aislado con matriz API 16/16 más Playwright 12/12, todos con salida 0.
+- Tras ese gate: cero contenedores del proyecto Compose de pruebas y cero listeners en los puertos 5544, 8093 y 4315.
+
+Todavía faltan el bucle clínico completo, diálogo por intervención, Axe y la matriz de cuatro viewports. La geometría visual de Tiled/TypeScript no se declara una segunda autoridad: para `SIM-VBG-001`, el backend decide la aceptación espacial y el gate final debe demostrar que el recorrido visual no presenta bloqueos.
