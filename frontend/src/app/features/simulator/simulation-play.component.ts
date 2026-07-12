@@ -307,16 +307,17 @@ const CASE_INTRO_PARAGRAPHS = [
             (select)="selectTool($event)" />
 
           <div class="context-bar" aria-live="polite" aria-atomic="true">
-            @if (nearbyInteraction(); as nb) {
-              <div class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'">
-                <kbd>E</kbd>
+            @if (contextualInteraction(); as nb) {
+              <button type="button" class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'"
+                (click)="openInteraction(nb)" [attr.aria-label]="'Interactuar: ' + proximityLabel(nb) + ' (atajo E)'">
+                <kbd aria-hidden="true">E</kbd>
                 <div class="context-bar__copy">
                   <strong>{{ proximityLabel(nb) }}</strong>
                   @if (proximityDescription(nb); as desc) {
                     <p>{{ desc }}</p>
                   }
                 </div>
-              </div>
+              </button>
             } @else {
               <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
             }
@@ -357,17 +358,6 @@ const CASE_INTRO_PARAGRAPHS = [
             <p class="sr-only" role="note">Contenido sensible. Salida segura con Escape.</p>
           }
           <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
-        </section>
-
-        <!-- Accessible interaction list -->
-        <section class="sr-only" aria-label="Lista accesible de puntos interactivos">
-          <div role="list">
-            @for (obj of world()?.objects ?? []; track obj.key) {
-              <button role="listitem" type="button" class="sr-only"
-                [attr.aria-label]="proximityLabel(obj) + ': ' + proximityDescription(obj)"
-                (click)="openInteraction(obj)">{{ proximityLabel(obj) }}</button>
-            }
-          </div>
         </section>
 
         <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
@@ -576,9 +566,14 @@ const CASE_INTRO_PARAGRAPHS = [
       border: 1px solid rgba(182,156,255,.35);
       border-radius: 12px;
       background: rgba(8,12,18,.88);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
       animation: hint-rise 160ms ease both;
     }
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
+    .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
     .context-bar__interaction kbd {
       flex-shrink: 0;
       padding: 3px 9px;
@@ -1028,6 +1023,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
   readonly worldMotionPaused = computed(() => this.inputBlocked());
+
+  readonly contextualInteraction = computed(() => {
+    const game = this.attempt();
+    const interaction = this.nearbyInteraction();
+    return game?.status === 'IN_PROGRESS' && !this.inputBlocked() && !this.busy()
+      ? interaction
+      : null;
+  });
 
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();

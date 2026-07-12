@@ -50,4 +50,5 @@ test('in-case world loads with the HUD', async ({ page }) => {
   await consent.getByRole('button', { name: /^continuar$/i }).click();
   await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('app-simulation-hud')).toBeVisible();
+  await expect(page.locator('button.sr-only')).toHaveCount(0);
 });

@@ -276,4 +276,16 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
     expect(sim.safeExit).not.toHaveBeenCalled();
   });
+
+  it('expone un control de interacción únicamente para el objeto cercano sin overlay', () => {
+    setup(makeAttempt());
+    component.attempt.set(makeAttempt());
+    const nearby = { key: 'familia-crisis', type: 'PERSON' } as MapObjectState;
+    component.nearbyInteraction.set(nearby);
+
+    expect(component.contextualInteraction()).toBe(nearby);
+
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    expect(component.contextualInteraction()).toBeNull();
+  });
 });
