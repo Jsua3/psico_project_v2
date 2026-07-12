@@ -227,8 +227,6 @@ class EnterRoomView(APIView):
             attempt_id,
             request.data.get("attemptToken"),
             request.data.get("targetNodeKey"),
-            request.data.get("entryX"),
-            request.data.get("entryY"),
             request.user,
             door_key=request.data.get("doorKey"),
         )

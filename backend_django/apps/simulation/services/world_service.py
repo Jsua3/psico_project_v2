@@ -323,8 +323,7 @@ def world_for_attempt(attempt):
 
 
 @transaction.atomic
-def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, actor,
-               door_key=None):
+def enter_room(attempt_id, attempt_token, target_node_key, actor, door_key=None):
     """Fase 5 — spatial door: load the target room's map for the attempt at the entry
     point, WITHOUT advancing the DAG or scoring. Decoupled from the node via
     flags.syncedNodeId so the next /world load won't reset it (until a decision does).
@@ -353,10 +352,11 @@ def enter_room(attempt_id, attempt_token, target_node_key, entry_x, entry_y, act
     if not target:
         raise NotFound(f"No hay sala para el nodo destino: {target_node_key}")
     state = require_world_state(attempt)
-    _validate_door(attempt, state, door_key, target_node_key)
+    door_meta = _validate_door(attempt, state, door_key, target_node_key)
+    entry_x, entry_y = _door_entry(door_meta, target)
     state.scene_map = target
-    state.player_x = _clamp(_int(entry_x), 0, target.width or 960)
-    state.player_y = _clamp(_int(entry_y), 0, target.height or 540)
+    state.player_x = entry_x
+    state.player_y = entry_y
     flags = _read_map(state.flags_json)
     flags["syncedNodeId"] = attempt.current_node_id  # keep — door room is intentional
     _stamp_position_sync(state, flags)
@@ -398,6 +398,19 @@ def _validate_door(attempt, state, door_key, target_node_key):
     for required in meta.get("requiresNpcs") or []:
         if required not in viewed_npcs:
             raise ValidationError(locked_message)
+    return meta
+
+
+def _door_entry(meta, target):
+    try:
+        entry_x = _require_finite_int(meta["entryX"], "entryX autorado")
+        entry_y = _require_finite_int(meta["entryY"], "entryY autorado")
+    except KeyError:
+        raise ValidationError("La puerta no tiene una entrada autorada válida")
+    return (
+        _clamp(entry_x, 0, target.width or 960),
+        _clamp(entry_y, 0, target.height or 540),
+    )
 
 
 # ─── internals ────────────────────────────────────────────────────────────────

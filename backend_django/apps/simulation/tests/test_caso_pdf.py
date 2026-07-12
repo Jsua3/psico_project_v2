@@ -97,9 +97,8 @@ def _inspect_familia_cerca(client, attempt_id, token):
     return _inspect(client, attempt_id, token, "familia-crisis")
 
 
-def _enter(client, attempt_id, token, target, door_key=None, entry=(160, 452)):
-    body = {"attemptToken": token, "targetNodeKey": target,
-            "entryX": entry[0], "entryY": entry[1]}
+def _enter(client, attempt_id, token, target, door_key=None):
+    body = {"attemptToken": token, "targetNodeKey": target}
     if door_key:
         body["doorKey"] = door_key
     return client.post(
@@ -175,22 +174,21 @@ def test_door_room_persists_after_reload(estudiante, case_version_id):
     again = _world(c, attempt_id, token)
     assert again["map"]["key"] == "hospital-sala-escucha"
     # Y la vuelta funciona (el entry 160,452 queda junto a puerta-urgencias).
-    resp = _enter(c, attempt_id, token, "hospital-urgencias", "puerta-urgencias", entry=(786, 440))
+    resp = _enter(c, attempt_id, token, "hospital-urgencias", "puerta-urgencias")
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-urgencias"
 
 
-def test_entry_coordinates_clamped(estudiante, case_version_id):
+def test_entry_coordinates_from_client_are_ignored(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _inspect_familia_cerca(c, attempt_id, token)
     _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
-    resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha",
-                  entry=(99999, -50))
+    resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 200
     player = resp.data["data"]["player"]
-    assert player["x"] == 960
-    assert player["y"] == 0
+    assert player["x"] == 160
+    assert player["y"] == 452
 
 
 # ─── Efecto mariposa: flags y métricas por decisión ───────────────────────────

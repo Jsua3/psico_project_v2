@@ -322,6 +322,28 @@ def test_enter_room_moves_and_persists(estudiante, case_version_id):
     assert again["map"]["key"] == "hospital-sala-escucha"
 
 
+def test_enter_room_uses_authored_door_entry_not_client_coordinates(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    _inspect_familia(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", *PATH_TO_DOOR)
+
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/enter-room",
+        {
+            "attemptToken": token,
+            "targetNodeKey": "hospital-sala-escucha",
+            "doorKey": "puerta-sala-escucha",
+            "entryX": 99999,
+            "entryY": -50,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    assert resp.data["data"]["player"] == {"x": 160, "y": 452}
+
+
 def test_enter_room_invalid_node(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
