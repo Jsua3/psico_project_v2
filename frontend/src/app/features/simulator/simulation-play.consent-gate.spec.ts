@@ -14,11 +14,11 @@ jest.mock('phaser', () => ({
 
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, of, throwError } from 'rxjs';
+import { EMPTY, of, Subject, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState } from '../../core/models/simulation.model';
+import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
 
@@ -275,6 +275,28 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
     expect(sim.safeExit).not.toHaveBeenCalled();
+  });
+
+  it('acredita y abre el diálogo del NPC solo después del 2xx autoritativo', () => {
+    setup(makeAttempt());
+    component.attempt.set(makeAttempt());
+    const response$ = new Subject<SimulationWorldState>();
+    sim.recordNpcInteraction.mockReturnValue(response$);
+    const npc = {
+      key: 'enfermera-urgencias',
+      displayName: 'Enfermera',
+      dialogue: { lines: [{ text: 'Acércate.' }] },
+    } as NpcConfig;
+
+    component.openNpcDialogue(npc);
+
+    expect((component as any).viewedNpcKeys().has(npc.key)).toBe(false);
+    expect(component.dialogue()).toBeNull();
+
+    response$.next({ flags: { viewedNpcKeys: [npc.key] } } as SimulationWorldState);
+
+    expect((component as any).viewedNpcKeys().has(npc.key)).toBe(true);
+    expect(component.dialogue()?.key).toBe(`npc-${npc.key}`);
   });
 
   it('expone un control de interacción únicamente para el objeto cercano sin overlay', () => {

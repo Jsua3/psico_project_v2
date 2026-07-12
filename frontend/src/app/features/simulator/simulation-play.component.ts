@@ -1571,18 +1571,26 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
     if (this.inputBlocked() || this.busy()) return;
-    this.viewedNpcKeys.update(prev => {
-      const next = new Set(prev).add(npc.key);
-      this.persistViewedNpcKeys(next);
-      return next;
-    });
     const game = this.attempt();
     if (game?.status === 'IN_PROGRESS') {
+      this.busy.set(true);
       this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
-        next: world => this.mergeViewedNpcKeysFromWorld(world),
-        error: () => this.showActionError('No pudimos guardar la interaccion con el NPC.'),
+        next: world => {
+          this.mergeViewedNpcKeysFromWorld(world);
+          this.showNpcDialogue(npc);
+          this.busy.set(false);
+        },
+        error: () => {
+          this.showActionError('No pudimos guardar la interaccion con el NPC.');
+          this.busy.set(false);
+        },
       });
+      return;
     }
+    this.showNpcDialogue(npc);
+  }
+
+  private showNpcDialogue(npc: NpcConfig): void {
     if (!npc.dialogue?.lines?.length) return;
     this.dialogue.set({
       key: `npc-${npc.key}`,
