@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { assertQualityState } from './support/quality-gates';
+import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
   acceptContentWarning,
   enterCaseAtContentWarning,
@@ -9,18 +10,11 @@ import {
   openFamilyDialogue,
 } from './support/siep-flow';
 
-const VIEWPORTS = [
-  { name: 'desktop-1600', width: 1600, height: 900, touch: false },
-  { name: 'desktop-1366', width: 1366, height: 768, touch: false },
-  { name: 'mobile-390', width: 390, height: 844, touch: true },
-  { name: 'mobile-412', width: 412, height: 915, touch: true },
-] as const;
-
-for (const viewport of VIEWPORTS) {
+for (const viewport of REQUIRED_VIEWPORTS) {
   test.describe(viewport.name, () => {
     test.use({
       viewport: { width: viewport.width, height: viewport.height },
-      hasTouch: viewport.touch,
+      hasTouch: viewport.inputMode === 'touch',
     });
 
     test(`@quality Axe and geometry across dynamic states (${viewport.width}x${viewport.height})`, async ({ page }, testInfo) => {
@@ -60,8 +54,9 @@ for (const viewport of VIEWPORTS) {
       await assertQualityState(page, testInfo, `${viewport.name}-journal`);
       await journal.getByRole('button', { name: /cerrar bitácora/i }).click();
 
-      const dialogue = await openFamilyDialogue(page, viewport.touch);
-      if (viewport.touch) {
+      const touch = viewport.inputMode === 'touch';
+      const dialogue = await openFamilyDialogue(page, touch);
+      if (touch) {
         await dialogue.getByRole('button', { name: /saltar animación/i }).tap();
         await expect(dialogue.getByRole('button', { name: /siguiente intervención/i })).toBeVisible();
       } else {

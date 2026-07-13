@@ -1,17 +1,19 @@
 import { expect, test } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 
+import { assertQualityState } from './support/quality-gates';
+import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
   acceptContentWarning,
   chooseDecision,
   closeDialogue,
+  createWorldInputDriver,
   enterCaseAtContentWarning,
   enterDoor,
   finishCaseIntroduction,
   interactNearby,
   loginStudent,
   moveAndPersistPosition,
-  moveFor,
-  moveUntilNearby,
   pauseWithPendingPosition,
   reloadAndResumeAttempt,
   seekNpcDialogue,
@@ -19,8 +21,15 @@ import {
   waitForWorldReady,
 } from './support/siep-flow';
 
-test('@full-case completes all six recommended decisions through the rendered world', async ({ page }) => {
-  test.setTimeout(240_000);
+type RequiredViewport = (typeof REQUIRED_VIEWPORTS)[number];
+
+async function completeFullCase(
+  page: Page,
+  testInfo: TestInfo,
+  viewport: RequiredViewport,
+): Promise<void> {
+  testInfo.setTimeout(300_000);
+  const input = createWorldInputDriver(page, viewport.inputMode);
 
   await page.goto('/login');
   await loginStudent(page);
@@ -34,11 +43,11 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await waitForWorldReady(page);
 
   // Hospital — evidencia de H1: PAP + familia inspeccionada + enfermera registrada.
-  await moveUntilNearby(page, 'ArrowLeft', /kit pap/i);
+  await input.moveUntilNearby('ArrowLeft', /kit pap/i);
   const pap = await interactNearby(page, /kit pap/i, /\/interactions\/tool-pap$/);
   expect(pap.world.inventory).toContain('PAP');
 
-  await moveUntilNearby(page, 'ArrowLeft', /familia en crisis/i);
+  await input.moveUntilNearby('ArrowLeft', /familia en crisis/i);
   await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-crisis$/);
   const papUse = await useToolChoice(
     page,
@@ -49,20 +58,20 @@ test('@full-case completes all six recommended decisions through the rendered wo
   expect(papUse.world.usedToolKeys).toContain('PAP@familia-crisis');
   await closeDialogue(page, /herramienta pertinente/i);
 
-  await moveUntilNearby(page, 'ArrowRight', /sala de escucha familiar/i);
-  await moveFor(page, 'ArrowLeft', 1_350);
-  await moveFor(page, 'ArrowUp', 330);
-  await seekNpcDialogue(page, /enfermera de urgencias/i);
+  await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
+  await input.moveFor('ArrowLeft', 1_350);
+  await input.moveFor('ArrowUp', 330);
+  await seekNpcDialogue(page, /enfermera de urgencias/i, input);
   await closeDialogue(page, /enfermera de urgencias/i);
 
   // Rodear la camilla por el pasillo frontal antes de buscar la puerta.
-  await moveFor(page, 'ArrowDown', 550);
-  await moveUntilNearby(page, 'ArrowRight', /sala de escucha familiar/i);
+  await input.moveFor('ArrowDown', 550);
+  await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
   const escuchaEntry = await enterDoor(page, /sala de escucha familiar/i, 'hospital-sala-escucha');
   expect(escuchaEntry.player).toMatchObject({ x: 160, y: 452 });
 
   // H1 — contención con PAP.
-  await moveUntilNearby(page, 'ArrowUp', /familia en crisis/i);
+  await input.moveUntilNearby('ArrowUp', /familia en crisis/i);
   await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-duelo$/);
   let decision = await chooseDecision(
     page,
@@ -75,7 +84,7 @@ test('@full-case completes all six recommended decisions through the rendered wo
 
   // Persistencia — refresh en progreso y pausa inmediata conservan el mismo intento.
   const attemptId = decision.attemptId as string;
-  const beforeRefresh = await moveAndPersistPosition(page, 'ArrowRight', 240);
+  const beforeRefresh = await moveAndPersistPosition(page, input, 'ArrowRight', 240);
   const refreshed = await reloadAndResumeAttempt(page, 'IN_PROGRESS', 'hospital-sala-escucha');
   expect(refreshed.activeAttempt.attemptId).toBe(attemptId);
   expect(refreshed.activeAttempt.currentNode.key).toBe('hospital-sala-escucha');
@@ -86,7 +95,7 @@ test('@full-case completes all six recommended decisions through the rendered wo
   expect(refreshed.world.inspectedObjectKeys).toContain('familia-crisis');
   expect(refreshed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
 
-  const paused = await pauseWithPendingPosition(page, 'ArrowRight', 180);
+  const paused = await pauseWithPendingPosition(page, input, 'ArrowRight', 180);
   expect(paused.pausedAttempt.attemptId).toBe(attemptId);
   expect(paused.pausedAttempt.status).toBe('PAUSED');
   expect(paused.pausedAttempt.currentNode.key).toBe('hospital-sala-escucha');
@@ -104,9 +113,9 @@ test('@full-case completes all six recommended decisions through the rendered wo
   expect(resumed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
 
   // H2 — marco normativo hospitalario.
-  await moveUntilNearby(page, 'ArrowRight', /bitácora/i);
-  await moveFor(page, 'ArrowRight', 800);
-  await moveUntilNearby(page, 'ArrowUp', /marco normativo/i);
+  await input.moveUntilNearby('ArrowRight', /bitácora/i);
+  await input.moveFor('ArrowRight', 800);
+  await input.moveUntilNearby('ArrowUp', /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-hospital$/);
   decision = await chooseDecision(
     page,
@@ -118,11 +127,11 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await waitForWorldReady(page);
 
   // H3 — protocolo EPICEE antes de la actuación integral.
-  await moveUntilNearby(page, 'ArrowUp', /protocolo epicee/i);
+  await input.moveUntilNearby('ArrowUp', /protocolo epicee/i);
   const spikes = await interactNearby(page, /protocolo epicee/i, /\/interactions\/tool-spikes$/);
   expect(spikes.world.inventory).toContain('SPIKES');
-  await moveFor(page, 'ArrowDown', 330);
-  await moveUntilNearby(page, 'ArrowRight', /psicóloga hospitalaria/i);
+  await input.moveFor('ArrowDown', 330);
+  await input.moveUntilNearby('ArrowRight', /psicóloga hospitalaria/i);
   await interactNearby(page, /psicóloga hospitalaria/i, /\/interactions\/psicologa-acompanante$/);
   decision = await chooseDecision(
     page,
@@ -133,24 +142,24 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await closeDialogue(page, /supervisión clínica/i);
   await waitForWorldReady(page);
 
-  await moveUntilNearby(page, 'ArrowRight', /salida institucional/i);
+  await input.moveUntilNearby('ArrowRight', /salida institucional/i);
   await enterDoor(page, /salida institucional/i, 'comisaria-recepcion');
 
   // Recepción — expediente antes del consultorio.
-  await moveUntilNearby(page, 'ArrowRight', /consultorio/i);
-  await moveFor(page, 'ArrowLeft', 400);
-  await moveUntilNearby(page, 'ArrowUp', /expediente del caso/i);
+  await input.moveUntilNearby('ArrowRight', /consultorio/i);
+  await input.moveFor('ArrowLeft', 400);
+  await input.moveUntilNearby('ArrowUp', /expediente del caso/i);
   await interactNearby(page, /expediente del caso/i, /\/interactions\/expediente-caso$/);
   await closeDialogue(page, /expediente del caso/i);
-  await moveFor(page, 'ArrowDown', 450);
-  await moveUntilNearby(page, 'ArrowRight', /consultorio/i);
+  await input.moveFor('ArrowDown', 450);
+  await input.moveUntilNearby('ArrowRight', /consultorio/i);
   await enterDoor(page, /consultorio/i, 'comisaria-consultorio');
 
   // C1 — valoración de riesgo y protección.
-  await moveUntilNearby(page, 'ArrowRight', /valoración de riesgo/i);
+  await input.moveUntilNearby('ArrowRight', /valoración de riesgo/i);
   const riskTool = await interactNearby(page, /valoración de riesgo/i, /\/interactions\/tool-riesgo$/);
   expect(riskTool.world.inventory).toContain('RISK_METER');
-  await moveUntilNearby(page, 'ArrowLeft', /sobreviviente/i);
+  await input.moveUntilNearby('ArrowLeft', /sobreviviente/i);
   await interactNearby(page, /sobreviviente/i, /\/interactions\/sobreviviente-consulta$/);
   const structuredRiskUse = await useToolChoice(
     page,
@@ -172,9 +181,9 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await waitForWorldReady(page);
 
   // C2 — marco integral de Comisaría.
-  await moveUntilNearby(page, 'ArrowRight', /ruta de protección/i);
-  await moveFor(page, 'ArrowRight', 1_200);
-  await moveUntilNearby(page, 'ArrowUp', /marco normativo/i);
+  await input.moveUntilNearby('ArrowRight', /ruta de protección/i);
+  await input.moveFor('ArrowRight', 1_200);
+  await input.moveUntilNearby('ArrowUp', /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-comisaria$/);
   decision = await chooseDecision(
     page,
@@ -186,7 +195,7 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await waitForWorldReady(page);
 
   // C3 — cierre técnico y reporte integral.
-  await moveUntilNearby(page, 'ArrowRight', /profesional psicosocial/i);
+  await input.moveUntilNearby('ArrowRight', /profesional psicosocial/i);
   await interactNearby(page, /profesional psicosocial/i, /\/interactions\/profesional-psicosocial$/);
   decision = await chooseDecision(
     page,
@@ -212,4 +221,17 @@ test('@full-case completes all six recommended decisions through the rendered wo
   await expect(outcome.getByText(/ruta institucional: activada/i)).toBeVisible();
   await expect(outcome.getByRole('button', { name: /reintentar caso/i })).toBeVisible();
   await expect(outcome.getByRole('link', { name: /volver al simulador/i })).toBeVisible();
-});
+  await assertQualityState(page, testInfo, `${viewport.name}-full-case-outcome`);
+}
+
+for (const viewport of REQUIRED_VIEWPORTS) {
+  test.describe(`full-case-${viewport.name}`, () => {
+    test.use({
+      viewport: { width: viewport.width, height: viewport.height },
+      hasTouch: viewport.inputMode === 'touch',
+    });
+
+    test(`@full-case completes all six recommended decisions (${viewport.name})`, async ({ page }, testInfo) =>
+      completeFullCase(page, testInfo, viewport));
+  });
+}

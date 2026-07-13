@@ -166,3 +166,28 @@ Esta evidencia demuestra que la aplicación es explícita, espacial, persistida 
 No cambió código backend en este slice; su gate fresco anterior permanece en **220 pruebas**. Después del gate completo hubo **0** listeners en `5544`, `8093` y `4315`, **0** contenedores, redes y volúmenes del proyecto `psico-project-v3-test-7b12c7b1e9`, **0** trazas temporales de diagnóstico y **0** coincidencias de `attemptToken=` en artefactos.
 
 El Browser plugin no estaba disponible; la verificación live se realizó con el Playwright versionado y el stack aislado del repositorio. Persistencia y continuidad quedan demostradas por automatización, pero lector de pantalla real y revisión clínica SME permanecen como validaciones humanas separadas.
+
+## Addendum E2E-VERTICAL-02 — 2026-07-12
+
+- `REQUIRED_VIEWPORTS` es una sola matriz compartida por calidad y recorrido integral: `1600×900` y `1366×768` usan teclado; `390×844` y `412×915` usan capacidad touch y taps sobre los controles visibles. El caso H1–C3 permanece definido una sola vez y recibe un driver explícito de entrada.
+- Las cuatro variantes adquieren y aplican herramientas, acreditan a la enfermera, atraviesan puertas, ejecutan las seis decisiones recomendadas, recargan en progreso, pausan antes del debounce, recargan en pausa, reanudan el mismo intento y llegan al resultado `integral`. Cada outcome vuelve a pasar Axe y geometría.
+- El primer rojo móvil demostró que `Interactuar` solo atendía marcadores: ahora marcador conserva prioridad y, si no existe, el mismo control activa el NPC cercano. La regresión pura cubre `marker`, `npc` y `none`; la UI espera request y response antes de continuar, sin taps ciegos sobre un diálogo abierto.
+- El agregado descubrió un sobrepaso de marcador a `1366×768`: el gate detectaba proximidad mientras la tecla seguía presionada y el control contextual cambiaba a la puerta antes del clic. La búsqueda por teclado ahora avanza en pulsos y solo comprueba el objetivo con la tecla liberada; no se añadieron retries.
+- Axe encontró además el nombre de sala con contraste **3.81:1** mientras el fundido oscuro lo cubría. El banner ya no se renderiza durante `fadeActive`, reaparece al concluir la transición y el mismo estado final quedó verde.
+
+### Evidencia fresca final
+
+| Gate | Resultado |
+|---|---|
+| `npm run test:scripts` | **82/82**, exit 0 |
+| `npm run check:backend` | `System check identified no issues`, exit 0 |
+| `npm run test:backend` | **220 passed**, exit 0 |
+| `npm run test:frontend` | **49 suites / 319 pruebas**, exit 0 |
+| `npm run build:frontend` | build de producción limpio y dentro de presupuestos, exit 0 |
+| `npm run test:e2e -- --grep '@full-case'` | API **16/16** + cuatro recorridos integrales **4/4**, exit 0; aproximadamente **8.3 min** |
+| `npm run test:e2e -- --grep '@quality'` | API **16/16** + Axe/geometría **4/4**, exit 0 |
+| `npm run test:e2e` final, sin filtro | API **16/16** + manifiesto Playwright **21/21** en 5 archivos, `last-run: passed`, exit 0; **9.6 min** |
+
+Después del gate final quedaron **0** listeners en `5544`, `8093` y `4315`; **0** contenedores, redes y volúmenes del proyecto `psico-project-v3-test-7b12c7b1e9`; **0** coincidencias de `attemptToken=` en artefactos; y **0** archivos de trace/debug. No quedan P0/P1 conocidos en el alcance automatizado de `SIM-VBG-001`.
+
+El Browser plugin no estaba disponible en esta sesión; la verificación live se realizó con el Playwright versionado, Chromium y el stack desechable del repositorio. Un lector de pantalla real y la revisión SME del contenido clínico siguen siendo controles humanos externos: este gate no los suplanta ni los presenta como ejecutados.

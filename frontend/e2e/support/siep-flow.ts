@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import type { SiepInputMode } from './required-viewports';
 
 const EMAIL = process.env.E2E_STUDENT_EMAIL ?? 'estudiante@psychosim.edu.co';
 const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
@@ -62,36 +63,99 @@ function nearbyAction(page: Page, label: RegExp): Locator {
   return page.locator('button.context-bar__interaction').filter({ has: primaryLabel });
 }
 
-export async function moveUntilNearby(
-  page: Page,
-  key: MovementKey,
-  label: RegExp,
-  timeout = 20_000,
-): Promise<Locator> {
-  const action = nearbyAction(page, label);
-  if (await action.isVisible().catch(() => false)) return action;
-
-  await page.keyboard.down(key);
-  try {
-    await expect(action, `No se alcanzó la interacción ${label} moviendo ${key}`)
-      .toBeVisible({ timeout });
-  } finally {
-    await page.keyboard.up(key);
-  }
-  return action;
+export interface WorldInputDriver {
+  readonly mode: SiepInputMode;
+  moveUntilNearby(key: MovementKey, label: RegExp, timeout?: number): Promise<Locator>;
+  moveFor(key: MovementKey, durationMs: number): Promise<void>;
+  interact(): Promise<void>;
 }
 
-export async function moveFor(page: Page, key: MovementKey, durationMs: number): Promise<void> {
-  await page.keyboard.down(key);
-  try {
-    await page.waitForTimeout(durationMs);
-  } finally {
-    await page.keyboard.up(key);
-  }
+const TOUCH_NUDGE_EQUIVALENT_MS = 4 * 34;
+const KEYBOARD_NUDGE_MS = 3 * 34;
+const TOUCH_DIRECTION_LABEL: Record<MovementKey, RegExp> = {
+  ArrowUp: /mover arriba/i,
+  ArrowDown: /mover abajo/i,
+  ArrowLeft: /mover izquierda/i,
+  ArrowRight: /mover derecha/i,
+};
+
+export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldInputDriver {
+  const touchControl = (key: MovementKey) =>
+    page.getByRole('button', { name: TOUCH_DIRECTION_LABEL[key] });
+
+  const moveFor = async (key: MovementKey, durationMs: number): Promise<void> => {
+    if (mode === 'keyboard') {
+      await page.keyboard.down(key);
+      try {
+        await page.waitForTimeout(durationMs);
+      } finally {
+        await page.keyboard.up(key);
+      }
+      return;
+    }
+
+    const control = touchControl(key);
+    await expect(control).toBeVisible();
+    const taps = Math.max(1, Math.round(durationMs / TOUCH_NUDGE_EQUIVALENT_MS));
+    for (let step = 0; step < taps; step += 1) await control.tap();
+  };
+
+  const moveUntilNearby = async (
+    key: MovementKey,
+    label: RegExp,
+    timeout = 20_000,
+  ): Promise<Locator> => {
+    const action = nearbyAction(page, label);
+    if (await action.isVisible().catch(() => false)) return action;
+
+    if (mode === 'keyboard') {
+      // Comprueba proximidad solo con la tecla liberada. Si se mantiene pulsada
+      // mientras Playwright resuelve el locator, el personaje puede sobrepasar
+      // un marcador y el botón contextual cambiar de objetivo antes del clic.
+      const deadline = Date.now() + timeout;
+      while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
+        await page.keyboard.down(key);
+        try {
+          await page.waitForTimeout(KEYBOARD_NUDGE_MS);
+        } finally {
+          await page.keyboard.up(key);
+        }
+      }
+      await expect(action, `No se alcanzó la interacción ${label} moviendo ${key}`)
+        .toBeVisible({ timeout: 1_000 });
+      return action;
+    }
+
+    const control = touchControl(key);
+    await expect(control).toBeVisible();
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
+      await control.tap();
+    }
+    await expect(action, `No se alcanzó la interacción ${label} con el control ${key}`)
+      .toBeVisible({ timeout: 1_000 });
+    return action;
+  };
+
+  return {
+    mode,
+    moveFor,
+    moveUntilNearby,
+    interact: async () => {
+      if (mode === 'keyboard') {
+        await page.keyboard.press('e');
+        return;
+      }
+      const control = page.locator('app-game-world .touch-interact');
+      await expect(control).toBeVisible();
+      await control.tap();
+    },
+  };
 }
 
 export async function moveAndPersistPosition(
   page: Page,
+  input: WorldInputDriver,
   key: MovementKey,
   durationMs: number,
 ): Promise<ApiData> {
@@ -100,7 +164,7 @@ export async function moveAndPersistPosition(
       && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
     { timeout: 30_000 },
   );
-  await moveFor(page, key, durationMs);
+  await input.moveFor(key, durationMs);
   const response = await responsePromise;
   await requireOk(response, 'Falló la persistencia de posición');
   return (await response.json()).data as ApiData;
@@ -108,6 +172,7 @@ export async function moveAndPersistPosition(
 
 export async function pauseWithPendingPosition(
   page: Page,
+  input: WorldInputDriver,
   key: MovementKey,
   durationMs: number,
 ): Promise<{ positionWorld: ApiData; pausedAttempt: ApiData }> {
@@ -129,7 +194,7 @@ export async function pauseWithPendingPosition(
     { timeout: 30_000 },
   );
   try {
-    await moveFor(page, key, durationMs);
+    await input.moveFor(key, durationMs);
     await page.getByRole('button', { name: /salida segura/i }).click();
     const positionResponse = await positionPromise;
     const pauseResponse = await pausePromise;
@@ -236,31 +301,46 @@ export async function enterDoor(
   return data;
 }
 
-export async function seekNpcDialogue(page: Page, npcName: RegExp): Promise<ApiData> {
+export async function seekNpcDialogue(
+  page: Page,
+  npcName: RegExp,
+  input: WorldInputDriver,
+): Promise<ApiData> {
   const dialogue = page.getByRole('dialog', { name: npcName });
-  let npcResponse: Response | null = null;
-  const capture = (response: Response) => {
-    if (response.request().method() === 'POST'
-      && /\/api\/simulation\/attempts\/[^/]+\/npcs\/[^/]+$/.test(new URL(response.url()).pathname)) {
-      npcResponse = response;
-    }
+  const isNpcRequest = (method: string, url: string) =>
+    method === 'POST'
+      && /\/api\/simulation\/attempts\/[^/]+\/npcs\/[^/]+$/.test(new URL(url).pathname);
+  const requestPromise = page.waitForRequest(request =>
+    isNpcRequest(request.method(), request.url()),
+    { timeout: 30_000 },
+  );
+  const responsePromise = page.waitForResponse(response =>
+    isNpcRequest(response.request().method(), response.url()),
+    { timeout: 30_000 },
+  );
+
+  const finishNpcInteraction = async (): Promise<ApiData> => {
+    const response = await responsePromise;
+    await requireOk(response, 'Falló la interacción NPC');
+    await expect(dialogue).toBeVisible({ timeout: 10_000 });
+    return (await response.json()).data as ApiData;
   };
-  page.on('response', capture);
-  try {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      await page.keyboard.press('e');
-      await page.waitForTimeout(300);
-      if (npcResponse !== null) {
-        const response = npcResponse as Response;
-        await requireOk(response, 'Falló la interacción NPC');
-        await expect(dialogue).toBeVisible({ timeout: 10_000 });
-        return (await response.json()).data as ApiData;
-      }
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await dialogue.isVisible().catch(() => false)) {
+      return finishNpcInteraction();
     }
-    throw new Error(`No se alcanzó el NPC ${npcName} tras 40 intentos de interacción`);
-  } finally {
-    page.off('response', capture);
+
+    await input.interact();
+    const observed = await Promise.race([
+      responsePromise.then(() => 'response' as const),
+      requestPromise.then(() => 'request' as const),
+      page.waitForTimeout(500).then(() => 'none' as const),
+    ]);
+    if (observed !== 'none') return finishNpcInteraction();
   }
+
+  throw new Error(`No se alcanzó el NPC ${npcName} tras 40 intentos de interacción`);
 }
 
 async function visible(locator: Locator): Promise<boolean> {

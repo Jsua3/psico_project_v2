@@ -84,7 +84,7 @@ const CASE_INTRO_PARAGRAPHS = [
           <span>{{ doorNotice() }}</span>
         </div>
       }
-      @if (roomBanner()) {
+      @if (roomBanner() && !fadeActive()) {
         <div class="room-banner" role="status">{{ roomBanner() }}</div>
       }
       @if (transitionNote()) {

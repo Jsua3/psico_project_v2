@@ -39,6 +39,7 @@ import { resolveSceneRenderer } from './scene-renderer.registry';
 import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
 import { resolveRoomPlayerPosition } from './room-player-position.util';
+import { nearbyInteractionChannel } from './interaction-priority.util';
 import {
   NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
@@ -374,12 +375,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
          Phaser.Input.Keyboard.JustDown(this.keys['SPACE']) ||
          Phaser.Input.Keyboard.JustDown(this.keys['ENTER']))) {
       this.interactionCooldown = this.INTERACTION_COOLDOWN_MS;
-      // Clinical marker takes priority over NPC when both are in range
-      if (this.nearestKey) {
-        this.interactNearest();
-      } else {
-        this.interactNearestNpc();
-      }
+      this.interactNearest();
     }
     this.updateNearestInteraction();
     this.updateNpcHints();
@@ -603,9 +599,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   interactNearest() {
-    if (!this.nearestKey) return;
-    const obj = this.markerData.get(this.nearestKey);
-    if (obj) this.callbacks.onInteract(obj);
+    const channel = nearbyInteractionChannel(this.nearestKey, this.isAnyNpcInRange());
+    if (channel === 'marker') {
+      const obj = this.markerData.get(this.nearestKey!);
+      if (obj) this.callbacks.onInteract(obj);
+      return;
+    }
+    if (channel === 'npc') this.interactNearestNpc();
   }
 
   focus(key: string) {
