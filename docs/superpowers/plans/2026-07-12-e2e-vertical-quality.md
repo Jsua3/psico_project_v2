@@ -17,9 +17,9 @@
 - Add: `frontend/e2e/support/quality-gates.ts`
 - Add: `frontend/e2e/support/siep-flow.ts`
 
-- [ ] Add an Axe helper for WCAG 2.1 A/AA that fails only `serious`/`critical` and does not disable contrast.
-- [ ] Add a geometry helper for document overflow, `.game-container`, `.canvas-zone`, canvas, active dialogs and their controls.
-- [ ] Add resilient login/entry helpers that resolve resume, consent, video, narrative and Phaser readiness without fixed sleeps.
+- [x] Add an Axe helper for WCAG 2.1 A/AA that fails only `serious`/`critical` and does not disable contrast.
+- [x] Add a geometry helper for document overflow, `.game-container`, `.canvas-zone`, canvas, active dialogs and their controls.
+- [x] Add resilient login/entry helpers that resolve resume, consent, video, narrative and Phaser readiness without fixed sleeps.
 
 ### Task 2: Run the four-viewport state matrix
 
@@ -28,10 +28,10 @@
 - Add: `frontend/e2e/vertical-quality.e2e.ts`
 - Modify as findings require: scoped frontend components/styles
 
-- [ ] Write one `@quality` test per required viewport; desktop exercises keyboard and mobile exercises visible touch controls.
-- [ ] Scan login, lobby, content warning, video, case context, stable world, settings, journal and a real multi-line NPC dialogue.
-- [ ] Run `npm run test:e2e -- --grep @quality` red, preserve exact findings, and add focused regressions before each production fix.
-- [ ] Iterate until all four variants pass Axe and geometry.
+- [x] Write one `@quality` test per required viewport; desktop exercises keyboard and mobile exercises visible touch controls.
+- [x] Scan login, lobby, content warning, video, case context, stable world, settings, journal and a real multi-line NPC dialogue.
+- [x] Run `npm run test:e2e -- --grep @quality` red, preserve exact findings, and add focused regressions before each production fix.
+- [x] Iterate until all four variants pass Axe and geometry.
 
 ### Task 3: Preserve prior gates and document evidence
 
@@ -39,9 +39,9 @@
 
 - Modify: `docs/audits/2026-07-11-calidad-9-10-evidencia.md`
 
-- [ ] Run full frontend tests, production build and existing E2E suite.
-- [ ] Run the final `@quality` matrix and verify teardown: ports 5544/8093/4315 and Compose resources at zero.
-- [ ] Record exact counts and remaining manual screen-reader/SME limits without claiming the full six-decision vertical path yet.
+- [x] Run full frontend tests, production build and existing E2E suite.
+- [x] Run the final `@quality` matrix and verify teardown: ports 5544/8093/4315 and Compose resources at zero.
+- [x] Record exact counts and remaining manual screen-reader/SME limits without claiming the full six-decision vertical path yet.
 
 ## Acceptance
 

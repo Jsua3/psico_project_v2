@@ -233,7 +233,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     .encrypt-note {
       display: flex; gap: 8px; align-items: center;
       margin: 0; font-size: .7rem;
-      color: rgba(232,240,244,.28);
+      color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
     .continue-btn { flex-shrink: 0; }

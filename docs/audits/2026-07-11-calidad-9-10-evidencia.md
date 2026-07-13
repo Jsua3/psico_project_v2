@@ -90,3 +90,13 @@ El contenido clínico autorado todavía requiere revisión SME. En ese corte per
 - Evidencia fresca: `npm run test:frontend -- --runInBand` pasó **47 suites / 305 pruebas**; el build Angular de producción pasó con salida 0; `npm run test:e2e` pasó **matriz API 16/16 + Playwright 13/13**. Tras el gate quedaron **0** contenedores del proyecto de pruebas y **0** listeners en 5544, 8093 y 4315.
 
 Permanecen pendientes el gate Axe `serious/critical = 0`, la matriz completa `1600×900`, `1366×768`, `390×844`, `412×915`, el recorrido vertical hasta resultado/informe y la revisión SME del contenido clínico. Este addendum no declara terminado el objetivo global.
+
+## Addendum E2E-VERTICAL-01 — 2026-07-12
+
+- Se incorporó un gate Playwright reutilizable que ejecuta Axe con WCAG 2.1 A/AA y bloquea hallazgos `serious` o `critical` sin desactivar contraste. La medición geométrica rechaza overflow global, canvas o contenedores fuera del viewport, overlays fuera de pantalla y controles cubiertos por elementos externos.
+- La matriz recorre login, lobby, advertencia de contenido, video, contexto del caso, mundo Phaser listo, ajustes, bitácora y diálogo real de `familia-crisis` en `1600×900`, `1366×768`, `390×844` y `412×915`. Escritorio avanza la narrativa con teclado; móvil mueve al avatar y avanza el texto con controles táctiles visibles.
+- Los rojos preservados detectaron y corrigieron semántica ARIA inválida en login y ajustes, un cierre de ajustes cubierto por el CTA del instructor, un inventario horizontal sin acceso de teclado, desplazamiento lateral del HUD móvil y contraste insuficiente en la nota de cifrado. El gate espera la opacidad estable de overlays antes de medir contraste para no auditar fotogramas intermedios.
+- Evidencia fresca: `npm run test:frontend` pasó **47 suites / 305 pruebas**; `npm run build:frontend` pasó limpio, sin advertencias de presupuesto; `npm run test:e2e -- --grep @quality` pasó **4/4 viewports**; `npm run test:e2e` pasó **matriz API 16/16 + Playwright 17/17**.
+- El runner eliminó todos sus recursos: **0** listeners en 5544/8093/4315 y **0** contenedores, redes o volúmenes del proyecto Compose de pruebas.
+
+El Browser plugin no estaba disponible en esta sesión, por lo que la verificación live se ejecutó con el Playwright versionado del repositorio y su backend/BD desechables. Aún requieren validación manual un lector de pantalla real y la revisión SME del contenido clínico. También sigue pendiente demostrar el recorrido vertical completo de seis decisiones hasta resultado e informe; este addendum cierra Axe y responsive del alcance escaneado, no el objetivo global.

@@ -481,7 +481,7 @@ const CASE_INTRO_PARAGRAPHS = [
     .vignette--active { opacity: var(--vignette-opacity, 0); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
-    .guide-chatbot-button { position: absolute; top: 60px; right: 16px; z-index: 168; gap: 8px; max-width: min(260px, calc(100vw - 32px)); }
+    .guide-chatbot-button { position: absolute; top: 60px; right: 16px; z-index: 35; gap: 8px; }
     .right-panel {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -880,6 +880,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
+      .guide-chatbot-button { display: none; }
       .main-zone { padding: 8px 8px 0; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);
