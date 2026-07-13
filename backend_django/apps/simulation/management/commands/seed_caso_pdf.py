@@ -810,7 +810,11 @@ _CONSULTORIO_DECISION_OBJECTS = [
              "Yo solo quiero estar segura.", "anxious"),
             ("(Define la prioridad de la asesoría psicosocial.)", "neutral"),
         ]),
-        "choices": _C1_CHOICES,
+        "choices": [
+            ("c1-aplicar-riesgo", "Aplicar valoración estructurada de riesgo de feminicidio",
+             None, "RISK_METER"),
+            *_C1_CHOICES,
+        ],
     },
     {
         "key": "marco-normativo-comisaria", "label": "Marco normativo", "type": "OBJECT",
@@ -863,6 +867,9 @@ MAP_OBJECTS = {
                 ("(La familia necesita contención antes de cualquier información difícil. "
                  "La sala de escucha está al fondo a la derecha.)", "neutral"),
             ]),
+            "choices": [
+                ("pap-familia", "Aplicar PAP a la familia en crisis", None, "PAP"),
+            ],
         },
         {
             "key": "zona-restringida", "label": "Acceso a quirófano", "type": "OBJECT",
@@ -1289,12 +1296,14 @@ class Command(BaseCommand):
                                 dialogue_tree=tree, display_order=order,
                                 speaker_name=speaker, text=text, emotion=emotion,
                             )
-                    for order, (choice_key, text, option_key) in enumerate(choices, start=1):
+                    for order, choice_spec in enumerate(choices, start=1):
+                        choice_key, text, option_key, *tool_codes = choice_spec
                         DialogueChoice.objects.create(
                             dialogue_tree=tree,
                             choice_key=choice_key,
                             text=text,
                             decision_option=option_by_key[option_key] if option_key else None,
+                            required_tool_code=tool_codes[0] if tool_codes else None,
                             effect_json="{}",
                             display_order=order,
                         )

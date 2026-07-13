@@ -7,12 +7,13 @@ import { DialogueChoiceState, SimulationWorldState } from '../../core/models/sim
  * líneas narrativas al explorar. Nunca se revela cuál opción es la correcta.
  *
  * Claves reales: npcs = keys de NpcConfig o PERSON del mapa;
- * tools = tool_code BD ('PAP', 'RISK_METER'…) contra inventario o uso;
+ * tools = tool_code BD adquirido/revisado; usedTools = aplicación persistida;
  * inspected = object_key contra world.inspectedObjectKeys.
  */
 export interface NodeEvidenceDef {
   npcs?: string[];
   tools?: string[];
+  usedTools?: string[];
   inspected?: string[];
   missingMessage: string;
   unlockLines?: { dialogueKey: string; lines: string[] }[];
@@ -22,7 +23,7 @@ export const NODE_EVIDENCE: Record<string, NodeEvidenceDef> = {
   // ── Caso PDF: Violencia Familiar y Tentativa de Feminicidio ──
   'hospital-urgencias': {
     npcs: ['enfermera-urgencias'],
-    tools: ['PAP'],
+    usedTools: ['PAP'],
     missingMessage: 'Información insuficiente: habla con la enfermera de urgencias y aplica Primeros Auxilios Psicológicos antes de definir el foco de la intervención.',
     unlockLines: [{
       dialogueKey: 'familia-duelo',
@@ -34,11 +35,11 @@ export const NODE_EVIDENCE: Record<string, NodeEvidenceDef> = {
     missingMessage: 'Información insuficiente: revisa el protocolo EPICEE/SPIKES del estante antes de definir la actuación técnica y ética.',
   },
   'hospital-cierre-bloque': {
-    tools: ['RISK_METER'],
+    usedTools: ['RISK_METER'],
     missingMessage: 'Información insuficiente: aplica el instrumento de valoración de riesgo antes de definir la prioridad psicosocial.',
   },
   'comisaria-accion-final': {
-    tools: ['RISK_METER'],
+    usedTools: ['RISK_METER'],
     missingMessage: 'Información insuficiente: usa el instrumento de valoración estructurada antes de cerrar la actuación.',
   },
 };
@@ -57,17 +58,15 @@ function stringsFrom(value: unknown): string[] {
 export function choiceEvidence(choice: DialogueChoiceState | null | undefined): NodeEvidenceDef | null {
   if (!choice) return null;
   const effect = (choice.effect ?? {}) as Record<string, unknown>;
-  const tools = [
-    ...(choice.requiredToolCode ? [choice.requiredToolCode] : []),
-    ...stringsFrom(effect['requiresTools']),
-  ];
+  const tools = stringsFrom(effect['requiresTools']);
   const def: NodeEvidenceDef = {
     npcs: stringsFrom(effect['requiresNpcs']),
     tools,
+    usedTools: choice.requiredToolCode ? [choice.requiredToolCode] : [],
     inspected: stringsFrom(effect['requiresInspected']),
     missingMessage: 'Informacion insuficiente: completa la evidencia requerida antes de decidir.',
   };
-  return (def.npcs?.length || def.tools?.length || def.inspected?.length) ? def : null;
+  return (def.npcs?.length || def.tools?.length || def.usedTools?.length || def.inspected?.length) ? def : null;
 }
 
 export function mergeEvidence(...defs: Array<NodeEvidenceDef | null | undefined>): NodeEvidenceDef | null {
@@ -77,6 +76,7 @@ export function mergeEvidence(...defs: Array<NodeEvidenceDef | null | undefined>
   return {
     npcs: uniq(present.flatMap(def => def.npcs ?? [])),
     tools: uniq(present.flatMap(def => def.tools ?? [])),
+    usedTools: uniq(present.flatMap(def => def.usedTools ?? [])),
     inspected: uniq(present.flatMap(def => def.inspected ?? [])),
     missingMessage: present[0].missingMessage,
     unlockLines: present.flatMap(def => def.unlockLines ?? []),
@@ -84,8 +84,7 @@ export function mergeEvidence(...defs: Array<NodeEvidenceDef | null | undefined>
 }
 
 export function toolUsed(world: SimulationWorldState, code: string): boolean {
-  return world.inventory.includes(code)
-    || world.usedToolKeys.some(k => k === code || k.startsWith(`${code}@`));
+  return world.usedToolKeys.some(k => k === code || k.startsWith(`${code}@`));
 }
 
 /** Lista lo que falta ('npc:x' | 'tool:X' | 'inspected:y'); vacía = evidencia completa. */
@@ -104,7 +103,8 @@ export function missingEvidence(
       .forEach(key => viewed.add(key));
   }
   for (const npc of def.npcs ?? []) if (!viewed.has(npc)) missing.push(`npc:${npc}`);
-  for (const tool of def.tools ?? []) if (!toolUsed(world, tool)) missing.push(`tool:${tool}`);
+  for (const tool of def.usedTools ?? []) if (!toolUsed(world, tool)) missing.push(`tool:${tool}`);
+  for (const tool of def.tools ?? []) if (!world.inventory.includes(tool)) missing.push(`tool:${tool}`);
   for (const key of def.inspected ?? []) if (!world.inspectedObjectKeys.includes(key)) missing.push(`inspected:${key}`);
   return missing;
 }

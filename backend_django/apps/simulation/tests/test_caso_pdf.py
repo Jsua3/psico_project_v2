@@ -11,7 +11,7 @@ from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, DecisionOption
+from apps.simulation.models import CaseVersion, DecisionOption, DialogueChoice
 
 User = get_user_model()
 
@@ -114,6 +114,45 @@ def _decide(client, attempt_id, token, option_key, case_version_id):
     )
     assert resp.status_code == 200, f"decisión {option_key}: {resp.data}"
     return resp.data["data"]
+
+
+def test_acciones_clinicas_canonicas_exponen_herramienta_sin_fingir_decision(case_version_id):
+    expected = {
+        "familia-crisis": "PAP",
+        "sobreviviente-consulta": "RISK_METER",
+    }
+    for tree_key, tool_code in expected.items():
+        choices = DialogueChoice.objects.filter(
+            dialogue_tree__scene_map__case_version_id=case_version_id,
+            dialogue_tree__tree_key=tree_key,
+            required_tool_code=tool_code,
+        )
+        assert choices.exists()
+        assert all(choice.decision_option_id is None for choice in choices)
+
+
+def test_pap_se_aplica_de_forma_pertinente_a_la_familia(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+    _move(c, attempt_id, token, world["map"]["key"], (340, 430))
+    _inspect(c, attempt_id, token, "tool-pap")
+    _move(c, attempt_id, token, world["map"]["key"], (250, 430))
+
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/tools/use",
+        {
+            "attemptToken": token,
+            "toolCode": "PAP",
+            "targetInteractionKey": "familia-crisis",
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    result = resp.data["data"]
+    assert result["pertinent"] is True
+    assert "PAP@familia-crisis" in result["world"]["usedToolKeys"]
 
 
 # ─── Puertas: validación backend ──────────────────────────────────────────────

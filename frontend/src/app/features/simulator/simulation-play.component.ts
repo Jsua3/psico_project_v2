@@ -283,7 +283,8 @@ const CASE_INTRO_PARAGRAPHS = [
                 <p class="right-panel__kicker">{{ currentStageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
                 @if (game.currentNode.narrative) {
-                  <p class="right-panel__narrative">{{ game.currentNode.narrative }}</p>
+                  <p class="right-panel__narrative" tabindex="0" role="region"
+                    aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side"

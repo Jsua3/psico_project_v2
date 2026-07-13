@@ -122,3 +122,25 @@ El Browser plugin no estaba disponible en esta sesión, por lo que la verificaci
 Tras el gate completo quedaron **0** listeners en `5544`, `8093` y `4315`; **0** contenedores, redes y volúmenes del proyecto Compose desechable; y **0** coincidencias de `attemptToken=` en los artefactos Playwright.
 
 El Browser plugin no estaba disponible; la prueba live se ejecutó con el Playwright versionado del repositorio y su stack aislado. Este cierre automatizado demuestra ruta, estado, accesibilidad Axe/geométrica y resultado, pero no reemplaza la validación manual con lector de pantalla ni la revisión clínica SME de textos, decisiones y retroalimentación.
+
+## Addendum CLINICAL-APPLICATION-02 — 2026-07-12
+
+- El gate de evidencia ya distingue una herramienta adquirida o revisada (`tools`) de una aplicación persistida (`usedTools`). Tener PAP en `inventory` no satisface H1; C1 y C3 tampoco aceptan el instrumento de riesgo solamente recogido. SPIKES conserva su semántica de protocolo revisado.
+- El contenido canónico ofrece dos acciones visibles enlazadas por `required_tool_code`: **Aplicar PAP a la familia en crisis** y **Aplicar valoración estructurada de riesgo de feminicidio**. No son decisiones ni alteran el DAG por sí solas.
+- El recorrido UI observa los `POST /tools/use` reales y exige que Django responda `pertinent=true`, persista `PAP@familia-crisis` y `RISK_METER@sobreviviente-consulta`, y luego permite las seis decisiones sin activar el override de información incompleta.
+- El primer gate completo encontró una regresión Axe `scrollable-region-focusable` en la narrativa del panel lateral en los cuatro viewports. La región desplazable ahora es alcanzable por teclado con foco nativo visible; la repetición Axe quedó verde 4/4 y el build se mantuvo dentro de presupuesto sin ampliar límites.
+
+### Evidencia fresca
+
+| Gate | Resultado |
+|---|---|
+| `npm run test:backend` | **220 passed**, exit 0 |
+| `npm run test:frontend` | **48 suites / 313 pruebas**, exit 0 |
+| `npm run build:frontend` | build de producción limpio y sin warnings, exit 0 |
+| `npm run test:e2e -- --grep '@full-case'` | API **16/16** + Playwright **1/1**, exit 0 |
+| `npm run test:e2e -- --grep '@quality'` | API **16/16** + Axe/geometría **4/4**, exit 0 |
+| `npm run test:e2e` | API **16/16** + Playwright **18/18**, exit 0 |
+
+El proyecto efímero derivado `psico-project-v3-test-7b12c7b1e9` quedó sin listeners en `5544`, `8093` y `4315`, contenedores, redes ni volúmenes propios; los artefactos Playwright contienen **0** coincidencias de `attemptToken=`.
+
+Esta evidencia demuestra que la aplicación es explícita, espacial, persistida y diferenciada de la adquisición. La pertinencia pedagógica y clínica de los textos, targets y consecuencias todavía requiere revisión SME; la automatización no suplanta esa firma experta.

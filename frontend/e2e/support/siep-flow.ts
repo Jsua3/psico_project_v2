@@ -216,6 +216,26 @@ export async function chooseDecision(
   return (await response.json()).data as ApiData;
 }
 
+export async function useToolChoice(
+  page: Page,
+  dialogueName: RegExp,
+  optionText: RegExp,
+): Promise<ApiData> {
+  const dialogue = await advanceDialogueToChoices(page, dialogueName);
+  const option = dialogue.getByRole('button', { name: optionText });
+  await expect(option).toBeVisible();
+
+  const responsePromise = page.waitForResponse(response =>
+    response.request().method() === 'POST'
+      && /\/api\/simulation\/attempts\/[^/]+\/tools\/use$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  );
+  await option.click();
+  const response = await responsePromise;
+  expect(response.ok(), `Falló la aplicación ${optionText}: ${await response.text()}`).toBe(true);
+  return (await response.json()).data as ApiData;
+}
+
 export async function openFamilyDialogue(page: Page, touch: boolean): Promise<Locator> {
   const familyAction = page.getByRole('button', { name: /interactuar:.*familia en crisis/i });
   if (touch) {

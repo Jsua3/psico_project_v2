@@ -14,10 +14,10 @@ El gate frontend actual considera suficiente que una herramienta esté en `inven
 - Modify: `frontend/src/app/features/simulator/evidence-gating.config.ts`
 - Modify: `frontend/src/app/features/simulator/evidence-gating.config.spec.ts`
 
-- [ ] Añadir requisitos `usedTools` independientes de `tools` adquiridas/revisadas.
-- [ ] Probar en rojo que PAP en inventario no satisface H1 y que `PAP@familia-crisis` sí.
-- [ ] Exigir uso de `RISK_METER` en C1/C3, manteniendo SPIKES como protocolo adquirido/revisado.
-- [ ] Mantener etiquetas de evidencia faltante compatibles con el override auditado.
+- [x] Añadir requisitos `usedTools` independientes de `tools` adquiridas/revisadas.
+- [x] Probar en rojo que PAP en inventario no satisface H1 y que `PAP@familia-crisis` sí.
+- [x] Exigir uso de `RISK_METER` en C1/C3, manteniendo SPIKES como protocolo adquirido/revisado.
+- [x] Mantener etiquetas de evidencia faltante compatibles con el override auditado.
 
 ## Task 2: Autorizar acciones clínicas visibles desde el contenido sembrado
 
@@ -26,10 +26,10 @@ El gate frontend actual considera suficiente que una herramienta esté en `inven
 - Modify: `backend_django/apps/simulation/management/commands/seed_caso_pdf.py`
 - Modify: `backend_django/apps/simulation/tests/test_caso_pdf.py`
 
-- [ ] Extender las elecciones autoradas para soportar `required_tool_code` sin alterar las decisiones existentes.
-- [ ] Añadir “Aplicar PAP a la familia” en `familia-crisis` y “Aplicar valoración estructurada” en `sobreviviente-consulta`.
-- [ ] Probar que el seed enlaza el código real, que el servidor exige inventario/proximidad y que ambos usos se califican como pertinentes.
-- [ ] Conservar idempotencia: repetir la misma aplicación no duplica evento ni efecto.
+- [x] Extender las elecciones autoradas para soportar `required_tool_code` sin alterar las decisiones existentes.
+- [x] Añadir “Aplicar PAP a la familia” en `familia-crisis` y “Aplicar valoración estructurada” en `sobreviviente-consulta`.
+- [x] Probar que el seed enlaza el código real, que el servidor exige inventario/proximidad y que ambos usos se califican como pertinentes.
+- [x] Conservar idempotencia: repetir la misma aplicación no duplica evento ni efecto.
 
 ## Task 3: Demostrar las aplicaciones en el recorrido UI
 
@@ -38,10 +38,10 @@ El gate frontend actual considera suficiente que una herramienta esté en `inven
 - Modify: `frontend/e2e/support/siep-flow.ts`
 - Modify: `frontend/e2e/full-case.e2e.ts`
 
-- [ ] Añadir un helper que avance al grupo de opciones, elija una acción de herramienta visible y observe el `POST /tools/use` real.
-- [ ] Aplicar PAP sobre `familia-crisis` antes de H1 y afirmar `pertinent=true` más `PAP@familia-crisis` persistido.
-- [ ] Aplicar `RISK_METER` sobre `sobreviviente-consulta` antes de C1 y afirmar `pertinent=true` más la clave target persistida.
-- [ ] Reabrir el diálogo para decidir y conservar la prohibición de la rama “información incompleta”.
+- [x] Añadir un helper que avance al grupo de opciones, elija una acción de herramienta visible y observe el `POST /tools/use` real.
+- [x] Aplicar PAP sobre `familia-crisis` antes de H1 y afirmar `pertinent=true` más `PAP@familia-crisis` persistido.
+- [x] Aplicar `RISK_METER` sobre `sobreviviente-consulta` antes de C1 y afirmar `pertinent=true` más la clave target persistida.
+- [x] Reabrir el diálogo para decidir y conservar la prohibición de la rama “información incompleta”.
 
 ## Task 4: Gates y evidencia
 
@@ -49,10 +49,10 @@ El gate frontend actual considera suficiente que una herramienta esté en `inven
 
 - Modify: `docs/audits/2026-07-11-calidad-9-10-evidencia.md`
 
-- [ ] Ejecutar pruebas focalizadas rojo→verde, backend completo, frontend completo, build y `@full-case`.
-- [ ] Ejecutar el E2E completo para demostrar que el nuevo contenido no rompe los demás recorridos.
-- [ ] Verificar cleanup del proyecto Compose exacto y cero `attemptToken=` en artefactos.
-- [ ] Registrar que esta evidencia prueba el contrato de aplicación, no certifica la pertinencia clínica del contenido sin SME.
+- [x] Ejecutar pruebas focalizadas rojo→verde, backend completo, frontend completo, build y `@full-case`.
+- [x] Ejecutar el E2E completo para demostrar que el nuevo contenido no rompe los demás recorridos.
+- [x] Verificar cleanup del proyecto Compose exacto y cero `attemptToken=` en artefactos.
+- [x] Registrar que esta evidencia prueba el contrato de aplicación, no certifica la pertinencia clínica del contenido sin SME.
 
 ## Acceptance
 

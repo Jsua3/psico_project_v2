@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 
 import {
   acceptContentWarning,
-  advanceDialogueToChoices,
   chooseDecision,
   closeDialogue,
   enterCaseAtContentWarning,
@@ -13,6 +12,7 @@ import {
   moveFor,
   moveUntilNearby,
   seekNpcDialogue,
+  useToolChoice,
   waitForWorldReady,
 } from './support/siep-flow';
 
@@ -37,7 +37,14 @@ test('@full-case completes all six recommended decisions through the rendered wo
 
   await moveUntilNearby(page, 'ArrowLeft', /familia en crisis/i);
   await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-crisis$/);
-  await closeDialogue(page, /abuela de la niña/i);
+  const papUse = await useToolChoice(
+    page,
+    /abuela de la niña/i,
+    /aplicar pap a la familia en crisis/i,
+  );
+  expect(papUse.pertinent).toBe(true);
+  expect(papUse.world.usedToolKeys).toContain('PAP@familia-crisis');
+  await closeDialogue(page, /herramienta pertinente/i);
 
   await moveUntilNearby(page, 'ArrowRight', /sala de escucha familiar/i);
   await moveFor(page, 'ArrowLeft', 1_350);
@@ -111,6 +118,16 @@ test('@full-case completes all six recommended decisions through the rendered wo
   const riskTool = await interactNearby(page, /valoración de riesgo/i, /\/interactions\/tool-riesgo$/);
   expect(riskTool.world.inventory).toContain('RISK_METER');
   await moveUntilNearby(page, 'ArrowLeft', /sobreviviente/i);
+  await interactNearby(page, /sobreviviente/i, /\/interactions\/sobreviviente-consulta$/);
+  const structuredRiskUse = await useToolChoice(
+    page,
+    /sobreviviente \(22 años\)/i,
+    /aplicar valoración estructurada de riesgo de feminicidio/i,
+  );
+  expect(structuredRiskUse.pertinent).toBe(true);
+  expect(structuredRiskUse.world.usedToolKeys)
+    .toContain('RISK_METER@sobreviviente-consulta');
+  await closeDialogue(page, /herramienta pertinente/i);
   await interactNearby(page, /sobreviviente/i, /\/interactions\/sobreviviente-consulta$/);
   decision = await chooseDecision(
     page,

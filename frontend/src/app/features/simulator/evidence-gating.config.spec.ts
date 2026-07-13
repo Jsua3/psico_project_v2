@@ -12,8 +12,8 @@ function worldWith(partial: Partial<SimulationWorldState>): SimulationWorldState
 }
 
 describe('evidence-gating.config', () => {
-  it('toolUsed acepta herramienta en inventario, uso directo y uso con target (PAP@escucha-segura)', () => {
-    expect(toolUsed(worldWith({ inventory: ['PAP'] }), 'PAP')).toBe(true);
+  it('toolUsed no confunde inventario con aplicación y reconoce el uso persistido', () => {
+    expect(toolUsed(worldWith({ inventory: ['PAP'] }), 'PAP')).toBe(false);
     expect(toolUsed(worldWith({ usedToolKeys: ['PAP'] }), 'PAP')).toBe(true);
     expect(toolUsed(worldWith({ usedToolKeys: ['PAP@escucha-segura'] }), 'PAP')).toBe(true);
     expect(toolUsed(worldWith({ usedToolKeys: ['RISK_METER'] }), 'PAP')).toBe(false);
@@ -24,12 +24,29 @@ describe('evidence-gating.config', () => {
     expect(missingEvidence(def, worldWith({}), new Set()))
       .toEqual(['npc:enfermera-urgencias', 'tool:PAP']);
     expect(missingEvidence(def, worldWith({ inventory: ['PAP'] }), new Set(['enfermera-urgencias'])))
+      .toEqual(['tool:PAP']);
+    expect(missingEvidence(def, worldWith({
+      inventory: ['PAP'],
+      usedToolKeys: ['PAP@familia-crisis'],
+    }), new Set(['enfermera-urgencias'])))
       .toEqual([]);
+  });
+
+  it('C1 y C3 exigen que la valoración haya sido aplicada, no solo recogida', () => {
+    for (const nodeKey of ['hospital-cierre-bloque', 'comisaria-accion-final']) {
+      const def = nodeEvidence(nodeKey)!;
+      expect(missingEvidence(def, worldWith({ inventory: ['RISK_METER'] }), new Set()))
+        .toEqual(['tool:RISK_METER']);
+      expect(missingEvidence(def, worldWith({
+        inventory: ['RISK_METER'],
+        usedToolKeys: ['RISK_METER@sobreviviente-consulta'],
+      }), new Set())).toEqual([]);
+    }
   });
 
   it('las líneas extra solo se desbloquean con la evidencia completa y el diálogo correcto', () => {
     const def = nodeEvidence('hospital-urgencias')!;
-    const ready = worldWith({ inventory: ['PAP'] });
+    const ready = worldWith({ inventory: ['PAP'], usedToolKeys: ['PAP@familia-crisis'] });
     expect(unlockedExtraLines(def, 'familia-duelo', worldWith({}), new Set())).toEqual([]);
     expect(unlockedExtraLines(def, 'otro-dialogo', ready, new Set(['enfermera-urgencias']))).toEqual([]);
     expect(unlockedExtraLines(def, 'familia-duelo', ready, new Set(['enfermera-urgencias'])).length).toBeGreaterThan(0);
@@ -43,7 +60,7 @@ describe('evidence-gating.config', () => {
   it('toda herramienta exigida usa tool_code reales de la BD (mayúsculas)', () => {
     const real = ['PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'];
     for (const def of Object.values(NODE_EVIDENCE)) {
-      for (const tool of def.tools ?? []) expect(real).toContain(tool);
+      for (const tool of [...(def.tools ?? []), ...(def.usedTools ?? [])]) expect(real).toContain(tool);
     }
   });
 
@@ -66,6 +83,7 @@ describe('evidence-gating.config', () => {
       'inspected:historia-clinica',
     ]);
     const merged = mergeEvidence(nodeEvidence('hospital-urgencias'), def)!;
-    expect(merged.tools).toEqual(['PAP', 'RISK_METER']);
+    expect(merged.tools).toEqual(['RISK_METER']);
+    expect(merged.usedTools).toEqual(['PAP']);
   });
 });

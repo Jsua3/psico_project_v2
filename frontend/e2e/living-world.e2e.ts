@@ -139,8 +139,8 @@ test('real dialogue advances one intervention at a time and retains keyboard foc
   await page.keyboard.press('Space');
   await expect(dialogue).toContainText(third);
   await expect(dialogue).not.toContainText(second);
-  await expect(dialogue.getByRole('button', { name: /cerrar diálogo/i })).toBeFocused();
+  await expect(dialogue.getByRole('button', { name: /aplicar pap a la familia en crisis/i })).toBeFocused();
 
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
   await expect(dialogue).toBeHidden();
 });
