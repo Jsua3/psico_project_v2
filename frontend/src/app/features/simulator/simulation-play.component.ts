@@ -1051,6 +1051,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private lastPosition: { x: number; y: number } | null = null;
   private lastSyncedPosition: { x: number; y: number } | null = null;
   private positionSaveHandle: number | null = null;
+  /**
+   * Histéresis también para la interacción contextual (clic/E). Al entrar o
+   * recargar junto a una puerta de retorno, exige alejarse antes de permitir
+   * volver a cruzarla; evita que un evento residual rebote a la sala anterior.
+   */
+  private doorInteractionArmed = false;
+  private readonly doorInteractionRearmDistance = 72;
 
   ngOnDestroy(): void {
     this.introVideoRef?.nativeElement?.pause();
@@ -1340,6 +1347,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const message = meta.lockedMessage ?? 'Aún no puedes pasar: te falta información clave de esta sala.';
       this.audioDirector.playSfx('ui_cancel');
       this.showDoorNotice(message);
+      return;
+    }
+    if (!this.doorInteractionArmed) {
+      this.audioDirector.playSfx('ui_cancel');
+      this.showDoorNotice('Da unos pasos dentro de la sala antes de volver a cruzar la puerta.');
       return;
     }
     this.busy.set(true);
@@ -1650,6 +1662,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
     this.busy.set(true);
+    this.withSyncedPosition(() => this.pauseCurrentAttempt());
+  }
+
+  private pauseCurrentAttempt(): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.busy.set(false);
+      return;
+    }
     this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').subscribe({
       next: updated => { this.attempt.set(updated); this.selectedInteraction.set(null); this.dialogue.set(null); this.loadWorld(updated); },
       error: () => { this.showActionError('No pudimos registrar la salida segura.'); this.busy.set(false); }
@@ -1658,8 +1679,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   rememberPosition(x: number, y: number) {
     this.lastPosition = { x, y };
+    this.rearmDoorInteractionWhenAway(x, y);
     if (this.positionSaveHandle) window.clearTimeout(this.positionSaveHandle);
     this.positionSaveHandle = window.setTimeout(() => this.persistPosition(), 550);
+  }
+
+  private rearmDoorInteractionWhenAway(x: number, y: number): void {
+    if (this.doorInteractionArmed) return;
+    const doors = (this.world()?.objects ?? []).filter(object =>
+      (object.type || '').toUpperCase() === 'EXIT' && this.doorTargetNodeKey(object),
+    );
+    if (doors.length === 0 || doors.every(door =>
+      Math.hypot(x - door.x, y - door.y) >= this.doorInteractionRearmDistance,
+    )) {
+      this.doorInteractionArmed = true;
+    }
   }
 
   progressLabel(): string {
@@ -1854,25 +1888,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Carga el ScenarioConfig que corresponde al mapa del mundo y aplica ambos. */
   private applyWorldWithScenario(world: SimulationWorldState): void {
-    this.scenarioConfig.set(null);
     this.simulationService.getScenarioConfig(world.map.key).subscribe({
       next: config => {
         this.scenarioConfig.set(config);
         this.applyLoadedWorld(world);
       },
-      error: () => this.applyLoadedWorld(world),
+      error: () => {
+        // Solo entrar al renderer legacy cuando sabemos que el asset no existe.
+        // Vaciar la configuración mientras el GET seguía pendiente abría una
+        // ventana en la que las puertas DB walk-over podían dispararse solas.
+        this.scenarioConfig.set(null);
+        this.applyLoadedWorld(world);
+      },
     });
   }
 
   private applyLoadedWorld(world: SimulationWorldState): void {
     const previousMapKey = this.world()?.map.key ?? null;
+    const mapChanged = previousMapKey !== world.map.key;
+    if (mapChanged) this.doorInteractionArmed = false;
     this.world.set(world);
     this.hydrateClinicalState(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
     window.setTimeout(() => this.fadeActive.set(false), 80);
-    if (previousMapKey && previousMapKey !== world.map.key) {
+    if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
       this.lastPosition = null;

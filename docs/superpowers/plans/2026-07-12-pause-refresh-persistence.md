@@ -14,10 +14,10 @@ El diseño exige que refresh y pausa conserven intento, posición, evidencia, us
 - Modify: `frontend/src/app/features/simulator/simulation-play.component.ts`
 - Modify: `frontend/src/app/features/simulator/simulation-play.consent-gate.spec.ts`
 
-- [ ] Añadir una regresión roja que deje `lastPosition` pendiente y pruebe que `safeExit` no se invoca antes del `PATCH world-state`.
-- [ ] Encadenar la pausa mediante `withSyncedPosition` y revalidar intento/estado antes del POST.
-- [ ] Conservar el comportamiento de salida segura si no existe posición pendiente.
-- [ ] Mantener errores honestos y liberar `busy` en todas las salidas.
+- [x] Añadir una regresión roja que deje `lastPosition` pendiente y pruebe que `safeExit` no se invoca antes del `PATCH world-state`.
+- [x] Encadenar la pausa mediante `withSyncedPosition` y revalidar intento/estado antes del POST.
+- [x] Conservar el comportamiento de salida segura si no existe posición pendiente.
+- [x] Mantener errores honestos y liberar `busy` en todas las salidas.
 
 ## Task 2: Crear helpers de persistencia observada
 
@@ -25,10 +25,10 @@ El diseño exige que refresh y pausa conserven intento, posición, evidencia, us
 
 - Modify: `frontend/e2e/support/siep-flow.ts`
 
-- [ ] Observar respuestas por método y ruta sin mutar estado directamente.
-- [ ] Recargar, detectar el prompt de intento activo y reanudar según `IN_PROGRESS` o `PAUSED` mediante controles visibles.
-- [ ] Capturar `active-attempt`, `resume` y `world` para comparar el mismo `attemptId` y el estado autoritativo.
-- [ ] Esperar mapa/escenario Phaser exactos antes de devolver control al recorrido.
+- [x] Observar respuestas por método y ruta sin mutar estado directamente.
+- [x] Recargar, detectar el prompt de intento activo y reanudar según `IN_PROGRESS` o `PAUSED` mediante controles visibles.
+- [x] Capturar `active-attempt`, `resume` y `world` para comparar el mismo `attemptId` y el estado autoritativo.
+- [x] Esperar mapa/escenario Phaser exactos antes de devolver control al recorrido.
 
 ## Task 3: Insertar refresh y pausa dentro del caso integral
 
@@ -36,10 +36,10 @@ El diseño exige que refresh y pausa conserven intento, posición, evidencia, us
 
 - Modify: `frontend/e2e/full-case.e2e.ts`
 
-- [ ] Después de H1, persistir una posición observable y recargar en estado `IN_PROGRESS`.
-- [ ] Afirmar mismo intento, nodo H2, posición, PAP en inventario, `PAP@familia-crisis`, familia/NPC vistos y `clinicalState.papApplied=true`.
-- [ ] Mover de nuevo y activar Salida segura antes del debounce; afirmar orden PATCH → pausa y estado `PAUSED`.
-- [ ] Recargar en pausa, reanudar el mismo intento por UI y volver a afirmar posición, evidencia y consecuencias antes de completar H2–C3.
+- [x] Después de H1, persistir una posición observable y recargar en estado `IN_PROGRESS`.
+- [x] Afirmar mismo intento, nodo H2, posición, PAP en inventario, `PAP@familia-crisis`, familia/NPC vistos y `clinicalState.papApplied=true`.
+- [x] Mover de nuevo y activar Salida segura antes del debounce; afirmar orden PATCH → pausa y estado `PAUSED`.
+- [x] Recargar en pausa, reanudar el mismo intento por UI y volver a afirmar posición, evidencia y consecuencias antes de completar H2–C3.
 
 ## Task 4: Gates y evidencia
 
@@ -47,10 +47,10 @@ El diseño exige que refresh y pausa conserven intento, posición, evidencia, us
 
 - Modify: `docs/audits/2026-07-11-calidad-9-10-evidencia.md`
 
-- [ ] Ejecutar rojo→verde focalizado, frontend completo, build, `@full-case`, `@quality` y E2E completo.
-- [ ] Verificar backend completo si el recorrido descubre un contrato servidor insuficiente.
-- [ ] Confirmar cero listeners/recursos Compose propios y cero `attemptToken=` en artefactos.
-- [ ] Registrar exactamente qué estado sobrevivió y mantener fuera de alcance SME/lector de pantalla.
+- [x] Ejecutar rojo→verde focalizado, frontend completo, build, `@full-case`, `@quality` y E2E completo.
+- [x] Verificar backend completo si el recorrido descubre un contrato servidor insuficiente (no hubo cambios ni brecha backend; se conservó el gate previo de 220 pruebas).
+- [x] Confirmar cero listeners/recursos Compose propios y cero `attemptToken=` en artefactos.
+- [x] Registrar exactamente qué estado sobrevivió y mantener fuera de alcance SME/lector de pantalla.
 
 ## Acceptance
 

@@ -403,7 +403,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Cambio de mapa (decisión o puerta): la sala previa ya no aplica. Sin este
     // reset, keepPosition "conserva" la posición del render transicional y se
     // pierde la entrada (entryX/entryY) que enter_room persistió en world.player.
-    if (this.world && this.world.map.key !== world.map.key) {
+    // La primera hidratación también nace desarmada: una recarga puede restaurar
+    // al jugador junto a la puerta de regreso antes de resolver ScenarioConfig.
+    if (!this.world || this.world.map.key !== world.map.key) {
       this.currentRoomKey = '';
       // Recién entrado a una sala: desarmar hasta alejarse de la puerta de regreso
       // (la histéresis de checkDbDoorTriggers re-arma al superar doorRearmDist).

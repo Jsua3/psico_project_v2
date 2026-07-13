@@ -64,6 +64,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     getWorld: jest.Mock;
     getScenarioConfig: jest.Mock;
     safeExit: jest.Mock;
+    enterRoom: jest.Mock;
     recordNpcInteraction: jest.Mock;
     updateWorldState: jest.Mock;
   };
@@ -89,6 +90,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       getWorld: jest.fn(() => EMPTY),
       getScenarioConfig: jest.fn(() => EMPTY),
       safeExit: jest.fn(() => EMPTY),
+      enterRoom: jest.fn(() => EMPTY),
       recordNpcInteraction: jest.fn(() => EMPTY),
       updateWorldState: jest.fn(() => EMPTY),
       resumeAttempt: jest.fn(() => of(makeAttempt())),
@@ -383,6 +385,105 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(sim.recordNpcInteraction).toHaveBeenCalledWith(
       'attempt-1', 'token-1', 'enfermera-urgencias',
     );
+  });
+
+  it('sincroniza la posición pendiente antes de pausar con salida segura', () => {
+    setup(makeAttempt());
+    component.attempt.set(makeAttempt());
+    const world = {
+      map: { key: 'hospital-sala-escucha' },
+      player: { x: 320, y: 440 },
+      flags: {},
+    } as SimulationWorldState;
+    component.world.set(world);
+    (component as any).lastPosition = { x: 612, y: 444 };
+    const sync$ = new Subject<SimulationWorldState>();
+    sim.updateWorldState.mockReturnValue(sync$);
+    sim.safeExit.mockReturnValue(EMPTY);
+
+    component.safeExit();
+
+    expect(sim.updateWorldState).toHaveBeenCalledWith(
+      'attempt-1', 'token-1', 612, 444, 'hospital-sala-escucha',
+    );
+    expect(sim.safeExit).not.toHaveBeenCalled();
+
+    sync$.next(world);
+
+    expect(sim.safeExit).toHaveBeenCalledWith(
+      'attempt-1', 'token-1', 'Salida segura solicitada',
+    );
+  });
+
+  it('conserva la configuración autorada mientras carga la del mundo siguiente', () => {
+    setup(makeAttempt());
+    const previousConfig = {
+      scenarioKey: 'hospital-urgencias',
+      startRoomKey: 'hospital-urgencias',
+      rooms: [],
+    };
+    const nextConfig = {
+      scenarioKey: 'hospital-sala-escucha',
+      startRoomKey: 'hospital-sala-escucha',
+      rooms: [],
+    };
+    const nextWorld = {
+      map: { key: 'hospital-sala-escucha' },
+      player: { x: 160, y: 452 },
+      flags: {},
+    } as SimulationWorldState;
+    const config$ = new Subject<typeof nextConfig>();
+    component.scenarioConfig.set(previousConfig as any);
+    sim.getScenarioConfig.mockReturnValue(config$);
+
+    (component as any).applyWorldWithScenario(nextWorld);
+
+    expect(component.scenarioConfig()).toBe(previousConfig);
+    expect(component.world()).toBeNull();
+
+    config$.next(nextConfig);
+
+    expect(component.scenarioConfig()).toBe(nextConfig);
+    expect(component.world()).toBe(nextWorld);
+  });
+
+  it('bloquea la puerta de retorno hasta alejarse del punto de entrada', () => {
+    jest.useFakeTimers();
+    try {
+      setup(makeAttempt({ currentNode: { key: 'hospital-urgencias', title: 'Urgencias' } }));
+      component.attempt.set(makeAttempt());
+      const returnDoor = {
+        key: 'puerta-urgencias',
+        type: 'EXIT',
+        x: 122,
+        y: 460,
+        metadata: { targetNodeKey: 'hospital-urgencias', entryX: 786, entryY: 440 },
+      } as MapObjectState;
+      component.world.set({
+        map: { key: 'hospital-sala-escucha' },
+        player: { x: 160, y: 447 },
+        objects: [returnDoor],
+        flags: {},
+      } as SimulationWorldState);
+
+      component.openInteraction(returnDoor);
+      jest.advanceTimersByTime(400);
+
+      expect(sim.enterRoom).not.toHaveBeenCalled();
+      expect(component.doorNotice()).toMatch(/aléjate|avanza|pasos/i);
+
+      component.rememberPosition(340, 450);
+      component.rememberPosition(145, 455);
+      (component as any).lastSyncedPosition = { x: 145, y: 455 };
+      component.openInteraction(returnDoor);
+      jest.advanceTimersByTime(400);
+
+      expect(sim.enterRoom).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 'hospital-urgencias', 'puerta-urgencias',
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('hidrata el estado de paciente desde clinicalState al cargar el mundo', () => {

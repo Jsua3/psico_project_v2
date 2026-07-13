@@ -7,6 +7,12 @@ const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
 export type MovementKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 type ApiData = Record<string, any>;
 
+async function requireOk(response: Response, context: string): Promise<void> {
+  if (response.ok()) return;
+  const body = await response.text().catch(() => '<cuerpo no disponible>');
+  throw new Error(`${context}: HTTP ${response.status()} ${response.url()} — ${body}`);
+}
+
 export async function loginStudent(page: Page): Promise<void> {
   if (!/\/login$/.test(new URL(page.url()).pathname)) await page.goto('/login');
   await page.locator('input[type="email"]').last().fill(EMAIL);
@@ -84,6 +90,114 @@ export async function moveFor(page: Page, key: MovementKey, durationMs: number):
   }
 }
 
+export async function moveAndPersistPosition(
+  page: Page,
+  key: MovementKey,
+  durationMs: number,
+): Promise<ApiData> {
+  const responsePromise = page.waitForResponse(response =>
+    response.request().method() === 'PATCH'
+      && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  );
+  await moveFor(page, key, durationMs);
+  const response = await responsePromise;
+  await requireOk(response, 'Falló la persistencia de posición');
+  return (await response.json()).data as ApiData;
+}
+
+export async function pauseWithPendingPosition(
+  page: Page,
+  key: MovementKey,
+  durationMs: number,
+): Promise<{ positionWorld: ApiData; pausedAttempt: ApiData }> {
+  const requestOrder: string[] = [];
+  const captureOrder = (request: { method(): string; url(): string }) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PATCH' && /\/world-state$/.test(path)) requestOrder.push('position');
+    if (request.method() === 'POST' && /\/safe-exit$/.test(path)) requestOrder.push('pause');
+  };
+  page.on('request', captureOrder);
+  const positionPromise = page.waitForResponse(response =>
+    response.request().method() === 'PATCH'
+      && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  );
+  const pausePromise = page.waitForResponse(response =>
+    response.request().method() === 'POST'
+      && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  );
+  try {
+    await moveFor(page, key, durationMs);
+    await page.getByRole('button', { name: /salida segura/i }).click();
+    const positionResponse = await positionPromise;
+    const pauseResponse = await pausePromise;
+    await requireOk(positionResponse, 'Falló el flush previo a pausa');
+    await requireOk(pauseResponse, 'Falló la pausa segura');
+    expect(requestOrder).toEqual(['position', 'pause']);
+    return {
+      positionWorld: (await positionResponse.json()).data as ApiData,
+      pausedAttempt: (await pauseResponse.json()).data as ApiData,
+    };
+  } finally {
+    page.off('request', captureOrder);
+  }
+}
+
+export async function reloadAndResumeAttempt(
+  page: Page,
+  expectedStatus: 'IN_PROGRESS' | 'PAUSED',
+  expectedMapKey: string,
+): Promise<{ activeAttempt: ApiData; resumedAttempt: ApiData | null; world: ApiData }> {
+  const activePromise = page.waitForResponse(response =>
+    response.request().method() === 'GET'
+      && /\/api\/simulation\/cases\/\d+\/active-attempt$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  );
+  await page.reload();
+  const activeResponse = await activePromise;
+  await requireOk(activeResponse, 'Falló active-attempt tras recarga');
+  const activeAttempt = (await activeResponse.json()).data as ApiData;
+  expect(activeAttempt.status).toBe(expectedStatus);
+
+  const buttonName = expectedStatus === 'PAUSED'
+    ? /reanudar intento en pausa/i
+    : /continuar intento en progreso/i;
+  const resumeButton = page.getByRole('button', { name: buttonName });
+  await expect(resumeButton).toBeVisible({ timeout: 30_000 });
+
+  let resumePromise: Promise<Response> | null = null;
+  if (expectedStatus === 'PAUSED') {
+    resumePromise = page.waitForResponse(response =>
+      response.request().method() === 'POST'
+        && /\/api\/simulation\/attempts\/[^/]+\/resume$/.test(new URL(response.url()).pathname),
+      { timeout: 30_000 },
+    );
+  }
+  // Se instala después de completar la navegación para no capturar el GET
+  // que la pantalla anterior pudo iniciar y que reload cancela sin body.
+  const worldPromise = page.waitForResponse(response =>
+    response.request().method() === 'GET'
+      && /\/api\/simulation\/attempts\/[^/]+\/world$/.test(new URL(response.url()).pathname),
+    { timeout: 45_000 },
+  );
+  await resumeButton.click();
+
+  let resumedAttempt: ApiData | null = null;
+  if (resumePromise) {
+    const resumeResponse = await resumePromise;
+    await requireOk(resumeResponse, 'Falló resume tras recarga');
+    resumedAttempt = (await resumeResponse.json()).data as ApiData;
+  }
+
+  const worldResponse = await worldPromise;
+  await requireOk(worldResponse, 'Falló world tras reanudar');
+  const world = (await worldResponse.json()).data as ApiData;
+  await waitForWorldReady(page, expectedMapKey);
+  return { activeAttempt, resumedAttempt, world };
+}
+
 export async function interactNearby(
   page: Page,
   label: RegExp,
@@ -97,7 +211,7 @@ export async function interactNearby(
   );
   await action.click();
   const response = await responsePromise;
-  expect(response.ok(), `Falló ${response.request().method()} ${response.url()}: ${await response.text()}`).toBe(true);
+  await requireOk(response, `Falló la interacción ${label}`);
   return (await response.json()).data as ApiData;
 }
 
@@ -115,7 +229,7 @@ export async function enterDoor(
   );
   await action.click();
   const response = await responsePromise;
-  expect(response.ok(), `Falló la puerta ${label}: ${await response.text()}`).toBe(true);
+  await requireOk(response, `Falló la puerta ${label}`);
   const data = (await response.json()).data as ApiData;
   expect(data.map?.key).toBe(expectedMapKey);
   await waitForWorldReady(page, expectedMapKey);
@@ -138,7 +252,7 @@ export async function seekNpcDialogue(page: Page, npcName: RegExp): Promise<ApiD
       await page.waitForTimeout(300);
       if (npcResponse !== null) {
         const response = npcResponse as Response;
-        expect(response.ok(), `Falló la interacción NPC: ${await response.text()}`).toBe(true);
+        await requireOk(response, 'Falló la interacción NPC');
         await expect(dialogue).toBeVisible({ timeout: 10_000 });
         return (await response.json()).data as ApiData;
       }
@@ -212,7 +326,7 @@ export async function chooseDecision(
   );
   await option.click();
   const response = await responsePromise;
-  expect(response.ok(), `Falló la decisión ${optionText}: ${await response.text()}`).toBe(true);
+  await requireOk(response, `Falló la decisión ${optionText}`);
   return (await response.json()).data as ApiData;
 }
 
@@ -232,7 +346,7 @@ export async function useToolChoice(
   );
   await option.click();
   const response = await responsePromise;
-  expect(response.ok(), `Falló la aplicación ${optionText}: ${await response.text()}`).toBe(true);
+  await requireOk(response, `Falló la aplicación ${optionText}`);
   return (await response.json()).data as ApiData;
 }
 

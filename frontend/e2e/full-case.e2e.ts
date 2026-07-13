@@ -9,8 +9,11 @@ import {
   finishCaseIntroduction,
   interactNearby,
   loginStudent,
+  moveAndPersistPosition,
   moveFor,
   moveUntilNearby,
+  pauseWithPendingPosition,
+  reloadAndResumeAttempt,
   seekNpcDialogue,
   useToolChoice,
   waitForWorldReady,
@@ -69,6 +72,36 @@ test('@full-case completes all six recommended decisions through the rendered wo
   expect(decision.currentNode.key).toBe('hospital-sala-escucha');
   await closeDialogue(page, /supervisión clínica/i);
   await waitForWorldReady(page);
+
+  // Persistencia — refresh en progreso y pausa inmediata conservan el mismo intento.
+  const attemptId = decision.attemptId as string;
+  const beforeRefresh = await moveAndPersistPosition(page, 'ArrowRight', 240);
+  const refreshed = await reloadAndResumeAttempt(page, 'IN_PROGRESS', 'hospital-sala-escucha');
+  expect(refreshed.activeAttempt.attemptId).toBe(attemptId);
+  expect(refreshed.activeAttempt.currentNode.key).toBe('hospital-sala-escucha');
+  expect(refreshed.activeAttempt.clinicalState.papApplied).toBe(true);
+  expect(refreshed.world.player).toEqual(beforeRefresh.player);
+  expect(refreshed.world.inventory).toContain('PAP');
+  expect(refreshed.world.usedToolKeys).toContain('PAP@familia-crisis');
+  expect(refreshed.world.inspectedObjectKeys).toContain('familia-crisis');
+  expect(refreshed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
+
+  const paused = await pauseWithPendingPosition(page, 'ArrowRight', 180);
+  expect(paused.pausedAttempt.attemptId).toBe(attemptId);
+  expect(paused.pausedAttempt.status).toBe('PAUSED');
+  expect(paused.pausedAttempt.currentNode.key).toBe('hospital-sala-escucha');
+  expect(paused.pausedAttempt.clinicalState.papApplied).toBe(true);
+  await expect(page.getByRole('alertdialog', { name: /pausa/i })).toBeVisible({ timeout: 30_000 });
+
+  const resumed = await reloadAndResumeAttempt(page, 'PAUSED', 'hospital-sala-escucha');
+  expect(resumed.activeAttempt.attemptId).toBe(attemptId);
+  expect(resumed.resumedAttempt).toMatchObject({ attemptId, status: 'IN_PROGRESS' });
+  expect(resumed.resumedAttempt?.clinicalState.papApplied).toBe(true);
+  expect(resumed.world.player).toEqual(paused.positionWorld.player);
+  expect(resumed.world.inventory).toContain('PAP');
+  expect(resumed.world.usedToolKeys).toContain('PAP@familia-crisis');
+  expect(resumed.world.inspectedObjectKeys).toContain('familia-crisis');
+  expect(resumed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
 
   // H2 — marco normativo hospitalario.
   await moveUntilNearby(page, 'ArrowRight', /bitácora/i);

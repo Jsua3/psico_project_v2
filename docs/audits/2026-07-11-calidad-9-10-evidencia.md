@@ -144,3 +144,25 @@ El Browser plugin no estaba disponible; la prueba live se ejecutó con el Playwr
 El proyecto efímero derivado `psico-project-v3-test-7b12c7b1e9` quedó sin listeners en `5544`, `8093` y `4315`, contenedores, redes ni volúmenes propios; los artefactos Playwright contienen **0** coincidencias de `attemptToken=`.
 
 Esta evidencia demuestra que la aplicación es explícita, espacial, persistida y diferenciada de la adquisición. La pertinencia pedagógica y clínica de los textos, targets y consecuencias todavía requiere revisión SME; la automatización no suplanta esa firma experta.
+
+## Addendum E2E-PERSISTENCE-02 — 2026-07-12
+
+- `safeExit()` vacía primero cualquier posición pendiente mediante `PATCH world-state` y solo después ejecuta `POST safe-exit`. La regresión focalizada demostró el rojo original —la pausa se adelantaba al PATCH— y el orden verde `position → pause`.
+- El recorrido integral recarga después de H1 en `IN_PROGRESS`, recupera el mismo `attemptId` y compara el mundo autoritativo: nodo y mapa `hospital-sala-escucha`, posición exacta, PAP en inventario, `PAP@familia-crisis`, familia inspeccionada, enfermera registrada y `clinicalState.papApplied=true`.
+- Tras otra caminata, la salida segura se activa antes del debounce, queda `PAUSED`, se recarga la aplicación y se reanuda por el control visible. El mismo intento vuelve a `IN_PROGRESS` con la posición del PATCH previo y toda la evidencia/consecuencia clínica intacta; después completa H2–C3 y el final integral.
+- El rojo live descubrió además un rebote no determinista a Urgencias justo al entrar a la sala de escucha. La carga de `ScenarioConfig` ya no abre una ventana legacy mientras el asset está pendiente, la primera hidratación desarma el trigger espacial y la interacción contextual comparte histéresis: la puerta de retorno solo vuelve a habilitarse después de alejarse 72 px. Una regresión prueba tanto el bloqueo inmediato como el regreso intencional tras alejarse.
+
+### Evidencia fresca
+
+| Gate | Resultado |
+|---|---|
+| Regresiones focalizadas | `simulation-play.consent-gate.spec.ts`: **21/21**, exit 0; los dos contratos nuevos fallaron antes del arreglo |
+| `npm run test:frontend` | **48 suites / 316 pruebas**, exit 0 |
+| `npm run build:frontend` | build de producción limpio y sin warnings, exit 0 |
+| `npm run test:e2e -- --grep '@full-case'` | API **16/16** + Playwright **1/1**, exit 0 |
+| `npm run test:e2e -- --grep '@quality'` | API **16/16** + Axe/geometría **4/4**, exit 0 |
+| `npm run test:e2e` | API **16/16** + Playwright **18/18**, exit 0 |
+
+No cambió código backend en este slice; su gate fresco anterior permanece en **220 pruebas**. Después del gate completo hubo **0** listeners en `5544`, `8093` y `4315`, **0** contenedores, redes y volúmenes del proyecto `psico-project-v3-test-7b12c7b1e9`, **0** trazas temporales de diagnóstico y **0** coincidencias de `attemptToken=` en artefactos.
+
+El Browser plugin no estaba disponible; la verificación live se realizó con el Playwright versionado y el stack aislado del repositorio. Persistencia y continuidad quedan demostradas por automatización, pero lector de pantalla real y revisión clínica SME permanecen como validaciones humanas separadas.
