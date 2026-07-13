@@ -33,11 +33,12 @@ import {
   AUTHORED_PLAYER_SPAWN,
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
-  authoredMarkerPosition,
+  authoredMarkerPositionForMap,
 } from './authored-clinical-room.util';
 import { resolveSceneRenderer } from './scene-renderer.registry';
 import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
+import { resolveRoomPlayerPosition } from './room-player-position.util';
 import {
   NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
@@ -716,7 +717,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       });
       this.renderableWorldObjects()
         .map(obj => {
-          const authored = authoredMarkerPosition(obj.key);
+          const authored = authoredMarkerPositionForMap(mapKey, obj.key);
           return authored ? { ...obj, x: authored.x, y: authored.y } : obj;
         })
         .forEach(obj => this.createMarker(obj));
@@ -943,7 +944,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (this.world) {
       const mergedObjects = this.renderableWorldObjects().map(obj => {
         if (authoredClinicalRoom) {
-          const authored = authoredMarkerPosition(obj.key);
+          const authored = authoredMarkerPositionForMap(roomConfig.tiledMapKey, obj.key);
           if (authored) return { ...obj, x: authored.x, y: authored.y };
         }
         const t = tiledObjects.find(o => o.name === obj.key);
@@ -955,14 +956,18 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
     this.spawnNpcs(roomConfig.npcs);
-    // Fase 10: enter_room persiste entryX/entryY en world.player — la posición
-    // del backend manda si es jugable; si no (coords del seed viejo), spawn autoría.
+    // Fase 10: enter_room persiste entryX/entryY en world.player. Esa autoridad
+    // debe ganar incluso si el ScenarioConfig asíncrono dejó un actor transitorio
+    // en el centro; el actor vivo solo respalda datos backend no jugables.
     const persisted = this.world ? { x: this.world.player.x, y: this.world.player.y } : null;
-    const spawn = keepPosition ?? (authoredClinicalRoom
-      ? (persisted && !this.wouldCollide(persisted.x, persisted.y)
-          ? persisted
-          : { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y })
-      : { x: spawnX, y: spawnY });
+    const spawn = authoredClinicalRoom
+      ? resolveRoomPlayerPosition({
+          authoritative: persisted,
+          live: keepPosition,
+          fallback: { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y },
+          collides: point => this.wouldCollide(point.x, point.y),
+        })
+      : keepPosition ?? { x: spawnX, y: spawnY };
     this.createPlayer(spawn.x, spawn.y);
     if (authoredClinicalRoom) {
       cam.centerOn(actualMapW / 2, actualMapH / 2);
@@ -2095,6 +2100,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
   template: `
     <div #gameHost class="phaser-host" role="application"
       [attr.data-world-ready]="renderReady()"
+      [attr.data-rendered-map-key]="renderedMapKey()"
+      [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
     <div class="touch-controls" aria-label="Controles táctiles">
@@ -2145,6 +2152,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
   readonly renderReady = signal(false);
+  readonly renderedMapKey = signal<string | null>(null);
+  readonly renderedScenarioKey = signal<string | null>(null);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2159,9 +2168,16 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['scenarioConfig']) this.scene?.setScenarioConfig(this.scenarioConfig());
+    if (changes['scenarioConfig']) {
+      this.renderReady.set(false);
+      this.renderedMapKey.set(null);
+      this.renderedScenarioKey.set(null);
+      this.scene?.setScenarioConfig(this.scenarioConfig());
+    }
     if (changes['world'] && this.world()) {
       this.renderReady.set(false);
+      this.renderedMapKey.set(null);
+      this.renderedScenarioKey.set(null);
       this.scene?.setWorld(this.world()!);
     }
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
@@ -2193,7 +2209,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
-        onReady:       () => this.zone.run(() => this.renderReady.set(true)),
+        onReady:       () => this.zone.run(() => {
+          this.renderedMapKey.set(this.world()?.map.key ?? null);
+          this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
+          this.renderReady.set(true);
+        }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
         onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),

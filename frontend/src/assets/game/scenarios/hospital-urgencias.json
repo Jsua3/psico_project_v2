@@ -22,14 +22,7 @@
           "avatarPresetKey": "colega-clinica",
           "facing": "down",
           "emotion": "calm",
-          "motion": {
-            "behavior": "patrol",
-            "speed": 26,
-            "anchors": [
-              { "x": 560, "y": 330, "pauseMs": 1600, "face": "down" },
-              { "x": 704, "y": 376, "pauseMs": 1400, "face": "left" }
-            ]
-          },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Ingresó hace media hora: 28 heridas con arma cortopunzante. Está en cirugía, shock hipovolémico.", "emotion": "negative" },
@@ -68,7 +61,7 @@
           "avatarPresetKey": "psicologa-hospitalaria",
           "facing": "left",
           "emotion": "calm",
-          "motion": { "behavior": "subtle-wander", "radius": 12, "pauseMs": 3200 },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Tu objetivo inmediato: estabilizar emocionalmente a la familia y evitar acciones prematuras que aumenten la crisis.", "emotion": "neutral" },

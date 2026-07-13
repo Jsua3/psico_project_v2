@@ -1582,20 +1582,29 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const game = this.attempt();
     if (game?.status === 'IN_PROGRESS') {
       this.busy.set(true);
-      this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
-        next: world => {
-          this.mergeViewedNpcKeysFromWorld(world);
-          this.showNpcDialogue(npc);
-          this.busy.set(false);
-        },
-        error: () => {
-          this.showActionError('No pudimos guardar la interaccion con el NPC.');
-          this.busy.set(false);
-        },
-      });
+      this.withSyncedPosition(() => this.recordNpcInteraction(npc));
       return;
     }
     this.showNpcDialogue(npc);
+  }
+
+  private recordNpcInteraction(npc: NpcConfig): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.busy.set(false);
+      return;
+    }
+    this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
+      next: world => {
+        this.mergeViewedNpcKeysFromWorld(world);
+        this.showNpcDialogue(npc);
+        this.busy.set(false);
+      },
+      error: () => {
+        this.showActionError('No pudimos guardar la interaccion con el NPC.');
+        this.busy.set(false);
+      },
+    });
   }
 
   private showNpcDialogue(npc: NpcConfig): void {

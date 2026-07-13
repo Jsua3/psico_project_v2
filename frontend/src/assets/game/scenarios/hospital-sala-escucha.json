@@ -22,7 +22,7 @@
           "avatarPresetKey": "colega-clinica",
           "facing": "down",
           "emotion": "calm",
-          "motion": { "behavior": "subtle-wander", "radius": 10, "pauseMs": 3600 },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Ya avisé a trabajo social y al equipo interdisciplinario. Cuando definas la intervención, coordinamos juntos.", "emotion": "neutral" },

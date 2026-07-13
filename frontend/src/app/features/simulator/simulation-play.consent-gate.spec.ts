@@ -65,6 +65,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     getScenarioConfig: jest.Mock;
     safeExit: jest.Mock;
     recordNpcInteraction: jest.Mock;
+    updateWorldState: jest.Mock;
   };
   let audio: {
     init: jest.Mock;
@@ -89,6 +90,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       getScenarioConfig: jest.fn(() => EMPTY),
       safeExit: jest.fn(() => EMPTY),
       recordNpcInteraction: jest.fn(() => EMPTY),
+      updateWorldState: jest.fn(() => EMPTY),
       resumeAttempt: jest.fn(() => of(makeAttempt())),
     };
     audio = {
@@ -348,6 +350,39 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     expect((component as any).viewedNpcKeys().has(npc.key)).toBe(true);
     expect(component.dialogue()?.key).toBe(`npc-${npc.key}`);
+  });
+
+  it('sincroniza la posición pendiente antes de acreditar un NPC', () => {
+    setup(makeAttempt());
+    component.attempt.set(makeAttempt());
+    const world = {
+      map: { key: 'hospital-urgencias' },
+      player: { x: 250, y: 430 },
+      flags: {},
+    } as SimulationWorldState;
+    component.world.set(world);
+    (component as any).lastPosition = { x: 560, y: 380 };
+    const sync$ = new Subject<SimulationWorldState>();
+    sim.updateWorldState.mockReturnValue(sync$);
+    sim.recordNpcInteraction.mockReturnValue(EMPTY);
+    const npc = {
+      key: 'enfermera-urgencias',
+      displayName: 'Enfermera',
+      dialogue: { lines: [{ text: 'Acércate.' }] },
+    } as NpcConfig;
+
+    component.openNpcDialogue(npc);
+
+    expect(sim.updateWorldState).toHaveBeenCalledWith(
+      'attempt-1', 'token-1', 560, 380, 'hospital-urgencias',
+    );
+    expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
+
+    sync$.next(world);
+
+    expect(sim.recordNpcInteraction).toHaveBeenCalledWith(
+      'attempt-1', 'token-1', 'enfermera-urgencias',
+    );
   });
 
   it('hidrata el estado de paciente desde clinicalState al cargar el mundo', () => {

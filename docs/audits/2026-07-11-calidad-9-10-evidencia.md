@@ -100,3 +100,25 @@ Permanecen pendientes el gate Axe `serious/critical = 0`, la matriz completa `16
 - El runner eliminó todos sus recursos: **0** listeners en 5544/8093/4315 y **0** contenedores, redes o volúmenes del proyecto Compose de pruebas.
 
 El Browser plugin no estaba disponible en esta sesión, por lo que la verificación live se ejecutó con el Playwright versionado del repositorio y su backend/BD desechables. Aún requieren validación manual un lector de pantalla real y la revisión SME del contenido clínico. También sigue pendiente demostrar el recorrido vertical completo de seis decisiones hasta resultado e informe; este addendum cierra Axe y responsive del alcance escaneado, no el objetivo global.
+
+## Addendum FULL-VERTICAL-01 — 2026-07-12
+
+- `full-case.e2e.ts` demuestra el recorrido completo de `SIM-VBG-001` exclusivamente mediante controles visibles, teclado, movimiento espacial, diálogos y elecciones renderizadas. Los listeners de red observan contratos y respuestas, pero no crean intentos ni mutan estado por API.
+- Antes de H1 el estudiante adquiere PAP, inspecciona a la familia y registra a `enfermera-urgencias`; antes de H3 adquiere EPICEE/SPIKES; antes de C1 inspecciona el expediente y adquiere `RISK_METER`. Las seis opciones se eligen sin usar la rama de información incompleta.
+- La ruta confirmada es `h1-pap-contencion` → `h2-459-1257` → `h3-integral-psicosocial` → `c1-riesgo-proteccion-derechos` → `c2-2126-1098-1257` → `c3-integral-derechos`. La respuesta final y la pantalla de resultado coinciden en `COMPLETED`, nodo `cierre-caso`, final `integral`, **6 recomendadas**, **0 críticas** y ruta institucional activada.
+- Los rojos live detectaron y corrigieron cuatro contratos de runtime: la posición se sincroniza antes de acreditar NPCs; los NPCs interactivos del caso permanecen sobre el ancla que valida Django; el remapeo de marcadores legacy ya no altera la geometría 1:1 del caso PDF; y Phaser publica mapa **y** escenario efectivamente renderizados antes de que una transición vuelva a aceptar input. Esto eliminó interacciones visibles que podían fallar por distancia y el rebote transitorio por una puerta de regreso.
+- El gate conjunto encontró además un contraste de **4.45:1** en el subtítulo de la bitácora a `412×915`; se elevó el color y la matriz Axe posterior quedó verde en las cuatro resoluciones.
+
+### Evidencia fresca
+
+| Gate | Resultado |
+|---|---|
+| `npm run test:frontend` | **48 suites / 312 pruebas**, exit 0 |
+| `npm run build:frontend` | build de producción limpio, exit 0 |
+| `npm run test:e2e -- --grep '@full-case'` | API **16/16** + Playwright **1/1**, exit 0 |
+| `npm run test:e2e -- --grep '@quality'` | API **16/16** + Axe/geometría **4/4**, exit 0 |
+| `npm run test:e2e` | API **16/16** + Playwright **18/18**, exit 0 |
+
+Tras el gate completo quedaron **0** listeners en `5544`, `8093` y `4315`; **0** contenedores, redes y volúmenes del proyecto Compose desechable; y **0** coincidencias de `attemptToken=` en los artefactos Playwright.
+
+El Browser plugin no estaba disponible; la prueba live se ejecutó con el Playwright versionado del repositorio y su stack aislado. Este cierre automatizado demuestra ruta, estado, accesibilidad Axe/geométrica y resultado, pero no reemplaza la validación manual con lector de pantalla ni la revisión clínica SME de textos, decisiones y retroalimentación.

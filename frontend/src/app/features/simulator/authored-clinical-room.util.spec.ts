@@ -4,6 +4,7 @@ import {
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
   authoredMarkerPosition,
+  authoredMarkerPositionForMap,
   collidesInAuthoredRoom,
   isAuthoredClinicalRoomKey,
 } from './authored-clinical-room.util';
@@ -62,5 +63,17 @@ describe('authored clinical room geometry', () => {
   it('resolves marker overrides by backend key', () => {
     expect(authoredMarkerPosition('escucha-segura')).not.toBeNull();
     expect(authoredMarkerPosition('clave-inexistente')).toBeNull();
+  });
+});
+
+describe('authoredMarkerPositionForMap', () => {
+  it('remapea marcadores solo en las salas clínicas legacy que usan esa geometría', () => {
+    expect(authoredMarkerPositionForMap('urgencias-crisis', 'tool-bitacora'))
+      .toEqual({ x: 648, y: 372 });
+  });
+
+  it('preserva las coordenadas backend en las salas autoradas del caso PDF', () => {
+    expect(authoredMarkerPositionForMap('hospital-sala-escucha', 'tool-bitacora'))
+      .toBeNull();
   });
 });

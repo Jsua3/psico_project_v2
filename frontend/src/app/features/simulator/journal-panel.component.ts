@@ -156,7 +156,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       color: rgba(232,240,244,.5);
       flex-shrink: 0;
     }
-    .sheet-sub { color: rgba(182,156,255,.7); margin: 2px 0 0; }
+    .sheet-sub { color: rgba(182,156,255,.82); margin: 2px 0 0; }
 
     .journal-columns {
       display: grid;
