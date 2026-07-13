@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
@@ -83,6 +83,7 @@ import { AvatarConfig, CLOTHING_COLORS, EXPRESSIONS, GENDER_OPTIONS } from '../c
 import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-catalog.config';
 
 interface WorldCallbacks {
+  onReady:       () => void;
   onProximity:   (obj: MapObjectState | null) => void;
   onInteract:    (obj: MapObjectState) => void;
   onPosition:    (x: number, y: number) => void;
@@ -731,6 +732,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.updateNearestInteraction(true);
       this.buildGuide();
       this.playIntroFade();
+      this.callbacks.onReady();
       return;
     }
 
@@ -828,6 +830,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.buildGuide();
     this.applyLightingOverlay();
     this.playIntroFade();
+    this.callbacks.onReady();
   }
 
   /**
@@ -973,6 +976,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // genérica solo ensuciaría/oscurecería la escena premium.
     if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
     this.playIntroFade();
+    this.callbacks.onReady();
   }
 
   /** Fade-in breve al entrar a la simulación (solo la primera escena). */
@@ -2090,6 +2094,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   imports: [CommonModule, MatIconModule],
   template: `
     <div #gameHost class="phaser-host" role="application"
+      [attr.data-world-ready]="renderReady()"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
     <div class="touch-controls" aria-label="Controles táctiles">
@@ -2139,6 +2144,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
+  readonly renderReady = signal(false);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2154,7 +2160,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['scenarioConfig']) this.scene?.setScenarioConfig(this.scenarioConfig());
-    if (changes['world'] && this.world()) this.scene?.setWorld(this.world()!);
+    if (changes['world'] && this.world()) {
+      this.renderReady.set(false);
+      this.scene?.setWorld(this.world()!);
+    }
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
@@ -2184,6 +2193,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
+        onReady:       () => this.zone.run(() => this.renderReady.set(true)),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
         onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),

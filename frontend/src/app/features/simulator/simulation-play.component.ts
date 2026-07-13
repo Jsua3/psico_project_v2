@@ -1205,6 +1205,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+    // Enter/Espacio conservan la activación propia de botones y enlaces. Otros
+    // atajos (J, E) siguen siendo globales aunque el foco permanezca un instante
+    // en el botón que acaba de cerrar un overlay.
+    if ((tag === 'BUTTON' || tag === 'A') && (event.key === 'Enter' || event.key === ' ')) return;
 
     if (this.inputBlocked()) {
       if (['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) event.preventDefault();
@@ -1705,9 +1709,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.stressPulse.set(true);
     window.setTimeout(() => this.stressPulse.set(false), 700);
     this.announce(result.feedbackMessage);
-    window.setTimeout(() => {
-      if (this.dialogue()?.key?.startsWith('tool-feedback-')) this.dialogue.set(null);
-    }, 5000);
   }
 
   toggleMusicMute(): void {

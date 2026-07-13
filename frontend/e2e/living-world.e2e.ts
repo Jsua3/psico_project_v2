@@ -38,7 +38,10 @@ async function enterPlayableCase(page: Page) {
   const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
   await expect(caseIntro).toBeVisible({ timeout: 15_000 });
   await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+  await expect(caseIntro).toBeHidden({ timeout: 15_000 });
   await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))
+    .toBeVisible({ timeout: 30_000 });
 }
 
 test('menu world renders full-bleed with no shell sidebar', async ({ page }) => {
@@ -74,6 +77,7 @@ test('in-case world loads with the HUD', async ({ page }) => {
 });
 
 test('journal traps keyboard focus while it blocks the world', async ({ page }) => {
+  test.setTimeout(120_000);
   await login(page);
   await enterPlayableCase(page);
   await page.keyboard.press('j');
@@ -87,4 +91,56 @@ test('journal traps keyboard focus while it blocks the world', async ({ page }) 
     );
     expect(focusedInsideJournal).toBe(true);
   }
+});
+
+test('real dialogue advances one intervention at a time and retains keyboard focus', async ({ page }) => {
+  test.setTimeout(120_000);
+  await login(page);
+  await enterPlayableCase(page);
+
+  const familyAction = page.getByRole('button', { name: /interactuar:.*familia en crisis/i });
+  await page.locator('app-game-world canvas').click();
+  await page.keyboard.down('ArrowLeft');
+  try {
+    await expect(familyAction).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await page.keyboard.up('ArrowLeft');
+  }
+
+  const interactionResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST'
+      && /\/api\/simulation\/attempts\/[^/]+\/interactions\/familia-crisis$/.test(response.url()),
+    { timeout: 30_000 },
+  );
+  await familyAction.click();
+  expect((await interactionResponse).ok()).toBe(true);
+  const dialogue = page.getByRole('dialog', { name: /diálogo con abuela de la niña/i });
+  await expect(dialogue).toBeVisible({ timeout: 30_000 });
+
+  const first = '¡Déjenme pasar! ¡Quiero ver a mi nieta y a mi hija! ¿Por qué nadie nos dice nada?';
+  const second = 'Llegamos apenas supimos… ¿están bien? ¡Dígame que están bien!';
+  const third = '(La familia necesita contención antes de cualquier información difícil. La sala de escucha está al fondo a la derecha.)';
+
+  await page.keyboard.press('Enter');
+  await expect(dialogue).toContainText(first);
+  await expect(dialogue).not.toContainText(second);
+  await expect(dialogue.getByRole('button', { name: /siguiente intervención/i })).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(dialogue.getByRole('button', { name: /saltar animación/i })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(dialogue).toContainText(second);
+  await expect(dialogue).not.toContainText(first);
+  await expect(dialogue).not.toContainText(third);
+  await expect(dialogue.getByRole('button', { name: /siguiente intervención/i })).toBeFocused();
+
+  await page.keyboard.press('Space');
+  await expect(dialogue.getByRole('button', { name: /saltar animación/i })).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(dialogue).toContainText(third);
+  await expect(dialogue).not.toContainText(second);
+  await expect(dialogue.getByRole('button', { name: /cerrar diálogo/i })).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(dialogue).toBeHidden();
 });

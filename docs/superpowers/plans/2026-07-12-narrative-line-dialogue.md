@@ -17,11 +17,11 @@
 - Modify: `frontend/src/app/features/simulator/dialogue-panel.component.spec.ts`
 - Modify: `frontend/src/app/features/simulator/dialogue-panel.component.ts`
 
-- [ ] Write an Angular component test with two lines (`Primera`, `Segunda`) and one choice. Assert only `Primera` is displayed initially; after completing the first typewriter, choices remain hidden; after `advanceLine()`, only `Segunda` is typed; choices appear only after completing the second line.
-- [ ] Run `npm run test:frontend -- --runInBand src/app/features/simulator/dialogue-panel.component.spec.ts` and confirm the old component exposes both lines as one string.
-- [ ] Replace the numeric `currentLineIndex` with a signal, add `currentLine()`, `isLastLine()` and `advanceLine()`, and start/skip the typewriter using only `currentLine().text`.
-- [ ] Bind speaker, emotion, portrait resolution and the dialog accessible name to the active line. Render choices only when `isLastLine()` and typing is complete.
-- [ ] Re-run the focused test and commit `feat(narrative): avanzar diálogo por intervención`.
+- [x] Write an Angular component test with two lines (`Primera`, `Segunda`) and one choice. Assert only `Primera` is displayed initially; after completing the first typewriter, choices remain hidden; after `advanceLine()`, only `Segunda` is typed; choices appear only after completing the second line.
+- [x] Run `npm run test:frontend -- --runInBand src/app/features/simulator/dialogue-panel.component.spec.ts` and confirm the old component exposes both lines as one string.
+- [x] Replace the numeric `currentLineIndex` with a signal, add `currentLine()`, `isLastLine()` and `advanceLine()`, and start/skip the typewriter using only `currentLine().text`.
+- [x] Bind speaker, emotion, portrait resolution and the dialog accessible name to the active line. Render choices only when `isLastLine()` and typing is complete.
+- [x] Re-run the focused test and commit `feat(narrative): avanzar diálogo por intervención`.
 
 ### Task 2: Make Enter and Space deterministic
 
@@ -30,10 +30,10 @@
 - Modify: `frontend/src/app/features/simulator/dialogue-panel.component.spec.ts`
 - Modify: `frontend/src/app/features/simulator/dialogue-panel.component.ts`
 
-- [ ] Add a failing keyboard test: Enter/Space while typing completes the current line; the next press advances exactly one line; neither key skips two lines; on the completed final line they expose choices or close a no-choice dialogue.
-- [ ] Run the focused spec and verify the failure is progression-related.
-- [ ] Route Enter and Space through one method: skip current typewriter, advance a completed non-final line, and on the final line leave choices available or emit close when there are none. Preserve Escape and numeric-choice behavior.
-- [ ] Re-run the focused spec and all frontend tests; commit `fix(narrative): unificar avance por teclado`.
+- [x] Add a failing keyboard test: Enter/Space while typing completes the current line; the next press advances exactly one line; neither key skips two lines; on the completed final line they expose choices or close a no-choice dialogue.
+- [x] Run the focused spec and verify the failure is progression-related.
+- [x] Route Enter and Space through one method: skip current typewriter, advance a completed non-final line, and on the final line leave choices available or emit close when there are none. Preserve Escape and numeric-choice behavior.
+- [x] Re-run the focused spec and all frontend tests; commit `fix(narrative): unificar avance por teclado`.
 
 ### Task 3: Verify rendered dialogue behavior
 
@@ -42,9 +42,9 @@
 - Modify: `frontend/e2e/living-world.e2e.ts`
 - Modify: `docs/audits/2026-07-11-calidad-9-10-evidencia.md`
 
-- [ ] Add a Playwright regression that opens a real multi-line dialogue, proves later text is absent before advancement, advances with keyboard, and confirms focus remains inside the dialog.
-- [ ] Run `npm run test:e2e` and record exact API/Playwright counts.
-- [ ] Append evidence without claiming Axe or the four-viewport matrix; commit `docs(audit): registrar narrativa por intervención`.
+- [x] Add a Playwright regression that opens a real multi-line dialogue, proves later text is absent before advancement, advances with keyboard, and confirms focus remains inside the dialog.
+- [x] Run `npm run test:e2e` and record exact API/Playwright counts.
+- [x] Append evidence without claiming Axe or the four-viewport matrix; commit `docs(audit): registrar narrativa por intervención`.
 
 ## Self-review
 

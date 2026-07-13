@@ -116,7 +116,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         },
       ],
     });
-    component = TestBed.createComponent(SimulationPlayComponent).componentInstance;
+    component = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
   }
 
   afterEach(() => {
@@ -263,6 +263,57 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
 
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('no cancela Enter sobre un botón nativo cuando un diálogo bloquea el mundo', () => {
+    setup(makeAttempt());
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    const button = document.createElement('button');
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    Object.defineProperty(event, 'target', { value: button });
+
+    component.handleGlobalInteraction(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('mantiene el atajo J aunque el foco venga del botón que cerró un overlay', () => {
+    setup(makeAttempt());
+    const button = document.createElement('button');
+    const event = new KeyboardEvent('keydown', { key: 'j', cancelable: true });
+    Object.defineProperty(event, 'target', { value: button });
+
+    component.handleGlobalInteraction(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(component.journalOpen()).toBe(true);
+  });
+
+  it('no autocierra un feedback de herramienta antes de que el usuario lea sus líneas', () => {
+    jest.useFakeTimers();
+    try {
+      setup(makeAttempt());
+      const subject = component as unknown as {
+        showToolFeedback(result: {
+          toolCode: string;
+          pertinent: boolean;
+          feedbackMessage: string;
+          stressDelta: number;
+        }): void;
+      };
+
+      subject.showToolFeedback({
+        toolCode: 'PAP',
+        pertinent: true,
+        feedbackMessage: 'Una explicación clínica extensa que debe avanzar manualmente.',
+        stressDelta: -5,
+      });
+      jest.advanceTimersByTime(5_000);
+
+      expect(component.dialogue()?.lines).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('no acredita NPC ni permite salida segura desde controles de fondo bloqueados', () => {

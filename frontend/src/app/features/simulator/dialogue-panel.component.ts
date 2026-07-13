@@ -1,9 +1,16 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { AfterViewChecked, Component, ElementRef, HostListener, OnDestroy, ViewChild, effect, inject, input, output, signal } from '@angular/core';
+import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
+import {
+  activeDialogueLine,
+  dialogueChoicesVisible,
+  dialogueKeyAction,
+  isFinalDialogueLine,
+  nextDialogueLineIndex,
+} from './dialogue-progression.util';
 import { resolvePortraitAsset } from './portrait-resolver.util';
 
 const CHARS_PER_SEC = 22;
@@ -21,12 +28,12 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
         class="dialogue-strip"
         [class.dialogue-strip--side]="mode() === 'side'"
         [class.strip--warning]="interaction()?.type === 'WARNING'"
-        [class.strip--supervisory]="d.speakerName === 'Supervisión clínica'"
+        [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
         role="dialog"
         aria-modal="true"
-        [attr.aria-label]="d.speakerName + ': ' + fullText()">
+        [attr.aria-label]="'Diálogo con ' + activeSpeakerName(d)">
 
-        <div class="portrait" aria-hidden="true" [style.color]="emotionColor(d.emotion)">
+        <div class="portrait" aria-hidden="true" [style.color]="emotionColor(activeEmotion(d))">
           @if (portraitSrc(d); as src) {
             <img class="portrait-img" [src]="src" alt="" (error)="onPortraitError(src)" />
           } @else {
@@ -35,21 +42,24 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
               <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
             </svg>
           }
-          @if (d.emotion && d.emotion !== 'neutral') {
-            <span class="emotion-chip" [attr.data-emotion]="d.emotion"></span>
+          @if (activeEmotion(d); as emotion) {
+            @if (emotion !== 'neutral') {
+              <span class="emotion-chip" [attr.data-emotion]="emotion"></span>
+            }
           }
         </div>
 
         <!-- Text area -->
         <div class="strip-body">
-          <p class="speaker-name">{{ d.speakerName }}
-            @if (emotionLabel(d.emotion); as em) {
-              <span class="emotion-tag" [style.color]="emotionColor(d.emotion)">{{ em }}</span>
+          <p class="speaker-name">{{ activeSpeakerName(d) }}
+            @if (emotionLabel(activeEmotion(d)); as em) {
+              <span class="emotion-tag" [style.color]="emotionColor(activeEmotion(d))">{{ em }}</span>
             }
           </p>
-          <p class="dialogue-text" role="status" aria-live="polite" aria-atomic="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()" aria-hidden="true">▋</span></p>
+          <p class="dialogue-text" aria-hidden="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()">▋</span></p>
+          <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{{ fullText() }}</p>
 
-          @if (isTypingComplete() && d.choices.length) {
+          @if (choicesVisible()) {
             <div class="choices" role="group" aria-label="Opciones de intervención"
               [class.choices--locked]="chosenKey() !== null">
               @for (choice of d.choices; track choice.key; let i = $index) {
@@ -75,14 +85,21 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
           }
 
           @if (!isTypingComplete()) {
-            <button cdkFocusInitial type="button" class="close-btn psy-button psy-button--ghost"
+            <button type="button" class="close-btn psy-button psy-button--ghost"
               (click)="skipTypewriter()"
               aria-label="Saltar animación de texto">
               Saltar <span aria-hidden="true">▶</span>
             </button>
           }
-          @if (isTypingComplete() && !d.choices.length) {
-            <button cdkFocusInitial type="button" class="close-btn psy-button psy-button--ghost"
+          @if (isTypingComplete() && !isLastLine()) {
+            <button type="button" class="close-btn psy-button psy-button--ghost"
+              (click)="advanceLine()"
+              aria-label="Mostrar siguiente intervención">
+              Siguiente <span aria-hidden="true">▶</span>
+            </button>
+          }
+          @if (isTypingComplete() && isLastLine() && !d.choices.length) {
+            <button type="button" class="close-btn psy-button psy-button--ghost"
               (click)="close.emit()"
               aria-label="Cerrar diálogo (Esc)">
               Continuar <span aria-hidden="true">▶</span>
@@ -183,6 +200,17 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       color: rgba(232,240,244,.92);
       min-height: 1.6em;
       white-space: pre-line;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .cursor {
       display: inline-block;
@@ -360,10 +388,16 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly useTool = output<string>();
   readonly frontendChoice = output<string>();
 
-  @ViewChild('dialogueBox') private dialogueBox?: ElementRef<HTMLDivElement>;
-
   readonly displayedText    = signal('');
   readonly isTypingComplete = signal(false);
+  readonly lineIndex = signal(0);
+  readonly activeLine = computed(() => activeDialogueLine(this.dialogue(), this.lineIndex()));
+  readonly isLastLine = computed(() => isFinalDialogueLine(this.dialogue(), this.lineIndex()));
+  readonly choicesVisible = computed(() => dialogueChoicesVisible(
+    this.dialogue(),
+    this.lineIndex(),
+    this.isTypingComplete(),
+  ));
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
   /** Retrato cuya carga falló: cae a la silueta SVG (spike de retratos NPC). */
@@ -371,19 +405,21 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   private typewriterHandle: ReturnType<typeof setInterval> | null = null;
   private confirmHandle: ReturnType<typeof setTimeout> | null = null;
-  private currentLineIndex = 0;
+  private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   constructor() {
     effect(() => {
       const d = this.dialogue();
       this.stopTypewriter();
-      this.currentLineIndex = 0;
+      this.lineIndex.set(0);
       this.chosenKey.set(null);
+      this.failedPortrait.set(null);
       if (d?.lines?.length) {
         this.audio.playSfx('ui_select');
-        const fullText = d.lines.map(l => l.text).join('\n');
-        this.startTypewriter(fullText);
+        this.startTypewriter(d.lines[0].text);
       } else {
         this.displayedText.set('');
         this.isTypingComplete.set(true);
@@ -396,8 +432,25 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * (o si la imagen falló al cargar) → el panel muestra la silueta SVG.
    */
   portraitSrc(d: DialogueState): string | null {
-    const asset = resolvePortraitAsset(d.portraitKey, d.emotion, d.speakerName);
+    const line = this.activeLine();
+    const lineSpeaker = line?.speakerName?.trim() || null;
+    const treeSpeaker = d.speakerName?.trim() || null;
+    const speakerName = lineSpeaker || treeSpeaker;
+    const portraitKey = !lineSpeaker || lineSpeaker === treeSpeaker ? d.portraitKey : null;
+    const asset = resolvePortraitAsset(
+      portraitKey,
+      line?.emotion?.trim() || d.emotion?.trim() || 'neutral',
+      speakerName,
+    );
     return asset && this.failedPortrait() !== asset ? asset : null;
+  }
+
+  activeSpeakerName(d: DialogueState): string {
+    return this.activeLine()?.speakerName?.trim() || d.speakerName?.trim() || 'Intervención';
+  }
+
+  activeEmotion(d: DialogueState): string {
+    return this.activeLine()?.emotion?.trim() || d.emotion?.trim() || 'neutral';
   }
 
   onPortraitError(src: string): void {
@@ -432,43 +485,33 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   onKeydown(e: KeyboardEvent): void {
     const d = this.dialogue();
     if (!d) return;
+    const action = dialogueKeyAction(
+      e.key,
+      this.isTypingComplete(),
+      this.isLastLine(),
+      d.choices.length,
+      e.repeat,
+    );
 
-    // Escape: safe exit (REGLA-004 — always reachable via keyboard)
-    if (e.key === 'Escape') {
-      e.preventDefault();
+    if (action === 'none') return;
+    e.preventDefault();
+
+    if (action === 'close') {
       this.close.emit();
-      return;
-    }
-
-    // Space or Enter: skip typewriter animation when still typing
-    if ((e.key === ' ' || e.key === 'Enter') && !this.isTypingComplete()) {
-      e.preventDefault();
+    } else if (action === 'complete') {
       this.skipTypewriter();
-      return;
-    }
-
-    if (!this.isTypingComplete()) return;
-
-    if (e.key === 'Enter' && !d.choices.length) {
-      e.preventDefault();
-      this.close.emit();
-      return;
-    }
-
-    // Digit keys: select choice by number
-    if (d.choices.length) {
+    } else if (action === 'advance') {
+      this.advanceLine();
+    } else if (action === 'choose') {
       const idx = digitIndex(e.key);
-      if (idx !== null && idx < d.choices.length) {
-        e.preventDefault();
-        this.handleChoice(d.choices[idx]);
-      }
+      if (idx !== null && idx < d.choices.length) this.handleChoice(d.choices[idx]);
     }
   }
 
   ngAfterViewChecked() {
     // Ensure dialogue box is scrolled to bottom when new text renders
-    if (this.dialogueBox) {
-      const el = this.dialogueBox.nativeElement;
+    const el = this.host.nativeElement.querySelector<HTMLDivElement>('.dialogue-strip');
+    if (el) {
       el.scrollTop = el.scrollHeight;
     }
   }
@@ -476,6 +519,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   ngOnDestroy() {
     this.stopTypewriter();
     if (this.confirmHandle !== null) clearTimeout(this.confirmHandle);
+    this.focusRenderRef?.destroy();
   }
 
   handleChoice(choice: DialogueChoiceState) {
@@ -495,24 +539,35 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     }, 170);
   }
 
-  /** Skip typewriter animation — shows full text immediately. */
+  advanceLine(): void {
+    const d = this.dialogue();
+    const nextIndex = nextDialogueLineIndex(d, this.lineIndex());
+    if (!d || nextIndex === null) return;
+
+    this.stopTypewriter();
+    this.lineIndex.set(nextIndex);
+    this.failedPortrait.set(null);
+    this.audio.playSfx('ui_select');
+    this.startTypewriter(d.lines[nextIndex]?.text ?? '');
+  }
+
+  /** Skip typewriter animation — shows the active intervention immediately. */
   skipTypewriter(): void {
     if (this.isTypingComplete()) return;
     this.stopTypewriter();
-    const d = this.dialogue();
-    if (d?.lines?.length) {
-      this.displayedText.set(d.lines.map(l => l.text).join('\n'));
-    }
+    this.displayedText.set(this.activeLine()?.text ?? '');
     this.isTypingComplete.set(true);
+    this.requestDialogueFocus();
   }
 
   fullText(): string {
-    return this.dialogue()?.lines?.map(l => l.text).join(' ') ?? '';
+    return this.activeLine()?.text ?? '';
   }
 
   private startTypewriter(text: string) {
     this.displayedText.set('');
     this.isTypingComplete.set(false);
+    this.requestDialogueFocus();
     let pos = 0;
     this.typewriterHandle = setInterval(() => {
       pos++;
@@ -520,6 +575,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       if (pos >= text.length) {
         this.stopTypewriter();
         this.isTypingComplete.set(true);
+        this.requestDialogueFocus();
       }
     }, TYPEWRITER_INTERVAL_MS);
   }
@@ -529,5 +585,18 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       clearInterval(this.typewriterHandle);
       this.typewriterHandle = null;
     }
+  }
+
+  private requestDialogueFocus(): void {
+    this.focusRenderRef?.destroy();
+    this.focusRenderRef = afterNextRender({
+      write: () => {
+        this.focusRenderRef = null;
+        const dialogueBox = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip');
+        dialogueBox
+          ?.querySelector<HTMLElement>('.choice-btn:not([disabled]), .close-btn:not([disabled])')
+          ?.focus();
+      },
+    }, { injector: this.injector });
   }
 }

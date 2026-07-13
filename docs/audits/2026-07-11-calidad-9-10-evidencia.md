@@ -79,4 +79,14 @@ Todavía faltan el bucle clínico completo, diálogo por intervención, Axe y la
 - El HUD y la reacción visual de la paciente ya no calculan consecuencias con el reducer del navegador tras una decisión; se hidratan desde `clinicalState` retornado por el servidor. La evidencia confirmada se conserva entre el diálogo de confirmación y el envío de la decisión.
 - Evidencia fresca: 30 pruebas backend de decisiones/caso, 47 suites / 297 pruebas frontend, E2E aislado con matriz API 16/16 y Playwright 12/12, todas con salida 0.
 
-El contenido clínico autorado todavía requiere revisión SME. También permanecen pendientes el diálogo por intervención, Axe en estados dinámicos y la matriz real de `1600×900`, `1366×768`, `390×844` y `412×915`; este addendum no declara el objetivo global terminado.
+El contenido clínico autorado todavía requiere revisión SME. En ese corte permanecían pendientes el diálogo por intervención, Axe en estados dinámicos y la matriz real de `1600×900`, `1366×768`, `390×844` y `412×915`; ese addendum no declaraba el objetivo global terminado.
+
+## Addendum NARRATIVE-01 — 2026-07-12
+
+- `DialoguePanelComponent` presenta una sola intervención autorada por vez. La línea activa gobierna texto, hablante, emoción y retrato; las opciones permanecen ausentes hasta completar la última línea y el nombre accesible no expone texto futuro.
+- Enter y Espacio comparten un contrato determinista: completan la línea en curso, avanzan exactamente una intervención y, al final, dejan las opciones operables o cierran un diálogo sin opciones. Escape conserva la salida inmediata y los dígitos fuera del rango de opciones no se interceptan.
+- Cada reemplazo de `Saltar`, `Siguiente`, `Continuar` u opciones recupera el foco después del render. Los controles nativos conservan Enter/Espacio sin anular atajos globales como `J`; las líneas con hablante o emoción vacíos heredan el árbol y el feedback de herramienta ya no se autocierra antes de poder leerse.
+- El mundo Phaser expone readiness solo después de crear la escena, jugador y marcadores. El E2E espera esa condición antes de mover al avatar, sincroniza la posición, observa el `POST` real de `familia-crisis` y recorre sus tres intervenciones con teclado y foco contenido.
+- Evidencia fresca: `npm run test:frontend -- --runInBand` pasó **47 suites / 305 pruebas**; el build Angular de producción pasó con salida 0; `npm run test:e2e` pasó **matriz API 16/16 + Playwright 13/13**. Tras el gate quedaron **0** contenedores del proyecto de pruebas y **0** listeners en 5544, 8093 y 4315.
+
+Permanecen pendientes el gate Axe `serious/critical = 0`, la matriz completa `1600×900`, `1366×768`, `390×844`, `412×915`, el recorrido vertical hasta resultado/informe y la revisión SME del contenido clínico. Este addendum no declara terminado el objetivo global.
