@@ -39,7 +39,6 @@ import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
-import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
 
 const SIMULATOR_INTRO_VIDEO = 'assets/video/fondoHabitacion.mp4';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
@@ -59,8 +58,7 @@ const CASE_INTRO_PARAGRAPHS = [
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
-    AIAssistantComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -220,23 +218,14 @@ const CASE_INTRO_PARAGRAPHS = [
             [progressLabel]="progressLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
-            [aiAssistantOpen]="aiAssistantOpen()"
             [musicMuted]="musicMuted()"
             [sfxMuted]="sfxMuted()"
             [reduceMotion]="reduceMotion()"
             (toggleJournal)="journalOpen.set(!journalOpen())"
-            (toggleAI)="aiAssistantOpen.set(!aiAssistantOpen())"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()" />
         </header>
-
-        <button type="button" class="guide-chatbot-button psy-button psy-button--primary" [class.guide-chatbot-button--active]="aiAssistantOpen()"
-          [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null"
-          (click)="aiAssistantOpen.set(!aiAssistantOpen())" aria-label="Abrir Instructor guia chatbot">
-          <mat-icon aria-hidden="true">psychology</mat-icon>
-          <span>Instructor guia chatbot</span>
-        </button>
 
         <main class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación"
@@ -342,13 +331,6 @@ const CASE_INTRO_PARAGRAPHS = [
           [timeline]="visitedStageLabels()"
           [resources]="supportResources()"
           (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
-
-        <app-ai-assistant
-          [open]="aiAssistantOpen()"
-          [attemptId]="game.attemptId"
-          [currentNodeId]="game.currentNode.key"
-          [decisionAlreadyTaken]="game.feedback !== null || game.status !== 'IN_PROGRESS'"
-          (close)="aiAssistantOpen.set(false)" />
 
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
@@ -482,7 +464,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .vignette--active { opacity: var(--vignette-opacity, 0); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
-    .guide-chatbot-button { position: absolute; top: 60px; right: 16px; z-index: 35; gap: 8px; }
     .right-panel {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -881,7 +862,6 @@ const CASE_INTRO_PARAGRAPHS = [
 
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
-      .guide-chatbot-button { display: none; }
       .main-zone { padding: 8px 8px 0; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);
@@ -974,7 +954,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly stressPulse = signal(false);
   readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
-  readonly aiAssistantOpen = signal(false);
   readonly fadeActive   = signal(false);
   /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
   readonly doorNotice   = signal('');
