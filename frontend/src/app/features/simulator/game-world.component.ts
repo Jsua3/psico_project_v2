@@ -74,6 +74,11 @@ import {
   npcPresetConfig,
 } from './npc-avatar-presets';
 import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId, resolveCastId } from './baked-cast.util';
+import {
+  resolvePlayerVisual, v1SheetKey, v1SheetPath, v1IdleFrame, v1WalkAnimKey,
+  V1_FRAME_WIDTH, V1_FRAME_HEIGHT, V1_AVATAR_SCALE, V1_FEET_ORIGIN_Y,
+} from './v1-avatar.util';
+import { createV1WalkAnimations } from './phaser-avatar-renderer';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
@@ -136,6 +141,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private avatarSpecs: AvatarLayerSpec[] = [];
   /** Personaje del elenco horneado elegido (null → composición modular). */
   private playerCastId: string | null = null;
+  private playerV1Id: string | null = null;
   /** Textura efectiva del sprite del jugador (elenco u hoja compuesta). */
   private playerTextureKey = AVATAR_TEXTURE_KEY;
   private avatarReady = false;
@@ -227,6 +233,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
       typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
     );
     this.playerCastId = resolveCastId(avatarConfig.castId);
+    const playerVisual = resolvePlayerVisual(avatarConfig);
+    if (playerVisual.kind === 'v1') {
+      this.playerV1Id = playerVisual.id;
+      for (const sheet of ['idle', 'walk'] as const) {
+        this.load.spritesheet(v1SheetKey(playerVisual.id, sheet), v1SheetPath(playerVisual.id, sheet),
+          { frameWidth: V1_FRAME_WIDTH, frameHeight: V1_FRAME_HEIGHT });
+      }
+    }
     this.avatarSpecs = avatarLayerSpecs(avatarConfig);
     for (const spec of this.avatarSpecs) {
       this.load.image(spec.textureKey, spec.assetPath);
@@ -321,11 +335,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
     // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
     // composición modular de siempre.
-    if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
+    if (this.playerV1Id && this.textures.exists(v1SheetKey(this.playerV1Id, 'walk'))) {
+      createV1WalkAnimations(this, this.playerV1Id);
+      this.playerTextureKey = v1SheetKey(this.playerV1Id, 'walk');
+      this.avatarReady = true;
+    } else if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
+      this.playerV1Id = null;
       this.playerTextureKey = castTextureKey(this.playerCastId);
       createAvatarAnimationsFor(this, this.playerTextureKey, AVATAR_ANIM_KEYS);
       this.avatarReady = true;
     } else {
+      this.playerV1Id = null;
       this.playerTextureKey = AVATAR_TEXTURE_KEY;
       this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
       if (this.avatarReady) createAvatarAnimations(this);
@@ -1617,8 +1637,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
       // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
       const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
       const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
-      const sprite = this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
-        .setScale(AVATAR_DISPLAY_SCALE);
+      const sprite = this.playerV1Id
+        ? this.add.sprite(0, 0, v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame('down'))
+            .setOrigin(0.5, V1_FEET_ORIGIN_Y).setScale(V1_AVATAR_SCALE)
+        : this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
+            .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
       this.registerLivingActor('player', sprite, () => this.lastPose.walking);
@@ -1684,6 +1707,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
    */
   private playWalkAnimation(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
+    if (this.playerV1Id) {
+      this.playerSprite.setFlipX(false);
+      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
+      this.playerSprite.play(v1WalkAnimKey(this.playerV1Id, direction), true);
+      return;
+    }
     if (this.avatarReady) {
       this.playerSprite.setFlipX(modularAvatarFlipX(direction));
       if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
@@ -1701,6 +1730,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private setIdleFrame(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
     this.playerSprite.stop();
+    if (this.playerV1Id) {
+      this.playerSprite.setFlipX(false);
+      this.playerSprite.setTexture(v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame(direction));
+      return;
+    }
     if (this.avatarReady) {
       const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
         : direction === 'down' ? AVATAR_IDLE_FRAMES.down
