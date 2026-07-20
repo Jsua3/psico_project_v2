@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { AvatarConfig } from '../character/avatar.model';
 import { AvatarLayerKind, resolveAvatarSpriteLayers } from '../character/avatar-figure.component';
+import { V1_WALK_FPS, v1SheetKey, v1WalkAnimKey, v1WalkFrames } from './v1-avatar.util';
 
 /**
  * Avatar modular dentro de Phaser (Fase 4 del MVP).
@@ -204,4 +205,19 @@ export function createAvatarAnimationsFor(
 /** (Re)crea las animaciones de caminata del avatar compuesto del jugador. */
 export function createAvatarAnimations(scene: Phaser.Scene): void {
   createAvatarAnimationsFor(scene, AVATAR_TEXTURE_KEY, AVATAR_ANIM_KEYS);
+}
+
+/** (Re)crea las 4 animaciones de caminata v1 (down/left/right/up) para un personaje. */
+export function createV1WalkAnimations(scene: Phaser.Scene, id: string): void {
+  const textureKey = v1SheetKey(id, 'walk');
+  for (const dir of ['down', 'left', 'right', 'up'] as const) {
+    const key = v1WalkAnimKey(id, dir);
+    if (scene.anims.exists(key)) scene.anims.remove(key);
+    scene.anims.create({
+      key,
+      frames: v1WalkFrames(dir).map(frame => ({ key: textureKey, frame })),
+      frameRate: V1_WALK_FPS,
+      repeat: -1,
+    });
+  }
 }
