@@ -26,7 +26,7 @@ describe('lobby-avatar.util', () => {
     });
 
     it('sin castId → fallback modular (avatar clásico)', () => {
-      const plan = lobbyAvatarPlan(defaultAvatar());
+      const plan = lobbyAvatarPlan({ ...defaultAvatar(), castId: undefined });
       expect(plan.kind).toBe('modular');
     });
   });
@@ -38,7 +38,7 @@ describe('lobby-avatar.util', () => {
     });
 
     it('modular solo tiene el compuesto como candidato', () => {
-      const plan = lobbyAvatarPlan(defaultAvatar());
+      const plan = lobbyAvatarPlan({ ...defaultAvatar(), castId: undefined });
       expect(lobbyTextureChain(plan)).toEqual([LOBBY_MODULAR_TEXTURE_KEY]);
     });
   });
