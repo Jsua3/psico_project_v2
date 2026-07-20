@@ -2,7 +2,9 @@
 import {
   V1_ROSTER, hasV1, V1_FRAME_WIDTH, V1_FRAME_HEIGHT,
   v1WalkFrames, v1IdleFrame, v1SheetPath, v1SheetKey, v1WalkAnimKey,
+  resolvePlayerVisual,
 } from './v1-avatar.util';
+import { defaultAvatar } from '../character/avatar-config.util';
 
 describe('v1-avatar.util', () => {
   it('roster: valentina (default) está; mariana no', () => {
@@ -35,5 +37,20 @@ describe('v1-avatar.util', () => {
     expect(v1SheetPath('valentina', 'walk')).toBe('/assets/characters/v1/valentina/base/walk.png');
     expect(v1SheetKey('valentina', 'idle')).toBe('v1-valentina-idle');
     expect(v1WalkAnimKey('valentina', 'down')).toBe('v1-valentina-walk-down');
+  });
+});
+
+describe('resolvePlayerVisual', () => {
+  it('identidad con v1 → kind v1', () => {
+    expect(resolvePlayerVisual({ ...defaultAvatar(), castId: 'valentina' }))
+      .toEqual({ kind: 'v1', id: 'valentina' });
+  });
+  it('cast sin v1 (mariana) → kind cast', () => {
+    expect(resolvePlayerVisual({ ...defaultAvatar(), castId: 'mariana' }))
+      .toEqual({ kind: 'cast', id: 'mariana' });
+  });
+  it('castId inválido → modular', () => {
+    expect(resolvePlayerVisual({ ...defaultAvatar(), castId: 'no-existe' }))
+      .toEqual({ kind: 'modular' });
   });
 });

@@ -1,4 +1,6 @@
 import { PlayerDirection } from './player-motion.util';
+import { AvatarConfig } from '../character/avatar.model';
+import { resolveCastId } from './baked-cast.util';
 
 /** Identidades con hojas v1 completas (48×72, 4 direcciones). El resto cae a cast. */
 export const V1_ROSTER: readonly string[] = [
@@ -55,3 +57,19 @@ export const V1_AVATAR_SCALE = 1;
 
 /** Origen vertical de pies del frame v1 (pivote (24,68) sobre 72px de alto). */
 export const V1_FEET_ORIGIN_Y = 68 / 72;
+
+export type PlayerVisual =
+  | { kind: 'v1'; id: string }
+  | { kind: 'cast'; id: string }
+  | { kind: 'modular' };
+
+/**
+ * Cómo dibujar al jugador, por prioridad: v1 (premium) → cast (horneado) →
+ * modular. Puro y testeable; game-world materializa las texturas.
+ */
+export function resolvePlayerVisual(config: AvatarConfig): PlayerVisual {
+  const castId = resolveCastId(config.castId ?? null);
+  if (castId && hasV1(castId)) return { kind: 'v1', id: castId };
+  if (castId) return { kind: 'cast', id: castId };
+  return { kind: 'modular' };
+}
