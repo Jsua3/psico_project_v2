@@ -554,7 +554,6 @@ const CASE_INTRO_PARAGRAPHS = [
       font: inherit;
       text-align: left;
       cursor: pointer;
-      animation: hint-rise 160ms ease both;
     }
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
     .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
@@ -853,10 +852,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
     .resume-actions .psy-button { width: 100%; }
 
-    @keyframes hint-rise {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }
       to   { opacity: 1; transform: translateX(0); }
@@ -925,7 +920,7 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     @media (prefers-reduced-motion: reduce) {
       .stress-vignette, .scene-fade { transition: none; }
-      .right-panel, .context-bar__interaction, .overlay-backdrop { animation: none; }
+      .right-panel, .overlay-backdrop { animation: none; }
       .door-notice, .room-banner, .transition-note { animation: none; }
     }
   `]

@@ -57,3 +57,10 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
     expect(files['dashboard']).not.toMatch(/\.pixel-button:hover \{\s*transform/);
   });
 });
+
+describe('movimiento: juego', () => {
+  it('el aviso de interacción aparece sin animación', () => {
+    const play = source('../app/features/simulator/simulation-play.component.ts');
+    expect(play).not.toContain('hint-rise');
+  });
+});
