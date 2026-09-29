@@ -351,6 +351,8 @@ export interface StudentAttemptSummary {
   inadequateDecisions: number;
   prohibitedDecisions: number;
   totalDurationSeconds: number | null;
+  /** Tiempo activo estimado (sin pausas ni esperas > 5 min). null si no terminó. */
+  activeDurationSeconds: number | null;
   startedAt: string;
   endedAt: string | null;
 }
