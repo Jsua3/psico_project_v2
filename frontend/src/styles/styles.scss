@@ -9,8 +9,8 @@ $psychology-theme: mat.define-theme((
     tertiary: mat.$cyan-palette
   ),
   typography: (
-    brand-family: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
-    plain-family: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif'
+    brand-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    plain-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   ),
   density: (scale: 0)
 ));
@@ -119,6 +119,68 @@ code, .psy-mono {
 
 ::selection {
   background: rgba(79, 163, 165, .24);
+}
+
+/* ─── Texto: Poppins y JetBrains Mono ─────────────────────────────────────── */
+/* Autoalojadas (sin CDN en tiempo de ejecución). Origen: @fontsource/poppins@5.3.0
+   y @fontsource/jetbrains-mono@5.3.0, SIL OFL 1.1 (licencias en assets/fonts/).
+   Solo subset latin: cubre el español. Los pesos 650 y 750 del código se
+   resuelven a 700 y 800. */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-800-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-900-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');
 }
 
 /* ─── Icon font: Material Symbols Rounded ──────────────────────────────────── */
