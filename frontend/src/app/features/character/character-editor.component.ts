@@ -31,10 +31,10 @@ import { editorPreview, sheetFrameStyle } from './editor-preview.util';
         <div>
           <p class="ce-kicker">Editor de personaje</p>
           <h1>Personaliza tu avatar profesional</h1>
-          <p class="ce-sub">Crea la identidad con la que entraras a los casos. No afecta tu evaluacion.</p>
+          <p class="ce-sub">Crea la identidad con la que entrarás a los casos. No afecta tu evaluación.</p>
         </div>
         <div class="ce-id">
-          <span class="ce-chip">Programa: Psicologia</span>
+          <span class="ce-chip">Programa: Psicología</span>
           <span class="ce-chip ce-chip--soft">Rol: {{ roleLabel() }}</span>
           <a class="ce-btn ce-btn--ghost" routerLink="/portal/dashboard">Volver</a>
         </div>
@@ -278,8 +278,11 @@ export class CharacterEditorComponent {
   readonly hairColorLabel = computed(() =>
     this.avatar().hairStyle === 'ninguno' ? '' : this.labelOf(this.hairColors, this.avatar().hairColor).toLowerCase());
 
-  readonly avatarSummary = computed(() =>
-    `Avatar ${this.labelOf(this.genderOptions, this.avatar().gender)}, ropa ${this.labelOf(this.clothingColors, this.avatar().clothingColor)}, cabello ${this.labelOf(this.hairStyles, this.avatar().hairStyle)} ${this.hairColorLabel()}, expresión ${this.labelOf(this.mouths, this.avatar().mouth)}.`);
+  readonly avatarSummary = computed(() => {
+    const cast = this.castLabel();
+    if (cast) return `Personaje del elenco: ${cast}.`;
+    return `Avatar ${this.labelOf(this.genderOptions, this.avatar().gender)}, ropa ${this.labelOf(this.clothingColors, this.avatar().clothingColor)}, cabello ${this.labelOf(this.hairStyles, this.avatar().hairStyle)} ${this.hairColorLabel()}, expresión ${this.labelOf(this.mouths, this.avatar().mouth)}.`;
+  });
 
   setHairStyle(id: string): void {
     this.store.update({ hairStyle: id as HairStyle });

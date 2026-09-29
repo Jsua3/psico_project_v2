@@ -19,4 +19,11 @@ describe('editor de personaje: vista previa y resumen', () => {
       expect(source).not.toContain(wrong);
     }
   });
+
+  it('el resumen para lectores de pantalla describe la elección real', () => {
+    expect(source).toContain('if (cast) return `Personaje del elenco: ${cast}.`;');
+    for (const wrong of ['entraras', 'evaluacion', 'Programa: Psicologia']) {
+      expect(source).not.toContain(wrong);
+    }
+  });
 });
