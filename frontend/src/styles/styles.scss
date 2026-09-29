@@ -750,6 +750,11 @@ body.game-mode :focus-visible {
   border-radius: 2px;
 }
 
+/** Eyebrow sobre las tarjetas oscuras del simulador: #B69CFF = 7,7:1 sobre #12182A. */
+body.game-mode .psy-eyebrow {
+  color: #B69CFF;
+}
+
 /** AA contrast fix: psy-muted is #687A86 on white bg = 4.03:1. Darkened to 4.5:1+. */
 .psy-aa-text {
   color: #566975;

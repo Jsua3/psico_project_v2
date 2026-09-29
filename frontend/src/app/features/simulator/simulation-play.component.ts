@@ -93,7 +93,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
         <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
-          <article class="resume-card liquid-glass" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+          <article class="resume-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
             <p class="psy-eyebrow">Intento en progreso</p>
             <h2 id="resume-title">Continuar simulación formativa</h2>
             <p>
@@ -584,10 +584,10 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .context-bar__hint {
       margin: 0;
-      font-size: .68rem;
+      font-size: .75rem;
       font-weight: 700;
       letter-spacing: .04em;
-      color: rgba(232,240,244,.34);
+      color: rgba(232,240,244,.72);
       white-space: nowrap;
     }
     .context-bar__hint kbd {
@@ -836,6 +836,12 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .resume-card {
       width: min(560px, 100%); padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
+      border: 1px solid rgba(182,156,255,.34);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.04),
+        0 28px 80px -36px rgba(124,77,255,.75);
     }
     .resume-card h2 { margin: 12px 0; color: #fff; font-size: 1.6rem; }
     .resume-card p { margin: 0; color: rgba(232,240,244,.72); line-height: 1.6; }
