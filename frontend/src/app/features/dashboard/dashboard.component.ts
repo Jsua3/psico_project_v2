@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
-import { forkJoin, of } from 'rxjs';
+import { Observable, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { GrupoService, Grupo } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
@@ -19,8 +19,18 @@ import {
   StudentAttemptSummary
 } from '../../core/models/simulation.model';
 import { DashboardChartsComponent } from './dashboard-charts.component';
-import { attemptStateLabel, completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
+import {
+  NO_DATA_LABEL,
+  attemptStateLabel,
+  completedAttemptCount,
+  countDisplay,
+  metricDisplay,
+  totalActiveSeconds
+} from './dashboard-metrics.util';
 import { QuickAction, QuickActionsComponent } from './quick-actions.component';
+
+/** Cada carga de la que depende algún conteo del tablero. */
+type DashboardSource = 'dashboard' | 'users' | 'cases' | 'recent' | 'grupos' | 'history';
 
 interface DashboardMetric {
   icon: string;
@@ -82,6 +92,8 @@ export class DashboardComponent implements OnInit {
   readonly recentAttempts = signal<RecentAttempt[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  /** Cargas secundarias que fallaron sin tumbar el tablero: sus conteos no se pueden mostrar. */
+  private readonly failedSources = signal<ReadonlySet<DashboardSource>>(new Set());
   readonly loadingMessage = signal('Cargando métricas académicas…');
 
   readonly cols = ['caso', 'estudiante', 'puntaje', 'estado', 'accion'];
@@ -249,19 +261,19 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Usuarios activos',
-          value: String(activeUsers)
+          value: countDisplay(activeUsers, this.unavailable('users'))
         },
         {
           label: 'Casos publicados',
-          value: String(published)
+          value: countDisplay(published, this.unavailable('cases'))
         },
         {
           label: 'Simulaciones completadas',
-          value: String(completed)
+          value: countDisplay(completed, this.unavailable('dashboard'))
         },
         {
           label: 'Intentos recientes',
-          value: String(recentCount)
+          value: countDisplay(recentCount, this.adminRecentUnavailable(data))
         }
       ],
       action: { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true }
@@ -280,15 +292,15 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Grupos activos',
-          value: String(grupos.length)
+          value: countDisplay(grupos.length, this.unavailable('grupos'))
         },
         {
           label: 'Estudiantes asignados',
-          value: String(assignedStudents)
+          value: countDisplay(assignedStudents, this.unavailable('grupos'))
         },
         {
           label: 'Intentos recientes',
-          value: String(recentCount)
+          value: countDisplay(recentCount, this.unavailable('dashboard'))
         }
       ],
       action: {
@@ -305,10 +317,11 @@ export class DashboardComponent implements OnInit {
     const cases = this.simulationCases();
     const assignedCases = cases.length > 0 ? cases.length : new Set(history.map(h => h.caseTitle)).size;
     const completed = this.studentCompletedCount();
+    const historyDown = this.unavailable('history');
     const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
-    const bestScore = scores.length ? String(Math.max(...scores)) : 'Pendiente';
+    const bestScore = historyDown ? NO_DATA_LABEL : scores.length ? String(Math.max(...scores)) : 'Pendiente';
     const activeSeconds = totalActiveSeconds(history);
-    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : 'Sin datos';
+    const totalTime = !historyDown && activeSeconds !== null ? this.formatDuration(activeSeconds) : NO_DATA_LABEL;
 
     return {
       title: 'Tu avance formativo',
@@ -316,11 +329,11 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Casos asignados',
-          value: String(assignedCases)
+          value: countDisplay(assignedCases, this.unavailable('history', 'cases'))
         },
         {
           label: 'Intentos completados',
-          value: String(completed)
+          value: countDisplay(completed, historyDown)
         },
         {
           label: 'Mejor puntaje',
@@ -368,15 +381,18 @@ export class DashboardComponent implements OnInit {
     const completed = data?.simulacionesCompletadas ?? 0;
     const recentCount = data?.intentosRecientes?.length ?? this.recentAttempts().length;
 
+    const usersDown = this.unavailable('users');
+    const dashboardDown = this.unavailable('dashboard');
+
     return [
-      this.metric('groups', totalUsers, 'Total de usuarios', totalUsers > 0 ? 'Registro activo' : 'Sin usuarios', totalUsers > 0 ? 'purple' : 'neutral'),
-      this.metric('school', activeStudents, 'Estudiantes activos', activeStudents > 0 ? 'Cohortes activas' : 'Sin datos suficientes', activeStudents > 0 ? 'green' : 'neutral'),
-      this.metric('co_present', activeTeachers, 'Profesores activos', activeTeachers > 0 ? 'Docentes habilitados' : 'Sin datos suficientes', activeTeachers > 0 ? 'blue' : 'neutral'),
-      this.metric('account_tree', published, 'Casos publicados', published > 0 ? 'Catálogo publicado' : 'Sin casos publicados', published > 0 ? 'blue' : 'neutral'),
-      this.metric('task_alt', completed, 'Simulaciones completadas', completed > 0 ? 'Histórico registrado' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral'),
-      this.metric('history', recentCount, 'Intentos recientes', recentCount > 0 ? 'Actividad reciente' : 'Aún no hay intentos registrados', recentCount > 0 ? 'purple' : 'neutral'),
-      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral'),
-      this.metric('monitor_heart', data?.simulacionesEnProgreso ?? 0, 'Simulaciones en curso', (data?.simulacionesEnProgreso ?? 0) > 0 ? 'En progreso' : 'Sin simulaciones activas', (data?.simulacionesEnProgreso ?? 0) > 0 ? 'purple' : 'neutral')
+      this.metric('groups', totalUsers, 'Total de usuarios', totalUsers > 0 ? 'Registro activo' : 'Sin usuarios', totalUsers > 0 ? 'purple' : 'neutral', usersDown),
+      this.metric('school', activeStudents, 'Estudiantes activos', activeStudents > 0 ? 'Cohortes activas' : 'Sin datos suficientes', activeStudents > 0 ? 'green' : 'neutral', usersDown),
+      this.metric('co_present', activeTeachers, 'Profesores activos', activeTeachers > 0 ? 'Docentes habilitados' : 'Sin datos suficientes', activeTeachers > 0 ? 'blue' : 'neutral', usersDown),
+      this.metric('account_tree', published, 'Casos publicados', published > 0 ? 'Catálogo publicado' : 'Sin casos publicados', published > 0 ? 'blue' : 'neutral', this.unavailable('cases')),
+      this.metric('task_alt', completed, 'Simulaciones completadas', completed > 0 ? 'Histórico registrado' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral', dashboardDown),
+      this.metric('history', recentCount, 'Intentos recientes', recentCount > 0 ? 'Actividad reciente' : 'Aún no hay intentos registrados', recentCount > 0 ? 'purple' : 'neutral', this.adminRecentUnavailable(data)),
+      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral', dashboardDown),
+      this.metric('monitor_heart', data?.simulacionesEnProgreso ?? 0, 'Simulaciones en curso', (data?.simulacionesEnProgreso ?? 0) > 0 ? 'En progreso' : 'Sin simulaciones activas', (data?.simulacionesEnProgreso ?? 0) > 0 ? 'purple' : 'neutral', dashboardDown)
     ];
   }
 
@@ -391,14 +407,17 @@ export class DashboardComponent implements OnInit {
     const recentCount = data?.intentosRecientes?.length ?? 0;
     const completed = data?.simulacionesCompletadas ?? 0;
 
+    const gruposDown = this.unavailable('grupos');
+    const dashboardDown = this.unavailable('dashboard');
+
     return [
-      this.metric('groups', grupos.length, 'Grupos activos', grupos.length > 0 ? 'Cohortes asignadas' : 'Sin grupos registrados', grupos.length > 0 ? 'purple' : 'neutral'),
-      this.metric('people', assignedStudents, 'Estudiantes asignados', assignedStudents > 0 ? 'En tus grupos' : 'Sin estudiantes asignados', assignedStudents > 0 ? 'green' : 'neutral'),
-      this.metric('history', recentCount, 'Intentos recientes', recentCount > 0 ? 'Últimas sesiones' : 'Aún no hay intentos registrados', recentCount > 0 ? 'blue' : 'neutral'),
-      this.metric('account_tree', casosAsignados, 'Casos asignados', casosAsignados > 0 ? 'Catálogo activo' : 'No hay casos asignados', casosAsignados > 0 ? 'blue' : 'neutral'),
-      this.metric('task_alt', completed, 'Simulaciones completadas', completed > 0 ? 'Avance registrado' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral'),
-      this.metric('analytics', promedio, 'Promedio de desempeño', promedio === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Evaluación activa', promedio === 'Pendiente' ? 'neutral' : 'green'),
-      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral')
+      this.metric('groups', grupos.length, 'Grupos activos', grupos.length > 0 ? 'Cohortes asignadas' : 'Sin grupos registrados', grupos.length > 0 ? 'purple' : 'neutral', gruposDown),
+      this.metric('people', assignedStudents, 'Estudiantes asignados', assignedStudents > 0 ? 'En tus grupos' : 'Sin estudiantes asignados', assignedStudents > 0 ? 'green' : 'neutral', gruposDown),
+      this.metric('history', recentCount, 'Intentos recientes', recentCount > 0 ? 'Últimas sesiones' : 'Aún no hay intentos registrados', recentCount > 0 ? 'blue' : 'neutral', dashboardDown),
+      this.metric('account_tree', casosAsignados, 'Casos asignados', casosAsignados > 0 ? 'Catálogo activo' : 'No hay casos asignados', casosAsignados > 0 ? 'blue' : 'neutral', dashboardDown),
+      this.metric('task_alt', completed, 'Simulaciones completadas', completed > 0 ? 'Avance registrado' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral', dashboardDown),
+      this.metric('analytics', promedio, 'Promedio de desempeño', promedio === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Evaluación activa', promedio === 'Pendiente' ? 'neutral' : 'green', dashboardDown),
+      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral', dashboardDown)
     ];
   }
 
@@ -411,19 +430,20 @@ export class DashboardComponent implements OnInit {
     const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
     const bestScore = scores.length ? String(Math.max(...scores)) : 'Pendiente';
     const activeSeconds = totalActiveSeconds(history);
-    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : 'Sin datos';
+    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : NO_DATA_LABEL;
     const pendingReview = history.reduce(
       (sum, h) => sum + h.riskyDecisions + h.inadequateDecisions + h.prohibitedDecisions,
       0
     );
+    const historyDown = this.unavailable('history');
 
     return [
-      this.metric('account_tree', assignedCases, 'Casos asignados', assignedCases > 0 ? 'Disponibles' : 'No hay casos asignados', assignedCases > 0 ? 'blue' : 'neutral'),
-      this.metric('play_circle', inProgress, 'Simulaciones en progreso', inProgress > 0 ? 'En curso' : 'Sin simulaciones activas', inProgress > 0 ? 'purple' : 'neutral'),
-      this.metric('task_alt', completed, 'Intentos completados', completed > 0 ? 'Histórico personal' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral'),
-      this.metric('emoji_events', bestScore, 'Mejor puntaje', bestScore === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Mejor resultado', bestScore === 'Pendiente' ? 'neutral' : 'green'),
-      this.metric('schedule', totalTime, 'Tiempo activo', totalTime === 'Sin datos' ? 'Se calcula al terminar un intento' : 'Estimado, sin pausas', totalTime === 'Sin datos' ? 'neutral' : 'blue'),
-      this.metric('lightbulb', pendingReview, 'Recomendaciones pendientes', pendingReview > 0 ? 'Decisiones a revisar' : 'Sin recomendaciones pendientes', pendingReview > 0 ? 'orange' : 'neutral')
+      this.metric('account_tree', assignedCases, 'Casos asignados', assignedCases > 0 ? 'Disponibles' : 'No hay casos asignados', assignedCases > 0 ? 'blue' : 'neutral', this.unavailable('history', 'cases')),
+      this.metric('play_circle', inProgress, 'Simulaciones en progreso', inProgress > 0 ? 'En curso' : 'Sin simulaciones activas', inProgress > 0 ? 'purple' : 'neutral', historyDown),
+      this.metric('task_alt', completed, 'Intentos completados', completed > 0 ? 'Histórico personal' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral', historyDown),
+      this.metric('emoji_events', bestScore, 'Mejor puntaje', bestScore === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Mejor resultado', bestScore === 'Pendiente' ? 'neutral' : 'green', historyDown),
+      this.metric('schedule', totalTime, 'Tiempo activo', totalTime === NO_DATA_LABEL ? 'Se calcula al terminar un intento' : 'Estimado, sin pausas', totalTime === NO_DATA_LABEL ? 'neutral' : 'blue', historyDown),
+      this.metric('lightbulb', pendingReview, 'Recomendaciones pendientes', pendingReview > 0 ? 'Decisiones a revisar' : 'Sin recomendaciones pendientes', pendingReview > 0 ? 'orange' : 'neutral', historyDown)
     ];
   }
 
@@ -543,10 +563,10 @@ export class DashboardComponent implements OnInit {
   private loadAdminDashboard() {
     this.loadingMessage.set('Cargando métricas académicas…');
     forkJoin({
-      dashboard: this.reporteService.getDashboard().pipe(catchError(() => of(null))),
-      users: this.userAdminService.list().pipe(catchError(() => of([] as AdminUser[]))),
-      cases: this.simulationService.listCases().pipe(catchError(() => of([] as SimulationCaseSummary[]))),
-      recent: this.simulationService.recentAttempts().pipe(catchError(() => of([] as RecentAttempt[])))
+      dashboard: this.reporteService.getDashboard().pipe(catchError(() => this.sourceFailed<Dashboard | null>('dashboard', null))),
+      users: this.userAdminService.list().pipe(catchError(() => this.sourceFailed('users', [] as AdminUser[]))),
+      cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[]))),
+      recent: this.simulationService.recentAttempts().pipe(catchError(() => this.sourceFailed('recent', [] as RecentAttempt[])))
     }).subscribe({
       next: ({ dashboard, users, cases, recent }) => {
         this.dashboard.set(dashboard);
@@ -567,7 +587,7 @@ export class DashboardComponent implements OnInit {
     this.loadingMessage.set('Cargando métricas académicas…');
     forkJoin({
       dashboard: this.reporteService.getDashboard(),
-      grupos: this.grupoService.listar().pipe(catchError(() => of([] as Grupo[])))
+      grupos: this.grupoService.listar().pipe(catchError(() => this.sourceFailed('grupos', [] as Grupo[])))
     }).subscribe({
       next: ({ dashboard, grupos }) => {
         this.dashboard.set(dashboard);
@@ -585,7 +605,7 @@ export class DashboardComponent implements OnInit {
     this.loadingMessage.set('Cargando métricas académicas…');
     forkJoin({
       history: this.simulationService.attemptHistory(),
-      cases: this.simulationService.listCases().pipe(catchError(() => of([] as SimulationCaseSummary[])))
+      cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[])))
     }).subscribe({
       next: ({ history, cases }) => {
         this.studentHistory.set(history);
@@ -599,15 +619,36 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  /** Anota que una carga falló y devuelve su valor de reserva; sus conteos pasan a «Sin datos». */
+  private sourceFailed<T>(source: DashboardSource, fallback: T): Observable<T> {
+    this.failedSources.update(sources => new Set(sources).add(source));
+    return of(fallback);
+  }
+
+  /** true si el tablero falló entero o alguna de las cargas de las que sale el conteo falló. */
+  private unavailable(...sources: DashboardSource[]): boolean {
+    if (this.error()) return true;
+    const failed = this.failedSources();
+    return sources.some(source => failed.has(source));
+  }
+
+  /** Sin el listado del panel, «Intentos recientes» sale de la carga propia de intentos recientes. */
+  private adminRecentUnavailable(data: Dashboard | null): boolean {
+    return data?.intentosRecientes ? this.unavailable() : this.unavailable('recent');
+  }
+
   private metric(
     icon: string,
     value: number | string,
     label: string,
     status: string,
-    badgeClass: DashboardMetric['badgeClass']
+    badgeClass: DashboardMetric['badgeClass'],
+    unavailable = false
   ): DashboardMetric {
-    const display = metricDisplay(value);
-    return { icon, value: display, label, status, badgeClass };
+    if (unavailable) {
+      return { icon, value: NO_DATA_LABEL, label, status: 'No se pudo cargar', badgeClass: 'neutral' };
+    }
+    return { icon, value: metricDisplay(value), label, status, badgeClass };
   }
 
   private criticalDecisions(data: Dashboard | null): number {

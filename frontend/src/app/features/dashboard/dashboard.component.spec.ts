@@ -1,10 +1,12 @@
 import { TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 import { GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
 import { SimulationService } from '../../core/api/simulation.service';
-import { UserAdminService } from '../../core/api/user-admin.service';
+import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { StudentAttemptSummary } from '../../core/models/simulation.model';
+import { Dashboard } from '../../core/models/sesion.model';
+import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { DashboardComponent } from './dashboard.component';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
@@ -21,17 +23,47 @@ function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary
 // component is only instantiated inside an injection context to exercise its
 // presentation logic (tarjeta de estado, filas). The template is covered by
 // `ng build` type-checking and the manual dashboard smoke.
-function createDashboard(role: 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN'): DashboardComponent {
+function createDashboard(
+  role: 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN',
+  services: { reporte?: object; simulation?: object; users?: object; grupos?: object } = {}
+): DashboardComponent {
   TestBed.configureTestingModule({
     providers: [
       { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-      { provide: ReporteService, useValue: {} },
-      { provide: SimulationService, useValue: {} },
-      { provide: UserAdminService, useValue: {} },
-      { provide: GrupoService, useValue: {} },
+      { provide: ReporteService, useValue: services.reporte ?? {} },
+      { provide: SimulationService, useValue: services.simulation ?? {} },
+      { provide: UserAdminService, useValue: services.users ?? {} },
+      { provide: GrupoService, useValue: services.grupos ?? {} },
     ],
   });
   return TestBed.runInInjectionContext(() => new DashboardComponent());
+}
+
+const httpFailure = () => throwError(() => new Error('HTTP 500'));
+
+function dashboardData(partial: Partial<Dashboard> = {}): Dashboard {
+  return {
+    estudiantesActivos: 0, simulacionesCompletadasHoy: 0, puntajePromedioGlobal: 0,
+    simulacionesCompletadas: 0, simulacionesEnProgreso: 0, puntajePromedioSimulacion: 0,
+    decisionesAdecuadas: 0, decisionesRiesgosas: 0, decisionesInadecuadas: 0,
+    decisionesProhibidas: 0, ultimosIntentos: [], intentosRecientes: [],
+    ...partial,
+  };
+}
+
+function caseSummary(code: string): SimulationCaseSummary {
+  return {
+    caseVersionId: 1, code, title: code, description: '', semanticVersion: '1.0.0',
+    nodeCount: 1, status: 'PUBLISHED',
+  };
+}
+
+function adminUser(activo: boolean): AdminUser {
+  return { id: 1, nombre: 'Ada', apellido: 'Lovelace', email: 'ada@example.test', role: 'ESTUDIANTE', activo };
+}
+
+function metricValue(component: DashboardComponent, label: string): string | undefined {
+  return component.metrics().find(metric => metric.label === label)?.value;
 }
 
 function itemValue(component: DashboardComponent, label: string): string | undefined {
@@ -116,6 +148,182 @@ describe('DashboardComponent', () => {
       expect(itemValue(component, 'Casos publicados')).toBe('0');
       expect(itemValue(component, 'Simulaciones completadas')).toBe('0');
       expect(itemValue(component, 'Intentos recientes')).toBe('0');
+    });
+  });
+
+  describe('cargas fallidas: «Sin datos» y no un cero falso', () => {
+    it('estudiante: si falla el historial, ningún conteo se muestra como 0', () => {
+      const component = createDashboard('ESTUDIANTE', {
+        simulation: { attemptHistory: httpFailure, listCases: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(true);
+      expect(itemValue(component, 'Casos asignados')).toBe('Sin datos');
+      expect(itemValue(component, 'Intentos completados')).toBe('Sin datos');
+      expect(itemValue(component, 'Mejor puntaje')).toBe('Sin datos');
+      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones en progreso')).toBe('Sin datos');
+      expect(metricValue(component, 'Intentos completados')).toBe('Sin datos');
+      expect(metricValue(component, 'Recomendaciones pendientes')).toBe('Sin datos');
+    });
+
+    it('estudiante: si solo falla el catálogo, solo «Casos asignados» pierde el dato', () => {
+      const component = createDashboard('ESTUDIANTE', {
+        simulation: {
+          attemptHistory: () => of([attempt({ status: 'COMPLETED' })]),
+          listCases: httpFailure,
+        },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(false);
+      expect(itemValue(component, 'Casos asignados')).toBe('Sin datos');
+      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
+      expect(itemValue(component, 'Intentos completados')).toBe('1');
+      expect(metricValue(component, 'Intentos completados')).toBe('1');
+      expect(metricValue(component, 'Simulaciones en progreso')).toBe('0');
+    });
+
+    it('estudiante: con las cargas correctas y sin intentos, el 0 sigue siendo 0', () => {
+      const component = createDashboard('ESTUDIANTE', {
+        simulation: { attemptHistory: () => of([]), listCases: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(itemValue(component, 'Casos asignados')).toBe('0');
+      expect(itemValue(component, 'Intentos completados')).toBe('0');
+      expect(metricValue(component, 'Casos asignados')).toBe('0');
+      expect(metricValue(component, 'Intentos completados')).toBe('0');
+    });
+
+    it('profesor: si falla el panel, todos los conteos que dependen de él muestran «Sin datos»', () => {
+      const component = createDashboard('PROFESOR', {
+        reporte: { getDashboard: httpFailure },
+        grupos: { listar: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(true);
+      expect(itemValue(component, 'Grupos activos')).toBe('Sin datos');
+      expect(itemValue(component, 'Estudiantes asignados')).toBe('Sin datos');
+      expect(itemValue(component, 'Intentos recientes')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones completadas')).toBe('Sin datos');
+      expect(metricValue(component, 'Decisiones críticas')).toBe('Sin datos');
+      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
+    });
+
+    it('profesor: si solo fallan los grupos, solo los conteos de grupos pierden el dato', () => {
+      const component = createDashboard('PROFESOR', {
+        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 4 })) },
+        grupos: { listar: httpFailure },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(false);
+      expect(itemValue(component, 'Grupos activos')).toBe('Sin datos');
+      expect(itemValue(component, 'Estudiantes asignados')).toBe('Sin datos');
+      expect(itemValue(component, 'Intentos recientes')).toBe('0');
+      expect(metricValue(component, 'Grupos activos')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones completadas')).toBe('4');
+    });
+
+    it('profesor: con las cargas correctas y datos vacíos, el 0 sigue siendo 0', () => {
+      const component = createDashboard('PROFESOR', {
+        reporte: { getDashboard: () => of(dashboardData()) },
+        grupos: { listar: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(itemValue(component, 'Grupos activos')).toBe('0');
+      expect(itemValue(component, 'Estudiantes asignados')).toBe('0');
+      expect(metricValue(component, 'Simulaciones completadas')).toBe('0');
+      expect(metricValue(component, 'Decisiones críticas')).toBe('0');
+    });
+
+    it('administración: si falla todo, ningún conteo se muestra como 0', () => {
+      const component = createDashboard('ADMIN', {
+        reporte: { getDashboard: httpFailure },
+        users: { list: httpFailure },
+        simulation: { listCases: httpFailure, recentAttempts: httpFailure },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(true);
+      expect(itemValue(component, 'Usuarios activos')).toBe('Sin datos');
+      expect(itemValue(component, 'Casos publicados')).toBe('Sin datos');
+      expect(itemValue(component, 'Simulaciones completadas')).toBe('Sin datos');
+      expect(itemValue(component, 'Intentos recientes')).toBe('Sin datos');
+      expect(metricValue(component, 'Total de usuarios')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones en curso')).toBe('Sin datos');
+    });
+
+    it('administración: si falla solo la lista de usuarios, solo los conteos de usuarios pierden el dato', () => {
+      const component = createDashboard('ADMIN', {
+        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 3 })) },
+        users: { list: httpFailure },
+        simulation: { listCases: () => of([caseSummary('C1'), caseSummary('C2')]), recentAttempts: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(component.error()).toBe(false);
+      expect(itemValue(component, 'Usuarios activos')).toBe('Sin datos');
+      expect(itemValue(component, 'Casos publicados')).toBe('2');
+      expect(itemValue(component, 'Simulaciones completadas')).toBe('3');
+      expect(metricValue(component, 'Total de usuarios')).toBe('Sin datos');
+      expect(metricValue(component, 'Estudiantes activos')).toBe('Sin datos');
+      expect(metricValue(component, 'Profesores activos')).toBe('Sin datos');
+      expect(metricValue(component, 'Casos publicados')).toBe('2');
+      expect(metricValue(component, 'Simulaciones completadas')).toBe('3');
+    });
+
+    it('administración: si falla solo el catálogo de casos, solo «Casos publicados» pierde el dato', () => {
+      const component = createDashboard('ADMIN', {
+        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 3 })) },
+        users: { list: () => of([]) },
+        simulation: { listCases: httpFailure, recentAttempts: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(itemValue(component, 'Casos publicados')).toBe('Sin datos');
+      expect(metricValue(component, 'Casos publicados')).toBe('Sin datos');
+      expect(itemValue(component, 'Simulaciones completadas')).toBe('3');
+      expect(itemValue(component, 'Usuarios activos')).toBe('0');
+    });
+
+    it('administración: si falla solo el panel, solo sus conteos pierden el dato', () => {
+      const component = createDashboard('ADMIN', {
+        reporte: { getDashboard: httpFailure },
+        users: { list: () => of([adminUser(true)]) },
+        simulation: { listCases: () => of([caseSummary('C1')]), recentAttempts: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(component.dashboard()).toBeNull();
+      expect(component.error()).toBe(false);
+      expect(itemValue(component, 'Simulaciones completadas')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones completadas')).toBe('Sin datos');
+      expect(metricValue(component, 'Decisiones críticas')).toBe('Sin datos');
+      expect(metricValue(component, 'Simulaciones en curso')).toBe('Sin datos');
+      expect(itemValue(component, 'Casos publicados')).toBe('1');
+      expect(itemValue(component, 'Usuarios activos')).toBe('1');
+      expect(itemValue(component, 'Intentos recientes')).toBe('0');
+    });
+
+    it('administración: con todas las cargas correctas y datos vacíos, el 0 sigue siendo 0', () => {
+      const component = createDashboard('ADMIN', {
+        reporte: { getDashboard: () => of(dashboardData()) },
+        users: { list: () => of([]) },
+        simulation: { listCases: () => of([]), recentAttempts: () => of([]) },
+      });
+      component.ngOnInit();
+
+      expect(itemValue(component, 'Usuarios activos')).toBe('0');
+      expect(itemValue(component, 'Casos publicados')).toBe('0');
+      expect(itemValue(component, 'Simulaciones completadas')).toBe('0');
+      expect(itemValue(component, 'Intentos recientes')).toBe('0');
+      expect(metricValue(component, 'Total de usuarios')).toBe('0');
+      expect(metricValue(component, 'Decisiones críticas')).toBe('0');
     });
   });
 });
