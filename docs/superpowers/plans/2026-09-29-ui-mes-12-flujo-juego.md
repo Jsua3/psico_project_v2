@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 - **Estado:** TODO
-- **Commit base:** `e68e61b` (rama `feat/ui-mes`). Ejecutar después del plan 11: ambos tocan `game-world.component.ts`.
+- **Commit base:** `02bbfe9` (rama `feat/ui-mes`). Ejecutar después del plan 11: ambos tocan `game-world.component.ts`.
 - **Severidad:** ALTA (Esc pausa la partida sin querer; en tabletas no se puede caminar; la carga es una pantalla negra muda)
 - **Categoría:** Flujo / accesibilidad / estados de carga
 - **Alcance estimado:** 2 utils nuevos, 2 componentes; 5 specs nuevos
@@ -23,8 +23,8 @@
 
 - Todas las rutas son relativas a la raíz del repo.
 - No añadir dependencias.
-- **Coordinación con otra sesión:** `frontend/src/app/features/simulator/game-world.component.ts` tiene trabajo sin commitear en `.worktrees/personaje-v1-idle-walk` (sub-pasos dentro de `update()`, señal `playerPosition` alimentada desde `onPosition`). Antes de las tareas 2 y 3, ejecutar `git log --oneline 470a0a2..feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si muestra algún commit, DETENERSE: el controlador debe rebasar `feat/ui-mes` antes de seguir.
-- El paso de un toque sigue siendo exactamente un `nudge()` (4 sub-pasos, ~20 px): los e2e táctiles (`e2e/support/siep-flow.ts`) cuentan toques.
+- **Coordinación con otra sesión:** la base ya incluye el trabajo de la otra sesión en `game-world.component.ts` (PR #10, `9b9b8ec`: sub-pasos en `update()` y `data-player-x/y` para el e2e), y esa sesión puede seguir cambiándolo. Antes de las tareas 2 y 3, ejecutar `git fetch -q origin && git log --oneline 9b9b8ec..origin/feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si muestra algún commit, DETENERSE: el controlador debe fusionar esa rama en `feat/ui-mes` antes de seguir.
+- El paso de un toque sigue siendo exactamente un `nudge()` (4 sub-pasos, ~20 px): `moveBy` en `e2e/support/siep-flow.ts` toca y relee `data-player-x/y` hasta quedar a 10 px del objetivo, y cuenta como bloqueo tres toques seguidos sin avance.
 - Los atributos `data-world-ready`, `data-rendered-map-key` y `data-rendered-scenario-key` del host de Phaser no cambian: son el contrato del e2e.
 - No cambiar el comportamiento de Esc cuando no hay nada abierto: con el juego libre, Esc sigue pidiendo la salida segura.
 - Si un fragmento «Actual» no coincide con el archivo (drift), DETENERSE y reportar.
@@ -300,7 +300,7 @@ git commit -m "fix(juego): Esc y clic fuera cierran Ajustes sin pausar la partid
 
 - [ ] **Step 1: Comprobar que no hay deriva con la otra sesión**
 
-Run: `git log --oneline 470a0a2..feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`
+Run: `git fetch -q origin && git log --oneline 9b9b8ec..origin/feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`
 Expected: salida vacía. Si hay commits, DETENERSE y reportar.
 
 - [ ] **Step 2: Escribir los specs que fallan**

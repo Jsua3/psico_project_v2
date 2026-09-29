@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 - **Estado:** TODO
-- **Commit base:** `e68e61b` (rama `feat/ui-mes`, que sale de `feat/ui-semana`)
+- **Commit base:** `02bbfe9` (rama `feat/ui-mes`, que sale de `feat/ui-semana` e incluye los arreglos de movimiento del PR #10)
 - **Severidad:** ALTA (tirones al caminar y batería en portátiles; el costo crece con cada cambio de sala)
 - **Categoría:** Rendimiento
 - **Alcance estimado:** 3 utils nuevos, 6 archivos modificados; 6 specs nuevos
@@ -12,7 +12,9 @@
 
 **Architecture:** La app usa zone.js (`angular.json` → `"polyfills": ["zone.js"]`): cualquier temporizador, `requestAnimationFrame` o `zone.run()` dispara la detección de cambios de toda la aplicación. Hay cinco fuentes de trabajo por cuadro que no aportan nada:
 1. **Tweens huérfanos:** la escena Phaser reconstruye la sala con `this.children.removeAll(true)`, pero los tweens `repeat: -1` (pulsos de marcadores, brillos de puertas) siguen vivos sobre objetos destruidos y se suman en cada re-render.
-2. **Posición por cuadro:** mientras el jugador camina, `update()` llama a `onPosition` en **cada** cuadro y el componente lo envuelve en `zone.run()`. Son 60 detecciones de cambios por segundo solo para alimentar un guardado con *debounce* de 550 ms.
+2. **Posición por cuadro:** mientras el jugador camina, `update()` llama a `onPosition` en **cada** cuadro y el componente lo envuelve en `zone.run()`. Son 60 detecciones de cambios por segundo para alimentar dos cosas: un guardado con *debounce* de 550 ms y los atributos `data-player-x/y` que lee el e2e.
+   - El arreglo separa las dos salidas. `data-player-x/y` se escribe **en cada cuadro directo en el DOM**, fuera de Angular: el e2e (`moveBy` en `e2e/support/siep-flow.ts`) lo lee justo al soltar la tecla, con 4 px de tolerancia.
+   - El aviso a Angular (`positionChange`) baja a 8 por segundo y siempre cierra con la posición final exacta.
 3. **Fundido de música eterno:** `AudioDirectorService` arranca un `setInterval` de 33 ms dentro de la zona y nunca lo detiene. Son 30 detecciones de cambios por segundo durante toda la partida, aunque el volumen ya haya llegado a su objetivo.
 4. **Partículas de la portada y el login:** el bucle `requestAnimationFrame` corre dentro de la zona, lee `clientWidth` (fuerza *layout*) varias veces por cuadro, sigue animando con el héroe fuera de pantalla y avanza por cuadro en vez de por tiempo (va el doble de rápido en pantallas de 120 Hz).
 5. **Desenfoques caros:** seis paneles casi opacos (alfa ≥ 0,84) usan `backdrop-filter: blur(...)` encima del lienzo del juego, que cambia cada cuadro. El navegador recalcula el desenfoque en cada cuadro, pero apenas se ve.
@@ -25,7 +27,8 @@
 
 - Todas las rutas son relativas a la raíz del repo.
 - No añadir dependencias.
-- **Coordinación con otra sesión:** `frontend/src/app/features/simulator/game-world.component.ts` tiene trabajo sin commitear en `.worktrees/personaje-v1-idle-walk`: sub-pasos con `splitFrameDelta` dentro de `update()` y una señal `playerPosition` que se alimenta desde `onPosition` para exponer `data-player-x/y` al e2e. Las tareas 1 y 2 tocan solo las líneas citadas. Antes de empezar la tarea 1, ejecutar `git log --oneline 470a0a2..feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si muestra algún commit, DETENERSE: el controlador debe rebasar `feat/ui-mes` antes de seguir.
+- **Coordinación con otra sesión:** la base ya incluye el trabajo de la otra sesión en `game-world.component.ts` (PR #10, `9b9b8ec`): sub-pasos con `splitFrameDelta` en `update()` y la señal `playerPosition` que expone `data-player-x/y` al e2e. Esa sesión puede seguir cambiando el archivo. Antes de empezar la tarea 1, ejecutar `git fetch -q origin && git log --oneline 9b9b8ec..origin/feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si muestra algún commit, DETENERSE: el controlador debe fusionar esa rama en `feat/ui-mes` antes de seguir.
+- **Contrato del e2e:** el host de Phaser (`.phaser-host`) conserva `data-player-x` y `data-player-y` con los pies del jugador en píxeles enteros. Se fijan al terminar cada render (`onReady`) y se actualizan en cada cuadro en que el jugador se mueve. No editar `frontend/e2e/**`.
 - No cambiar la firma de `WorldCallbacks.onPosition` ni el output `positionChange` de `GameWorldComponent`.
 - La música sigue sonando igual: mismo `FADE_SPEED` (0.02), mismo tick (33 ms), mismos objetivos por nivel de estrés. Solo cambia cuándo corre el bucle.
 - Con `prefers-reduced-motion: reduce`, la capa de partículas sigue dibujando un cuadro estático y no anima.
@@ -35,7 +38,7 @@
 
 ## Review Focus
 
-- Caminar y soltar la tecla: la posición que se guarda en el backend es la final exacta, no una intermedia retenida por la limitación de frecuencia.
+- Caminar y soltar la tecla: la posición que se guarda en el backend es la final exacta, no una intermedia retenida por la limitación de frecuencia. Y `data-player-x/y` ya muestra esa posición en el cuadro siguiente al de soltar, que es cuando el e2e la lee.
 - Entrar y salir de la misma sala diez veces: los pulsos de los marcadores no se aceleran ni se multiplican.
 - Subir el estrés en plena partida sigue fundiendo la música, y silenciarla la corta al instante.
 - En la portada, bajar hasta que el héroe salga de pantalla detiene las partículas; al volver, se reanudan sin salto.
@@ -72,7 +75,33 @@ Mismo archivo, `update()` (~línea 369) y `nudge()` (~línea 614), actual:
     }
 ```
 
-y en `GameWorldComponent.boot()` (~línea 2255): `onPosition: (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),`. El único consumidor es `SimulationPlayComponent.rememberPosition()` (`simulation-play.component.ts` ~línea 1660), que reprograma un `setTimeout` de 550 ms y revisa si el jugador se alejó 72 px de una puerta.
+y en `GameWorldComponent` (~líneas 2152-2153, 2207 y 2263-2275):
+
+```html
+      [attr.data-player-x]="playerPosition()?.x"
+      [attr.data-player-y]="playerPosition()?.y"
+```
+
+```ts
+  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
+  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
+```
+
+```ts
+        onReady:       () => this.zone.run(() => {
+          this.renderedMapKey.set(this.world()?.map.key ?? null);
+          this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
+          this.playerPosition.set(this.scene?.playerPosition() ?? null);
+          this.renderReady.set(true);
+        }),
+        …
+        onPosition:    (x, y) => this.zone.run(() => {
+          this.playerPosition.set({ x, y });
+          this.positionChange.emit({ x, y });
+        }),
+```
+
+Además de los atributos, el único consumidor es `SimulationPlayComponent.rememberPosition()` (`simulation-play.component.ts` ~línea 1660). Reprograma un `setTimeout` de 550 ms y revisa si el jugador se alejó 72 px de una puerta.
 
 `frontend/src/app/features/simulator/audio-director.service.ts`, actual:
 
@@ -122,7 +151,7 @@ Se conservan `.right-panel` (`rgba(27,33,51,.72)`) y `.overlay-backdrop` (`rgba(
 
 - [ ] **Step 1: Comprobar que no hay deriva con la otra sesión**
 
-Run: `git log --oneline 470a0a2..feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`
+Run: `git fetch -q origin && git log --oneline 9b9b8ec..origin/feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`
 Expected: salida vacía. Si hay commits, DETENERSE y reportar.
 
 - [ ] **Step 2: Escribir el spec que falla**
@@ -204,12 +233,16 @@ git commit -m "perf(juego): matar los tweens al reconstruir la sala"
 **Files:**
 - Create: `frontend/src/app/features/simulator/position-emit.util.ts`
 - Create: `frontend/src/app/features/simulator/position-emit.util.spec.ts`
-- Modify: `frontend/src/app/features/simulator/game-world.component.ts` (import ~línea 50; campos ~línea 199; métodos nuevos justo antes de `override update(`; `update()` ~369-392; `nudge()` ~614)
+- Modify: `frontend/src/app/features/simulator/game-world.component.ts` (import ~línea 50; interfaz `WorldCallbacks` ~línea 96; campos ~línea 199; métodos nuevos justo antes de `override update(`; `update()` ~369-397; `nudge()` ~620; plantilla ~2152-2153; señal ~2207; callbacks de `boot()` ~2263-2275)
 - Modify: `frontend/src/app/features/simulator/game-world.frame-budget.spec.ts`
 
 **Interfaces:**
 - Consumes: `game-world.frame-budget.spec.ts` de la tarea 1.
-- Produces: `POSITION_EMIT_INTERVAL_MS = 125`, `interface EmittedPosition { x: number; y: number; at: number }`, `shouldEmitPosition(last: EmittedPosition | null, x: number, y: number, now: number): boolean`. En la escena: `private emitPosition(force = false): void` y `private flushPosition(): void`.
+- Produces:
+  - `POSITION_EMIT_INTERVAL_MS = 125`, `interface EmittedPosition { x: number; y: number; at: number }` y `shouldEmitPosition(last: EmittedPosition | null, x: number, y: number, now: number): boolean`.
+  - En `WorldCallbacks`: `onPositionFrame: (x: number, y: number) => void` (sin limitar y fuera de Angular).
+  - En la escena: `private emitPosition(force = false): void` y `private flushPosition(): void`.
+  - En `GameWorldComponent`: `private writePlayerPosition(position: { x: number; y: number } | null): void`. Desaparece la señal pública `playerPosition` del componente; el método `playerPosition()` de la escena se conserva.
 
 - [ ] **Step 1: Escribir el spec del util que falla**
 
@@ -298,10 +331,23 @@ En `frontend/src/app/features/simulator/game-world.frame-budget.spec.ts`, añadi
     expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(step\.direction, false\);/);
     expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(this\.lastDirection, false\);/);
   });
+
+  it('data-player-x/y (contrato del e2e) se escribe en cada cuadro, directo en el DOM y sin Angular', () => {
+    // La escena manda la posición del cuadro ANTES de decidir si avisa a Angular.
+    expect(source).toMatch(/private emitPosition\(force = false\): void \{[\s\S]*?this\.callbacks\.onPositionFrame\(x, y\);[\s\S]*?shouldEmitPosition\(/);
+    expect(source).toMatch(/onPositionFrame:\s*\(x: number, y: number\) => void;/);
+    expect(source).toContain('onPositionFrame: (x, y) => this.writePlayerPosition({ x, y }),');
+    expect(source).toContain("host.setAttribute('data-player-x', String(position.x));");
+    expect(source).toContain("host.setAttribute('data-player-y', String(position.y));");
+    // Ni binding de plantilla ni señal: cada cambio dispararía detección de cambios.
+    expect(source).not.toContain('[attr.data-player-x]');
+    expect(source).not.toMatch(/readonly playerPosition = signal/);
+    expect(source).toContain('this.writePlayerPosition(this.scene?.playerPosition() ?? null);');
+  });
 ```
 
 Run: `npm test --prefix frontend -- --runInBand src/app/features/simulator/game-world.frame-budget.spec.ts`
-Expected: FAIL en el `it` nuevo (hay 2 llamadas a `onPosition`).
+Expected: FAIL en los dos `it` nuevos (hay 2 llamadas a `onPosition`; no existe `onPositionFrame`).
 
 - [ ] **Step 6: Importar el util en la escena**
 
@@ -333,12 +379,14 @@ añadir:
 Justo antes de la línea `  override update(time: number, delta: number) {`, añadir:
 
 ```ts
-  /** Avisa la posición a Angular como mucho cada POSITION_EMIT_INTERVAL_MS.
-   *  `force` salta el intervalo (fin de un movimiento, nudge táctil). */
+  /** Publica la posición: al DOM en cada cuadro (contrato del e2e) y a Angular como
+   *  mucho cada POSITION_EMIT_INTERVAL_MS. `force` salta el intervalo (fin de un
+   *  movimiento, nudge táctil). */
   private emitPosition(force = false): void {
     if (!this.player) return;
     const x = Math.round(this.player.x);
     const y = Math.round(this.player.y);
+    this.callbacks.onPositionFrame(x, y);
     const last = this.lastEmittedPosition;
     if (last && last.x === x && last.y === y) {
       this.positionDirty = false;
@@ -432,12 +480,84 @@ por:
     }
 ```
 
-- [ ] **Step 11: Ejecutar los specs y verlos pasar**
+- [ ] **Step 11: Separar las dos salidas en `WorldCallbacks` y en el componente**
+
+En la interfaz `WorldCallbacks`, después de la línea `  onPosition:    (x: number, y: number) => void;`, añadir:
+
+```ts
+  /** Posición de cada cuadro con movimiento, sin limitar; se llama fuera de Angular. */
+  onPositionFrame: (x: number, y: number) => void;
+```
+
+En la plantilla de `GameWorldComponent`, borrar estas dos líneas del `div #gameHost`:
+
+```html
+      [attr.data-player-x]="playerPosition()?.x"
+      [attr.data-player-y]="playerPosition()?.y"
+```
+
+Borrar estas dos líneas de la clase `GameWorldComponent`:
+
+```ts
+  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
+  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
+```
+
+Justo después del método `nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }` del componente, añadir:
+
+```ts
+
+  /** Pies del jugador como data-player-x/y en el host de Phaser (contrato de navegación
+   *  del e2e). Se escriben directo en el DOM: cambian en cada cuadro de caminata y una
+   *  señal o un binding dispararían la detección de cambios de toda la app. */
+  private writePlayerPosition(position: { x: number; y: number } | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host || !position) return;
+    host.setAttribute('data-player-x', String(position.x));
+    host.setAttribute('data-player-y', String(position.y));
+  }
+```
+
+En `boot()`, reemplazar:
+
+```ts
+          this.playerPosition.set(this.scene?.playerPosition() ?? null);
+```
+
+por:
+
+```ts
+          this.writePlayerPosition(this.scene?.playerPosition() ?? null);
+```
+
+y reemplazar:
+
+```ts
+        onPosition:    (x, y) => this.zone.run(() => {
+          this.playerPosition.set({ x, y });
+          this.positionChange.emit({ x, y });
+        }),
+```
+
+por:
+
+```ts
+        onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
+        onPositionFrame: (x, y) => this.writePlayerPosition({ x, y }),
+```
+
+- [ ] **Step 12: Ejecutar los specs y los e2e que navegan por posición**
 
 Run: `npm test --prefix frontend -- --runInBand src/app/features/simulator/game-world.frame-budget.spec.ts src/app/features/simulator/position-emit.util.spec.ts src/app/features/simulator/player-motion.util.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 12: Commit**
+Run: `npm run build:frontend`
+Expected: sin errores (TypeScript exige `onPositionFrame` en el único `new DataDrivenWorldScene({ … })`).
+
+Run: `npm run test:e2e -- living-world vertical-quality full-case`
+Expected: PASS en local. `moveBy` lee `data-player-x/y` justo al soltar la tecla; si alguno falla con «No se alcanzó la interacción … (jugador en x=…, y=…)», comparar con la misma corrida en el commit anterior antes de culpar a este cambio. Hoy `full-case` falla en el CI de GitHub también sin este plan (PR #10).
+
+- [ ] **Step 13: Commit**
 
 ```bash
 git add frontend/src/app/features/simulator/position-emit.util.ts frontend/src/app/features/simulator/position-emit.util.spec.ts frontend/src/app/features/simulator/game-world.component.ts frontend/src/app/features/simulator/game-world.frame-budget.spec.ts

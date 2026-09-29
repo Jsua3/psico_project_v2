@@ -2,10 +2,11 @@
 
 Planes derivados de la auditoría estética y técnica del frontend del 2026-09-29 (informe: https://claude.ai/artifact/RYudmDy2HJT3ZSdrHJFVeX), sección «Prioridades › Este mes». Siguen la numeración de la tanda de la semana (01-08) y, como aquellos, cada plan es autocontenido: trae el código actual, el resultado exacto, las pruebas y la verificación.
 
-- **Commit base de todos los planes:** `e68e61b` (rama `feat/ui-mes`, que sale de `feat/ui-semana`, PR #11).
+- **Commit base de todos los planes:** `02bbfe9` (rama `feat/ui-mes`). Sale de `feat/ui-semana` (PR #11) y ya incluye los arreglos de movimiento del PR #10 (`ed6f956`, `9b9b8ec`).
 - **Cómo ejecutarlos:** con `superpowers:subagent-driven-development` (un subagente por tarea y revisión entre tareas) o `superpowers:executing-plans`.
 - **Regla común:** si el código no coincide con un fragmento «Actual» (drift), el ejecutor se detiene y reporta.
-- **Coordinación con otra sesión:** `game-world.component.ts`, `player-motion.util.ts` y los e2e de `frontend/e2e/support/siep-flow.ts` tienen trabajo sin commitear en `.worktrees/personaje-v1-idle-walk` (PR #10). Los planes 11 y 12 tocan `game-world.component.ts` en líneas acotadas. Antes de empezarlos, ejecutar `git log --oneline 470a0a2..feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si hay commits nuevos, rebasar `feat/ui-mes` primero. Ningún plan edita `frontend/e2e/**`.
+- **Coordinación con otra sesión:** la otra sesión trabaja en `game-world.component.ts`, `player-motion.util.ts` y `frontend/e2e/support/siep-flow.ts` (PR #10). Sus commits hasta `9b9b8ec` ya están en la base. Los planes 11 y 12 tocan `game-world.component.ts` en líneas acotadas. Antes de empezarlos, ejecutar `git fetch -q origin && git log --oneline 9b9b8ec..origin/feat/personaje-v1-idle-walk -- frontend/src/app/features/simulator/game-world.component.ts`. Si hay commits nuevos, fusionarlos en `feat/ui-mes` primero. Ningún plan edita `frontend/e2e/**`.
+- **Contrato del e2e que respetan los planes:** el e2e navega en lazo cerrado leyendo `data-player-x/y` del host de Phaser justo al soltar la tecla. El plan 11 limita el aviso de posición a Angular, pero sigue escribiendo esos atributos en cada cuadro, directo en el DOM.
 
 ## Planes
 
@@ -61,8 +62,8 @@ Como en la semana, las pruebas que leen código fuente usan `\s*` entre líneas,
 
 ## Validación hecha al escribir los planes
 
-- Los fragmentos «Actual» de los planes 09 y 10 se comprobaron contra `e68e61b` al escribirlos.
-- Un script comprobó que los 44 fragmentos multilínea de los planes 11-14 existen tal cual en `e68e61b`. El único repetido (`introVideoRef…pause()`, plan 13) está acotado a `ngOnDestroy` en el propio plan.
+- Los fragmentos «Actual» de los planes 09 y 10 se comprobaron contra `e68e61b` al escribirlos. La fusión a `02bbfe9` no tocó esos archivos.
+- Un script comprobó que los 44 fragmentos multilínea de los planes 11-14 existen tal cual, en `e68e61b` y otra vez en `02bbfe9`, más los 6 nuevos del plan 11 sobre `data-player-x/y`. El único repetido (`introVideoRef…pause()`, plan 13) está acotado a `ngOnDestroy` en el propio plan.
 - Las expresiones de los specs de contrato se revisaron contra el código que cada plan manda escribir. No se ejecutaron: la primera corrida de cada tarea es la que las valida (paso «verlo fallar»).
 - El audio y el video se midieron con `ffprobe`:
   - `PsicoLament.mp3`: 156,7 s a 256 kbps.
