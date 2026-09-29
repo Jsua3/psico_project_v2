@@ -4,7 +4,7 @@ import { resolveCastId } from './baked-cast.util';
 
 /** Identidades con hojas v1 completas (48×72, 4 direcciones). El resto cae a cast. */
 export const V1_ROSTER: readonly string[] = [
-  'valentina', 'andres', 'camila', 'daniela', 'david', 'felipe', 'jorge',
+  'valentina', 'andres', 'camila', 'daniela', 'david', 'felipe', 'jorge', 'luisa',
 ];
 
 export function hasV1(castId: string | null | undefined): castId is string {

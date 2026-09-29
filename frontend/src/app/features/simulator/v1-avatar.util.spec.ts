@@ -1,4 +1,6 @@
 // v1-avatar.util.spec.ts
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   V1_ROSTER, hasV1, V1_FRAME_WIDTH, V1_FRAME_HEIGHT,
   v1WalkFrames, v1IdleFrame, v1SheetPath, v1SheetKey, v1WalkAnimKey,
@@ -12,6 +14,19 @@ describe('v1-avatar.util', () => {
     expect(hasV1('mariana')).toBe(false);
     expect(hasV1(null)).toBe(false);
     expect(V1_ROSTER).toContain('valentina');
+  });
+
+  it('roster: luisa tiene identidad v1', () => {
+    expect(hasV1('luisa')).toBe(true);
+  });
+
+  it('cada identidad del roster tiene sus hojas idle y walk en disco (sin 404)', () => {
+    const v1Dir = path.join(__dirname, '..', '..', '..', 'assets', 'characters', 'v1');
+    for (const id of V1_ROSTER) {
+      for (const sheet of ['idle', 'walk']) {
+        expect(fs.existsSync(path.join(v1Dir, id, 'base', `${sheet}.png`))).toBe(true);
+      }
+    }
   });
 
   it('frame es 48×72', () => {
