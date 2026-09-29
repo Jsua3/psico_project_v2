@@ -61,11 +61,15 @@ export async function waitForWorldReady(page: Page, expectedMapKey?: string): Pr
 /** Pies del jugador según data-player-x/y del host de Phaser (contrato del mundo). */
 export async function readPlayerPosition(page: Page): Promise<{ x: number; y: number }> {
   const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-  await expect(host).toHaveAttribute('data-player-x', /^-?\d+$/, { timeout: 30_000 });
-  const [x, y] = await Promise.all([
-    host.getAttribute('data-player-x'),
-    host.getAttribute('data-player-y'),
+  const read = () => host.evaluate(el => [
+    el.getAttribute('data-player-x'),
+    el.getAttribute('data-player-y'),
   ]);
+  let [x, y] = await read();
+  if (x === null || y === null) {
+    await expect(host).toHaveAttribute('data-player-x', /^-?\d+$/, { timeout: 30_000 });
+    [x, y] = await read();
+  }
   return { x: Number(x), y: Number(y) };
 }
 
@@ -160,14 +164,26 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     const action = nearbyAction(page, label);
     if (await action.isVisible().catch(() => false)) return action;
 
-    // Pasos cortos en lazo cerrado, comprobando proximidad con la tecla
-    // liberada: si se mantiene pulsada mientras Playwright resuelve el locator,
-    // el personaje puede sobrepasar un marcador y el botón contextual cambiar
-    // de objetivo antes del clic.
-    const stepPx = (KEYBOARD_NUDGE_MS / 1000) * PLAYER_SPEED_PX_S;
+    // Empujones cortos (~15 px, muy por debajo del radio de interacción de
+    // 74 px) comprobando proximidad con la tecla liberada: si se mantiene
+    // pulsada mientras Playwright resuelve el locator, el personaje puede
+    // sobrepasar un marcador y el botón contextual cambiar de objetivo antes
+    // del clic. Sin lecturas de posición por ciclo: cada ida y vuelta al
+    // navegador es cara en el CI sin GPU.
+    const control = mode === 'touch' ? touchControl(key) : null;
+    if (control) await expect(control).toBeVisible();
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
-      await moveBy(key, stepPx);
+      if (control) {
+        await control.tap();
+        continue;
+      }
+      await page.keyboard.down(key);
+      try {
+        await page.waitForTimeout(KEYBOARD_NUDGE_MS);
+      } finally {
+        await page.keyboard.up(key);
+      }
     }
     if (!(await action.isVisible().catch(() => false))) {
       const at = await readPlayerPosition(page).catch(() => null);
