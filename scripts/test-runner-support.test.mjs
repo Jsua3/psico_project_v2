@@ -169,11 +169,15 @@ function fakeDocker({
 }
 
 test('deriva SHA-256 de diez hex sobre la ruta normalizada del checkout', () => {
-  const normalized = 'd:/work/repo';
+  // path.resolve es del SO: una ruta con unidad solo es absoluta en Windows
+  // (en Linux/CI se resolvería contra el cwd y el hash sería otro).
+  const [checkout, normalized] = process.platform === 'win32'
+    ? ['D:\\Work\\Repo\\', 'd:/work/repo']
+    : ['/Work/Repo/', '/work/repo'];
   const expectedHash = createHash('sha256').update(normalized).digest('hex').slice(0, 10);
 
   assert.equal(
-    deriveTestComposeProject('D:\\Work\\Repo\\'),
+    deriveTestComposeProject(checkout),
     `psico-project-v3-test-${expectedHash}`,
   );
 });
