@@ -596,7 +596,7 @@ const CASE_INTRO_PARAGRAPHS = [
       background: rgba(124,77,255,.16);
       font-family: 'JetBrains Mono', monospace;
       font-size: .64rem;
-      color: rgba(201,184,255,.6);
+      color: #c9b8ff;
     }
 
     /* Advertencia de contenido (ETH-01): variante del card de intro. */

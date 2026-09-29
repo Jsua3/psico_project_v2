@@ -1100,7 +1100,7 @@ interface FeedbackPanelView {
     input:focus-visible,
     textarea:focus-visible,
     .pixel-button:focus-visible {
-      outline: 3px solid rgba(111, 76, 175, .28);
+      outline: 3px solid var(--psy-focus);
       outline-offset: 2px;
       border-color: #6f4caf;
     }

@@ -89,3 +89,13 @@ describe('contraste: login', () => {
     expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
   });
 });
+
+describe('contraste: portal', () => {
+  it('los anillos locales usan el foco global', () => {
+    const dash = source('../app/features/dashboard/dashboard.component.scss');
+    const trace = source('../app/features/simulator/instructor-trace.component.ts');
+    expect(dash).not.toContain('outline: 3px solid rgba(124, 77, 255, 0.45);');
+    expect(dash).toMatch(/\.pixel-button:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);/);
+    expect(trace).not.toContain('outline: 3px solid rgba(111, 76, 175, .28);');
+  });
+});

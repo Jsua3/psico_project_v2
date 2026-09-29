@@ -317,7 +317,7 @@
 }
 
 .pixel-button:focus-visible {
-  outline: 3px solid rgba(124, 77, 255, 0.45);
+  outline: 3px solid var(--psy-focus);
   outline-offset: 2px;
 }
 
