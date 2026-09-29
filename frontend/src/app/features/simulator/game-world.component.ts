@@ -50,6 +50,7 @@ import {
   playerHitbox,
   rectsIntersect,
   resolveDirection,
+  splitFrameDelta,
 } from './player-motion.util';
 import {
   AVATAR_ANIM_KEYS,
@@ -366,7 +367,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const step = computePlayerStep(input, this.lastDirection, delta);
 
     if (step.moving) {
-      const moved = this.movePlayer(step.dx, step.dy);
+      // Sub-pasos con colisión: misma velocidad real a cualquier fps.
+      let moved = false;
+      for (const subDelta of splitFrameDelta(delta)) {
+        const part = computePlayerStep(input, this.lastDirection, subDelta);
+        moved = this.movePlayer(part.dx, part.dy) || moved;
+      }
       this.lastDirection = step.direction;
       if (moved) {
         this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
