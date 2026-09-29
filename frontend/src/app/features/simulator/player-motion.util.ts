@@ -14,8 +14,11 @@ export type PlayerDirection = 'down' | 'up' | 'left' | 'right';
 /** Velocidad de caminata (px/s) — calibrada en prueba live. */
 export const PLAYER_SPEED = 150;
 
-/** Delta máximo por frame (ms): evita teletransportes al volver de tab inactiva. */
+/** Delta máximo por sub-paso de movimiento (ms): acota el salto entre chequeos de colisión. */
 export const PLAYER_MAX_DELTA_MS = 34;
+
+/** Delta máximo que un frame puede avanzar (ms): evita teletransportes al volver de tab inactiva. */
+export const PLAYER_MAX_FRAME_DELTA_MS = 250;
 
 /** (x, y) del contenedor = pies; sin corrección extra. */
 export const PLAYER_FEET_OFFSET = { x: 0, y: 0 } as const;
@@ -88,6 +91,23 @@ export function computePlayerStep(
     moving: true,
     direction: resolveDirection(ix, iy, lastDirection),
   };
+}
+
+/**
+ * Parte el delta de un frame en sub-pasos ≤ PLAYER_MAX_DELTA_MS (el llamador
+ * aplica computePlayerStep + colisión a cada uno). Así la velocidad real es
+ * PLAYER_SPEED a cualquier fps: con un solo paso recortado a 34 ms, un equipo
+ * a 15 fps caminaba a la mitad de velocidad.
+ */
+export function splitFrameDelta(deltaMs: number): number[] {
+  let remaining = Math.min(Math.max(deltaMs, 0), PLAYER_MAX_FRAME_DELTA_MS);
+  const steps: number[] = [];
+  while (remaining > 0) {
+    const step = Math.min(remaining, PLAYER_MAX_DELTA_MS);
+    steps.push(step);
+    remaining -= step;
+  }
+  return steps;
 }
 
 /** Sub-pasos de un nudge táctil: 4 × clamp(34 ms) ≈ 20 px a PLAYER_SPEED. */

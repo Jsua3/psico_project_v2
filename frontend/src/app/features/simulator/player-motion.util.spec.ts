@@ -2,6 +2,7 @@ import {
   NUDGE_SUBSTEPS,
   PLAYER_HITBOX,
   PLAYER_MAX_DELTA_MS,
+  PLAYER_MAX_FRAME_DELTA_MS,
   PLAYER_SPEED,
   PLAYER_SPRITE_OFFSET_Y,
   computeNudgeStep,
@@ -9,6 +10,7 @@ import {
   playerHitbox,
   rectsIntersect,
   resolveDirection,
+  splitFrameDelta,
 } from './player-motion.util';
 
 const NO_INPUT = { left: false, right: false, up: false, down: false };
@@ -46,6 +48,43 @@ describe('computePlayerStep — input → desplazamiento', () => {
     const step = computePlayerStep({ left: true, right: true, up: false, down: false }, 'up', 16);
     expect(step.moving).toBe(false);
     expect(step.direction).toBe('up');
+  });
+});
+
+describe('splitFrameDelta — velocidad independiente de los fps', () => {
+  const walked = (frameMs: number, frames: number) => {
+    let dx = 0;
+    for (let f = 0; f < frames; f += 1) {
+      for (const sub of splitFrameDelta(frameMs)) {
+        dx += computePlayerStep({ ...NO_INPUT, right: true }, 'right', sub).dx;
+      }
+    }
+    return dx;
+  };
+
+  it('a 60 fps un frame es un solo sub-paso (sin cambio de comportamiento)', () => {
+    expect(splitFrameDelta(16)).toEqual([16]);
+  });
+
+  it('a 10 fps recorre lo mismo por segundo que a 60 fps (PLAYER_SPEED px/s)', () => {
+    expect(walked(100, 10)).toBeCloseTo(PLAYER_SPEED, 5);
+    expect(walked(1000 / 60, 60)).toBeCloseTo(PLAYER_SPEED, 5);
+  });
+
+  it('ningún sub-paso supera PLAYER_MAX_DELTA_MS (colisión por sub-paso, sin túneles)', () => {
+    const subs = splitFrameDelta(100);
+    expect(Math.max(...subs)).toBeLessThanOrEqual(PLAYER_MAX_DELTA_MS);
+    expect(subs.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 5);
+  });
+
+  it('volver de una tab inactiva sigue acotado por PLAYER_MAX_FRAME_DELTA_MS', () => {
+    const total = splitFrameDelta(5_000).reduce((a, b) => a + b, 0);
+    expect(total).toBe(PLAYER_MAX_FRAME_DELTA_MS);
+  });
+
+  it('delta nulo o negativo no produce sub-pasos', () => {
+    expect(splitFrameDelta(0)).toEqual([]);
+    expect(splitFrameDelta(-5)).toEqual([]);
   });
 });
 

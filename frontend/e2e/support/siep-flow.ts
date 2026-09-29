@@ -26,11 +26,11 @@ export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: 30_000 });
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-  const resume = page.getByRole('button', {
-    name: /continuar intento en progreso|reanudar intento en pausa/i,
-  });
-  await expect(consent.or(resume).first()).toBeVisible({ timeout: 30_000 });
-  if (await resume.isVisible().catch(() => false)) await resume.click();
+  // Recorrido aislado: un intento activo que dejó otra prueba se descarta en
+  // vez de heredar su sala y posición (un fallo previo no arrastra a este).
+  const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
+  await expect(consent.or(startFresh).first()).toBeVisible({ timeout: 30_000 });
+  if (await startFresh.isVisible().catch(() => false)) await startFresh.click();
   await expect(consent).toBeVisible({ timeout: 30_000 });
   return consent;
 }
@@ -58,6 +58,17 @@ export async function waitForWorldReady(page: Page, expectedMapKey?: string): Pr
   }
 }
 
+/** Pies del jugador según data-player-x/y del host de Phaser (contrato del mundo). */
+export async function readPlayerPosition(page: Page): Promise<{ x: number; y: number }> {
+  const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
+  await expect(host).toHaveAttribute('data-player-x', /^-?\d+$/, { timeout: 30_000 });
+  const [x, y] = await Promise.all([
+    host.getAttribute('data-player-x'),
+    host.getAttribute('data-player-y'),
+  ]);
+  return { x: Number(x), y: Number(y) };
+}
+
 function nearbyAction(page: Page, label: RegExp): Locator {
   const primaryLabel = page.locator('strong').filter({ hasText: label });
   return page.locator('button.context-bar__interaction').filter({ has: primaryLabel });
@@ -66,12 +77,26 @@ function nearbyAction(page: Page, label: RegExp): Locator {
 export interface WorldInputDriver {
   readonly mode: SiepInputMode;
   moveUntilNearby(key: MovementKey, label: RegExp, timeout?: number): Promise<Locator>;
-  moveFor(key: MovementKey, durationMs: number): Promise<void>;
+  /**
+   * Desplaza al jugador ~distancePx en la dirección de key, en lazo cerrado
+   * sobre su posición real (data-player-x/y): no depende de los fps del
+   * equipo ni de cuánto dura una pulsación. Si un obstáculo lo frena, se
+   * detiene ahí, igual que caminar contra una pared.
+   */
+  moveBy(key: MovementKey, distancePx: number): Promise<void>;
   interact(): Promise<void>;
 }
 
-const TOUCH_NUDGE_EQUIVALENT_MS = 4 * 34;
 const KEYBOARD_NUDGE_MS = 3 * 34;
+/** Velocidad de caminata del juego (PLAYER_SPEED, px/s): solo dimensiona pulsaciones. */
+const PLAYER_SPEED_PX_S = 150;
+const MOVE_TOLERANCE_PX = 4;
+/** Un toque táctil avanza ~20 px (4 sub-pasos): se para a medio toque del objetivo. */
+const MOVE_TOUCH_TOLERANCE_PX = 10;
+const MOVE_MIN_HOLD_MS = 40;
+const MOVE_MAX_HOLD_MS = 250;
+/** Pulsaciones máximas (ya a MOVE_MAX_HOLD_MS) sin avance antes de darse por bloqueado. */
+const MOVE_STALL_LIMIT = 3;
 const TOUCH_DIRECTION_LABEL: Record<MovementKey, RegExp> = {
   ArrowUp: /mover arriba/i,
   ArrowDown: /mover abajo/i,
@@ -83,21 +108,48 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
   const touchControl = (key: MovementKey) =>
     page.getByRole('button', { name: TOUCH_DIRECTION_LABEL[key] });
 
-  const moveFor = async (key: MovementKey, durationMs: number): Promise<void> => {
-    if (mode === 'keyboard') {
-      await page.keyboard.down(key);
-      try {
-        await page.waitForTimeout(durationMs);
-      } finally {
-        await page.keyboard.up(key);
-      }
-      return;
-    }
+  const axisOf = (key: MovementKey) =>
+    (key === 'ArrowLeft' || key === 'ArrowRight' ? 'x' : 'y') as 'x' | 'y';
+  const signOf = (key: MovementKey) => (key === 'ArrowRight' || key === 'ArrowDown' ? 1 : -1);
 
-    const control = touchControl(key);
-    await expect(control).toBeVisible();
-    const taps = Math.max(1, Math.round(durationMs / TOUCH_NUDGE_EQUIVALENT_MS));
-    for (let step = 0; step < taps; step += 1) await control.tap();
+  const moveBy = async (key: MovementKey, distancePx: number): Promise<void> => {
+    const axis = axisOf(key);
+    const sign = signOf(key);
+    const start = (await readPlayerPosition(page))[axis];
+    const target = start + sign * distancePx;
+    let current = start;
+    let holdFloorMs = MOVE_MIN_HOLD_MS;
+    let stalls = 0;
+    const control = mode === 'touch' ? touchControl(key) : null;
+    if (control) await expect(control).toBeVisible();
+    const tolerance = control ? MOVE_TOUCH_TOLERANCE_PX : MOVE_TOLERANCE_PX;
+
+    while ((target - current) * sign > tolerance) {
+      if (control) {
+        await control.tap();
+      } else {
+        // Pulsación proporcional a lo que falta; con fps bajos una pulsación
+        // corta puede caer entera entre dos frames, así que el piso crece
+        // mientras no haya avance.
+        const remainingMs = (((target - current) * sign) / PLAYER_SPEED_PX_S) * 1000;
+        const holdMs = Math.min(MOVE_MAX_HOLD_MS, Math.max(holdFloorMs, remainingMs * 0.75));
+        await page.keyboard.down(key);
+        try {
+          await page.waitForTimeout(holdMs);
+        } finally {
+          await page.keyboard.up(key);
+        }
+      }
+      const next = (await readPlayerPosition(page))[axis];
+      if (next === current) {
+        if (control || holdFloorMs >= MOVE_MAX_HOLD_MS) stalls += 1;
+        holdFloorMs = Math.min(MOVE_MAX_HOLD_MS, holdFloorMs * 2);
+        if (stalls >= MOVE_STALL_LIMIT) break;
+      } else {
+        stalls = 0;
+      }
+      current = next;
+    }
   };
 
   const moveUntilNearby = async (
@@ -108,38 +160,28 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     const action = nearbyAction(page, label);
     if (await action.isVisible().catch(() => false)) return action;
 
-    if (mode === 'keyboard') {
-      // Comprueba proximidad solo con la tecla liberada. Si se mantiene pulsada
-      // mientras Playwright resuelve el locator, el personaje puede sobrepasar
-      // un marcador y el botón contextual cambiar de objetivo antes del clic.
-      const deadline = Date.now() + timeout;
-      while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
-        await page.keyboard.down(key);
-        try {
-          await page.waitForTimeout(KEYBOARD_NUDGE_MS);
-        } finally {
-          await page.keyboard.up(key);
-        }
-      }
-      await expect(action, `No se alcanzó la interacción ${label} moviendo ${key}`)
-        .toBeVisible({ timeout: 1_000 });
-      return action;
-    }
-
-    const control = touchControl(key);
-    await expect(control).toBeVisible();
+    // Pasos cortos en lazo cerrado, comprobando proximidad con la tecla
+    // liberada: si se mantiene pulsada mientras Playwright resuelve el locator,
+    // el personaje puede sobrepasar un marcador y el botón contextual cambiar
+    // de objetivo antes del clic.
+    const stepPx = (KEYBOARD_NUDGE_MS / 1000) * PLAYER_SPEED_PX_S;
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
-      await control.tap();
+      await moveBy(key, stepPx);
     }
-    await expect(action, `No se alcanzó la interacción ${label} con el control ${key}`)
-      .toBeVisible({ timeout: 1_000 });
+    if (!(await action.isVisible().catch(() => false))) {
+      const at = await readPlayerPosition(page).catch(() => null);
+      const where = at ? ` (jugador en x=${at.x}, y=${at.y})` : '';
+      const how = mode === 'keyboard' ? `moviendo ${key}` : `con el control ${key}`;
+      await expect(action, `No se alcanzó la interacción ${label} ${how}${where}`)
+        .toBeVisible({ timeout: 1_000 });
+    }
     return action;
   };
 
   return {
     mode,
-    moveFor,
+    moveBy,
     moveUntilNearby,
     interact: async () => {
       if (mode === 'keyboard') {
@@ -157,14 +199,14 @@ export async function moveAndPersistPosition(
   page: Page,
   input: WorldInputDriver,
   key: MovementKey,
-  durationMs: number,
+  distancePx: number,
 ): Promise<ApiData> {
   const responsePromise = page.waitForResponse(response =>
     response.request().method() === 'PATCH'
       && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
     { timeout: 30_000 },
   );
-  await input.moveFor(key, durationMs);
+  await input.moveBy(key, distancePx);
   const response = await responsePromise;
   await requireOk(response, 'Falló la persistencia de posición');
   return (await response.json()).data as ApiData;
@@ -174,7 +216,7 @@ export async function pauseWithPendingPosition(
   page: Page,
   input: WorldInputDriver,
   key: MovementKey,
-  durationMs: number,
+  distancePx: number,
 ): Promise<{ positionWorld: ApiData; pausedAttempt: ApiData }> {
   const requestOrder: string[] = [];
   const captureOrder = (request: { method(): string; url(): string }) => {
@@ -194,7 +236,7 @@ export async function pauseWithPendingPosition(
     { timeout: 30_000 },
   );
   try {
-    await input.moveFor(key, durationMs);
+    await input.moveBy(key, distancePx);
     await page.getByRole('button', { name: /salida segura/i }).click();
     const positionResponse = await positionPromise;
     const pauseResponse = await pausePromise;

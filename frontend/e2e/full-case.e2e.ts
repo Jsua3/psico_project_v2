@@ -59,13 +59,13 @@ async function completeFullCase(
   await closeDialogue(page, /herramienta pertinente/i);
 
   await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
-  await input.moveFor('ArrowLeft', 1_350);
-  await input.moveFor('ArrowUp', 330);
+  await input.moveBy('ArrowLeft', 203);
+  await input.moveBy('ArrowUp', 50);
   await seekNpcDialogue(page, /enfermera de urgencias/i, input);
   await closeDialogue(page, /enfermera de urgencias/i);
 
   // Rodear la camilla por el pasillo frontal antes de buscar la puerta.
-  await input.moveFor('ArrowDown', 550);
+  await input.moveBy('ArrowDown', 83);
   await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
   const escuchaEntry = await enterDoor(page, /sala de escucha familiar/i, 'hospital-sala-escucha');
   expect(escuchaEntry.player).toMatchObject({ x: 160, y: 452 });
@@ -84,7 +84,7 @@ async function completeFullCase(
 
   // Persistencia — refresh en progreso y pausa inmediata conservan el mismo intento.
   const attemptId = decision.attemptId as string;
-  const beforeRefresh = await moveAndPersistPosition(page, input, 'ArrowRight', 240);
+  const beforeRefresh = await moveAndPersistPosition(page, input, 'ArrowRight', 36);
   const refreshed = await reloadAndResumeAttempt(page, 'IN_PROGRESS', 'hospital-sala-escucha');
   expect(refreshed.activeAttempt.attemptId).toBe(attemptId);
   expect(refreshed.activeAttempt.currentNode.key).toBe('hospital-sala-escucha');
@@ -95,7 +95,7 @@ async function completeFullCase(
   expect(refreshed.world.inspectedObjectKeys).toContain('familia-crisis');
   expect(refreshed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
 
-  const paused = await pauseWithPendingPosition(page, input, 'ArrowRight', 180);
+  const paused = await pauseWithPendingPosition(page, input, 'ArrowRight', 27);
   expect(paused.pausedAttempt.attemptId).toBe(attemptId);
   expect(paused.pausedAttempt.status).toBe('PAUSED');
   expect(paused.pausedAttempt.currentNode.key).toBe('hospital-sala-escucha');
@@ -114,7 +114,7 @@ async function completeFullCase(
 
   // H2 — marco normativo hospitalario.
   await input.moveUntilNearby('ArrowRight', /bitácora/i);
-  await input.moveFor('ArrowRight', 800);
+  await input.moveBy('ArrowRight', 120);
   await input.moveUntilNearby('ArrowUp', /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-hospital$/);
   decision = await chooseDecision(
@@ -130,7 +130,7 @@ async function completeFullCase(
   await input.moveUntilNearby('ArrowUp', /protocolo epicee/i);
   const spikes = await interactNearby(page, /protocolo epicee/i, /\/interactions\/tool-spikes$/);
   expect(spikes.world.inventory).toContain('SPIKES');
-  await input.moveFor('ArrowDown', 330);
+  await input.moveBy('ArrowDown', 50);
   await input.moveUntilNearby('ArrowRight', /psicóloga hospitalaria/i);
   await interactNearby(page, /psicóloga hospitalaria/i, /\/interactions\/psicologa-acompanante$/);
   decision = await chooseDecision(
@@ -147,11 +147,11 @@ async function completeFullCase(
 
   // Recepción — expediente antes del consultorio.
   await input.moveUntilNearby('ArrowRight', /consultorio/i);
-  await input.moveFor('ArrowLeft', 400);
+  await input.moveBy('ArrowLeft', 60);
   await input.moveUntilNearby('ArrowUp', /expediente del caso/i);
   await interactNearby(page, /expediente del caso/i, /\/interactions\/expediente-caso$/);
   await closeDialogue(page, /expediente del caso/i);
-  await input.moveFor('ArrowDown', 450);
+  await input.moveBy('ArrowDown', 68);
   await input.moveUntilNearby('ArrowRight', /consultorio/i);
   await enterDoor(page, /consultorio/i, 'comisaria-consultorio');
 
@@ -182,7 +182,7 @@ async function completeFullCase(
 
   // C2 — marco integral de Comisaría.
   await input.moveUntilNearby('ArrowRight', /ruta de protección/i);
-  await input.moveFor('ArrowRight', 1_200);
+  await input.moveBy('ArrowRight', 180);
   await input.moveUntilNearby('ArrowUp', /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-comisaria$/);
   decision = await chooseDecision(
