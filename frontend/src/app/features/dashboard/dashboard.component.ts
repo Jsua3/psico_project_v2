@@ -19,7 +19,7 @@ import {
   StudentAttemptSummary
 } from '../../core/models/simulation.model';
 import { DashboardChartsComponent } from './dashboard-charts.component';
-import { completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
+import { attemptStateLabel, completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
 import { QuickAction, QuickActionsComponent } from './quick-actions.component';
 
 interface DashboardMetric {
@@ -208,8 +208,8 @@ export class DashboardComponent implements OnInit {
   }
 
   private heroStatusLoadingCard(): HeroStatusCard {
-    const action = this.isEstudiante()
-      ? { label: 'Continuar simulación', route: '/portal/simulador', icon: 'play_arrow', accent: true }
+    const action: QuickAction | undefined = this.isEstudiante()
+      ? undefined
       : this.isProfesor()
         ? { label: 'Revisar trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', accent: true }
         : { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true };
@@ -223,7 +223,7 @@ export class DashboardComponent implements OnInit {
       chips: this.isAdmin()
         ? ['Usuarios', 'Casos', 'Sistema']
         : this.isProfesor()
-          ? ['Grupos', 'Intentos', 'Rúbricas']
+          ? ['Grupos', 'Intentos']
           : ['Casos', 'Progreso', 'Historial'],
       items: [
         { label: 'Cargando…', value: '—' },
@@ -249,19 +249,19 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Usuarios activos',
-          value: activeUsers > 0 ? String(activeUsers) : 'Sin datos suficientes'
+          value: String(activeUsers)
         },
         {
           label: 'Casos publicados',
-          value: published > 0 ? String(published) : 'Aún no registrado'
+          value: String(published)
         },
         {
           label: 'Simulaciones completadas',
-          value: completed > 0 ? String(completed) : 'Aún no registrado'
+          value: String(completed)
         },
         {
           label: 'Intentos recientes',
-          value: recentCount > 0 ? String(recentCount) : 'Aún no registrado'
+          value: String(recentCount)
         }
       ],
       action: { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true }
@@ -280,15 +280,15 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Grupos activos',
-          value: grupos.length > 0 ? String(grupos.length) : 'Sin datos suficientes'
+          value: String(grupos.length)
         },
         {
           label: 'Estudiantes asignados',
-          value: assignedStudents > 0 ? String(assignedStudents) : 'Sin datos suficientes'
+          value: String(assignedStudents)
         },
         {
           label: 'Intentos recientes',
-          value: recentCount > 0 ? String(recentCount) : 'Aún no registrado'
+          value: String(recentCount)
         }
       ],
       action: {
@@ -316,11 +316,11 @@ export class DashboardComponent implements OnInit {
       items: [
         {
           label: 'Casos asignados',
-          value: assignedCases > 0 ? String(assignedCases) : 'Sin datos suficientes'
+          value: String(assignedCases)
         },
         {
           label: 'Intentos completados',
-          value: completed > 0 ? String(completed) : 'Aún no registrado'
+          value: String(completed)
         },
         {
           label: 'Mejor puntaje',
@@ -518,7 +518,7 @@ export class DashboardComponent implements OnInit {
           casoTitulo: item.caseTitle,
           estudiante: '—',
           puntajeLabel: item.accumulatedScore > 0 ? String(item.accumulatedScore) : 'Pendiente',
-          estado: this.estadoLabel(item.status),
+          estado: attemptStateLabel(item.status),
           attemptId: item.attemptId,
           studentRow: true
         }));
@@ -531,7 +531,7 @@ export class DashboardComponent implements OnInit {
       casoTitulo: item.casoTitulo,
       estudiante: item.estudiante,
       puntajeLabel: item.puntaje && item.puntaje > 0 ? String(item.puntaje) : 'Pendiente',
-      estado: this.estadoLabel(item.estado),
+      estado: attemptStateLabel(item.estado),
       studentRow: false
     }));
   }
@@ -639,12 +639,5 @@ export class DashboardComponent implements OnInit {
     if (hours > 0) return `${hours} h ${minutes} min`;
     if (minutes > 0) return `${minutes} min`;
     return `${seconds} s`;
-  }
-
-  private estadoLabel(estado: string) {
-    if (estado === 'COMPLETADO' || estado === 'COMPLETED' || estado === 'SAFE_EXITED') return 'Completado';
-    if (estado === 'EN_PAUSA' || estado === 'PAUSED') return 'En pausa';
-    if (estado === 'PENDIENTE') return 'Pendiente';
-    return 'En curso';
   }
 }

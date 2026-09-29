@@ -100,13 +100,13 @@
           @for (bar of professorCaseChart(); track bar.label) {
             <div class="bar-row">
               <span>{{ bar.label }}</span>
-              <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--orange" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
+              <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--{{ bar.tone }}" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
               <strong>{{ bar.value }}</strong>
             </div>
           }
         </div>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Sin alertas formativas registradas.</p></div>
+        <div class="dashboard-empty dashboard-empty--compact"><p>Aún no hay intentos recientes.</p></div>
       }
     </article>
 

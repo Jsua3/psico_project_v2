@@ -6,8 +6,17 @@ export function metricDisplay(value: number | string): string {
 }
 
 /** Intentos terminados de verdad. SAFE_EXITED significa interrumpido, no completado. */
-export function completedAttemptCount(history: readonly StudentAttemptSummary[]): number {
-  return history.filter(attempt => attempt.status === 'COMPLETED').length;
+export function completedAttemptCount(attempts: readonly { status: string }[]): number {
+  return attempts.filter(attempt => attempt.status === 'COMPLETED').length;
+}
+
+/** Etiqueta en español del estado de un intento (códigos del historial y del reporte docente). */
+export function attemptStateLabel(estado: string): string {
+  if (estado === 'COMPLETADO' || estado === 'COMPLETED') return 'Completado';
+  if (estado === 'SAFE_EXITED') return 'Interrumpido';
+  if (estado === 'EN_PAUSA' || estado === 'PAUSED') return 'En pausa';
+  if (estado === 'PENDIENTE') return 'Pendiente';
+  return 'En curso';
 }
 
 /** Suma del tiempo activo estimado; null si ningún intento lo informa. */

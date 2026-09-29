@@ -1,5 +1,5 @@
 import { StudentAttemptSummary } from '../../core/models/simulation.model';
-import { completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
+import { attemptStateLabel, completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
@@ -37,5 +37,25 @@ describe('dashboard-metrics.util', () => {
       attempt({ activeDurationSeconds: null, totalDurationSeconds: 86_400 }),
       attempt({ activeDurationSeconds: 120 }),
     ])).toBe(420);
+  });
+
+  it('completedAttemptCount sirve también para intentos que solo traen el estado', () => {
+    expect(completedAttemptCount([
+      { status: 'COMPLETED' },
+      { status: 'SAFE_EXITED' },
+      { status: 'IN_PROGRESS' },
+    ])).toBe(1);
+    expect(completedAttemptCount([])).toBe(0);
+  });
+
+  it('attemptStateLabel distingue interrumpido de completado', () => {
+    expect(attemptStateLabel('COMPLETED')).toBe('Completado');
+    expect(attemptStateLabel('COMPLETADO')).toBe('Completado');
+    expect(attemptStateLabel('SAFE_EXITED')).toBe('Interrumpido');
+    expect(attemptStateLabel('PAUSED')).toBe('En pausa');
+    expect(attemptStateLabel('EN_PAUSA')).toBe('En pausa');
+    expect(attemptStateLabel('PENDIENTE')).toBe('Pendiente');
+    expect(attemptStateLabel('IN_PROGRESS')).toBe('En curso');
+    expect(attemptStateLabel('EN_PROGRESO')).toBe('En curso');
   });
 });
