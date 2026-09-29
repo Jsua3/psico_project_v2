@@ -15,6 +15,13 @@
   --landing-purple-glow: rgba(109, 40, 217, 0.35);
 }
 
+/* Zonas oscuras: el foco global (azul) no se ve aquí; #C9B3FF ≥ 9:1. */
+.landing-nav,
+.landing-hero,
+.landing-cta__inner {
+  --psy-focus: #C9B3FF;
+}
+
 .landing {
   color: var(--siep-text);
   background: var(--siep-card);
@@ -26,7 +33,7 @@
 }
 
 .landing-accent {
-  background: linear-gradient(135deg, var(--siep-lavender) 0%, var(--siep-primary) 50%, #a78bfa 100%);
+  background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -68,7 +75,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px clamp(16px, 4vw, 32px);
-  background: linear-gradient(180deg, rgba(12, 18, 34, 0.92) 0%, rgba(12, 18, 34, 0.72) 70%, transparent 100%);
+  background: rgba(12, 18, 34, 0.94);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .landing-nav__brand {
@@ -87,7 +96,7 @@
   height: 42px;
   border-radius: 12px;
   background: linear-gradient(135deg, #7c3aed, #6366f1);
-  box-shadow: 0 4px 16px var(--siep-primary-glow);
+  box-shadow: 0 4px 16px var(--landing-purple-glow);
 }
 
 .landing-nav__icon mat-icon {
@@ -177,7 +186,7 @@
 .landing-btn--primary {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
   color: #fff;
-  box-shadow: 0 4px 20px var(--siep-primary-glow);
+  box-shadow: 0 4px 20px var(--landing-purple-glow);
 }
 
 .landing-btn--primary:hover {

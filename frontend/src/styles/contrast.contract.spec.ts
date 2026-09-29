@@ -36,3 +36,41 @@ describe('contraste: simulador', () => {
     expect(play).toMatch(/\.context-bar__hint \{[^}]*font-size: \.75rem;[^}]*color: rgba\(232,240,244,\.72\);/);
   });
 });
+
+describe('contraste: portada', () => {
+  const data = source('../app/features/public/landing.component.ts');
+  const scss = source('../app/features/public/landing.component.scss');
+  const html = source('../app/features/public/landing.component.html');
+  const accents = ['#6D28D9', '#115E59', '#9A3412', '#1D4ED8'];
+
+  it('no quedan acentos claros que fallan AA', () => {
+    for (const old of ['#7c3aed', '#14b8a6', '#f97316', '#3b82f6']) {
+      expect(data).not.toContain(`'${old}'`);
+    }
+    for (const accent of accents) expect(data).toContain(`'${accent}'`);
+  });
+
+  it('los acentos pasan AA como texto y como fondo de texto blanco', () => {
+    for (const accent of accents) {
+      expect(contrast(accent, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('el titular no usa el tramo oscuro del degradado', () => {
+    expect(scss).toContain('background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);');
+    expect(contrast('#a78bfa', '#151d32')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('la cabecera tiene fondo sólido y el enlace Ingresar es visible', () => {
+    expect(scss).not.toContain('rgba(12, 18, 34, 0.72) 70%, transparent 100%');
+    expect(html).toContain('class="landing-btn landing-btn--sm landing-btn--outline" routerLink="/login"');
+  });
+
+  it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {
+    expect(scss).toMatch(/\.landing-nav,\s*\.landing-hero,\s*\.landing-cta__inner \{\s*--psy-focus: #C9B3FF;/);
+    expect(scss).not.toContain('--siep-primary-glow');
+    for (const bg of ['#151d32', '#0c1222', '#1a1040']) {
+      expect(contrast('#C9B3FF', bg)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

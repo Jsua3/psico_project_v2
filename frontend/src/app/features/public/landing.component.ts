@@ -72,21 +72,21 @@ export class LandingComponent {
       title: 'Violencia intrafamiliar',
       text: 'Evalúa señales de riesgo, activa rutas de protección y documenta decisiones con criterio ético y legal.',
       tag: 'Caso sensible',
-      accent: '#7c3aed'
+      accent: '#6D28D9'
     },
     {
       icon: 'groups',
       title: 'Desplazamiento forzado',
       text: 'Analiza contexto comunitario, necesidades de apoyo y articulación con redes institucionales del territorio.',
       tag: 'Psicología social',
-      accent: '#14b8a6'
+      accent: '#115E59'
     },
     {
       icon: 'diversity_3',
       title: 'Conflicto comunitario',
       text: 'Practica mediación psicosocial, lectura del conflicto y decisiones que respeten derechos y convivencia.',
       tag: 'Intervención',
-      accent: '#f97316'
+      accent: '#9A3412'
     }
   ];
 
@@ -96,28 +96,28 @@ export class LandingComponent {
       icon: 'folder_open',
       title: 'Selecciona un caso',
       text: 'Elige un escenario de entrenamiento acorde a tu cohorte.',
-      accent: '#7c3aed'
+      accent: '#6D28D9'
     },
     {
       step: '2',
       icon: 'psychology',
       title: 'Analiza la situación',
       text: 'Explora contexto, personajes y señales antes de intervenir.',
-      accent: '#14b8a6'
+      accent: '#115E59'
     },
     {
       step: '3',
       icon: 'account_tree',
       title: 'Toma decisiones',
       text: 'Cada elección queda registrada en la trazabilidad.',
-      accent: '#f97316'
+      accent: '#9A3412'
     },
     {
       step: '4',
       icon: 'bar_chart',
       title: 'Recibe retroalimentación',
       text: 'Consulta orientación formativa y evaluación con rúbricas.',
-      accent: '#3b82f6'
+      accent: '#1D4ED8'
     }
   ];
 
@@ -126,21 +126,21 @@ export class LandingComponent {
       icon: 'school',
       title: 'Estudiante',
       text: 'Practica intervención psicosocial en escenarios simulados y recibe retroalimentación formativa.',
-      accent: '#7c3aed',
+      accent: '#6D28D9',
       features: ['Simulaciones', 'Bitácora', 'Retroalimentación']
     },
     {
       icon: 'supervisor_account',
       title: 'Profesor',
       text: 'Asigna casos, supervisa trazabilidad y evalúa el desempeño con rúbricas académicas.',
-      accent: '#14b8a6',
+      accent: '#115E59',
       features: ['Rúbricas', 'Evaluación', 'Seguimiento']
     },
     {
       icon: 'admin_panel_settings',
       title: 'Administrador',
       text: 'Gestiona usuarios, publica casos y configura el entorno académico del simulador.',
-      accent: '#3b82f6',
+      accent: '#1D4ED8',
       features: ['Gestión', 'Trazabilidad', 'Reportes']
     }
   ];
