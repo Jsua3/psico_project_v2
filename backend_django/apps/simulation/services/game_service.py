@@ -261,13 +261,18 @@ def list_attempt_history(actor):
         if ev["decision_option__prohibited_conduct"]:
             bucket["PROHIBITED"] += 1
 
-    event_marks = {aid: [] for aid in attempt_ids}
-    for attempt_id, event_type, occurred_at in (
-        AttemptEvent.objects.filter(attempt_id__in=attempt_ids)
-        .order_by("attempt_id", "occurred_at", "id")
-        .values_list("attempt_id", "event_type", "occurred_at")
-    ):
-        event_marks[attempt_id].append((event_type, occurred_at))
+    # El tiempo activo solo se calcula para intentos terminados (ended_at); un
+    # intento en curso no lo necesita y sus eventos (posiciones del mundo) crecen
+    # con el juego, así que no se cargan.
+    finished_ids = [a.id for a in attempts if a.ended_at]
+    event_marks = {}
+    if finished_ids:
+        for attempt_id, event_type, occurred_at in (
+            AttemptEvent.objects.filter(attempt_id__in=finished_ids)
+            .order_by("attempt_id", "occurred_at", "id")
+            .values_list("attempt_id", "event_type", "occurred_at")
+        ):
+            event_marks.setdefault(attempt_id, []).append((event_type, occurred_at))
 
     return [
         {
@@ -285,7 +290,7 @@ def list_attempt_history(actor):
                 if a.started_at and a.ended_at else None
             ),
             "activeDurationSeconds": active_duration_seconds(
-                a.started_at, a.ended_at, event_marks[a.id]
+                a.started_at, a.ended_at, event_marks.get(a.id, [])
             ),
             "startedAt": a.started_at.isoformat() if a.started_at else None,
             "endedAt": a.ended_at.isoformat() if a.ended_at else None,
