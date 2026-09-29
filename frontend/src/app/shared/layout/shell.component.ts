@@ -193,7 +193,7 @@ interface NavItem {
       border-radius: 12px;
       color: rgba(255,255,255,.92);
       background: rgba(255, 255, 255, 0.08);
-      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+      transition: box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
     }
     a[mat-list-item] mat-icon { color: rgba(255,255,255,.88); }
     a[mat-list-item] .mdc-list-item__primary-text,
@@ -203,11 +203,12 @@ interface NavItem {
     a[mat-list-item] .mdc-list-item__secondary-text {
       opacity: 0.72;
     }
-    a[mat-list-item]:hover {
-      border-color: rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.14);
-      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
-      transform: translate(-1px, -1px);
+    @media (hover: hover) and (pointer: fine) {
+      a[mat-list-item]:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
+      }
     }
     .active-link {
       position: relative;
@@ -245,12 +246,15 @@ interface NavItem {
       font-size: 0.88rem;
       font-weight: 800;
       box-shadow: 4px 4px 0 rgba(0,0,0,.14);
-      transition: transform 160ms ease;
+      transition: box-shadow 150ms ease;
     }
-    .sidebar-primary-action:hover,
+    @media (hover: hover) and (pointer: fine) {
+      .sidebar-primary-action:hover {
+        box-shadow: 5px 5px 0 rgba(0,0,0,.2);
+      }
+    }
     .sidebar-primary-action:focus-visible {
-      transform: translate(-1px, -1px);
-      outline: 2px solid rgba(255,255,255,.5);
+      outline: 3px solid #FFFFFF;
       outline-offset: 2px;
     }
     .sidebar-primary-action mat-icon {
@@ -293,10 +297,11 @@ interface NavItem {
       background: #7756a7;
       box-shadow: -8px 0 0 rgba(0, 118, 173, .42);
     }
-    .siep-menu-trigger:hover,
-    .siep-close-trigger:hover {
-      transform: translate(-1px, -1px);
-      box-shadow: 6px 6px 0 rgba(0, 82, 130, 0.14);
+    @media (hover: hover) and (pointer: fine) {
+      .siep-menu-trigger:hover,
+      .siep-close-trigger:hover {
+        box-shadow: 6px 6px 0 rgba(0, 82, 130, 0.14);
+      }
     }
     .siep-menu-trigger.is-hidden {
       opacity: 0;

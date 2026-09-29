@@ -325,12 +325,17 @@ interface EphemeralScore {
       color: var(--psy-ink);
       text-align: left;
       cursor: pointer;
-      transition: transform var(--psy-motion-fast), box-shadow var(--psy-motion-ui), border-color var(--psy-motion-ui);
+      transition: box-shadow 150ms ease, border-color 150ms ease;
     }
-    .interaction-card:hover, .interaction-card--selected {
-      transform: translateY(-1px);
+    .interaction-card--selected {
       border-color: rgba(79,124,172,.36);
       box-shadow: 0 18px 34px -28px rgba(47,95,143,.45);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .interaction-card:hover {
+        border-color: rgba(79,124,172,.36);
+        box-shadow: 0 18px 34px -28px rgba(47,95,143,.45);
+      }
     }
     .interaction-card--inspected {
       border-color: rgba(140,191,166,.36);

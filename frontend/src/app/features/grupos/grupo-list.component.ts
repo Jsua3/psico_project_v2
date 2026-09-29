@@ -407,9 +407,11 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
       border-radius: 14px;
       background: rgba(255,255,255,.78);
       overflow: hidden;
-      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
     }
-    .group-card:hover { transform: translateY(-1px); border-color: rgba(0, 84, 134, .28); box-shadow: 0 12px 24px rgba(10, 38, 70, .08); }
+    @media (hover: hover) and (pointer: fine) {
+      .group-card:hover { border-color: rgba(0, 84, 134, .28); box-shadow: 0 12px 24px rgba(10, 38, 70, .08); }
+    }
     .group-card--active { border-color: rgba(0, 84, 134, .48); box-shadow: inset 4px 0 0 var(--psy-blue-deep), 0 14px 28px rgba(0, 84, 134, .1); }
     .group-card__main {
       width: 100%;

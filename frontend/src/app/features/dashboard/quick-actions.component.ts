@@ -98,18 +98,21 @@ export interface QuickAction {
       text-decoration: none;
       font-size: 0.86rem;
       font-weight: 800;
-      transition: transform 160ms ease, box-shadow 160ms ease;
+      transition: box-shadow 150ms ease, border-color 150ms ease;
     }
 
     .quick-action-card mat-icon {
       color: var(--dash-purple-main);
     }
 
-    .quick-action-card:hover,
+    @media (hover: hover) and (pointer: fine) {
+      .quick-action-card:hover {
+        box-shadow: var(--dash-pixel-shadow);
+      }
+    }
+
     .quick-action-card:focus-visible {
-      transform: translate(-1px, -1px);
-      box-shadow: var(--dash-pixel-shadow);
-      outline: 2px solid rgba(75, 0, 181, 0.35);
+      outline: 3px solid var(--psy-focus);
       outline-offset: 2px;
     }
 
