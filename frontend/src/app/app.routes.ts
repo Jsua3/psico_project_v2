@@ -4,73 +4,88 @@ import { authGuard, roleGuard } from './core/auth/auth.guard';
 export const routes: Routes = [
   {
     path: '',
+    title: 'Inicio',
     loadComponent: () => import('./features/public/landing.component').then(m => m.LandingComponent)
   },
   {
     path: 'login',
+    title: 'Iniciar sesión',
     loadComponent: () => import('./features/login/login.component').then(m => m.LoginComponent)
   },
   {
     path: 'portal',
+    title: 'Portal',
     canActivate: [authGuard],
     loadComponent: () => import('./shared/layout/shell.component').then(m => m.ShellComponent),
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
         path: 'dashboard',
+        title: 'Panel',
         loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
       },
       {
         path: 'jugar',
+        title: 'Sala de simulación',
         canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
         loadComponent: () => import('./features/simulator/game-menu.component').then(m => m.GameMenuComponent)
       },
       {
         path: 'simulador',
+        title: 'Catálogo de casos',
         loadComponent: () => import('./features/simulator/simulation-catalog.component').then(m => m.SimulationCatalogComponent)
       },
       {
         path: 'simulador/:caseVersionId',
+        title: 'Simulación',
         canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
       },
       {
         path: 'personaje',
+        title: 'Mi personaje',
         canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
         loadComponent: () => import('./features/character/character-editor.component').then(m => m.CharacterEditorComponent)
       },
       {
         path: 'casos',
+        title: 'Gestión de casos',
         canActivate: [roleGuard('ADMIN')],
         loadComponent: () => import('./features/simulator/case-authoring-hub.component').then(m => m.CaseAuthoringHubComponent)
       },
       {
         path: 'casos/:caseVersionId/editor',
+        title: 'Editor de caso',
         canActivate: [roleGuard('ADMIN')],
         loadComponent: () => import('./features/simulator/case-editor.component').then(m => m.CaseEditorComponent)
       },
       {
         path: 'docente/trazabilidad',
+        title: 'Trazabilidad docente',
         canActivate: [roleGuard('PROFESOR', 'ADMIN')],
         loadComponent: () => import('./features/simulator/instructor-trace.component').then(m => m.InstructorTraceComponent)
       },
       {
         path: 'rubricas',
+        title: 'Rúbricas',
         canActivate: [roleGuard('PROFESOR', 'ADMIN')],
         loadComponent: () => import('./features/admin/rubrics.component').then(m => m.RubricsComponent)
       },
       {
         path: 'grupos',
+        title: 'Grupos',
         canActivate: [roleGuard('PROFESOR')],
         loadComponent: () => import('./features/grupos/grupo-list.component').then(m => m.GrupoListComponent)
       },
       {
         path: 'reportes',
+        title: 'Reportes',
         canActivate: [roleGuard('PROFESOR')],
         loadComponent: () => import('./features/reportes/reporte-grupo.component').then(m => m.ReporteGrupoComponent)
       },
       {
         path: 'admin/usuarios',
+        title: 'Usuarios',
         canActivate: [roleGuard('ADMIN')],
         loadComponent: () => import('./features/admin/users.component').then(m => m.UsersComponent)
       }
