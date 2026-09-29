@@ -827,3 +827,21 @@
     animation: none !important;
   }
 }
+
+/* Foco visible por superficie (el global azul solo sirve sobre claro). */
+.siep-login {
+  --psy-focus: #C9B3FF;
+}
+
+.auth-container .form-container {
+  --psy-focus: rgba(0, 72, 118, .72);
+}
+
+.toggle-container {
+  --psy-focus: #FFFFFF;
+}
+
+.auth-remember input:focus-visible {
+  outline: 3px solid var(--psy-focus);
+  outline-offset: 2px;
+}

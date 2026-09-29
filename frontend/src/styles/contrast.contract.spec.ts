@@ -74,3 +74,18 @@ describe('contraste: portada', () => {
     }
   });
 });
+
+describe('contraste: login', () => {
+  const scss = source('../app/features/login/login.component.scss');
+
+  it('el foco se adapta a cada superficie', () => {
+    expect(scss).toMatch(/\.siep-login \{\s*--psy-focus: #C9B3FF;\s*\}/);
+    expect(scss).toMatch(/\.auth-container \.form-container \{\s*--psy-focus: rgba\(0, 72, 118, \.72\);\s*\}/);
+    expect(scss).toMatch(/\.toggle-container \{\s*--psy-focus: #FFFFFF;\s*\}/);
+    expect(contrast('#FFFFFF', '#5c6bc0')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el checkbox recupera su contorno de foco', () => {
+    expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
+  });
+});
