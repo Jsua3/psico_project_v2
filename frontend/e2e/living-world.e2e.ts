@@ -26,9 +26,10 @@ async function enterPlayableCase(page: Page) {
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-  const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
-  await expect(consent.or(resume).first()).toBeVisible({ timeout: 15_000 });
-  if (await resume.count()) await resume.click();
+  // Intento nuevo: la posición de salida no depende de lo que dejó otra prueba.
+  const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
+  await expect(consent.or(startFresh).first()).toBeVisible({ timeout: 15_000 });
+  if (await startFresh.count()) await startFresh.click();
   await consent.getByRole('button', { name: /^continuar$/i }).click();
 
   const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
