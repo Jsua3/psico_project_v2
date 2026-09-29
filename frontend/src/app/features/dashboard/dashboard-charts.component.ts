@@ -149,7 +149,7 @@ export class DashboardChartsComponent {
         label: label.length > 16 ? label.slice(0, 16) + '…' : label,
         value,
         max: Math.max(...criticasByCase.values(), 1),
-        tone: 'orange' as const
+        tone: 'blue' as const
       }))
       .slice(0, 5);
 

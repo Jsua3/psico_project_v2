@@ -19,6 +19,7 @@ import {
   StudentAttemptSummary
 } from '../../core/models/simulation.model';
 import { DashboardChartsComponent } from './dashboard-charts.component';
+import { completedAttemptCount, metricDisplay, totalActiveSeconds } from './dashboard-metrics.util';
 import { QuickAction, QuickActionsComponent } from './quick-actions.component';
 
 interface DashboardMetric {
@@ -55,7 +56,7 @@ interface HeroStatusCard {
   title: string;
   chips: string[];
   items: HeroStatusItem[];
-  action: QuickAction;
+  action?: QuickAction;
 }
 
 @Component({
@@ -171,15 +172,13 @@ export class DashboardComponent implements OnInit {
     if (this.isProfesor()) {
       return [
         { label: 'Ver trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', accent: true },
-        { label: 'Revisar rúbricas', route: '/portal/docente/trazabilidad', icon: 'grading' },
+        { label: 'Revisar rúbricas', route: '/portal/rubricas', icon: 'grading' },
         { label: 'Ver reportes', route: '/portal/reportes', icon: 'analytics' },
         { label: 'Gestionar grupos', route: '/portal/grupos', icon: 'groups' }
       ];
     }
     return [
-      { label: 'Continuar simulación', route: '/portal/simulador', icon: 'play_arrow', accent: true },
-      { label: 'Ver historial', route: '/portal/simulador', icon: 'history' },
-      { label: 'Ver reporte final', route: '/portal/simulador', icon: 'description' }
+      { label: 'Ver casos y resultados', route: '/portal/simulador', icon: 'folder_open', accent: true }
     ];
   }
 
@@ -277,7 +276,7 @@ export class DashboardComponent implements OnInit {
 
     return {
       title: 'Estado de tus grupos',
-      chips: ['Grupos', 'Intentos', 'Rúbricas'],
+      chips: ['Grupos', 'Intentos'],
       items: [
         {
           label: 'Grupos activos',
@@ -290,10 +289,6 @@ export class DashboardComponent implements OnInit {
         {
           label: 'Intentos recientes',
           value: recentCount > 0 ? String(recentCount) : 'Aún no registrado'
-        },
-        {
-          label: 'Rúbricas pendientes',
-          value: 'Pendiente'
         }
       ],
       action: {
@@ -312,8 +307,8 @@ export class DashboardComponent implements OnInit {
     const completed = this.studentCompletedCount();
     const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
     const bestScore = scores.length ? String(Math.max(...scores)) : 'Pendiente';
-    const totalSeconds = history.reduce((sum, h) => sum + (h.totalDurationSeconds ?? 0), 0);
-    const totalTime = totalSeconds > 0 ? this.formatDuration(totalSeconds) : 'Pendiente';
+    const activeSeconds = totalActiveSeconds(history);
+    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : 'Sin datos';
 
     return {
       title: 'Tu avance formativo',
@@ -332,11 +327,10 @@ export class DashboardComponent implements OnInit {
           value: bestScore
         },
         {
-          label: 'Tiempo total',
+          label: 'Tiempo activo',
           value: totalTime
         }
-      ],
-      action: { label: 'Continuar simulación', route: '/portal/simulador', icon: 'play_arrow', accent: true }
+      ]
     };
   }
 
@@ -404,8 +398,7 @@ export class DashboardComponent implements OnInit {
       this.metric('account_tree', casosAsignados, 'Casos asignados', casosAsignados > 0 ? 'Catálogo activo' : 'No hay casos asignados', casosAsignados > 0 ? 'blue' : 'neutral'),
       this.metric('task_alt', completed, 'Simulaciones completadas', completed > 0 ? 'Avance registrado' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral'),
       this.metric('analytics', promedio, 'Promedio de desempeño', promedio === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Evaluación activa', promedio === 'Pendiente' ? 'neutral' : 'green'),
-      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral'),
-      this.metric('grading', 'Pendiente', 'Rúbricas pendientes', 'Sin datos suficientes todavía', 'neutral')
+      this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral')
     ];
   }
 
@@ -413,12 +406,12 @@ export class DashboardComponent implements OnInit {
     const history = this.studentHistory();
     const cases = this.simulationCases();
     const inProgress = history.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED').length;
-    const completed = history.filter(a => a.status === 'COMPLETED' || a.status === 'SAFE_EXITED').length;
+    const completed = completedAttemptCount(history);
     const assignedCases = cases.length > 0 ? cases.length : new Set(history.map(h => h.caseTitle)).size;
     const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
     const bestScore = scores.length ? String(Math.max(...scores)) : 'Pendiente';
-    const totalSeconds = history.reduce((sum, h) => sum + (h.totalDurationSeconds ?? 0), 0);
-    const totalTime = totalSeconds > 0 ? this.formatDuration(totalSeconds) : 'Pendiente';
+    const activeSeconds = totalActiveSeconds(history);
+    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : 'Sin datos';
     const pendingReview = history.reduce(
       (sum, h) => sum + h.riskyDecisions + h.inadequateDecisions + h.prohibitedDecisions,
       0
@@ -429,15 +422,13 @@ export class DashboardComponent implements OnInit {
       this.metric('play_circle', inProgress, 'Simulaciones en progreso', inProgress > 0 ? 'En curso' : 'Sin simulaciones activas', inProgress > 0 ? 'purple' : 'neutral'),
       this.metric('task_alt', completed, 'Intentos completados', completed > 0 ? 'Histórico personal' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral'),
       this.metric('emoji_events', bestScore, 'Mejor puntaje', bestScore === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Mejor resultado', bestScore === 'Pendiente' ? 'neutral' : 'green'),
-      this.metric('schedule', totalTime, 'Tiempo total', totalTime === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Acumulado', totalTime === 'Pendiente' ? 'neutral' : 'blue'),
+      this.metric('schedule', totalTime, 'Tiempo activo', totalTime === 'Sin datos' ? 'Se calcula al terminar un intento' : 'Estimado, sin pausas', totalTime === 'Sin datos' ? 'neutral' : 'blue'),
       this.metric('lightbulb', pendingReview, 'Recomendaciones pendientes', pendingReview > 0 ? 'Decisiones a revisar' : 'Sin recomendaciones pendientes', pendingReview > 0 ? 'orange' : 'neutral')
     ];
   }
 
   studentCompletedCount(): number {
-    return this.studentHistory().filter(
-      a => a.status === 'COMPLETED' || a.status === 'SAFE_EXITED'
-    ).length;
+    return completedAttemptCount(this.studentHistory());
   }
 
   actividadDocenteVacia(): boolean {
@@ -615,9 +606,7 @@ export class DashboardComponent implements OnInit {
     status: string,
     badgeClass: DashboardMetric['badgeClass']
   ): DashboardMetric {
-    const display = typeof value === 'number'
-      ? (value > 0 ? String(value) : 'Pendiente')
-      : value;
+    const display = metricDisplay(value);
     return { icon, value: display, label, status, badgeClass };
   }
 
