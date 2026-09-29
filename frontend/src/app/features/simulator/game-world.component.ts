@@ -624,6 +624,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction();
   }
 
+  /** Punto de pies actual (px enteros) o null si el jugador aún no existe. */
+  playerPosition(): { x: number; y: number } | null {
+    return this.player ? { x: Math.round(this.player.x), y: Math.round(this.player.y) } : null;
+  }
+
   interactNearest() {
     const channel = nearbyInteractionChannel(this.nearestKey, this.isAnyNpcInRange());
     if (channel === 'marker') {
@@ -2144,6 +2149,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-world-ready]="renderReady()"
       [attr.data-rendered-map-key]="renderedMapKey()"
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
+      [attr.data-player-x]="playerPosition()?.x"
+      [attr.data-player-y]="playerPosition()?.y"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
     <div class="touch-controls" aria-label="Controles táctiles">
@@ -2196,6 +2203,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
+  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
+  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2254,11 +2263,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onReady:       () => this.zone.run(() => {
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
+          this.playerPosition.set(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
-        onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
+        onPosition:    (x, y) => this.zone.run(() => {
+          this.playerPosition.set({ x, y });
+          this.positionChange.emit({ x, y });
+        }),
         onRoomExit:    (targetRoomKey, entryX, entryY) =>
           this.zone.run(() => this.roomExit.emit({ targetRoomKey, entryX, entryY })),
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
