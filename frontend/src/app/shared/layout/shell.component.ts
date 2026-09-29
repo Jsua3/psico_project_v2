@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -68,7 +68,13 @@ interface NavItem {
           (click)="closeMenu()"
         ></div>
 
-        <section class="siep-mobile-nav" [class.is-open]="menuOpen" aria-label="Navegacion movil SIEP">
+        <section
+          class="siep-mobile-nav"
+          id="siep-mobile-nav"
+          [class.is-open]="menuOpen"
+          [attr.inert]="menuOpen ? null : ''"
+          aria-label="Navegación móvil SIEP"
+        >
           <span class="siep-mobile-nav__bg top"></span>
           <span class="siep-mobile-nav__bg middle"></span>
           <span class="siep-mobile-nav__bg bottom"></span>
@@ -76,7 +82,7 @@ interface NavItem {
           <button
             class="siep-close-trigger"
             type="button"
-            aria-label="Cerrar menu de navegacion"
+            aria-label="Cerrar menú de navegación"
             (click)="closeMenu()"
           >
             <span class="siep-close-trigger__bar left"></span>
@@ -114,9 +120,12 @@ interface NavItem {
         </section>
         <header class="portal-topbar liquid-glass">
           <button
+            #menuTrigger
             class="siep-menu-trigger"
             type="button"
-            aria-label="Abrir menu de navegacion"
+            aria-label="Abrir menú de navegación"
+            aria-controls="siep-mobile-nav"
+            [attr.aria-expanded]="menuOpen"
             [class.is-hidden]="menuOpen"
             (click)="toggleMenu()"
           >
@@ -714,6 +723,27 @@ export class ShellComponent implements OnDestroy {
   }
 
   toggleNav() { this.drawerOpen.set(!this.drawerOpen()); }
+
+  @ViewChild('menuTrigger') private menuTrigger?: ElementRef<HTMLButtonElement>;
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (!this.menuOpen) return;
+    this.closeMenu();
+    this.menuTrigger?.nativeElement.focus();
+    this.retryTriggerFocus();
+  }
+
+  // Con el menú abierto el botón tiene visibility:hidden y no admite foco. Al cerrar, sigue así
+  // hasta que Angular quita la clase y la transición lo muestra; se reintenta cuadro a cuadro.
+  private retryTriggerFocus(attempts = 10): void {
+    const trigger = this.menuTrigger?.nativeElement;
+    if (!trigger || this.menuOpen || attempts <= 0 || document.activeElement === trigger) return;
+    requestAnimationFrame(() => {
+      trigger.focus();
+      this.retryTriggerFocus(attempts - 1);
+    });
+  }
 
   toggleMenu(): void {
     this.menuOpen = !this.menuOpen;
