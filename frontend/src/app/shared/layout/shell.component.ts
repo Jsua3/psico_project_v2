@@ -169,6 +169,10 @@ interface NavItem {
       padding: 16px 12px;
       color: #fff;
     }
+    /* El foco global es azul marino (~1,3:1 sobre este degradado morado): aquí va en blanco. */
+    .portal-sidenav {
+      --psy-focus: #FFFFFF;
+    }
     .sidenav-header {
       padding: 10px 8px 18px;
       margin-bottom: 8px;

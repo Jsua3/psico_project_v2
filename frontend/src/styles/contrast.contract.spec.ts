@@ -99,3 +99,17 @@ describe('contraste: portal', () => {
     expect(trace).not.toContain('outline: 3px solid rgba(111, 76, 175, .28);');
   });
 });
+
+describe('contraste: navegación lateral', () => {
+  const shell = source('../app/shared/layout/shell.component.ts');
+
+  it('el menú lateral morado define un foco blanco propio, no el azul marino global', () => {
+    expect(shell).toMatch(/\.portal-sidenav \{\s*--psy-focus: #FFFFFF;\s*\}/);
+  });
+
+  it('el foco blanco supera 3:1 sobre cada tramo del degradado del menú lateral', () => {
+    const stops = ['#2a006b', '#4b00b5', '#3a0090'];
+    stops.forEach(stop => expect(shell).toContain(stop));
+    stops.forEach(stop => expect(contrast('#FFFFFF', stop)).toBeGreaterThanOrEqual(3));
+  });
+});
