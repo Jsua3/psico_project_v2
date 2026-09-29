@@ -11,14 +11,14 @@ Planes derivados de la auditoría estética y técnica del frontend del 2026-09-
 
 | # | Plan | Severidad | Esfuerzo | Estado | Depende de |
 | --- | --- | --- | --- | --- | --- |
-| 01 | [Cargar de verdad Poppins y JetBrains Mono](2026-09-29-ui-semana-01-tipografia.md) | ALTA | S | TODO | — |
-| 02 | [Corregir contrastes y foco visible](2026-09-29-ui-semana-02-contraste-foco.md) | ALTA | S | TODO | — |
-| 03 | [Quitar el movimiento que estorba](2026-09-29-ui-semana-03-movimiento-que-estorba.md) | ALTA | S | TODO | — |
-| 04 | [Arreglar la respuesta de las opciones del diálogo](2026-09-29-ui-semana-04-opciones-dialogo.md) | MEDIA | XS | TODO | 03 (token `--psy-ease-out`) |
-| 05 | [Datos honestos en el dashboard](2026-09-29-ui-semana-05-dashboard-honesto.md) | ALTA | M | TODO | — |
-| 06 | [Navegación accesible](2026-09-29-ui-semana-06-navegacion-accesible.md) | ALTA | M | TODO | — |
-| 07 | [La vista previa del editor muestra al personaje elegido](2026-09-29-ui-semana-07-vista-previa-personaje.md) | MEDIA | S | TODO | — |
-| 08 | [Poda de assets, componentes y dependencias sin uso](2026-09-29-ui-semana-08-poda.md) | BAJA/MEDIA | S | TODO | — |
+| 01 | [Cargar de verdad Poppins y JetBrains Mono](2026-09-29-ui-semana-01-tipografia.md) | ALTA | S | DONE | — |
+| 02 | [Corregir contrastes y foco visible](2026-09-29-ui-semana-02-contraste-foco.md) | ALTA | S | DONE | — |
+| 03 | [Quitar el movimiento que estorba](2026-09-29-ui-semana-03-movimiento-que-estorba.md) | ALTA | S | DONE | — |
+| 04 | [Arreglar la respuesta de las opciones del diálogo](2026-09-29-ui-semana-04-opciones-dialogo.md) | MEDIA | XS | DONE | 03 (token `--psy-ease-out`) |
+| 05 | [Datos honestos en el dashboard](2026-09-29-ui-semana-05-dashboard-honesto.md) | ALTA | M | DONE | — |
+| 06 | [Navegación accesible](2026-09-29-ui-semana-06-navegacion-accesible.md) | ALTA | M | DONE | — |
+| 07 | [La vista previa del editor muestra al personaje elegido](2026-09-29-ui-semana-07-vista-previa-personaje.md) | MEDIA | S | DONE | — |
+| 08 | [Poda de assets, componentes y dependencias sin uso](2026-09-29-ui-semana-08-poda.md) | BAJA/MEDIA | S | DONE | — |
 
 ## Orden recomendado
 
