@@ -1407,7 +1407,7 @@ CREATE TABLE public.simulation_attempts_v2 (
     user_trust integer DEFAULT 50 NOT NULL,
     institutional_route_activated boolean DEFAULT false NOT NULL,
     revictimization_risk boolean DEFAULT false NOT NULL,
-    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying])::text[])))
+    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'PAUSED'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying])::text[])))
 );
 
 
