@@ -415,6 +415,9 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
     assert mine["caseVersionId"] == case_version_id
     assert mine["adequateDecisions"] >= 1
     assert "startedAt" in mine
+    # Intento en curso: el tiempo activo solo se informa al terminar.
+    assert "activeDurationSeconds" in mine
+    assert mine["activeDurationSeconds"] is None
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):

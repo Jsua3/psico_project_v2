@@ -17,6 +17,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.serializers import game_dtos as dto
 from . import case_effects, crypto_service, decision_effects
+from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
 
 
@@ -260,6 +261,14 @@ def list_attempt_history(actor):
         if ev["decision_option__prohibited_conduct"]:
             bucket["PROHIBITED"] += 1
 
+    event_marks = {aid: [] for aid in attempt_ids}
+    for attempt_id, event_type, occurred_at in (
+        AttemptEvent.objects.filter(attempt_id__in=attempt_ids)
+        .order_by("attempt_id", "occurred_at", "id")
+        .values_list("attempt_id", "event_type", "occurred_at")
+    ):
+        event_marks[attempt_id].append((event_type, occurred_at))
+
     return [
         {
             "attemptId": str(a.id),
@@ -274,6 +283,9 @@ def list_attempt_history(actor):
             "totalDurationSeconds": (
                 int((a.ended_at - a.started_at).total_seconds())
                 if a.started_at and a.ended_at else None
+            ),
+            "activeDurationSeconds": active_duration_seconds(
+                a.started_at, a.ended_at, event_marks[a.id]
             ),
             "startedAt": a.started_at.isoformat() if a.started_at else None,
             "endedAt": a.ended_at.isoformat() if a.ended_at else None,
