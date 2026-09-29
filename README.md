@@ -96,6 +96,10 @@ npm run test:e2e              # Playwright contra un stack aislado completo
                               # (BD desechable + Django :8093 + Angular :4315)
 ```
 
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estos mismos comandos
+en cada PR y en cada push a `master` (scripts, `check:backend` + pytest, jest + assets +
+`ng build`; y, si todo eso pasa, la matriz API + Playwright).
+
 ## Grupos — importar estudiantes por Excel
 
 En **Portal → Grupos → Gestionar**, puedes cargar un archivo `.xlsx` o `.csv` con todos los estudiantes del grupo.
