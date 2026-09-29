@@ -718,6 +718,12 @@ body.siep-scroll-locked {
   outline-offset: 3px;
 }
 
+/* Destino de los enlaces de salto: recibe el foco por script, sin contorno de control. */
+main[tabindex="-1"]:focus,
+#main-content:focus {
+  outline: none;
+}
+
 /** Focus indicator: high-contrast for keyboard users (light surfaces). */
 :focus-visible {
   outline: 3px solid var(--psy-focus);
