@@ -98,7 +98,11 @@ npm run test:e2e              # Playwright contra un stack aislado completo
 
 **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estos mismos comandos
 en cada PR y en cada push a `master` (scripts, `check:backend` + pytest, jest + assets +
-`ng build`; y, si todo eso pasa, la matriz API + Playwright).
+`ng build`; y, si todo eso pasa, la matriz API + Playwright sin `@full-case`). Los recorridos
+completos del caso (`@full-case`, 4 viewports) van en
+[`.github/workflows/e2e-full-case.yml`](.github/workflows/e2e-full-case.yml): cada noche sobre
+`master` y a mano desde Actions, porque en el runner sin GPU tardan ~3-4x más que en local.
+Localmente, `npm run test:e2e` sigue corriendo todo.
 
 ## Grupos — importar estudiantes por Excel
 

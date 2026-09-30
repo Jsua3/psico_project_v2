@@ -71,10 +71,12 @@ jobs:
 
   e2e:
     name: E2E (matriz API + Playwright)
-    # Solo si lo barato pasó: e2e cuesta ~10 min de runner.
+    # Solo si lo barato pasó. Sin los recorridos completos (@full-case): en el
+    # runner sin GPU van ~3-4x más lentos que en local, así que corren aparte
+    # en e2e-full-case.yml (nocturno + manual) y no bloquean el PR.
     needs: [scripts, backend, frontend]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -95,7 +97,7 @@ jobs:
       - name: Instalar Chromium de Playwright
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --grep-invert @full-case
       - name: Subir artefactos de Playwright
         if: failure()
         uses: actions/upload-artifact@v7
