@@ -125,7 +125,7 @@ const CASE_INTRO_PARAGRAPHS = [
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Aviso de contenido</p>
                 <h2 id="content-warning-title">Antes de entrar al caso</h2>
-                <span>Simulación formativa con datos ficticios</span>
+                <span class="case-intro-card__chip">Simulación formativa con datos ficticios</span>
               </header>
 
               <div class="case-intro-card__body" id="content-warning-body">
@@ -637,6 +637,19 @@ const CASE_INTRO_PARAGRAPHS = [
       font-size: clamp(1.25rem, 3.6vw, 2rem);
       line-height: 1.15;
       color: #fff;
+    }
+    /* Chip del aviso de consentimiento. Clase propia: un selector por etiqueta del encabezado
+       también alcanzaría al texto del botón de silenciar. */
+    .case-intro-card__chip {
+      width: fit-content;
+      padding: 5px 10px;
+      border: 1px solid rgba(108,192,199,.32);
+      border-radius: 999px;
+      color: #bdeef2;
+      background: rgba(108,192,199,.1);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .04em;
     }
     .intro-music-toggle {
       display: inline-flex;

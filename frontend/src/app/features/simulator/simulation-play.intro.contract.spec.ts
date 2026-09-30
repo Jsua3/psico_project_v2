@@ -34,6 +34,13 @@ describe('simulation-play: introducción', () => {
     expect(source).toMatch(/\.case-intro-card__media\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   });
 
+  it('«Simulación formativa con datos ficticios» conserva su estilo de chip con clase propia', () => {
+    expect(source).toContain('<span class="case-intro-card__chip">Simulación formativa con datos ficticios</span>');
+    expect(source).toMatch(/\.case-intro-card__chip\s*\{[^}]*border-radius:\s*999px[^}]*background:\s*rgba\(108,192,199,\.1\)/);
+    // Un selector por etiqueta del encabezado alcanzaría también al texto del botón de silenciar.
+    expect(source).not.toMatch(/\.case-intro-card__header span\s*\{/);
+  });
+
   it('la etiqueta del botón de música no hereda el estilo del texto de apoyo del pie', () => {
     expect(source).toContain('.case-intro-card__actions > span {');
     expect(source).not.toContain('.case-intro-card__actions span {');
