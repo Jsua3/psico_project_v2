@@ -2270,7 +2270,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     </div>
   `,
   styles: [`
-    :host { display: block; width: 100%; height: 100%; }
+    :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }
     /* El tamaño del canvas lo gobierna Phaser Scale.FIT (aspect 16:9 intacto,
        letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
@@ -2300,6 +2300,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     .world-loading {
       position: absolute;
       inset: 0;
+      min-height: 240px;
       z-index: 50;
       display: grid;
       place-content: center;

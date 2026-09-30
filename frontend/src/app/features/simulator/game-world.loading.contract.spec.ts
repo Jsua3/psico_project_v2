@@ -18,6 +18,15 @@ describe('game-world: carga de la escena', () => {
     expect(source).toContain("[style.transform]=\"'scaleX(' + loadPercent() / 100 + ')'\"");
   });
 
+  it('la capa y el aviso se anclan al área del juego, no a un ancestro lejano', () => {
+    // Sin esto, en la vista previa del editor (host sin posición propia) la capa
+    // cubriría toda la pestaña. En la partida gana `.game-surface { position: absolute }`.
+    expect(source).toMatch(/:host \{[^}]*position: relative;[^}]*\}/);
+    // En la vista previa el host mide lo que el canvas (altura automática) y, mientras
+    // carga, el canvas aún no existe: sin altura mínima la capa quedaría aplastada.
+    expect(source).toMatch(/\.world-loading \{[^}]*min-height: 240px;[^}]*\}/);
+  });
+
   it('un fallo esencial ofrece reintentar o seguir', () => {
     expect(source).toContain('@if (criticalLoadFailed()) {');
     expect(source).toContain('(click)="retryLoad()"');
