@@ -66,6 +66,63 @@ describe('NotificationService', () => {
     expect(jest.getTimerCount()).toBe(MAX_NOTIFICATIONS);
   });
 
+  describe('deduplicación', () => {
+    it('dos errores iguales dejan un solo aviso', async () => {
+      service.error('Sin conexión con el servidor.');
+      service.error('Sin conexión con el servidor.');
+      expect(await texts()).toEqual(['Sin conexión con el servidor.']);
+    });
+
+    it('cuatro peticiones paralelas con el mismo error dejan un solo aviso', async () => {
+      for (let i = 0; i < 4; i++) service.error('Sin conexión con el servidor.');
+      expect(await texts()).toEqual(['Sin conexión con el servidor.']);
+    });
+
+    it('un error y un éxito con el mismo texto dejan dos', async () => {
+      service.error('Listo');
+      service.success('Listo');
+      const messages = await firstValueFrom(service.messages$);
+      expect(messages.map(m => m.type)).toEqual(['error', 'success']);
+    });
+
+    it('el mismo tipo con otro texto no se descarta', async () => {
+      service.error('Uno');
+      service.error('Dos');
+      expect(await texts()).toEqual(['Uno', 'Dos']);
+    });
+
+    it('aplica a todos los tipos y a show() directo', async () => {
+      service.warning('W');
+      service.warning('W');
+      service.info('I');
+      service.info('I');
+      service.show('success', 'S');
+      service.show('success', 'S');
+      expect(await texts()).toEqual(['W', 'I', 'S']);
+    });
+
+    it('un aviso cerrado deja de contar para la deduplicación', async () => {
+      service.error('Falló');
+      const [{ id }] = await firstValueFrom(service.messages$);
+      service.dismiss(id);
+      service.error('Falló');
+      expect(await texts()).toEqual(['Falló']);
+    });
+
+    it('un aviso que se cerró solo deja de contar', async () => {
+      service.success('Guardado');
+      jest.advanceTimersByTime(5000);
+      service.success('Guardado');
+      expect(await texts()).toEqual(['Guardado']);
+    });
+
+    it('el duplicado descartado no deja temporizadores', async () => {
+      service.success('Guardado');
+      service.success('Guardado');
+      expect(jest.getTimerCount()).toBe(1);
+    });
+  });
+
   it('dismiss cancela el temporizador pendiente', async () => {
     service.success('Guardado');
     const [{ id }] = await firstValueFrom(service.messages$);

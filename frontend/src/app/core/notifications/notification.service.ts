@@ -33,7 +33,11 @@ export class NotificationService {
   private readonly messagesSubject = new BehaviorSubject<NotificationMessage[]>([]);
   readonly messages$ = this.messagesSubject.asObservable();
 
+  /** Un aviso igual (mismo tipo y mismo texto) ya visible absorbe al nuevo: con el servidor caído
+   *  varias peticiones en paralelo fallan con el mismo error y no deben apilar tarjetas idénticas
+   *  que no se van solas. Un aviso cerrado deja de contar. */
   show(type: NotificationType, text: string, autoCloseMs = AUTO_CLOSE_MS[type]): void {
+    if (this.messagesSubject.value.some(visible => visible.type === type && visible.text === text)) return;
     const message: NotificationMessage = { id: this.nextId++, type, text };
     const next = [...this.messagesSubject.value, message];
     while (next.length > MAX_NOTIFICATIONS) {
