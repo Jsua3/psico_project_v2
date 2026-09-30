@@ -424,7 +424,6 @@ const CASE_INTRO_PARAGRAPHS = [
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 10px;
       background: rgba(8,12,18,.88);
-      backdrop-filter: blur(10px);
       /* Marco doble: línea interna oscura — acabado pixel-art sobrio. */
       box-shadow:
         inset 0 0 0 1px rgba(8,12,18,.95),
@@ -697,7 +696,6 @@ const CASE_INTRO_PARAGRAPHS = [
       background:
         radial-gradient(circle at 50% 20%, rgba(124,77,255,.16), transparent 40%),
         rgba(5,8,14,.9);
-      backdrop-filter: blur(8px);
     }
     .case-intro-card {
       display: grid;

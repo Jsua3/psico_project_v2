@@ -119,7 +119,6 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       padding: 0;
       background: rgba(8,12,18,.95);
       border-top: 2px solid rgba(182,156,255,.4);
-      backdrop-filter: blur(16px) saturate(110%);
       animation: strip-rise 160ms cubic-bezier(.2,.8,.2,1) both;
     }
     .strip--warning {

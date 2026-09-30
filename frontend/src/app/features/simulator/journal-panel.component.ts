@@ -118,7 +118,6 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       border: 1px solid rgba(182,156,255,.3);
       border-radius: 18px;
       background: rgba(13,18,32,.96);
-      backdrop-filter: blur(20px) saturate(115%);
       box-shadow: 0 28px 80px -32px rgba(124,77,255,.55);
       color: #e8f0f4;
       opacity: 0;

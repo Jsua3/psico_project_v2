@@ -163,8 +163,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-shell {
       display: flex;
       flex-direction: column;
-      background: linear-gradient(180deg, rgba(22,18,42,.9), rgba(8,12,18,.84));
-      backdrop-filter: blur(18px) saturate(120%);
+      background: linear-gradient(180deg, rgba(22,18,42,.92), rgba(8,12,18,.9));
       border-bottom: 1px solid rgba(182,156,255,.2);
       box-shadow: inset 0 -1px 0 rgba(8,12,18,.9);
       color: rgba(232,240,244,.9);
@@ -298,7 +297,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       border-radius: 12px;
       background: rgba(13,18,30,.96);
       box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
-      backdrop-filter: blur(18px) saturate(130%);
     }
     .settings-menu__header {
       display: flex;
