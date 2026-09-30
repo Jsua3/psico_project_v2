@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **Estado:** TODO
+- **Estado:** DONE
 - **Commit base:** `02bbfe9` (rama `feat/ui-mes`). Independiente de los planes 09-13.
 - **Severidad:** MEDIA (pantalla en blanco al abrir; con el backend lento, la app no aparece)
 - **Categoría:** Estados de carga / rendimiento percibido

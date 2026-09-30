@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **Estado:** TODO
+- **Estado:** DONE
 - **Commit base:** `02bbfe9` (rama `feat/ui-mes`, que sale de `feat/ui-semana` e incluye los arreglos de movimiento del PR #10)
 - **Severidad:** ALTA (acciones que fallan o terminan sin que el usuario se entere)
 - **Categoría:** Usabilidad / feedback

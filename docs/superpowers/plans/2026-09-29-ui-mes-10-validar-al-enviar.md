@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **Estado:** TODO
+- **Estado:** DONE
 - **Commit base:** `02bbfe9` (rama `feat/ui-mes`)
 - **Depende de:** plan 09 (toca otras zonas de `users.component.ts` y `grupo-list.component.ts`; ejecutar después para evitar conflictos)
 - **Severidad:** ALTA (el botón «Guardar» aparece deshabilitado sin decir por qué)

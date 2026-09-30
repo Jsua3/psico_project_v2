@@ -12,12 +12,14 @@ Planes derivados de la auditoría estética y técnica del frontend del 2026-09-
 
 | # | Plan | Severidad | Esfuerzo | Estado | Depende de |
 | --- | --- | --- | --- | --- | --- |
-| 09 | [Avisos de error y éxito en el portal](2026-09-29-ui-mes-09-avisos-portal.md) | ALTA | M | TODO | — |
-| 10 | [Validar los formularios al enviar](2026-09-29-ui-mes-10-validar-al-enviar.md) | MEDIA | S | TODO | 09 (avisos y `apiErrorMessage`) |
-| 11 | [Aliviar el trabajo por cuadro del juego](2026-09-29-ui-mes-11-aliviar-juego.md) | ALTA | M | TODO | — |
-| 12 | [Fallos de flujo del juego](2026-09-29-ui-mes-12-flujo-juego.md) | ALTA | M | TODO | 11 (mismo archivo de escena) |
-| 13 | [Intro como escena animada en código](2026-09-29-ui-mes-13-intro-escena.md) | MEDIA-ALTA | L | TODO | 11 (crea el spec del audio) |
-| 14 | [Pantalla de arranque y sesión que no bloquea](2026-09-29-ui-mes-14-pantalla-arranque.md) | MEDIA | S | TODO | — |
+| 09 | [Avisos de error y éxito en el portal](2026-09-29-ui-mes-09-avisos-portal.md) | ALTA | M | DONE | — |
+| 10 | [Validar los formularios al enviar](2026-09-29-ui-mes-10-validar-al-enviar.md) | MEDIA | S | DONE | 09 (avisos y `apiErrorMessage`) |
+| 11 | [Aliviar el trabajo por cuadro del juego](2026-09-29-ui-mes-11-aliviar-juego.md) | ALTA | M | DONE | — |
+| 12 | [Fallos de flujo del juego](2026-09-29-ui-mes-12-flujo-juego.md) | ALTA | M | DONE | 11 (mismo archivo de escena) |
+| 13 | [Intro como escena animada en código](2026-09-29-ui-mes-13-intro-escena.md) | MEDIA-ALTA | L | DONE | 11 (crea el spec del audio) |
+| 14 | [Pantalla de arranque y sesión que no bloquea](2026-09-29-ui-mes-14-pantalla-arranque.md) | MEDIA | S | DONE | — |
+
+**Resultado:** los seis planes están hechos (rama `feat/ui-mes`), con revisión por tarea y revisión final de toda la rama. Lo que quedó fuera está en [pendientes del mes](2026-09-29-ui-mes-99-pendientes.md).
 
 ## Qué resuelve cada uno
 

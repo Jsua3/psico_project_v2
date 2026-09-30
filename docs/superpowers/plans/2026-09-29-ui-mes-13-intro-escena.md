@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **Estado:** TODO
+- **Estado:** DONE
 - **Commit base:** `02bbfe9` (rama `feat/ui-mes`). **Requiere el plan 11**: su tarea 3 crea `audio-director.service.spec.ts`, que aquí se amplía.
 - **Severidad:** MEDIA-ALTA (primera impresión del juego; 1,7 MB de video con marca de agua de IA; 10 MB de música decodificada en memoria)
 - **Categoría:** Movimiento / identidad / rendimiento de carga

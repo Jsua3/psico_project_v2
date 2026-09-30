@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **Estado:** TODO
+- **Estado:** DONE
 - **Commit base:** `02bbfe9` (rama `feat/ui-mes`). Ejecutar después del plan 11: ambos tocan `game-world.component.ts`.
 - **Severidad:** ALTA (Esc pausa la partida sin querer; en tabletas no se puede caminar; la carga es una pantalla negra muda)
 - **Categoría:** Flujo / accesibilidad / estados de carga
