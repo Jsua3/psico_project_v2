@@ -54,6 +54,7 @@ import {
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
+import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
   AVATAR_ANIM_KEYS,
@@ -212,6 +213,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
   /** Hay movimiento que la limitación de frecuencia todavía no avisó. */
   private positionDirty = false;
   private interactionCooldown = 0;
+  /** Pulsación de interactuar que espera a que termine el enfriamiento. */
+  private interactPending = false;
   private readonly INTERACTION_COOLDOWN_MS = 260;
   /** Flecha táctil apretada (null si no hay ninguna) y desde cuándo (reloj de la escena). */
   private heldDirection: PlayerDirection | null = null;
@@ -361,8 +364,13 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   create() {
     this.ready = true;
+    // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
+    // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
+    // `createCursorKeys` captura flechas, Espacio y Shift por su cuenta (de ahí el apagado
+    // global); `update()` ignora lo que corresponda según el elemento con foco.
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard?.disableGlobalCapture();
+    this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
     this.createAnimations();
     // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
     // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
@@ -415,11 +423,15 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   override update(time: number, delta: number) {
     if (!this.player || !this.cursors || !this.keys || !this.world) return;
+    // Sin captura de Phaser, las teclas también llegan mientras se escribe en la bitácora o se
+    // activa un botón. El foco se lee una vez por cuadro y decide qué teclas cuentan.
+    const focus = document.activeElement;
+    const typing = isTextEntryTarget(focus);
     const input: PlayerMotionInput = heldInput({
-      left:  this.cursors.left.isDown  || this.keys['A'].isDown,
-      right: this.cursors.right.isDown || this.keys['D'].isDown,
-      up:    this.cursors.up.isDown    || this.keys['W'].isDown,
-      down:  this.cursors.down.isDown  || this.keys['S'].isDown,
+      left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
+      right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),
+      up:    !typing && (this.cursors.up.isDown    || this.keys['W'].isDown),
+      down:  !typing && (this.cursors.down.isDown  || this.keys['S'].isDown),
     }, this.heldDirection, this.time.now - this.heldSince);
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
@@ -457,10 +469,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
-    if (this.interactionCooldown <= 0 &&
-        (Phaser.Input.Keyboard.JustDown(this.keys['E']) ||
-         Phaser.Input.Keyboard.JustDown(this.keys['SPACE']) ||
-         Phaser.Input.Keyboard.JustDown(this.keys['ENTER']))) {
+    // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
+    // en true hasta que alguien lo lee, y una «e» escrita en la bitácora dispararía
+    // `interactNearest()` en cuanto el foco saliera del campo.
+    const pressed = resolveInteractPress(focus, {
+      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
+      enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
+    });
+    // Una pulsación durante el enfriamiento espera a que termine (como cuando JustDown
+    // quedaba sin leer); al escribir, cualquier pulsación pendiente se descarta.
+    this.interactPending = !typing && (this.interactPending || pressed);
+    if (this.interactPending && this.interactionCooldown <= 0) {
+      this.interactPending = false;
       this.interactionCooldown = this.INTERACTION_COOLDOWN_MS;
       this.interactNearest();
     }
@@ -2383,6 +2404,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
   private hostResizeObserver?: ResizeObserver;
+  /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
+  private detachScrollKeyGuard?: () => void;
 
   constructor(private readonly zone: NgZone) {}
 
@@ -2413,6 +2436,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.detachScrollKeyGuard?.();
+    this.detachScrollKeyGuard = undefined;
     this.hostResizeObserver?.disconnect();
     this.phaserGame?.destroy(true);
   }
@@ -2514,6 +2539,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
         scene: this.scene
       });
+      // Sin la captura de Phaser, flechas y Espacio desplazarían la página (la «Vista previa»
+      // del editor tiene scroll). Se arma DESPUÉS de crear el juego: Phaser descarta los
+      // `keydown` ya cancelados. En un reintento se vuelve a armar tras el nuevo juego.
+      this.detachScrollKeyGuard?.();
+      this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
       // Scale.FIT solo escucha resize de window; el contenedor también cambia
       // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet).
       if (typeof ResizeObserver !== 'undefined') {

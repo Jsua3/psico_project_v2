@@ -1144,10 +1144,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Con el mundo vivo detrás de la tarjeta, Phaser captura Enter y Espacio en `window` y cancela
-   * la activación nativa de los botones. Su manejador corre después del nuestro, así que se
-   * mira al terminar el despacho: si la tecla quedó cancelada, el botón se activa a mano; si no,
-   * se activa solo y aquí no se hace nada (evita la doble activación).
+   * Red de seguridad para los botones de las tarjetas (Continuar, Silenciar música). Phaser ya no
+   * captura Enter ni Espacio (`addKeys(…, false)` y `disableGlobalCapture()`), así que la
+   * activación nativa del botón funciona sola y aquí no se espera hacer nada. Solo actúa si
+   * algo más en `window` cancela la tecla: se mira al terminar el despacho y, si quedó
+   * cancelada, el botón se activa a mano; si no, no se hace nada (evita la doble activación).
    */
   private activateCardButtonIfCancelled(event: KeyboardEvent): void {
     const button = event.target as HTMLElement | null;
