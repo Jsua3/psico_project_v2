@@ -71,10 +71,11 @@ jobs:
 
   e2e:
     name: E2E (matriz API + Playwright)
-    # Solo si lo barato pasó: e2e cuesta ~10 min de runner.
+    # Solo si lo barato pasó: e2e cuesta ~25-30 min de runner (sin GPU el caso
+    # completo va ~3-4x más lento que en local; 4 viewports de full-case).
     needs: [scripts, backend, frontend]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
