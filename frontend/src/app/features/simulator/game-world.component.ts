@@ -53,6 +53,7 @@ import {
   splitFrameDelta,
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
+import { heldInput } from './touch-hold.util';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -207,6 +208,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private positionDirty = false;
   private interactionCooldown = 0;
   private readonly INTERACTION_COOLDOWN_MS = 260;
+  /** Flecha táctil apretada (null si no hay ninguna) y desde cuándo (reloj de la escena). */
+  private heldDirection: PlayerDirection | null = null;
+  private heldSince = 0;
 
   constructor(private readonly callbacks: WorldCallbacks) {
     super('data-driven-world');
@@ -391,12 +395,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
 
   override update(time: number, delta: number) {
     if (!this.player || !this.cursors || !this.keys || !this.world) return;
-    const input: PlayerMotionInput = {
+    const input: PlayerMotionInput = heldInput({
       left:  this.cursors.left.isDown  || this.keys['A'].isDown,
       right: this.cursors.right.isDown || this.keys['D'].isDown,
       up:    this.cursors.up.isDown    || this.keys['W'].isDown,
       down:  this.cursors.down.isDown  || this.keys['S'].isDown,
-    };
+    }, this.heldDirection, this.time.now - this.heldSince);
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
@@ -482,7 +486,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Pausa el movimiento del mundo (NPCs y ambient) sin congelar al jugador. */
-  setMotionPaused(paused: boolean) { this.motionPaused = paused; }
+  setMotionPaused(paused: boolean) {
+    this.motionPaused = paused;
+    if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+  }
+
+  /** Flecha táctil apretada o soltada (null). La entrada de `update()` la suma pasado TOUCH_HOLD_DELAY_MS. */
+  setHeldDirection(direction: PlayerDirection | null) {
+    this.heldDirection = direction;
+    // `boot()` y `ngOnChanges` pueden pausar antes de que Phaser arranque la escena (sin reloj aún).
+    this.heldSince = direction && this.time ? this.time.now : 0;
+  }
 
   setReduceMotion(reduced: boolean) { this.callbacks.reduceMotion = reduced; }
 
@@ -2192,12 +2206,28 @@ class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
-    <div class="touch-controls" aria-label="Controles táctiles">
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"    (click)="nudge('up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda" (click)="nudge('left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
-      <button type="button" class="psy-button psy-button--glass touch-interact"            (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"   (click)="nudge('right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"     (click)="nudge('down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
+    <div class="touch-controls" role="group" aria-label="Controles táctiles">
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"
+        (pointerdown)="holdDirection($event, 'up')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda"
+        (pointerdown)="holdDirection($event, 'left')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
+      <button type="button" class="psy-button psy-button--glass touch-interact" (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"
+        (pointerdown)="holdDirection($event, 'right')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"
+        (pointerdown)="holdDirection($event, 'down')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
     </div>
   `,
   styles: [`
@@ -2218,9 +2248,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
       gap: 8px;
       z-index: 48;
     }
-    .touch-btn { background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5; }
+    .touch-btn {
+      background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5;
+      /* Mantener pulsado no debe hacer scroll, zoom, seleccionar texto ni abrir el menú largo. */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
     .touch-interact { font-size: .82rem; }
-    @media (max-width: 900px) { .touch-controls { display: grid; } }
+    /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
+    @media (pointer: coarse) { .touch-controls { display: grid; } }
   `]
 })
 export class GameWorldComponent implements OnChanges, OnDestroy {
@@ -2281,6 +2319,23 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
+
+  /** Toque: el paso de siempre al instante; si se mantiene, la escena camina hasta soltar. */
+  holdDirection(event: PointerEvent, direction: PlayerDirection) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // Captura: si el dedo se desliza fuera del botón, el pointerup igual llega aquí.
+    (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    this.scene?.nudge(direction);
+    this.scene?.setHeldDirection(direction);
+  }
+
+  releaseDirection() { this.scene?.setHeldDirection(null); }
+
+  /** Enter/Espacio sobre la flecha (click sin puntero, `detail === 0`): un paso. Los clics de
+   *  puntero ya dieron su paso en pointerdown y no deben duplicarlo. */
+  keyboardNudge(event: MouseEvent, direction: PlayerDirection) {
+    if (event.detail === 0) this.nudge(direction);
+  }
 
   /** Pies del jugador como data-player-x/y en el host de Phaser (contrato de navegación
    *  del e2e). Se escriben directo en el DOM: cambian en cada cuadro de caminata y una
