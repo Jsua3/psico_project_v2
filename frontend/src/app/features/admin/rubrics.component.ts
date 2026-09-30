@@ -107,7 +107,7 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
               </div>
 
               <div formArrayName="criteria" class="criteria">
-                @for (criterion of criteria.controls; track $index; let i = $index) {
+                @for (criterion of criteria.controls; track criterion; let i = $index) {
                   <section class="criterion" [formGroupName]="i">
                     <div class="criterion__top">
                       <strong>Criterio {{ i + 1 }}</strong>
