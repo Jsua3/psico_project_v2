@@ -5,7 +5,10 @@ import { ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
+import { Observable } from 'rxjs';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
+import { NotificationService } from '../../core/notifications/notification.service';
 import {
   CaseEditorView,
   ClinicalToolEditorState,
@@ -55,7 +58,7 @@ type EditorPanel =
             <button class="psy-button psy-button--glass" type="button" (click)="clone(model.caseVersionId)" [disabled]="busy()">
               <mat-icon>content_copy</mat-icon>Clonar versión
             </button>
-            <button class="psy-button psy-button--primary" type="button" [disabled]="!model.publishable || busy()" (click)="publish(model.caseVersionId)">
+            <button class="psy-button psy-button--primary" type="button" [disabled]="!model.publishable || busy()" (click)="confirmPublish(model.caseVersionId)">
               <mat-icon>publish</mat-icon>Publicar
             </button>
           </div>
@@ -528,7 +531,7 @@ type EditorPanel =
       [open]="!!confirmState()"
       [title]="confirmState()?.title ?? 'Confirmar'"
       [message]="confirmState()?.message ?? ''"
-      confirmLabel="Eliminar"
+      [confirmLabel]="confirmState()?.confirmLabel ?? 'Eliminar'"
       [loading]="busy()"
       (cancel)="confirmState.set(null)"
       (confirm)="runConfirm()"
@@ -751,6 +754,7 @@ export class CaseEditorComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly simulationService = inject(SimulationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly editor = signal<CaseEditorView | null>(null);
   readonly loading = signal(true);
@@ -758,7 +762,7 @@ export class CaseEditorComponent implements OnInit {
   readonly error = signal('');
   readonly panel = signal<EditorPanel>(null);
   readonly selectedWorldNodeId = signal<number | null>(null);
-  readonly confirmState = signal<{ title: string; message: string; run: () => void } | null>(null);
+  readonly confirmState = signal<{ title: string; message: string; run: () => void; confirmLabel?: string } | null>(null);
 
   nodeForm: FormGroup | null = null;
   decisionForm: FormGroup | null = null;
@@ -912,11 +916,10 @@ export class CaseEditorComponent implements OnInit {
       terminal: v.terminal, startNode: v.startNode,
       positionX: v.positionX, positionY: v.positionY,
     };
-    this.busy.set(true);
     const call = p?.kind === 'node-edit'
       ? this.simulationService.updateNode(caseVersionId, (p as { node: NodeEditorState }).node.id, body)
       : this.simulationService.createNode(caseVersionId, body);
-    call.subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(call, 'Nodo guardado.', 'No fue posible guardar el nodo.');
   }
 
   saveDecision(caseVersionId: number) {
@@ -930,11 +933,10 @@ export class CaseEditorComponent implements OnInit {
       scoreDelta: v.scoreDelta, stressDelta: v.stressDelta,
       prohibitedPenalty: v.prohibitedPenalty, immediateFeedback: v.immediateFeedback || '',
     };
-    this.busy.set(true);
     const call = p?.kind === 'decision-edit'
       ? this.simulationService.updateDecision(caseVersionId, (p as { edge: DecisionEdgeState }).edge.id, body)
       : this.simulationService.createDecision(caseVersionId, body);
-    call.subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(call, 'Decisión guardada.', 'No fue posible guardar la decisión.');
   }
 
   saveMap(caseVersionId: number) {
@@ -946,11 +948,10 @@ export class CaseEditorComponent implements OnInit {
       width: v.width, height: v.height, theme: v.theme,
       spawnX: v.spawnX, spawnY: v.spawnY,
     };
-    this.busy.set(true);
     const call = p?.kind === 'map-edit'
       ? this.simulationService.updateMap(caseVersionId, (p as { map: MapEditorState }).map.id, body)
       : this.simulationService.createMap(caseVersionId, body);
-    call.subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(call, 'Mapa guardado.', 'No fue posible guardar el mapa.');
   }
 
   saveObject(caseVersionId: number) {
@@ -966,11 +967,10 @@ export class CaseEditorComponent implements OnInit {
       decisionOptionId: v.decisionOptionId ? Number(v.decisionOptionId) : null,
       toolCode: v.toolCode || null,
     };
-    this.busy.set(true);
     const call = p?.kind === 'object-edit'
       ? this.simulationService.updateObject(caseVersionId, (p as { obj: MapObjectEditorState }).obj.id, body)
       : this.simulationService.createObject(caseVersionId, (p as { mapId: number }).mapId ?? v._mapId, body);
-    call.subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(call, 'Objeto guardado.', 'No fue posible guardar el objeto.');
   }
 
   saveTool(caseVersionId: number) {
@@ -978,18 +978,19 @@ export class CaseEditorComponent implements OnInit {
     const p = this.panel();
     const v = this.toolForm.value;
     const body = { toolCode: v.toolCode, label: v.label, icon: v.icon, category: v.category, description: v.description };
-    this.busy.set(true);
     const call = p?.kind === 'tool-edit'
       ? this.simulationService.updateTool(caseVersionId, (p as { tool: ClinicalToolEditorState }).tool.id, body)
       : this.simulationService.createTool(caseVersionId, body);
-    call.subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(call, 'Herramienta guardada.', 'No fue posible guardar la herramienta.');
   }
 
   saveChecklist(caseVersionId: number) {
     if (!this.checklistForm || this.busy()) return;
-    this.busy.set(true);
-    this.simulationService.updateChecklist(caseVersionId, this.checklistForm.value)
-      .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(
+      this.simulationService.updateChecklist(caseVersionId, this.checklistForm.value),
+      'Lista de verificación guardada.',
+      'No fue posible guardar la lista de verificación.',
+    );
   }
 
   // ─── Delete confirmations ────────────────────────────────────────────────────
@@ -1001,8 +1002,8 @@ export class CaseEditorComponent implements OnInit {
     pending.run();
   }
 
-  private openConfirm(title: string, message: string, run: () => void) {
-    this.confirmState.set({ title, message, run });
+  private openConfirm(title: string, message: string, run: () => void, confirmLabel?: string) {
+    this.confirmState.set({ title, message, run, confirmLabel });
   }
 
   confirmDeleteNode(caseVersionId: number, node: NodeEditorState) {
@@ -1010,9 +1011,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar nodo',
       `¿Eliminar el nodo "${node.title}"? Esta acción eliminará también sus decisiones, mapa y objetos.`,
       () => {
-        this.busy.set(true);
-        this.simulationService.deleteNode(caseVersionId, node.id)
-          .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+        this.runAction(this.simulationService.deleteNode(caseVersionId, node.id), 'Nodo eliminado.', 'No fue posible eliminar el nodo.');
       }
     );
   }
@@ -1022,9 +1021,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar mapa',
       `¿Eliminar el mapa "${map.title}"? Esta acción eliminará también sus objetos y colisiones.`,
       () => {
-        this.busy.set(true);
-        this.simulationService.deleteMap(caseVersionId, map.id)
-          .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+        this.runAction(this.simulationService.deleteMap(caseVersionId, map.id), 'Mapa eliminado.', 'No fue posible eliminar el mapa.');
       }
     );
   }
@@ -1034,9 +1031,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar objeto',
       `¿Eliminar el objeto "${obj.label}"?`,
       () => {
-        this.busy.set(true);
-        this.simulationService.deleteObject(caseVersionId, obj.id)
-          .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+        this.runAction(this.simulationService.deleteObject(caseVersionId, obj.id), 'Objeto eliminado.', 'No fue posible eliminar el objeto.');
       }
     );
   }
@@ -1046,25 +1041,28 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar herramienta',
       `¿Eliminar la herramienta "${tool.label}"?`,
       () => {
-        this.busy.set(true);
-        this.simulationService.deleteTool(caseVersionId, tool.id)
-          .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+        this.runAction(this.simulationService.deleteTool(caseVersionId, tool.id), 'Herramienta eliminada.', 'No fue posible eliminar la herramienta.');
       }
     );
   }
 
   // ─── Publish / Clone ─────────────────────────────────────────────────────────
 
+  confirmPublish(caseVersionId: number) {
+    this.openConfirm(
+      'Publicar caso',
+      'Los estudiantes asignados verán esta versión en su catálogo. ¿Publicarla ahora?',
+      () => this.publish(caseVersionId),
+      'Publicar',
+    );
+  }
+
   publish(caseVersionId: number) {
-    this.busy.set(true);
-    this.simulationService.publishCase(caseVersionId)
-      .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(this.simulationService.publishCase(caseVersionId), 'Caso publicado.', 'No fue posible publicar el caso.');
   }
 
   clone(caseVersionId: number) {
-    this.busy.set(true);
-    this.simulationService.cloneCaseVersion(caseVersionId)
-      .subscribe({ next: e => this.refresh(e), error: () => this.busy.set(false) });
+    this.runAction(this.simulationService.cloneCaseVersion(caseVersionId), 'Se creó una nueva versión del caso.', 'No fue posible clonar la versión.');
   }
 
   // ─── Preview helpers (Fase 5) ────────────────────────────────────────────────
@@ -1088,6 +1086,22 @@ export class CaseEditorComponent implements OnInit {
         this.error.set('No se pudo cargar el editor. Verifica tus permisos.');
         this.loading.set(false);
       }
+    });
+  }
+
+  /** Ejecuta una acción del editor y le dice al usuario si funcionó o por qué falló. */
+  private runAction(call: Observable<CaseEditorView>, success: string, fallback: string): void {
+    this.busy.set(true);
+    call.subscribe({
+      next: editor => {
+        this.refresh(editor);
+        this.notify.success(success);
+      },
+      error: (err: unknown) => {
+        this.busy.set(false);
+        const text = apiErrorMessage(err, fallback);
+        if (text) this.notify.error(text);
+      },
     });
   }
 
