@@ -32,4 +32,9 @@ describe('game-world: trabajo por cuadro', () => {
     expect(source).not.toMatch(/readonly playerPosition = signal/);
     expect(source).toContain('this.writePlayerPosition(this.scene?.playerPosition() ?? null);');
   });
+
+  it('el componente expone la posición viva de la escena para las acciones validadas', () => {
+    // simulation-play la pide antes de persistir: positionChange llega hasta 125 ms atrás.
+    expect(source).toMatch(/\n  playerPosition\(\): \{ x: number; y: number \} \| null \{\s*return this\.scene\?\.playerPosition\(\) \?\? null;\s*\}/);
+  });
 });

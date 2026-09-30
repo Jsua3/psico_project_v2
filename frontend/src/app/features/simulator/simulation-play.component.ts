@@ -2030,8 +2030,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    *  Antes de una acción validada (interacción, herramienta, puerta) se
    *  sincroniza la posición pendiente del debounce para cubrir la carrera
    *  "moverse y pulsar E antes de persistir". Si el flush falla, la acción
-   *  continúa y es el backend quien decide. */
+   *  continúa y es el backend quien decide.
+   *
+   *  `lastPosition` llega por `positionChange`, que avisa a Angular a lo sumo cada 125 ms: puede
+   *  ir ~19 px por detrás y el servidor valida con radio 60. Por eso se toma antes la posición
+   *  viva de la escena (vaciar la de la escena no bastaría: la ruta de E llama a
+   *  `openInteraction` sin pasar por ella). */
   private withSyncedPosition(next: () => void): void {
+    const live = this.gameWorld?.playerPosition();
+    if (live) this.lastPosition = live;
     const game = this.attempt(), world = this.world();
     const pending = this.lastPosition && (
       !this.lastSyncedPosition

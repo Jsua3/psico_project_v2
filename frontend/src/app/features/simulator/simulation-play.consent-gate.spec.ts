@@ -495,6 +495,85 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     );
   });
 
+  describe('posición viva antes de una acción validada', () => {
+    const world = {
+      map: { key: 'hospital-urgencias' },
+      player: { x: 250, y: 430 },
+      flags: {},
+    } as SimulationWorldState;
+    const npc = {
+      key: 'enfermera-urgencias',
+      displayName: 'Enfermera',
+      dialogue: { lines: [{ text: 'Acércate.' }] },
+    } as NpcConfig;
+
+    beforeEach(() => {
+      setup(makeAttempt());
+      component.attempt.set(makeAttempt());
+      component.world.set(world);
+      sim.updateWorldState.mockReturnValue(EMPTY);
+      sim.recordNpcInteraction.mockReturnValue(EMPTY);
+    });
+
+    it('persiste la posición de la escena, no la última que llegó a Angular (hasta 125 ms atrás)', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 579, 384, 'hospital-urgencias',
+      );
+      expect((component as any).lastPosition).toEqual({ x: 579, y: 384 });
+    });
+
+    it('sin gameWorld usa lastPosition', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = undefined;
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 560, 380, 'hospital-urgencias',
+      );
+    });
+
+    it('si la escena aún no tiene jugador (null) usa lastPosition', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => null) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 560, 380, 'hospital-urgencias',
+      );
+    });
+
+    it('si la posición viva ya está sincronizada no repite la persistencia', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).lastSyncedPosition = { x: 579, y: 384 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).not.toHaveBeenCalled();
+      expect(sim.recordNpcInteraction).toHaveBeenCalledWith('attempt-1', 'token-1', 'enfermera-urgencias');
+    });
+
+    it('también aplica antes de pausar con salida segura', () => {
+      (component as any).lastPosition = { x: 612, y: 444 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 640, y: 450 })) };
+      sim.safeExit.mockReturnValue(EMPTY);
+
+      component.safeExit();
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 640, 450, 'hospital-urgencias',
+      );
+    });
+  });
+
   it('conserva la configuración autorada mientras carga la del mundo siguiente', () => {
     setup(makeAttempt());
     const previousConfig = {

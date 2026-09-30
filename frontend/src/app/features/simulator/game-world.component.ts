@@ -2444,6 +2444,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
 
+  /** Pies del jugador en la escena (px enteros) o null si aún no existe. Es la posición viva:
+   *  `positionChange` llega a Angular a lo sumo ~8 veces por segundo y va hasta 125 ms atrás. */
+  playerPosition(): { x: number; y: number } | null {
+    return this.scene?.playerPosition() ?? null;
+  }
+
   /** Toque: el paso de siempre al instante; si se mantiene, la escena camina hasta soltar. */
   holdDirection(event: PointerEvent, direction: PlayerDirection) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
