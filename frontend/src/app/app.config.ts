@@ -7,6 +7,7 @@ import { routes } from './app.routes';
 import { jwtInterceptor } from './core/auth/jwt.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { settleWithin } from './core/auth/settle-within.util';
+import { User } from './core/models/user.model';
 import { SiepTitleStrategy } from './core/title/siep-title.strategy';
 
 /**
@@ -16,15 +17,18 @@ import { SiepTitleStrategy } from './core/title/siep-title.strategy';
  */
 const AUTH_SYNC_BUDGET_MS = 1500;
 
+/** Valida la sesión contra `/me` sin retener el primer pintado más de AUTH_SYNC_BUDGET_MS. */
+export function initializeAuthSession(): Promise<User | null | undefined> {
+  const auth = inject(AuthService);
+  return settleWithin(firstValueFrom(auth.syncCurrentUser()), AUTH_SYNC_BUDGET_MS);
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes),
     { provide: TitleStrategy, useClass: SiepTitleStrategy },
     provideHttpClient(withInterceptors([jwtInterceptor])),
     provideAnimationsAsync(),
-    provideAppInitializer(() => {
-      const auth = inject(AuthService);
-      return settleWithin(firstValueFrom(auth.syncCurrentUser()), AUTH_SYNC_BUDGET_MS);
-    }),
+    provideAppInitializer(initializeAuthSession),
   ]
 };

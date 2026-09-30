@@ -1,14 +1,53 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { TestBed } from '@angular/core/testing';
+import { NEVER, of } from 'rxjs';
+
+import { initializeAuthSession } from './app.config';
+import { AuthService } from './core/auth/auth.service';
+import { User } from './core/models/user.model';
 
 const source = readFileSync(join(__dirname, 'app.config.ts'), 'utf-8');
 
 describe('app.config: arranque', () => {
-  it('valida la sesión sin bloquear el primer pintado más de 1,5 s', () => {
+  it('registra el inicializador de sesión con un plazo de 1,5 s', () => {
     expect(source).not.toContain('APP_INITIALIZER');
     expect(source).toContain('const AUTH_SYNC_BUDGET_MS = 1500;');
-    expect(source).toMatch(
-      /provideAppInitializer\(\(\) => \{\s*const auth = inject\(AuthService\);\s*return settleWithin\(firstValueFrom\(auth\.syncCurrentUser\(\)\), AUTH_SYNC_BUDGET_MS\);\s*\}\)/,
-    );
+    expect(source).toContain('provideAppInitializer(initializeAuthSession)');
+  });
+
+  describe('initializeAuthSession', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    function iniciar(syncCurrentUser: () => unknown) {
+      TestBed.configureTestingModule({
+        providers: [{ provide: AuthService, useValue: { syncCurrentUser } }],
+      });
+      let resuelta = false;
+      const promesa = TestBed.runInInjectionContext(() => initializeAuthSession());
+      promesa.then(() => { resuelta = true; });
+      return { promesa, estaResuelta: () => resuelta };
+    }
+
+    it('deja de esperar a /me a los 1500 ms y resuelve con undefined', async () => {
+      const { promesa, estaResuelta } = iniciar(() => NEVER);
+
+      jest.advanceTimersByTime(1499);
+      await Promise.resolve();
+      expect(estaResuelta()).toBe(false);
+
+      jest.advanceTimersByTime(1);
+      await expect(promesa).resolves.toBeUndefined();
+      expect(estaResuelta()).toBe(true);
+    });
+
+    it('resuelve con el usuario sin esperar el plazo si /me responde a tiempo', async () => {
+      const usuario = { id: 1, email: 'ana@siep.test' } as unknown as User;
+      const { promesa } = iniciar(() => of(usuario));
+
+      await expect(promesa).resolves.toBe(usuario);
+      expect(jest.getTimerCount()).toBe(0);
+    });
   });
 });
