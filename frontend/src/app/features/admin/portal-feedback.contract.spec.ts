@@ -22,6 +22,14 @@ describe('portal: feedback de acciones', () => {
   it('Grupos ya no usa window.confirm', () => {
     expect(grupos).not.toMatch(/\bconfirm\(`/);
     expect(grupos).toContain('<app-confirm-dialog');
+    expect(grupos).toContain('(cancel)="pendingConfirm.set(null)"');
+    expect(grupos).toContain('(confirm)="runPendingConfirm()"');
+  });
+
+  it('Usuarios avisa el resultado de descartar una solicitud', () => {
+    expect(users).toContain("this.notify.success('Solicitud descartada.');");
+    expect(users).not.toContain("this.message.set('Solicitud descartada.')");
+    expect(users).toContain("apiErrorMessage(err, 'No fue posible actualizar la solicitud.')");
   });
 
   it('Grupos avisa crear, editar, borrar, copiar y asignar', () => {

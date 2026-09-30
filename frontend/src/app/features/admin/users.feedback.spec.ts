@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of, throwError } from 'rxjs';
 
-import { AccessRequestAdminService } from '../../core/api/access-request-admin.service';
+import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UsersComponent } from './users.component';
@@ -124,6 +124,68 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
       expect(component.error()).toBe('La contraseña es obligatoria al crear usuarios.');
       expect(notify.error).not.toHaveBeenCalled();
       expect(service.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('descartar una solicitud de acceso', () => {
+    const solicitud = {
+      id: 21,
+      nombre: 'Rosa',
+      apellido: 'Vega',
+      email: 'rosa@siep.test',
+      status: 'PENDING',
+      createdAt: '2026-09-01T10:00:00Z',
+      reviewedAt: null,
+    } as AccessRequest;
+
+    beforeEach(() => component.accessRequests.set([solicitud]));
+
+    it('éxito: avisa el resultado, quita la solicitud y deja el banner vacío', () => {
+      requests.updateStatus.mockReturnValue(of({ ...solicitud, status: 'DISMISSED' }));
+
+      component.dismissRequest(solicitud);
+
+      expect(requests.updateStatus).toHaveBeenCalledWith(21, 'DISMISSED');
+      expect(notify.success).toHaveBeenCalledTimes(1);
+      expect(notify.success).toHaveBeenCalledWith('Solicitud descartada.');
+      expect(notify.error).not.toHaveBeenCalled();
+      expect(component.accessRequests()).toEqual([]);
+      expect(component.message()).toBe('');
+      expect(component.saving()).toBe(false);
+    });
+
+    it('error 500 con mensaje: avisa el mensaje del backend, libera saving y deja el banner vacío', () => {
+      requests.updateStatus.mockReturnValue(backendError(500, { message: 'La solicitud ya fue atendida.' }));
+
+      component.dismissRequest(solicitud);
+
+      expect(notify.error).toHaveBeenCalledTimes(1);
+      expect(notify.error).toHaveBeenCalledWith('La solicitud ya fue atendida.');
+      expect(notify.success).not.toHaveBeenCalled();
+      expect(component.accessRequests()).toEqual([solicitud]);
+      expect(component.error()).toBe('');
+      expect(component.saving()).toBe(false);
+    });
+
+    it('error sin mensaje útil: avisa el texto de respaldo', () => {
+      requests.updateStatus.mockReturnValue(backendError(500, null));
+
+      component.dismissRequest(solicitud);
+
+      expect(notify.error).toHaveBeenCalledWith('No fue posible actualizar la solicitud.');
+      expect(component.error()).toBe('');
+    });
+
+    it('sin conexión (status 0): no duplica el aviso del interceptor, libera saving y no hay banner', () => {
+      requests.updateStatus.mockReturnValue(backendError(0, null));
+
+      component.dismissRequest(solicitud);
+
+      expect(notify.error).not.toHaveBeenCalled();
+      expect(notify.success).not.toHaveBeenCalled();
+      expect(component.error()).toBe('');
+      expect(component.message()).toBe('');
+      expect(component.saving()).toBe(false);
     });
   });
 

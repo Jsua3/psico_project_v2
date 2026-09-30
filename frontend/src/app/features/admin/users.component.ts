@@ -304,11 +304,12 @@ export class UsersComponent implements OnInit {
     this.accessRequestsService.updateStatus(request.id, 'DISMISSED').subscribe({
       next: () => {
         this.accessRequests.update(items => items.filter(item => item.id !== request.id));
-        this.message.set('Solicitud descartada.');
+        this.notify.success('Solicitud descartada.');
         this.saving.set(false);
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible actualizar la solicitud.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar la solicitud.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       },
     });
