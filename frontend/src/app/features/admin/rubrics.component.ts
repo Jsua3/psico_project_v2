@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,6 +14,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 
 @Component({
   selector: 'app-rubrics',
@@ -90,10 +91,12 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
                 <mat-form-field appearance="outline">
                   <mat-label>Nombre</mat-label>
                   <input matInput formControlName="name">
+                  <mat-error>Escribe el nombre de la rúbrica.</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Versión</mat-label>
                   <input matInput formControlName="version">
+                  <mat-error>Escribe la versión.</mat-error>
                 </mat-form-field>
               </div>
 
@@ -105,6 +108,9 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
               <div class="weight-line" [class.weight-line--bad]="totalWeight() !== 100">
                 Ponderación total: {{ totalWeight() }} %
               </div>
+              @if (totalWeight() !== 100) {
+                <p id="rubric-weight-hint" class="weight-hint">Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.</p>
+              }
 
               <div formArrayName="criteria" class="criteria">
                 @for (criterion of criteria.controls; track criterion; let i = $index) {
@@ -119,14 +125,17 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
                       <mat-form-field appearance="outline">
                         <mat-label>Nombre</mat-label>
                         <input matInput formControlName="title">
+                        <mat-error>Escribe el nombre del criterio.</mat-error>
                       </mat-form-field>
                       <mat-form-field appearance="outline">
                         <mat-label>Peso %</mat-label>
                         <input matInput type="number" min="0" max="100" formControlName="weight">
+                        <mat-error>El peso va de 0 a 100.</mat-error>
                       </mat-form-field>
                       <mat-form-field appearance="outline">
                         <mat-label>Orden</mat-label>
                         <input matInput type="number" min="1" formControlName="displayOrder">
+                        <mat-error>El orden empieza en 1.</mat-error>
                       </mat-form-field>
                     </div>
                     <mat-form-field appearance="outline" class="full-width">
@@ -142,17 +151,17 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
                   <mat-icon>playlist_add</mat-icon>
                   Agregar criterio
                 </button>
-                <button class="psy-button psy-button--primary" type="submit" [disabled]="form.invalid || saving()">
+                <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
                   <mat-icon>save</mat-icon>
                   Guardar
                 </button>
-                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" (click)="activate()">
+                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" [attr.aria-describedby]="totalWeight() !== 100 ? 'rubric-weight-hint' : null" (click)="activate()">
                   Activar
                 </button>
                 <button mat-stroked-button type="button" [disabled]="!selected()" (click)="deactivate()">
                   Desactivar
                 </button>
-                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" (click)="setDefault()">
+                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" [attr.aria-describedby]="totalWeight() !== 100 ? 'rubric-weight-hint' : null" (click)="setDefault()">
                   Predeterminada
                 </button>
                 <button mat-stroked-button type="button" [disabled]="!selected()" (click)="duplicate()">
@@ -202,6 +211,7 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
     .badge--default { background: rgba(60,140,96,.14); color: var(--psy-green-deep); }
     .weight-line { margin: 8px 0 12px; font-weight: 900; color: var(--psy-green-deep); }
     .weight-line--bad { color: #8f2f3d; }
+    .weight-hint { margin: 4px 0 0; color: var(--psy-muted); font-size: .85rem; }
     .criteria { display: grid; gap: 10px; }
     .criterion { padding: 12px; border: 1px solid rgba(0,72,118,.12); border-radius: 8px; background: rgba(255,255,255,.74); }
     .criterion__top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -217,6 +227,9 @@ export class RubricsComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
+  @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
 
   rubrics = signal<RubricAdmin[]>([]);
   selected = signal<RubricAdmin | null>(null);
@@ -295,7 +308,7 @@ export class RubricsComponent implements OnInit {
 
   newRubric(): void {
     this.selected.set(null);
-    this.form.reset({ name: '', description: '', version: '1.0' });
+    this.resetRubricForm({ name: '', description: '', version: '1.0' });
     this.criteria.clear();
     this.addCriterion();
   }
@@ -316,8 +329,10 @@ export class RubricsComponent implements OnInit {
   }
 
   save(): void {
-    if (this.form.invalid || this.saving()) {
+    if (this.saving()) return;
+    if (this.form.invalid) {
       this.form.markAllAsTouched();
+      focusFirstInvalid(this.host.nativeElement);
       return;
     }
     const payload = this.payload();
@@ -376,8 +391,17 @@ export class RubricsComponent implements OnInit {
     this.caseVersionId.set(Number(value || 0));
   }
 
+  /**
+   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
+   * y Material seguiría mostrando los errores en un formulario recién abierto.
+   */
+  private resetRubricForm(value: { name: string; description: string; version: string }): void {
+    if (this.formDirective) this.formDirective.resetForm(value);
+    else this.form.reset(value);
+  }
+
   private populate(rubric: RubricAdmin): void {
-    this.form.reset({
+    this.resetRubricForm({
       name: rubric.name,
       description: rubric.description || '',
       version: rubric.version || '1.0',
