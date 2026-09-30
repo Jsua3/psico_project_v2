@@ -52,6 +52,7 @@ import {
   resolveDirection,
   splitFrameDelta,
 } from './player-motion.util';
+import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -95,6 +96,8 @@ interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
   onInteract:    (obj: MapObjectState) => void;
   onPosition:    (x: number, y: number) => void;
+  /** Posición de cada cuadro con movimiento, sin limitar; se llama fuera de Angular. */
+  onPositionFrame: (x: number, y: number) => void;
   onRoomExit:    (targetRoomKey: string, entryX: number, entryY: number) => void;
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
@@ -198,6 +201,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private firstSceneFadeDone = false;
   private stepTimer = 0;
   private readonly STEP_INTERVAL = 280; // ms — natural walking cadence (~215 steps/min)
+  /** Última posición avisada a Angular (ver position-emit.util). */
+  private lastEmittedPosition: EmittedPosition | null = null;
+  /** Hay movimiento que la limitación de frecuencia todavía no avisó. */
+  private positionDirty = false;
   private interactionCooldown = 0;
   private readonly INTERACTION_COOLDOWN_MS = 260;
 
@@ -354,6 +361,34 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.renderWorld();
   }
 
+  /** Publica la posición: al DOM en cada cuadro (contrato del e2e) y a Angular como
+   *  mucho cada POSITION_EMIT_INTERVAL_MS. `force` salta el intervalo (fin de un
+   *  movimiento, nudge táctil). */
+  private emitPosition(force = false): void {
+    if (!this.player) return;
+    const x = Math.round(this.player.x);
+    const y = Math.round(this.player.y);
+    this.callbacks.onPositionFrame(x, y);
+    const last = this.lastEmittedPosition;
+    if (last && last.x === x && last.y === y) {
+      this.positionDirty = false;
+      return;
+    }
+    const now = this.time.now;
+    if (!force && !shouldEmitPosition(last, x, y, now)) {
+      this.positionDirty = true;
+      return;
+    }
+    this.positionDirty = false;
+    this.lastEmittedPosition = { x, y, at: now };
+    this.callbacks.onPosition(x, y);
+  }
+
+  /** Al dejar de avanzar, la última posición se avisa exacta: es la que se persiste. */
+  private flushPosition(): void {
+    if (this.positionDirty) this.emitPosition(true);
+  }
+
   override update(time: number, delta: number) {
     if (!this.player || !this.cursors || !this.keys || !this.world) return;
     const input: PlayerMotionInput = {
@@ -375,7 +410,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       }
       this.lastDirection = step.direction;
       if (moved) {
-        this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+        this.emitPosition();
         this.applyPlayerPose(step.direction, true);
         // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
         if (!this.callbacks.reduceMotion && !this.callbacks.sfxMuted) {
@@ -388,10 +423,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
       } else {
         // Bloqueado del todo contra pared/mueble: sin avance real no debe
         // correr la animación de caminata (ni sonar pasos).
+        this.flushPosition();
         this.applyPlayerPose(step.direction, false);
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
+      this.flushPosition();
       this.applyPlayerPose(this.lastDirection, false);
     }
 
@@ -618,7 +655,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.lastDirection = direction;
     this.applyPlayerPose(direction, moved); // el update() del frame siguiente vuelve a idle
     if (moved) {
-      this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+      // Cada toque es un paso discreto: se avisa siempre, sin esperar el intervalo.
+      this.emitPosition(true);
       this.ysort(this.player);
     }
     this.updateNearestInteraction();
@@ -2152,8 +2190,6 @@ class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-world-ready]="renderReady()"
       [attr.data-rendered-map-key]="renderedMapKey()"
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
-      [attr.data-player-x]="playerPosition()?.x"
-      [attr.data-player-y]="playerPosition()?.y"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
     <div class="touch-controls" aria-label="Controles táctiles">
@@ -2206,8 +2242,6 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
-  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
-  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2247,6 +2281,17 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
+
+  /** Pies del jugador como data-player-x/y en el host de Phaser (contrato de navegación
+   *  del e2e). Se escriben directo en el DOM: cambian en cada cuadro de caminata y una
+   *  señal o un binding dispararían la detección de cambios de toda la app. */
+  private writePlayerPosition(position: { x: number; y: number } | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host || !position) return;
+    host.setAttribute('data-player-x', String(position.x));
+    host.setAttribute('data-player-y', String(position.y));
+  }
+
   interactNearest() { this.scene?.interactNearest(); }
   focus(key: string) { this.scene?.focus(key); }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
@@ -2266,15 +2311,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onReady:       () => this.zone.run(() => {
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
-          this.playerPosition.set(this.scene?.playerPosition() ?? null);
+          this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
-        onPosition:    (x, y) => this.zone.run(() => {
-          this.playerPosition.set({ x, y });
-          this.positionChange.emit({ x, y });
-        }),
+        onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
+        onPositionFrame: (x, y) => this.writePlayerPosition({ x, y }),
         onRoomExit:    (targetRoomKey, entryX, entryY) =>
           this.zone.run(() => this.roomExit.emit({ targetRoomKey, entryX, entryY })),
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
