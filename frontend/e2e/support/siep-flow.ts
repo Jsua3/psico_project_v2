@@ -61,11 +61,15 @@ export async function waitForWorldReady(page: Page, expectedMapKey?: string): Pr
 /** Pies del jugador según data-player-x/y del host de Phaser (contrato del mundo). */
 export async function readPlayerPosition(page: Page): Promise<{ x: number; y: number }> {
   const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-  await expect(host).toHaveAttribute('data-player-x', /^-?\d+$/, { timeout: 30_000 });
-  const [x, y] = await Promise.all([
-    host.getAttribute('data-player-x'),
-    host.getAttribute('data-player-y'),
+  const read = () => host.evaluate(el => [
+    el.getAttribute('data-player-x'),
+    el.getAttribute('data-player-y'),
   ]);
+  let [x, y] = await read();
+  if (x === null || y === null) {
+    await expect(host).toHaveAttribute('data-player-x', /^-?\d+$/, { timeout: 30_000 });
+    [x, y] = await read();
+  }
   return { x: Number(x), y: Number(y) };
 }
 
@@ -84,10 +88,13 @@ export interface WorldInputDriver {
    * detiene ahí, igual que caminar contra una pared.
    */
   moveBy(key: MovementKey, distancePx: number): Promise<void>;
+  /** Un solo empujón corto (tecla ~180 ms o un toque), sin esperar a nada más. */
+  nudge(key: MovementKey): Promise<void>;
   interact(): Promise<void>;
 }
 
 const KEYBOARD_NUDGE_MS = 3 * 34;
+const SINGLE_NUDGE_MS = 180;
 /** Velocidad de caminata del juego (PLAYER_SPEED, px/s): solo dimensiona pulsaciones. */
 const PLAYER_SPEED_PX_S = 150;
 const MOVE_TOLERANCE_PX = 4;
@@ -107,6 +114,9 @@ const TOUCH_DIRECTION_LABEL: Record<MovementKey, RegExp> = {
 export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldInputDriver {
   const touchControl = (key: MovementKey) =>
     page.getByRole('button', { name: TOUCH_DIRECTION_LABEL[key] });
+  // force: el control ya se comprobó visible; sin force cada toque espera dos
+  // frames de "estabilidad", carísimo con el WebGL por software del CI.
+  const tap = (control: Locator) => control.tap({ force: true });
 
   const axisOf = (key: MovementKey) =>
     (key === 'ArrowLeft' || key === 'ArrowRight' ? 'x' : 'y') as 'x' | 'y';
@@ -126,7 +136,7 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
 
     while ((target - current) * sign > tolerance) {
       if (control) {
-        await control.tap();
+        await tap(control);
       } else {
         // Pulsación proporcional a lo que falta; con fps bajos una pulsación
         // corta puede caer entera entre dos frames, así que el piso crece
@@ -160,14 +170,26 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     const action = nearbyAction(page, label);
     if (await action.isVisible().catch(() => false)) return action;
 
-    // Pasos cortos en lazo cerrado, comprobando proximidad con la tecla
-    // liberada: si se mantiene pulsada mientras Playwright resuelve el locator,
-    // el personaje puede sobrepasar un marcador y el botón contextual cambiar
-    // de objetivo antes del clic.
-    const stepPx = (KEYBOARD_NUDGE_MS / 1000) * PLAYER_SPEED_PX_S;
+    // Empujones cortos (~15 px, muy por debajo del radio de interacción de
+    // 74 px) comprobando proximidad con la tecla liberada: si se mantiene
+    // pulsada mientras Playwright resuelve el locator, el personaje puede
+    // sobrepasar un marcador y el botón contextual cambiar de objetivo antes
+    // del clic. Sin lecturas de posición por ciclo: cada ida y vuelta al
+    // navegador es cara en el CI sin GPU.
+    const control = mode === 'touch' ? touchControl(key) : null;
+    if (control) await expect(control).toBeVisible();
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
-      await moveBy(key, stepPx);
+      if (control) {
+        await tap(control);
+        continue;
+      }
+      await page.keyboard.down(key);
+      try {
+        await page.waitForTimeout(KEYBOARD_NUDGE_MS);
+      } finally {
+        await page.keyboard.up(key);
+      }
     }
     if (!(await action.isVisible().catch(() => false))) {
       const at = await readPlayerPosition(page).catch(() => null);
@@ -179,10 +201,26 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     return action;
   };
 
+  const nudge = async (key: MovementKey): Promise<void> => {
+    if (mode === 'touch') {
+      const control = touchControl(key);
+      await expect(control).toBeVisible();
+      await tap(control);
+      return;
+    }
+    await page.keyboard.down(key);
+    try {
+      await page.waitForTimeout(SINGLE_NUDGE_MS);
+    } finally {
+      await page.keyboard.up(key);
+    }
+  };
+
   return {
     mode,
     moveBy,
     moveUntilNearby,
+    nudge,
     interact: async () => {
       if (mode === 'keyboard') {
         await page.keyboard.press('e');
@@ -195,28 +233,53 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
   };
 }
 
+const isWorldStatePatch = (response: Response) =>
+  response.request().method() === 'PATCH'
+    && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname);
+
+/**
+ * Camina y devuelve el guardado que persistió la posición FINAL. El debounce
+ * de guardado (550 ms sin moverse) puede disparar guardados intermedios si
+ * el recorrido se hace en varios pasos, así que el primer PATCH no basta.
+ */
 export async function moveAndPersistPosition(
   page: Page,
   input: WorldInputDriver,
   key: MovementKey,
   distancePx: number,
 ): Promise<ApiData> {
-  const responsePromise = page.waitForResponse(response =>
-    response.request().method() === 'PATCH'
-      && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
-    { timeout: 30_000 },
-  );
-  await input.moveBy(key, distancePx);
-  const response = await responsePromise;
-  await requireOk(response, 'Falló la persistencia de posición');
-  return (await response.json()).data as ApiData;
+  const saves: Response[] = [];
+  const collect = (response: Response) => {
+    if (isWorldStatePatch(response)) saves.push(response);
+  };
+  page.on('response', collect);
+  try {
+    await input.moveBy(key, distancePx);
+    const final = await readPlayerPosition(page);
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      for (const response of saves) {
+        await requireOk(response, 'Falló la persistencia de posición');
+        const data = (await response.json()).data as ApiData;
+        if (data?.player?.x === final.x && data?.player?.y === final.y) return data;
+      }
+      await page.waitForTimeout(100);
+    }
+    throw new Error(`No se persistió la posición final (${final.x}, ${final.y})`);
+  } finally {
+    page.off('response', collect);
+  }
 }
 
+/**
+ * Pausa con una posición recién movida y aún pendiente de guardar: la pausa
+ * debe hacer flush de esa posición antes del safe-exit. Un solo empujón y
+ * clic inmediato, para que el debounce no guarde antes por su cuenta.
+ */
 export async function pauseWithPendingPosition(
   page: Page,
   input: WorldInputDriver,
   key: MovementKey,
-  distancePx: number,
 ): Promise<{ positionWorld: ApiData; pausedAttempt: ApiData }> {
   const requestOrder: string[] = [];
   const captureOrder = (request: { method(): string; url(): string }) => {
@@ -236,7 +299,7 @@ export async function pauseWithPendingPosition(
     { timeout: 30_000 },
   );
   try {
-    await input.moveBy(key, distancePx);
+    await input.nudge(key);
     await page.getByRole('button', { name: /salida segura/i }).click();
     const positionResponse = await positionPromise;
     const pauseResponse = await pausePromise;

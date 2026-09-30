@@ -28,7 +28,8 @@ async function completeFullCase(
   testInfo: TestInfo,
   viewport: RequiredViewport,
 ): Promise<void> {
-  testInfo.setTimeout(300_000);
+  // Holgura para el runner del CI (sin GPU): ahí el caso tarda ~3-4x más que en local.
+  testInfo.setTimeout(600_000);
   const input = createWorldInputDriver(page, viewport.inputMode);
 
   await page.goto('/login');
@@ -95,7 +96,7 @@ async function completeFullCase(
   expect(refreshed.world.inspectedObjectKeys).toContain('familia-crisis');
   expect(refreshed.world.flags.viewedNpcKeys).toContain('enfermera-urgencias');
 
-  const paused = await pauseWithPendingPosition(page, input, 'ArrowRight', 27);
+  const paused = await pauseWithPendingPosition(page, input, 'ArrowRight');
   expect(paused.pausedAttempt.attemptId).toBe(attemptId);
   expect(paused.pausedAttempt.status).toBe('PAUSED');
   expect(paused.pausedAttempt.currentNode.key).toBe('hospital-sala-escucha');
@@ -182,7 +183,9 @@ async function completeFullCase(
 
   // C2 — marco integral de Comisaría.
   await input.moveUntilNearby('ArrowRight', /ruta de protección/i);
-  await input.moveBy('ArrowRight', 180);
+  // Ruta en x=610 → se para en x≈536-551; +210 deja al jugador a 29-44 px del
+  // marco (x=790). Con +180 quedaba en el borde de su radio de 74 px.
+  await input.moveBy('ArrowRight', 210);
   await input.moveUntilNearby('ArrowUp', /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-comisaria$/);
   decision = await chooseDecision(
@@ -194,7 +197,11 @@ async function completeFullCase(
   await closeDialogue(page, /supervisión clínica/i);
   await waitForWorldReady(page);
 
-  // C3 — cierre técnico y reporte integral.
+  // C3 — cierre técnico y reporte integral. Tras C2 el jugador reaparece en
+  // ~(670, 430), con la Ruta de protección (610, 436) aún en rango: si el
+  // profesional (NPC que se mueve) se aleja justo antes del clic, la barra
+  // contextual salta a la ruta. Apartarse a la derecha la deja fuera de rango.
+  await input.moveBy('ArrowRight', 40);
   await input.moveUntilNearby('ArrowRight', /profesional psicosocial/i);
   await interactNearby(page, /profesional psicosocial/i, /\/interactions\/profesional-psicosocial$/);
   decision = await chooseDecision(
