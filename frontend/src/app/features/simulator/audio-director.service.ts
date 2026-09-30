@@ -21,6 +21,18 @@ interface StemTrack {
   targetVolume: number;
 }
 
+/** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
+ *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la pista. */
+const HTML5_VOLUME_WORKS = (() => {
+  try {
+    const probe = new Audio();
+    probe.volume = 0.5;
+    return probe.volume === 0.5;
+  } catch {
+    return false;
+  }
+})();
+
 @Injectable({ providedIn: 'root' })
 export class AudioDirectorService {
   private stems = new Map<MusicLayer, StemTrack>();
@@ -54,8 +66,9 @@ export class AudioDirectorService {
         loop: true,
         volume: 0,
         preload: true,
-        // Pista de ~150 s: HTML5 la transmite; Web Audio la decodificaría entera (~50 MB de PCM).
-        html5: true,
+        // Pista de ~150 s. Con HTML5 se transmite; Web Audio la decodificaría entera (~50 MB de PCM).
+        // Solo donde el navegador respeta el volumen del elemento; en iOS/iPadOS se queda en Web Audio.
+        html5: HTML5_VOLUME_WORKS,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] No se pudo cargar ${src}:`, err),
       });
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
@@ -101,7 +114,7 @@ export class AudioDirectorService {
         loop: true,
         volume: this.musicVolume,
         preload: true,
-        html5: true,
+        html5: HTML5_VOLUME_WORKS,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
     }
@@ -183,12 +196,18 @@ export class AudioDirectorService {
   setMusicMuted(muted: boolean): void {
     this.musicMuted = muted;
     this.introLament?.mute(muted);
+    // El silencio no depende de volume(). En HTML5 Howler no toca el volumen del nodo
+    // mientras está silenciado: por eso volume(0) va antes de mute(true), y mute(false)
+    // antes de cualquier fundido posterior (setStressLevel).
     if (muted) {
       this.stems.forEach(stem => {
         stem.targetVolume = 0;
         stem.volume = 0;
         stem.howl.volume(0);
+        stem.howl.mute(true);
       });
+    } else {
+      this.stems.forEach(stem => stem.howl.mute(false));
     }
   }
 

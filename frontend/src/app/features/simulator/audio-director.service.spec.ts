@@ -140,4 +140,119 @@ describe('AudioDirectorService: pistas largas y silencio', () => {
     service.setMusicMuted(false);
     expect(lament.mute).toHaveBeenLastCalledWith(false);
   });
+
+  const STEM = 'assets/game/audio/Musica_PsicoGame.mp3';
+  const lastOrder = (fn: jest.Mock) => fn.mock.invocationCallOrder[fn.mock.invocationCallOrder.length - 1];
+
+  it('silenciar la música también silencia los stems, sin depender de volume', () => {
+    const stem = howlFor(STEM);
+    service.setMusicMuted(true);
+    expect(stem.mute).toHaveBeenLastCalledWith(true);
+    service.setMusicMuted(false);
+    expect(stem.mute).toHaveBeenLastCalledWith(false);
+  });
+
+  it('al silenciar fija volume(0) antes de mute(true): en HTML5 volume() ignora un nodo silenciado', () => {
+    const stem = howlFor(STEM);
+    service.setMusicMuted(true);
+    expect(stem.volume).toHaveBeenLastCalledWith(0);
+    expect(lastOrder(stem.volume)).toBeLessThan(lastOrder(stem.mute));
+  });
+
+  it('al quitar el silencio, mute(false) llega antes del fundido que sigue', () => {
+    jest.useFakeTimers();
+    try {
+      const stem = howlFor(STEM);
+      service.setMusicMuted(true);
+      service.setMusicMuted(false);
+      service.setStressLevel(10);
+      jest.advanceTimersByTime(20_000);
+      expect(stem.volume).toHaveBeenLastCalledWith(0.42);
+      expect(lastOrder(stem.mute)).toBeLessThan(lastOrder(stem.volume));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('AudioDirectorService: navegadores que ignoran el volumen de HTML5 (iOS)', () => {
+  // HTML5_VOLUME_WORKS se evalúa al cargar el módulo: para simular otro navegador se vuelve a
+  // cargar el servicio con el Audio que se quiere. @angular/core se comparte con TestBed porque
+  // dos copias no compartirían el contexto de inyección.
+  const angularCore = jest.requireActual('@angular/core');
+  let service: AudioDirectorService | undefined;
+
+  /** iOS/iPadOS: la asignación se ignora y volume siempre lee 1. */
+  class AudioIos {
+    get volume(): number { return 1; }
+    set volume(_value: number) { /* iOS ignora la asignación */ }
+  }
+  class AudioQueRespetaVolume { volume = 1; }
+  class AudioQueFalla { constructor() { throw new Error('Audio no disponible'); } }
+
+  const loadServiceWithAudio = (audio: unknown) => {
+    const original = window.Audio;
+    Object.defineProperty(window, 'Audio', { configurable: true, writable: true, value: audio });
+    jest.doMock('@angular/core', () => angularCore);
+    try {
+      let loaded!: { ServiceClass: typeof AudioDirectorService; HowlMock: jest.Mock };
+      jest.isolateModules(() => {
+        loaded = {
+          ServiceClass: require('./audio-director.service').AudioDirectorService,
+          HowlMock: require('howler').Howl,
+        };
+      });
+      return loaded;
+    } finally {
+      jest.dontMock('@angular/core');
+      Object.defineProperty(window, 'Audio', { configurable: true, writable: true, value: original });
+    }
+  };
+
+  /** Opciones de los Howl de las pistas largas (los .mp3) tras iniciar el servicio y la intro. */
+  const longTrackOptions = (audio: unknown) => {
+    const { ServiceClass, HowlMock } = loadServiceWithAudio(audio);
+    HowlMock.mockClear(); // el mock de howler se comparte con los demás describe
+    service = TestBed.inject(ServiceClass);
+    service.init();
+    service.playIntroLament();
+    return HowlMock.mock.calls
+      .map(([options]) => options as { src: string[]; html5?: boolean })
+      .filter(options => options.src[0].endsWith('.mp3'));
+  };
+
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+  });
+
+  beforeEach(() => {
+    service = undefined;
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => service?.dispose());
+
+  it('donde Audio respeta volume, las pistas largas usan HTML5', () => {
+    const long = longTrackOptions(AudioQueRespetaVolume);
+    expect(long).toHaveLength(2);
+    for (const options of long) expect(options.html5).toBe(true);
+  });
+
+  it('en iOS (Audio ignora volume) las pistas largas se quedan en Web Audio', () => {
+    const long = longTrackOptions(AudioIos);
+    expect(long.map(options => options.src[0])).toEqual([
+      'assets/game/audio/Musica_PsicoGame.mp3',
+      'assets/game/audio/PsicoLament.mp3',
+    ]);
+    for (const options of long) expect(options.html5).toBe(false);
+  });
+
+  it('si Audio no se puede crear, las pistas largas tampoco usan HTML5', () => {
+    const long = longTrackOptions(AudioQueFalla);
+    expect(long).toHaveLength(2);
+    for (const options of long) expect(options.html5).toBe(false);
+  });
 });
