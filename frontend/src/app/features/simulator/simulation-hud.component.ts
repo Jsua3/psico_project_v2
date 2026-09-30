@@ -439,7 +439,7 @@ export class SimulationHudComponent {
    *  `.escape` el plugin de teclas de Angular escucha fuera de la zona y solo entra en ella
    *  cuando la tecla coincide (caminando llegan ~30 keydown por segundo). */
   @HostListener('document:keydown.escape', ['$event'])
-  onDocumentKeydown(event: KeyboardEvent): void {
+  onDocumentKeydown(event: Event): void {
     if (event.defaultPrevented || !this.settingsOpen()) return;
     event.preventDefault();
     this.closeSettings();
