@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
@@ -109,16 +109,18 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                 aria-label="Abrir bitácora reflexiva (J)" title="Bitácora (J)">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
-              <button type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
+              <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
                 (click)="settingsOpen.set(!settingsOpen())"
-                aria-label="Abrir ajustes del juego" title="Ajustes">
+                aria-label="Abrir ajustes del juego" title="Ajustes"
+                [attr.aria-expanded]="settingsOpen()"
+                [attr.aria-controls]="settingsOpen() ? 'game-settings-menu' : null">
                 <mat-icon aria-hidden="true">settings</mat-icon>
               </button>
               @if (settingsOpen()) {
-                <div class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
+                <div id="game-settings-menu" class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
                   <div class="settings-menu__header">
                     <strong id="game-settings-title">Ajustes</strong>
-                    <button type="button" aria-label="Cerrar ajustes" (click)="settingsOpen.set(false)">
+                    <button type="button" aria-label="Cerrar ajustes" (click)="closeSettings()">
                       <mat-icon aria-hidden="true">close</mat-icon>
                     </button>
                   </div>
@@ -409,6 +411,33 @@ export class SimulationHudComponent {
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
+
+  /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
+  closeSettings(restoreFocus = true): void {
+    if (!this.settingsOpen()) return;
+    this.settingsOpen.set(false);
+    if (restoreFocus) this.settingsTrigger()?.nativeElement.focus();
+  }
+
+  /** `document` recibe la tecla antes que el `window:keydown` de la partida. Consumirla
+   *  evita que ese manejador la tome como «salida segura» y pause el intento. */
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape' || event.defaultPrevented || !this.settingsOpen()) return;
+    event.preventDefault();
+    this.closeSettings();
+  }
+
+  /** Un toque o clic fuera del HUD cierra el menú sin robar el foco. */
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: Event): void {
+    if (!this.settingsOpen()) return;
+    if (this.host.nativeElement.contains(event.target as Node | null)) return;
+    this.closeSettings(false);
+  }
 
   readonly stressTier = computed<StressTier>(() => {
     const s = this.attempt()?.stressIndex ?? 0;
