@@ -282,6 +282,21 @@ code, .psy-mono {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+  .siep-notification button:hover {
+    background: rgba(16, 24, 32, 0.08);
+  }
+}
+
+/* Anillo propio: `body.game-mode :focus-visible` (0,2,1) pinta #C9B3FF, ~1,85:1 sobre la tarjeta blanca.
+   Con tres clases y un elemento (0,3,1) gana sin depender del orden. Va hacia dentro (offset -2px)
+   para que el círculo de 44 px no sobresalga de la tarjeta. */
+.siep-notifications .siep-notification button:focus-visible {
+  outline: 2px solid var(--siep-blue);
+  outline-offset: -2px;
+  border-radius: 50%;
+}
+
 .siep-notification--success { border-left: 4px solid #2e7d32; }
 .siep-notification--error { border-left: 4px solid #b3261e; }
 .siep-notification--warning { border-left: 4px solid #b26a00; }

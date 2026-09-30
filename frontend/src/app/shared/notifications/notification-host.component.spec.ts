@@ -1,3 +1,4 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { TestBed } from '@angular/core/testing';
 
 import { NotificationService } from '../../core/notifications/notification.service';
@@ -5,9 +6,14 @@ import { NotificationHostComponent } from './notification-host.component';
 
 describe('NotificationHostComponent', () => {
   let service: NotificationService;
+  let announce: jest.Mock;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [NotificationHostComponent] });
+    announce = jest.fn().mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      imports: [NotificationHostComponent],
+      providers: [{ provide: LiveAnnouncer, useValue: { announce } }],
+    });
     service = TestBed.inject(NotificationService);
   });
 
@@ -17,13 +23,66 @@ describe('NotificationHostComponent', () => {
     return fixture;
   }
 
-  it('los errores se anuncian como alerta y el resto como estado', () => {
+  it('solo los errores llevan role alert; el resto se anuncia por la región viva y la sección no tiene aria-live', () => {
     service.error('Falló');
     service.success('Guardado');
     const fixture = render();
     const items = Array.from(fixture.nativeElement.querySelectorAll('.siep-notification')) as HTMLElement[];
-    expect(items.map(i => i.getAttribute('role'))).toEqual(['alert', 'status']);
+    expect(items.map(i => i.getAttribute('role'))).toEqual(['alert', null]);
     expect(fixture.nativeElement.querySelector('[aria-live]')).toBeNull();
+  });
+
+  describe('anuncio a lectores de pantalla', () => {
+    it('un error tiene role alert y no pasa por LiveAnnouncer', () => {
+      service.error('Falló');
+      const fixture = render();
+      const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
+      expect(item.getAttribute('role')).toBe('alert');
+      expect(announce).not.toHaveBeenCalled();
+    });
+
+    it('un éxito se anuncia una sola vez con cortesía y sin role', () => {
+      service.success('Guardado');
+      const fixture = render();
+      const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
+      expect(item.hasAttribute('role')).toBe(false);
+      fixture.detectChanges();
+      expect(announce).toHaveBeenCalledTimes(1);
+      expect(announce).toHaveBeenCalledWith('Guardado', 'polite');
+    });
+
+    it('info y advertencia también se anuncian con cortesía', () => {
+      const fixture = render();
+      service.info('Aviso informativo');
+      service.warning('Cuidado');
+      fixture.detectChanges();
+      expect(announce.mock.calls).toEqual([
+        ['Aviso informativo', 'polite'],
+        ['Cuidado', 'polite'],
+      ]);
+    });
+
+    it('una nueva emisión no vuelve a anunciar los avisos que ya estaban', () => {
+      const fixture = render();
+      service.success('Guardado');
+      service.info('Otro');
+      service.error('Falló');
+      fixture.detectChanges();
+      expect(announce.mock.calls).toEqual([
+        ['Guardado', 'polite'],
+        ['Otro', 'polite'],
+      ]);
+    });
+
+    it('cerrar un aviso no dispara ningún anuncio', () => {
+      service.success('Guardado');
+      const fixture = render();
+      announce.mockClear();
+      const button = fixture.nativeElement.querySelector('.siep-notification button') as HTMLButtonElement;
+      button.click();
+      fixture.detectChanges();
+      expect(announce).not.toHaveBeenCalled();
+    });
   });
 
   it('pausa con el cursor o el foco y reanuda al salir', () => {
