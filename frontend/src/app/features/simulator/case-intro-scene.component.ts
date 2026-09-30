@@ -176,16 +176,18 @@ const LAMP_CENTERS = [150, 234] as const;
       image-rendering: auto;
     }
     .intro-actor--pixel .intro-actor__layer { image-rendering: pixelated; }
+    /* No escala con el escenario: a 1× su borde superior debe quedar bajo el cuadro del actor (y = 188). */
     .intro-scene__caption {
       position: absolute;
       left: 12px;
-      bottom: 10px;
+      bottom: 4px;
       margin: 0;
-      padding: 4px 8px;
+      padding: 2px 8px;
       border-radius: 6px;
       background: rgba(5,8,14,.72);
       color: rgba(244,247,251,.86);
       font-size: .74rem;
+      line-height: 1.2;
       font-weight: 700;
       letter-spacing: .06em;
       text-transform: uppercase;

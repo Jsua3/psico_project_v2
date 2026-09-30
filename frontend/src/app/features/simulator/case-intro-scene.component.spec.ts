@@ -98,6 +98,26 @@ describe('CaseIntroSceneComponent', () => {
       .toBe('Tu personaje entra de noche al servicio de urgencias del hospital.');
   });
 
+  it('el rótulo queda por debajo del cuadro del personaje: a 1× no le tapa los pies', () => {
+    const rule = (selector: string) =>
+      source.match(new RegExp(`${selector.replace('.', '\\.')} \\{([^}]*)\\}`))?.[1] ?? '';
+    const value = (css: string, property: string) =>
+      parseFloat(css.match(new RegExp(`(?:^|[\\s;])${property}: ([\\d.]+)`))?.[1] ?? 'NaN');
+    const caption = rule('.intro-scene__caption');
+    expect(caption).toContain('bottom: 4px;');
+    expect(caption).toContain('padding: 2px 8px;');
+    expect(caption).toContain('line-height: 1.2;');
+
+    // El rótulo no escala con el escenario: a 1× su borde superior debe quedar bajo el cuadro del actor.
+    const actor = rule('.intro-actor');
+    const actorBottom = value(actor, 'top') + value(actor, 'height');
+    const captionHeight = value(caption, 'font-size') * 16 * value(caption, 'line-height') + 2 * 2;
+    const frameInnerHeight = 216 - 2; // 216 de escenario menos el borde de 1px por lado (border-box)
+    const captionTop = frameInnerHeight - value(caption, 'bottom') - captionHeight;
+    expect(actorBottom).toBe(188);
+    expect(captionTop).toBeGreaterThanOrEqual(actorBottom + 1);
+  });
+
   it('anima los cuadros fuera de la zona de Angular', () => {
     expect(source).toMatch(/this\.zone\.runOutsideAngular\(\(\) => \{\s*this\.frameId = requestAnimationFrame/);
   });
