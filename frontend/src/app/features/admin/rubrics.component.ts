@@ -12,6 +12,8 @@ import { Observable } from 'rxjs';
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 
 @Component({
   selector: 'app-rubrics',
@@ -214,6 +216,7 @@ export class RubricsComponent implements OnInit {
   private readonly rubricService = inject(RubricService);
   private readonly simulationService = inject(SimulationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   rubrics = signal<RubricAdmin[]>([]);
   selected = signal<RubricAdmin | null>(null);
@@ -264,6 +267,8 @@ export class RubricsComponent implements OnInit {
     this.rubricService.list().subscribe({
       next: rubrics => {
         this.rubrics.set(rubrics);
+        this.message.set('');
+        this.messageIsError.set(false);
         this.loading.set(false);
         if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id);
       },
@@ -324,14 +329,13 @@ export class RubricsComponent implements OnInit {
       next: rubric => {
         this.selected.set(rubric);
         this.populate(rubric);
-        this.message.set('Rúbrica guardada.');
-        this.messageIsError.set(false);
+        this.notify.success('Rúbrica guardada.');
         this.saving.set(false);
         this.load();
       },
-      error: err => {
-        this.message.set(err.error?.message || 'No fue posible guardar la rúbrica.');
-        this.messageIsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible guardar la rúbrica.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       },
     });
@@ -359,12 +363,11 @@ export class RubricsComponent implements OnInit {
     if (!rubric || !caseVersionId) return;
     this.rubricService.assignToCaseVersion(caseVersionId, rubric.id).subscribe({
       next: () => {
-        this.message.set('Rúbrica asignada a la simulación.');
-        this.messageIsError.set(false);
+        this.notify.success('Rúbrica asignada a la simulación.');
       },
-      error: err => {
-        this.message.set(err.error?.message || 'No fue posible asignar la rúbrica.');
-        this.messageIsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible asignar la rúbrica.');
+        if (text) this.notify.error(text);
       },
     });
   }
@@ -416,13 +419,12 @@ export class RubricsComponent implements OnInit {
       next: updated => {
         this.selected.set(updated);
         this.populate(updated);
-        this.message.set(success);
-        this.messageIsError.set(false);
+        this.notify.success(success);
         this.load();
       },
-      error: err => {
-        this.message.set(err.error?.message || 'No fue posible actualizar la rúbrica.');
-        this.messageIsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar la rúbrica.');
+        if (text) this.notify.error(text);
       },
     });
   }

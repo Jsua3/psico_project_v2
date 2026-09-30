@@ -13,6 +13,8 @@ import { MatTableModule } from '@angular/material/table';
 import { AdminUser, UserAdminService, UserRole } from '../../core/api/user-admin.service';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 
 @Component({
   selector: 'app-admin-users',
@@ -242,6 +244,7 @@ export class UsersComponent implements OnInit {
   private readonly service = inject(UserAdminService);
   private readonly accessRequestsService = inject(AccessRequestAdminService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
@@ -411,13 +414,14 @@ export class UsersComponent implements OnInit {
           const exists = users.some(user => user.id === saved.id);
           return exists ? users.map(user => user.id === saved.id ? saved : user) : [...users, saved];
         });
-        this.message.set(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
+        this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
         this.saving.set(false);
         this.editUser(saved);
         this.loadAccessRequests();
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible guardar los cambios.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible guardar los cambios.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
@@ -437,13 +441,15 @@ export class UsersComponent implements OnInit {
     this.service.updateStatus(user.id, !user.activo).subscribe({
       next: saved => {
         this.users.update(users => users.map(item => item.id === saved.id ? saved : item));
-        this.message.set(saved.activo ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.');
+        this.notify.success(saved.activo ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.');
         this.statusConfirmTarget.set(null);
         this.saving.set(false);
         if (this.selectedUser()?.id === saved.id) this.editUser(saved);
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible actualizar el estado del usuario.');
+      error: (err: unknown) => {
+        this.statusConfirmTarget.set(null);
+        const text = apiErrorMessage(err, 'No fue posible actualizar el estado del usuario.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });

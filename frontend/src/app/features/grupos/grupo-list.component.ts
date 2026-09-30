@@ -13,6 +13,9 @@ import { GrupoService, Grupo, GrupoEstudiante, GrupoImportError, GrupoImportResu
 import { mapAgregarEstudianteError } from '../../core/api/grupo-error.utils';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
+import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
 
 @Component({
   selector: 'app-grupo-list',
@@ -20,7 +23,8 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
   imports: [
     CommonModule, ReactiveFormsModule,
     MatCardModule, MatButtonModule,
-    MatFormFieldModule, MatInputModule, MatIconModule, MatSelectModule, MatProgressBarModule
+    MatFormFieldModule, MatInputModule, MatIconModule, MatSelectModule, MatProgressBarModule,
+    ConfirmDialogComponent
   ],
   template: `
     <div class="page-header">
@@ -343,6 +347,15 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
         </mat-card-content>
       </mat-card>
     </div>
+
+    <app-confirm-dialog
+      [open]="!!pendingConfirm()"
+      [title]="pendingConfirm()?.title ?? 'Confirmar'"
+      [message]="pendingConfirm()?.message ?? ''"
+      [confirmLabel]="pendingConfirm()?.confirmLabel ?? 'Confirmar'"
+      (cancel)="pendingConfirm.set(null)"
+      (confirm)="runPendingConfirm()"
+    />
   `,
   styles: [`
     .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
@@ -583,6 +596,16 @@ export class GrupoListComponent implements OnInit {
   private grupoService = inject(GrupoService);
   private simulationService = inject(SimulationService);
   private fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
+
+  /** Acción destructiva pendiente de confirmar. */
+  readonly pendingConfirm = signal<{ title: string; message: string; confirmLabel: string; run: () => void } | null>(null);
+
+  runPendingConfirm(): void {
+    const pending = this.pendingConfirm();
+    this.pendingConfirm.set(null);
+    pending?.run();
+  }
 
   grupos = signal<Grupo[]>([]);
   grupoActivo = signal<Grupo | null>(null);
@@ -675,9 +698,11 @@ export class GrupoListComponent implements OnInit {
         this.grupos.update(list => [...list, g]);
         this.form.reset();
         this.saving.set(false);
+        this.notify.success('Grupo creado.');
       },
-      error: () => {
-        this.error.set('No fue posible crear el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible crear el grupo.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
@@ -706,42 +731,61 @@ export class GrupoListComponent implements OnInit {
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
         this.cancelarEdicion();
         this.saving.set(false);
+        this.notify.success('Grupo actualizado.');
       },
-      error: (err: HttpErrorResponse) => {
-        this.error.set(err.error?.message || 'No fue posible actualizar el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar el grupo.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
   }
 
   eliminarGrupo(grupo: Grupo) {
-    if (!confirm(`¿Borrar el grupo "${grupo.nombre}"? Se quitarán sus estudiantes y casos asignados. Esta acción no se puede deshacer.`)) return;
+    this.pendingConfirm.set({
+      title: 'Borrar grupo',
+      message: `¿Borrar el grupo "${grupo.nombre}"? Se quitarán sus estudiantes y casos asignados. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Borrar',
+      run: () => this.borrarGrupo(grupo),
+    });
+  }
+
+  private borrarGrupo(grupo: Grupo) {
     this.error.set('');
     this.grupoService.eliminar(grupo.id).subscribe({
       next: () => {
         this.grupos.update(list => list.filter(g => g.id !== grupo.id));
         if (this.grupoActivo()?.id === grupo.id) this.grupoActivo.set(null);
         if (this.editandoGrupo()?.id === grupo.id) this.cancelarEdicion();
+        this.notify.success('Grupo eliminado.');
       },
-      error: (err: HttpErrorResponse) => {
-        this.error.set(err.error?.message || 'No fue posible borrar el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible borrar el grupo.');
+        if (text) this.notify.error(text);
       }
     });
   }
 
   quitarEstudiante(grupo: Grupo, student: GrupoEstudiante) {
-    if (!confirm(`¿Quitar a ${student.nombre} ${student.apellido} del grupo?`)) return;
+    this.pendingConfirm.set({
+      title: 'Quitar estudiante',
+      message: `¿Quitar a ${student.nombre} ${student.apellido} del grupo?`,
+      confirmLabel: 'Quitar',
+      run: () => this.retirarEstudiante(grupo, student),
+    });
+  }
+
+  private retirarEstudiante(grupo: Grupo, student: GrupoEstudiante) {
     this.grupoService.quitarEstudiante(grupo.id, student.id).subscribe({
       next: actualizado => {
         this.estudiantes.update(list => list.filter(s => s.id !== student.id));
         this.grupos.update(list => list.map(g => g.id === actualizado.id ? actualizado : g));
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
-        this.mensajeEstudiante.set('Estudiante retirado del grupo.');
-        this.mensajeEsError.set(false);
+        this.notify.success('Estudiante retirado del grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible quitar al estudiante.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible quitar al estudiante.');
+        if (text) this.notify.error(text);
       }
     });
   }
@@ -769,12 +813,10 @@ export class GrupoListComponent implements OnInit {
 
   copiarCodigo(grupo: Grupo): void {
     const done = () => {
-      this.mensajeEstudiante.set(`Código ${grupo.codigo} copiado al portapapeles.`);
-      this.mensajeEsError.set(false);
+      this.notify.success(`Código ${grupo.codigo} copiado al portapapeles.`);
     };
     const fail = () => {
-      this.mensajeEstudiante.set(`Código del grupo: ${grupo.codigo}`);
-      this.mensajeEsError.set(false);
+      this.notify.info(`Código del grupo: ${grupo.codigo}`);
     };
 
     if (navigator.clipboard?.writeText) {
@@ -952,10 +994,11 @@ export class GrupoListComponent implements OnInit {
         this.casosAsignados.set(casos);
         this.casoForm.reset();
         this.asignandoCaso.set(false);
+        this.notify.success('Caso asignado al grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible asignar el caso al grupo.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible asignar el caso al grupo.');
+        if (text) this.notify.error(text);
         this.asignandoCaso.set(false);
       }
     });
@@ -969,10 +1012,11 @@ export class GrupoListComponent implements OnInit {
       next: casos => {
         this.casosAsignados.set(casos);
         this.asignandoCaso.set(false);
+        this.notify.success('Caso retirado del grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible retirar el caso del grupo.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible retirar el caso del grupo.');
+        if (text) this.notify.error(text);
         this.asignandoCaso.set(false);
       }
     });
