@@ -54,6 +54,8 @@ export class AudioDirectorService {
         loop: true,
         volume: 0,
         preload: true,
+        // Pista de ~150 s: HTML5 la transmite; Web Audio la decodificaría entera (~50 MB de PCM).
+        html5: true,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] No se pudo cargar ${src}:`, err),
       });
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
@@ -99,6 +101,7 @@ export class AudioDirectorService {
         loop: true,
         volume: this.musicVolume,
         preload: true,
+        html5: true,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
     }
@@ -179,6 +182,7 @@ export class AudioDirectorService {
 
   setMusicMuted(muted: boolean): void {
     this.musicMuted = muted;
+    this.introLament?.mute(muted);
     if (muted) {
       this.stems.forEach(stem => {
         stem.targetVolume = 0;

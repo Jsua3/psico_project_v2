@@ -90,3 +90,54 @@ describe('AudioDirectorService: bucle de fundido', () => {
     expect(ambientHowl().volume).toHaveBeenLastCalledWith(0);
   });
 });
+
+describe('AudioDirectorService: pistas largas y silencio', () => {
+  let service: AudioDirectorService;
+  const howlOptions = () =>
+    (Howl as unknown as jest.Mock).mock.calls.map(([options]) => options as { src: string[]; html5?: boolean });
+  const howlFor = (src: string) => {
+    const index = howlOptions().findIndex(options => options.src[0] === src);
+    return (Howl as unknown as jest.Mock).mock.results[index].value;
+  };
+
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+  });
+
+  beforeEach(() => {
+    (Howl as unknown as jest.Mock).mockClear();
+    TestBed.resetTestingModule();
+    service = TestBed.inject(AudioDirectorService);
+    service.init();
+  });
+
+  afterEach(() => service.dispose());
+
+  it('la música del mapa y el tema de la intro se transmiten con HTML5', () => {
+    service.playIntroLament();
+    const long = howlOptions().filter(options => options.src[0].endsWith('.mp3'));
+    expect(long.map(options => options.src[0])).toEqual([
+      'assets/game/audio/Musica_PsicoGame.mp3',
+      'assets/game/audio/PsicoLament.mp3',
+    ]);
+    for (const options of long) expect(options.html5).toBe(true);
+  });
+
+  it('los efectos cortos siguen en Web Audio', () => {
+    const sfx = howlOptions().filter(options => options.src[0].endsWith('.ogg'));
+    expect(sfx.length).toBeGreaterThan(0);
+    for (const options of sfx) expect(options.html5).toBeUndefined();
+  });
+
+  it('silenciar la música también silencia el tema de la intro', () => {
+    service.playIntroLament();
+    const lament = howlFor('assets/game/audio/PsicoLament.mp3');
+    service.setMusicMuted(true);
+    expect(lament.mute).toHaveBeenLastCalledWith(true);
+    service.setMusicMuted(false);
+    expect(lament.mute).toHaveBeenLastCalledWith(false);
+  });
+});
