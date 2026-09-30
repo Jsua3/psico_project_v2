@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
@@ -413,7 +413,19 @@ export class SimulationHudComponent {
   readonly toggleReduceMotion = output<void>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderer = inject(Renderer2);
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
+  private stopPointerListener: (() => void) | null = null;
+
+  constructor() {
+    // El oyente de clic fuera existe solo mientras Ajustes está abierto: uno global y
+    // permanente hace entrar en la zona de Angular cada toque de toda la pantalla de juego.
+    effect(() => {
+      if (this.settingsOpen()) this.listenOutsidePointer();
+      else this.unlistenOutsidePointer();
+    });
+    inject(DestroyRef).onDestroy(() => this.unlistenOutsidePointer());
+  }
 
   /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
   closeSettings(restoreFocus = true): void {
@@ -423,20 +435,31 @@ export class SimulationHudComponent {
   }
 
   /** `document` recibe la tecla antes que el `window:keydown` de la partida. Consumirla
-   *  evita que ese manejador la tome como «salida segura» y pause el intento. */
-  @HostListener('document:keydown', ['$event'])
+   *  evita que ese manejador la tome como «salida segura» y pause el intento. Con el filtro
+   *  `.escape` el plugin de teclas de Angular escucha fuera de la zona y solo entra en ella
+   *  cuando la tecla coincide (caminando llegan ~30 keydown por segundo). */
+  @HostListener('document:keydown.escape', ['$event'])
   onDocumentKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape' || event.defaultPrevented || !this.settingsOpen()) return;
+    if (event.defaultPrevented || !this.settingsOpen()) return;
     event.preventDefault();
     this.closeSettings();
   }
 
   /** Un toque o clic fuera del HUD cierra el menú sin robar el foco. */
-  @HostListener('document:pointerdown', ['$event'])
-  onDocumentPointerDown(event: Event): void {
+  private onDocumentPointerDown(event: Event): void {
     if (!this.settingsOpen()) return;
     if (this.host.nativeElement.contains(event.target as Node | null)) return;
     this.closeSettings(false);
+  }
+
+  private listenOutsidePointer(): void {
+    this.stopPointerListener ??= this.renderer.listen('document', 'pointerdown',
+      (event: Event) => this.onDocumentPointerDown(event));
+  }
+
+  private unlistenOutsidePointer(): void {
+    this.stopPointerListener?.();
+    this.stopPointerListener = null;
   }
 
   readonly stressTier = computed<StressTier>(() => {

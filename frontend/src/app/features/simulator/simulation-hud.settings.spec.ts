@@ -43,10 +43,74 @@ describe('HUD: menú de Ajustes', () => {
 
   it('un toque dentro del HUD no cierra Ajustes; uno fuera sí', () => {
     hud.settingsOpen.set(true);
+    fixture.detectChanges();
     (fixture.nativeElement as HTMLElement).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
     expect(hud.settingsOpen()).toBe(true);
     document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
     expect(hud.settingsOpen()).toBe(false);
+  });
+
+  describe('oyentes globales solo cuando hacen falta', () => {
+    function pointerdownRegistrations(spy: jest.SpyInstance): number {
+      return spy.mock.calls.filter(([type]) => type === 'pointerdown').length;
+    }
+
+    it('con Ajustes cerrado no hay oyente de pointerdown en document', () => {
+      const add = jest.spyOn(document, 'addEventListener');
+      const fresh = TestBed.createComponent(SimulationHudComponent);
+      fresh.detectChanges();
+      expect(pointerdownRegistrations(add)).toBe(0);
+      add.mockRestore();
+    });
+
+    it('se registra al abrir Ajustes y se retira al cerrar', () => {
+      const add = jest.spyOn(document, 'addEventListener');
+      const remove = jest.spyOn(document, 'removeEventListener');
+      hud.settingsOpen.set(true);
+      fixture.detectChanges();
+      expect(pointerdownRegistrations(add)).toBe(1);
+      expect(pointerdownRegistrations(remove)).toBe(0);
+
+      hud.settingsOpen.set(false);
+      fixture.detectChanges();
+      expect(pointerdownRegistrations(remove)).toBe(1);
+
+      // Ya cerrado, un toque fuera no hace nada y volver a abrir registra de nuevo.
+      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      expect(hud.settingsOpen()).toBe(false);
+      hud.settingsOpen.set(true);
+      fixture.detectChanges();
+      expect(pointerdownRegistrations(add)).toBe(2);
+      add.mockRestore();
+      remove.mockRestore();
+    });
+
+    it('abrir dos veces seguidas no duplica el oyente', () => {
+      const add = jest.spyOn(document, 'addEventListener');
+      hud.settingsOpen.set(true);
+      fixture.detectChanges();
+      hud.settingsOpen.set(false);
+      hud.settingsOpen.set(true);
+      fixture.detectChanges();
+      expect(pointerdownRegistrations(add)).toBe(1);
+      add.mockRestore();
+    });
+
+    it('destruir el HUD con Ajustes abierto retira el oyente', () => {
+      const remove = jest.spyOn(document, 'removeEventListener');
+      hud.settingsOpen.set(true);
+      fixture.detectChanges();
+      fixture.destroy();
+      expect(pointerdownRegistrations(remove)).toBe(1);
+      remove.mockRestore();
+    });
+
+    it('el teclado solo entra en la zona con Escape: no hay HostListener de document:keydown genérico', () => {
+      expect(hudSource).toContain("@HostListener('document:keydown.escape', ['$event'])");
+      expect(hudSource).not.toContain("@HostListener('document:keydown', ");
+      expect(hudSource).not.toContain("@HostListener('document:pointerdown'");
+      expect(hudSource).toMatch(/renderer\.listen\('document', 'pointerdown'/);
+    });
   });
 
   it('el engranaje anuncia si el menú está abierto y recibe el foco al cerrar', () => {
