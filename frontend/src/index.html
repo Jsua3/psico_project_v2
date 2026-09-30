@@ -12,8 +12,91 @@
   <link rel="preload" href="/assets/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/assets/fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/assets/fonts/poppins-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Pantalla de arranque: se ve mientras llega el bundle; Angular la reemplaza al arrancar. */
+    .siep-boot {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 14px;
+      background: #F2F2F2;
+      color: #5F6B76;
+      font: 500 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      text-align: center;
+      animation: siep-boot-in 240ms ease-out 200ms both;
+    }
+    .siep-boot__mark { display: block; width: 64px; height: 64px; }
+    .siep-boot__label { margin: 0; }
+    .siep-boot__bar {
+      position: relative;
+      width: 120px;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(0, 72, 118, .14);
+      overflow: hidden;
+    }
+    .siep-boot__bar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      width: 40%;
+      border-radius: inherit;
+      background: #004876;
+      animation: siep-boot-slide 1100ms cubic-bezier(.65, 0, .35, 1) infinite;
+    }
+    .siep-boot__slow { display: grid; gap: 10px; justify-items: center; max-width: 30ch; }
+    .siep-boot__slow[hidden] { display: none; }
+    .siep-boot__slow p { margin: 0; }
+    .siep-boot__reload {
+      min-height: 44px;
+      padding: 0 20px;
+      border: 0;
+      border-radius: 999px;
+      background: #004876;
+      color: #FFFFFF;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .siep-boot__reload:focus-visible { outline: 3px solid #0B5A8A; outline-offset: 3px; }
+    @keyframes siep-boot-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes siep-boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @media (prefers-reduced-motion: reduce) {
+      .siep-boot__bar::after { animation: none; width: 100%; opacity: .5; }
+    }
+  </style>
+  <!-- Sin JavaScript la pantalla de arranque (fija, a pantalla completa) taparía el aviso del cuerpo. -->
+  <noscript>
+    <style>
+      .siep-boot { display: none; }
+    </style>
+  </noscript>
 </head>
 <body>
-  <app-root></app-root>
+  <app-root>
+    <div class="siep-boot" role="status">
+      <img class="siep-boot__mark" src="/assets/favicon-siep.svg" alt="" width="64" height="64">
+      <p class="siep-boot__label">Cargando SIEP…</p>
+      <div class="siep-boot__bar" aria-hidden="true"></div>
+      <div class="siep-boot__slow" hidden>
+        <p>Esto está tardando más de lo normal. Revisa tu conexión y vuelve a intentarlo.</p>
+        <button type="button" class="siep-boot__reload" onclick="location.reload()">Recargar</button>
+      </div>
+    </div>
+  </app-root>
+  <noscript>
+    <p style="margin:0;padding:24px;font:500 16px/1.5 system-ui,sans-serif;color:#101820;background:#F2F2F2;text-align:center">
+      SIEP necesita JavaScript para funcionar. Actívalo en tu navegador y recarga la página.
+    </p>
+  </noscript>
+  <script>
+    // Si a los 12 s Angular todavía no reemplazó la pantalla de arranque, ofrecer recargar.
+    setTimeout(function () {
+      var slow = document.querySelector('.siep-boot .siep-boot__slow');
+      if (slow) slow.hidden = false;
+    }, 12000);
+  </script>
 </body>
 </html>
