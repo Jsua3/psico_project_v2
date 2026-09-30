@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -37,12 +37,11 @@ import {
 import { getSceneGuide } from './scene-guide.config';
 import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
+import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 
-const SIMULATOR_INTRO_VIDEO = 'assets/video/fondoHabitacion.mp4';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
-const CASE_INTRO_AUDIO = 'PsicoLament';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
   'Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.',
@@ -58,7 +57,7 @@ const CASE_INTRO_PARAGRAPHS = [
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -155,28 +154,25 @@ const CASE_INTRO_PARAGRAPHS = [
         }
 
         @if (worldStarted()) {
-        @if (showIntroVideo()) {
-          <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
-            <article class="intro-video-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
-              <header class="intro-video-card__header">
+        @if (showIntroScene()) {
+          <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-scene-title">
+            <article class="case-intro-card case-intro-card--scene" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+              <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Introducción</p>
-                <h2 id="intro-video-title">Antes de comenzar</h2>
-                <span>Contexto visual del escenario</span>
+                <h2 id="intro-scene-title">Antes de comenzar</h2>
               </header>
 
-              <div class="intro-video-card__media">
-                <video #introVideo class="intro-video" [src]="introVideoSrc" playsinline
-                  (loadeddata)="playIntroVideo()" (ended)="onIntroVideoEnded()"></video>
+              <div class="case-intro-card__media">
+                <app-case-intro-scene [reduceMotion]="reduceMotion()" />
               </div>
 
-              <footer class="intro-video-card__actions">
-                @if (introVideoEnded()) {
-                  <span>Video completado. Continúa para leer el contexto del caso.</span>
-                } @else {
-                  <span>Reproduce el video o continúa cuando quieras.</span>
-                }
-                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
-                  {{ introVideoEnded() ? 'Continuar' : 'Saltar video' }}
+              <footer class="case-intro-card__actions">
+                <button type="button" class="intro-music-toggle" [attr.aria-pressed]="musicMuted()" (click)="toggleMusicMute()">
+                  <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
+                  <span>Silenciar música</span>
+                </button>
+                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
+                  Continuar
                 </button>
               </footer>
             </article>
@@ -189,7 +185,10 @@ const CASE_INTRO_PARAGRAPHS = [
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Primera escena</p>
                 <h2 id="case-intro-title">{{ caseIntroTitle }}</h2>
-                <span>{{ caseIntroAudio }} está sonando</span>
+                <button type="button" class="intro-music-toggle" [attr.aria-pressed]="musicMuted()" (click)="toggleMusicMute()">
+                  <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
+                  <span>Silenciar música</span>
+                </button>
               </header>
 
               <div class="case-intro-card__body" tabindex="0" aria-label="Contexto narrativo del caso">
@@ -601,91 +600,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .case-intro-overlay.content-warning-overlay { z-index: 395; }
     .case-intro-card.content-warning-card { width: min(640px, 100%); }
 
-    .intro-video-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 390;
-      display: grid;
-      place-items: center;
-      padding: clamp(14px, 4vw, 32px);
-      background:
-        radial-gradient(circle at 50% 20%, rgba(124,77,255,.16), transparent 40%),
-        rgba(5,8,14,.92);
-      backdrop-filter: blur(8px);
-    }
-    .intro-video-card {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
-      width: min(860px, 100%);
-      max-height: min(88vh, 760px);
-      border: 1px solid rgba(182,156,255,.34);
-      border-radius: 18px;
-      overflow: hidden;
-      color: var(--sim-ink);
-      background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
-      box-shadow:
-        inset 0 0 0 1px rgba(255,255,255,.04),
-        0 28px 80px -36px rgba(124,77,255,.75);
-    }
-    .intro-video-card__header {
-      display: grid;
-      gap: 8px;
-      padding: clamp(18px, 4vw, 28px) clamp(18px, 4vw, 32px) 16px;
-      border-bottom: 1px solid rgba(182,156,255,.18);
-      background: rgba(124,77,255,.08);
-    }
-    .intro-video-card__header h2 {
-      margin: 0;
-      font-size: clamp(1.25rem, 3.6vw, 2rem);
-      line-height: 1.15;
-      color: #fff;
-    }
-    .intro-video-card__header span {
-      width: fit-content;
-      padding: 5px 10px;
-      border: 1px solid rgba(108,192,199,.32);
-      border-radius: 999px;
-      color: #bdeef2;
-      background: rgba(108,192,199,.1);
-      font-size: .74rem;
-      font-weight: 800;
-      letter-spacing: .04em;
-    }
-    .intro-video-card__media {
-      min-height: 0;
-      display: grid;
-      place-items: center;
-      padding: 12px clamp(14px, 3vw, 24px);
-      background: #05080e;
-    }
-    .intro-video {
-      display: block;
-      width: 100%;
-      max-height: min(52vh, 420px);
-      border-radius: 12px;
-      border: 1px solid rgba(182,156,255,.24);
-      background: #000;
-      object-fit: contain;
-    }
-    .intro-video-card__actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 16px clamp(18px, 4vw, 32px);
-      border-top: 1px solid rgba(182,156,255,.18);
-      background: rgba(5,8,14,.62);
-    }
-    .intro-video-card__actions span {
-      color: rgba(244,247,251,.58);
-      font-size: .78rem;
-      line-height: 1.4;
-    }
-    .intro-video-card__actions .psy-button {
-      flex-shrink: 0;
-      min-width: 140px;
-    }
-
     .case-intro-overlay {
       position: absolute;
       inset: 0;
@@ -724,16 +638,41 @@ const CASE_INTRO_PARAGRAPHS = [
       line-height: 1.15;
       color: #fff;
     }
-    .case-intro-card__header span {
+    .intro-music-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       width: fit-content;
-      padding: 5px 10px;
+      min-height: 44px;
+      padding: 0 14px;
       border: 1px solid rgba(108,192,199,.32);
       border-radius: 999px;
       color: #bdeef2;
       background: rgba(108,192,199,.1);
-      font-size: .74rem;
-      font-weight: 800;
-      letter-spacing: .04em;
+      font: inherit;
+      font-size: .8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+    .intro-music-toggle[aria-pressed="true"] {
+      color: rgba(244,247,251,.7);
+      border-color: rgba(244,247,251,.24);
+      background: transparent;
+    }
+    .intro-music-toggle mat-icon { width: 18px; height: 18px; font-size: 18px; }
+    @media (hover: hover) and (pointer: fine) {
+      .intro-music-toggle:hover { background: rgba(108,192,199,.18); }
+    }
+    .case-intro-card--scene { width: min(860px, 100%); max-height: min(88vh, 760px); }
+    .case-intro-card__media {
+      min-height: 0;
+      display: grid;
+      /* Sin esto la pista «auto» crece al ancho del escenario (384 px) y en móvil no se recorta. */
+      grid-template-columns: minmax(0, 1fr);
+      place-items: center;
+      padding: 12px clamp(14px, 3vw, 24px);
+      background: #05080e;
     }
     .case-intro-card__body {
       min-height: 0;
@@ -761,7 +700,7 @@ const CASE_INTRO_PARAGRAPHS = [
       border-top: 1px solid rgba(182,156,255,.18);
       background: rgba(5,8,14,.62);
     }
-    .case-intro-card__actions span {
+    .case-intro-card__actions > span {
       color: rgba(244,247,251,.58);
       font-size: .78rem;
       line-height: 1.4;
@@ -904,13 +843,6 @@ const CASE_INTRO_PARAGRAPHS = [
         justify-items: stretch;
       }
       .case-intro-card__actions .psy-button { width: 100%; }
-      .intro-video-overlay { padding: 10px; }
-      .intro-video-card { max-height: 92vh; border-radius: 14px; }
-      .intro-video-card__actions {
-        display: grid;
-        justify-items: stretch;
-      }
-      .intro-video-card__actions .psy-button { width: 100%; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
@@ -932,7 +864,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
-  @ViewChild('introVideo')   private introVideoRef?: ElementRef<HTMLVideoElement>;
 
   readonly attempt    = signal<SimulationAttemptState | null>(null);
   readonly pendingActiveAttempt = signal<SimulationAttemptState | null>(null);
@@ -960,16 +891,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
-  /** Advertencia de contenido: ETH-01 — precede a video, narrativa y gameplay. */
+  /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
   /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
   readonly worldStarted = signal(false);
-  readonly showIntroVideo = signal(false);
-  readonly introVideoEnded = signal(false);
-  readonly introVideoSrc = SIMULATOR_INTRO_VIDEO;
+  readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
   readonly caseIntroTitle = CASE_INTRO_TITLE;
-  readonly caseIntroAudio = CASE_INTRO_AUDIO;
   readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
   readonly musicMuted = signal(false);
   readonly sfxMuted = signal(false);
@@ -1001,7 +929,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
-    this.showResumePrompt() || this.showContentWarning() || this.showIntroVideo()
+    this.showResumePrompt() || this.showContentWarning() || this.showIntroScene()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
@@ -1038,7 +966,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly doorInteractionRearmDistance = 72;
 
   ngOnDestroy(): void {
-    this.introVideoRef?.nativeElement?.pause();
     this.audioDirector.stopIntroLament();
     this.audioDirector.dispose();
   }
@@ -1167,16 +1094,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.showIntroVideo()) {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.continueFromIntroVideo();
+    if (this.showIntroScene() || this.showCaseIntro()) {
+      // Los botones de las tarjetas (Continuar, Silenciar música) se activan solos.
+      if (tag === 'BUTTON' || tag === 'A') {
+        this.activateCardButtonIfCancelled(event);
+        return;
       }
-      return;
-    }
-
-    if (this.showCaseIntro()) {
-      if (event.key === 'Enter') {
+      if (this.showIntroScene() && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        this.continueFromIntroScene();
+      } else if (this.showCaseIntro() && event.key === 'Enter') {
         event.preventDefault();
         this.continueFromCaseIntro();
       }
@@ -1214,6 +1141,19 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.openInteraction(nb);
     }
+  }
+
+  /**
+   * Con el mundo vivo detrás de la tarjeta, Phaser captura Enter y Espacio en `window` y cancela
+   * la activación nativa de los botones. Su manejador corre después del nuestro, así que se
+   * mira al terminar el despacho: si la tecla quedó cancelada, el botón se activa a mano; si no,
+   * se activa solo y aquí no se hace nada (evita la doble activación).
+   */
+  private activateCardButtonIfCancelled(event: KeyboardEvent): void {
+    const button = event.target as HTMLElement | null;
+    if (button?.tagName !== 'BUTTON' || event.repeat) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    window.setTimeout(() => { if (event.defaultPrevented) button.click(); });
   }
 
   openInteraction(interaction: MapObjectState) {
@@ -1737,8 +1677,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   toggleMusicMute(): void {
     const muted = this.audioDirector.toggleMusicMuted();
     this.musicMuted.set(muted);
-    if (!muted) this.audioDirector.setStressLevel(this.attempt()?.stressIndex ?? 0);
-    this.announce(muted ? 'Musica silenciada.' : 'Musica activada.');
+    if (!muted) {
+      // Durante la intro vuelve su tema; en la partida, la música adaptativa del mapa.
+      if (this.showIntroScene() || this.showCaseIntro()) this.audioDirector.playIntroLament();
+      else this.audioDirector.setStressLevel(this.attempt()?.stressIndex ?? 0);
+    }
+    this.announce(muted ? 'Música silenciada.' : 'Música activada.');
   }
 
   toggleSfxMute(): void {
@@ -1930,9 +1874,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       case 'consent':
         this.showContentWarning.set(true);
         return;
-      case 'video':
-        this.introVideoEnded.set(false);
-        this.showIntroVideo.set(true);
+      case 'scene':
+        this.showIntroScene.set(true);
+        // El tema acompaña la escena y sigue en la tarjeta del caso.
+        this.audioDirector.playIntroLament();
         return;
       case 'narrative':
         this.revealCaseIntro();
@@ -1961,20 +1906,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
   }
 
-  playIntroVideo(): void {
-    const video = this.introVideoRef?.nativeElement;
-    if (!video || this.introVideoEnded()) return;
-    void video.play().catch(() => undefined);
-  }
-
-  onIntroVideoEnded(): void {
-    this.introVideoEnded.set(true);
-  }
-
-  continueFromIntroVideo(): void {
-    this.introVideoRef?.nativeElement?.pause();
-    this.showIntroVideo.set(false);
-    this.introVideoEnded.set(false);
+  continueFromIntroScene(): void {
+    this.showIntroScene.set(false);
     this.revealCaseIntro();
   }
 

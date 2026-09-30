@@ -77,6 +77,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     stopIntroLament: jest.Mock;
     playIntroLament: jest.Mock;
     playSfx: jest.Mock;
+    toggleMusicMuted: jest.Mock;
   };
   let router: { navigate: jest.Mock };
 
@@ -104,6 +105,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       stopIntroLament: jest.fn(),
       playIntroLament: jest.fn(),
       playSfx: jest.fn(),
+      toggleMusicMuted: jest.fn(() => false),
     };
     router = { navigate: jest.fn() };
 
@@ -208,7 +210,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
 
     expect(component.showContentWarning()).toBe(true);
-    expect(component.showIntroVideo()).toBe(false);
+    expect(component.showIntroScene()).toBe(false);
     expect(component.worldStarted()).toBe(false);
     expect(audio.init).not.toHaveBeenCalled();
     expect(sim.getWorld).not.toHaveBeenCalled();
@@ -279,6 +281,84 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(event);
 
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('Enter sobre un botón de la tarjeta del caso lo activa en vez de saltar la tarjeta', () => {
+    setup(makeAttempt());
+    component.showCaseIntro.set(true);
+    const button = document.createElement('button');
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    Object.defineProperty(event, 'target', { value: button });
+
+    component.handleGlobalInteraction(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(component.showCaseIntro()).toBe(true);
+  });
+
+  it('activar la música durante la intro vuelve a su tema, no a la música del mapa', () => {
+    setup(makeAttempt());
+    component.showCaseIntro.set(true);
+
+    component.toggleMusicMute();
+
+    expect(audio.playIntroLament).toHaveBeenCalled();
+    expect(audio.setStressLevel).not.toHaveBeenCalled();
+  });
+
+  describe('activación por teclado de los botones de las tarjetas de la intro', () => {
+    function keydownOn(button: HTMLElement, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
+      Object.defineProperty(event, 'target', { value: button });
+      return event;
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('si Phaser cancela Enter o Espacio en window, el botón de la tarjeta se activa a mano', () => {
+      setup(makeAttempt());
+      component.showIntroScene.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      for (const key of ['Enter', ' ']) {
+        const event = keydownOn(button, key);
+        component.handleGlobalInteraction(event);
+        expect(event.defaultPrevented).toBe(false); // el manejador no cancela: lo hace Phaser después
+        event.preventDefault(); // Phaser captura estas teclas y cancela la activación nativa
+        jest.runAllTimers();
+      }
+
+      expect(click).toHaveBeenCalledTimes(2);
+      expect(component.showIntroScene()).toBe(true);
+    });
+
+    it('si nadie cancela la tecla, el botón se activa solo (sin doble activación)', () => {
+      setup(makeAttempt());
+      component.showCaseIntro.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      component.handleGlobalInteraction(keydownOn(button, 'Enter'));
+      jest.runAllTimers();
+
+      expect(click).not.toHaveBeenCalled();
+    });
+
+    it('mantener la tecla pulsada no repite la activación', () => {
+      setup(makeAttempt());
+      component.showIntroScene.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      const event = keydownOn(button, ' ', { repeat: true });
+      component.handleGlobalInteraction(event);
+      event.preventDefault();
+      jest.runAllTimers();
+
+      expect(click).not.toHaveBeenCalled();
+    });
   });
 
   it('mantiene el atajo J aunque el foco venga del botón que cerró un overlay', () => {
