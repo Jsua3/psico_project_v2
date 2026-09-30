@@ -1,0 +1,56 @@
+# Recorridos completos del caso (@full-case, 4 viewports). Fuera del CI de los
+# PR: en el runner sin GPU cada recorrido tarda ~3-4x más que en local y el
+# job completo ronda los 30 min. Corre cada noche sobre master y a mano
+# (Actions → "E2E recorridos completos" → Run workflow, eligiendo la rama).
+name: E2E recorridos completos
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # 02:00 en Colombia (UTC-5)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-full-case-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  full-case:
+    name: E2E full-case (4 viewports)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend_django/requirements.txt
+      - name: Crear venv del backend
+        run: |
+          python -m venv backend_django/.venv
+          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+      - run: npm ci --prefix frontend
+      - name: Instalar Chromium de Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --grep @full-case
+      - name: Subir artefactos de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-full-case-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
