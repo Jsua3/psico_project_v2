@@ -9,18 +9,42 @@ export interface NotificationMessage {
   text: string;
 }
 
+/** Máximo de avisos visibles a la vez; al superarlo se descarta el más antiguo. */
+export const MAX_NOTIFICATIONS = 4;
+
+/** Duración por tipo. Los errores (0) esperan a que el usuario los cierre (WCAG 2.2.1). */
+const AUTO_CLOSE_MS: Record<NotificationType, number> = {
+  success: 5000,
+  info: 5000,
+  warning: 8000,
+  error: 0,
+};
+
+interface Timer {
+  handle: ReturnType<typeof setTimeout> | null;
+  remaining: number;
+  startedAt: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   private nextId = 1;
+  private readonly timers = new Map<number, Timer>();
   private readonly messagesSubject = new BehaviorSubject<NotificationMessage[]>([]);
   readonly messages$ = this.messagesSubject.asObservable();
 
-  show(type: NotificationType, text: string, autoCloseMs = 5000): void {
+  show(type: NotificationType, text: string, autoCloseMs = AUTO_CLOSE_MS[type]): void {
     const message: NotificationMessage = { id: this.nextId++, type, text };
-    this.messagesSubject.next([...this.messagesSubject.value, message]);
+    const next = [...this.messagesSubject.value, message];
+    while (next.length > MAX_NOTIFICATIONS) {
+      const dropped = next.shift()!;
+      this.clearTimer(dropped.id);
+    }
+    this.messagesSubject.next(next);
 
     if (autoCloseMs > 0) {
-      setTimeout(() => this.dismiss(message.id), autoCloseMs);
+      this.timers.set(message.id, { handle: null, remaining: autoCloseMs, startedAt: 0 });
+      this.resume(message.id);
     }
   }
 
@@ -40,11 +64,36 @@ export class NotificationService {
     this.show('info', text);
   }
 
+  /** Detiene el cierre automático (cursor o foco sobre el aviso). */
+  pause(id: number): void {
+    const timer = this.timers.get(id);
+    if (!timer || timer.handle === null) return;
+    clearTimeout(timer.handle);
+    timer.handle = null;
+    timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
+  }
+
+  /** Retoma el cierre automático con el tiempo que quedaba. */
+  resume(id: number): void {
+    const timer = this.timers.get(id);
+    if (!timer || timer.handle !== null) return;
+    timer.startedAt = Date.now();
+    timer.handle = setTimeout(() => this.dismiss(id), timer.remaining);
+  }
+
   dismiss(id: number): void {
+    this.clearTimer(id);
     this.messagesSubject.next(this.messagesSubject.value.filter(message => message.id !== id));
   }
 
   clear(): void {
+    for (const id of this.timers.keys()) this.clearTimer(id);
     this.messagesSubject.next([]);
+  }
+
+  private clearTimer(id: number): void {
+    const timer = this.timers.get(id);
+    if (timer?.handle) clearTimeout(timer.handle);
+    this.timers.delete(id);
   }
 }
