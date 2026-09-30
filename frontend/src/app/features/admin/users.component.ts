@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -15,6 +15,7 @@ import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 
 @Component({
   selector: 'app-admin-users',
@@ -153,16 +154,23 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
               <mat-form-field appearance="outline">
                 <mat-label>Nombre</mat-label>
                 <input matInput formControlName="nombre">
+                <mat-error>Escribe el nombre.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>Apellido</mat-label>
                 <input matInput formControlName="apellido">
+                <mat-error>Escribe el apellido.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>Email</mat-label>
                 <input matInput formControlName="email" type="email">
+                @if (form.controls.email.hasError('required')) {
+                  <mat-error>Escribe el correo.</mat-error>
+                } @else {
+                  <mat-error>Escribe un correo válido.</mat-error>
+                }
               </mat-form-field>
 
               <mat-form-field appearance="outline">
@@ -172,15 +180,22 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
                     <mat-option [value]="role">{{ role }}</mat-option>
                   }
                 </mat-select>
+                <mat-error>Elige un rol.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>{{ selectedUser() ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</mat-label>
                 <input matInput formControlName="password" type="password" autocomplete="new-password">
+                <mat-hint>Mínimo 8 caracteres.</mat-hint>
+                @if (form.controls.password.hasError('required')) {
+                  <mat-error>La contraseña es obligatoria al crear un usuario.</mat-error>
+                } @else {
+                  <mat-error>Usa al menos 8 caracteres.</mat-error>
+                }
               </mat-form-field>
 
               <div class="form-actions">
-                <button class="psy-button psy-button--primary" type="submit" [disabled]="form.invalid || saving()">
+                <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
                   <mat-icon>save</mat-icon>
                   {{ saving() ? 'Guardando...' : 'Guardar' }}
                 </button>
@@ -245,6 +260,7 @@ export class UsersComponent implements OnInit {
   private readonly accessRequestsService = inject(AccessRequestAdminService);
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
@@ -273,7 +289,15 @@ export class UsersComponent implements OnInit {
       : `¿Activar a ${user.nombre} ${user.apellido}?`;
   }
 
+  /** Al crear, la contraseña es obligatoria; al editar, vacía significa «no cambiarla». */
+  private setPasswordRules(creating: boolean): void {
+    const password = this.form.controls.password;
+    password.setValidators(creating ? [Validators.required, Validators.minLength(8)] : [Validators.minLength(8)]);
+    password.updateValueAndValidity({ emitEvent: false });
+  }
+
   ngOnInit() {
+    this.setPasswordRules(true);
     this.load();
     this.loadAccessRequests();
   }
@@ -294,6 +318,7 @@ export class UsersComponent implements OnInit {
       role: 'ESTUDIANTE',
       password: '',
     });
+    this.setPasswordRules(true);
     this.message.set(`Solicitud de ${request.nombre} ${request.apellido} lista para crear usuario.`);
     this.error.set('');
   }
@@ -351,6 +376,7 @@ export class UsersComponent implements OnInit {
       role: 'ESTUDIANTE',
       password: ''
     });
+    this.setPasswordRules(true);
     this.message.set('');
     this.error.set('');
   }
@@ -364,6 +390,7 @@ export class UsersComponent implements OnInit {
       role: user.role,
       password: ''
     });
+    this.setPasswordRules(false);
     this.message.set('');
     this.error.set('');
   }
@@ -372,22 +399,12 @@ export class UsersComponent implements OnInit {
     if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error.set('Revisa los campos obligatorios.');
+      focusFirstInvalid(this.host.nativeElement);
       return;
     }
     const selected = this.selectedUser();
     const value = this.form.getRawValue();
     const email = value.email.trim().toLowerCase();
-    if (!selected && !value.password) {
-      this.form.controls.password.markAsTouched();
-      this.error.set('La contraseña es obligatoria al crear usuarios.');
-      return;
-    }
-    if (!selected && value.password.length < 8) {
-      this.form.controls.password.markAsTouched();
-      this.error.set('La contraseña debe tener al menos 8 caracteres.');
-      return;
-    }
     this.saving.set(true);
     this.error.set('');
     this.message.set('');

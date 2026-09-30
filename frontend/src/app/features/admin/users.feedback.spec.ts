@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of, throwError } from 'rxjs';
 
@@ -35,6 +36,7 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
         { provide: NotificationService, useValue: notify },
+        { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
     component = TestBed.runInInjectionContext(() => new UsersComponent());
@@ -110,18 +112,18 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
       expect(component.saving()).toBe(false);
     });
 
-    it('las validaciones de campos siguen en línea y no llaman al backend', () => {
+    it('las validaciones de campos siguen en línea (mat-error) y no llaman al backend ni avisan', () => {
       component.newUser();
       component.save();
 
-      expect(component.error()).toBe('Revisa los campos obligatorios.');
+      expect(component.form.invalid).toBe(true);
       expect(notify.error).not.toHaveBeenCalled();
       expect(service.create).not.toHaveBeenCalled();
 
       component.form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test' });
       component.save();
 
-      expect(component.error()).toBe('La contraseña es obligatoria al crear usuarios.');
+      expect(component.form.controls.password.hasError('required')).toBe(true);
       expect(notify.error).not.toHaveBeenCalled();
       expect(service.create).not.toHaveBeenCalled();
     });
@@ -267,6 +269,7 @@ describe('usuarios: el aviso de éxito no se borra al guardar (NotificationServi
       providers: [
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
+        { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
     const notify = TestBed.inject(NotificationService);
