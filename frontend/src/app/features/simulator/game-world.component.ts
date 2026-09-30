@@ -54,6 +54,7 @@ import {
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
+import { isCriticalAsset } from './asset-criticality.util';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -102,6 +103,10 @@ interface WorldCallbacks {
   onRoomExit:    (targetRoomKey: string, entryX: number, entryY: number) => void;
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
+  /** Progreso de la precarga, 0-100 (solo la carga inicial). */
+  onLoadProgress: (percent: number) => void;
+  /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
+  onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
 }
@@ -217,8 +222,20 @@ class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.on('loaderror', (_file: Phaser.Loader.File) => {
-      // Missing asset — fallback rendering used
+    // Cargas posteriores (hojas bajo demanda) no deben reabrir la capa de carga:
+    // por eso ambos oyentes ignoran lo que llega después de la carga inicial.
+    const criticalFailures: string[] = [];
+    let lastPercent = -1;
+    this.load.on('progress', (value: number) => {
+      if (this.assetsLoaded) return;
+      const percent = Math.round(value * 100);
+      if (percent === lastPercent) return;
+      lastPercent = percent;
+      this.callbacks.onLoadProgress(percent);
+    });
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      // Lo decorativo cae a su respaldo; un mapa o tileset deja la sala en paneles planos.
+      if (!this.assetsLoaded && isCriticalAsset(file.key)) criticalFailures.push(file.key);
     });
 
     // ── Plain images for Tiled tilemap layer rendering (all 3 Kenney packs) ──
@@ -336,7 +353,10 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.load.audio('step2', '/assets/game/audio/footstep_concrete_002.ogg');
     this.load.audio('proximity-blip', '/assets/game/audio/blip_select.ogg');
 
-    this.load.once('complete', () => { this.assetsLoaded = true; });
+    this.load.once('complete', () => {
+      this.assetsLoaded = true;
+      this.callbacks.onLoadComplete(criticalFailures);
+    });
   }
 
   create() {
@@ -2206,6 +2226,25 @@ class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
+    @if (!assetsReady()) {
+      <div class="world-loading">
+        <p class="world-loading__label" role="status">Preparando la escena…</p>
+        <div class="world-loading__track" role="progressbar" aria-label="Carga de la escena"
+          aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="loadPercent()">
+          <span class="world-loading__fill" [style.transform]="'scaleX(' + loadPercent() / 100 + ')'"></span>
+        </div>
+        <p class="world-loading__percent" aria-hidden="true">{{ loadPercent() }}&nbsp;%</p>
+      </div>
+    }
+    @if (criticalLoadFailed()) {
+      <div class="world-load-warning" role="alert">
+        <p>Parte del mapa no cargó y la sala se ve simplificada.</p>
+        <div class="world-load-warning__actions">
+          <button type="button" class="psy-button" (click)="retryLoad()">Reintentar</button>
+          <button type="button" class="psy-button psy-button--ghost" (click)="dismissLoadWarning()">Seguir así</button>
+        </div>
+      </div>
+    }
     <div class="touch-controls" role="group" aria-label="Controles táctiles">
       <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"
         (pointerdown)="holdDirection($event, 'up')" (pointerup)="releaseDirection()"
@@ -2257,6 +2296,59 @@ class DataDrivenWorldScene extends Phaser.Scene {
       -webkit-touch-callout: none;
     }
     .touch-interact { font-size: .82rem; }
+    /* Aparece solo si la carga pasa de 300 ms: con caché caliente no parpadea. */
+    .world-loading {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 10px;
+      background: #0e1322;
+      color: #e8f0f4;
+      animation: world-loading-in 200ms var(--psy-ease-out) 300ms both;
+    }
+    .world-loading__label { margin: 0; font-size: .95rem; }
+    .world-loading__track {
+      width: min(280px, 70vw);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(182,156,255,.18);
+      overflow: hidden;
+    }
+    .world-loading__fill {
+      display: block;
+      height: 100%;
+      background: #b69cff;
+      transform-origin: left center;
+      transition: transform 160ms linear;
+    }
+    .world-loading__percent {
+      margin: 0;
+      font: 600 .8rem/1 'JetBrains Mono', ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+      color: rgba(232,240,244,.72);
+    }
+    .world-load-warning {
+      position: absolute;
+      left: 50%;
+      top: 16px;
+      z-index: 51;
+      transform: translateX(-50%);
+      width: min(420px, calc(100% - 32px));
+      display: grid;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid rgba(245,184,75,.45);
+      border-radius: 10px;
+      background: rgba(8,12,18,.94);
+      color: #e8f0f4;
+      text-align: center;
+    }
+    .world-load-warning p { margin: 0; }
+    .world-load-warning__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    @keyframes world-loading-in { from { opacity: 0; } to { opacity: 1; } }
     /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
     @media (pointer: coarse) { .touch-controls { display: grid; } }
   `]
@@ -2280,6 +2372,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
+  /** Progreso real de la precarga de Phaser (0-100). */
+  readonly loadPercent = signal(0);
+  /** true cuando terminó la precarga inicial (con o sin fallos). */
+  readonly assetsReady = signal(false);
+  /** Faltó un mapa o tileset: la sala se ve en paneles planos. */
+  readonly criticalLoadFailed = signal(false);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2348,6 +2446,24 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   interactNearest() { this.scene?.interactNearest(); }
+
+  /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
+   *  del navegador) sin recargar la página ni perder el intento. */
+  retryLoad(): void {
+    this.hostResizeObserver?.disconnect();
+    this.phaserGame?.destroy(true);
+    this.phaserGame = undefined;
+    this.scene = undefined;
+    this.renderReady.set(false);
+    this.renderedMapKey.set(null);
+    this.renderedScenarioKey.set(null);
+    this.assetsReady.set(false);
+    this.loadPercent.set(0);
+    this.criticalLoadFailed.set(false);
+    this.boot();
+  }
+
+  dismissLoadWarning(): void { this.criticalLoadFailed.set(false); }
   focus(key: string) { this.scene?.focus(key); }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
@@ -2378,6 +2494,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
+        onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
+        onLoadComplete: failures => this.zone.run(() => {
+          this.loadPercent.set(100);
+          this.assetsReady.set(true);
+          this.criticalLoadFailed.set(failures.length > 0);
+          if (failures.length > 0) console.warn('[GameWorld] Recursos esenciales sin cargar:', failures);
+        }),
         sfxMuted: this.sfxMuted(),
       });
       this.phaserGame = new Phaser.Game({
