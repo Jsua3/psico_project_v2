@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -16,6 +16,14 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+
+interface UserFormValue {
+  nombre: string;
+  apellido: string;
+  email: string;
+  role: UserRole;
+  password: string;
+}
 
 @Component({
   selector: 'app-admin-users',
@@ -261,6 +269,8 @@ export class UsersComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
+  @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
@@ -289,6 +299,15 @@ export class UsersComponent implements OnInit {
       : `¿Activar a ${user.nombre} ${user.apellido}?`;
   }
 
+  /**
+   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
+   * y Material seguiría mostrando los errores en un formulario recién abierto.
+   */
+  private resetUserForm(value: UserFormValue): void {
+    if (this.formDirective) this.formDirective.resetForm(value);
+    else this.form.reset(value);
+  }
+
   /** Al crear, la contraseña es obligatoria; al editar, vacía significa «no cambiarla». */
   private setPasswordRules(creating: boolean): void {
     const password = this.form.controls.password;
@@ -311,7 +330,7 @@ export class UsersComponent implements OnInit {
 
   attendRequest(request: AccessRequest) {
     this.selectedUser.set(null);
-    this.form.reset({
+    this.resetUserForm({
       nombre: request.nombre,
       apellido: request.apellido,
       email: request.email,
@@ -369,7 +388,7 @@ export class UsersComponent implements OnInit {
 
   newUser() {
     this.selectedUser.set(null);
-    this.form.reset({
+    this.resetUserForm({
       nombre: '',
       apellido: '',
       email: '',
@@ -383,7 +402,7 @@ export class UsersComponent implements OnInit {
 
   editUser(user: AdminUser) {
     this.selectedUser.set(user);
-    this.form.reset({
+    this.resetUserForm({
       nombre: user.nombre,
       apellido: user.apellido,
       email: user.email,
