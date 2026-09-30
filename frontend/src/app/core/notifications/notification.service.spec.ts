@@ -41,11 +41,14 @@ describe('NotificationService', () => {
   it('pausar conserva el tiempo restante y reanudar lo retoma', async () => {
     service.success('Guardado');
     const [{ id }] = await firstValueFrom(service.messages$);
+    expect(jest.getTimerCount()).toBe(1);
     jest.advanceTimersByTime(3000);
     service.pause(id);
+    expect(jest.getTimerCount()).toBe(0);
     jest.advanceTimersByTime(10_000);
     expect(await texts()).toEqual(['Guardado']);
     service.resume(id);
+    expect(jest.getTimerCount()).toBe(1);
     jest.advanceTimersByTime(1999);
     expect(await texts()).toEqual(['Guardado']);
     jest.advanceTimersByTime(1);
@@ -57,11 +60,29 @@ describe('NotificationService', () => {
     expect(await texts()).toEqual(['E2', 'E3', 'E4', 'E5']);
   });
 
+  it('al superar el tope libera el temporizador del aviso descartado', async () => {
+    for (let i = 1; i <= MAX_NOTIFICATIONS + 1; i++) service.success(`S${i}`);
+    expect(await texts()).toEqual(['S2', 'S3', 'S4', 'S5']);
+    expect(jest.getTimerCount()).toBe(MAX_NOTIFICATIONS);
+  });
+
   it('dismiss cancela el temporizador pendiente', async () => {
     service.success('Guardado');
     const [{ id }] = await firstValueFrom(service.messages$);
+    expect(jest.getTimerCount()).toBe(1);
     service.dismiss(id);
+    expect(jest.getTimerCount()).toBe(0);
     jest.advanceTimersByTime(5000);
     expect(await texts()).toEqual([]);
+  });
+
+  it('clear vacía la lista y cancela todos los temporizadores', async () => {
+    service.success('Uno');
+    service.warning('Dos');
+    service.info('Tres');
+    expect(jest.getTimerCount()).toBe(3);
+    service.clear();
+    expect(await texts()).toEqual([]);
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
