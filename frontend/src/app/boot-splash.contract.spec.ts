@@ -18,11 +18,12 @@ describe('index.html: pantalla de arranque', () => {
     expect(html).toContain('<div class="siep-boot__slow" hidden>');
     expect(html).toContain('<button type="button" class="siep-boot__reload" onclick="location.reload()">Recargar</button>');
     expect(html).toMatch(/setTimeout\(function \(\) \{[\s\S]*?\.siep-boot__slow[\s\S]*?\}, 12000\);/);
-    expect(html).toContain('<noscript>');
+    expect(html).toMatch(/<\/app-root>\s*<noscript>\s*<p[^>]*>\s*SIEP necesita JavaScript para funcionar/);
   });
 
   it('sin JavaScript oculta la pantalla de arranque (fija a pantalla completa) para que se lea el aviso de <noscript>', () => {
-    expect(html).toMatch(/<head>[\s\S]*<noscript>\s*<style>\s*\.siep-boot \{ display: none; \}\s*<\/style>\s*<\/noscript>[\s\S]*<\/head>/);
+    // El <noscript><style> del <head> debe ir DESPUÉS de la regla .siep-boot { del <style> principal: el orden de cascada lo hace efectivo.
+    expect(html).toMatch(/<head>[\s\S]*\.siep-boot \{[\s\S]*<noscript>\s*<style>\s*\.siep-boot \{ display: none; \}\s*<\/style>\s*<\/noscript>[\s\S]*<\/head>/);
   });
 
   it('usa los colores de la marca', () => {
