@@ -718,6 +718,8 @@ class DataDrivenWorldScene extends Phaser.Scene {
     }
 
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
+    // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
+    this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
@@ -880,6 +882,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       : null;
 
     this.cameras.main.stopFollow();
+    this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
