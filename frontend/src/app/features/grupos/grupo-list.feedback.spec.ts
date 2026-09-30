@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
@@ -57,6 +58,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
         { provide: GrupoService, useValue: grupos },
         { provide: SimulationService, useValue: simulation },
         { provide: NotificationService, useValue: notify },
+        { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
     component = TestBed.runInInjectionContext(() => new GrupoListComponent());

@@ -1,6 +1,6 @@
 import { Component, computed, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,6 +16,7 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 
 @Component({
   selector: 'app-grupo-list',
@@ -84,17 +85,19 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="editandoGrupo() ? actualizarGrupo() : crear()">
+          <form #groupForm #groupFormDir="ngForm" [formGroup]="form" (ngSubmit)="editandoGrupo() ? actualizarGrupo() : crear()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Nombre del grupo</mat-label>
               <input matInput formControlName="nombre">
+              <mat-error>Escribe el nombre del grupo.</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Código único</mat-label>
               <input matInput formControlName="codigo">
+              <mat-error>Escribe el código del grupo.</mat-error>
             </mat-form-field>
             <div class="form-actions">
-              <button class="psy-button psy-button--primary" type="submit" [disabled]="form.invalid || saving()">
+              <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
                 {{ saving() ? 'Guardando…' : (editandoGrupo() ? 'Guardar cambios' : 'Crear grupo') }}
               </button>
               @if (editandoGrupo()) {
@@ -592,11 +595,17 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
 })
 export class GrupoListComponent implements OnInit {
   @ViewChild('importFileInput') importFileInput?: ElementRef<HTMLInputElement>;
+  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
+  // Esta pantalla tiene tres formularios: el del grupo se referencia por variable de plantilla,
+  // no por `@ViewChild(FormGroupDirective)`, que devolvería el primero que encuentre.
+  @ViewChild('groupForm') private groupFormEl?: ElementRef<HTMLFormElement>;
+  @ViewChild('groupFormDir') private groupFormDir?: FormGroupDirective;
 
   private grupoService = inject(GrupoService);
   private simulationService = inject(SimulationService);
   private fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Acción destructiva pendiente de confirmar. */
   readonly pendingConfirm = signal<{ title: string; message: string; confirmLabel: string; run: () => void } | null>(null);
@@ -689,14 +698,33 @@ export class GrupoListComponent implements OnInit {
     });
   }
 
+  /**
+   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
+   * y Material seguiría mostrando los errores en un formulario en blanco. Se usa la
+   * directiva del formulario del grupo, no la de los otros dos formularios de la pantalla.
+   */
+  private resetGroupForm(value?: { nombre: string | null; codigo: string | null }): void {
+    if (this.groupFormDir) this.groupFormDir.resetForm(value);
+    else this.form.reset(value);
+  }
+
+  /** true (y marca y enfoca) si el formulario del grupo tiene errores. */
+  private invalidGroupForm(): boolean {
+    if (!this.form.invalid) return false;
+    this.form.markAllAsTouched();
+    // El formulario de casos nace inválido: se busca solo dentro del formulario del grupo.
+    focusFirstInvalid(this.groupFormEl?.nativeElement ?? this.host.nativeElement);
+    return true;
+  }
+
   crear() {
-    if (this.form.invalid || this.saving()) return;
+    if (this.saving() || this.invalidGroupForm()) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.grupoService.crear(nombre!, codigo!).subscribe({
       next: g => {
         this.grupos.update(list => [...list, g]);
-        this.form.reset();
+        this.resetGroupForm();
         this.saving.set(false);
         this.notify.success('Grupo creado.');
       },
@@ -710,18 +738,18 @@ export class GrupoListComponent implements OnInit {
 
   editarGrupo(grupo: Grupo) {
     this.editandoGrupo.set(grupo);
-    this.form.setValue({ nombre: grupo.nombre, codigo: grupo.codigo });
+    this.resetGroupForm({ nombre: grupo.nombre, codigo: grupo.codigo });
     this.error.set('');
   }
 
   cancelarEdicion() {
     this.editandoGrupo.set(null);
-    this.form.reset();
+    this.resetGroupForm();
   }
 
   actualizarGrupo() {
     const grupo = this.editandoGrupo();
-    if (!grupo || this.form.invalid || this.saving()) return;
+    if (!grupo || this.saving() || this.invalidGroupForm()) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.error.set('');

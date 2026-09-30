@@ -47,3 +47,14 @@ describe('formularios: validar al enviar — Rúbricas', () => {
     expect((rubrics.match(/\[attr\.aria-describedby\]="totalWeight\(\) !== 100 \? 'rubric-weight-hint' : null"/g) ?? []).length).toBe(2);
   });
 });
+
+describe('formularios: validar al enviar — Grupos', () => {
+  const grupos = source('../grupos/grupo-list.component.ts');
+
+  it('el formulario de grupo valida al enviar', () => {
+    expect(grupos).not.toContain('[disabled]="form.invalid || saving()"');
+    expect(grupos).toContain('Escribe el nombre del grupo.');
+    expect(grupos).toContain('Escribe el código del grupo.');
+    expect(grupos).toContain('private invalidGroupForm(): boolean {');
+  });
+});
