@@ -1,5 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { scaled } from './support/time-scale';
+
 /**
  * ETH-01 — puerta de consentimiento (Playwright, red observada).
  *
@@ -32,7 +34,7 @@ async function openCase(page: Page) {
   // Espera determinista: aparece el prompt de reanudación (si hay intento
   // activo) O directamente la advertencia de contenido — sin carreras.
   const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
-  await expect(consentDialog(page).or(resume).first()).toBeVisible({ timeout: 15_000 });
+  await expect(consentDialog(page).or(resume).first()).toBeVisible({ timeout: scaled(15_000) });
   if (await resume.count()) {
     await resume.click();
   }
@@ -66,7 +68,7 @@ test('cero media sensible antes de aceptar; media solo después', async ({ page 
   await page.getByRole('button', { name: /^continuar$/i }).click();
   // Tras aceptar: el flujo continúa (video o narrativa) y la media ya puede pedirse.
   await expect
-    .poll(() => mediaRequests.length, { timeout: 15_000 })
+    .poll(() => mediaRequests.length, { timeout: scaled(15_000) })
     .toBeGreaterThan(0);
   expect(consoleErrors).toEqual([]);
 });
