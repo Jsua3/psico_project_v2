@@ -19,6 +19,13 @@ describe('game-world: controles táctiles', () => {
     expect(source.match(/\(lostpointercapture\)="releaseDirection\(\)"/g) ?? []).toHaveLength(4);
   });
 
+  it('el paso va antes de la captura del puntero y una captura fallida no lo pierde', () => {
+    // Con un pointerId ya inactivo setPointerCapture lanza: si iba primero, el toque se perdía.
+    expect(source).toMatch(
+      /holdDirection\(event: PointerEvent, direction: PlayerDirection\) \{[\s\S]*?this\.scene\?\.nudge\(direction\);[\s\S]*?this\.scene\?\.setHeldDirection\(direction\);[\s\S]*?try \{\s*\(event\.currentTarget as HTMLElement \| null\)\?\.setPointerCapture\?\.\(event\.pointerId\);\s*\} catch \{/,
+    );
+  });
+
   it('la escena suma la dirección mantenida a la entrada de movimiento', () => {
     expect(source).toMatch(/const input: PlayerMotionInput = heldInput\(\{/);
     expect(source).toMatch(/\}, this\.heldDirection, this\.time\.now - this\.heldSince\);/);

@@ -2453,10 +2453,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Toque: el paso de siempre al instante; si se mantiene, la escena camina hasta soltar. */
   holdDirection(event: PointerEvent, direction: PlayerDirection) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    // Captura: si el dedo se desliza fuera del botón, el pointerup igual llega aquí.
-    (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    // El paso va primero: con un `pointerId` ya inactivo la captura lanza y el toque se perdería.
     this.scene?.nudge(direction);
     this.scene?.setHeldDirection(direction);
+    // Captura: si el dedo se desliza fuera del botón, el pointerup igual llega aquí.
+    try {
+      (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Sin captura el toque sigue funcionando; solo se pierde el seguimiento fuera del botón.
+    }
   }
 
   releaseDirection() { this.scene?.setHeldDirection(null); }
