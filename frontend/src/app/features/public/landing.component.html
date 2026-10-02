@@ -13,13 +13,15 @@
     <button
       class="landing-nav__toggle"
       type="button"
-      aria-label="Abrir menú"
+      aria-label="Menú de navegación"
+      aria-controls="landing-nav-links"
+      [attr.aria-expanded]="menuOpen()"
       (click)="menuOpen.set(!menuOpen())"
     >
       <mat-icon>{{ menuOpen() ? 'close' : 'menu' }}</mat-icon>
     </button>
 
-    <nav class="landing-nav__links" [class.landing-nav__links--open]="menuOpen()">
+    <nav id="landing-nav-links" class="landing-nav__links" [class.landing-nav__links--open]="menuOpen()">
       <a href="#simulador" (click)="closeMenu()">Simulador</a>
       <a href="#casos" (click)="closeMenu()">Casos</a>
       <a href="#como-funciona" (click)="closeMenu()">Cómo funciona</a>
@@ -95,8 +97,8 @@
             </div>
           </div>
 
-          <p class="landing-preview-pixel__decisions-label">Decisiones disponibles</p>
-          <div class="landing-preview-pixel__decisions">
+          <p class="landing-preview-pixel__decisions-label" aria-hidden="true">Decisiones disponibles</p>
+          <div class="landing-preview-pixel__decisions" aria-hidden="true">
             @for (decision of heroDecisions; track decision.label) {
               <button type="button" class="landing-preview-pixel__decision" disabled>
                 <mat-icon aria-hidden="true">{{ decision.icon }}</mat-icon>

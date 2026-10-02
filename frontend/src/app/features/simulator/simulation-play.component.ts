@@ -41,6 +41,8 @@ import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 
+/** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
+const SCENE_FADE_MS = 320;
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -191,7 +193,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 </button>
               </header>
 
-              <div class="case-intro-card__body" tabindex="0" aria-label="Contexto narrativo del caso">
+              <div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">
                 @for (paragraph of caseIntroParagraphs; track paragraph) {
                   <p>{{ paragraph }}</p>
                 }
@@ -252,6 +254,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
                 [reduceMotion]="reduceMotion()"
+                [stressLevel]="attempt()?.stressIndex ?? 0"
                 (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
@@ -275,7 +278,7 @@ const CASE_INTRO_PARAGRAPHS = [
                     aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
                 }
               </header>
-              <app-dialogue-panel class="dialogue-side" mode="side"
+              <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
                 (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -316,7 +319,7 @@ const CASE_INTRO_PARAGRAPHS = [
         </footer>
 
         @if (viewMode() === 'dialogue-cinematic') {
-          <app-dialogue-panel class="dialogue-cinematic" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
             (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
         }
@@ -521,7 +524,7 @@ const CASE_INTRO_PARAGRAPHS = [
       transition: border-color 160ms, background 160ms;
     }
     .safe-exit:hover { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
-    .safe-exit:focus-visible { outline: 2px solid rgba(226,90,79,.6); outline-offset: 2px; }
+    .safe-exit:focus-visible { outline: 2px solid #f1a79f; outline-offset: 2px; }
     .safe-exit:active { transform: translateY(1px); }
     .safe-exit:disabled { opacity: .4; cursor: not-allowed; }
     .safe-exit mat-icon { font-size: 19px; width: 19px; height: 19px; }
@@ -1304,6 +1307,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private doorNoticeTimer: number | null = null;
+  /** Sacudida por decisión, pendiente hasta que el fundido de escena deje ver el mundo. */
+  private pendingDecisionImpact: SimulationFeedback | null = null;
 
   private showDoorNotice(message: string): void {
     this.doorNotice.set(message);
@@ -1465,6 +1470,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playResolution();
             this.audioDirector.playSfx('session_complete');
           }
+          this.pendingDecisionImpact = updated.feedback ?? null;
           if (updated.feedback) {
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
@@ -1804,6 +1810,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(callback, 340);
   }
 
+  /** Programa los efectos de cámara para cuando el fundido de escena ya dejó ver el mundo. */
+  private scheduleRevealEffects(): void {
+    window.setTimeout(() => this.playRevealEffects(), SCENE_FADE_MS);
+  }
+
+  private playRevealEffects(): void {
+    const impact = this.pendingDecisionImpact;
+    this.pendingDecisionImpact = null;
+    this.gameWorld?.playRevealEffects(impact);
+  }
+
   private loadProgressMap(attempt: SimulationAttemptState) {
     this.simulationService.getProgressMap(attempt.attemptId, attempt.attemptToken).subscribe({
       next: map => this.progressMap.set(map),
@@ -1816,6 +1833,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
+        this.pendingDecisionImpact = null;
         this.loading.set(false);
         this.busy.set(false);
         this.fadeActive.set(false);
@@ -1849,7 +1867,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
-    window.setTimeout(() => this.fadeActive.set(false), 80);
+    window.setTimeout(() => {
+      this.fadeActive.set(false);
+      this.scheduleRevealEffects();
+    }, 80);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
@@ -2034,7 +2055,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         next: updated => {
           this.lastSyncedPosition = synced;
           const current = this.world();
-          if (!current || updated.map.key !== current.map.key) this.world.set(updated);
+          if (!current || updated.map.key !== current.map.key) {
+            this.world.set(updated);
+            this.scheduleRevealEffects();
+          }
         },
         error: () => undefined,
       });

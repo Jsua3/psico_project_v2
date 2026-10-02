@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
-import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
+import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage } from './world-editor/room-edit.util';
 import { KenneyCharFrames, KenneyDungeonFrames } from './kenney-frames.constants';
 import {
@@ -88,6 +88,7 @@ import { createV1WalkAnimations } from './phaser-avatar-renderer';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
+import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
@@ -207,6 +208,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private ready = false;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
+  /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
+  private stressLevel = 0;
+  /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
+  private crisisVignette?: Phaser.GameObjects.Graphics;
+  private crisisPulse?: Phaser.Tweens.Tween;
+  /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
+  private crisisStateKey = '';
+  /** Destello decidido al cambiar de sala; se dispara al terminar el render. */
+  private pendingRoomFlash: CameraFlash | null = null;
   private stepTimer = 0;
   private readonly STEP_INTERVAL = 280; // ms — natural walking cadence (~215 steps/min)
   /** Última posición avisada a Angular (ver position-emit.util). */
@@ -505,6 +515,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   setWorld(world: SimulationWorldState) {
+    this.pendingRoomFlash = roomEntryFlash(this.world?.map.key ?? null, world.map.key, this.callbacks.reduceMotion)
+      ?? this.pendingRoomFlash;
     // Cambio de mapa (decisión o puerta): la sala previa ya no aplica. Sin este
     // reset, keepPosition "conserva" la posición del render transicional y se
     // pierde la entrada (entryX/entryY) que enter_room persistió en world.player.
@@ -531,6 +543,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   setMotionPaused(paused: boolean) {
     this.motionPaused = paused;
     if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+    this.applyCrisisState();
   }
 
   /** Flecha táctil apretada o soltada (null). La entrada de `update()` la suma pasado TOUCH_HOLD_DELAY_MS. */
@@ -540,7 +553,35 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.heldSince = direction && this.time ? this.time.now : 0;
   }
 
-  setReduceMotion(reduced: boolean) { this.callbacks.reduceMotion = reduced; }
+  setReduceMotion(reduced: boolean) {
+    this.callbacks.reduceMotion = reduced;
+    this.applyCrisisState();
+  }
+
+  /** Seguro antes de `create()`: la capa se pinta con este valor en el primer render. */
+  setStressLevel(level: number) {
+    this.stressLevel = level;
+    this.applyCrisisState();
+  }
+
+  /** Sacudida de cámara por una decisión de alto impacto (nada con movimiento reducido). */
+  playDecisionImpact(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
+    const shake = decisionShake(feedback, this.callbacks.reduceMotion);
+    if (shake && this.ready && this.cameras?.main) this.cameras.main.shake(shake.durationMs, shake.intensity);
+  }
+
+  /**
+   * La sala ya se ve: sacudida si la decisión fue de alto impacto; si no, el destello de
+   * cambio de sala. Nunca los dos a la vez.
+   */
+  playRevealEffects(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
+    if (decisionShake(feedback, this.callbacks.reduceMotion)) {
+      this.pendingRoomFlash = null;
+      this.playDecisionImpact(feedback);
+    } else {
+      this.playPendingRoomFlash();
+    }
+  }
 
   setSfxMuted(muted: boolean) {
     this.callbacks.sfxMuted = muted;
@@ -561,10 +602,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!this.scenarioConfig) return;
     const roomConfig = this.scenarioConfig.rooms.find(r => r.key === targetRoomKey);
     if (!roomConfig) return;
+    this.pendingRoomFlash = roomEntryFlash(this.currentRoomKey || null, targetRoomKey, this.callbacks.reduceMotion)
+      ?? this.pendingRoomFlash;
     this.cameras.main.fadeOut(180, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.renderRoom(roomConfig, entryX, entryY);
       this.cameras.main.fadeIn(180, 0, 0, 0);
+      // El destello espera a que el fundido deje ver la sala: debajo de él no se percibe.
+      this.cameras.main.once('camerafadeincomplete', () => this.playPendingRoomFlash());
     });
   }
 
@@ -861,6 +906,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.refreshMarkerStates();
       this.updateNearestInteraction(true);
       this.buildGuide();
+      this.applyCrisisVignette();
       this.playIntroFade();
       this.callbacks.onReady();
       return;
@@ -959,6 +1005,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction(true); // suppress blip on initial spawn
     this.buildGuide();
     this.applyLightingOverlay();
+    this.applyCrisisVignette();
     this.playIntroFade();
     this.callbacks.onReady();
   }
@@ -1110,6 +1157,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Evitar doble lighting: si el renderer ya pintó su capa de luz, la viñeta
     // genérica solo ensuciaría/oscurecería la escena premium.
     if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
+    this.applyCrisisVignette();
     this.playIntroFade();
     this.callbacks.onReady();
   }
@@ -1706,17 +1754,80 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const cam = this.cameras.main;
-    const w = cam.width, h = cam.height;
     const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING);
     // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
     // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
-    const band = Math.round(Math.min(w, h) * 0.12);
+    this.strokeVignetteBand(g, tint, 0.12, 0.3);
+  }
+
+  /**
+   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra: opacidad
+   * `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no anula el
+   * zoom de la cámara; por eso se pinta sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
+   */
+  private strokeVignetteBand(g: Phaser.GameObjects.Graphics, tint: number, bandRatio: number, edgeAlpha: number): void {
+    const cam = this.cameras.main;
+    const frame = vignetteFrame(cam.width, cam.height, cam.zoom);
+    const band = Math.round(Math.min(frame.width, frame.height) * bandRatio);
     for (let i = 0; i < band; i++) {
-      const a = 0.3 * (1 - i / band) ** 2;
-      g.lineStyle(1, tint, a);
-      g.strokeRect(i, i, w - i * 2, h - i * 2);
+      g.lineStyle(1, tint, edgeAlpha * (1 - i / band) ** 2);
+      g.strokeRect(frame.x + i, frame.y + i, frame.width - i * 2, frame.height - i * 2);
     }
+  }
+
+  /**
+   * Viñeta de crisis: la misma banda que la de tono pero rojo-violeta, y con su
+   * opacidad atada al estrés del intento. Se pinta también en salas con luz
+   * pintada, porque es estado del caso y no decoración.
+   */
+  private applyCrisisVignette(): void {
+    // El killAll() del re-render ya detuvo el pulso; se para igual por si alguien llama sin él.
+    this.crisisPulse?.stop();
+    this.crisisPulse = undefined;
+    this.crisisStateKey = '';
+    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING + 1);
+    this.strokeVignetteBand(g, CRISIS_VIGNETTE_TINT, 0.18, 1);
+    this.crisisVignette = g;
+    this.applyCrisisState();
+  }
+
+  private applyCrisisState(): void {
+    const g = this.crisisVignette;
+    if (!g || !g.scene) return;
+    // Con el mundo en pausa (diálogo, bitácora, cierre) la crisis se ve fija: nada late mientras se lee.
+    const state = crisisVignetteState(this.stressLevel, this.callbacks.reduceMotion || this.motionPaused);
+    const key = JSON.stringify(state);
+    // Mismo estado y el pulso sigue vivo: no se reinicia (pasar de 88 a 90 no debe dar un salto).
+    if (key === this.crisisStateKey && (!state.pulse || this.crisisPulse?.isPlaying())) return;
+    this.crisisStateKey = key;
+    this.crisisPulse?.stop();
+    this.crisisPulse = undefined;
+    g.setAlpha(state.alpha);
+    if (state.pulse) {
+      this.crisisPulse = this.tweens.add({
+        targets: g,
+        alpha: { from: state.pulse.from, to: state.pulse.to },
+        duration: state.pulse.durationMs,
+        ease: 'Sine.InOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+  }
+
+  /**
+   * Dispara el destello decidido al cambiar de sala. Lo llama quien sabe que la sala ya se ve:
+   * el fin del fundido de cámara (salida cliente) o Angular al retirar su fundido de escena.
+   */
+  playPendingRoomFlash(): void {
+    const flash = this.pendingRoomFlash;
+    this.pendingRoomFlash = null;
+    // Se decidió antes de verse la sala: nada si entre tanto se activó el movimiento reducido
+    // o la escena ya no existe (cambio de ruta con un temporizador pendiente).
+    if (!flash || this.callbacks.reduceMotion || !this.ready || !this.cameras?.main) return;
+    const cam = this.cameras.main;
+    cam.flashEffect.alpha = flash.peakAlpha;
+    cam.flash(flash.durationMs, ...flash.rgb);
   }
 
   private renderCollisionZone(zone: CollisionZoneState) {
@@ -2392,6 +2503,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input<boolean | null>(null);
+  /** stressIndex del intento (0-100): mueve la viñeta de crisis. */
+  readonly stressLevel = input(0);
   readonly proximity = output<MapObjectState | null>();
   readonly interact = output<MapObjectState>();
   readonly positionChange = output<{ x: number; y: number }>();
@@ -2440,6 +2553,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
     if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
     if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
+    if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
   }
 
   ngOnDestroy() {
@@ -2513,6 +2627,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
+  playRevealEffects(feedback: SimulationFeedback | null) { this.scene?.playRevealEffects(feedback); }
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
     this.scene?.updatePatientVisualState(state);
   }
@@ -2547,6 +2662,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         }),
         sfxMuted: this.sfxMuted(),
       });
+      this.scene.setStressLevel(this.stressLevel());
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,

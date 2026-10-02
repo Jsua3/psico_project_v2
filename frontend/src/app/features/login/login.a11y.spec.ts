@@ -20,3 +20,22 @@ describe('login: accesibilidad de los paneles', () => {
     expect(scss).not.toContain('.toggle-panel h1 {');
   });
 });
+
+describe('login: nombres accesibles y roles', () => {
+  it('el enlace «Volver al inicio» conserva en su nombre el texto visible', () => {
+    expect(html).toContain(`[attr.aria-label]="'Volver al inicio, ' + brand.institution"`);
+    expect(html).toContain('<span>{{ brand.institution }}</span>');
+    expect(html).not.toContain('aria-label="Volver al inicio"');
+  });
+
+  it('el selector de perfil es un grupo de botones, no un radiogroup sin radios', () => {
+    expect(html).toContain('<div class="auth-role-picker" role="group" aria-label="Seleccionar rol de acceso">');
+    expect(html).not.toContain('radiogroup');
+  });
+
+  it('los tres campos del registro tienen nombre accesible propio', () => {
+    for (const label of ['Nombre', 'Apellido', 'Correo institucional']) {
+      expect(html).toContain(`placeholder="${label}" aria-label="${label}"`);
+    }
+  });
+});

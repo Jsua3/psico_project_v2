@@ -117,6 +117,53 @@ describe('DialoguePanelComponent - integración renderizada', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
+  it('con movimiento reducido la línea aparece completa, sin máquina de escribir, y el foco entra al diálogo', () => {
+    jest.useFakeTimers();
+    try {
+      writeInputSignal(component.reduceMotion, true);
+      render(MULTI_LINE_DIALOGUE);
+
+      const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+      expect(component.displayedText()).toBe('Primera');
+      expect(component.isTypingComplete()).toBe(true);
+      expect(dialog.contains(document.activeElement)).toBe(true);
+
+      // DOM renderizado: no hay nada que saltar y el control de avance ya está disponible.
+      expect(dialog.querySelector('[aria-label="Saltar animación de texto"]')).toBeNull();
+      expect(dialog.querySelector('[aria-label="Mostrar siguiente intervención"]')).not.toBeNull();
+      // La máquina de escribir no dejó ningún temporizador programado.
+      expect(jest.getTimerCount()).toBe(0);
+
+      component.advanceLine();
+      fixture.detectChanges();
+      expect(component.displayedText()).toBe('Segunda');
+      expect(component.isTypingComplete()).toBe(true);
+      expect(dialog.querySelector('[aria-label="Saltar animación de texto"]')).toBeNull();
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('sin movimiento reducido la línea sigue apareciendo letra a letra', () => {
+    render(MULTI_LINE_DIALOGUE);
+    expect(component.displayedText()).toBe('');
+    expect(component.isTypingComplete()).toBe(false);
+  });
+
+  it('cambiar el interruptor con el diálogo abierto no lo reinicia', () => {
+    render(MULTI_LINE_DIALOGUE);
+    component.skipTypewriter();
+    component.advanceLine();
+    expect(component.lineIndex()).toBe(1);
+
+    writeInputSignal(component.reduceMotion, true);
+    TestBed.flushEffects();
+
+    expect(component.lineIndex()).toBe(1);
+    expect(component.activeLine()?.text).toBe('Segunda');
+  });
+
   it('hereda hablante, emoción y retrato del árbol cuando la línea trae cadenas vacías', () => {
     render({
       ...MULTI_LINE_DIALOGUE,

@@ -416,6 +416,10 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
       font: inherit;
       font-weight: 650;
     }
+    .search-box:focus-within {
+      outline: 3px solid var(--psy-focus);
+      outline-offset: 2px;
+    }
     .search-box--compact { min-height: 42px; margin: 0 0 10px; }
     .group-list { display: grid; gap: 10px; max-height: 360px; overflow: auto; padding-right: 4px; }
     .group-card {
