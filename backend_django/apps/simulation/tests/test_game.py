@@ -430,7 +430,7 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     c = cl(estudiante)
     closed = c.post("/api/simulation/attempts",
                     {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
-    # Iniciar otro con forceNew cierra el anterior (SAFE_EXITED con ended_at).
+    # Iniciar otro con forceNew cierra el anterior (REPLACED con ended_at).
     running = c.post("/api/simulation/attempts",
                      {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
 
@@ -440,7 +440,7 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     history = {h["attemptId"]: h for h in resp.data["data"]}
 
     finished = history[closed["attemptId"]]
-    assert finished["status"] == "SAFE_EXITED"
+    assert finished["status"] == "REPLACED"
     active = finished["activeDurationSeconds"]
     assert isinstance(active, int) and not isinstance(active, bool)
     assert 0 <= active <= finished["totalDurationSeconds"] + 1

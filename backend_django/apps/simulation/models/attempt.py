@@ -16,9 +16,13 @@ class AttemptStatus(models.TextChoices):
     IN_PROGRESS = "IN_PROGRESS"
     # Pausa reanudable real (ETH-02, opción A): sin ended_at/locked_at.
     PAUSED = "PAUSED"
-    # Cierre terminal (histórico o por reemplazo con forceNew).
+    # Salida segura terminal, solo histórica: antes de la pausa reanudable la
+    # salida segura cerraba el intento. Ningún código nuevo la escribe.
     SAFE_EXITED = "SAFE_EXITED"
     COMPLETED = "COMPLETED"
+    # Cierre terminal porque el estudiante empezó otro intento con forceNew. No
+    # es una salida segura y no puntúa.
+    REPLACED = "REPLACED"
 
 
 class SimulationAttempt(models.Model):

@@ -102,7 +102,7 @@ def feedback_dto(decision, effects, message, retry_required=False):
 TIMELINE_EVENT_TYPES = {
     "DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED",
     "DECISION_RETRY_REQUIRED", "PROHIBITED_DECISION_RETRY_REQUIRED",
-    "TOOL_USED", "ROOM_ENTERED", "SAFE_EXIT_REQUESTED",
+    "TOOL_USED", "ROOM_ENTERED", "SAFE_EXIT_REQUESTED", "ATTEMPT_REPLACED",
 }
 
 
@@ -189,6 +189,7 @@ def build_completion_report(attempt, events):
         "COMPLETED": "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
         "PAUSED": "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
         "SAFE_EXITED": "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
+        "REPLACED": "Intento reemplazado. Empezaste uno nuevo y este quedó cerrado tal como estaba, disponible para revisión docente.",
         "IN_PROGRESS": "Intento en progreso.",
     }[attempt.status]
 

@@ -124,9 +124,14 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
   (todos son idempotentes):
   ```bash
   psql "$DATABASE_URL" -f deploy/upgrades/2026-09-29-attempt-status-paused.sql
+  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-attempt-status-replaced.sql
   ```
   Sin el de 2026-09-29, la "pausa segura" falla con 500 porque el CHECK viejo
-  de `simulation_attempts_v2.status` no admite `PAUSED`.
+  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin el de 2026-10-01,
+  empezar un intento nuevo sobre uno activo ("forceNew") falla con 500 porque
+  el CHECK no admite `REPLACED`; ese script además reclasifica como `REPLACED`
+  los intentos reemplazados que se guardaron como salida segura. Como cada push
+  redepliega, aplícalo **antes** de hacer push del código que lo necesita.
 - **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
   `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
   las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían

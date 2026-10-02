@@ -26,6 +26,7 @@ export function attemptStateLabel(estado: string): string {
   if (estado === 'COMPLETADO' || estado === 'COMPLETED') return 'Completado';
   if (estado === 'SAFE_EXITED') return 'Interrumpido';
   if (estado === 'EN_PAUSA' || estado === 'PAUSED') return 'En pausa';
+  if (estado === 'REPLACED') return 'Reemplazado';
   if (estado === 'PENDIENTE') return 'Pendiente';
   return 'En curso';
 }

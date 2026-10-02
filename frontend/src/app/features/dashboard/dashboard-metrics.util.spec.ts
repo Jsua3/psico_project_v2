@@ -71,4 +71,8 @@ describe('dashboard-metrics.util', () => {
     expect(attemptStateLabel('IN_PROGRESS')).toBe('En curso');
     expect(attemptStateLabel('EN_PROGRESO')).toBe('En curso');
   });
+
+  it('attemptStateLabel no confunde un intento reemplazado con uno en curso', () => {
+    expect(attemptStateLabel('REPLACED')).toBe('Reemplazado');
+  });
 });
