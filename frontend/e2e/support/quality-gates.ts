@@ -3,6 +3,8 @@ import type { Page, TestInfo } from '@playwright/test';
 import axe from 'axe-core';
 import type { AxeResults } from 'axe-core';
 
+import { scaled } from './time-scale';
+
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const BLOCKING_IMPACTS = new Set(['serious', 'critical']);
 
@@ -33,7 +35,7 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
         && rect.width > 0 && rect.height > 0;
     });
     return activeOverlays.every(element => Number.parseFloat(getComputedStyle(element).opacity) >= 0.99);
-  }, undefined, { timeout: 10_000 });
+  }, undefined, { timeout: scaled(10_000) });
 }
 
 async function assertNoBlockingAxeViolations(
@@ -49,7 +51,7 @@ async function assertNoBlockingAxeViolations(
     await page.waitForFunction(() => {
       const axeApi = (window as typeof window & { axe?: { _running?: boolean } }).axe;
       return axeApi !== undefined && axeApi._running !== true;
-    }, undefined, { timeout: 30_000 });
+    }, undefined, { timeout: scaled(30_000) });
     try {
       results = await page.evaluate(async tags => {
         const axeApi = (window as typeof window & {

@@ -1,6 +1,6 @@
 # Recorridos completos del caso (@full-case, 4 viewports). Fuera del CI de los
 # PR: en el runner sin GPU cada recorrido tarda ~3-4x más que en local y el
-# job completo ronda los 30 min. Corre cada noche sobre master y a mano
+# job completo ronda los 30-45 min. Corre cada noche sobre master y a mano
 # (Actions → "E2E recorridos completos" → Run workflow, eligiendo la rama).
 name: E2E recorridos completos
 
@@ -24,7 +24,9 @@ jobs:
   full-case:
     name: E2E full-case (4 viewports)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 4 recorridos x 20 min de límite (300 s x E2E_TIME_SCALE) + preparación:
+    # aun si todos agotan su tiempo, quedan minutos para subir los artefactos.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -45,7 +47,12 @@ jobs:
       - name: Instalar Chromium de Playwright
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --grep @full-case
+      # list: duración de cada recorrido en el log, para recalibrar el factor.
+      - run: npm run test:e2e -- --grep @full-case --reporter=list
+        env:
+          # Plazos del harness x4 (frontend/e2e/support/time-scale.ts): aquí
+          # el WebGL va por software y el recorrido tarda ~3-4x más que en local.
+          E2E_TIME_SCALE: '4'
       - name: Subir artefactos de Playwright
         if: failure()
         uses: actions/upload-artifact@v7

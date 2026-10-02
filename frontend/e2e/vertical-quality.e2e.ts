@@ -9,6 +9,7 @@ import {
   loginStudent,
   openFamilyDialogue,
 } from './support/siep-flow';
+import { scaled } from './support/time-scale';
 
 for (const viewport of REQUIRED_VIEWPORTS) {
   test.describe(viewport.name, () => {
@@ -18,14 +19,14 @@ for (const viewport of REQUIRED_VIEWPORTS) {
     });
 
     test(`@quality Axe and geometry across dynamic states (${viewport.width}x${viewport.height})`, async ({ page }, testInfo) => {
-      test.setTimeout(180_000);
+      test.setTimeout(scaled(180_000));
 
       await page.goto('/login');
       await assertQualityState(page, testInfo, `${viewport.name}-login`);
 
       await loginStudent(page);
       await page.goto('/portal/jugar');
-      await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: scaled(30_000) });
       await assertQualityState(page, testInfo, `${viewport.name}-lobby`);
 
       const consent = await enterCaseAtContentWarning(page);
@@ -38,9 +39,9 @@ for (const viewport of REQUIRED_VIEWPORTS) {
       await assertQualityState(page, testInfo, `${viewport.name}-case-context`);
 
       await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
-      await expect(caseIntro).toBeHidden({ timeout: 30_000 });
+      await expect(caseIntro).toBeHidden({ timeout: scaled(30_000) });
       await expect(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))
-        .toBeVisible({ timeout: 45_000 });
+        .toBeVisible({ timeout: scaled(45_000) });
       await assertQualityState(page, testInfo, `${viewport.name}-world`);
 
       await page.getByRole('button', { name: /abrir ajustes del juego/i }).click();
