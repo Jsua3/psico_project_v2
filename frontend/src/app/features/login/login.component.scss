@@ -290,6 +290,11 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--login-role-accent) 18%, transparent);
 }
 
+.auth-container input::placeholder {
+  color: var(--siep-muted);
+  opacity: 1;
+}
+
 .auth-password-wrap {
   position: relative;
   width: 100%;
@@ -384,7 +389,7 @@
   align-items: center;
   gap: 12px;
   margin: 16px 0 4px;
-  color: rgba(120, 120, 140, 0.85);
+  color: var(--siep-muted);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -420,7 +425,7 @@
 
 .auth-google__status {
   font-size: 0.82rem;
-  color: rgba(120, 120, 140, 0.95);
+  color: var(--siep-muted);
   font-weight: 600;
 }
 
@@ -588,7 +593,7 @@
   margin-top: 2px;
   font-size: 0.62rem;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.82);
+  color: #fff;
   font-weight: 500;
 }
 
