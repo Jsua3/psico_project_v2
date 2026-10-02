@@ -22,7 +22,7 @@
           "avatarPresetKey": "psicologa-hospitalaria",
           "facing": "left",
           "emotion": "calm",
-          "motion": { "behavior": "subtle-wander", "radius": 8, "pauseMs": 4000 },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Tenemos instrumento de valoración de riesgo y ruta de protección listos, sobre la mesa.", "emotion": "neutral" },

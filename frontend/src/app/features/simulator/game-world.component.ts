@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
@@ -33,11 +33,14 @@ import {
   AUTHORED_PLAYER_SPAWN,
   AUTHORED_ROOM_HEIGHT,
   AUTHORED_ROOM_WIDTH,
-  authoredMarkerPosition,
+  authoredMarkerPositionForMap,
 } from './authored-clinical-room.util';
 import { resolveSceneRenderer } from './scene-renderer.registry';
 import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
+import { resolveRoomPlayerPosition } from './room-player-position.util';
+import { nearbyInteractionChannel } from './interaction-priority.util';
+import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import {
   NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
@@ -48,6 +51,7 @@ import {
   playerHitbox,
   rectsIntersect,
   resolveDirection,
+  splitFrameDelta,
 } from './player-motion.util';
 import {
   AVATAR_ANIM_KEYS,
@@ -72,6 +76,11 @@ import {
   npcPresetConfig,
 } from './npc-avatar-presets';
 import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId, resolveCastId } from './baked-cast.util';
+import {
+  resolvePlayerVisual, v1SheetKey, v1SheetPath, v1IdleFrame, v1WalkAnimKey,
+  V1_FRAME_WIDTH, V1_FRAME_HEIGHT, V1_AVATAR_SCALE, V1_FEET_ORIGIN_Y,
+} from './v1-avatar.util';
+import { createV1WalkAnimations } from './phaser-avatar-renderer';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
@@ -83,6 +92,7 @@ import { AvatarConfig, CLOTHING_COLORS, EXPRESSIONS, GENDER_OPTIONS } from '../c
 import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-catalog.config';
 
 interface WorldCallbacks {
+  onReady:       () => void;
   onProximity:   (obj: MapObjectState | null) => void;
   onInteract:    (obj: MapObjectState) => void;
   onPosition:    (x: number, y: number) => void;
@@ -127,12 +137,13 @@ const DOOR_SPRITE_SCALE = 1.45;
 /** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
 const DOOR_SPRITE_FEET_Y = 16;
 
-class DataDrivenWorldScene extends Phaser.Scene {
+export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
   private avatarSpecs: AvatarLayerSpec[] = [];
   /** Personaje del elenco horneado elegido (null → composición modular). */
   private playerCastId: string | null = null;
+  private playerV1Id: string | null = null;
   /** Textura efectiva del sprite del jugador (elenco u hoja compuesta). */
   private playerTextureKey = AVATAR_TEXTURE_KEY;
   private avatarReady = false;
@@ -224,6 +235,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
       typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
     );
     this.playerCastId = resolveCastId(avatarConfig.castId);
+    const playerVisual = resolvePlayerVisual(avatarConfig);
+    if (playerVisual.kind === 'v1') {
+      this.playerV1Id = playerVisual.id;
+      for (const sheet of ['idle', 'walk'] as const) {
+        this.load.spritesheet(v1SheetKey(playerVisual.id, sheet), v1SheetPath(playerVisual.id, sheet),
+          { frameWidth: V1_FRAME_WIDTH, frameHeight: V1_FRAME_HEIGHT });
+      }
+    }
     this.avatarSpecs = avatarLayerSpecs(avatarConfig);
     for (const spec of this.avatarSpecs) {
       this.load.image(spec.textureKey, spec.assetPath);
@@ -318,11 +337,17 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
     // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
     // composición modular de siempre.
-    if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
+    if (this.playerV1Id && this.textures.exists(v1SheetKey(this.playerV1Id, 'walk'))) {
+      createV1WalkAnimations(this, this.playerV1Id);
+      this.playerTextureKey = v1SheetKey(this.playerV1Id, 'walk');
+      this.avatarReady = true;
+    } else if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
+      this.playerV1Id = null;
       this.playerTextureKey = castTextureKey(this.playerCastId);
       createAvatarAnimationsFor(this, this.playerTextureKey, AVATAR_ANIM_KEYS);
       this.avatarReady = true;
     } else {
+      this.playerV1Id = null;
       this.playerTextureKey = AVATAR_TEXTURE_KEY;
       this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
       if (this.avatarReady) createAvatarAnimations(this);
@@ -343,7 +368,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
     const step = computePlayerStep(input, this.lastDirection, delta);
 
     if (step.moving) {
-      const moved = this.movePlayer(step.dx, step.dy);
+      // Sub-pasos con colisión: misma velocidad real a cualquier fps.
+      let moved = false;
+      for (const subDelta of splitFrameDelta(delta)) {
+        const part = computePlayerStep(input, this.lastDirection, subDelta);
+        moved = this.movePlayer(part.dx, part.dy) || moved;
+      }
       this.lastDirection = step.direction;
       if (moved) {
         this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
@@ -372,12 +402,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
          Phaser.Input.Keyboard.JustDown(this.keys['SPACE']) ||
          Phaser.Input.Keyboard.JustDown(this.keys['ENTER']))) {
       this.interactionCooldown = this.INTERACTION_COOLDOWN_MS;
-      // Clinical marker takes priority over NPC when both are in range
-      if (this.nearestKey) {
-        this.interactNearest();
-      } else {
-        this.interactNearestNpc();
-      }
+      this.interactNearest();
     }
     this.updateNearestInteraction();
     this.updateNpcHints();
@@ -401,7 +426,9 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Cambio de mapa (decisión o puerta): la sala previa ya no aplica. Sin este
     // reset, keepPosition "conserva" la posición del render transicional y se
     // pierde la entrada (entryX/entryY) que enter_room persistió en world.player.
-    if (this.world && this.world.map.key !== world.map.key) {
+    // La primera hidratación también nace desarmada: una recarga puede restaurar
+    // al jugador junto a la puerta de regreso antes de resolver ScenarioConfig.
+    if (!this.world || this.world.map.key !== world.map.key) {
       this.currentRoomKey = '';
       // Recién entrado a una sala: desarmar hasta alejarse de la puerta de regreso
       // (la histéresis de checkDbDoorTriggers re-arma al superar doorRearmDist).
@@ -598,10 +625,19 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction();
   }
 
+  /** Punto de pies actual (px enteros) o null si el jugador aún no existe. */
+  playerPosition(): { x: number; y: number } | null {
+    return this.player ? { x: Math.round(this.player.x), y: Math.round(this.player.y) } : null;
+  }
+
   interactNearest() {
-    if (!this.nearestKey) return;
-    const obj = this.markerData.get(this.nearestKey);
-    if (obj) this.callbacks.onInteract(obj);
+    const channel = nearbyInteractionChannel(this.nearestKey, this.isAnyNpcInRange());
+    if (channel === 'marker') {
+      const obj = this.markerData.get(this.nearestKey!);
+      if (obj) this.callbacks.onInteract(obj);
+      return;
+    }
+    if (channel === 'npc') this.interactNearestNpc();
   }
 
   focus(key: string) {
@@ -715,7 +751,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       });
       this.renderableWorldObjects()
         .map(obj => {
-          const authored = authoredMarkerPosition(obj.key);
+          const authored = authoredMarkerPositionForMap(mapKey, obj.key);
           return authored ? { ...obj, x: authored.x, y: authored.y } : obj;
         })
         .forEach(obj => this.createMarker(obj));
@@ -731,6 +767,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
       this.updateNearestInteraction(true);
       this.buildGuide();
       this.playIntroFade();
+      this.callbacks.onReady();
       return;
     }
 
@@ -828,6 +865,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     this.buildGuide();
     this.applyLightingOverlay();
     this.playIntroFade();
+    this.callbacks.onReady();
   }
 
   /**
@@ -940,7 +978,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     if (this.world) {
       const mergedObjects = this.renderableWorldObjects().map(obj => {
         if (authoredClinicalRoom) {
-          const authored = authoredMarkerPosition(obj.key);
+          const authored = authoredMarkerPositionForMap(roomConfig.tiledMapKey, obj.key);
           if (authored) return { ...obj, x: authored.x, y: authored.y };
         }
         const t = tiledObjects.find(o => o.name === obj.key);
@@ -952,14 +990,18 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
     this.spawnNpcs(roomConfig.npcs);
-    // Fase 10: enter_room persiste entryX/entryY en world.player — la posición
-    // del backend manda si es jugable; si no (coords del seed viejo), spawn autoría.
+    // Fase 10: enter_room persiste entryX/entryY en world.player. Esa autoridad
+    // debe ganar incluso si el ScenarioConfig asíncrono dejó un actor transitorio
+    // en el centro; el actor vivo solo respalda datos backend no jugables.
     const persisted = this.world ? { x: this.world.player.x, y: this.world.player.y } : null;
-    const spawn = keepPosition ?? (authoredClinicalRoom
-      ? (persisted && !this.wouldCollide(persisted.x, persisted.y)
-          ? persisted
-          : { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y })
-      : { x: spawnX, y: spawnY });
+    const spawn = authoredClinicalRoom
+      ? resolveRoomPlayerPosition({
+          authoritative: persisted,
+          live: keepPosition,
+          fallback: { x: AUTHORED_PLAYER_SPAWN.x, y: AUTHORED_PLAYER_SPAWN.y },
+          collides: point => this.wouldCollide(point.x, point.y),
+        })
+      : keepPosition ?? { x: spawnX, y: spawnY };
     this.createPlayer(spawn.x, spawn.y);
     if (authoredClinicalRoom) {
       cam.centerOn(actualMapW / 2, actualMapH / 2);
@@ -973,6 +1015,7 @@ class DataDrivenWorldScene extends Phaser.Scene {
     // genérica solo ensuciaría/oscurecería la escena premium.
     if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
     this.playIntroFade();
+    this.callbacks.onReady();
   }
 
   /** Fade-in breve al entrar a la simulación (solo la primera escena). */
@@ -1606,8 +1649,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
       // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
       const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
       const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
-      const sprite = this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
-        .setScale(AVATAR_DISPLAY_SCALE);
+      const sprite = this.playerV1Id
+        ? this.add.sprite(0, 0, v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame('down'))
+            .setOrigin(0.5, V1_FEET_ORIGIN_Y).setScale(V1_AVATAR_SCALE)
+        : this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
+            .setScale(AVATAR_DISPLAY_SCALE);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
       this.registerLivingActor('player', sprite, () => this.lastPose.walking);
@@ -1673,6 +1719,12 @@ class DataDrivenWorldScene extends Phaser.Scene {
    */
   private playWalkAnimation(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
+    if (this.playerV1Id) {
+      this.playerSprite.setFlipX(false);
+      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
+      this.playerSprite.play(v1WalkAnimKey(this.playerV1Id, direction), true);
+      return;
+    }
     if (this.avatarReady) {
       this.playerSprite.setFlipX(modularAvatarFlipX(direction));
       if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
@@ -1690,6 +1742,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
   private setIdleFrame(direction: PlayerDirection): void {
     if (!this.playerSprite) return;
     this.playerSprite.stop();
+    if (this.playerV1Id) {
+      this.playerSprite.setFlipX(false);
+      this.playerSprite.setTexture(v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame(direction));
+      return;
+    }
     if (this.avatarReady) {
       const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
         : direction === 'down' ? AVATAR_IDLE_FRAMES.down
@@ -1989,8 +2046,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * pies (player-motion.util): muebles y paredes bloquean pies; la cabeza y el
    * pelo pueden solapar visualmente sin chocar. Con wallsLayer (Tiled) prueba
    * las 4 esquinas del hitbox; si no, las zonas AABB de la sala/backend.
+   *
+   * Siempre se suma la regla autoritativa del servidor (GAME-01): una posición
+   * que el backend rechazaría tampoco es caminable aquí, así la posición
+   * persistida nunca se queda atrás en silencio y las acciones validadas por
+   * proximidad no fallan con "demasiado lejos".
    */
   private wouldCollide(x: number, y: number): boolean {
+    if (this.world && serverRejectsPlayerAt(this.world, x, y)) return true;
     const hb = playerHitbox(x, y);
     if (this.wallsLayer) {
       const corners = [
@@ -2090,6 +2153,11 @@ class DataDrivenWorldScene extends Phaser.Scene {
   imports: [CommonModule, MatIconModule],
   template: `
     <div #gameHost class="phaser-host" role="application"
+      [attr.data-world-ready]="renderReady()"
+      [attr.data-rendered-map-key]="renderedMapKey()"
+      [attr.data-rendered-scenario-key]="renderedScenarioKey()"
+      [attr.data-player-x]="playerPosition()?.x"
+      [attr.data-player-y]="playerPosition()?.y"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
     <div class="touch-controls" aria-label="Controles táctiles">
@@ -2139,6 +2207,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
+  readonly renderReady = signal(false);
+  readonly renderedMapKey = signal<string | null>(null);
+  readonly renderedScenarioKey = signal<string | null>(null);
+  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
+  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
@@ -2153,8 +2226,18 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['scenarioConfig']) this.scene?.setScenarioConfig(this.scenarioConfig());
-    if (changes['world'] && this.world()) this.scene?.setWorld(this.world()!);
+    if (changes['scenarioConfig']) {
+      this.renderReady.set(false);
+      this.renderedMapKey.set(null);
+      this.renderedScenarioKey.set(null);
+      this.scene?.setScenarioConfig(this.scenarioConfig());
+    }
+    if (changes['world'] && this.world()) {
+      this.renderReady.set(false);
+      this.renderedMapKey.set(null);
+      this.renderedScenarioKey.set(null);
+      this.scene?.setWorld(this.world()!);
+    }
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
@@ -2184,9 +2267,18 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
+        onReady:       () => this.zone.run(() => {
+          this.renderedMapKey.set(this.world()?.map.key ?? null);
+          this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
+          this.playerPosition.set(this.scene?.playerPosition() ?? null);
+          this.renderReady.set(true);
+        }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
-        onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
+        onPosition:    (x, y) => this.zone.run(() => {
+          this.playerPosition.set({ x, y });
+          this.positionChange.emit({ x, y });
+        }),
         onRoomExit:    (targetRoomKey, entryX, entryY) =>
           this.zone.run(() => this.roomExit.emit({ targetRoomKey, entryX, entryY })),
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>

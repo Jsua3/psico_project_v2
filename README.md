@@ -30,11 +30,18 @@ npm run up
 ```
 
 El script:
-1. Inicia PostgreSQL en Docker (`localhost:5433`)
+1. Inicia PostgreSQL en Docker (`localhost:5433`, configurable con `SIEP_DB_PORT`) dentro del
+   proyecto Compose `psico-project-v3`, verificando por labels que el contenedor y el volumen
+   pertenecen a **este** checkout (nunca reutiliza ni toca bases de otros proyectos)
 2. Crea `.venv` e instala dependencias Python si hace falta
 3. Genera `local.py` de desarrollo si no existe
-4. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`)
-5. Arranca el frontend en `http://localhost:4200` (proxy automático a la API)
+4. Verifica el esquema del simulador; si falta, **se detiene** (ver «Bootstrap explícito»)
+5. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`)
+6. Arranca el frontend en `http://localhost:4200` (proxy automático a la API)
+
+> Si el puerto 5433 está ocupado por la BD de otro checkout (p. ej. el contenedor
+> `psychosim-db` del proyecto `psicologia_proyecto`), `npm run up` fallará con instrucciones:
+> exporta `SIEP_DB_PORT` con un puerto libre o detén tú mismo el otro stack.
 
 Para detener backend y frontend: `Ctrl+C`. La base de datos sigue en Docker; para pararla:
 
@@ -62,14 +69,40 @@ cd frontend && npm install && npm start
 
 El estudiante **solo ve casos asignados a su grupo** por un docente. En una BD local vacía también faltan las tablas del simulador (el esquema original venía de Flyway/Spring).
 
-`npm run up` detecta una BD sin simulador y ejecuta el bootstrap automáticamente. Si necesitas repetirlo a mano:
+### Bootstrap explícito (nunca automático)
+
+`npm run up` **no** siembra bases de datos: si detecta que faltan tablas del simulador se
+detiene e indica el comando protegido. El bootstrap solo procede tras verificar que el
+contenedor y el volumen pertenecen a este checkout y que el DSN apunta a él:
 
 ```powershell
-cd backend_django
-./.venv/Scripts/python.exe manage.py bootstrap_dev_db
+npm run db:bootstrap -- --yes
 ```
 
 Eso crea el esquema, el caso `SIM-VBG-001`, el grupo demo `DEMO1` y asigna el caso al estudiante demo.
+
+## Tests backend (BD desechable aislada)
+
+La suite backend corre contra una base **desechable** (`psychosim_test`, proyecto Compose
+`psico-project-v3-test`, datos en `tmpfs`, puerto `SIEP_TEST_DB_PORT` — 5544 por defecto),
+nunca contra la BD de desarrollo. `psychosim.settings.test` falla en el arranque si el DSN
+coincide con desarrollo/producción o si el nombre es `psychosim`:
+
+```powershell
+npm run test:backend          # levanta la BD de test, siembra y ejecuta pytest
+npm run test:backend:down     # elimina SOLO los recursos del proyecto de test
+npm run test:scripts          # tests de las guardas de entorno (node --test)
+npm run test:e2e              # Playwright contra un stack aislado completo
+                              # (BD desechable + Django :8093 + Angular :4315)
+```
+
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estos mismos comandos
+en cada PR y en cada push a `master` (scripts, `check:backend` + pytest, jest + assets +
+`ng build`; y, si todo eso pasa, la matriz API + Playwright sin `@full-case`). Los recorridos
+completos del caso (`@full-case`, 4 viewports) van en
+[`.github/workflows/e2e-full-case.yml`](.github/workflows/e2e-full-case.yml): cada noche sobre
+`master` y a mano desde Actions, porque en el runner sin GPU tardan ~3-4x más que en local.
+Localmente, `npm run test:e2e` sigue corriendo todo.
 
 ## Grupos — importar estudiantes por Excel
 

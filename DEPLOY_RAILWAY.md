@@ -119,6 +119,18 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
   Angular no se copió (revisa el log de build del Dockerfile).
 - **Actualizaciones:** cada push a la rama conectada redepliega automáticamente.
   La BD NO se toca en redeploys; solo restauras el volcado la primera vez.
+- **Cambios de esquema sobre una BD ya restaurada:** aplica, en orden, los
+  scripts de [`deploy/upgrades/`](deploy/upgrades/) posteriores a tu restauración
+  (todos son idempotentes):
+  ```bash
+  psql "$DATABASE_URL" -f deploy/upgrades/2026-09-29-attempt-status-paused.sql
+  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-ambient-npcs-caso-pdf.sql
+  ```
+  Sin el de 2026-09-29, la "pausa segura" falla con 500 porque el CHECK viejo
+  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin el de 2026-10-01,
+  hablar con los NPC ambientales del caso (enfermera, médico, trabajadora
+  social…) responde 400 y el diálogo no se abre: el backend exige su posición
+  en `scene_maps.ambient_json.ambientNpcs`.
 - **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
   `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
   las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían

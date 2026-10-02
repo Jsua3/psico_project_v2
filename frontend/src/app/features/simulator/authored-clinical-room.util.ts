@@ -83,6 +83,18 @@ export function authoredMarkerPosition(key: string): { x: number; y: number } | 
 }
 
 /**
+ * El remapeo anterior pertenece exclusivamente a la sala clínica legacy.
+ * Otros renderers autorados (por ejemplo, el caso PDF) ya espejan las
+ * coordenadas del backend y deben conservarlas sin traducción.
+ */
+export function authoredMarkerPositionForMap(
+  mapKey: string | null | undefined,
+  markerKey: string,
+): { x: number; y: number } | null {
+  return isAuthoredClinicalRoomKey(mapKey) ? authoredMarkerPosition(markerKey) : null;
+}
+
+/**
  * true si el hitbox de PIES del jugador (player-motion.util) toca alguna
  * colisión. (x, y) es el punto de pies — el mismo contrato que el runtime.
  */

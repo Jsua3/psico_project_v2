@@ -30,6 +30,10 @@ def cl(user):
     return c
 
 
+def attempt_headers(token):
+    return {"HTTP_X_SIEP_ATTEMPT_TOKEN": token}
+
+
 def assign_case_to_student(estudiante, case_version_id, codigo="SIM-G"):
     profesor = User.objects.create_user(
         email=f"prof_{codigo.lower()}@x.com",
@@ -71,6 +75,37 @@ def test_cases_lists_only_assigned_for_students(estudiante, case_version_id):
 def test_start_attempt_requires_group_case_assignment(estudiante, case_version_id):
     resp = cl(estudiante).post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json")
     assert resp.status_code == 403
+
+
+def test_decision_override_persists_missing_evidence(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-OVERRIDE")
+    c = cl(estudiante)
+    attempt = c.post(
+        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json",
+    ).data["data"]
+    option_id = next(
+        option["id"] for option in attempt["currentNode"]["options"]
+        if option["classification"] == "ADEQUATE"
+    )
+
+    response = c.post(
+        f"/api/simulation/attempts/{attempt['attemptId']}/decisions",
+        {
+            "attemptToken": attempt["attemptToken"],
+            "decisionOptionId": option_id,
+            "evidenceOverride": True,
+            "missingEvidence": ["Hablar con la familia", "Usar PAP"],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    event = AttemptEvent.objects.get(
+        attempt_id=attempt["attemptId"], decision_option_id=option_id,
+    )
+    assert "override de evidencia" in event.detail.lower()
+    assert "Hablar con la familia" in event.detail
+    assert "Usar PAP" in event.detail
 
 
 def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case_version_id):
@@ -130,7 +165,10 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
     )
     assert blocked.status_code == 400
 
-    report = c.get(f"/api/simulation/attempts/{attempt_id}/completion-report?attemptToken={token}")
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report",
+        **attempt_headers(token),
+    )
     assert report.status_code == 200
     assert report.data["data"]["status"] == "COMPLETED"
 
@@ -280,8 +318,34 @@ def test_wrong_token_404(estudiante, case_version_id):
     assign_case_to_student(estudiante, case_version_id, "SIM-WRONG")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
-    resp = c.get(f"/api/simulation/attempts/{start['attemptId']}?attemptToken=bogus-token")
+    resp = c.get(
+        f"/api/simulation/attempts/{start['attemptId']}",
+        **attempt_headers("bogus-token"),
+    )
     assert resp.status_code == 404
+
+
+def test_private_attempt_gets_require_header_and_disable_cache(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-PRIVATE-GETS")
+    c = cl(estudiante)
+    start = c.post(
+        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json"
+    ).data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    c.post(
+        f"/api/simulation/attempts/{attempt_id}/safe-exit",
+        {"attemptToken": token, "reason": "comprobar lecturas privadas"},
+        format="json",
+    )
+
+    for suffix in ("", "/progress-map", "/world", "/completion-report"):
+        url = f"/api/simulation/attempts/{attempt_id}{suffix}"
+        allowed = c.get(url, **attempt_headers(token))
+        assert allowed.status_code == 200
+        assert allowed["Cache-Control"] == "no-store"
+
+        query_only = c.get(f"{url}?attemptToken={token}")
+        assert query_only.status_code == 400
 
 
 def test_safe_exit_returns_resources(estudiante, case_version_id):
@@ -294,8 +358,8 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
         format="json",
     )
     assert resp.status_code == 200
-    assert resp.data["message"] == "Salida segura registrada"
-    assert resp.data["data"]["status"] == "SAFE_EXITED"
+    assert resp.data["message"] == "Pausa segura registrada"
+    assert resp.data["data"]["status"] == "PAUSED"
     assert len(resp.data["data"]["supportResources"]) == 3
 
 
@@ -314,7 +378,8 @@ def test_completion_report_includes_timeline(estudiante, case_version_id):
            {"attemptToken": token, "reason": "test"}, format="json")
 
     report = c.get(
-        f"/api/simulation/attempts/{attempt_id}/completion-report?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}/completion-report",
+        **attempt_headers(token),
     ).data["data"]
 
     assert "timeline" in report

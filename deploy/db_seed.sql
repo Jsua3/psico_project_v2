@@ -1407,7 +1407,7 @@ CREATE TABLE public.simulation_attempts_v2 (
     user_trust integer DEFAULT 50 NOT NULL,
     institutional_route_activated boolean DEFAULT false NOT NULL,
     revictimization_risk boolean DEFAULT false NOT NULL,
-    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying])::text[])))
+    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'PAUSED'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying])::text[])))
 );
 
 
@@ -3021,13 +3021,13 @@ COPY public.scene_maps (id, case_version_id, node_id, map_key, title, width, hei
 4	1	4	valoracion-comisaria	Comisaria de Familia: valoracion del riesgo	960	540	risk-assessment	145	430	{"music":"none","mood":"calm-institutional"}	2026-06-05 22:36:23.555317	2026-06-05 22:36:23.555317
 5	1	5	proteccion-nna	Proteccion de ninos, ninas y adolescentes	960	540	child-protection	145	430	{"music":"none","mood":"calm-institutional"}	2026-06-05 22:36:23.555317	2026-06-05 22:36:23.555317
 6	1	6	cierre-seguimiento	Cierre del caso y plan de seguimiento	960	540	follow-up	145	430	{"music":"none","mood":"calm-institutional"}	2026-06-05 22:36:23.555317	2026-06-05 22:36:23.555317
-297	4	299	hospital-urgencias	Hospital — Urgencias	960	528	hospital-urgencias	480	430	{"music": "none", "mood": "clinical-urgent"}	2026-06-15 19:57:01.025023	2026-06-15 19:57:01.025023
-298	4	300	hospital-sala-escucha	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private"}	2026-06-15 19:57:01.105093	2026-06-15 19:57:01.105093
-299	4	301	hospital-sala-escucha-accion	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private"}	2026-06-15 19:57:01.202642	2026-06-15 19:57:01.202642
-300	4	302	hospital-sala-escucha-cierre	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private"}	2026-06-15 19:57:01.296713	2026-06-15 19:57:01.296713
-301	4	306	comisaria-recepcion	Comisaría de Familia — Recepción	960	528	comisaria-recepcion	160	452	{"music": "none", "mood": "institutional", "transitionText": "Quince d\\u00edas despu\\u00e9s, tras el alta m\\u00e9dica, inicia la ruta de restablecimiento de derechos."}	2026-06-15 19:57:01.345177	2026-06-15 19:57:01.345177
-302	4	303	comisaria-consultorio	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved"}	2026-06-15 19:57:01.384171	2026-06-15 19:57:01.384171
-303	4	304	comisaria-consultorio-marco	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved"}	2026-06-15 19:57:01.480977	2026-06-15 19:57:01.480977
+297	4	299	hospital-urgencias	Hospital — Urgencias	960	528	hospital-urgencias	480	430	{"music": "none", "mood": "clinical-urgent", "ambientNpcs": [{"key": "enfermera-urgencias", "x": 560, "y": 330, "interactionRadius": 60}, {"key": "medico-guardia", "x": 640, "y": 290, "interactionRadius": 60}, {"key": "psicologa-orientadora", "x": 780, "y": 440, "interactionRadius": 60}], "ambientNpcKeys": ["enfermera-urgencias", "medico-guardia", "psicologa-orientadora"]}	2026-06-15 19:57:01.025023	2026-06-15 19:57:01.025023
+298	4	300	hospital-sala-escucha	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private", "ambientNpcs": [{"key": "trabajadora-social", "x": 480, "y": 380, "interactionRadius": 60}], "ambientNpcKeys": ["trabajadora-social"]}	2026-06-15 19:57:01.105093	2026-06-15 19:57:01.105093
+299	4	301	hospital-sala-escucha-accion	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private", "ambientNpcs": [{"key": "trabajadora-social", "x": 480, "y": 380, "interactionRadius": 60}], "ambientNpcKeys": ["trabajadora-social"]}	2026-06-15 19:57:01.202642	2026-06-15 19:57:01.202642
+300	4	302	hospital-sala-escucha-cierre	Hospital — Sala de escucha familiar	960	528	hospital-escucha	480	430	{"music": "none", "mood": "warm-private", "ambientNpcs": [{"key": "trabajadora-social", "x": 480, "y": 380, "interactionRadius": 60}], "ambientNpcKeys": ["trabajadora-social"]}	2026-06-15 19:57:01.296713	2026-06-15 19:57:01.296713
+301	4	306	comisaria-recepcion	Comisaría de Familia — Recepción	960	528	comisaria-recepcion	160	452	{"music": "none", "mood": "institutional", "transitionText": "Quince d\\u00edas despu\\u00e9s, tras el alta m\\u00e9dica, inicia la ruta de restablecimiento de derechos.", "ambientNpcs": [{"key": "orientadora-juridica", "x": 320, "y": 360, "interactionRadius": 60}, {"key": "sobreviviente-espera", "x": 180, "y": 380, "interactionRadius": 60}, {"key": "madre-acompanante", "x": 230, "y": 396, "interactionRadius": 60}], "ambientNpcKeys": ["orientadora-juridica", "sobreviviente-espera", "madre-acompanante"]}	2026-06-15 19:57:01.345177	2026-06-15 19:57:01.345177
+302	4	303	comisaria-consultorio	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved", "ambientNpcs": [{"key": "apoyo-psicosocial", "x": 660, "y": 430, "interactionRadius": 60}], "ambientNpcKeys": ["apoyo-psicosocial"]}	2026-06-15 19:57:01.384171	2026-06-15 19:57:01.384171
+303	4	304	comisaria-consultorio-marco	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved", "ambientNpcs": [{"key": "apoyo-psicosocial", "x": 660, "y": 430, "interactionRadius": 60}], "ambientNpcKeys": ["apoyo-psicosocial"]}	2026-06-15 19:57:01.480977	2026-06-15 19:57:01.480977
 14	3	14	social-hospital-crisis	Urgencias hospitalarias	960	640	hospital	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:14.944228	2026-06-12 08:26:14.944228
 15	3	15	social-hospital-marco	Puesto de coordinacion clinica	960	640	hospital	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:15.000353	2026-06-12 08:26:15.000353
 16	3	16	social-hospital-etica	Sala de comunicacion familiar	960	640	hospital	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:15.040421	2026-06-12 08:26:15.040421
@@ -3035,7 +3035,7 @@ COPY public.scene_maps (id, case_version_id, node_id, map_key, title, width, hei
 18	3	18	social-comisaria-marco	Despacho de restablecimiento	960	640	comisaria	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:15.098324	2026-06-12 08:26:15.098324
 19	3	19	social-comisaria-etica	Sala psicosocial	960	640	comisaria	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:15.121342	2026-06-12 08:26:15.121342
 20	3	20	social-cierre	Cierre y trazabilidad	960	640	follow-up	145	440	{"engine": "babylon", "source": "Caso juego social PSICOLOGIA SOCIAL.pdf"}	2026-06-12 08:26:15.145447	2026-06-12 08:26:15.145447
-304	4	305	comisaria-consultorio-cierre	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved"}	2026-06-15 19:57:01.609287	2026-06-15 19:57:01.609287
+304	4	305	comisaria-consultorio-cierre	Comisaría de Familia — Consultorio	960	528	comisaria-consultorio	480	430	{"music": "none", "mood": "reserved", "ambientNpcs": [{"key": "apoyo-psicosocial", "x": 660, "y": 430, "interactionRadius": 60}], "ambientNpcKeys": ["apoyo-psicosocial"]}	2026-06-15 19:57:01.609287	2026-06-15 19:57:01.609287
 583	59	592	escena-inicial	Escena inicial	960	540	clinical-soft	145	430	{}	2026-06-15 21:22:59.699078	2026-06-15 21:22:59.699078
 \.
 

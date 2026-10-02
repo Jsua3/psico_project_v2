@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "visuals": [
+    {
+      "visualId": "cuidadora-familia-vbg",
+      "displayName": "Cuidadora de familia VBG",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_madre-vbg.png" }
+    },
+    {
+      "visualId": "psicologa-hospitalaria",
+      "displayName": "Psicóloga hospitalaria",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_psicologa-hospitalaria.png" }
+    },
+    {
+      "visualId": "sobreviviente-vbg",
+      "displayName": "Sobreviviente VBG",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_paciente-vbg.png" }
+    },
+    {
+      "visualId": "profesional-psicosocial",
+      "displayName": "Profesional psicosocial",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_comisaria-profesional.png" }
+    },
+    {
+      "visualId": "funcionaria-recepcion",
+      "displayName": "Funcionaria de recepción",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_funcionaria-recepcion.png" }
+    },
+    {
+      "visualId": "enfermera-urgencias",
+      "displayName": "Enfermera de urgencias",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_colega-clinica.png" }
+    },
+    {
+      "visualId": "medico-guardia",
+      "displayName": "Médico de guardia",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_supervisor-clinico.png" }
+    },
+    {
+      "visualId": "psicologa-orientadora",
+      "displayName": "Psicóloga orientadora",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_psicologa-hospitalaria.png" }
+    },
+    {
+      "visualId": "trabajadora-social",
+      "displayName": "Trabajadora social",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_comisaria-profesional.png" }
+    },
+    {
+      "visualId": "orientadora-juridica",
+      "displayName": "Orientadora jurídica",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_funcionaria-recepcion.png" }
+    },
+    {
+      "visualId": "madre-acompanante",
+      "displayName": "Madre acompañante",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/npc_madre-vbg.png" }
+    }
+  ],
+  "mappings": [
+    { "actorId": "familia-duelo", "visualId": "cuidadora-familia-vbg" },
+    { "actorId": "familia-crisis", "visualId": "cuidadora-familia-vbg" },
+    { "actorId": "psicologa-acompanante", "visualId": "psicologa-hospitalaria" },
+    { "actorId": "sobreviviente-consulta", "visualId": "sobreviviente-vbg" },
+    { "actorId": "sobreviviente-espera", "visualId": "sobreviviente-vbg" },
+    { "actorId": "profesional-psicosocial", "visualId": "profesional-psicosocial" },
+    { "actorId": "apoyo-psicosocial", "visualId": "profesional-psicosocial" },
+    { "actorId": "funcionaria-recepcion", "visualId": "funcionaria-recepcion" },
+    { "actorId": "enfermera-urgencias", "visualId": "enfermera-urgencias" },
+    { "actorId": "medico-guardia", "visualId": "medico-guardia" },
+    { "actorId": "psicologa-orientadora", "visualId": "psicologa-orientadora" },
+    { "actorId": "trabajadora-social", "visualId": "trabajadora-social" },
+    { "actorId": "orientadora-juridica", "visualId": "orientadora-juridica" },
+    { "actorId": "madre-acompanante", "visualId": "madre-acompanante" }
+  ]
+}

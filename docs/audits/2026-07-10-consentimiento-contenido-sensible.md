@@ -1,0 +1,28 @@
+# 2026-07-10 — Consentimiento antes de contenido sensible (ETH-01)
+
+- **Rama/HEAD inicial:** `feat/elenco-horneado-animacion` @ `f3456ee` (árbol limpio salvo `archivo.md` y `docs/PROMPT-ESTADO-SIEP-2026-07-10.md`, sin trackear, del usuario — no se tocaron).
+- **Rama/HEAD final:** `codex/consentimiento-eth01` (creada desde `f3456ee`), un commit local. La rama del usuario quedó intacta en `f3456ee`.
+- **Resultado:** al entrar o reanudar un intento, aparece una advertencia neutral de contenido con Continuar / Volver al catálogo **antes** de cualquier video, narrativa o audio sensible. Rechazar deja el intento `IN_PROGRESS` (reanudable) y regresa al catálogo. Bajo el overlay, Escape no dispara `safeExit` y el mundo queda congelado (`worldMotionPaused`). Tras consentir, el flujo previo (video → narrativa → juego, o narrativa directa con `reduce-motion`) es idéntico.
+- **Causa raíz:** `maybeShowInitialCaseIntro` mostraba el video directamente (autoplay + descarga inmediata) y `revealCaseIntro` disparaba `PsicoLament` sin puerta previa; solo existía una nota `sr-only`.
+- **Commits locales:** 1 — `feat(simulator): consentimiento informado antes del contenido sensible (ETH-01)` con `intro-gate.util.ts` (+spec), cableado en `simulation-play.component.ts`, spec de diseño y este reporte.
+- **Gates ejecutados:**
+  - `npm run check:backend` → exit 0, sin issues.
+  - `npm run test:frontend` → baseline 42 suites / 251 tests verdes; final **43 suites / 261 tests verdes** (+1 suite, +10 tests de `intro-gate.util.spec.ts`, vistos fallar primero por módulo ausente — rojo→verde).
+  - `npm run build:frontend` → verde y **sin warnings** (un warning de presupuesto CSS introducido a mitad del slice se eliminó deduplicando estilos con el card de la intro). Persiste el warning conocido de config `ts-jest` obsoleta (preexistente, deuda de toolchain).
+  - `npm run test:backend` y `npm run test:api:e2e` → **NO ejecutados**: `settings/test.py` apunta a la BD `psychosim` compartida de desarrollo (ENV-01 confirmado); requieren BD aislada o autorización informada.
+- **Evidencia live** (Chromium del panel, frontend propio en `127.0.0.1:4310` reutilizando el backend vivo en `:8091`; BD Docker local `psychosim-db` verificada healthy con las 3 tablas centinela — ninguna acción de bootstrap/seed):
+  - login estudiante demo → catálogo → «Continuar intento en progreso» (intento ya existente en Urgencias; no se creó ninguno) → **overlay «Aviso de contenido» primero**;
+  - red sin request de `fondoHabitacion.mp4` ni `PsicoLament.mp3` mientras el aviso estaba abierto; ambos aparecen **solo después** de Continuar;
+  - Escape bajo el aviso: sin POST `safe-exit`, overlay permanece;
+  - «Volver al catálogo» regresa al catálogo; al reentrar el aviso reaparece (nada persistido al rechazar);
+  - consola: 0 errores; red: sin 4xx/5xx inesperados;
+  - las capturas del canvas WebGL en gameplay expiraban en el panel (limitación de captura, no de la app: consola limpia y árbol de accesibilidad completo).
+- **Capacidades preservadas:** video/narrativa idénticos tras consentir; `reduce-motion` sigue saltando el video; reanudación, HUD, dock, salida segura en gameplay y anuncios a11y intactos; suite completa verde.
+- **Pendientes/bloqueos:**
+  - Revisión SME/docente del texto de la advertencia (pendiente, separada de la validación técnica).
+  - Recursos institucionales de apoyo en la advertencia: `BLOCKED_EXTERNAL` (no se inventan líneas; requieren fuente oficial, jurisdicción y responsable).
+  - PERF-01: `audio-director.init()` precarga música ambiental antes del consentimiento (residual).
+  - A11Y-01: sin focus trap en modales (afecta a todos los overlays existentes; se añadió `autofocus` al botón Continuar).
+  - E2E Playwright negativo automatizado (E2E-01: falta comando raíz parametrizado).
+  - ENV-01/DATA-03 siguen abiertos (BD de test compartida; smokes sin aislamiento).
+- **Próximo paso exacto:** CAST-01 — lobby `/portal/jugar` con el elenco horneado del `castId` (renderer en `game-menu.component.ts:87-91`, reutilizar `resolveCastId`/`castTextureKey`/`createAvatarAnimationsFor`), o bien ENV-01 si se prefiere cerrar el gate de Fase 0.

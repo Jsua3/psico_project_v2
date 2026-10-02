@@ -127,14 +127,14 @@ export class DashboardComponent implements OnInit {
 
   continuarEntrenamiento(): TrainingResume | null {
     if (this.isEstudiante()) {
-      const active = this.studentHistory().find(a => a.status === 'IN_PROGRESS');
+      const active = this.studentHistory().find(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
       if (!active) return null;
       return {
         caso: active.caseTitle,
         rol: 'Psicólogo social en formación',
-        ultimaAccion: 'Simulación en curso',
+        ultimaAccion: active.status === 'PAUSED' ? 'Pausa segura activa' : 'Simulación en curso',
         progreso: active.accumulatedScore > 0 ? Math.min(100, active.accumulatedScore) : 0,
-        estado: 'En curso',
+        estado: active.status === 'PAUSED' ? 'En pausa' : 'En curso',
         attemptId: active.attemptId
       };
     }
@@ -412,7 +412,7 @@ export class DashboardComponent implements OnInit {
   studentMetrics(): DashboardMetric[] {
     const history = this.studentHistory();
     const cases = this.simulationCases();
-    const inProgress = history.filter(a => a.status === 'IN_PROGRESS').length;
+    const inProgress = history.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED').length;
     const completed = history.filter(a => a.status === 'COMPLETED' || a.status === 'SAFE_EXITED').length;
     const assignedCases = cases.length > 0 ? cases.length : new Set(history.map(h => h.caseTitle)).size;
     const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
@@ -654,6 +654,7 @@ export class DashboardComponent implements OnInit {
 
   private estadoLabel(estado: string) {
     if (estado === 'COMPLETADO' || estado === 'COMPLETED' || estado === 'SAFE_EXITED') return 'Completado';
+    if (estado === 'EN_PAUSA' || estado === 'PAUSED') return 'En pausa';
     if (estado === 'PENDIENTE') return 'Pendiente';
     return 'En curso';
   }

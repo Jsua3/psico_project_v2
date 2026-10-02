@@ -2,7 +2,7 @@
   <app-siep-particle-layer density="medium" [interactive]="true" mode="background"></app-siep-particle-layer>
   <div class="siep-login__glow" aria-hidden="true"></div>
 
-  <a routerLink="/" class="siep-login__back" aria-label="Volver al inicio">
+  <a href="/" routerLink="/" class="siep-login__back" aria-label="Volver al inicio">
     <mat-icon aria-hidden="true">arrow_back</mat-icon>
     <span>{{ brand.institution }}</span>
   </a>
@@ -198,9 +198,9 @@
             <p class="toggle-sim-preview__caption">{{ activeRole().narrative }}</p>
           </div>
 
-          <div class="toggle-pillars" aria-label="Pilares pedagógicos SIEP">
+          <div class="toggle-pillars" role="list" aria-label="Pilares pedagógicos SIEP">
             @for (pillar of pedagogyPillars; track pillar.key) {
-              <span class="toggle-pillar" [style.--pillar-color]="pillar.color" [title]="pillar.description">
+              <span class="toggle-pillar" role="listitem" [style.--pillar-color]="pillar.color" [title]="pillar.description">
                 <span class="toggle-pillar__badge" aria-hidden="true">{{ pillar.short }}</span>
                 <small>{{ pillar.title }}</small>
               </span>
@@ -234,9 +234,9 @@
             <p class="toggle-sim-preview__caption">{{ activeRole().narrative }}</p>
           </div>
 
-          <div class="toggle-pillars" aria-label="Pilares pedagógicos SIEP">
+          <div class="toggle-pillars" role="list" aria-label="Pilares pedagógicos SIEP">
             @for (pillar of pedagogyPillars; track pillar.key) {
-              <span class="toggle-pillar" [style.--pillar-color]="pillar.color" [title]="pillar.description">
+              <span class="toggle-pillar" role="listitem" [style.--pillar-color]="pillar.color" [title]="pillar.description">
                 <span class="toggle-pillar__badge" aria-hidden="true">{{ pillar.short }}</span>
                 <small>{{ pillar.title }}</small>
               </span>

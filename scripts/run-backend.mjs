@@ -9,6 +9,8 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createBackendCommandEnv } from './run-backend-support.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND = join(ROOT, 'backend_django');
 const isWin = process.platform === 'win32';
@@ -38,6 +40,7 @@ const result = spawnSync(cmd, cmdArgs, {
   cwd: BACKEND,
   stdio: 'inherit',
   shell: isWin,
+  env: createBackendCommandEnv(args, process.env),
 });
 
 process.exit(result.status ?? 1);

@@ -14,6 +14,9 @@ from .case import CaseVersion, DecisionOption, SimulationNode
 
 class AttemptStatus(models.TextChoices):
     IN_PROGRESS = "IN_PROGRESS"
+    # Pausa reanudable real (ETH-02, opción A): sin ended_at/locked_at.
+    PAUSED = "PAUSED"
+    # Cierre terminal (histórico o por reemplazo con forceNew).
     SAFE_EXITED = "SAFE_EXITED"
     COMPLETED = "COMPLETED"
 

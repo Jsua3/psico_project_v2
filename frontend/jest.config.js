@@ -14,10 +14,4 @@ module.exports = {
     }],
   },
   setupFilesAfterEnv: ['<rootDir>/setup-jest.ts'],
-  globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.spec.json',
-      diagnostics: false,
-    },
-  },
 };

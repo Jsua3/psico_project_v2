@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import { Component, effect, inject, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,9 +14,11 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 @Component({
   selector: 'app-journal-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [A11yModule, CommonModule, FormsModule, MatIconModule],
   template: `
     <div class="journal-modal"
+      [cdkTrapFocus]="open()"
+      [cdkTrapFocusAutoCapture]="open()"
       [class.journal-modal--open]="open()"
       role="dialog"
       aria-modal="true"
@@ -28,7 +31,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
           <h3 id="journal-heading">Bitácora reflexiva</h3>
           <p class="psy-eyebrow sheet-sub">Razonamiento ético y formativo</p>
         </div>
-        <button class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
+        <button cdkFocusInitial class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
           <mat-icon>close</mat-icon>
         </button>
       </div>
@@ -153,7 +156,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       color: rgba(232,240,244,.5);
       flex-shrink: 0;
     }
-    .sheet-sub { color: rgba(182,156,255,.7); margin: 2px 0 0; }
+    .sheet-sub { color: rgba(182,156,255,.82); margin: 2px 0 0; }
 
     .journal-columns {
       display: grid;
@@ -230,7 +233,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     .encrypt-note {
       display: flex; gap: 8px; align-items: center;
       margin: 0; font-size: .7rem;
-      color: rgba(232,240,244,.28);
+      color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
     .continue-btn { flex-shrink: 0; }

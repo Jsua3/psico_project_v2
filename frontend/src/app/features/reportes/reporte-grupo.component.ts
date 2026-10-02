@@ -715,17 +715,19 @@ export class ReporteGrupoComponent {
 
   estadoLabel(estado: string) {
     const normalized = estado.toUpperCase();
-    if (normalized === 'COMPLETED') return 'Completado';
-    if (normalized === 'SAFE_EXITED') return 'Salida segura';
-    if (normalized === 'IN_PROGRESS') return 'En progreso';
+    if (normalized === 'COMPLETED' || normalized === 'COMPLETADO') return 'Completado';
+    if (normalized === 'EN_PAUSA' || normalized === 'PAUSED') return 'En pausa (reanudable)';
+    if (normalized === 'SAFE_EXITED') return 'Cerrado con salida segura';
+    if (normalized === 'IN_PROGRESS' || normalized === 'EN_PROGRESO') return 'En progreso';
     return estado;
   }
 
   estadoClass(estado: string) {
     const normalized = estado.toUpperCase();
-    if (normalized === 'COMPLETED') return 'estado-completed';
+    if (normalized === 'COMPLETED' || normalized === 'COMPLETADO') return 'estado-completed';
+    if (normalized === 'EN_PAUSA' || normalized === 'PAUSED') return 'estado-safe';
     if (normalized === 'SAFE_EXITED') return 'estado-safe';
-    if (normalized === 'IN_PROGRESS') return 'estado-progress';
+    if (normalized === 'IN_PROGRESS' || normalized === 'EN_PROGRESO') return 'estado-progress';
     return 'estado-default';
   }
 }

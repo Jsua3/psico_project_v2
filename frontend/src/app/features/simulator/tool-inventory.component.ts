@@ -14,7 +14,11 @@ import { ClinicalToolState } from '../../core/models/simulation.model';
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="tool-dock" role="toolbar" aria-label="Inventario clínico de herramientas">
+    <div
+      class="tool-dock"
+      role="toolbar"
+      tabindex="0"
+      aria-label="Inventario clínico de herramientas. Desplázate horizontalmente para revisar todas las herramientas">
       @for (tool of tools(); track tool.code; let i = $index) {
         <button
           class="tool-card"
@@ -118,6 +122,10 @@ import { ClinicalToolState } from '../../core/models/simulation.model';
       pointer-events: none;
     }
     .tool-card:focus-visible {
+      outline: 2px solid rgba(182,156,255,.7);
+      outline-offset: 2px;
+    }
+    .tool-dock:focus-visible {
       outline: 2px solid rgba(182,156,255,.7);
       outline-offset: 2px;
     }

@@ -1,6 +1,7 @@
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -11,7 +12,7 @@ import {
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import {
-  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, applyFeedbackToPatient, parseInterventionRules,
+  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
 } from './patient-state.util';
 import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
 import { DialoguePanelComponent } from './dialogue-panel.component';
@@ -37,7 +38,7 @@ import { getSceneGuide } from './scene-guide.config';
 import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
-import { AIAssistantComponent } from './ai-assistant/ai-assistant.component';
+import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 
 const SIMULATOR_INTRO_VIDEO = 'assets/video/fondoHabitacion.mp4';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
@@ -55,10 +56,9 @@ const CASE_INTRO_PARAGRAPHS = [
   selector: 'app-simulation-play',
   standalone: true,
   imports: [
-    CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
+    A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
-    AIAssistantComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -82,7 +82,7 @@ const CASE_INTRO_PARAGRAPHS = [
           <span>{{ doorNotice() }}</span>
         </div>
       }
-      @if (roomBanner()) {
+      @if (roomBanner() && !fadeActive()) {
         <div class="room-banner" role="status">{{ roomBanner() }}</div>
       }
       @if (transitionNote()) {
@@ -93,7 +93,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
         <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
-          <article class="resume-card liquid-glass">
+          <article class="resume-card liquid-glass" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
             <p class="psy-eyebrow">Intento en progreso</p>
             <h2 id="resume-title">Continuar simulación formativa</h2>
             <p>
@@ -106,8 +106,8 @@ const CASE_INTRO_PARAGRAPHS = [
               <span>Riesgo: {{ active.metrics.victimRisk }}%</span>
             </div>
             <div class="resume-actions">
-              <button class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
-                Continuar intento en progreso
+              <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
+                {{ active.status === 'PAUSED' ? 'Reanudar intento en pausa' : 'Continuar intento en progreso' }}
               </button>
               <button class="psy-button psy-button--ghost" type="button" (click)="startNewAttempt()">
                 Iniciar nuevo intento
@@ -119,9 +119,45 @@ const CASE_INTRO_PARAGRAPHS = [
       }
 
       @if (attempt(); as game) {
+        @if (showContentWarning()) {
+          <section class="case-intro-overlay content-warning-overlay" role="dialog" aria-modal="true"
+            aria-labelledby="content-warning-title" aria-describedby="content-warning-body">
+            <article class="case-intro-card content-warning-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+              <header class="case-intro-card__header">
+                <p class="psy-eyebrow">Aviso de contenido</p>
+                <h2 id="content-warning-title">Antes de entrar al caso</h2>
+                <span>Simulación formativa con datos ficticios</span>
+              </header>
+
+              <div class="case-intro-card__body" id="content-warning-body">
+                <p>
+                  Este caso presenta una situación ficticia de violencia basada en género
+                  y crisis familiar. Algunas escenas incluyen relatos y decisiones
+                  emocionalmente exigentes.
+                </p>
+                <p>
+                  Durante el caso tendrás disponible la salida segura (<kbd>Esc</kbd>).
+                  Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
+                  cuando lo decidas.
+                </p>
+              </div>
+
+              <footer class="case-intro-card__actions">
+                <button class="psy-button psy-button--ghost" type="button" (click)="declineContentWarning()">
+                  Volver al catálogo
+                </button>
+                <button class="psy-button psy-button--primary" type="button" cdkFocusInitial (click)="acceptContentWarning()">
+                  Continuar
+                </button>
+              </footer>
+            </article>
+          </section>
+        }
+
+        @if (worldStarted()) {
         @if (showIntroVideo()) {
           <section class="intro-video-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-video-title">
-            <article class="intro-video-card">
+            <article class="intro-video-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="intro-video-card__header">
                 <p class="psy-eyebrow">Introducción</p>
                 <h2 id="intro-video-title">Antes de comenzar</h2>
@@ -139,7 +175,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 } @else {
                   <span>Reproduce el video o continúa cuando quieras.</span>
                 }
-                <button class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
+                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroVideo()">
                   {{ introVideoEnded() ? 'Continuar' : 'Saltar video' }}
                 </button>
               </footer>
@@ -149,7 +185,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (showCaseIntro()) {
           <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
-            <article class="case-intro-card">
+            <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Primera escena</p>
                 <h2 id="case-intro-title">{{ caseIntroTitle }}</h2>
@@ -164,7 +200,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
               <footer class="case-intro-card__actions">
                 <span>Lee el contexto completo antes de iniciar la intervención.</span>
-                <button class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
+                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                   Continuar
                 </button>
               </footer>
@@ -172,7 +208,7 @@ const CASE_INTRO_PARAGRAPHS = [
           </section>
         }
 
-        <header class="top-bar">
+        <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           <app-simulation-hud
             [attempt]="game"
             [stressPulse]="stressPulse()"
@@ -182,25 +218,18 @@ const CASE_INTRO_PARAGRAPHS = [
             [progressLabel]="progressLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
-            [aiAssistantOpen]="aiAssistantOpen()"
             [musicMuted]="musicMuted()"
             [sfxMuted]="sfxMuted()"
             [reduceMotion]="reduceMotion()"
             (toggleJournal)="journalOpen.set(!journalOpen())"
-            (toggleAI)="aiAssistantOpen.set(!aiAssistantOpen())"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()" />
         </header>
 
-        <button type="button" class="guide-chatbot-button psy-button psy-button--primary" [class.guide-chatbot-button--active]="aiAssistantOpen()"
-          (click)="aiAssistantOpen.set(!aiAssistantOpen())" aria-label="Abrir Instructor guia chatbot">
-          <mat-icon aria-hidden="true">psychology</mat-icon>
-          <span>Instructor guia chatbot</span>
-        </button>
-
         <main class="main-zone">
-          <section class="canvas-zone" aria-label="Escena de la simulación">
+          <section class="canvas-zone" aria-label="Escena de la simulación"
+            [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
             @if (sceneObjective(); as objective) {
               <div class="objective-card" role="status">
                 <mat-icon aria-hidden="true">flag</mat-icon>
@@ -243,7 +272,8 @@ const CASE_INTRO_PARAGRAPHS = [
                 <p class="right-panel__kicker">{{ currentStageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
                 @if (game.currentNode.narrative) {
-                  <p class="right-panel__narrative">{{ game.currentNode.narrative }}</p>
+                  <p class="right-panel__narrative" tabindex="0" role="region"
+                    aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side"
@@ -254,7 +284,7 @@ const CASE_INTRO_PARAGRAPHS = [
           }
         </main>
 
-        <footer class="bottom-zone">
+        <footer class="bottom-zone" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
             <button class="safe-exit" type="button" (click)="safeExit()" [disabled]="busy()"
               aria-label="Salida segura (Escape)">
@@ -269,16 +299,17 @@ const CASE_INTRO_PARAGRAPHS = [
             (select)="selectTool($event)" />
 
           <div class="context-bar" aria-live="polite" aria-atomic="true">
-            @if (nearbyInteraction(); as nb) {
-              <div class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'">
-                <kbd>E</kbd>
+            @if (contextualInteraction(); as nb) {
+              <button type="button" class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'"
+                (click)="openInteraction(nb)" [attr.aria-label]="'Interactuar: ' + proximityLabel(nb) + ' (atajo E)'">
+                <kbd aria-hidden="true">E</kbd>
                 <div class="context-bar__copy">
                   <strong>{{ proximityLabel(nb) }}</strong>
                   @if (proximityDescription(nb); as desc) {
                     <p>{{ desc }}</p>
                   }
                 </div>
-              </div>
+              </button>
             } @else {
               <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
             }
@@ -301,13 +332,6 @@ const CASE_INTRO_PARAGRAPHS = [
           [resources]="supportResources()"
           (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
 
-        <app-ai-assistant
-          [open]="aiAssistantOpen()"
-          [attemptId]="game.attemptId"
-          [currentNodeId]="game.currentNode.key"
-          [decisionAlreadyTaken]="game.feedback !== null || game.status !== 'IN_PROGRESS'"
-          (close)="aiAssistantOpen.set(false)" />
-
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
           <h4 class="sr-only">Escena: {{ game.currentNode.title }}</h4>
@@ -321,20 +345,11 @@ const CASE_INTRO_PARAGRAPHS = [
           <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
         </section>
 
-        <!-- Accessible interaction list -->
-        <section class="sr-only" aria-label="Lista accesible de puntos interactivos">
-          <div role="list">
-            @for (obj of world()?.objects ?? []; track obj.key) {
-              <button role="listitem" type="button" class="sr-only"
-                [attr.aria-label]="proximityLabel(obj) + ': ' + proximityDescription(obj)"
-                (click)="openInteraction(obj)">{{ proximityLabel(obj) }}</button>
-            }
-          </div>
-        </section>
-
-        <app-attempt-outcome [report]="game.completionReport" [status]="game.status" (retry)="startNewAttempt()" />
+        <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
+          (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
+        }
       }
     </div>
   `,
@@ -449,7 +464,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .vignette--active { opacity: var(--vignette-opacity, 0); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
-    .guide-chatbot-button { position: absolute; top: 60px; right: 16px; z-index: 168; gap: 8px; max-width: min(260px, calc(100vw - 32px)); }
     .right-panel {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -536,9 +550,14 @@ const CASE_INTRO_PARAGRAPHS = [
       border: 1px solid rgba(182,156,255,.35);
       border-radius: 12px;
       background: rgba(8,12,18,.88);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
       animation: hint-rise 160ms ease both;
     }
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
+    .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
     .context-bar__interaction kbd {
       flex-shrink: 0;
       padding: 3px 9px;
@@ -579,6 +598,10 @@ const CASE_INTRO_PARAGRAPHS = [
       font-size: .64rem;
       color: rgba(201,184,255,.6);
     }
+
+    /* Advertencia de contenido (ETH-01): variante del card de intro. */
+    .case-intro-overlay.content-warning-overlay { z-index: 395; }
+    .case-intro-card.content-warning-card { width: min(640px, 100%); }
 
     .intro-video-overlay {
       position: absolute;
@@ -905,6 +928,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
@@ -930,7 +954,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly stressPulse = signal(false);
   readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
-  readonly aiAssistantOpen = signal(false);
   readonly fadeActive   = signal(false);
   /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
   readonly doorNotice   = signal('');
@@ -938,6 +961,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
+  /** Advertencia de contenido: ETH-01 — precede a video, narrativa y gameplay. */
+  readonly showContentWarning = signal(false);
+  /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
+  readonly worldStarted = signal(false);
   readonly showIntroVideo = signal(false);
   readonly introVideoEnded = signal(false);
   readonly introVideoSrc = SIMULATOR_INTRO_VIDEO;
@@ -956,6 +983,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   private readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
+  private pendingEvidenceMissing: string[] = [];
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
@@ -973,8 +1001,20 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   });
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
-  readonly worldMotionPaused = computed(() =>
-    this.showIntroVideo() || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+  readonly inputBlocked = computed(() =>
+    this.showResumePrompt() || this.showContentWarning() || this.showIntroVideo()
+    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
+    || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+
+  readonly worldMotionPaused = computed(() => this.inputBlocked());
+
+  readonly contextualInteraction = computed(() => {
+    const game = this.attempt();
+    const interaction = this.nearbyInteraction();
+    return game?.status === 'IN_PROGRESS' && !this.inputBlocked() && !this.busy()
+      ? interaction
+      : null;
+  });
 
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
@@ -988,7 +1028,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   });
 
   private lastPosition: { x: number; y: number } | null = null;
+  private lastSyncedPosition: { x: number; y: number } | null = null;
   private positionSaveHandle: number | null = null;
+  /**
+   * Histéresis también para la interacción contextual (clic/E). Al entrar o
+   * recargar junto a una puerta de retorno, exige alejarse antes de permitir
+   * volver a cruzarla; evita que un evento residual rebote a la sala anterior.
+   */
+  private doorInteractionArmed = false;
+  private readonly doorInteractionRearmDistance = 72;
 
   ngOnDestroy(): void {
     this.introVideoRef?.nativeElement?.pause();
@@ -1006,7 +1054,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
-        if (active?.status === 'IN_PROGRESS') {
+        if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
           this.pendingActiveAttempt.set(active);
           this.showResumePrompt.set(true);
           this.loading.set(false);
@@ -1023,7 +1071,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!active) return;
     this.showResumePrompt.set(false);
     this.loading.set(true);
+    if (active.status === 'PAUSED') {
+      // Pausa reanudable real (ETH-02 A): transición explícita en backend,
+      // mismo attemptId; el consentimiento se vuelve a pedir en bootstrap.
+      this.simulationService.resumeAttempt(active.attemptId, active.attemptToken).subscribe({
+        next: attempt => this.bootstrapAttempt(attempt),
+        error: () => { this.error.set('No pudimos reanudar el intento.'); this.loading.set(false); },
+      });
+      return;
+    }
     this.bootstrapAttempt(active);
+  }
+
+  /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
+  resumeCurrentAttempt(): void {
+    const current = this.attempt();
+    if (!current || current.status !== 'PAUSED' || this.busy()) return;
+    this.busy.set(true);
+    this.simulationService.resumeAttempt(current.attemptId, current.attemptToken).subscribe({
+      next: attempt => {
+        this.busy.set(false);
+        this.attempt.set(attempt);
+        this.audioDirector.setStressLevel(attempt.stressIndex);
+        this.announce('Intento reanudado. Continúas exactamente donde quedaste.');
+      },
+      error: () => { this.showActionError('No pudimos reanudar el intento.'); this.busy.set(false); },
+    });
   }
 
   startNewAttempt() {
@@ -1045,14 +1118,34 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
+    this.attempt.set(attempt);
+    this.persistAttemptToken(attempt);
+    // ETH-01: sin consentimiento no se inicializa audio, ni se pide el mundo,
+    // ni se monta el HUD. Solo queda en pantalla la advertencia.
+    if (attempt.status === 'IN_PROGRESS' && !this.hasContentConsent(attempt)) {
+      this.worldStarted.set(false);
+      this.loading.set(false);
+      this.showContentWarning.set(true);
+      return;
+    }
+    this.startWorld(attempt);
+  }
+
+  private hasContentConsent(attempt: SimulationAttemptState): boolean {
+    return sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given';
+  }
+
+  /** Arranque real (post-consentimiento). Idempotente ante dobles llamadas. */
+  private startWorld(attempt: SimulationAttemptState) {
+    if (this.worldStarted()) return;
+    this.worldStarted.set(true);
+    this.loading.set(true);
     this.audioDirector.init();
     this.musicMuted.set(this.audioDirector.isMusicMuted());
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
-    this.attempt.set(attempt);
     this.patientState.set(PATIENT_INITIAL_STATE);
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
     this.pendingEvidenceDecisionId = null;
-    this.persistAttemptToken(attempt);
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
     this.audioDirector.setStressLevel(attempt.stressIndex);
@@ -1066,6 +1159,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (event.defaultPrevented) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
+
+    if (this.showContentWarning()) {
+      // El consentimiento exige activación explícita de sus botones (Tab +
+      // Enter/click). Se traga Escape para que no caiga en la salida segura,
+      // que mutaría el intento en backend sin decisión informada.
+      if (event.key === 'Escape') event.preventDefault();
+      return;
+    }
 
     if (this.showIntroVideo()) {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -1091,13 +1192,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if ((event.key === 'j' || event.key === 'J') && tag !== 'INPUT' && tag !== 'TEXTAREA' && !editable) {
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+    // Enter/Espacio conservan la activación propia de botones y enlaces. Otros
+    // atajos (J, E) siguen siendo globales aunque el foco permanezca un instante
+    // en el botón que acaba de cerrar un overlay.
+    if ((tag === 'BUTTON' || tag === 'A') && (event.key === 'Enter' || event.key === ' ')) return;
+
+    if (this.inputBlocked()) {
+      if (['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
       this.journalOpen.set(!this.journalOpen());
       return;
     }
-
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
 
     if (['e','E',' ','Enter'].includes(event.key)) {
       const nb = this.nearbyInteraction();
@@ -1109,7 +1219,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') return;
+    if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
 
     if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
       this.tryOpenDoor(interaction);
@@ -1166,6 +1276,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private openBackendInteraction(interaction: MapObjectState) {
     const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
+    this.withSyncedPosition(() => this.doOpenBackendInteraction(interaction));
+  }
+
+  private doOpenBackendInteraction(interaction: MapObjectState) {
+    const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
 
     this.selectedInteraction.set(interaction);
@@ -1194,9 +1310,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private tryOpenDoor(door: MapObjectState) {
     const game = this.attempt();
     const target = this.doorTargetNodeKey(door);
-    if (!game || !target || this.busy()) return;
+    if (!game || !target || this.inputBlocked() || this.busy()) return;
     const meta = (door.metadata ?? {}) as {
-      entryX?: number; entryY?: number; requiresNpcs?: string[];
+      requiresNpcs?: string[];
       requiresTools?: string[]; requiresInspected?: string[];
       requiresNodes?: string[]; lockedMessage?: string;
     };
@@ -1212,11 +1328,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.showDoorNotice(message);
       return;
     }
+    if (!this.doorInteractionArmed) {
+      this.audioDirector.playSfx('ui_cancel');
+      this.showDoorNotice('Da unos pasos dentro de la sala antes de volver a cruzar la puerta.');
+      return;
+    }
     this.busy.set(true);
-    this.triggerFade(() => {
+    this.withSyncedPosition(() => this.triggerFade(() => {
       this.simulationService.enterRoom(
-        game.attemptId, game.attemptToken, target,
-        Number(meta.entryX ?? 0), Number(meta.entryY ?? 0), door.key,
+        game.attemptId, game.attemptToken, target, door.key,
       ).subscribe({
         next: world => {
           this.selectedInteraction.set(null);
@@ -1227,7 +1347,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         },
         error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
       });
-    });
+    }));
   }
 
   private doorNoticeTimer: number | null = null;
@@ -1359,19 +1479,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
     if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
       this.pendingEvidenceDecisionId = decisionOptionId;
+      this.pendingEvidenceMissing = [...missing];
       const message = this.evidenceMissingMessage(evidenceDef, missing);
       this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
       this.announce(message);
       return;
     }
+    const evidenceOverride = this.pendingEvidenceDecisionId === decisionOptionId
+      && this.pendingEvidenceMissing.length > 0;
+    const confirmedMissingEvidence = evidenceOverride ? this.pendingEvidenceMissing : [];
     this.pendingEvidenceDecisionId = null;
+    this.pendingEvidenceMissing = [];
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
-      this.simulationService.chooseDecision(game.attemptId, game.attemptToken, decisionOptionId).subscribe({
+      this.simulationService.chooseDecision(
+        game.attemptId, game.attemptToken, decisionOptionId,
+        evidenceOverride, confirmedMissingEvidence,
+      ).subscribe({
         next: updated => {
           this.attempt.set(updated);
+          this.hydrateClinicalState(updated);
           this.persistAttemptToken(updated);
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
@@ -1384,13 +1513,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playSfx('session_complete');
           }
           if (updated.feedback) {
-            const retryRequired = this.feedbackRequiresRetry(updated.feedback);
-            if (!retryRequired) {
-              // Consecuencia visible: la paciente reacciona (HUD + tint/shake del NPC).
-              const nextPatient = applyFeedbackToPatient(this.patientState(), this.interventionRules, updated.feedback);
-              this.patientState.set(nextPatient);
-              this.gameWorld?.updatePatientVisualState(nextPatient);
-            }
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
@@ -1402,6 +1524,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   useTool(toolCode: string) {
     const game = this.attempt();
     const target = this.selectedInteraction()?.key ?? null;
+    if (!game || this.busy()) return;
+    this.withSyncedPosition(() => this.doUseTool(toolCode, target));
+  }
+
+  private doUseTool(toolCode: string, target: string | null) {
+    const game = this.attempt();
     if (!game || this.busy()) return;
     this.busy.set(true);
     this.simulationService.useTool(game.attemptId, game.attemptToken, toolCode, target).subscribe({
@@ -1423,7 +1551,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   selectTool(toolCode: string) {
     const tool = this.world()?.tools.find(t => t.code === toolCode);
-    if (!tool) return;
+    if (!tool || this.inputBlocked() || this.busy()) return;
     this.audioDirector.playSfx('ui_select');
     this.dialogue.set({
       key: tool.code, speakerName: 'Herramienta profesional', portraitKey: tool.icon, emotion: 'neutral',
@@ -1442,18 +1570,36 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
-    this.viewedNpcKeys.update(prev => {
-      const next = new Set(prev).add(npc.key);
-      this.persistViewedNpcKeys(next);
-      return next;
-    });
+    if (this.inputBlocked() || this.busy()) return;
     const game = this.attempt();
     if (game?.status === 'IN_PROGRESS') {
-      this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
-        next: world => this.mergeViewedNpcKeysFromWorld(world),
-        error: () => this.showActionError('No pudimos guardar la interaccion con el NPC.'),
-      });
+      this.busy.set(true);
+      this.withSyncedPosition(() => this.recordNpcInteraction(npc));
+      return;
     }
+    this.showNpcDialogue(npc);
+  }
+
+  private recordNpcInteraction(npc: NpcConfig): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.busy.set(false);
+      return;
+    }
+    this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
+      next: world => {
+        this.mergeViewedNpcKeysFromWorld(world);
+        this.showNpcDialogue(npc);
+        this.busy.set(false);
+      },
+      error: () => {
+        this.showActionError('No pudimos guardar la interaccion con el NPC.');
+        this.busy.set(false);
+      },
+    });
+  }
+
+  private showNpcDialogue(npc: NpcConfig): void {
     if (!npc.dialogue?.lines?.length) return;
     this.dialogue.set({
       key: `npc-${npc.key}`,
@@ -1491,10 +1637,19 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   safeExit() {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game || this.inputBlocked() || this.busy()) return;
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
     this.busy.set(true);
+    this.withSyncedPosition(() => this.pauseCurrentAttempt());
+  }
+
+  private pauseCurrentAttempt(): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.busy.set(false);
+      return;
+    }
     this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').subscribe({
       next: updated => { this.attempt.set(updated); this.selectedInteraction.set(null); this.dialogue.set(null); this.loadWorld(updated); },
       error: () => { this.showActionError('No pudimos registrar la salida segura.'); this.busy.set(false); }
@@ -1503,8 +1658,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   rememberPosition(x: number, y: number) {
     this.lastPosition = { x, y };
+    this.rearmDoorInteractionWhenAway(x, y);
     if (this.positionSaveHandle) window.clearTimeout(this.positionSaveHandle);
     this.positionSaveHandle = window.setTimeout(() => this.persistPosition(), 550);
+  }
+
+  private rearmDoorInteractionWhenAway(x: number, y: number): void {
+    if (this.doorInteractionArmed) return;
+    const doors = (this.world()?.objects ?? []).filter(object =>
+      (object.type || '').toUpperCase() === 'EXIT' && this.doorTargetNodeKey(object),
+    );
+    if (doors.length === 0 || doors.every(door =>
+      Math.hypot(x - door.x, y - door.y) >= this.doorInteractionRearmDistance,
+    )) {
+      this.doorInteractionArmed = true;
+    }
   }
 
   progressLabel(): string {
@@ -1542,7 +1710,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   statusLabelA11y(status: SimulationAttemptState['status']): string {
-    return { IN_PROGRESS:'En progreso', COMPLETED:'Finalizado', SAFE_EXITED:'Pausado con salida segura' }[status];
+    return {
+      IN_PROGRESS: 'En progreso',
+      PAUSED: 'En pausa segura (reanudable)',
+      COMPLETED: 'Finalizado',
+      SAFE_EXITED: 'Cerrado con salida segura',
+    }[status];
   }
 
   private showToolFeedback(result: ToolUseResult): void {
@@ -1560,9 +1733,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.stressPulse.set(true);
     window.setTimeout(() => this.stressPulse.set(false), 700);
     this.announce(result.feedbackMessage);
-    window.setTimeout(() => {
-      if (this.dialogue()?.key?.startsWith('tool-feedback-')) this.dialogue.set(null);
-    }, 5000);
   }
 
   toggleMusicMute(): void {
@@ -1697,41 +1867,99 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Carga el ScenarioConfig que corresponde al mapa del mundo y aplica ambos. */
   private applyWorldWithScenario(world: SimulationWorldState): void {
-    this.scenarioConfig.set(null);
     this.simulationService.getScenarioConfig(world.map.key).subscribe({
       next: config => {
         this.scenarioConfig.set(config);
         this.applyLoadedWorld(world);
       },
-      error: () => this.applyLoadedWorld(world),
+      error: () => {
+        // Solo entrar al renderer legacy cuando sabemos que el asset no existe.
+        // Vaciar la configuración mientras el GET seguía pendiente abría una
+        // ventana en la que las puertas DB walk-over podían dispararse solas.
+        this.scenarioConfig.set(null);
+        this.applyLoadedWorld(world);
+      },
     });
   }
 
   private applyLoadedWorld(world: SimulationWorldState): void {
     const previousMapKey = this.world()?.map.key ?? null;
+    const mapChanged = previousMapKey !== world.map.key;
+    if (mapChanged) this.doorInteractionArmed = false;
     this.world.set(world);
+    this.hydrateClinicalState(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
     window.setTimeout(() => this.fadeActive.set(false), 80);
-    if (previousMapKey && previousMapKey !== world.map.key) {
+    if (previousMapKey && mapChanged) {
+      // La posición pendiente pertenece a la sala anterior: descartarla evita
+      // que un flush posterior envíe coordenadas del mapa viejo.
+      this.lastPosition = null;
+      this.lastSyncedPosition = null;
       this.announceRoomChange(world);
     }
     this.maybeShowInitialCaseIntro(world);
   }
 
+  private hydrateClinicalState(attempt: SimulationAttemptState | null): void {
+    const patient = attempt?.clinicalState?.patient;
+    if (!patient) return;
+    this.patientState.set(patient);
+    this.gameWorld?.updatePatientVisualState(patient);
+  }
+
   private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
     const attempt = this.attempt();
-    if (!attempt || attempt.status !== 'IN_PROGRESS') return;
-    if (attempt.currentNode.key !== 'hospital-urgencias' || world.map.key !== 'hospital-urgencias') return;
-    const storageKey = this.caseIntroStorageKey(attempt);
-    if (sessionStorage.getItem(storageKey) === 'read') return;
-    if (!this.reduceMotion()) {
-      this.introVideoEnded.set(false);
-      this.showIntroVideo.set(true);
-      return;
+    if (!attempt) return;
+    this.applyIntroStep(this.resolveIntroStepFor(attempt, world.map.key));
+  }
+
+  private resolveIntroStepFor(attempt: SimulationAttemptState, mapKey: string | null): IntroGateStep {
+    return resolveIntroStep({
+      attemptStatus: attempt.status,
+      nodeKey: attempt.currentNode.key,
+      mapKey,
+      consentGiven: sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given',
+      introRead: sessionStorage.getItem(this.caseIntroStorageKey(attempt)) === 'read',
+      reduceMotion: this.reduceMotion(),
+    });
+  }
+
+  private applyIntroStep(step: IntroGateStep): void {
+    switch (step) {
+      case 'consent':
+        this.showContentWarning.set(true);
+        return;
+      case 'video':
+        this.introVideoEnded.set(false);
+        this.showIntroVideo.set(true);
+        return;
+      case 'narrative':
+        this.revealCaseIntro();
+        return;
+      default:
+        return;
     }
-    this.revealCaseIntro();
+  }
+
+  acceptContentWarning(): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    sessionStorage.setItem(this.caseConsentStorageKey(attempt), 'given');
+    this.showContentWarning.set(false);
+    this.announce('Continuaste al caso. Cargando el escenario.');
+    this.startWorld(attempt);
+  }
+
+  declineContentWarning(): void {
+    this.showContentWarning.set(false);
+    this.announce('Volviste al catálogo. Puedes retomar el caso cuando lo decidas.');
+    void this.router.navigate(['/portal/simulador']);
+  }
+
+  private caseConsentStorageKey(attempt: SimulationAttemptState): string {
+    return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
   }
 
   playIntroVideo(): void {
@@ -1849,17 +2077,47 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private persistPosition() {
     const game = this.attempt(), world = this.world();
     if (!game || !world || !this.lastPosition || game.status !== 'IN_PROGRESS') return;
+    const synced = { ...this.lastPosition };
     this.simulationService.updateWorldState(game.attemptId, game.attemptToken,
-      this.lastPosition.x, this.lastPosition.y, world.map.key)
+      synced.x, synced.y, world.map.key)
       .subscribe({
         // La posición se persiste en silencio: reemplazar `world` con el eco
         // del backend re-renderizaba toda la escena Phaser en plena caminata
         // (tirón visible). Solo se aplica si cambió algo de verdad (el mapa).
         next: updated => {
+          this.lastSyncedPosition = synced;
           const current = this.world();
           if (!current || updated.map.key !== current.map.key) this.world.set(updated);
         },
         error: () => undefined,
+      });
+  }
+
+  /** GAME-01: el backend valida proximidad contra la posición PERSISTIDA.
+   *  Antes de una acción validada (interacción, herramienta, puerta) se
+   *  sincroniza la posición pendiente del debounce para cubrir la carrera
+   *  "moverse y pulsar E antes de persistir". Si el flush falla, la acción
+   *  continúa y es el backend quien decide. */
+  private withSyncedPosition(next: () => void): void {
+    const game = this.attempt(), world = this.world();
+    const pending = this.lastPosition && (
+      !this.lastSyncedPosition
+      || this.lastSyncedPosition.x !== this.lastPosition.x
+      || this.lastSyncedPosition.y !== this.lastPosition.y);
+    if (!game || !world || !pending || game.status !== 'IN_PROGRESS') {
+      next();
+      return;
+    }
+    if (this.positionSaveHandle) {
+      window.clearTimeout(this.positionSaveHandle);
+      this.positionSaveHandle = null;
+    }
+    const synced = { ...this.lastPosition! };
+    this.simulationService.updateWorldState(game.attemptId, game.attemptToken,
+      synced.x, synced.y, world.map.key)
+      .subscribe({
+        next: () => { this.lastSyncedPosition = synced; next(); },
+        error: () => next(),
       });
   }
 }

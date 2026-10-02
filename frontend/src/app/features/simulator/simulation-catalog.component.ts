@@ -459,7 +459,8 @@ export class SimulationCatalogComponent implements OnInit {
   statusLabel(status: string) {
     switch (status) {
       case 'COMPLETED': return 'Finalizado';
-      case 'SAFE_EXITED': return 'Salida segura';
+      case 'PAUSED': return 'En pausa (reanudable)';
+      case 'SAFE_EXITED': return 'Cerrado con salida segura';
       case 'IN_PROGRESS': return 'En curso';
       default: return status || 'Sin estado';
     }

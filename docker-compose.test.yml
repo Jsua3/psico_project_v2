@@ -1,0 +1,33 @@
+# Base de datos DESECHABLE para pruebas backend de SIEP v3 (ENV-01).
+#
+# - El runner deriva un proyecto Compose distinto para cada checkout/worktree.
+# - Nombre, usuario, password y puerto llegan obligatoriamente desde el runner.
+# - Datos en tmpfs: el contenido desaparece al detener el contenedor; no hay
+#   volumen persistente que pueda confundirse con datos de desarrollo.
+# - PostgreSQL se publica exclusivamente en loopback.
+#
+# Uso previsto: npm run test:backend (scripts/test-backend.mjs valida labels y
+# DSN antes de sembrar o ejecutar nada).
+services:
+  db:
+    image: postgres:16-alpine
+    labels:
+      io.siep.checkout: ${SIEP_TEST_CHECKOUT_ID:?SIEP_TEST_CHECKOUT_ID is required}
+    environment:
+      POSTGRES_DB: ${SIEP_TEST_DB_NAME:?SIEP_TEST_DB_NAME is required}
+      POSTGRES_USER: ${SIEP_TEST_DB_USER:?SIEP_TEST_DB_USER is required}
+      POSTGRES_PASSWORD: ${SIEP_TEST_DB_PASSWORD:?SIEP_TEST_DB_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${SIEP_TEST_DB_PORT:?SIEP_TEST_DB_PORT is required}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  default:
+    labels:
+      io.siep.checkout: ${SIEP_TEST_CHECKOUT_ID:?SIEP_TEST_CHECKOUT_ID is required}

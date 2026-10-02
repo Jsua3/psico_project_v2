@@ -109,51 +109,40 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                 aria-label="Abrir bitácora reflexiva (J)" title="Bitácora (J)">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
-              <button type="button" class="hud-action hud-action--guide" [class.hud-action--active]="aiAssistantOpen()"
-                (click)="toggleAI.emit()"
-                aria-label="Abrir Instructor guia chatbot" title="Instructor guia chatbot">
-                <mat-icon aria-hidden="true">psychology</mat-icon>
-                <span>Instructor guia chatbot</span>
-              </button>
               <button type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
                 (click)="settingsOpen.set(!settingsOpen())"
                 aria-label="Abrir ajustes del juego" title="Ajustes">
                 <mat-icon aria-hidden="true">settings</mat-icon>
               </button>
               @if (settingsOpen()) {
-                <div class="settings-menu" role="menu" aria-label="Ajustes del juego">
+                <div class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
                   <div class="settings-menu__header">
-                    <strong>Ajustes</strong>
+                    <strong id="game-settings-title">Ajustes</strong>
                     <button type="button" aria-label="Cerrar ajustes" (click)="settingsOpen.set(false)">
                       <mat-icon aria-hidden="true">close</mat-icon>
                     </button>
                   </div>
-                  <button type="button" role="menuitemcheckbox" [attr.aria-checked]="!musicMuted()" (click)="toggleMusic.emit()">
+                  <button type="button" [attr.aria-pressed]="!musicMuted()" (click)="toggleMusic.emit()">
                     <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
                     <span>Música ambiental</span>
                     <strong>{{ musicMuted() ? 'Off' : 'On' }}</strong>
                   </button>
-                  <button type="button" role="menuitemcheckbox" [attr.aria-checked]="!sfxMuted()" (click)="toggleSfx.emit()">
+                  <button type="button" [attr.aria-pressed]="!sfxMuted()" (click)="toggleSfx.emit()">
                     <mat-icon aria-hidden="true">{{ sfxMuted() ? 'volume_off' : 'graphic_eq' }}</mat-icon>
                     <span>Sonidos de acciones</span>
                     <strong>{{ sfxMuted() ? 'Off' : 'On' }}</strong>
                   </button>
-                  <button type="button" role="menuitemcheckbox" [attr.aria-checked]="reduceMotion()" (click)="toggleReduceMotion.emit()">
+                  <button type="button" [attr.aria-pressed]="reduceMotion()" (click)="toggleReduceMotion.emit()">
                     <mat-icon aria-hidden="true">motion_photos_pause</mat-icon>
                     <span>Movimiento reducido</span>
                     <strong>{{ reduceMotion() ? 'On' : 'Off' }}</strong>
                   </button>
-                  <button type="button" role="menuitem" (click)="toggleJournal.emit(); settingsOpen.set(false)">
+                  <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
                     <mat-icon aria-hidden="true">menu_book</mat-icon>
                     <span>Bitácora</span>
                     <strong>J</strong>
                   </button>
-                  <button type="button" role="menuitem" (click)="toggleAI.emit(); settingsOpen.set(false)">
-                    <mat-icon aria-hidden="true">psychology</mat-icon>
-                    <span>Instructor guia chatbot</span>
-                    <strong></strong>
-                  </button>
-                  <a role="menuitem" routerLink="/portal/simulador">
+                  <a routerLink="/portal/simulador">
                     <mat-icon aria-hidden="true">apps</mat-icon>
                     <span>Catálogo</span>
                     <strong></strong>
@@ -296,8 +285,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-action:active { transform: translateY(1px); }
     .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
     .hud-action mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .hud-action--guide { width: auto; gap: 7px; padding: 0 10px; grid-auto-flow: column; color: #f4f7fb; }
-    .hud-action--guide span { max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .68rem; font-weight: 900; }
     .settings-menu {
       position: absolute;
       top: calc(100% + 9px);
@@ -390,10 +377,15 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       .hud-zone--center { display: none; }
     }
     @media (max-width: 640px) {
-      .hud-strip { gap: 8px; padding: 0 10px; }
+      .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
       .hud-zone--case { display: none; }
+      .hud-zone--right { min-width: 0; gap: 6px; }
       .brand-word { display: none; }
       .hud-patient { display: none; }
+      .hud-metric-label,
+      .hud-hearts { display: none; }
+      .stress-pct { min-width: 0; }
+      .hud-actions { min-width: 0; gap: 4px; padding-left: 6px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
@@ -411,13 +403,11 @@ export class SimulationHudComponent {
   /** Sala física actual (world.map.title); con puertas puede diferir del nodo DAG. */
   readonly locationLabel = input('');
   readonly journalOpen = input(false);
-  readonly aiAssistantOpen = input(false);
   readonly musicMuted = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input(false);
   readonly settingsOpen = signal(false);
   readonly toggleJournal = output<void>();
-  readonly toggleAI = output<void>();
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();

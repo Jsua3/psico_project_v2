@@ -39,11 +39,15 @@ describe('avatar-config', () => {
     expect(parseAvatar(serializeAvatar(a))).toEqual(a);
   });
 
+  it('el avatar por defecto trae la identidad v1 valentina (no modular crudo)', () => {
+    expect(defaultAvatar().castId).toBe('valentina');
+  });
+
   it('conserva castId (elenco horneado) y lo omite si no es string', () => {
     expect(coerceAvatar({ ...defaultAvatar(), castId: 'valentina' }).castId).toBe('valentina');
     expect(coerceAvatar({ ...defaultAvatar(), castId: 42 }).castId).toBeUndefined();
     expect(coerceAvatar({ ...defaultAvatar(), castId: '' }).castId).toBeUndefined();
-    expect(coerceAvatar(defaultAvatar()).castId).toBeUndefined();
+    expect(coerceAvatar({ ...defaultAvatar(), castId: undefined }).castId).toBeUndefined();
   });
 
   it('castId sobrevive el roundtrip serialize -> parse', () => {

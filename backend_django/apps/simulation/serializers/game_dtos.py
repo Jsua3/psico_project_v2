@@ -180,14 +180,15 @@ def build_completion_report(attempt, events):
         recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
     if attempt.revictimization_risk:
         recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")
-    if attempt.status == "SAFE_EXITED":
+    if attempt.status in ("SAFE_EXITED", "PAUSED"):
         recommendations.append("Retoma el caso con acompañamiento docente cuando te sientas preparado/a.")
     if not recommendations:
         recommendations.append("Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva.")
 
     summary = {
         "COMPLETED": "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
-        "SAFE_EXITED": "Salida segura registrada. No se aplicó penalización; el intento quedó disponible para revisión docente.",
+        "PAUSED": "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
+        "SAFE_EXITED": "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
         "IN_PROGRESS": "Intento en progreso.",
     }[attempt.status]
 
@@ -204,7 +205,9 @@ def build_completion_report(attempt, events):
         "prohibitedDecisions": prohibited,
         "toolsUsed": tools_used,
         "reflectionsCount": reflections_count,
-        "safeExitUsed": attempt.status == "SAFE_EXITED",
+        # Por evento, no por estado: un intento reanudado y completado también
+        # registra honestamente que usó la salida segura en el camino.
+        "safeExitUsed": any(ev.event_type == "SAFE_EXIT_REQUESTED" for ev in events),
         "visitedNodeTitles": visited,
         "competencies": competencies,
         "recommendations": recommendations,
@@ -236,10 +239,11 @@ def attempt_state(attempt, raw_token, feedback, events=None):
         "accumulatedScore": attempt.accumulated_score,
         "stressIndex": attempt.stress_index,
         "metrics": metrics(attempt),
+        "clinicalState": case_effects.clinical_state(attempt),
         "currentNode": node_state(attempt.current_node, in_progress),
         "feedback": feedback,
         "completionReport": completion_report,
-        "supportResources": SAFE_EXIT_RESOURCES if attempt.status == "SAFE_EXITED" else [],
+        "supportResources": SAFE_EXIT_RESOURCES if attempt.status in ("SAFE_EXITED", "PAUSED") else [],
     }
 
 

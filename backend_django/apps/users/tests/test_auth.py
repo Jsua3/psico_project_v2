@@ -1,9 +1,12 @@
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 from unittest.mock import patch
+
+from shared.test_attestation import TestEnvironmentAttestationMiddleware as AttestationMiddleware
 
 User = get_user_model()
 
@@ -78,6 +81,19 @@ def test_token_carries_spring_claims(client, admin_user):
 def test_me_requires_auth(client):
     resp = client.get("/api/auth/me")
     assert resp.status_code == 401
+
+
+def test_me_attests_isolated_test_environment(client):
+    resp = client.get("/api/auth/me")
+
+    assert resp.status_code == 401
+    assert resp.headers["X-SIEP-Test-Environment"] == "isolated"
+    assert resp.headers["X-SIEP-Test-Run"] == settings.SIEP_TEST_ATTESTATION_NONCE
+    assert resp.headers["Cache-Control"] == "no-store"
+
+
+def test_attestation_middleware_is_not_collected_as_a_pytest_test():
+    assert AttestationMiddleware.__test__ is False
 
 
 def test_login_then_me_with_bearer(client, admin_user):

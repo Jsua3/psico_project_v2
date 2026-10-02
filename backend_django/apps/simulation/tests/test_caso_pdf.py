@@ -11,7 +11,7 @@ from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, DecisionOption
+from apps.simulation.models import CaseVersion, DecisionOption, DialogueChoice
 
 User = get_user_model()
 
@@ -57,7 +57,8 @@ def _start(client, case_version_id):
 
 def _world(client, attempt_id, token):
     return client.get(
-        f"/api/simulation/attempts/{attempt_id}/world?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}/world",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=token,
     ).data["data"]
 
 
@@ -70,9 +71,34 @@ def _inspect(client, attempt_id, token, key):
     return resp.data["data"]
 
 
-def _enter(client, attempt_id, token, target, door_key=None, entry=(160, 452)):
-    body = {"attemptToken": token, "targetNodeKey": target,
-            "entryX": entry[0], "entryY": entry[1]}
+def _move(client, attempt_id, token, map_key, *points):
+    """Camina en pasos plausibles (GAME-01: el servidor valida desplazamiento,
+    proximidad y colisiones)."""
+    for x, y in points:
+        resp = client.patch(
+            f"/api/simulation/attempts/{attempt_id}/world-state",
+            {"attemptToken": token, "playerX": x, "playerY": y, "currentMapKey": map_key},
+            format="json",
+        )
+        assert resp.status_code == 200, f"mover a ({x},{y}): {resp.data}"
+
+
+#: Rutas plausibles en hospital-urgencias (spawn 480,430).
+PATH_TO_FAMILIA = ((340, 430), (250, 430))
+PATH_TO_DOOR = ((430, 435), (610, 440), (790, 445))
+#: Ruta en hospital-sala-escucha desde el entry (160,452) hasta salida-institucional (838,440).
+PATH_TO_SALIDA = ((340, 450), (520, 445), (700, 442), (820, 440))
+
+
+def _inspect_familia_cerca(client, attempt_id, token):
+    """Materializa el world state, camina hasta la familia y la inspecciona."""
+    _world(client, attempt_id, token)
+    _move(client, attempt_id, token, "hospital-urgencias", *PATH_TO_FAMILIA)
+    return _inspect(client, attempt_id, token, "familia-crisis")
+
+
+def _enter(client, attempt_id, token, target, door_key=None):
+    body = {"attemptToken": token, "targetNodeKey": target}
     if door_key:
         body["doorKey"] = door_key
     return client.post(
@@ -90,16 +116,60 @@ def _decide(client, attempt_id, token, option_key, case_version_id):
     return resp.data["data"]
 
 
+def test_acciones_clinicas_canonicas_exponen_herramienta_sin_fingir_decision(case_version_id):
+    expected = {
+        "familia-crisis": "PAP",
+        "sobreviviente-consulta": "RISK_METER",
+    }
+    for tree_key, tool_code in expected.items():
+        choices = DialogueChoice.objects.filter(
+            dialogue_tree__scene_map__case_version_id=case_version_id,
+            dialogue_tree__tree_key=tree_key,
+            required_tool_code=tool_code,
+        )
+        assert choices.exists()
+        assert all(choice.decision_option_id is None for choice in choices)
+
+
+def test_pap_se_aplica_de_forma_pertinente_a_la_familia(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+    _move(c, attempt_id, token, world["map"]["key"], (340, 430))
+    _inspect(c, attempt_id, token, "tool-pap")
+    _move(c, attempt_id, token, world["map"]["key"], (250, 430))
+
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/tools/use",
+        {
+            "attemptToken": token,
+            "toolCode": "PAP",
+            "targetInteractionKey": "familia-crisis",
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    result = resp.data["data"]
+    assert result["pertinent"] is True
+    assert "PAP@familia-crisis" in result["world"]["usedToolKeys"]
+
+
 # ─── Puertas: validación backend ──────────────────────────────────────────────
 
 def test_door_locked_until_familia_inspected(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    # Sin hablar con la familia: bloqueada (requiresInspected).
+    _world(c, attempt_id, token)
+    # Junto a la puerta pero sin hablar con la familia: bloqueada (requiresInspected).
+    _move(c, attempt_id, token, "hospital-urgencias", *PATH_TO_DOOR)
     resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 400
     # Tras la interacción: pasa.
+    _move(c, attempt_id, token, "hospital-urgencias", *reversed(PATH_TO_DOOR))
+    _move(c, attempt_id, token, "hospital-urgencias", *PATH_TO_FAMILIA)
     _inspect(c, attempt_id, token, "familia-crisis")
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-sala-escucha"
@@ -116,7 +186,7 @@ def test_door_nonexistent_key_404(estudiante, case_version_id):
 def test_door_target_mismatch_400(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
     # puerta-sala-escucha NO conduce a comisaria-recepcion.
     resp = _enter(c, attempt_id, token, "comisaria-recepcion", "puerta-sala-escucha")
     assert resp.status_code == 400
@@ -125,9 +195,11 @@ def test_door_target_mismatch_400(estudiante, case_version_id):
 def test_salida_institucional_locked_by_node(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     assert _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha").status_code == 200
     # En etapa hospitalaria la salida institucional sigue bloqueada (requiresNodes).
+    _move(c, attempt_id, token, "hospital-sala-escucha", *PATH_TO_SALIDA)
     resp = _enter(c, attempt_id, token, "comisaria-recepcion", "salida-institucional")
     assert resp.status_code == 400
 
@@ -135,26 +207,27 @@ def test_salida_institucional_locked_by_node(estudiante, case_version_id):
 def test_door_room_persists_after_reload(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     again = _world(c, attempt_id, token)
     assert again["map"]["key"] == "hospital-sala-escucha"
-    # Y la vuelta funciona.
-    resp = _enter(c, attempt_id, token, "hospital-urgencias", "puerta-urgencias", entry=(786, 440))
+    # Y la vuelta funciona (el entry 160,452 queda junto a puerta-urgencias).
+    resp = _enter(c, attempt_id, token, "hospital-urgencias", "puerta-urgencias")
     assert resp.status_code == 200
     assert resp.data["data"]["map"]["key"] == "hospital-urgencias"
 
 
-def test_entry_coordinates_clamped(estudiante, case_version_id):
+def test_entry_coordinates_from_client_are_ignored(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
-    resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha",
-                  entry=(99999, -50))
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
+    resp = _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     assert resp.status_code == 200
     player = resp.data["data"]["player"]
-    assert player["x"] == 960
-    assert player["y"] == 0
+    assert player["x"] == 160
+    assert player["y"] == 452
 
 
 # ─── Efecto mariposa: flags y métricas por decisión ───────────────────────────
@@ -165,6 +238,15 @@ def test_decision_hospital_recomendada_aplica_flags(estudiante, case_version_id)
     _world(c, attempt_id, token)  # materializa el world state
     state = _decide(c, attempt_id, token, "h1-pap-contencion", case_version_id)
     assert state["feedback"]["classification"] == "ADEQUATE"
+    assert state["clinicalState"] == {
+        "papApplied": True,
+        "patient": {
+            "emotionalState": 65,
+            "trustLevel": 65,
+            "openness": 65,
+            "crisisLevel": 30,
+        },
+    }
     world = _world(c, attempt_id, token)
     flags = world["flags"]["caseFlags"]
     metrics = world["flags"]["caseMetrics"]
@@ -303,10 +385,12 @@ def test_final_brechas_con_parciales(estudiante, case_version_id):
 def test_cambiar_sala_no_puntua_ni_avanza(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _inspect(c, attempt_id, token, "familia-crisis")
+    _inspect_familia_cerca(c, attempt_id, token)
+    _move(c, attempt_id, token, "hospital-urgencias", (340, 430), (430, 435), (610, 440), (790, 445))
     _enter(c, attempt_id, token, "hospital-sala-escucha", "puerta-sala-escucha")
     state = c.get(
-        f"/api/simulation/attempts/{attempt_id}?attemptToken={token}"
+        f"/api/simulation/attempts/{attempt_id}",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=token,
     ).data["data"]
     assert state["accumulatedScore"] == 0
     assert state["currentNode"]["key"] == "hospital-urgencias"  # el DAG no avanzó

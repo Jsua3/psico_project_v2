@@ -1,13 +1,20 @@
+# Stack de DESARROLLO de SIEP v3.
+#
+# name: fija el proyecto Compose para que los recursos (contenedor y volumen)
+# queden etiquetados como de ESTE checkout. No usamos container_name global:
+# un nombre fijo colisiona con otros checkouts y permite reutilizar por error
+# una base ajena (los scripts verifican labels antes de tocar nada).
+name: psico-project-v3
+
 services:
   db:
     image: postgres:16-alpine
-    container_name: psychosim-db
     environment:
       POSTGRES_DB: psychosim
       POSTGRES_USER: psychosim
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-psychosim_secret}
     ports:
-      - "5433:5432"
+      - "${SIEP_DB_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import {
@@ -43,6 +43,10 @@ export class SimulationService {
   private readonly http = inject(HttpClient);
   private readonly API = '/api/simulation';
 
+  private attemptOptions(attemptToken: string) {
+    return { headers: new HttpHeaders({ 'X-SIEP-Attempt-Token': attemptToken }) };
+  }
+
   listCases() {
     return this.http.get<ApiResponse<SimulationCaseSummary[]>>(`${this.API}/cases`)
       .pipe(map(response => response.data));
@@ -65,20 +69,23 @@ export class SimulationService {
   }
 
   getProgressMap(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<ProgressMapState>>(`${this.API}/attempts/${attemptId}/progress-map`, { params })
+    return this.http.get<ApiResponse<ProgressMapState>>(
+      `${this.API}/attempts/${attemptId}/progress-map`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
   getAttempt(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}`, { params })
+    return this.http.get<ApiResponse<SimulationAttemptState>>(
+      `${this.API}/attempts/${attemptId}`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
   getWorld(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/world`, { params })
+    return this.http.get<ApiResponse<SimulationWorldState>>(
+      `${this.API}/attempts/${attemptId}/world`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 
@@ -93,11 +100,10 @@ export class SimulationService {
   }
 
   /** Fase 5: walk-through spatial door — load the target room (non-scored).
-   *  doorKey (opcional, caso PDF): el backend valida que la puerta exista en la
-   *  sala actual, apunte al destino y cumpla sus condiciones requires*. */
-  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, entryX: number, entryY: number, doorKey?: string) {
+   *  doorKey es obligatorio; el backend deriva la entrada desde sus metadatos. */
+  enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, doorKey: string) {
     return this.http.post<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/enter-room`, {
-      attemptToken, targetNodeKey, entryX, entryY, ...(doorKey ? { doorKey } : {}),
+      attemptToken, targetNodeKey, doorKey,
     }).pipe(map(response => response.data));
   }
 
@@ -130,10 +136,18 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
-  chooseDecision(attemptId: string, attemptToken: string, decisionOptionId: number) {
+  chooseDecision(
+    attemptId: string,
+    attemptToken: string,
+    decisionOptionId: number,
+    evidenceOverride = false,
+    missingEvidence: string[] = [],
+  ) {
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/decisions`, {
       attemptToken,
-      decisionOptionId
+      decisionOptionId,
+      evidenceOverride,
+      missingEvidence,
     }).pipe(map(response => response.data));
   }
 
@@ -152,9 +166,17 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
+  /** Reanuda un intento en pausa segura (mismo attemptId, estado intacto). */
+  resumeAttempt(attemptId: string, attemptToken: string) {
+    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/resume`, {
+      attemptToken
+    }).pipe(map(response => response.data));
+  }
+
   getCompletionReport(attemptId: string, attemptToken: string) {
-    const params = new HttpParams().set('attemptToken', attemptToken);
-    return this.http.get<ApiResponse<AttemptCompletionReport>>(`${this.API}/attempts/${attemptId}/completion-report`, { params })
+    return this.http.get<ApiResponse<AttemptCompletionReport>>(
+      `${this.API}/attempts/${attemptId}/completion-report`, this.attemptOptions(attemptToken),
+    )
       .pipe(map(response => response.data));
   }
 

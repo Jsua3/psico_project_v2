@@ -55,6 +55,7 @@ const hairColorByAssetColor: Record<HairAssetColor, HairColor> = {
 
 export function defaultAvatar(): AvatarConfig {
   return {
+    castId: 'valentina',
     gender: 'female',
     clothingColor: 'purple',
     skinTone: 'clara',

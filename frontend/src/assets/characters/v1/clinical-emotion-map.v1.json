@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "mappings": {
+    "neutral": "neutral",
+    "positive": "relieved",
+    "negative": "concerned",
+    "anxious": "concerned",
+    "danger": "concerned",
+    "sad": "concerned",
+    "worried": "concerned",
+    "concerned": "concerned",
+    "relieved": "relieved",
+    "receptive": "relief",
+    "calm": "steady",
+    "closed": "rupture"
+  }
+}

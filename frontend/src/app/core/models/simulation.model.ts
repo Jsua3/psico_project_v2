@@ -37,10 +37,12 @@ export interface SimulationAttemptState {
   attemptToken: string;
   caseVersionId: number;
   caseTitle: string;
-  status: 'IN_PROGRESS' | 'SAFE_EXITED' | 'COMPLETED';
+  /** PAUSED = pausa segura reanudable; SAFE_EXITED = cierre terminal (legado/reemplazo). */
+  status: 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED';
   accumulatedScore: number;
   stressIndex: number;
   metrics: SimulationMetrics;
+  clinicalState?: ClinicalState;
   currentNode: SimulationNodeState;
   feedback: SimulationFeedback | null;
   completionReport: AttemptCompletionReport | null;
@@ -54,6 +56,11 @@ export interface SimulationMetrics {
   userTrust: number;
   institutionalRouteActivated: boolean;
   revictimizationRisk: boolean;
+}
+
+export interface ClinicalState {
+  papApplied: boolean;
+  patient: PatientState;
 }
 
 export interface AttemptTimelineEntry {

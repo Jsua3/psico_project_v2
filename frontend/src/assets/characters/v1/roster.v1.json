@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": "1.0.0",
+  "defaultCharacterId": "valentina",
+  "identities": [
+    {
+      "characterId": "valentina",
+      "displayName": "Valentina",
+      "summary": "Serena, observadora y de expresión cálida.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/valentina.png" }
+    },
+    {
+      "characterId": "andres",
+      "displayName": "Andrés",
+      "summary": "Sobrio, atento y de postura tranquila.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/andres.png" }
+    },
+    {
+      "characterId": "camila",
+      "displayName": "Camila",
+      "summary": "Expresiva, profesional y cercana.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/camila.png" }
+    },
+    {
+      "characterId": "daniela",
+      "displayName": "Daniela",
+      "summary": "Reflexiva, precisa y de lenguaje corporal contenido.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/daniela.png" }
+    },
+    {
+      "characterId": "david",
+      "displayName": "David",
+      "summary": "Metódico, amable y de silueta reconocible.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/david.png" }
+    },
+    {
+      "characterId": "felipe",
+      "displayName": "Felipe",
+      "summary": "Concentrado, humano y de presencia sobria.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/felipe.png" }
+    },
+    {
+      "characterId": "jorge",
+      "displayName": "Jorge",
+      "summary": "Adulto, sereno y de porte profesional.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/jorge.png" }
+    },
+    {
+      "characterId": "luisa",
+      "displayName": "Luisa",
+      "summary": "Segura, empática y visualmente diferenciada.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/luisa.png" }
+    },
+    {
+      "characterId": "mariana",
+      "displayName": "Mariana",
+      "summary": "Atenta, sobria y de expresión sensible.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/mariana.png" }
+    },
+    {
+      "characterId": "mateo",
+      "displayName": "Mateo",
+      "summary": "Calmado, accesible y de postura profesional.",
+      "logicalScale": 1,
+      "provenance": { "source": "Remaster original del elenco SIEP", "license": "SIEP-INTERNAL", "sourceAsset": "cast/mateo.png" }
+    }
+  ]
+}

@@ -50,6 +50,15 @@ describe('AttemptOutcomeComponent', () => {
     component = TestBed.createComponent(AttemptOutcomeComponent).componentInstance;
   });
 
+  it('la pausa habla de reanudar y el cierre terminal no finge pausa (ETH-02 A)', () => {
+    expect(component.eyebrow('PAUSED')).toBe('Pausa segura activa');
+    expect(component.headline('PAUSED')).toContain('reanudarlo');
+    expect(component.eyebrow('SAFE_EXITED')).toBe('Salida segura registrada');
+    expect(component.headline('SAFE_EXITED')).toContain('cerrado');
+    expect(component.headline('SAFE_EXITED')).not.toMatch(/pausa/i);
+    expect(component.eyebrow('COMPLETED')).toBe('¡Simulación completada!');
+  });
+
   it('perf labels performance from the report adequacy ratio', () => {
     expect(component.perf(makeReport({ adequateDecisions: 5, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Excelente');
     expect(component.perf(makeReport({ adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Sin decisiones');

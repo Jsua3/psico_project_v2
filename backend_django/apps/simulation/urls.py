@@ -14,6 +14,7 @@ from apps.simulation.views.game_views import (
     NpcInteractionView,
     ProgressMapView,
     ReflectionsView,
+    ResumeAttemptView,
     SafeExitView,
     StartAttemptView,
     StudentReportView,
@@ -42,6 +43,7 @@ urlpatterns = [
     path("attempts/<uuid:attempt_id>/npcs/<str:npc_key>", NpcInteractionView.as_view()),
     path("attempts/<uuid:attempt_id>/tools/use", ToolUseView.as_view()),
     path("attempts/<uuid:attempt_id>/safe-exit", SafeExitView.as_view()),
+    path("attempts/<uuid:attempt_id>/resume", ResumeAttemptView.as_view()),
     path("ai-assistant", AIAssistantView.as_view(), name="ai-assistant"),
 ]
 

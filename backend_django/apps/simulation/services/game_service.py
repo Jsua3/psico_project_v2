@@ -132,8 +132,11 @@ def list_published_cases(actor=None):
 
 
 def _close_active_attempts(student_id, case_version_id, reason):
+    # Reemplazar con forceNew cierra de forma TERMINAL tanto los intentos en
+    # progreso como los pausados (la pausa reanudable deja de tener sentido).
     actives = SimulationAttempt.objects.filter(
-        student_id=student_id, case_version_id=case_version_id, status="IN_PROGRESS"
+        student_id=student_id, case_version_id=case_version_id,
+        status__in=["IN_PROGRESS", "PAUSED"],
     )
     now = timezone.now()
     for active in actives:
@@ -152,9 +155,12 @@ def start_attempt(case_version_id, actor, force_new=False):
         raise PermissionDenied("El caso no ha sido asignado a tu grupo")
 
     if not force_new:
+        # Un intento pausado también cuenta como activo: nunca se duplica en
+        # silencio; el cliente debe reanudarlo o pedir forceNew explícito.
         active = (
             SimulationAttempt.objects.filter(
-                student_id=actor.id, case_version_id=case_version_id, status="IN_PROGRESS"
+                student_id=actor.id, case_version_id=case_version_id,
+                status__in=["IN_PROGRESS", "PAUSED"],
             )
             .select_related("case_version__simulation_case", "current_node")
             .order_by("-started_at")
@@ -192,7 +198,8 @@ def find_active_attempt(case_version_id, actor):
     _require_published(case_version_id)
     active = (
         SimulationAttempt.objects.filter(
-            student_id=actor.id, case_version_id=case_version_id, status="IN_PROGRESS"
+            student_id=actor.id, case_version_id=case_version_id,
+            status__in=["IN_PROGRESS", "PAUSED"],
         )
         .select_related("case_version__simulation_case", "current_node")
         .order_by("-started_at")
@@ -291,8 +298,20 @@ def get_student_report(attempt_id, actor):
     return dto.build_completion_report(attempt, events)
 
 
+def _override_evidence_labels(missing_evidence):
+    labels = []
+    for raw in missing_evidence or []:
+        label = " ".join(str(raw).split())
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
 @transaction.atomic
-def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
+def choose_decision(
+    attempt_id, attempt_token, decision_option_id, actor,
+    evidence_override=False, missing_evidence=None,
+):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if attempt.status != "IN_PROGRESS":
         raise ValidationError("El intento ya no acepta decisiones")
@@ -344,6 +363,10 @@ def choose_decision(attempt_id, attempt_token, decision_option_id, actor):
     event_type = "PROHIBITED_DECISION_SELECTED" if decision.prohibited_conduct else "DECISION_SELECTED"
 
     message = decision_effects.format_feedback(decision, effects)
+    if evidence_override:
+        labels = _override_evidence_labels(missing_evidence)
+        if labels:
+            message = f"{message} | Override de evidencia: {', '.join(labels)}"
     attempt.current_node = decision.target_node
 
     _save_event(attempt, event_type, decision.source_node, decision, effects.score_delta, effects.stress_delta, message)
@@ -396,17 +419,37 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor):
 
 @transaction.atomic
 def safe_exit(attempt_id, attempt_token, reason, actor):
+    """Pausa reanudable real (ETH-02, opción A).
+
+    No fija ended_at/locked_at ni bloquea reflexiones: el intento queda en
+    PAUSED y puede reanudarse con el mismo attemptId. Idempotente: repetir la
+    llamada devuelve el estado sin duplicar eventos.
+    """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if attempt.status != "IN_PROGRESS":
         return dto.attempt_state(attempt, attempt_token, None)
-    now = timezone.now()
-    attempt.status = "SAFE_EXITED"
-    attempt.ended_at = now
-    attempt.locked_at = now
+    attempt.status = "PAUSED"
     attempt.save()
-    _lock_reflections(attempt)
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
+    return dto.attempt_state(attempt, attempt_token, None)
+
+
+@transaction.atomic
+def resume_attempt(attempt_id, attempt_token, actor):
+    """Reanuda un intento pausado (mismo attemptId, estado intacto).
+
+    Idempotente: reanudar un intento ya IN_PROGRESS devuelve su estado sin
+    registrar un segundo evento. Cualquier otro estado es un error explícito.
+    """
+    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    if attempt.status == "IN_PROGRESS":
+        return dto.attempt_state(attempt, attempt_token, None)
+    if attempt.status != "PAUSED":
+        raise ValidationError("Solo un intento en pausa segura puede reanudarse")
+    attempt.status = "IN_PROGRESS"
+    attempt.save()
+    _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
     return dto.attempt_state(attempt, attempt_token, None)
 
 
@@ -458,3 +501,4 @@ start_attempt = auditable("ATTEMPT_STARTED", "CASE_VERSION")(start_attempt)
 choose_decision = auditable("DECISION_SELECTED", "ATTEMPT")(choose_decision)
 save_reflection = auditable("REFLECTION_SAVED", "ATTEMPT")(save_reflection)
 safe_exit = auditable("SAFE_EXIT_REQUESTED", "ATTEMPT")(safe_exit)
+resume_attempt = auditable("ATTEMPT_RESUMED", "ATTEMPT")(resume_attempt)

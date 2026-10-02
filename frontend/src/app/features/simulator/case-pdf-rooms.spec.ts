@@ -151,7 +151,17 @@ describe('case-pdf-rooms (geometría + renderers + escenarios)', () => {
     }
   });
 
-  it('todas las salas tienen NPCs modulares y urgencias ≥3 con movimiento variado', () => {
+  it('mantiene los NPCs interactivos en el ancla que valida el backend', () => {
+    const translationalBehaviors = new Set(['subtle-wander', 'pace', 'patrol', 'avoidant']);
+    for (const { file, npc } of allNpcs()) {
+      expect({ file, npc: npc.key, behavior: npc.motion?.behavior })
+        .not.toMatchObject({ behavior: expect.stringMatching(/subtle-wander|pace|patrol|avoidant/) });
+      expect(translationalBehaviors.has(npc.motion?.behavior ?? 'idle')).toBe(false);
+      expect(npc.motion?.anchors ?? []).toHaveLength(0);
+    }
+  });
+
+  it('todas las salas tienen NPCs modulares y urgencias conserva al menos tres actores', () => {
     for (const file of CASE_SCENARIOS) {
       const npcs = loadScenario(file).rooms[0].npcs;
       expect(npcs.some(n => n.avatarPresetKey)).toBe(true);
@@ -159,7 +169,6 @@ describe('case-pdf-rooms (geometría + renderers + escenarios)', () => {
     const urgencias = loadScenario('hospital-urgencias').rooms[0].npcs;
     const modular = urgencias.filter(n => n.avatarPresetKey);
     expect(modular.length).toBeGreaterThanOrEqual(3);
-    const behaviors = new Set(modular.map(n => n.motion?.behavior).filter(Boolean));
-    expect(behaviors.size).toBeGreaterThanOrEqual(2);
+    expect(modular.every(n => BEHAVIORS.includes(n.motion?.behavior ?? 'idle'))).toBe(true);
   });
 });

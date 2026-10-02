@@ -22,14 +22,7 @@
           "avatarPresetKey": "comisaria-profesional",
           "facing": "right",
           "emotion": "neutral",
-          "motion": {
-            "behavior": "patrol",
-            "speed": 22,
-            "anchors": [
-              { "x": 320, "y": 360, "pauseMs": 2200, "face": "right" },
-              { "x": 420, "y": 384, "pauseMs": 1800, "face": "left" }
-            ]
-          },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "La comisaría puede dictar medidas de protección sin que ella tenga que enfrentar al agresor. Eso es importante que lo sepa.", "emotion": "neutral" },
@@ -67,7 +60,7 @@
           "avatarPresetKey": "madre-vbg",
           "facing": "left",
           "emotion": "worried",
-          "motion": { "behavior": "subtle-wander", "radius": 8, "pauseMs": 4200 },
+          "motion": { "behavior": "attentive" },
           "dialogue": {
             "lines": [
               { "text": "Desde el hospital no la dejo sola. Le digo que aquí sí la van a proteger… ¿verdad que sí?", "emotion": "anxious" }

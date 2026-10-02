@@ -8,11 +8,24 @@ from shared.response import api_ok
 
 from apps.simulation.serializers.requests import (
     ReflectionRequest,
+    ResumeAttemptRequest,
     SafeExitRequest,
     SelectDecisionRequest,
     StartAttemptRequest,
 )
 from apps.simulation.services import game_service, world_service
+
+ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
+
+
+def _attempt_token(request):
+    return request.headers.get(ATTEMPT_TOKEN_HEADER)
+
+
+def _private_ok(data):
+    response = api_ok(data)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 def _int(value, default=0):
@@ -57,16 +70,18 @@ class AttemptView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_attempt(attempt_id, token, request.user))
+        return _private_ok(game_service.get_attempt(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class CompletionReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_completion_report(attempt_id, token, request.user))
+        return _private_ok(game_service.get_completion_report(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class AttemptHistoryView(APIView):
@@ -87,8 +102,9 @@ class ProgressMapView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(game_service.get_progress_map(attempt_id, token, request.user))
+        return _private_ok(game_service.get_progress_map(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class DecisionsView(APIView):
@@ -100,6 +116,8 @@ class DecisionsView(APIView):
         state = game_service.choose_decision(
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["decisionOptionId"], request.user,
+            evidence_override=ser.validated_data["evidenceOverride"],
+            missing_evidence=ser.validated_data["missingEvidence"],
         )
         return api_ok(state, message="Decision procesada")
 
@@ -127,7 +145,19 @@ class SafeExitView(APIView):
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["reason"], request.user,
         )
-        return api_ok(state, message="Salida segura registrada")
+        return api_ok(state, message="Pausa segura registrada")
+
+
+class ResumeAttemptView(APIView):
+    permission_classes = [IsEstudianteOrAdmin]
+
+    def post(self, request, attempt_id):
+        ser = ResumeAttemptRequest(data=request.data)
+        ser.is_valid(raise_exception=True)
+        state = game_service.resume_attempt(
+            attempt_id, ser.validated_data["attemptToken"], request.user,
+        )
+        return api_ok(state, message="Intento reanudado")
 
 
 # ─── Explorable world (SimulationWorldService) ───────────────────────────────
@@ -135,19 +165,22 @@ class WorldView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, attempt_id):
-        token = request.query_params.get("attemptToken")
-        return api_ok(world_service.get_world(attempt_id, token, request.user))
+        return _private_ok(world_service.get_world(
+            attempt_id, _attempt_token(request), request.user,
+        ))
 
 
 class WorldStateView(APIView):
     permission_classes = [IsEstudianteOrAdmin]
 
     def patch(self, request, attempt_id):
+        # Valores crudos a propósito: la validación estricta (entero finito,
+        # límites, plausibilidad, colisión) es autoridad del servicio (GAME-01).
         state = world_service.update_position(
             attempt_id,
             request.data.get("attemptToken"),
-            _int(request.data.get("playerX")),
-            _int(request.data.get("playerY")),
+            request.data.get("playerX"),
+            request.data.get("playerY"),
             request.user,
             current_map_key=request.data.get("currentMapKey"),
         )
@@ -196,8 +229,6 @@ class EnterRoomView(APIView):
             attempt_id,
             request.data.get("attemptToken"),
             request.data.get("targetNodeKey"),
-            request.data.get("entryX"),
-            request.data.get("entryY"),
             request.user,
             door_key=request.data.get("doorKey"),
         )
