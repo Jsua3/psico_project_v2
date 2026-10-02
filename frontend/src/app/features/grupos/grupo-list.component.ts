@@ -1,6 +1,6 @@
 import { Component, computed, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,6 +13,10 @@ import { GrupoService, Grupo, GrupoEstudiante, GrupoImportError, GrupoImportResu
 import { mapAgregarEstudianteError } from '../../core/api/grupo-error.utils';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
+import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 
 @Component({
   selector: 'app-grupo-list',
@@ -20,7 +24,8 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
   imports: [
     CommonModule, ReactiveFormsModule,
     MatCardModule, MatButtonModule,
-    MatFormFieldModule, MatInputModule, MatIconModule, MatSelectModule, MatProgressBarModule
+    MatFormFieldModule, MatInputModule, MatIconModule, MatSelectModule, MatProgressBarModule,
+    ConfirmDialogComponent
   ],
   template: `
     <div class="page-header">
@@ -80,17 +85,19 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="editandoGrupo() ? actualizarGrupo() : crear()">
+          <form #groupForm #groupFormDir="ngForm" [formGroup]="form" (ngSubmit)="editandoGrupo() ? actualizarGrupo() : crear()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Nombre del grupo</mat-label>
               <input matInput formControlName="nombre">
+              <mat-error>Escribe el nombre del grupo.</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Código único</mat-label>
               <input matInput formControlName="codigo">
+              <mat-error>Escribe el código del grupo.</mat-error>
             </mat-form-field>
             <div class="form-actions">
-              <button class="psy-button psy-button--primary" type="submit" [disabled]="form.invalid || saving()">
+              <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
                 {{ saving() ? 'Guardando…' : (editandoGrupo() ? 'Guardar cambios' : 'Crear grupo') }}
               </button>
               @if (editandoGrupo()) {
@@ -343,6 +350,15 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
         </mat-card-content>
       </mat-card>
     </div>
+
+    <app-confirm-dialog
+      [open]="!!pendingConfirm()"
+      [title]="pendingConfirm()?.title ?? 'Confirmar'"
+      [message]="pendingConfirm()?.message ?? ''"
+      [confirmLabel]="pendingConfirm()?.confirmLabel ?? 'Confirmar'"
+      (cancel)="pendingConfirm.set(null)"
+      (confirm)="runPendingConfirm()"
+    />
   `,
   styles: [`
     .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
@@ -579,10 +595,26 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
 })
 export class GrupoListComponent implements OnInit {
   @ViewChild('importFileInput') importFileInput?: ElementRef<HTMLInputElement>;
+  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
+  // Esta pantalla tiene tres formularios: el del grupo se referencia por variable de plantilla,
+  // no por `@ViewChild(FormGroupDirective)`, que devolvería el primero que encuentre.
+  @ViewChild('groupForm') private groupFormEl?: ElementRef<HTMLFormElement>;
+  @ViewChild('groupFormDir') private groupFormDir?: FormGroupDirective;
 
   private grupoService = inject(GrupoService);
   private simulationService = inject(SimulationService);
   private fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** Acción destructiva pendiente de confirmar. */
+  readonly pendingConfirm = signal<{ title: string; message: string; confirmLabel: string; run: () => void } | null>(null);
+
+  runPendingConfirm(): void {
+    const pending = this.pendingConfirm();
+    this.pendingConfirm.set(null);
+    pending?.run();
+  }
 
   grupos = signal<Grupo[]>([]);
   grupoActivo = signal<Grupo | null>(null);
@@ -666,18 +698,39 @@ export class GrupoListComponent implements OnInit {
     });
   }
 
+  /**
+   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
+   * y Material seguiría mostrando los errores en un formulario en blanco. Se usa la
+   * directiva del formulario del grupo, no la de los otros dos formularios de la pantalla.
+   */
+  private resetGroupForm(value?: { nombre: string | null; codigo: string | null }): void {
+    if (this.groupFormDir) this.groupFormDir.resetForm(value);
+    else this.form.reset(value);
+  }
+
+  /** true (y marca y enfoca) si el formulario del grupo tiene errores. */
+  private invalidGroupForm(): boolean {
+    if (!this.form.invalid) return false;
+    this.form.markAllAsTouched();
+    // El formulario de casos nace inválido: se busca solo dentro del formulario del grupo.
+    focusFirstInvalid(this.groupFormEl?.nativeElement ?? this.host.nativeElement);
+    return true;
+  }
+
   crear() {
-    if (this.form.invalid || this.saving()) return;
+    if (this.saving() || this.invalidGroupForm()) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.grupoService.crear(nombre!, codigo!).subscribe({
       next: g => {
         this.grupos.update(list => [...list, g]);
-        this.form.reset();
+        this.resetGroupForm();
         this.saving.set(false);
+        this.notify.success('Grupo creado.');
       },
-      error: () => {
-        this.error.set('No fue posible crear el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible crear el grupo.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
@@ -685,18 +738,18 @@ export class GrupoListComponent implements OnInit {
 
   editarGrupo(grupo: Grupo) {
     this.editandoGrupo.set(grupo);
-    this.form.setValue({ nombre: grupo.nombre, codigo: grupo.codigo });
+    this.resetGroupForm({ nombre: grupo.nombre, codigo: grupo.codigo });
     this.error.set('');
   }
 
   cancelarEdicion() {
     this.editandoGrupo.set(null);
-    this.form.reset();
+    this.resetGroupForm();
   }
 
   actualizarGrupo() {
     const grupo = this.editandoGrupo();
-    if (!grupo || this.form.invalid || this.saving()) return;
+    if (!grupo || this.saving() || this.invalidGroupForm()) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.error.set('');
@@ -706,42 +759,61 @@ export class GrupoListComponent implements OnInit {
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
         this.cancelarEdicion();
         this.saving.set(false);
+        this.notify.success('Grupo actualizado.');
       },
-      error: (err: HttpErrorResponse) => {
-        this.error.set(err.error?.message || 'No fue posible actualizar el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar el grupo.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
   }
 
   eliminarGrupo(grupo: Grupo) {
-    if (!confirm(`¿Borrar el grupo "${grupo.nombre}"? Se quitarán sus estudiantes y casos asignados. Esta acción no se puede deshacer.`)) return;
+    this.pendingConfirm.set({
+      title: 'Borrar grupo',
+      message: `¿Borrar el grupo "${grupo.nombre}"? Se quitarán sus estudiantes y casos asignados. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Borrar',
+      run: () => this.borrarGrupo(grupo),
+    });
+  }
+
+  private borrarGrupo(grupo: Grupo) {
     this.error.set('');
     this.grupoService.eliminar(grupo.id).subscribe({
       next: () => {
         this.grupos.update(list => list.filter(g => g.id !== grupo.id));
         if (this.grupoActivo()?.id === grupo.id) this.grupoActivo.set(null);
         if (this.editandoGrupo()?.id === grupo.id) this.cancelarEdicion();
+        this.notify.success('Grupo eliminado.');
       },
-      error: (err: HttpErrorResponse) => {
-        this.error.set(err.error?.message || 'No fue posible borrar el grupo.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible borrar el grupo.');
+        if (text) this.notify.error(text);
       }
     });
   }
 
   quitarEstudiante(grupo: Grupo, student: GrupoEstudiante) {
-    if (!confirm(`¿Quitar a ${student.nombre} ${student.apellido} del grupo?`)) return;
+    this.pendingConfirm.set({
+      title: 'Quitar estudiante',
+      message: `¿Quitar a ${student.nombre} ${student.apellido} del grupo?`,
+      confirmLabel: 'Quitar',
+      run: () => this.retirarEstudiante(grupo, student),
+    });
+  }
+
+  private retirarEstudiante(grupo: Grupo, student: GrupoEstudiante) {
     this.grupoService.quitarEstudiante(grupo.id, student.id).subscribe({
       next: actualizado => {
         this.estudiantes.update(list => list.filter(s => s.id !== student.id));
         this.grupos.update(list => list.map(g => g.id === actualizado.id ? actualizado : g));
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
-        this.mensajeEstudiante.set('Estudiante retirado del grupo.');
-        this.mensajeEsError.set(false);
+        this.notify.success('Estudiante retirado del grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible quitar al estudiante.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible quitar al estudiante.');
+        if (text) this.notify.error(text);
       }
     });
   }
@@ -769,12 +841,10 @@ export class GrupoListComponent implements OnInit {
 
   copiarCodigo(grupo: Grupo): void {
     const done = () => {
-      this.mensajeEstudiante.set(`Código ${grupo.codigo} copiado al portapapeles.`);
-      this.mensajeEsError.set(false);
+      this.notify.success(`Código ${grupo.codigo} copiado al portapapeles.`);
     };
     const fail = () => {
-      this.mensajeEstudiante.set(`Código del grupo: ${grupo.codigo}`);
-      this.mensajeEsError.set(false);
+      this.notify.info(`Código del grupo: ${grupo.codigo}`);
     };
 
     if (navigator.clipboard?.writeText) {
@@ -952,10 +1022,11 @@ export class GrupoListComponent implements OnInit {
         this.casosAsignados.set(casos);
         this.casoForm.reset();
         this.asignandoCaso.set(false);
+        this.notify.success('Caso asignado al grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible asignar el caso al grupo.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible asignar el caso al grupo.');
+        if (text) this.notify.error(text);
         this.asignandoCaso.set(false);
       }
     });
@@ -969,10 +1040,11 @@ export class GrupoListComponent implements OnInit {
       next: casos => {
         this.casosAsignados.set(casos);
         this.asignandoCaso.set(false);
+        this.notify.success('Caso retirado del grupo.');
       },
-      error: () => {
-        this.mensajeEstudiante.set('No fue posible retirar el caso del grupo.');
-        this.mensajeEsError.set(true);
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible retirar el caso del grupo.');
+        if (text) this.notify.error(text);
         this.asignandoCaso.set(false);
       }
     });

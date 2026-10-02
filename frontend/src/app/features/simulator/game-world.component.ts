@@ -53,6 +53,10 @@ import {
   resolveDirection,
   splitFrameDelta,
 } from './player-motion.util';
+import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
+import { heldInput } from './touch-hold.util';
+import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { isCriticalAsset } from './asset-criticality.util';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -96,9 +100,15 @@ interface WorldCallbacks {
   onProximity:   (obj: MapObjectState | null) => void;
   onInteract:    (obj: MapObjectState) => void;
   onPosition:    (x: number, y: number) => void;
+  /** Posición de cada cuadro con movimiento, sin limitar; se llama fuera de Angular. */
+  onPositionFrame: (x: number, y: number) => void;
   onRoomExit:    (targetRoomKey: string, entryX: number, entryY: number) => void;
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
+  /** Progreso de la precarga, 0-100 (solo la carga inicial). */
+  onLoadProgress: (percent: number) => void;
+  /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
+  onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
 }
@@ -199,16 +209,37 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private firstSceneFadeDone = false;
   private stepTimer = 0;
   private readonly STEP_INTERVAL = 280; // ms — natural walking cadence (~215 steps/min)
+  /** Última posición avisada a Angular (ver position-emit.util). */
+  private lastEmittedPosition: EmittedPosition | null = null;
+  /** Hay movimiento que la limitación de frecuencia todavía no avisó. */
+  private positionDirty = false;
   private interactionCooldown = 0;
+  /** Pulsación de interactuar que espera a que termine el enfriamiento. */
+  private interactPending = false;
   private readonly INTERACTION_COOLDOWN_MS = 260;
+  /** Flecha táctil apretada (null si no hay ninguna) y desde cuándo (reloj de la escena). */
+  private heldDirection: PlayerDirection | null = null;
+  private heldSince = 0;
 
   constructor(private readonly callbacks: WorldCallbacks) {
     super('data-driven-world');
   }
 
   preload() {
-    this.load.on('loaderror', (_file: Phaser.Loader.File) => {
-      // Missing asset — fallback rendering used
+    // Cargas posteriores (hojas bajo demanda) no deben reabrir la capa de carga:
+    // por eso ambos oyentes ignoran lo que llega después de la carga inicial.
+    const criticalFailures: string[] = [];
+    let lastPercent = -1;
+    this.load.on('progress', (value: number) => {
+      if (this.assetsLoaded) return;
+      const percent = Math.round(value * 100);
+      if (percent === lastPercent) return;
+      lastPercent = percent;
+      this.callbacks.onLoadProgress(percent);
+    });
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      // Lo decorativo cae a su respaldo; un mapa o tileset deja la sala en paneles planos.
+      if (!this.assetsLoaded && isCriticalAsset(file.key)) criticalFailures.push(file.key);
     });
 
     // ── Plain images for Tiled tilemap layer rendering (all 3 Kenney packs) ──
@@ -326,13 +357,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.load.audio('step2', '/assets/game/audio/footstep_concrete_002.ogg');
     this.load.audio('proximity-blip', '/assets/game/audio/blip_select.ogg');
 
-    this.load.once('complete', () => { this.assetsLoaded = true; });
+    this.load.once('complete', () => {
+      this.assetsLoaded = true;
+      this.callbacks.onLoadComplete(criticalFailures);
+    });
   }
 
   create() {
     this.ready = true;
+    // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
+    // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
+    // `createCursorKeys` captura flechas, Espacio y Shift por su cuenta (de ahí el apagado
+    // global); `update()` ignora lo que corresponda según el elemento con foco.
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard?.disableGlobalCapture();
+    this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
     this.createAnimations();
     // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
     // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
@@ -355,14 +394,46 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.renderWorld();
   }
 
+  /** Publica la posición: al DOM en cada cuadro (contrato del e2e) y a Angular como
+   *  mucho cada POSITION_EMIT_INTERVAL_MS. `force` salta el intervalo (fin de un
+   *  movimiento, nudge táctil). */
+  private emitPosition(force = false): void {
+    if (!this.player) return;
+    const x = Math.round(this.player.x);
+    const y = Math.round(this.player.y);
+    this.callbacks.onPositionFrame(x, y);
+    const last = this.lastEmittedPosition;
+    if (last && last.x === x && last.y === y) {
+      this.positionDirty = false;
+      return;
+    }
+    const now = this.time.now;
+    if (!force && !shouldEmitPosition(last, x, y, now)) {
+      this.positionDirty = true;
+      return;
+    }
+    this.positionDirty = false;
+    this.lastEmittedPosition = { x, y, at: now };
+    this.callbacks.onPosition(x, y);
+  }
+
+  /** Al dejar de avanzar, la última posición se avisa exacta: es la que se persiste. */
+  private flushPosition(): void {
+    if (this.positionDirty) this.emitPosition(true);
+  }
+
   override update(time: number, delta: number) {
     if (!this.player || !this.cursors || !this.keys || !this.world) return;
-    const input: PlayerMotionInput = {
-      left:  this.cursors.left.isDown  || this.keys['A'].isDown,
-      right: this.cursors.right.isDown || this.keys['D'].isDown,
-      up:    this.cursors.up.isDown    || this.keys['W'].isDown,
-      down:  this.cursors.down.isDown  || this.keys['S'].isDown,
-    };
+    // Sin captura de Phaser, las teclas también llegan mientras se escribe en la bitácora o se
+    // activa un botón. El foco se lee una vez por cuadro y decide qué teclas cuentan.
+    const focus = document.activeElement;
+    const typing = isTextEntryTarget(focus);
+    const input: PlayerMotionInput = heldInput({
+      left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
+      right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),
+      up:    !typing && (this.cursors.up.isDown    || this.keys['W'].isDown),
+      down:  !typing && (this.cursors.down.isDown  || this.keys['S'].isDown),
+    }, this.heldDirection, this.time.now - this.heldSince);
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
@@ -376,7 +447,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
       this.lastDirection = step.direction;
       if (moved) {
-        this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+        this.emitPosition();
         this.applyPlayerPose(step.direction, true);
         // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
         if (!this.callbacks.reduceMotion && !this.callbacks.sfxMuted) {
@@ -389,18 +460,29 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       } else {
         // Bloqueado del todo contra pared/mueble: sin avance real no debe
         // correr la animación de caminata (ni sonar pasos).
+        this.flushPosition();
         this.applyPlayerPose(step.direction, false);
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
+      this.flushPosition();
       this.applyPlayerPose(this.lastDirection, false);
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
-    if (this.interactionCooldown <= 0 &&
-        (Phaser.Input.Keyboard.JustDown(this.keys['E']) ||
-         Phaser.Input.Keyboard.JustDown(this.keys['SPACE']) ||
-         Phaser.Input.Keyboard.JustDown(this.keys['ENTER']))) {
+    // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
+    // en true hasta que alguien lo lee, y una «e» escrita en la bitácora dispararía
+    // `interactNearest()` en cuanto el foco saliera del campo.
+    const pressed = resolveInteractPress(focus, {
+      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
+      enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
+    });
+    // Una pulsación durante el enfriamiento espera a que termine (como cuando JustDown
+    // quedaba sin leer); al escribir, cualquier pulsación pendiente se descarta.
+    this.interactPending = !typing && (this.interactPending || pressed);
+    if (this.interactPending && this.interactionCooldown <= 0) {
+      this.interactPending = false;
       this.interactionCooldown = this.INTERACTION_COOLDOWN_MS;
       this.interactNearest();
     }
@@ -446,7 +528,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Pausa el movimiento del mundo (NPCs y ambient) sin congelar al jugador. */
-  setMotionPaused(paused: boolean) { this.motionPaused = paused; }
+  setMotionPaused(paused: boolean) {
+    this.motionPaused = paused;
+    if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+  }
+
+  /** Flecha táctil apretada o soltada (null). La entrada de `update()` la suma pasado TOUCH_HOLD_DELAY_MS. */
+  setHeldDirection(direction: PlayerDirection | null) {
+    this.heldDirection = direction;
+    // `boot()` y `ngOnChanges` pueden pausar antes de que Phaser arranque la escena (sin reloj aún).
+    this.heldSince = direction && this.time ? this.time.now : 0;
+  }
 
   setReduceMotion(reduced: boolean) { this.callbacks.reduceMotion = reduced; }
 
@@ -619,7 +711,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.lastDirection = direction;
     this.applyPlayerPose(direction, moved); // el update() del frame siguiente vuelve a idle
     if (moved) {
-      this.callbacks.onPosition(Math.round(this.player.x), Math.round(this.player.y));
+      // Cada toque es un paso discreto: se avisa siempre, sin esperar el intervalo.
+      this.emitPosition(true);
       this.ysort(this.player);
     }
     this.updateNearestInteraction();
@@ -719,6 +812,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
 
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
+    // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
+    this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
@@ -881,6 +976,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       : null;
 
     this.cameras.main.stopFollow();
+    this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
@@ -2156,20 +2252,53 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-world-ready]="renderReady()"
       [attr.data-rendered-map-key]="renderedMapKey()"
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
-      [attr.data-player-x]="playerPosition()?.x"
-      [attr.data-player-y]="playerPosition()?.y"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
-    <div class="touch-controls" aria-label="Controles táctiles">
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"    (click)="nudge('up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda" (click)="nudge('left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
-      <button type="button" class="psy-button psy-button--glass touch-interact"            (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"   (click)="nudge('right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"     (click)="nudge('down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
+    @if (!assetsReady()) {
+      <div class="world-loading">
+        <p class="world-loading__label" role="status">Preparando la escena…</p>
+        <div class="world-loading__track" role="progressbar" aria-label="Carga de la escena"
+          aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="loadPercent()">
+          <span class="world-loading__fill" [style.transform]="'scaleX(' + loadPercent() / 100 + ')'"></span>
+        </div>
+        <p class="world-loading__percent" aria-hidden="true">{{ loadPercent() }}&nbsp;%</p>
+      </div>
+    }
+    @if (criticalLoadFailed()) {
+      <div class="world-load-warning" role="alert">
+        <p>Parte del mapa no cargó y la sala se ve simplificada.</p>
+        <div class="world-load-warning__actions">
+          <button type="button" class="psy-button" (click)="retryLoad()">Reintentar</button>
+          <button type="button" class="psy-button psy-button--ghost" (click)="dismissLoadWarning()">Seguir así</button>
+        </div>
+      </div>
+    }
+    <div class="touch-controls" role="group" aria-label="Controles táctiles">
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"
+        (pointerdown)="holdDirection($event, 'up')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda"
+        (pointerdown)="holdDirection($event, 'left')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
+      <button type="button" class="psy-button psy-button--glass touch-interact" (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"
+        (pointerdown)="holdDirection($event, 'right')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
+      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"
+        (pointerdown)="holdDirection($event, 'down')" (pointerup)="releaseDirection()"
+        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+        (contextmenu)="$event.preventDefault()"
+        (click)="keyboardNudge($event, 'down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
     </div>
   `,
   styles: [`
-    :host { display: block; width: 100%; height: 100%; }
+    :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }
     /* El tamaño del canvas lo gobierna Phaser Scale.FIT (aspect 16:9 intacto,
        letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
@@ -2186,9 +2315,71 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       gap: 8px;
       z-index: 48;
     }
-    .touch-btn { background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5; }
+    .touch-btn {
+      background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5;
+      /* Mantener pulsado no debe hacer scroll, zoom, seleccionar texto ni abrir el menú largo. */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
     .touch-interact { font-size: .82rem; }
-    @media (max-width: 900px) { .touch-controls { display: grid; } }
+    /* Aparece solo si la carga pasa de 300 ms: con caché caliente no parpadea. */
+    .world-loading {
+      position: absolute;
+      inset: 0;
+      min-height: 240px;
+      z-index: 50;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 10px;
+      background: #0e1322;
+      color: #e8f0f4;
+      animation: world-loading-in 200ms var(--psy-ease-out) 300ms both;
+    }
+    .world-loading__label { margin: 0; font-size: .95rem; }
+    .world-loading__track {
+      width: min(280px, 70vw);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(182,156,255,.18);
+      overflow: hidden;
+    }
+    .world-loading__fill {
+      display: block;
+      height: 100%;
+      background: #b69cff;
+      transform-origin: left center;
+      transition: transform 160ms linear;
+    }
+    .world-loading__percent {
+      margin: 0;
+      font: 600 .8rem/1 'JetBrains Mono', ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+      color: rgba(232,240,244,.72);
+    }
+    .world-load-warning {
+      position: absolute;
+      left: 50%;
+      top: 16px;
+      z-index: 51;
+      transform: translateX(-50%);
+      width: min(420px, calc(100% - 32px));
+      display: grid;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid rgba(245,184,75,.45);
+      border-radius: 10px;
+      background: rgba(8,12,18,.94);
+      color: #e8f0f4;
+      text-align: center;
+    }
+    .world-load-warning p { margin: 0; }
+    .world-load-warning__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    @keyframes world-loading-in { from { opacity: 0; } to { opacity: 1; } }
+    /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
+    @media (pointer: coarse) { .touch-controls { display: grid; } }
   `]
 })
 export class GameWorldComponent implements OnChanges, OnDestroy {
@@ -2210,12 +2401,18 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
-  /** Pies del jugador expuestos como data-player-x/y: contrato de navegación del e2e. */
-  readonly playerPosition = signal<{ x: number; y: number } | null>(null);
+  /** Progreso real de la precarga de Phaser (0-100). */
+  readonly loadPercent = signal(0);
+  /** true cuando terminó la precarga inicial (con o sin fallos). */
+  readonly assetsReady = signal(false);
+  /** Faltó un mapa o tileset: la sala se ve en paneles planos. */
+  readonly criticalLoadFailed = signal(false);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
   private hostResizeObserver?: ResizeObserver;
+  /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
+  private detachScrollKeyGuard?: () => void;
 
   constructor(private readonly zone: NgZone) {}
 
@@ -2246,12 +2443,71 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.detachScrollKeyGuard?.();
+    this.detachScrollKeyGuard = undefined;
     this.hostResizeObserver?.disconnect();
     this.phaserGame?.destroy(true);
   }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') { this.scene?.nudge(direction); }
+
+  /** Pies del jugador en la escena (px enteros) o null si aún no existe. Es la posición viva:
+   *  `positionChange` llega a Angular a lo sumo ~8 veces por segundo y va hasta 125 ms atrás. */
+  playerPosition(): { x: number; y: number } | null {
+    return this.scene?.playerPosition() ?? null;
+  }
+
+  /** Toque: el paso de siempre al instante; si se mantiene, la escena camina hasta soltar. */
+  holdDirection(event: PointerEvent, direction: PlayerDirection) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // El paso va primero: con un `pointerId` ya inactivo la captura lanza y el toque se perdería.
+    this.scene?.nudge(direction);
+    this.scene?.setHeldDirection(direction);
+    // Captura: si el dedo se desliza fuera del botón, el pointerup igual llega aquí.
+    try {
+      (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Sin captura el toque sigue funcionando; solo se pierde el seguimiento fuera del botón.
+    }
+  }
+
+  releaseDirection() { this.scene?.setHeldDirection(null); }
+
+  /** Enter/Espacio sobre la flecha (click sin puntero, `detail === 0`): un paso. Los clics de
+   *  puntero ya dieron su paso en pointerdown y no deben duplicarlo. */
+  keyboardNudge(event: MouseEvent, direction: PlayerDirection) {
+    if (event.detail === 0) this.nudge(direction);
+  }
+
+  /** Pies del jugador como data-player-x/y en el host de Phaser (contrato de navegación
+   *  del e2e). Se escriben directo en el DOM: cambian en cada cuadro de caminata y una
+   *  señal o un binding dispararían la detección de cambios de toda la app. */
+  private writePlayerPosition(position: { x: number; y: number } | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host || !position) return;
+    host.setAttribute('data-player-x', String(position.x));
+    host.setAttribute('data-player-y', String(position.y));
+  }
+
   interactNearest() { this.scene?.interactNearest(); }
+
+  /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
+   *  del navegador) sin recargar la página ni perder el intento. */
+  retryLoad(): void {
+    this.hostResizeObserver?.disconnect();
+    this.phaserGame?.destroy(true);
+    this.phaserGame = undefined;
+    this.scene = undefined;
+    this.renderReady.set(false);
+    this.renderedMapKey.set(null);
+    this.renderedScenarioKey.set(null);
+    this.assetsReady.set(false);
+    this.loadPercent.set(0);
+    this.criticalLoadFailed.set(false);
+    this.boot();
+  }
+
+  dismissLoadWarning(): void { this.criticalLoadFailed.set(false); }
   focus(key: string) { this.scene?.focus(key); }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
@@ -2270,20 +2526,25 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onReady:       () => this.zone.run(() => {
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
-          this.playerPosition.set(this.scene?.playerPosition() ?? null);
+          this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
-        onPosition:    (x, y) => this.zone.run(() => {
-          this.playerPosition.set({ x, y });
-          this.positionChange.emit({ x, y });
-        }),
+        onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
+        onPositionFrame: (x, y) => this.writePlayerPosition({ x, y }),
         onRoomExit:    (targetRoomKey, entryX, entryY) =>
           this.zone.run(() => this.roomExit.emit({ targetRoomKey, entryX, entryY })),
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
+        onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
+        onLoadComplete: failures => this.zone.run(() => {
+          this.loadPercent.set(100);
+          this.assetsReady.set(true);
+          this.criticalLoadFailed.set(failures.length > 0);
+          if (failures.length > 0) console.warn('[GameWorld] Recursos esenciales sin cargar:', failures);
+        }),
         sfxMuted: this.sfxMuted(),
       });
       this.phaserGame = new Phaser.Game({
@@ -2296,6 +2557,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
         scene: this.scene
       });
+      // Sin la captura de Phaser, flechas y Espacio desplazarían la página (la «Vista previa»
+      // del editor tiene scroll). Se arma DESPUÉS de crear el juego: Phaser descarta los
+      // `keydown` ya cancelados. En un reintento se vuelve a armar tras el nuevo juego.
+      this.detachScrollKeyGuard?.();
+      this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
       // Scale.FIT solo escucha resize de window; el contenedor también cambia
       // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet).
       if (typeof ResizeObserver !== 'undefined') {

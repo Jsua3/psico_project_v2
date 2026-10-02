@@ -221,8 +221,16 @@ def test_force_new_cierra_pausado_terminal(estudiante, case_version_id):
     assert fresh["attemptId"] != start["attemptId"]
 
     old = SimulationAttempt.objects.get(pk=start["attemptId"])
-    assert old.status == "SAFE_EXITED", "el reemplazo cierra el intento de forma terminal"
+    assert old.status == "REPLACED", "el reemplazo cierra el intento de forma terminal"
     assert old.ended_at is not None
+    events = list(
+        AttemptEvent.objects.filter(attempt_id=start["attemptId"])
+        .exclude(event_type__in=["ATTEMPT_STARTED", "NODE_ENTERED"])
+        .values_list("event_type", flat=True)
+    )
+    assert events == ["SAFE_EXIT_REQUESTED", "ATTEMPT_REPLACED"], (
+        "la pausa real se conserva y el reemplazo deja su propio evento"
+    )
 
 
 def test_reporte_pausado_es_honesto(estudiante, case_version_id):

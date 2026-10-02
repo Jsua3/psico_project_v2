@@ -186,8 +186,9 @@ export class SimulationService {
   }
 
   studentReport(attemptId: string) {
+    // El backend Django no envía phaseDurations (era un campo de la API Spring).
     return this.http.get<ApiResponse<AttemptCompletionReport>>(`${this.API}/attempts/${attemptId}/student-report`)
-      .pipe(map(response => response.data));
+      .pipe(map(response => ({ ...response.data, phaseDurations: response.data.phaseDurations ?? [] })));
   }
 
   recentAttempts() {

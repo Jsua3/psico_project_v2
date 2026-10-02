@@ -32,11 +32,11 @@ describe('intro-gate.util', () => {
       expect(resolveIntroStep(ctx({ introRead: true }))).toBe('consent');
     });
 
-    it('tras consentir muestra el video en el nodo inicial', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true }))).toBe('video');
+    it('tras consentir muestra la escena animada en el nodo inicial', () => {
+      expect(resolveIntroStep(ctx({ consentGiven: true }))).toBe('scene');
     });
 
-    it('tras consentir con reduceMotion muestra la narrativa (sin video)', () => {
+    it('tras consentir con reduceMotion muestra la narrativa (sin escena)', () => {
       expect(resolveIntroStep(ctx({ consentGiven: true, reduceMotion: true }))).toBe('narrative');
     });
 

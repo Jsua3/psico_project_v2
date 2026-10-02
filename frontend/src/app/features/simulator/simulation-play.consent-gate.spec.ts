@@ -77,6 +77,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     stopIntroLament: jest.Mock;
     playIntroLament: jest.Mock;
     playSfx: jest.Mock;
+    toggleMusicMuted: jest.Mock;
   };
   let router: { navigate: jest.Mock };
 
@@ -104,6 +105,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       stopIntroLament: jest.fn(),
       playIntroLament: jest.fn(),
       playSfx: jest.fn(),
+      toggleMusicMuted: jest.fn(() => false),
     };
     router = { navigate: jest.fn() };
 
@@ -208,7 +210,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
 
     expect(component.showContentWarning()).toBe(true);
-    expect(component.showIntroVideo()).toBe(false);
+    expect(component.showIntroScene()).toBe(false);
     expect(component.worldStarted()).toBe(false);
     expect(audio.init).not.toHaveBeenCalled();
     expect(sim.getWorld).not.toHaveBeenCalled();
@@ -279,6 +281,84 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(event);
 
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('Enter sobre un botón de la tarjeta del caso lo activa en vez de saltar la tarjeta', () => {
+    setup(makeAttempt());
+    component.showCaseIntro.set(true);
+    const button = document.createElement('button');
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    Object.defineProperty(event, 'target', { value: button });
+
+    component.handleGlobalInteraction(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(component.showCaseIntro()).toBe(true);
+  });
+
+  it('activar la música durante la intro vuelve a su tema, no a la música del mapa', () => {
+    setup(makeAttempt());
+    component.showCaseIntro.set(true);
+
+    component.toggleMusicMute();
+
+    expect(audio.playIntroLament).toHaveBeenCalled();
+    expect(audio.setStressLevel).not.toHaveBeenCalled();
+  });
+
+  describe('activación por teclado de los botones de las tarjetas de la intro', () => {
+    function keydownOn(button: HTMLElement, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
+      Object.defineProperty(event, 'target', { value: button });
+      return event;
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('si Phaser cancela Enter o Espacio en window, el botón de la tarjeta se activa a mano', () => {
+      setup(makeAttempt());
+      component.showIntroScene.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      for (const key of ['Enter', ' ']) {
+        const event = keydownOn(button, key);
+        component.handleGlobalInteraction(event);
+        expect(event.defaultPrevented).toBe(false); // el manejador no cancela: lo hace Phaser después
+        event.preventDefault(); // Phaser captura estas teclas y cancela la activación nativa
+        jest.runAllTimers();
+      }
+
+      expect(click).toHaveBeenCalledTimes(2);
+      expect(component.showIntroScene()).toBe(true);
+    });
+
+    it('si nadie cancela la tecla, el botón se activa solo (sin doble activación)', () => {
+      setup(makeAttempt());
+      component.showCaseIntro.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      component.handleGlobalInteraction(keydownOn(button, 'Enter'));
+      jest.runAllTimers();
+
+      expect(click).not.toHaveBeenCalled();
+    });
+
+    it('mantener la tecla pulsada no repite la activación', () => {
+      setup(makeAttempt());
+      component.showIntroScene.set(true);
+      const button = document.createElement('button');
+      const click = jest.spyOn(button, 'click');
+
+      const event = keydownOn(button, ' ', { repeat: true });
+      component.handleGlobalInteraction(event);
+      event.preventDefault();
+      jest.runAllTimers();
+
+      expect(click).not.toHaveBeenCalled();
+    });
   });
 
   it('mantiene el atajo J aunque el foco venga del botón que cerró un overlay', () => {
@@ -413,6 +493,85 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(sim.safeExit).toHaveBeenCalledWith(
       'attempt-1', 'token-1', 'Salida segura solicitada',
     );
+  });
+
+  describe('posición viva antes de una acción validada', () => {
+    const world = {
+      map: { key: 'hospital-urgencias' },
+      player: { x: 250, y: 430 },
+      flags: {},
+    } as SimulationWorldState;
+    const npc = {
+      key: 'enfermera-urgencias',
+      displayName: 'Enfermera',
+      dialogue: { lines: [{ text: 'Acércate.' }] },
+    } as NpcConfig;
+
+    beforeEach(() => {
+      setup(makeAttempt());
+      component.attempt.set(makeAttempt());
+      component.world.set(world);
+      sim.updateWorldState.mockReturnValue(EMPTY);
+      sim.recordNpcInteraction.mockReturnValue(EMPTY);
+    });
+
+    it('persiste la posición de la escena, no la última que llegó a Angular (hasta 125 ms atrás)', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 579, 384, 'hospital-urgencias',
+      );
+      expect((component as any).lastPosition).toEqual({ x: 579, y: 384 });
+    });
+
+    it('sin gameWorld usa lastPosition', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = undefined;
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 560, 380, 'hospital-urgencias',
+      );
+    });
+
+    it('si la escena aún no tiene jugador (null) usa lastPosition', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => null) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 560, 380, 'hospital-urgencias',
+      );
+    });
+
+    it('si la posición viva ya está sincronizada no repite la persistencia', () => {
+      (component as any).lastPosition = { x: 560, y: 380 };
+      (component as any).lastSyncedPosition = { x: 579, y: 384 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+
+      component.openNpcDialogue(npc);
+
+      expect(sim.updateWorldState).not.toHaveBeenCalled();
+      expect(sim.recordNpcInteraction).toHaveBeenCalledWith('attempt-1', 'token-1', 'enfermera-urgencias');
+    });
+
+    it('también aplica antes de pausar con salida segura', () => {
+      (component as any).lastPosition = { x: 612, y: 444 };
+      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 640, y: 450 })) };
+      sim.safeExit.mockReturnValue(EMPTY);
+
+      component.safeExit();
+
+      expect(sim.updateWorldState).toHaveBeenCalledWith(
+        'attempt-1', 'token-1', 640, 450, 'hospital-urgencias',
+      );
+    });
   });
 
   it('conserva la configuración autorada mientras carga la del mundo siguiente', () => {

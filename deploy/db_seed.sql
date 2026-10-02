@@ -1407,7 +1407,7 @@ CREATE TABLE public.simulation_attempts_v2 (
     user_trust integer DEFAULT 50 NOT NULL,
     institutional_route_activated boolean DEFAULT false NOT NULL,
     revictimization_risk boolean DEFAULT false NOT NULL,
-    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'PAUSED'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying])::text[])))
+    CONSTRAINT simulation_attempts_v2_status_check CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'PAUSED'::character varying, 'SAFE_EXITED'::character varying, 'COMPLETED'::character varying, 'REPLACED'::character varying])::text[])))
 );
 
 
@@ -1807,10 +1807,10 @@ COPY public.attempt_events (id, attempt_id, event_type, node_id, decision_option
 5456	c0423f87-e1d7-4179-98ac-2fba45f0cbac	NPC_DIALOGUE_VIEWED	299	\N	0	0	NPC escuchado: psicologa-orientadora	2026-06-15 20:43:14.971126
 5460	c0423f87-e1d7-4179-98ac-2fba45f0cbac	WORLD_POSITION_UPDATED	299	\N	0	0	Posicion de jugador actualizada	2026-06-15 20:43:18.590185
 5464	c0423f87-e1d7-4179-98ac-2fba45f0cbac	WORLD_POSITION_UPDATED	299	\N	0	0	Posicion de jugador actualizada	2026-06-15 20:43:30.200449
-5519	c0423f87-e1d7-4179-98ac-2fba45f0cbac	SAFE_EXIT_REQUESTED	299	\N	0	0	Reemplazado por nuevo intento	2026-06-15 21:03:28.697131
+5519	c0423f87-e1d7-4179-98ac-2fba45f0cbac	ATTEMPT_REPLACED	299	\N	0	0	Reemplazado por nuevo intento	2026-06-15 21:03:28.697131
 5520	ccdd0ee0-70b0-46e1-bbd5-751971ab2043	ATTEMPT_STARTED	299	\N	0	0	Intento iniciado	2026-06-15 21:03:28.708089
 5521	ccdd0ee0-70b0-46e1-bbd5-751971ab2043	NODE_ENTERED	299	\N	0	0	Nodo inicial	2026-06-15 21:03:28.710335
-5757	ccdd0ee0-70b0-46e1-bbd5-751971ab2043	SAFE_EXIT_REQUESTED	300	\N	0	0	Reemplazado por nuevo intento	2026-06-15 21:06:19.980783
+5757	ccdd0ee0-70b0-46e1-bbd5-751971ab2043	ATTEMPT_REPLACED	300	\N	0	0	Reemplazado por nuevo intento	2026-06-15 21:06:19.980783
 5758	b7586948-a869-4f69-9707-2a93e161ea9f	ATTEMPT_STARTED	299	\N	0	0	Intento iniciado	2026-06-15 21:06:19.990408
 5759	b7586948-a869-4f69-9707-2a93e161ea9f	NODE_ENTERED	299	\N	0	0	Nodo inicial	2026-06-15 21:06:19.993703
 5763	b7586948-a869-4f69-9707-2a93e161ea9f	WORLD_POSITION_UPDATED	299	\N	0	0	Posicion de jugador actualizada	2026-06-15 21:06:29.236482
@@ -1853,7 +1853,7 @@ COPY public.attempt_events (id, attempt_id, event_type, node_id, decision_option
 5773	b7586948-a869-4f69-9707-2a93e161ea9f	ROOM_ENTERED	299	\N	0	0	Puerta hacia sala hospital-sala-escucha	2026-06-15 21:06:46.914094
 5777	b7586948-a869-4f69-9707-2a93e161ea9f	MAP_INTERACTION_OPENED	299	\N	0	0	Acompañar a la familia	2026-06-15 21:06:50.093354
 5782	b7586948-a869-4f69-9707-2a93e161ea9f	WORLD_POSITION_UPDATED	300	\N	0	0	Posicion de jugador actualizada	2026-06-15 21:06:59.883562
-5787	46fa7d34-ba37-46c0-a4ee-a81d27ebcb19	SAFE_EXIT_REQUESTED	299	\N	0	0	Reemplazado por nuevo intento	2026-06-16 01:00:15.104085
+5787	46fa7d34-ba37-46c0-a4ee-a81d27ebcb19	ATTEMPT_REPLACED	299	\N	0	0	Reemplazado por nuevo intento	2026-06-16 01:00:15.104085
 5788	c01fa38d-d259-4666-8736-b596dd9540d6	ATTEMPT_STARTED	299	\N	0	0	Intento iniciado	2026-06-16 01:00:15.119722
 5789	c01fa38d-d259-4666-8736-b596dd9540d6	NODE_ENTERED	299	\N	0	0	Nodo inicial	2026-06-16 01:00:15.122734
 5793	c01fa38d-d259-4666-8736-b596dd9540d6	WORLD_POSITION_UPDATED	299	\N	0	0	Posicion de jugador actualizada	2026-06-16 01:00:39.244339
@@ -3055,11 +3055,11 @@ COPY public.sesiones_juego (id, estudiante_id, caso_id, fecha_inicio, fecha_fin,
 COPY public.simulation_attempts_v2 (id, attempt_token_hash, case_version_id, student_id, current_node_id, status, accumulated_score, stress_index, started_at, ended_at, locked_at, victim_risk, user_trust, institutional_route_activated, revictimization_risk) FROM stdin;
 76c124bf-d077-467a-b204-ec3343c7e9bd	ys2QonVas_ySXRzO7Ab7us180go5ygVLZ3UO9kq35N0	4	1	299	SAFE_EXITED	0	0	2026-06-15 20:42:12.003324	2026-06-15 20:42:36.461141	2026-06-15 20:42:36.461141	50	50	f	f
 ad93c443-40f2-4323-b77a-5a971b68621b	_percdD6vCl1hiXXYcOiVdm21bd1NOzz27k8Tge9Jw4	3	1	14	SAFE_EXITED	0	0	2026-06-15 14:17:38.637928	2026-06-15 14:17:48.013259	2026-06-15 14:17:48.013259	50	50	f	f
-ccdd0ee0-70b0-46e1-bbd5-751971ab2043	PGlmoVWSUTElezfQXdXGWBcU-17dStT1YoG862ghT7I	4	1	300	SAFE_EXITED	-15	65	2026-06-15 21:03:28.704661	2026-06-15 21:06:19.965698	2026-06-15 21:06:19.965698	77	18	f	t
-c0423f87-e1d7-4179-98ac-2fba45f0cbac	pv8mmGNYWI64lgMqAzMiwgyCFA8cYzkrXza9z0sSB4k	4	1	299	SAFE_EXITED	0	0	2026-06-15 20:42:43.569944	2026-06-15 21:03:28.6816	2026-06-15 21:03:28.6816	50	50	f	f
+ccdd0ee0-70b0-46e1-bbd5-751971ab2043	PGlmoVWSUTElezfQXdXGWBcU-17dStT1YoG862ghT7I	4	1	300	REPLACED	-15	65	2026-06-15 21:03:28.704661	2026-06-15 21:06:19.965698	2026-06-15 21:06:19.965698	77	18	f	t
+c0423f87-e1d7-4179-98ac-2fba45f0cbac	pv8mmGNYWI64lgMqAzMiwgyCFA8cYzkrXza9z0sSB4k	4	1	299	REPLACED	0	0	2026-06-15 20:42:43.569944	2026-06-15 21:03:28.6816	2026-06-15 21:03:28.6816	50	50	f	f
 c01fa38d-d259-4666-8736-b596dd9540d6	q4SwUeHzrfJ7pKwChPMnUVsTSjwshtPCQD1SAsI6s24	4	1	299	IN_PROGRESS	0	0	2026-06-16 01:00:15.116215	\N	\N	50	50	f	f
 b7586948-a869-4f69-9707-2a93e161ea9f	ecnP1LY1XwgOP2zFlJ6ACGb02z9HPCBWccUMo3xDaLw	4	1	300	SAFE_EXITED	-15	65	2026-06-15 21:06:19.987734	2026-06-15 21:07:07.222855	2026-06-15 21:07:07.222855	77	18	f	t
-46fa7d34-ba37-46c0-a4ee-a81d27ebcb19	gTgckfgK1SLLNRJjz_XtNBxYEsUluMIZDqWcl6yVyFE	4	1	299	SAFE_EXITED	0	0	2026-06-16 00:56:58.826735	2026-06-16 01:00:15.074302	2026-06-16 01:00:15.074302	50	50	f	f
+46fa7d34-ba37-46c0-a4ee-a81d27ebcb19	gTgckfgK1SLLNRJjz_XtNBxYEsUluMIZDqWcl6yVyFE	4	1	299	REPLACED	0	0	2026-06-16 00:56:58.826735	2026-06-16 01:00:15.074302	2026-06-16 01:00:15.074302	50	50	f	f
 \.
 
 

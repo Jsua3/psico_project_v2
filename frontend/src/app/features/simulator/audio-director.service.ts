@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone, inject } from '@angular/core';
 import { Howl, Howler } from 'howler';
+import { FADE_TICK_MS, fadeStep } from './audio-fade.util';
 
 export type MusicLayer = 'ambient' | 'tension' | 'resolution' | 'crisis';
 export type SoundEffect =
@@ -20,9 +21,22 @@ interface StemTrack {
   targetVolume: number;
 }
 
+/** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
+ *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la pista. */
+const HTML5_VOLUME_WORKS = (() => {
+  try {
+    const probe = new Audio();
+    probe.volume = 0.5;
+    return probe.volume === 0.5;
+  } catch {
+    return false;
+  }
+})();
+
 @Injectable({ providedIn: 'root' })
 export class AudioDirectorService {
   private stems = new Map<MusicLayer, StemTrack>();
+  private readonly zone = inject(NgZone);
   private sfx = new Map<SoundEffect, Howl>();
   private introLament?: Howl;
   private masterVolume = 1.0;
@@ -52,6 +66,9 @@ export class AudioDirectorService {
         loop: true,
         volume: 0,
         preload: true,
+        // Pista de ~150 s. Con HTML5 se transmite; Web Audio la decodificaría entera (~50 MB de PCM).
+        // Solo donde el navegador respeta el volumen del elemento; en iOS/iPadOS se queda en Web Audio.
+        html5: HTML5_VOLUME_WORKS,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] No se pudo cargar ${src}:`, err),
       });
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
@@ -81,8 +98,6 @@ export class AudioDirectorService {
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] SFX error ${src}:`, err),
       }));
     }
-
-    this.startFadeLoop();
   }
 
   playIntroLament(): void {
@@ -99,6 +114,7 @@ export class AudioDirectorService {
         loop: true,
         volume: this.musicVolume,
         preload: true,
+        html5: HTML5_VOLUME_WORKS,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
     }
@@ -179,12 +195,19 @@ export class AudioDirectorService {
 
   setMusicMuted(muted: boolean): void {
     this.musicMuted = muted;
+    this.introLament?.mute(muted);
+    // El silencio no depende de volume(). En HTML5 Howler no toca el volumen del nodo
+    // mientras está silenciado: por eso volume(0) va antes de mute(true), y mute(false)
+    // antes de cualquier fundido posterior (setStressLevel).
     if (muted) {
       this.stems.forEach(stem => {
         stem.targetVolume = 0;
         stem.volume = 0;
         stem.howl.volume(0);
+        stem.howl.mute(true);
       });
+    } else {
+      this.stems.forEach(stem => stem.howl.mute(false));
     }
   }
 
@@ -208,7 +231,7 @@ export class AudioDirectorService {
   stopAll(): void {
     this.introLament?.stop();
     this.stems.forEach(s => s.howl.stop());
-    if (this.fadeInterval) clearInterval(this.fadeInterval);
+    this.stopFadeLoop();
   }
 
   dispose(): void {
@@ -224,19 +247,36 @@ export class AudioDirectorService {
 
   private setTargetVolume(layer: MusicLayer, vol: number): void {
     const stem = this.stems.get(layer);
-    if (stem) stem.targetVolume = this.musicMuted ? 0 : vol * this.musicVolume;
+    if (!stem) return;
+    stem.targetVolume = this.musicMuted ? 0 : vol * this.musicVolume;
+    this.ensureFadeLoop();
   }
 
-  private startFadeLoop(): void {
-    const FADE_SPEED = 0.02;
-    this.fadeInterval = window.setInterval(() => {
-      this.stems.forEach(stem => {
-        const diff = stem.targetVolume - stem.volume;
-        if (Math.abs(diff) > 0.001) {
-          stem.volume += diff * FADE_SPEED;
-          stem.howl.volume(Math.max(0, Math.min(1, stem.volume)));
-        }
-      });
-    }, 33);
+  /** Fuera de la zona: un setInterval dentro de ella dispararía la detección
+   *  de cambios de toda la app 30 veces por segundo. */
+  private ensureFadeLoop(): void {
+    if (this.fadeInterval !== undefined) return;
+    this.zone.runOutsideAngular(() => {
+      this.fadeInterval = window.setInterval(() => this.fadeTick(), FADE_TICK_MS);
+    });
+  }
+
+  private fadeTick(): void {
+    let fading = false;
+    this.stems.forEach(stem => {
+      const next = fadeStep(stem.volume, stem.targetVolume);
+      if (next !== stem.volume) {
+        stem.volume = next;
+        stem.howl.volume(Math.max(0, Math.min(1, next)));
+      }
+      if (next !== stem.targetVolume) fading = true;
+    });
+    if (!fading) this.stopFadeLoop();
+  }
+
+  private stopFadeLoop(): void {
+    if (this.fadeInterval === undefined) return;
+    window.clearInterval(this.fadeInterval);
+    this.fadeInterval = undefined;
   }
 }

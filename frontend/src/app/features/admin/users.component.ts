@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -13,6 +13,17 @@ import { MatTableModule } from '@angular/material/table';
 import { AdminUser, UserAdminService, UserRole } from '../../core/api/user-admin.service';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+
+interface UserFormValue {
+  nombre: string;
+  apellido: string;
+  email: string;
+  role: UserRole;
+  password: string;
+}
 
 @Component({
   selector: 'app-admin-users',
@@ -151,16 +162,23 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
               <mat-form-field appearance="outline">
                 <mat-label>Nombre</mat-label>
                 <input matInput formControlName="nombre">
+                <mat-error>Escribe el nombre.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>Apellido</mat-label>
                 <input matInput formControlName="apellido">
+                <mat-error>Escribe el apellido.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>Email</mat-label>
                 <input matInput formControlName="email" type="email">
+                @if (form.controls.email.hasError('required')) {
+                  <mat-error>Escribe el correo.</mat-error>
+                } @else {
+                  <mat-error>Escribe un correo válido.</mat-error>
+                }
               </mat-form-field>
 
               <mat-form-field appearance="outline">
@@ -170,15 +188,22 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
                     <mat-option [value]="role">{{ role }}</mat-option>
                   }
                 </mat-select>
+                <mat-error>Elige un rol.</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>{{ selectedUser() ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</mat-label>
                 <input matInput formControlName="password" type="password" autocomplete="new-password">
+                <mat-hint>Mínimo 8 caracteres.</mat-hint>
+                @if (form.controls.password.hasError('required')) {
+                  <mat-error>La contraseña es obligatoria al crear un usuario.</mat-error>
+                } @else {
+                  <mat-error>Usa al menos 8 caracteres.</mat-error>
+                }
               </mat-form-field>
 
               <div class="form-actions">
-                <button class="psy-button psy-button--primary" type="submit" [disabled]="form.invalid || saving()">
+                <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
                   <mat-icon>save</mat-icon>
                   {{ saving() ? 'Guardando...' : 'Guardar' }}
                 </button>
@@ -242,6 +267,10 @@ export class UsersComponent implements OnInit {
   private readonly service = inject(UserAdminService);
   private readonly accessRequestsService = inject(AccessRequestAdminService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
+  @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
@@ -270,7 +299,24 @@ export class UsersComponent implements OnInit {
       : `¿Activar a ${user.nombre} ${user.apellido}?`;
   }
 
+  /**
+   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
+   * y Material seguiría mostrando los errores en un formulario recién abierto.
+   */
+  private resetUserForm(value: UserFormValue): void {
+    if (this.formDirective) this.formDirective.resetForm(value);
+    else this.form.reset(value);
+  }
+
+  /** Al crear, la contraseña es obligatoria; al editar, vacía significa «no cambiarla». */
+  private setPasswordRules(creating: boolean): void {
+    const password = this.form.controls.password;
+    password.setValidators(creating ? [Validators.required, Validators.minLength(8)] : [Validators.minLength(8)]);
+    password.updateValueAndValidity({ emitEvent: false });
+  }
+
   ngOnInit() {
+    this.setPasswordRules(true);
     this.load();
     this.loadAccessRequests();
   }
@@ -284,13 +330,14 @@ export class UsersComponent implements OnInit {
 
   attendRequest(request: AccessRequest) {
     this.selectedUser.set(null);
-    this.form.reset({
+    this.resetUserForm({
       nombre: request.nombre,
       apellido: request.apellido,
       email: request.email,
       role: 'ESTUDIANTE',
       password: '',
     });
+    this.setPasswordRules(true);
     this.message.set(`Solicitud de ${request.nombre} ${request.apellido} lista para crear usuario.`);
     this.error.set('');
   }
@@ -301,11 +348,12 @@ export class UsersComponent implements OnInit {
     this.accessRequestsService.updateStatus(request.id, 'DISMISSED').subscribe({
       next: () => {
         this.accessRequests.update(items => items.filter(item => item.id !== request.id));
-        this.message.set('Solicitud descartada.');
+        this.notify.success('Solicitud descartada.');
         this.saving.set(false);
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible actualizar la solicitud.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar la solicitud.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       },
     });
@@ -340,26 +388,28 @@ export class UsersComponent implements OnInit {
 
   newUser() {
     this.selectedUser.set(null);
-    this.form.reset({
+    this.resetUserForm({
       nombre: '',
       apellido: '',
       email: '',
       role: 'ESTUDIANTE',
       password: ''
     });
+    this.setPasswordRules(true);
     this.message.set('');
     this.error.set('');
   }
 
   editUser(user: AdminUser) {
     this.selectedUser.set(user);
-    this.form.reset({
+    this.resetUserForm({
       nombre: user.nombre,
       apellido: user.apellido,
       email: user.email,
       role: user.role,
       password: ''
     });
+    this.setPasswordRules(false);
     this.message.set('');
     this.error.set('');
   }
@@ -368,22 +418,12 @@ export class UsersComponent implements OnInit {
     if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error.set('Revisa los campos obligatorios.');
+      focusFirstInvalid(this.host.nativeElement);
       return;
     }
     const selected = this.selectedUser();
     const value = this.form.getRawValue();
     const email = value.email.trim().toLowerCase();
-    if (!selected && !value.password) {
-      this.form.controls.password.markAsTouched();
-      this.error.set('La contraseña es obligatoria al crear usuarios.');
-      return;
-    }
-    if (!selected && value.password.length < 8) {
-      this.form.controls.password.markAsTouched();
-      this.error.set('La contraseña debe tener al menos 8 caracteres.');
-      return;
-    }
     this.saving.set(true);
     this.error.set('');
     this.message.set('');
@@ -411,13 +451,14 @@ export class UsersComponent implements OnInit {
           const exists = users.some(user => user.id === saved.id);
           return exists ? users.map(user => user.id === saved.id ? saved : user) : [...users, saved];
         });
-        this.message.set(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
+        this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
         this.saving.set(false);
         this.editUser(saved);
         this.loadAccessRequests();
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible guardar los cambios.');
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible guardar los cambios.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });
@@ -437,13 +478,15 @@ export class UsersComponent implements OnInit {
     this.service.updateStatus(user.id, !user.activo).subscribe({
       next: saved => {
         this.users.update(users => users.map(item => item.id === saved.id ? saved : item));
-        this.message.set(saved.activo ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.');
+        this.notify.success(saved.activo ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.');
         this.statusConfirmTarget.set(null);
         this.saving.set(false);
         if (this.selectedUser()?.id === saved.id) this.editUser(saved);
       },
-      error: error => {
-        this.error.set(error?.error?.message || 'No fue posible actualizar el estado del usuario.');
+      error: (err: unknown) => {
+        this.statusConfirmTarget.set(null);
+        const text = apiErrorMessage(err, 'No fue posible actualizar el estado del usuario.');
+        if (text) this.notify.error(text);
         this.saving.set(false);
       }
     });

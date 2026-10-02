@@ -1,0 +1,150 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { of } from 'rxjs';
+
+import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
+import { SimulationService } from '../../core/api/simulation.service';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { RubricsComponent } from './rubrics.component';
+
+/**
+ * Cada fila de criterio debe seguir a su propio grupo del `FormArray`.
+ *
+ * Con `track $index`, al reemplazar los grupos (abrir otra rúbrica, «Nueva
+ * rúbrica») o quitar uno de en medio, Angular reutilizaba las filas del DOM
+ * pero las directivas seguían enlazadas a los controles anteriores, ya
+ * desconectados del formulario: la pantalla mostraba campos vacíos o datos de
+ * otro criterio, y lo que se escribía no llegaba al formulario.
+ */
+function rubric(id: number, name: string, criteria: Array<[string, number, number]>): RubricAdmin {
+  return {
+    id,
+    name,
+    description: null,
+    active: false,
+    version: '1.0',
+    isDefault: false,
+    totalWeight: criteria.reduce((sum, [, weight]) => sum + weight, 0),
+    criteriaCount: criteria.length,
+    criteria: criteria.map(([title, weight, displayOrder], index) => ({ id: id * 10 + index, title, weight, displayOrder, active: true })),
+  } as RubricAdmin;
+}
+
+const primera = rubric(4, 'Primera', [['Escucha', 60, 1], ['Empatía', 40, 2]]);
+const segunda = rubric(5, 'Segunda', [['Encuadre', 10, 1], ['Cierre', 90, 2]]);
+
+describe('rúbricas: criterios enlazados a su control (DOM con Material)', () => {
+  let fixture: ComponentFixture<RubricsComponent>;
+  let component: RubricsComponent;
+  let root: HTMLElement;
+  let service: { list: jest.Mock; detail: jest.Mock };
+
+  /** Valores visibles de los campos de nombre, peso y orden de todos los criterios. */
+  const shown = () => Array.from(root.querySelectorAll<HTMLInputElement>('.criterion input')).map(input => input.value);
+  /** Lo que el formulario guarda de cada criterio. */
+  const held = () => component.criteria.controls.map(group => [group.get('title')!.value, group.get('weight')!.value, group.get('displayOrder')!.value]);
+  const type = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  };
+  const open = (item: RubricAdmin) => {
+    service.detail.mockReturnValue(of(item));
+    component.openRubric(item.id);
+    fixture.detectChanges();
+  };
+
+  beforeEach(() => {
+    service = { list: jest.fn(() => of([])), detail: jest.fn(() => of(primera)) };
+    TestBed.configureTestingModule({
+      imports: [RubricsComponent],
+      providers: [
+        provideNoopAnimations(),
+        { provide: RubricService, useValue: service },
+        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([])) } },
+        { provide: NotificationService, useValue: { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() } },
+      ],
+    });
+    fixture = TestBed.createComponent(RubricsComponent);
+    component = fixture.componentInstance;
+    root = fixture.nativeElement;
+    document.body.appendChild(root);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    root.remove();
+    TestBed.resetTestingModule();
+  });
+
+  it('abrir una rúbrica muestra sus criterios', () => {
+    open(primera);
+
+    expect(shown()).toEqual(['Escucha', '60', '1', 'Empatía', '40', '2']);
+  });
+
+  it('abrir otra rúbrica reemplaza los criterios que se ven, no los deja en blanco', () => {
+    open(primera);
+
+    open(segunda);
+
+    expect(shown()).toEqual(['Encuadre', '10', '1', 'Cierre', '90', '2']);
+    expect(held()).toEqual([['Encuadre', 10, 1], ['Cierre', 90, 2]]);
+  });
+
+  it('lo que se escribe tras abrir otra rúbrica llega al formulario', () => {
+    open(primera);
+    open(segunda);
+
+    type(root.querySelectorAll<HTMLInputElement>('.criterion input')[1], '25');
+
+    expect(held()[0]).toEqual(['Encuadre', 25, 1]);
+    expect(component.totalWeight()).toBe(115);
+  });
+
+  it('«Nueva rúbrica» tras abrir una con criterios deja un criterio en blanco con peso 0 y orden 1', () => {
+    open(primera);
+
+    component.newRubric();
+    fixture.detectChanges();
+
+    expect(shown()).toEqual(['', '0', '1']);
+  });
+
+  it('lo que se escribe en el criterio de una rúbrica nueva llega al formulario', () => {
+    open(primera);
+    component.newRubric();
+    fixture.detectChanges();
+
+    const [title, weight] = Array.from(root.querySelectorAll<HTMLInputElement>('.criterion input'));
+    type(title, 'Alianza');
+    type(weight, '55');
+
+    expect(held()).toEqual([['Alianza', 55, 1]]);
+    expect(component.totalWeight()).toBe(55);
+  });
+
+  it('eliminar el primer criterio deja en pantalla el segundo y editarlo actualiza el formulario', () => {
+    open(primera);
+
+    root.querySelector<HTMLButtonElement>('.criterion button[aria-label="Eliminar criterio"]')!.click();
+    fixture.detectChanges();
+
+    expect(shown()).toEqual(['Empatía', '40', '2']);
+    expect(held()).toEqual([['Empatía', 40, 2]]);
+
+    type(root.querySelectorAll<HTMLInputElement>('.criterion input')[1], '35');
+    expect(held()).toEqual([['Empatía', 35, 2]]);
+  });
+
+  it('agregar un criterio muestra una fila nueva enlazada al formulario', () => {
+    open(primera);
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.actions button')).find(candidate => (candidate.textContent ?? '').includes('Agregar criterio'))!.click();
+    fixture.detectChanges();
+
+    expect(shown()).toEqual(['Escucha', '60', '1', 'Empatía', '40', '2', '', '0', '3']);
+    type(root.querySelectorAll<HTMLInputElement>('.criterion input')[7], '12');
+    expect(held()[2]).toEqual(['', 12, 3]);
+  });
+});

@@ -1,0 +1,218 @@
+import {
+  attachScrollKeyGuard,
+  isActivatableTarget,
+  isTextEntryTarget,
+  resolveInteractPress,
+  shouldBlockScrollKey,
+} from './keyboard-focus.util';
+
+function el(html: string): Element {
+  const host = document.createElement('div');
+  host.innerHTML = html;
+  return host.firstElementChild as Element;
+}
+
+function keydown(key: string, init: KeyboardEventInit = {}, target: Element | null = null): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+  if (target) {
+    document.body.appendChild(target);
+    target.dispatchEvent(event);
+    target.remove();
+  }
+  return event;
+}
+
+describe('keyboard-focus.util', () => {
+  describe('isTextEntryTarget', () => {
+    it('es true para textarea, select e inputs de texto', () => {
+      expect(isTextEntryTarget(el('<textarea></textarea>'))).toBe(true);
+      expect(isTextEntryTarget(el('<select><option>a</option></select>'))).toBe(true);
+      expect(isTextEntryTarget(el('<input type="text">'))).toBe(true);
+      expect(isTextEntryTarget(el('<input>'))).toBe(true);
+      expect(isTextEntryTarget(el('<input type="search">'))).toBe(true);
+      expect(isTextEntryTarget(el('<input type="number">'))).toBe(true);
+    });
+
+    it('es false para inputs que se activan en vez de escribirse', () => {
+      for (const type of ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color']) {
+        expect(isTextEntryTarget(el(`<input type="${type}">`))).toBe(false);
+      }
+    });
+
+    it('es true para un elemento editable', () => {
+      const editable = el('<div contenteditable="true"></div>');
+      // jsdom no implementa isContentEditable: se declara como lo haría un navegador.
+      Object.defineProperty(editable, 'isContentEditable', { value: true });
+      expect(isTextEntryTarget(editable)).toBe(true);
+    });
+
+    it('es false para botones, enlaces, div enfocable, body y null', () => {
+      expect(isTextEntryTarget(el('<button></button>'))).toBe(false);
+      expect(isTextEntryTarget(el('<a href="/x"></a>'))).toBe(false);
+      expect(isTextEntryTarget(el('<div tabindex="0"></div>'))).toBe(false);
+      expect(isTextEntryTarget(document.body)).toBe(false);
+      expect(isTextEntryTarget(null)).toBe(false);
+    });
+  });
+
+  describe('isActivatableTarget', () => {
+    it('es true para botones y enlaces con href', () => {
+      expect(isActivatableTarget(el('<button></button>'))).toBe(true);
+      expect(isActivatableTarget(el('<a href="/x"></a>'))).toBe(true);
+    });
+
+    it('es false para un enlace sin href', () => {
+      expect(isActivatableTarget(el('<a>ancla</a>'))).toBe(false);
+    });
+
+    it('es true para inputs que se activan', () => {
+      for (const type of ['checkbox', 'radio', 'button', 'submit', 'reset']) {
+        expect(isActivatableTarget(el(`<input type="${type}">`))).toBe(true);
+      }
+    });
+
+    it('es false para inputs de texto, range y color', () => {
+      for (const type of ['text', 'range', 'color']) {
+        expect(isActivatableTarget(el(`<input type="${type}">`))).toBe(false);
+      }
+      expect(isActivatableTarget(el('<textarea></textarea>'))).toBe(false);
+    });
+
+    it('es true para los roles interactivos de ARIA', () => {
+      for (const role of ['button', 'switch', 'checkbox', 'menuitem', 'tab', 'option']) {
+        expect(isActivatableTarget(el(`<div role="${role}" tabindex="0"></div>`))).toBe(true);
+      }
+    });
+
+    it('es false para div con tabindex, role application, body y null', () => {
+      expect(isActivatableTarget(el('<div tabindex="0"></div>'))).toBe(false);
+      expect(isActivatableTarget(el('<div role="application" tabindex="0"></div>'))).toBe(false);
+      expect(isActivatableTarget(document.body)).toBe(false);
+      expect(isActivatableTarget(null)).toBe(false);
+    });
+  });
+
+  describe('shouldBlockScrollKey', () => {
+    it('bloquea flechas y Espacio cuando el foco está en el cuerpo de la página', () => {
+      for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']) {
+        const event = keydown(key, {}, document.createElement('div'));
+        expect(shouldBlockScrollKey(event)).toBe(true);
+      }
+    });
+
+    it('no bloquea otras teclas (WASD, E, Enter, Tab)', () => {
+      for (const key of ['w', 'a', 's', 'd', 'e', 'Enter', 'Tab', 'PageDown']) {
+        expect(shouldBlockScrollKey(keydown(key, {}, document.createElement('div')))).toBe(false);
+      }
+    });
+
+    it('no bloquea con ctrl, meta o alt', () => {
+      for (const init of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+        expect(shouldBlockScrollKey(keydown('ArrowDown', init, document.createElement('div')))).toBe(false);
+      }
+    });
+
+    it('no bloquea si el destino es de entrada de texto', () => {
+      expect(shouldBlockScrollKey(keydown('ArrowLeft', {}, document.createElement('textarea')))).toBe(false);
+      expect(shouldBlockScrollKey(keydown(' ', {}, document.createElement('input')))).toBe(false);
+    });
+
+    it('no bloquea si el destino se activa con teclado', () => {
+      expect(shouldBlockScrollKey(keydown(' ', {}, document.createElement('button')))).toBe(false);
+      const toggle = document.createElement('div');
+      toggle.setAttribute('role', 'switch');
+      expect(shouldBlockScrollKey(keydown(' ', {}, toggle))).toBe(false);
+    });
+
+    it('bloquea con el destino en un div enfocable (el host de Phaser)', () => {
+      const host = document.createElement('div');
+      host.tabIndex = 0;
+      expect(shouldBlockScrollKey(keydown('ArrowDown', {}, host))).toBe(true);
+    });
+
+    it('tolera un evento sin destino', () => {
+      expect(shouldBlockScrollKey(new KeyboardEvent('keydown', { key: ' ' }))).toBe(true);
+    });
+  });
+
+  describe('resolveInteractPress', () => {
+    const none = { e: false, space: false, enter: false };
+
+    it('sin foco especial, E, Espacio y Enter interactúan', () => {
+      expect(resolveInteractPress(document.body, { ...none, e: true })).toBe(true);
+      expect(resolveInteractPress(document.body, { ...none, space: true })).toBe(true);
+      expect(resolveInteractPress(document.body, { ...none, enter: true })).toBe(true);
+      expect(resolveInteractPress(document.body, none)).toBe(false);
+    });
+
+    it('con foco en un campo de texto no interactúa nada', () => {
+      const field = el('<textarea></textarea>');
+      expect(resolveInteractPress(field, { e: true, space: true, enter: true })).toBe(false);
+    });
+
+    it('con foco en un botón, Espacio y Enter los activa el navegador pero E sigue valiendo', () => {
+      const button = el('<button></button>');
+      expect(resolveInteractPress(button, { ...none, space: true })).toBe(false);
+      expect(resolveInteractPress(button, { ...none, enter: true })).toBe(false);
+      expect(resolveInteractPress(button, { ...none, e: true })).toBe(true);
+    });
+
+    it('con foco en el host enfocable de Phaser todo interactúa', () => {
+      const host = el('<div role="application" tabindex="0"></div>');
+      expect(resolveInteractPress(host, { ...none, space: true })).toBe(true);
+      expect(resolveInteractPress(host, { ...none, enter: true })).toBe(true);
+    });
+  });
+
+  describe('attachScrollKeyGuard', () => {
+    const zone = { runOutsideAngular: jest.fn(<T>(fn: () => T) => fn()) };
+
+    function pressOnBody(key: string): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      document.body.dispatchEvent(event);
+      return event;
+    }
+
+    beforeEach(() => zone.runOutsideAngular.mockClear());
+
+    it('registra el oyente fuera de la zona y cancela flechas y Espacio', () => {
+      const detach = attachScrollKeyGuard(zone);
+      expect(zone.runOutsideAngular).toHaveBeenCalledTimes(1);
+      expect(pressOnBody('ArrowDown').defaultPrevented).toBe(true);
+      expect(pressOnBody(' ').defaultPrevented).toBe(true);
+      expect(pressOnBody('e').defaultPrevented).toBe(false);
+      detach();
+    });
+
+    it('no cancela lo que un campo de texto o un botón necesitan', () => {
+      const detach = attachScrollKeyGuard(zone);
+      for (const tag of ['textarea', 'button']) {
+        const target = document.createElement(tag);
+        document.body.appendChild(target);
+        const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+        target.dispatchEvent(event);
+        target.remove();
+        expect(event.defaultPrevented).toBe(false);
+      }
+      detach();
+    });
+
+    it('al retirarlo deja de cancelar', () => {
+      const detach = attachScrollKeyGuard(zone);
+      detach();
+      expect(pressOnBody('ArrowUp').defaultPrevented).toBe(false);
+    });
+
+    it('un oyente registrado antes (el de Phaser) ve la tecla sin cancelar', () => {
+      // Phaser descarta los keydown con defaultPrevented: por eso el bloqueo se arma después.
+      const seen: boolean[] = [];
+      const phaserLike = (event: KeyboardEvent) => seen.push(event.defaultPrevented);
+      window.addEventListener('keydown', phaserLike);
+      const detach = attachScrollKeyGuard(zone);
+      pressOnBody('ArrowLeft');
+      detach();
+      window.removeEventListener('keydown', phaserLike);
+      expect(seen).toEqual([false]);
+    });
+  });
+});

@@ -3,21 +3,14 @@ import {
   Component,
   ElementRef,
   Input,
+  NgZone,
   OnDestroy,
   ViewChild,
   inject,
 } from '@angular/core';
+import { Particle, frameScale, stepParticles } from './particle-field.util';
 
 type ParticleDensity = 'low' | 'medium' | 'high';
-
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  radius: number;
-  alpha: number;
-}
 
 @Component({
   selector: 'app-siep-particle-layer',
@@ -48,10 +41,17 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
 
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly zone = inject(NgZone);
   private ctx: CanvasRenderingContext2D | null = null;
   private particles: Particle[] = [];
   private frameId = 0;
+  private lastFrameAt: number | null = null;
+  /** Tamaño del host en px CSS; se lee solo al redimensionar, nunca por cuadro. */
+  private width = 0;
+  private height = 0;
+  private visible = true;
   private resizeObserver: ResizeObserver | null = null;
+  private intersectionObserver: IntersectionObserver | null = null;
   private mouseX = -1000;
   private mouseY = -1000;
   private reducedMotion = false;
@@ -65,29 +65,45 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(this.host.nativeElement);
+    // Observadores y puntero fuera de la zona: ninguno cambia estado de Angular.
+    this.zone.runOutsideAngular(() => {
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(this.host.nativeElement);
+
+      if (typeof IntersectionObserver !== 'undefined') {
+        this.intersectionObserver = new IntersectionObserver(([entry]) => {
+          this.visible = entry?.isIntersecting ?? true;
+          if (this.visible) {
+            this.start();
+          } else {
+            this.stop();
+          }
+        });
+        this.intersectionObserver.observe(this.host.nativeElement);
+      }
+
+      if (this.interactive && !this.reducedMotion) {
+        this.host.nativeElement.closest('.landing-hero')?.addEventListener('pointermove', this.boundPointerMove);
+      }
+    });
     this.resize();
 
-    if (this.interactive && !this.reducedMotion) {
-      this.host.nativeElement.closest('.landing-hero')?.addEventListener('pointermove', this.boundPointerMove);
-    }
-
-    if (!this.reducedMotion) {
-      this.animate();
-    } else {
+    if (this.reducedMotion) {
       this.drawStatic();
+    } else {
+      this.start();
     }
   }
 
   ngOnDestroy(): void {
-    cancelAnimationFrame(this.frameId);
+    this.stop();
     this.resizeObserver?.disconnect();
+    this.intersectionObserver?.disconnect();
     this.host.nativeElement.closest('.landing-hero')?.removeEventListener('pointermove', this.boundPointerMove);
   }
 
   private particleCount(): number {
-    const area = this.host.nativeElement.clientWidth * this.host.nativeElement.clientHeight;
+    const area = this.width * this.height;
     const densityFactor = this.density === 'low' ? 0.00004 : this.density === 'high' ? 0.0001 : 0.00007;
     return Math.max(18, Math.min(90, Math.round(area * densityFactor)));
   }
@@ -95,6 +111,8 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   private resize(): void {
     const canvas = this.canvasRef.nativeElement;
     const { clientWidth, clientHeight } = this.host.nativeElement;
+    this.width = clientWidth;
+    this.height = clientHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.floor(clientWidth * dpr));
     canvas.height = Math.max(1, Math.floor(clientHeight * dpr));
@@ -108,12 +126,10 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   }
 
   private seedParticles(): void {
-    const width = this.host.nativeElement.clientWidth;
-    const height = this.host.nativeElement.clientHeight;
     const count = this.particleCount();
     this.particles = Array.from({ length: count }, () => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
+      x: Math.random() * this.width,
+      y: Math.random() * this.height,
       vx: (Math.random() - 0.5) * 0.35,
       vy: (Math.random() - 0.5) * 0.35,
       radius: 1 + Math.random() * 2.2,
@@ -127,41 +143,29 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
     this.mouseY = event.clientY - rect.top;
   }
 
-  private animate(): void {
-    this.update();
-    this.draw();
-    this.frameId = requestAnimationFrame(() => this.animate());
+  private start(): void {
+    if (this.frameId || this.reducedMotion || !this.visible || !this.ctx) {
+      return;
+    }
+    // Sin delta previo: el primer cuadro tras reanudar avanza uno de referencia, sin salto.
+    this.lastFrameAt = null;
+    this.zone.runOutsideAngular(() => {
+      this.frameId = requestAnimationFrame(now => this.frame(now));
+    });
   }
 
-  private update(): void {
-    const width = this.host.nativeElement.clientWidth;
-    const height = this.host.nativeElement.clientHeight;
+  private stop(): void {
+    cancelAnimationFrame(this.frameId);
+    this.frameId = 0;
+  }
 
-    for (const particle of this.particles) {
-      particle.x += particle.vx;
-      particle.y += particle.vy;
-
-      if (particle.x < 0 || particle.x > width) {
-        particle.vx *= -1;
-      }
-      if (particle.y < 0 || particle.y > height) {
-        particle.vy *= -1;
-      }
-
-      if (this.interactive) {
-        const dx = particle.x - this.mouseX;
-        const dy = particle.y - this.mouseY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 120 && dist > 0) {
-          const force = (120 - dist) / 120;
-          particle.vx += (dx / dist) * force * 0.04;
-          particle.vy += (dy / dist) * force * 0.04;
-        }
-      }
-
-      particle.vx *= 0.995;
-      particle.vy *= 0.995;
-    }
+  private frame(now: number): void {
+    const scale = this.lastFrameAt === null ? 1 : frameScale(now - this.lastFrameAt);
+    this.lastFrameAt = now;
+    const pointer = this.interactive ? { x: this.mouseX, y: this.mouseY } : null;
+    stepParticles(this.particles, scale, { width: this.width, height: this.height }, pointer);
+    this.draw();
+    this.frameId = requestAnimationFrame(next => this.frame(next));
   }
 
   private draw(): void {
@@ -170,9 +174,7 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const width = this.host.nativeElement.clientWidth;
-    const height = this.host.nativeElement.clientHeight;
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, this.width, this.height);
 
     for (const particle of this.particles) {
       ctx.beginPath();

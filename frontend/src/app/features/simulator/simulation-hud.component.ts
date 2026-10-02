@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
@@ -109,16 +109,18 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                 aria-label="Abrir bitácora reflexiva (J)" title="Bitácora (J)">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
-              <button type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
+              <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
                 (click)="settingsOpen.set(!settingsOpen())"
-                aria-label="Abrir ajustes del juego" title="Ajustes">
+                aria-label="Abrir ajustes del juego" title="Ajustes"
+                [attr.aria-expanded]="settingsOpen()"
+                [attr.aria-controls]="settingsOpen() ? 'game-settings-menu' : null">
                 <mat-icon aria-hidden="true">settings</mat-icon>
               </button>
               @if (settingsOpen()) {
-                <div class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
+                <div id="game-settings-menu" class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
                   <div class="settings-menu__header">
                     <strong id="game-settings-title">Ajustes</strong>
-                    <button type="button" aria-label="Cerrar ajustes" (click)="settingsOpen.set(false)">
+                    <button type="button" aria-label="Cerrar ajustes" (click)="closeSettings()">
                       <mat-icon aria-hidden="true">close</mat-icon>
                     </button>
                   </div>
@@ -163,8 +165,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-shell {
       display: flex;
       flex-direction: column;
-      background: linear-gradient(180deg, rgba(22,18,42,.9), rgba(8,12,18,.84));
-      backdrop-filter: blur(18px) saturate(120%);
+      background: linear-gradient(180deg, rgba(22,18,42,.92), rgba(8,12,18,.9));
       border-bottom: 1px solid rgba(182,156,255,.2);
       box-shadow: inset 0 -1px 0 rgba(8,12,18,.9);
       color: rgba(232,240,244,.9);
@@ -298,7 +299,6 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       border-radius: 12px;
       background: rgba(13,18,30,.96);
       box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
-      backdrop-filter: blur(18px) saturate(130%);
     }
     .settings-menu__header {
       display: flex;
@@ -411,6 +411,56 @@ export class SimulationHudComponent {
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderer = inject(Renderer2);
+  private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
+  private stopPointerListener: (() => void) | null = null;
+
+  constructor() {
+    // El oyente de clic fuera existe solo mientras Ajustes está abierto: uno global y
+    // permanente hace entrar en la zona de Angular cada toque de toda la pantalla de juego.
+    effect(() => {
+      if (this.settingsOpen()) this.listenOutsidePointer();
+      else this.unlistenOutsidePointer();
+    });
+    inject(DestroyRef).onDestroy(() => this.unlistenOutsidePointer());
+  }
+
+  /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
+  closeSettings(restoreFocus = true): void {
+    if (!this.settingsOpen()) return;
+    this.settingsOpen.set(false);
+    if (restoreFocus) this.settingsTrigger()?.nativeElement.focus();
+  }
+
+  /** `document` recibe la tecla antes que el `window:keydown` de la partida. Consumirla
+   *  evita que ese manejador la tome como «salida segura» y pause el intento. Con el filtro
+   *  `.escape` el plugin de teclas de Angular escucha fuera de la zona y solo entra en ella
+   *  cuando la tecla coincide (caminando llegan ~30 keydown por segundo). */
+  @HostListener('document:keydown.escape', ['$event'])
+  onDocumentKeydown(event: Event): void {
+    if (event.defaultPrevented || !this.settingsOpen()) return;
+    event.preventDefault();
+    this.closeSettings();
+  }
+
+  /** Un toque o clic fuera del HUD cierra el menú sin robar el foco. */
+  private onDocumentPointerDown(event: Event): void {
+    if (!this.settingsOpen()) return;
+    if (this.host.nativeElement.contains(event.target as Node | null)) return;
+    this.closeSettings(false);
+  }
+
+  private listenOutsidePointer(): void {
+    this.stopPointerListener ??= this.renderer.listen('document', 'pointerdown',
+      (event: Event) => this.onDocumentPointerDown(event));
+  }
+
+  private unlistenOutsidePointer(): void {
+    this.stopPointerListener?.();
+    this.stopPointerListener = null;
+  }
 
   readonly stressTier = computed<StressTier>(() => {
     const s = this.attempt()?.stressIndex ?? 0;

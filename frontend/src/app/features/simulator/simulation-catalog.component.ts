@@ -463,6 +463,7 @@ export class SimulationCatalogComponent implements OnInit {
       case 'COMPLETED': return 'Finalizado';
       case 'PAUSED': return 'En pausa (reanudable)';
       case 'SAFE_EXITED': return 'Cerrado con salida segura';
+      case 'REPLACED': return 'Reemplazado por un intento nuevo';
       case 'IN_PROGRESS': return 'En curso';
       default: return status || 'Sin estado';
     }

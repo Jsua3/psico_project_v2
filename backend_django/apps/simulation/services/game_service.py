@@ -135,18 +135,19 @@ def list_published_cases(actor=None):
 def _close_active_attempts(student_id, case_version_id, reason):
     # Reemplazar con forceNew cierra de forma TERMINAL tanto los intentos en
     # progreso como los pausados (la pausa reanudable deja de tener sentido).
+    # Es un reemplazo, no una salida segura: estado y evento propios.
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
         status__in=["IN_PROGRESS", "PAUSED"],
     )
     now = timezone.now()
     for active in actives:
-        active.status = "SAFE_EXITED"
+        active.status = "REPLACED"
         active.ended_at = now
         active.locked_at = now
         active.save()
         _lock_reflections(active)
-        _save_event(active, "SAFE_EXIT_REQUESTED", active.current_node, None, 0, 0, reason)
+        _save_event(active, "ATTEMPT_REPLACED", active.current_node, None, 0, 0, reason)
 
 
 @transaction.atomic

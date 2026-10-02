@@ -37,6 +37,20 @@ describe('contraste: simulador', () => {
   });
 });
 
+describe('contraste: avisos', () => {
+  const styles = source('./styles.scss');
+
+  it('el foco del botón de cerrar contrasta sobre la tarjeta blanca también en modo juego', () => {
+    // El anillo global de body.game-mode (#C9B3FF) no llega a 3:1 sobre blanco (WCAG 1.4.11).
+    expect(contrast('#C9B3FF', '#FFFFFF')).toBeLessThan(3);
+    expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
+    // Tres clases/pseudoclases + un elemento (0,3,1) superan a body.game-mode :focus-visible (0,2,1).
+    expect(styles).toMatch(
+      /\.siep-notifications \.siep-notification button:focus-visible \{[^}]*outline: 2px solid var\(--siep-blue\);[^}]*outline-offset: -2px;[^}]*border-radius: 50%;/,
+    );
+  });
+});
+
 describe('contraste: portada', () => {
   const data = source('../app/features/public/landing.component.ts');
   const scss = source('../app/features/public/landing.component.scss');

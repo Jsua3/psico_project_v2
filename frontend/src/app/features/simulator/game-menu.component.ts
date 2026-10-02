@@ -19,6 +19,7 @@ import {
   lobbyTextureChain,
   nearestLobbyDoor,
 } from './lobby-avatar.util';
+import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import {
   AVATAR_FRAME_HEIGHT,
   AVATAR_FRAME_WIDTH,
@@ -160,8 +161,12 @@ class ClinicMenuScene extends Phaser.Scene {
     this.player = this.add.container(220, this.floorY + 2, parts);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
+    // Phaser solo LEE las teclas: sin captura el navegador conserva Enter/Espacio en el botón
+    // «Entrar al caso». `createCursorKeys` captura flechas, Espacio y Shift por su cuenta (de ahí
+    // el apagado global); `update()` ignora lo que corresponda según el elemento con foco.
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.keys = this.input.keyboard?.addKeys('A,D,E,SPACE,ENTER') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard?.disableGlobalCapture();
+    this.keys = this.input.keyboard?.addKeys('A,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
 
     // Touch/puntero: tocar el escenario camina hacia ese punto (paridad con
     // teclado); el botón visible del banner completa la entrada al caso.
@@ -177,9 +182,12 @@ class ClinicMenuScene extends Phaser.Scene {
   override update(_t: number, dt: number) {
     if (!this.player || !this.keys) return;
     const speed = 0.3 * dt;
+    // El foco se lee una vez por cuadro: escribiendo, el jugador no camina ni interactúa.
+    const focus = document.activeElement;
+    const typing = isTextEntryTarget(focus);
     let vx = 0;
-    if (this.cursors?.left?.isDown || this.keys['A']?.isDown) vx -= speed;
-    if (this.cursors?.right?.isDown || this.keys['D']?.isDown) vx += speed;
+    if (!typing && (this.cursors?.left?.isDown || this.keys['A']?.isDown)) vx -= speed;
+    if (!typing && (this.cursors?.right?.isDown || this.keys['D']?.isDown)) vx += speed;
     if (vx !== 0) {
       this.pointerTargetX = null;  // el teclado manda sobre el destino táctil
     } else if (this.pointerTargetX !== null) {
@@ -210,10 +218,14 @@ class ClinicMenuScene extends Phaser.Scene {
       this.cb.onFocus(near?.item ?? null);
     }
 
-    const pressed =
-      Phaser.Input.Keyboard.JustDown(this.keys['E']) ||
-      Phaser.Input.Keyboard.JustDown(this.keys['SPACE']) ||
-      Phaser.Input.Keyboard.JustDown(this.keys['ENTER']);
+    // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
+    // en true hasta que alguien lo lee. Con foco en un botón, Espacio y Enter los activa el
+    // navegador (una sola navegación); E sigue siendo del juego.
+    const pressed = resolveInteractPress(focus, {
+      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
+      enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
+    });
     if (pressed && near) {
       if (near.item.unlocked) this.cb.onEnter(near.item.caseVersionId);
       else this.cameras.main.shake(180, 0.004);
@@ -310,6 +322,8 @@ export class GameMenuComponent implements OnDestroy {
   readonly entering = signal<string>('');
 
   private game?: Phaser.Game;
+  /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
+  private detachScrollKeyGuard?: () => void;
   private enterTimer?: ReturnType<typeof window.setTimeout>;
   private host?: ElementRef<HTMLDivElement>;
 
@@ -346,6 +360,9 @@ export class GameMenuComponent implements OnDestroy {
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
         scene,
       });
+      // Sin la captura de Phaser, flechas y Espacio desplazarían la página. Se arma DESPUÉS de
+      // crear el juego: Phaser descarta los `keydown` ya cancelados.
+      this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
     });
     // Foco inicial explícito: los controles de teclado quedan activos sin un
     // click previo (GAME-09); click/tap sobre el canvas lo recupera.
@@ -374,6 +391,8 @@ export class GameMenuComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.detachScrollKeyGuard?.();
+    this.detachScrollKeyGuard = undefined;
     this.game?.destroy(true);
     if (this.enterTimer) clearTimeout(this.enterTimer);
   }
