@@ -24,7 +24,7 @@ Tiene 49 commits del 7 al 9 de junio (178 archivos) y lleva cuatro meses separad
 | **E** Social Mapping (sub-proyecto G) | ❌ No existe · 📝 propuesta lista (2026-10-03) | Ninguna pieza | Todo el bloque | **Decisión del equipo de Psicología** sobre la propuesta [`2026-10-03-bloque-e-social-mapping-propuesta.md`](../superpowers/specs/2026-10-03-bloque-e-social-mapping-propuesta.md): qué red se mapea, quién aparece en ella y cómo se observa. Fuente: sub-proyecto G de `docs/superpowers/2026-06-03-psychosocial-sim-roadmap.md` |
 | **F** Verbal Tension Box (sub-proyecto I) | ❌ No existe · 📝 propuesta lista (2026-10-03) | Ninguna pieza | Todo el bloque | **Decisión del equipo de Psicología** sobre la propuesta [`2026-10-03-bloque-f-verbal-tension-box-propuesta.md`](../superpowers/specs/2026-10-03-bloque-f-verbal-tension-box-propuesta.md): la propuesta recomienda resolver D1 (tono sobrio) y D2 (por turnos, sin tiempo real). Fuente: sub-proyecto I del mismo roadmap |
 | **G** RF-027 Asistente IA contextual | ⚠️ Parcial · 📝 propuesta de alcance lista (2026-10-03) | Backend: `apps/simulation/views/ai_assistant.py`, ruta `/api/simulation/ai-assistant` | Ninguna pantalla lo usa. RF-027 pide Estudiante **y** Docente; el backend filtra solo al estudiante. La ruta no tiene bandera de apagado, guarda la pregunta en claro en `audit_logs` y no tiene pruebas | **Decisión de alcance y de privacidad** (Ley 1581/2012) sobre [`2026-10-03-bloque-g-asistente-ia-propuesta.md`](../superpowers/specs/2026-10-03-bloque-g-asistente-ia-propuesta.md), que recomienda empezar por una ayuda curada sin proveedor externo. `AI_ASSISTANT_API_KEY` sigue sin configurar (modo degradado) |
-| **H** WCAG 2.1 AA | ⚠️ Parcial | Enlace de salto en `app.component.ts`; axe en las puertas de calidad e2e (`e2e/support/quality-gates.ts`) | Auditoría completa: contraste en landing y login (pendiente conocido), foco, lectores de pantalla en el juego. Informe previo: auditoría de UI 2026-09 | Nada externo |
+| **H** WCAG 2.2 AA (el plan decía 2.1) | ⚠️ Parcial · auditado y arreglos claros hechos (2026-10-03) | Enlace de salto en `app.component.ts`; axe en las puertas de calidad e2e (`e2e/support/quality-gates.ts`). **Nuevo:** auditoría de 35 hallazgos ([`2026-10-03-bloque-h-accesibilidad-brechas.md`](2026-10-03-bloque-h-accesibilidad-brechas.md)) y 15 de ellos arreglados con prueba (tareas 1-8 del [plan](../superpowers/plans/2026-10-03-bloque-h-accesibilidad.md)): contraste de portada y login, anillos de foco y texto del diálogo en el juego, foco en Grupos y en el editor DAG, nombres accesibles del login, el diálogo respeta «Movimiento reducido», semántica de portada y HUD | **3 bloqueantes sin arreglar:** con un diálogo de decisión abierto no hay botón de pausa (en táctil o ratón solo se sale eligiendo una opción, H-01); la introducción no tiene salida segura (H-02); el mundo de Phaser no tiene alternativa para lector de pantalla (H-06). Además: atajos de una tecla sin desactivar (H-07), anuncios de estrés y regiones vivas, borde y etiquetas de los campos del login, puertas axe con `wcag22aa` | **Decisión del equipo** (preguntas 1-10 de la auditoría; la salida segura dentro de diálogos e introducción toca REGLA-004 y conviene decidirla antes de la beta) y **verificación manual** con NVDA/VoiceOver y axe. Tareas 10-15 del plan, ya especificadas |
 | **I** CI Quality Gates | ✅ Hecho | `.github/workflows/ci.yml` (scripts, backend, frontend, e2e) y `e2e-full-case.yml` | — | — |
 | **J** Escenarios adicionales (hospital, comisaría, hogar) | ⚠️ Parcial · 📝 propuesta lista (2026-10-03) | Un solo caso sembrado: `SIM-VBG-001` (hospital + comisaría) | Escenario de hogar/consultorio y más casos. Antes hay que generalizar lo que está atado en código a `SIM-VBG-001` (finales, métricas y banderas del caso, aviso de contenido, introducción, renderer de salas) | **Contenido clínico** del nuevo caso y arte de sus salas. La propuesta [`2026-10-03-bloque-j-escenario-hogar-consultorio-propuesta.md`](../superpowers/specs/2026-10-03-bloque-j-escenario-hogar-consultorio-propuesta.md) recomienda empezar por un consultorio de primera escucha y trae la plantilla de lo que Psicología tendría que entregar |
 | **K** Landing y onboarding | ✅ Hecho | Landing en `frontend/src/app` (5 archivos) | Solo el contraste (va con H) | — |
@@ -32,20 +32,20 @@ Tiene 49 commits del 7 al 9 de junio (178 archivos) y lleva cuatro meses separad
 
 ## Bloques visuales (ChatGPT / generación de arte)
 
-Buena parte del arte se produjo después con otros pipelines (`tools/`), así que el plan visual se cumple en gran medida por otra vía. Falta auditarlo pieza por pieza contra cada especificación del plan.
+Buena parte del arte se produjo después con otros pipelines (`tools/`), así que el plan visual se cumple en gran medida por otra vía. **Auditado pieza por pieza el 2026-10-03:** [`2026-10-03-bloques-visuales-auditoria.md`](2026-10-03-bloques-visuales-auditoria.md). Ningún bloque está hecho tal como lo pedía el plan (ninguna ruta ni nombre de archivo del plan existe en el repo); todo lo cumplido lo está con otro formato.
 
-| Bloque visual | Estado | Evidencia o nota |
+| Bloque visual | Estado (auditado 2026-10-03) | Evidencia o nota |
 |---|---|---|
-| A Iconos de audio | Sin auditar | — |
-| B Tilesets de escenarios | Parcial | Salas del caso PDF con muebles y puertas propios (`tools/furniture-assets/`, `tools/door-assets/`); los tilesets Kenney del repo son de exterior y no sirven para interiores |
-| C Retratos de NPC | Hecho por otra vía | Retratos emocionales de NPC (PR #5-#7) |
-| D Sprites del avatar | Hecho por otra vía | Elenco jugable horneado (12 personajes) |
-| E NPC ambientales | Hecho por otra vía | 9 NPC del caso horneados (PR #9) |
-| F Overlays de iluminación | Parcial | Viñeta procedural por código, sin assets; el bloque B la amplía |
-| G UI Kit (corazones, iconos) | Parcial | Corazones de calma (`stress-hearts.util.ts`); falta revisar el resto del kit |
-| H Efectos visuales de decisión | Sin auditar | Relacionado con el bloque B (destello y sacudida) |
-| I Mapas Tiled (.json) | Parcial | Mapas del caso PDF; faltan los de nuevos escenarios (bloque J) |
-| J Fondos | Sin auditar | — |
+| A Iconos de audio | Hecho por otra vía | El HUD usa Material Symbols (ojo: la biblia premium los prohíbe) |
+| B Tilesets de escenarios | Parcial | Salas del caso PDF con muebles y puertas propios (`tools/furniture-assets/`, `tools/door-assets/`); faltan muebles de vivienda y props pequeños. Los tilesets Kenney del repo son de exterior y no sirven para interiores |
+| C Retratos de NPC | Hecho por otra vía, con huecos | 10 PNG de 96×96 de 5 personajes; falta la variante «cerrada» que piden las propuestas C y F |
+| D Sprites del avatar | Hecho por otra vía | 8 identidades v1 y elenco jugable horneado (12 personajes); la escala v1 frente a los NPC sigue sin calibrar a la vista |
+| E NPC ambientales | Hecho por otra vía | 9 hojas de NPC del caso, todas en uso |
+| F Overlays de iluminación | Hecho por otra vía | Viñetas de tono y de crisis, luces y motas por código (bloque B); 0 de los 9 PNG del plan existen y no hacen falta. Falta calibrarlo a la vista |
+| G UI Kit (corazones, iconos) | Parcial | Corazones de calma (`stress-hearts.util.ts`); faltan cursores, flecha guía e iconos de genograma/ecomapa (estos últimos solo si se aprueba el bloque E) |
+| H Efectos visuales de decisión | Hecho por otra vía | Destello y sacudida por código (bloque B); 2 de las 5 piezas del plan ya no aplican |
+| I Mapas Tiled (.json) | Hecho por otra vía | Los 3 mapas Tiled del plan no existen y ya no aplican: las salas se pintan con renderers. Para un caso nuevo (bloque J) hace falta un renderer y la semilla, no mapas Tiled |
+| J Fondos | Hecho por otra vía | Fondos por código y CSS; 2 de las 4 piezas del plan ya no aplican |
 
 ## Orden de ejecución propuesto
 
@@ -55,6 +55,16 @@ Buena parte del arte se produjo después con otros pipelines (`tools/`), así qu
 4. **C, E y F** — en paralelo con 1-3, diseño con el equipo de Psicología; cada uno tendrá su spec en `docs/superpowers/specs/` antes de programar.
 5. **J** — cuando exista el contenido clínico del nuevo escenario.
 6. Auditoría pieza por pieza de los bloques visuales sin auditar.
+
+### Actualización tras la sesión nocturna (2026-10-03)
+
+Hecho: 1 (B, falta el pase visual), los arreglos claros de 2 (H), las propuestas de 3 (G), 4 (C, E, F) y 5 (J), y la auditoría de 6. Detalle y decisiones en el [informe de la sesión](2026-10-03-informe-sesion-nocturna.md). Lo que sigue, por orden de lo que más bloquea:
+
+1. **Decidir la salida segura dentro de diálogos e introducción** (REGLA-004; auditoría H §4, tarea 10 del plan H). Es además la «Fase 0b» que comparten C, E y F.
+2. **Reunión con Psicología** sobre C, E y F con el [resumen de una página](../superpowers/specs/2026-10-03-propuestas-c-e-f-resumen.md).
+3. **Pase visual del bloque B** en un navegador real y calibración de sus valores.
+4. Decidir el alcance y la privacidad del asistente (G) y el primer escenario nuevo (J).
+5. Verificación manual de accesibilidad con lector de pantalla y axe (auditoría H §6).
 
 ## Reglas del plan que cambiaron desde junio
 
