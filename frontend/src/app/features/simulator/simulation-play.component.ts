@@ -1818,8 +1818,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private playRevealEffects(): void {
     const impact = this.pendingDecisionImpact;
     this.pendingDecisionImpact = null;
-    this.gameWorld?.playPendingRoomFlash();
-    if (impact) this.gameWorld?.playDecisionImpact(impact);
+    this.gameWorld?.playRevealEffects(impact);
   }
 
   private loadProgressMap(attempt: SimulationAttemptState) {

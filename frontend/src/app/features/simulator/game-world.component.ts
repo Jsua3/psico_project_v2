@@ -213,6 +213,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
   private crisisVignette?: Phaser.GameObjects.Graphics;
   private crisisPulse?: Phaser.Tweens.Tween;
+  /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
+  private crisisStateKey = '';
   /** Destello decidido al cambiar de sala; se dispara al terminar el render. */
   private pendingRoomFlash: CameraFlash | null = null;
   private stepTimer = 0;
@@ -541,6 +543,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   setMotionPaused(paused: boolean) {
     this.motionPaused = paused;
     if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+    this.applyCrisisState();
   }
 
   /** Flecha táctil apretada o soltada (null). La entrada de `update()` la suma pasado TOUCH_HOLD_DELAY_MS. */
@@ -565,6 +568,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   playDecisionImpact(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
     const shake = decisionShake(feedback, this.callbacks.reduceMotion);
     if (shake && this.ready && this.cameras?.main) this.cameras.main.shake(shake.durationMs, shake.intensity);
+  }
+
+  /**
+   * La sala ya se ve: sacudida si la decisión fue de alto impacto; si no, el destello de
+   * cambio de sala. Nunca los dos a la vez.
+   */
+  playRevealEffects(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
+    if (decisionShake(feedback, this.callbacks.reduceMotion)) {
+      this.pendingRoomFlash = null;
+      this.playDecisionImpact(feedback);
+    } else {
+      this.playPendingRoomFlash();
+    }
   }
 
   setSfxMuted(muted: boolean) {
@@ -1738,16 +1754,24 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const cam = this.cameras.main;
-    const w = cam.width, h = cam.height;
     const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING);
     // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
     // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
-    const band = Math.round(Math.min(w, h) * 0.12);
+    this.strokeVignetteBand(g, tint, 0.12, 0.3);
+  }
+
+  /**
+   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra: opacidad
+   * `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no anula el
+   * zoom de la cámara; por eso se pinta sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
+   */
+  private strokeVignetteBand(g: Phaser.GameObjects.Graphics, tint: number, bandRatio: number, edgeAlpha: number): void {
+    const cam = this.cameras.main;
+    const frame = vignetteFrame(cam.width, cam.height, cam.zoom);
+    const band = Math.round(Math.min(frame.width, frame.height) * bandRatio);
     for (let i = 0; i < band; i++) {
-      const a = 0.3 * (1 - i / band) ** 2;
-      g.lineStyle(1, tint, a);
-      g.strokeRect(i, i, w - i * 2, h - i * 2);
+      g.lineStyle(1, tint, edgeAlpha * (1 - i / band) ** 2);
+      g.strokeRect(frame.x + i, frame.y + i, frame.width - i * 2, frame.height - i * 2);
     }
   }
 
@@ -1757,16 +1781,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * pintada, porque es estado del caso y no decoración.
    */
   private applyCrisisVignette(): void {
-    this.crisisPulse = undefined; // el killAll() del re-render ya lo detuvo
-    const cam = this.cameras.main;
-    // scrollFactor 0 no anula el zoom: se pinta en el rectángulo que la cámara muestra.
-    const frame = vignetteFrame(cam.width, cam.height, cam.zoom);
+    // El killAll() del re-render ya detuvo el pulso; se para igual por si alguien llama sin él.
+    this.crisisPulse?.stop();
+    this.crisisPulse = undefined;
+    this.crisisStateKey = '';
     const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING + 1);
-    const band = Math.round(Math.min(frame.width, frame.height) * 0.18);
-    for (let i = 0; i < band; i++) {
-      g.lineStyle(1, CRISIS_VIGNETTE_TINT, (1 - i / band) ** 2);
-      g.strokeRect(frame.x + i, frame.y + i, frame.width - i * 2, frame.height - i * 2);
-    }
+    this.strokeVignetteBand(g, CRISIS_VIGNETTE_TINT, 0.18, 1);
     this.crisisVignette = g;
     this.applyCrisisState();
   }
@@ -1774,9 +1794,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private applyCrisisState(): void {
     const g = this.crisisVignette;
     if (!g || !g.scene) return;
+    // Con el mundo en pausa (diálogo, bitácora, cierre) la crisis se ve fija: nada late mientras se lee.
+    const state = crisisVignetteState(this.stressLevel, this.callbacks.reduceMotion || this.motionPaused);
+    const key = JSON.stringify(state);
+    // Mismo estado y el pulso sigue vivo: no se reinicia (pasar de 88 a 90 no debe dar un salto).
+    if (key === this.crisisStateKey && (!state.pulse || this.crisisPulse?.isPlaying())) return;
+    this.crisisStateKey = key;
     this.crisisPulse?.stop();
     this.crisisPulse = undefined;
-    const state = crisisVignetteState(this.stressLevel, this.callbacks.reduceMotion);
     g.setAlpha(state.alpha);
     if (state.pulse) {
       this.crisisPulse = this.tweens.add({
@@ -2602,8 +2627,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
-  playDecisionImpact(feedback: SimulationFeedback | null) { this.scene?.playDecisionImpact(feedback); }
-  playPendingRoomFlash() { this.scene?.playPendingRoomFlash(); }
+  playRevealEffects(feedback: SimulationFeedback | null) { this.scene?.playRevealEffects(feedback); }
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
     this.scene?.updatePatientVisualState(state);
   }

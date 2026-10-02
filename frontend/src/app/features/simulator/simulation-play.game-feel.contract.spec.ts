@@ -12,7 +12,7 @@ describe('simulation-play: game feel del bloque B', () => {
     expect(source).toContain('this.pendingDecisionImpact = updated.feedback ?? null;');
     expect(source).toMatch(/window\.setTimeout\(\(\) => \{\s*this\.fadeActive\.set\(false\);\s*this\.scheduleRevealEffects\(\);\s*\}, 80\);/);
     expect(source).toMatch(/private scheduleRevealEffects\(\): void \{\s*window\.setTimeout\(\(\) => this\.playRevealEffects\(\), SCENE_FADE_MS\);\s*\}/);
-    expect(source).toMatch(/private playRevealEffects\(\): void \{\s*const impact = this\.pendingDecisionImpact;\s*this\.pendingDecisionImpact = null;\s*this\.gameWorld\?\.playPendingRoomFlash\(\);\s*if \(impact\) this\.gameWorld\?\.playDecisionImpact\(impact\);\s*\}/);
+    expect(source).toMatch(/private playRevealEffects\(\): void \{\s*const impact = this\.pendingDecisionImpact;\s*this\.pendingDecisionImpact = null;\s*this\.gameWorld\?\.playRevealEffects\(impact\);\s*\}/);
   });
 
   it('la espera coincide con la transición CSS del fundido de escena', () => {
