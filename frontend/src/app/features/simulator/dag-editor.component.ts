@@ -57,7 +57,7 @@ const PAD = 56;
         </div>
       } @else {
         <div class="dag-scroll">
-          <svg [attr.width]="svgWidth()" [attr.height]="svgHeight()" class="dag-svg" role="img" aria-label="Grafo DAG del caso">
+          <svg [attr.width]="svgWidth()" [attr.height]="svgHeight()" class="dag-svg" role="group" aria-label="Grafo DAG del caso">
             <defs>
               <marker id="arrow-adequate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                 <polygon points="0 0, 10 3.5, 0 7" fill="#4fa3a5" />
@@ -105,7 +105,8 @@ const PAD = 56;
                  role="button"
                  [attr.aria-label]="'Nodo ' + ln.node.key + ': ' + ln.node.title"
                  tabindex="0"
-                 (keydown.enter)="selectNode(ln.node)">
+                 (keydown.enter)="selectNode(ln.node)"
+                 (keydown.space)="$event.preventDefault(); selectNode(ln.node)">
                 <rect
                   [attr.width]="NODE_W"
                   [attr.height]="NODE_H"
@@ -256,7 +257,7 @@ const PAD = 56;
     .dag-node-group {
       cursor: pointer;
     }
-    .dag-node-group:focus { outline: none; }
+    .dag-node-group:focus-visible .dag-node-rect { stroke: #004876; stroke-width: 4; }
     .dag-node-rect {
       fill: rgba(255,255,255,.88);
       stroke: rgba(79,124,172,.3);

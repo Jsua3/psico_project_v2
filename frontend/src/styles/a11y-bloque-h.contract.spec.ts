@@ -78,3 +78,29 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
     }
   });
 });
+
+describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
+  const grupos = source('../app/features/grupos/grupo-list.component.ts');
+  const dag = source('../app/features/simulator/dag-editor.component.ts');
+
+  it('el buscador de Grupos dibuja el anillo en su contenedor cuando el campo tiene el foco', () => {
+    // El input conserva `outline: 0`; sin :focus-within no quedaba ningún indicador.
+    expect(grupos).toMatch(/\.search-box:focus-within \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
+    // --psy-focus = rgba(0, 72, 118, .72)
+    for (const surface of ['#F2F2F2', '#FFFFFF']) {
+      expect(contrastRatio(blend('#004876', 0.72, surface), surface)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('los nodos del DAG muestran el foco con el trazo y ya no se apagan', () => {
+    expect(dag).not.toContain('.dag-node-group:focus { outline: none; }');
+    expect(dag).toContain('.dag-node-group:focus-visible .dag-node-rect { stroke: #004876; stroke-width: 4; }');
+    expect(contrastRatio('#004876', '#F6F9FB')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el grafo es un grupo (no una imagen) y sus nodos responden a Espacio además de Enter', () => {
+    expect(dag).toContain('role="group" aria-label="Grafo DAG del caso"');
+    expect(dag).not.toContain('role="img" aria-label="Grafo DAG del caso"');
+    expect(dag).toMatch(/\(keydown\.enter\)="selectNode\(ln\.node\)"\s*\(keydown\.space\)="\$event\.preventDefault\(\); selectNode\(ln\.node\)">/);
+  });
+});
