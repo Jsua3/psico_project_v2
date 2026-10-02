@@ -54,26 +54,37 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
 
   it('el anillo de las opciones del diálogo llega a 3:1', () => {
     // Antes: rgba(182,156,255,.5) = 2,89:1.
-    expect(dialogue).toMatch(/\.choice-btn:focus-visible \{\s*outline: 3px solid #C9B3FF;\s*outline-offset: 3px;\s*\}/);
-    expect(contrastRatio('#C9B3FF', DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
+    const ring = dialogue.match(/\.choice-btn:focus-visible \{\s*outline: 3px solid (#[0-9A-Fa-f]{6});\s*outline-offset: 3px;\s*\}/)?.[1] ?? '';
+    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(ring, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
   it('el anillo del botón de salida segura llega a 3:1', () => {
     // Antes: rgba(226,90,79,.6) = 2,55:1.
-    expect(play).toMatch(/\.safe-exit:focus-visible \{ outline: 2px solid #f1a79f; outline-offset: 2px; \}/);
-    expect(contrastRatio('#F1A79F', GAME_BG)).toBeGreaterThanOrEqual(3);
+    const ring = play.match(/\.safe-exit:focus-visible \{ outline: 2px solid (#[0-9A-Fa-f]{6}); outline-offset: 2px; \}/)?.[1] ?? '';
+    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(ring, GAME_BG)).toBeGreaterThanOrEqual(3);
   });
 
   it('el nombre del hablante de una advertencia llega a 4,5:1', () => {
     // Antes: #a85062 = 3,38:1.
-    expect(dialogue).toContain('.strip--warning .speaker-name { color: #d9798e; }');
-    expect(contrastRatio('#D9798E', DIALOGUE_BG)).toBeGreaterThanOrEqual(4.5);
+    const speaker = dialogue.match(/\.strip--warning \.speaker-name \{ color: (#[0-9A-Fa-f]{6}); \}/)?.[1] ?? '';
+    expect(speaker).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(speaker, DIALOGUE_BG)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('la etiqueta de emoción no atenúa su color y cada tono llega a 4,5:1', () => {
     // Antes: opacity .75 dejaba el rojo de «alerta» en 3,29:1.
     expect(dialogue).toMatch(/\.emotion-tag \{[^}]*opacity: 1;/);
-    for (const tone of ['#B69CFF', '#6EC67A', '#F5B84B', '#E25A4F']) {
+    // Los cuatro tonos se leen de `emotionColor()` en el fuente; no se reescriben aquí.
+    const tones = [
+      dialogue.match(/case 'positive': return '(#[0-9A-Fa-f]{6})';/)?.[1] ?? '',
+      dialogue.match(/case 'concerned': return '(#[0-9A-Fa-f]{6})';/)?.[1] ?? '',
+      dialogue.match(/case 'danger': return '(#[0-9A-Fa-f]{6})';/)?.[1] ?? '',
+      dialogue.match(/default: return '(#[0-9A-Fa-f]{6})';/)?.[1] ?? '',
+    ];
+    for (const tone of tones) {
+      expect(tone).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(contrastRatio(tone, DIALOGUE_BG)).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -111,13 +122,19 @@ describe('bloque H: el diálogo recibe el interruptor de movimiento reducido', (
     expect(tags).toHaveLength(2);
     for (const tag of tags) expect(tag).toContain('[reduceMotion]="reduceMotion()"');
   });
+
+  it('la vista previa de autor pasa el movimiento reducido al mundo y al diálogo', () => {
+    const preview = source('../app/features/simulator/world-preview.component.ts');
+    expect(preview).toMatch(/<app-game-world[^>]*\[reduceMotion\]="reduceMotion\(\)"/);
+    expect(preview).toMatch(/<app-dialogue-panel[^>]*\[reduceMotion\]="reduceMotion\(\)"/);
+  });
 });
 
 describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
   const hud = source('../app/features/simulator/simulation-hud.component.ts');
   const play = source('../app/features/simulator/simulation-play.component.ts');
 
-  it('ningún aria-label cuelga de un div sin rol', () => {
+  it('los cuatro aria-label del HUD y de la tarjeta de contexto que colgaban de un div sin rol ya tienen rol o se quitaron', () => {
     expect(hud).toContain('<div class="hud-step">');
     expect(hud).toContain('<div class="hud-patient" role="group" aria-label="Estado de la paciente">');
     expect(hud).toMatch(/<div class="hud-score" role="group" \[attr\.aria-label\]="'Seguimiento formativo: '/);

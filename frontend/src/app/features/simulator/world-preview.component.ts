@@ -115,12 +115,14 @@ interface EphemeralScore {
               [world]="currentWorld"
               [nearbyInteraction]="nearbyInteraction()"
               [selectedInteractionKey]="selectedInteraction()?.key ?? null"
+              [reduceMotion]="reduceMotion()"
               (proximity)="nearbyInteraction.set($event)"
               (interact)="openInteraction($event)"
               (positionChange)="updatePosition($event.x, $event.y)" />
 
             <!-- Dialogue -->
             <app-dialogue-panel
+              [reduceMotion]="reduceMotion()"
               [dialogue]="dialogue()"
               [interaction]="selectedInteraction()"
               (close)="closeDialogue()"
@@ -411,6 +413,11 @@ export class WorldPreviewComponent implements OnInit {
 
   /** Available nodes from the editor model, for the node selector dropdown. */
   readonly nodes = input<{ id: number; key: string; title: string }[]>([]);
+
+  /** Preferencia del sistema; la vista previa no tiene el interruptor del HUD. */
+  readonly reduceMotion = signal(
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  );
 
   @ViewChild('gameWorld') private gameWorld?: GameWorldComponent;
 
