@@ -46,7 +46,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
               <span>{{ locationLabel() || game.currentNode.title }}</span>
             </div>
             @if (sceneProgress(); as progress) {
-              <div class="hud-step" aria-label="{{ progress.stepLabel }}">
+              <div class="hud-step">
                 <mat-icon aria-hidden="true">timeline</mat-icon>
                 <span>{{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
               </div>
@@ -77,7 +77,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             </div>
 
             @if (patientState(); as ps) {
-              <div class="hud-patient" aria-label="Estado de la paciente">
+              <div class="hud-patient" role="group" aria-label="Estado de la paciente">
                 <div class="patient-bars">
                   <div class="patient-bar-row">
                     <span class="bar-label">Confianza</span>
@@ -97,7 +97,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
               </div>
             }
 
-            <div class="hud-score" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
+            <div class="hud-score" role="group" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
               [title]="progressLabel()">
               <mat-icon aria-hidden="true">fact_check</mat-icon>
               <strong>{{ game.accumulatedScore }}</strong>

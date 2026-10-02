@@ -112,3 +112,15 @@ describe('bloque H: el diálogo recibe el interruptor de movimiento reducido', (
     for (const tag of tags) expect(tag).toContain('[reduceMotion]="reduceMotion()"');
   });
 });
+
+describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
+  const hud = source('../app/features/simulator/simulation-hud.component.ts');
+  const play = source('../app/features/simulator/simulation-play.component.ts');
+
+  it('ningún aria-label cuelga de un div sin rol', () => {
+    expect(hud).toContain('<div class="hud-step">');
+    expect(hud).toContain('<div class="hud-patient" role="group" aria-label="Estado de la paciente">');
+    expect(hud).toMatch(/<div class="hud-score" role="group" \[attr\.aria-label\]="'Seguimiento formativo: '/);
+    expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">');
+  });
+});

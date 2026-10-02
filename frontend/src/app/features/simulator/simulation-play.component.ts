@@ -193,7 +193,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 </button>
               </header>
 
-              <div class="case-intro-card__body" tabindex="0" aria-label="Contexto narrativo del caso">
+              <div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">
                 @for (paragraph of caseIntroParagraphs; track paragraph) {
                   <p>{{ paragraph }}</p>
                 }
