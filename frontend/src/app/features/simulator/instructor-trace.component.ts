@@ -1379,6 +1379,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
     if (normalized === 'PAUSED') return 'En pausa (reanudable)';
     if (normalized === 'PENDING') return 'Pendiente';
     if (normalized === 'SAFE_EXITED') return 'Cerrado con salida segura';
+    if (normalized === 'REPLACED') return 'Reemplazado por un intento nuevo';
     return this.clean(status, 'Sin estado');
   }
 
@@ -1491,6 +1492,9 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
     }
     if ((entry.type ?? '').toUpperCase() === 'SAFE_EXIT_REQUESTED') {
       return 'El estudiante activó salida segura; no implica penalización automática.';
+    }
+    if ((entry.type ?? '').toUpperCase() === 'ATTEMPT_REPLACED') {
+      return 'El estudiante empezó un intento nuevo; este quedó cerrado sin terminar. No es una salida segura.';
     }
     return 'Evento relevante dentro del recorrido del intento.';
   }
@@ -1665,6 +1669,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
       'TOOL_USED',
       'ROOM_ENTERED',
       'SAFE_EXIT_REQUESTED',
+      'ATTEMPT_REPLACED',
     ]);
     const start = item.startedAt ? new Date(item.startedAt).getTime() : null;
     return item.events

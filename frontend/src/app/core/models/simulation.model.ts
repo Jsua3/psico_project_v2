@@ -37,8 +37,11 @@ export interface SimulationAttemptState {
   attemptToken: string;
   caseVersionId: number;
   caseTitle: string;
-  /** PAUSED = pausa segura reanudable; SAFE_EXITED = cierre terminal (legado/reemplazo). */
-  status: 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED';
+  /**
+   * PAUSED = pausa segura reanudable; SAFE_EXITED = salida segura terminal (solo histórica);
+   * REPLACED = cerrado porque el estudiante empezó otro intento (no es salida segura).
+   */
+  status: 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
   accumulatedScore: number;
   stressIndex: number;
   metrics: SimulationMetrics;

@@ -1668,6 +1668,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       PAUSED: 'En pausa segura (reanudable)',
       COMPLETED: 'Finalizado',
       SAFE_EXITED: 'Cerrado con salida segura',
+      REPLACED: 'Reemplazado por un intento nuevo',
     }[status];
   }
 

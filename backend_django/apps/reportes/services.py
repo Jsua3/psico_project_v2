@@ -24,6 +24,9 @@ from apps.simulation.models.rubric import RubricEvaluation
 User = get_user_model()
 
 DECISION_EVENT_TYPES = ["DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED"]
+# SAFE_EXITED ya solo existe en intentos históricos (salida segura terminal, de
+# antes de la pausa reanudable) y sigue puntuando (decisión 2026-10-01). Los
+# intentos en pausa y los reemplazados (REPLACED) no puntúan.
 SCORED_STATUSES = ["COMPLETED", "SAFE_EXITED"]
 
 
@@ -49,6 +52,22 @@ def _count_decisions(attempt_ids, classification):
     ).count()
 
 
+def _safe_exit_attempt_ids(attempts):
+    """Intentos que usaron la salida segura.
+
+    Cuenta el evento, no el estado: una pausa sigue contando aunque después se
+    reanude, se complete o se reemplace. Los SAFE_EXITED históricos cuentan
+    siempre, porque entonces la salida segura cerraba el intento.
+    """
+    ids = {a.id for a in attempts if a.status == "SAFE_EXITED"}
+    ids.update(
+        AttemptEvent.objects.filter(
+            attempt_id__in=[a.id for a in attempts], event_type="SAFE_EXIT_REQUESTED"
+        ).values_list("attempt_id", flat=True)
+    )
+    return ids
+
+
 def _count_reflections(attempt_ids):
     if not attempt_ids:
         return 0
@@ -71,7 +90,7 @@ def get_dashboard():
     start_of_day = datetime.combine(timezone.now().date(), time.min)
 
     # «Completada» es solo COMPLETED: SAFE_EXITED es una interrupción y la UI la
-    # rotula «Interrumpido». Los promedios sí puntúan ambos (SCORED_STATUSES).
+    # rotula «Interrumpido». Los promedios usan SCORED_STATUSES.
     simulaciones_completadas_hoy = SimulationAttempt.objects.filter(
         status="COMPLETED", ended_at__gte=start_of_day
     ).count()
@@ -180,7 +199,7 @@ def _build_simulation_report(grupo, case_version_id):
     completados = sum(1 for a in attempts if a.status == "COMPLETED")
     en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
     en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
-    salida_segura = sum(1 for a in attempts if a.status == "SAFE_EXITED")
+    safe_exit_ids = _safe_exit_attempt_ids(attempts)
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje_promedio = (
         sum(a.accumulated_score for a in scored) / len(scored) if scored else 0.0
@@ -193,7 +212,8 @@ def _build_simulation_report(grupo, case_version_id):
 
     students = list(User.objects.filter(id__in=student_ids))
     estudiantes = [
-        _estudiante_sim_dto(st, by_student.get(st.id, [])) for st in students
+        _estudiante_sim_dto(st, by_student.get(st.id, []), safe_exit_ids)
+        for st in students
     ]
     estudiantes.sort(key=lambda e: e["nombre"])
 
@@ -202,7 +222,7 @@ def _build_simulation_report(grupo, case_version_id):
         "intentosCompletados": completados,
         "intentosEnProgreso": en_progreso,
         "intentosEnPausa": en_pausa,
-        "intentosSalidaSegura": salida_segura,
+        "intentosSalidaSegura": len(safe_exit_ids),
         "puntajePromedio": float(puntaje_promedio),
         "decisionesAdecuadas": _count_decisions(attempt_ids, "ADEQUATE"),
         "decisionesRiesgosas": _count_decisions(attempt_ids, "RISKY"),
@@ -213,11 +233,13 @@ def _build_simulation_report(grupo, case_version_id):
     }
 
 
-def _estudiante_sim_dto(student, attempts):
+def _estudiante_sim_dto(student, attempts, safe_exit_ids=None):
+    if safe_exit_ids is None:
+        safe_exit_ids = _safe_exit_attempt_ids(attempts)
     completados = sum(1 for a in attempts if a.status == "COMPLETED")
     en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
     en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
-    salida_segura = sum(1 for a in attempts if a.status == "SAFE_EXITED")
+    salida_segura = sum(1 for a in attempts if a.id in safe_exit_ids)
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje = sum(a.accumulated_score for a in scored) / len(scored) if scored else 0.0
     attempt_ids = [a.id for a in attempts]
@@ -228,7 +250,7 @@ def _estudiante_sim_dto(student, attempts):
         estado = "EN_PAUSA"
     elif completados > 0:
         estado = "COMPLETADO"
-    elif salida_segura > 0:
+    elif any(a.status == "SAFE_EXITED" for a in attempts):
         estado = "SAFE_EXITED"
     else:
         estado = "PENDIENTE"

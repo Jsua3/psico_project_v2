@@ -134,6 +134,9 @@ import { decisionTotal, performanceLabel } from './outcome.util';
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
             <button type="button" class="oc-btn oc-btn--go" (click)="resume.emit()">Reanudar este intento</button>
             <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+          } @else if (status() === 'REPLACED') {
+            <!-- Ya existe un intento más nuevo: «reintentar» (forceNew) también lo reemplazaría. -->
+            <a class="oc-btn oc-btn--go" routerLink="/portal/simulador">Volver al catálogo</a>
           } @else if (status() === 'SAFE_EXITED') {
             <!-- Cierre terminal honesto: la única continuación es un intento nuevo. -->
             <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Iniciar un nuevo intento</button>
@@ -244,6 +247,7 @@ export class AttemptOutcomeComponent {
     switch (status) {
       case 'COMPLETED': return '¡Simulación completada!';
       case 'PAUSED': return 'Pausa segura activa';
+      case 'REPLACED': return 'Intento reemplazado';
       default: return 'Salida segura registrada';
     }
   }
@@ -253,6 +257,7 @@ export class AttemptOutcomeComponent {
     switch (status) {
       case 'COMPLETED': return 'El intento quedó cerrado para evaluación docente.';
       case 'PAUSED': return 'Tu intento quedó guardado tal cual; puedes reanudarlo cuando lo decidas.';
+      case 'REPLACED': return 'Empezaste un intento nuevo; este quedó cerrado tal como estaba.';
       default: return 'El intento quedó cerrado sin penalización.';
     }
   }

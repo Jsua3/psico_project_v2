@@ -59,6 +59,12 @@ describe('AttemptOutcomeComponent', () => {
     expect(component.eyebrow('COMPLETED')).toBe('¡Simulación completada!');
   });
 
+  it('el intento reemplazado no se presenta como salida segura', () => {
+    expect(component.eyebrow('REPLACED')).toBe('Intento reemplazado');
+    expect(component.headline('REPLACED')).toContain('nuevo');
+    expect(component.headline('REPLACED')).not.toMatch(/salida segura|sin penalización/i);
+  });
+
   it('perf labels performance from the report adequacy ratio', () => {
     expect(component.perf(makeReport({ adequateDecisions: 5, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Excelente');
     expect(component.perf(makeReport({ adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Sin decisiones');
