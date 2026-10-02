@@ -1,5 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { scaled } from './support/time-scale';
+
 /**
  * Living-world B1 smoke. Preconditions:
  *  - frontend dev server running (npm start → :4200), proxying /api to Django;
@@ -28,21 +30,21 @@ async function enterPlayableCase(page: Page) {
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
   // Intento nuevo: la posición de salida no depende de lo que dejó otra prueba.
   const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
-  await expect(consent.or(startFresh).first()).toBeVisible({ timeout: 15_000 });
+  await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(15_000) });
   if (await startFresh.count()) await startFresh.click();
   await consent.getByRole('button', { name: /^continuar$/i }).click();
 
   const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  await expect(introVideo).toBeVisible({ timeout: 15_000 });
+  await expect(introVideo).toBeVisible({ timeout: scaled(15_000) });
   await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
 
   const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
-  await expect(caseIntro).toBeVisible({ timeout: 15_000 });
+  await expect(caseIntro).toBeVisible({ timeout: scaled(15_000) });
   await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
-  await expect(caseIntro).toBeHidden({ timeout: 15_000 });
-  await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
+  await expect(caseIntro).toBeHidden({ timeout: scaled(15_000) });
+  await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: scaled(15_000) });
   await expect(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))
-    .toBeVisible({ timeout: 30_000 });
+    .toBeVisible({ timeout: scaled(30_000) });
 }
 
 test('menu world renders full-bleed with no shell sidebar', async ({ page }) => {
@@ -66,19 +68,19 @@ test('in-case world loads with the HUD', async ({ page }) => {
   // advertencia de contenido — evita la carrera tras waitForURL.
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
   const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
-  await expect(consent.or(resume).first()).toBeVisible({ timeout: 15_000 });
+  await expect(consent.or(resume).first()).toBeVisible({ timeout: scaled(15_000) });
   if (await resume.count()) {
     await resume.click();
   }
   // ETH-01: el mundo no existe hasta aceptar la advertencia de contenido.
   await consent.getByRole('button', { name: /^continuar$/i }).click();
-  await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('app-game-world canvas')).toBeVisible({ timeout: scaled(15_000) });
   await expect(page.locator('app-simulation-hud')).toBeVisible();
   await expect(page.locator('button.sr-only')).toHaveCount(0);
 });
 
 test('journal traps keyboard focus while it blocks the world', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(scaled(120_000));
   await login(page);
   await enterPlayableCase(page);
   await page.keyboard.press('j');
@@ -95,7 +97,7 @@ test('journal traps keyboard focus while it blocks the world', async ({ page }) 
 });
 
 test('real dialogue advances one intervention at a time and retains keyboard focus', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(scaled(120_000));
   await login(page);
   await enterPlayableCase(page);
 
@@ -103,7 +105,7 @@ test('real dialogue advances one intervention at a time and retains keyboard foc
   await page.locator('app-game-world canvas').click();
   await page.keyboard.down('ArrowLeft');
   try {
-    await expect(familyAction).toBeVisible({ timeout: 30_000 });
+    await expect(familyAction).toBeVisible({ timeout: scaled(30_000) });
   } finally {
     await page.keyboard.up('ArrowLeft');
   }
@@ -111,12 +113,12 @@ test('real dialogue advances one intervention at a time and retains keyboard foc
   const interactionResponse = page.waitForResponse(response =>
     response.request().method() === 'POST'
       && /\/api\/simulation\/attempts\/[^/]+\/interactions\/familia-crisis$/.test(response.url()),
-    { timeout: 30_000 },
+    { timeout: scaled(30_000) },
   );
   await familyAction.click();
   expect((await interactionResponse).ok()).toBe(true);
   const dialogue = page.getByRole('dialog', { name: /diálogo con abuela de la niña/i });
-  await expect(dialogue).toBeVisible({ timeout: 30_000 });
+  await expect(dialogue).toBeVisible({ timeout: scaled(30_000) });
 
   const first = '¡Déjenme pasar! ¡Quiero ver a mi nieta y a mi hija! ¿Por qué nadie nos dice nada?';
   const second = 'Llegamos apenas supimos… ¿están bien? ¡Dígame que están bien!';

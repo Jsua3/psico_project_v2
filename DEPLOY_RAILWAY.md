@@ -124,14 +124,19 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
   (todos son idempotentes):
   ```bash
   psql "$DATABASE_URL" -f deploy/upgrades/2026-09-29-attempt-status-paused.sql
+  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-ambient-npcs-caso-pdf.sql
   psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-attempt-status-replaced.sql
   ```
   Sin el de 2026-09-29, la "pausa segura" falla con 500 porque el CHECK viejo
-  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin el de 2026-10-01,
-  empezar un intento nuevo sobre uno activo ("forceNew") falla con 500 porque
-  el CHECK no admite `REPLACED`; ese script además reclasifica como `REPLACED`
-  los intentos reemplazados que se guardaron como salida segura. Como cada push
-  redepliega, aplícalo **antes** de hacer push del código que lo necesita.
+  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin
+  `2026-10-01-ambient-npcs-caso-pdf.sql`, hablar con los NPC ambientales del
+  caso (enfermera, médico, trabajadora social…) responde 400 y el diálogo no se
+  abre: el backend exige su posición en `scene_maps.ambient_json.ambientNpcs`.
+  Sin `2026-10-01-attempt-status-replaced.sql`, empezar un intento nuevo sobre
+  uno activo ("forceNew") falla con 500 porque el CHECK no admite `REPLACED`;
+  ese script además reclasifica como `REPLACED` los intentos reemplazados que se
+  guardaron como salida segura. Como cada push redepliega, aplica los scripts
+  **antes** de hacer push del código que los necesita.
 - **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
   `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
   las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían

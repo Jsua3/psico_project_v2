@@ -15,7 +15,7 @@ Geometría del mapa inicial sembrado (hospital-urgencias, 960×528, spawn
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.simulation.models import AttemptEvent, AttemptWorldState
+from apps.simulation.models import AttemptEvent, AttemptWorldState, MapObject
 
 from .test_world import _assign_case_to_student, _start, case_version_id, cl, estudiante, otro_estudiante  # noqa: F401
 
@@ -121,6 +121,28 @@ def test_hitbox_completo_no_puede_solapar_collider(estudiante, case_version_id):
 
     assert resp.status_code == 400
     assert _player(attempt_id) == (480, 430)
+
+
+def test_herramienta_recogida_deja_de_bloquear(estudiante, case_version_id):
+    """La geometría que bloquea es la misma que el mundo expone al cliente: una
+    herramienta recogida desaparece del DTO, así que tampoco puede bloquear."""
+    MapObject.objects.filter(
+        scene_map__case_version_id=case_version_id, object_key="tool-pap",
+    ).update(collision=True)
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+    map_key = world["map"]["key"]
+
+    assert _move(c, attempt_id, token, 342, 440, map_key).status_code == 400  # sobre el kit
+
+    picked = _interact(c, attempt_id, token, "tool-pap")  # a 114 px del spawn
+    assert picked.status_code == 200
+    assert "tool-pap" not in [obj["key"] for obj in picked.data["data"]["world"]["objects"]]
+
+    resp = _move(c, attempt_id, token, 342, 440, map_key)
+    assert resp.status_code == 200
+    assert _player(attempt_id) == (342, 440)
 
 
 def test_map_key_obligatorio_y_mapa_falso_no_muta(estudiante, case_version_id):

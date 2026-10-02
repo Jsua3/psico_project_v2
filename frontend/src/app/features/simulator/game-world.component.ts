@@ -40,6 +40,7 @@ import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
 import { resolveRoomPlayerPosition } from './room-player-position.util';
 import { nearbyInteractionChannel } from './interaction-priority.util';
+import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import {
   NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
@@ -146,7 +147,7 @@ const DOOR_SPRITE_SCALE = 1.45;
 /** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
 const DOOR_SPRITE_FEET_Y = 16;
 
-class DataDrivenWorldScene extends Phaser.Scene {
+export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
   private avatarSpecs: AvatarLayerSpec[] = [];
@@ -2141,8 +2142,14 @@ class DataDrivenWorldScene extends Phaser.Scene {
    * pies (player-motion.util): muebles y paredes bloquean pies; la cabeza y el
    * pelo pueden solapar visualmente sin chocar. Con wallsLayer (Tiled) prueba
    * las 4 esquinas del hitbox; si no, las zonas AABB de la sala/backend.
+   *
+   * Siempre se suma la regla autoritativa del servidor (GAME-01): una posición
+   * que el backend rechazaría tampoco es caminable aquí, así la posición
+   * persistida nunca se queda atrás en silencio y las acciones validadas por
+   * proximidad no fallan con "demasiado lejos".
    */
   private wouldCollide(x: number, y: number): boolean {
+    if (this.world && serverRejectsPlayerAt(this.world, x, y)) return true;
     const hb = playerHitbox(x, y);
     if (this.wallsLayer) {
       const corners = [
