@@ -524,7 +524,7 @@ const CASE_INTRO_PARAGRAPHS = [
       transition: border-color 160ms, background 160ms;
     }
     .safe-exit:hover { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
-    .safe-exit:focus-visible { outline: 2px solid rgba(226,90,79,.6); outline-offset: 2px; }
+    .safe-exit:focus-visible { outline: 2px solid #f1a79f; outline-offset: 2px; }
     .safe-exit:active { transform: translateY(1px); }
     .safe-exit:disabled { opacity: .4; cursor: not-allowed; }
     .safe-exit mat-icon { font-size: 19px; width: 19px; height: 19px; }

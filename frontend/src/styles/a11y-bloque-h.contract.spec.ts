@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { contrastRatio } from './contrast.util';
+import { blend, contrastRatio } from './contrast.util';
 
 function source(relativePath: string): string {
   return readFileSync(join(__dirname, relativePath), 'utf-8');
@@ -42,5 +42,39 @@ describe('bloque H: login (contraste)', () => {
     // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0.
     expect(scss).toMatch(/\.toggle-brand small \{[^}]*color: #fff;/);
     expect(contrastRatio('#FFFFFF', '#5C6BC0')).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('bloque H: juego (foco y texto del diálogo)', () => {
+  const dialogue = source('../app/features/simulator/dialogue-panel.component.ts');
+  const play = source('../app/features/simulator/simulation-play.component.ts');
+  const GAME_BG = '#0E1322';
+  // Peor caso del panel de diálogo: rgba(8,12,18,.95) sobre un píxel blanco del mapa.
+  const DIALOGUE_BG = blend('#080C12', 0.95, '#FFFFFF');
+
+  it('el anillo de las opciones del diálogo llega a 3:1', () => {
+    // Antes: rgba(182,156,255,.5) = 2,89:1.
+    expect(dialogue).toMatch(/\.choice-btn:focus-visible \{\s*outline: 3px solid #C9B3FF;\s*outline-offset: 3px;\s*\}/);
+    expect(contrastRatio('#C9B3FF', DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el anillo del botón de salida segura llega a 3:1', () => {
+    // Antes: rgba(226,90,79,.6) = 2,55:1.
+    expect(play).toMatch(/\.safe-exit:focus-visible \{ outline: 2px solid #f1a79f; outline-offset: 2px; \}/);
+    expect(contrastRatio('#F1A79F', GAME_BG)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el nombre del hablante de una advertencia llega a 4,5:1', () => {
+    // Antes: #a85062 = 3,38:1.
+    expect(dialogue).toContain('.strip--warning .speaker-name { color: #d9798e; }');
+    expect(contrastRatio('#D9798E', DIALOGUE_BG)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('la etiqueta de emoción no atenúa su color y cada tono llega a 4,5:1', () => {
+    // Antes: opacity .75 dejaba el rojo de «alerta» en 3,29:1.
+    expect(dialogue).toMatch(/\.emotion-tag \{[^}]*opacity: 1;/);
+    for (const tone of ['#B69CFF', '#6EC67A', '#F5B84B', '#E25A4F']) {
+      expect(contrastRatio(tone, DIALOGUE_BG)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

@@ -181,13 +181,13 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       color: #B69CFF;
     }
     .strip--supervisory .speaker-name { color: #5d9278; }
-    .strip--warning .speaker-name { color: #a85062; }
+    .strip--warning .speaker-name { color: #d9798e; }
     .emotion-tag {
       font-size: .6rem;
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: lowercase;
-      opacity: .75;
+      opacity: 1;
     }
     .emotion-tag::before { content: '· '; opacity: .6; }
 
@@ -254,7 +254,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       transform: scale(.97);
     }
     .choice-btn:focus-visible {
-      outline: 3px solid rgba(182,156,255,.5);
+      outline: 3px solid #C9B3FF;
       outline-offset: 3px;
     }
     /* Entrada escalonada de opciones (sutil, una sola vez). */
