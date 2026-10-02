@@ -1,0 +1,74 @@
+import { StudentAttemptSummary } from '../../core/models/simulation.model';
+import {
+  attemptStateLabel,
+  completedAttemptCount,
+  countDisplay,
+  metricDisplay,
+  totalActiveSeconds
+} from './dashboard-metrics.util';
+
+function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
+  return {
+    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
+    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
+    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
+    activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
+    ...partial,
+  };
+}
+
+describe('dashboard-metrics.util', () => {
+  it('metricDisplay muestra el 0 como 0 y respeta los textos', () => {
+    expect(metricDisplay(0)).toBe('0');
+    expect(metricDisplay(12)).toBe('12');
+    expect(metricDisplay('Sin datos')).toBe('Sin datos');
+  });
+
+  it('countDisplay muestra el conteo, también el 0, y «Sin datos» si la carga falló', () => {
+    expect(countDisplay(0, false)).toBe('0');
+    expect(countDisplay(7, false)).toBe('7');
+    expect(countDisplay(0, true)).toBe('Sin datos');
+    expect(countDisplay(7, true)).toBe('Sin datos');
+  });
+
+  it('completedAttemptCount solo cuenta los intentos COMPLETED', () => {
+    const history = [
+      attempt({ status: 'COMPLETED' }),
+      attempt({ status: 'SAFE_EXITED' }),
+      attempt({ status: 'PAUSED' }),
+      attempt({ status: 'IN_PROGRESS' }),
+      attempt({ status: 'COMPLETED' }),
+    ];
+    expect(completedAttemptCount(history)).toBe(2);
+  });
+
+  it('totalActiveSeconds suma solo los tiempos informados', () => {
+    expect(totalActiveSeconds([])).toBeNull();
+    expect(totalActiveSeconds([attempt({ activeDurationSeconds: null })])).toBeNull();
+    expect(totalActiveSeconds([
+      attempt({ activeDurationSeconds: 300 }),
+      attempt({ activeDurationSeconds: null, totalDurationSeconds: 86_400 }),
+      attempt({ activeDurationSeconds: 120 }),
+    ])).toBe(420);
+  });
+
+  it('completedAttemptCount sirve también para intentos que solo traen el estado', () => {
+    expect(completedAttemptCount([
+      { status: 'COMPLETED' },
+      { status: 'SAFE_EXITED' },
+      { status: 'IN_PROGRESS' },
+    ])).toBe(1);
+    expect(completedAttemptCount([])).toBe(0);
+  });
+
+  it('attemptStateLabel distingue interrumpido de completado', () => {
+    expect(attemptStateLabel('COMPLETED')).toBe('Completado');
+    expect(attemptStateLabel('COMPLETADO')).toBe('Completado');
+    expect(attemptStateLabel('SAFE_EXITED')).toBe('Interrumpido');
+    expect(attemptStateLabel('PAUSED')).toBe('En pausa');
+    expect(attemptStateLabel('EN_PAUSA')).toBe('En pausa');
+    expect(attemptStateLabel('PENDIENTE')).toBe('Pendiente');
+    expect(attemptStateLabel('IN_PROGRESS')).toBe('En curso');
+    expect(attemptStateLabel('EN_PROGRESO')).toBe('En curso');
+  });
+});

@@ -19,6 +19,7 @@ import {
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
+import { editorPreview, sheetFrameStyle } from './editor-preview.util';
 
 @Component({
   selector: 'app-character-editor',
@@ -30,10 +31,10 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
         <div>
           <p class="ce-kicker">Editor de personaje</p>
           <h1>Personaliza tu avatar profesional</h1>
-          <p class="ce-sub">Crea la identidad con la que entraras a los casos. No afecta tu evaluacion.</p>
+          <p class="ce-sub">Crea la identidad con la que entrarás a los casos. No afecta tu evaluación.</p>
         </div>
         <div class="ce-id">
-          <span class="ce-chip">Programa: Psicologia</span>
+          <span class="ce-chip">Programa: Psicología</span>
           <span class="ce-chip ce-chip--soft">Rol: {{ roleLabel() }}</span>
           <a class="ce-btn ce-btn--ghost" routerLink="/portal/dashboard">Volver</a>
         </div>
@@ -63,7 +64,7 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
           }
 
           <p class="ce-section">Cuerpo</p>
-          <div class="ce-opts" role="radiogroup" aria-label="Genero">
+          <div class="ce-opts" role="radiogroup" aria-label="Género">
             @for (o of genderOptions; track o.id) {
               <button type="button" class="ce-opt" [class.sel]="avatar().gender === o.id"
                 role="radio" [attr.aria-checked]="avatar().gender === o.id"
@@ -103,8 +104,8 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
             </div>
           }
 
-          <p class="ce-section">Expresion</p>
-          <div class="ce-opts" role="radiogroup" aria-label="Expresion">
+          <p class="ce-section">Expresión</p>
+          <div class="ce-opts" role="radiogroup" aria-label="Expresión">
             @for (o of mouths; track o.id) {
               <button type="button" class="ce-opt" [class.sel]="avatar().mouth === o.id"
                 role="radio" [attr.aria-checked]="avatar().mouth === o.id"
@@ -115,7 +116,11 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
 
         <section class="ce-stage glass" aria-label="Vista previa del avatar">
           <div class="ce-halo"></div>
-          <app-avatar-figure class="ce-figure" [config]="avatar()" [pose]="pose()" [flipX]="flipX()" />
+          @if (previewStyle(); as frame) {
+            <span class="ce-sheet" role="img" [attr.aria-label]="'Vista previa de ' + castLabel()" [ngStyle]="frame"></span>
+          } @else {
+            <app-avatar-figure class="ce-figure" [config]="avatar()" [pose]="pose()" [flipX]="flipX()" />
+          }
           <div class="ce-pose" role="radiogroup" aria-label="Pose">
             <button type="button" class="ce-opt" [class.sel]="view() === 'front'"
               role="radio" [attr.aria-checked]="view() === 'front'" (click)="view.set('front')">Frontal</button>
@@ -137,7 +142,7 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
                 (click)="store.update({ uniform: u.id })">
                 <app-avatar-figure class="ce-uniform-fig" [config]="withUniform(u.id)" />
                 <span>{{ u.label }}</span>
-                @if (u.id === 'con-bata') { <small class="ce-soon">Proximamente</small> }
+                @if (u.id === 'con-bata') { <small class="ce-soon">Próximamente</small> }
               </button>
             }
           </div>
@@ -145,10 +150,14 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
           <p class="ce-section">Resumen</p>
           <ul class="ce-summary">
             <li><span>Rol</span><strong>{{ roleLabel() }}</strong></li>
-            <li><span>Genero</span><strong>{{ labelOf(genderOptions, avatar().gender) }}</strong></li>
-            <li><span>Ropa</span><strong>{{ labelOf(clothingColors, avatar().clothingColor) }}</strong></li>
-            <li><span>Cabello</span><strong>{{ labelOf(hairStyles, avatar().hairStyle) }} {{ hairColorLabel() }}</strong></li>
-            <li><span>Expresion</span><strong>{{ labelOf(mouths, avatar().mouth) }}</strong></li>
+            @if (avatar().castId && castLabel()) {
+              <li><span>Personaje</span><strong>{{ castLabel() }}</strong></li>
+            } @else {
+              <li><span>Género</span><strong>{{ labelOf(genderOptions, avatar().gender) }}</strong></li>
+              <li><span>Ropa</span><strong>{{ labelOf(clothingColors, avatar().clothingColor) }}</strong></li>
+              <li><span>Cabello</span><strong>{{ labelOf(hairStyles, avatar().hairStyle) }} {{ hairColorLabel() }}</strong></li>
+              <li><span>Expresión</span><strong>{{ labelOf(mouths, avatar().mouth) }}</strong></li>
+            }
           </ul>
         </section>
       </div>
@@ -200,6 +209,7 @@ import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
     .ce-stage { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; min-height: 420px; overflow: hidden; }
     .ce-halo { position: absolute; bottom: 70px; width: 220px; height: 60px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(124,77,255,.45), transparent 70%); filter: blur(6px); }
     .ce-figure { position: relative; width: 220px; height: 330px; }
+    .ce-sheet { position: relative; display: block; flex: none; background-repeat: no-repeat; image-rendering: pixelated; }
     .ce-pose { display: flex; gap: 8px; z-index: 1; }
     .ce-uniforms { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .ce-uniform { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 800; cursor: pointer; transition: all .15s; }
@@ -232,6 +242,13 @@ export class CharacterEditorComponent {
   readonly view = signal<'front' | 'left' | 'right'>('front');
   readonly pose = computed<'front' | 'side'>(() => this.view() === 'front' ? 'front' : 'side');
   readonly flipX = computed(() => this.view() === 'left');
+  readonly preview = computed(() => editorPreview(this.avatar(), this.view()));
+  readonly previewStyle = computed(() => {
+    const preview = this.preview();
+    return preview.kind === 'sheet' ? sheetFrameStyle(preview) : null;
+  });
+  readonly castLabel = computed(() =>
+    this.playableCast.find(member => member.id === this.avatar().castId)?.label ?? '');
 
   readonly genderOptions = GENDER_OPTIONS;
   readonly clothingColors = CLOTHING_COLORS;
@@ -261,8 +278,11 @@ export class CharacterEditorComponent {
   readonly hairColorLabel = computed(() =>
     this.avatar().hairStyle === 'ninguno' ? '' : this.labelOf(this.hairColors, this.avatar().hairColor).toLowerCase());
 
-  readonly avatarSummary = computed(() =>
-    `Avatar ${this.labelOf(this.genderOptions, this.avatar().gender)}, ropa ${this.labelOf(this.clothingColors, this.avatar().clothingColor)}, cabello ${this.labelOf(this.hairStyles, this.avatar().hairStyle)} ${this.hairColorLabel()}, expresion ${this.labelOf(this.mouths, this.avatar().mouth)}.`);
+  readonly avatarSummary = computed(() => {
+    const cast = this.castLabel();
+    if (cast) return `Personaje del elenco: ${cast}.`;
+    return `Avatar ${this.labelOf(this.genderOptions, this.avatar().gender)}, ropa ${this.labelOf(this.clothingColors, this.avatar().clothingColor)}, cabello ${this.labelOf(this.hairStyles, this.avatar().hairStyle)} ${this.hairColorLabel()}, expresión ${this.labelOf(this.mouths, this.avatar().mouth)}.`;
+  });
 
   setHairStyle(id: string): void {
     this.store.update({ hairStyle: id as HairStyle });

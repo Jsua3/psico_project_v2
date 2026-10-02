@@ -1,20 +1,32 @@
+import { A11yModule } from '@angular/cdk/a11y';
 import { Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+
+let nextConfirmDialogId = 0;
 
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [MatIconModule],
+  imports: [MatIconModule, A11yModule],
   template: `
     @if (open()) {
-      <div class="confirm-backdrop" role="dialog" aria-modal="true" [attr.aria-labelledby]="dialogTitleId">
-        <div class="confirm-panel">
+      <div class="confirm-backdrop" (click)="onBackdropClick($event)" (keydown.escape)="onEscape()">
+        <div
+          class="confirm-panel"
+          role="alertdialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="dialogTitleId"
+          [attr.aria-describedby]="dialogMessageId"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+        >
           <h3 [id]="dialogTitleId">{{ title() }}</h3>
-          <p>{{ message() }}</p>
+          <p [id]="dialogMessageId">{{ message() }}</p>
           <div class="confirm-actions">
             <button
               type="button"
               class="psy-button psy-button--ghost"
+              cdkFocusInitial
               (click)="cancel.emit()"
               [disabled]="loading()"
             >
@@ -74,7 +86,9 @@ import { MatIconModule } from '@angular/material/icon';
   `]
 })
 export class ConfirmDialogComponent {
-  readonly dialogTitleId = 'app-confirm-dialog-title';
+  private readonly instanceId = ++nextConfirmDialogId;
+  readonly dialogTitleId = `app-confirm-dialog-title-${this.instanceId}`;
+  readonly dialogMessageId = `app-confirm-dialog-message-${this.instanceId}`;
   readonly open = input(false);
   readonly title = input('Confirmar acción');
   readonly message = input('');
@@ -82,4 +96,12 @@ export class ConfirmDialogComponent {
   readonly loading = input(false);
   readonly cancel = output<void>();
   readonly confirm = output<void>();
+
+  onEscape(): void {
+    if (!this.loading()) this.cancel.emit();
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget && !this.loading()) this.cancel.emit();
+  }
 }

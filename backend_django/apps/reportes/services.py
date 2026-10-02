@@ -70,14 +70,16 @@ def _count_rubrics(attempt_ids):
 def get_dashboard():
     start_of_day = datetime.combine(timezone.now().date(), time.min)
 
+    # «Completada» es solo COMPLETED: SAFE_EXITED es una interrupción y la UI la
+    # rotula «Interrumpido». Los promedios sí puntúan ambos (SCORED_STATUSES).
     simulaciones_completadas_hoy = SimulationAttempt.objects.filter(
-        status__in=SCORED_STATUSES, ended_at__gte=start_of_day
+        status="COMPLETED", ended_at__gte=start_of_day
     ).count()
     simulaciones_en_progreso = SimulationAttempt.objects.filter(
         status="IN_PROGRESS"
     ).count()
     simulaciones_completadas = SimulationAttempt.objects.filter(
-        status__in=SCORED_STATUSES
+        status="COMPLETED"
     ).count()
     avg_sim = float(
         SimulationAttempt.objects.filter(status__in=SCORED_STATUSES).aggregate(

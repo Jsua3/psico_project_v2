@@ -705,15 +705,19 @@ interface FeedbackPanelView {
       color: inherit;
       text-align: left;
       cursor: pointer;
-      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      transition: box-shadow 150ms ease, border-color 150ms ease;
     }
 
-    .attempt-card:hover,
+    @media (hover: hover) and (pointer: fine) {
+      .attempt-card:hover {
+        box-shadow: 8px 8px 0 rgba(43, 77, 111, .2);
+        border-color: #6f4caf;
+      }
+    }
+
     .attempt-card:focus-visible {
-      transform: translate(-2px, -2px);
-      box-shadow: 8px 8px 0 rgba(43, 77, 111, .2);
       border-color: #6f4caf;
-      outline: 3px solid rgba(111, 76, 175, .22);
+      outline: 3px solid var(--psy-focus);
       outline-offset: 2px;
     }
 
@@ -774,14 +778,17 @@ interface FeedbackPanelView {
       width: 100%;
       text-align: left;
       cursor: pointer;
-      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      transition: box-shadow 150ms ease, border-color 150ms ease;
     }
 
-    .review-summary-card--action:hover,
+    @media (hover: hover) and (pointer: fine) {
+      .review-summary-card--action:hover {
+        box-shadow: 8px 8px 0 rgba(43, 77, 111, .2);
+      }
+    }
+
     .review-summary-card--action:focus-visible {
-      transform: translate(-2px, -2px);
-      box-shadow: 8px 8px 0 rgba(43, 77, 111, .2);
-      outline: 3px solid rgba(111, 76, 175, .22);
+      outline: 3px solid var(--psy-focus);
       outline-offset: 2px;
     }
 
@@ -1100,7 +1107,7 @@ interface FeedbackPanelView {
     input:focus-visible,
     textarea:focus-visible,
     .pixel-button:focus-visible {
-      outline: 3px solid rgba(111, 76, 175, .28);
+      outline: 3px solid var(--psy-focus);
       outline-offset: 2px;
       border-color: #6f4caf;
     }

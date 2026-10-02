@@ -14,7 +14,7 @@
     [style.--login-role-accent-soft]="activeRole().accentSoft"
     id="container"
   >
-    <div class="form-container sign-up">
+    <div class="form-container sign-up" [attr.inert]="showRegister() ? null : ''">
       <form [formGroup]="registerForm" (ngSubmit)="onRegisterSubmit()" novalidate>
         <div class="auth-brand">
           <span class="auth-brand__icon" aria-hidden="true">
@@ -62,7 +62,7 @@
       </form>
     </div>
 
-    <div class="form-container sign-in">
+    <div class="form-container sign-in" [attr.inert]="showRegister() ? '' : null">
       <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
         <div class="auth-brand">
           <span class="auth-brand__icon" aria-hidden="true">
@@ -176,7 +176,7 @@
 
     <div class="toggle-container">
       <div class="toggle">
-        <div class="toggle-panel toggle-left">
+        <div class="toggle-panel toggle-left" [attr.inert]="showRegister() ? null : ''">
           <div class="toggle-brand">
             <span class="toggle-brand__icon" aria-hidden="true">
               <mat-icon>psychology</mat-icon>
@@ -207,12 +207,12 @@
             }
           </div>
 
-          <h1>¡Bienvenido de nuevo!</h1>
+          <h2>¡Bienvenido de nuevo!</h2>
           <p>Continúa tu entrenamiento psicosocial con casos simulados, bitácora reflexiva y retroalimentación formativa.</p>
           <button type="button" class="hidden" id="login" (click)="openSignIn()">Iniciar sesión</button>
         </div>
 
-        <div class="toggle-panel toggle-right">
+        <div class="toggle-panel toggle-right" [attr.inert]="showRegister() ? '' : null">
           <div class="toggle-brand">
             <span class="toggle-brand__icon" aria-hidden="true">
               <mat-icon>psychology</mat-icon>
@@ -243,7 +243,7 @@
             }
           </div>
 
-          <h1>¿Nuevo en {{ brand.shortName }}?</h1>
+          <h2>¿Nuevo en {{ brand.shortName }}?</h2>
           <p>Las cuentas son asignadas por la facultad. Solicita acceso o consulta con tu docente.</p>
           <button type="button" class="hidden" id="register" (click)="openSignUp()">Solicitar acceso</button>
         </div>

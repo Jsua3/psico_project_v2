@@ -311,13 +311,19 @@
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
-.pixel-button:hover {
-  transform: translate(1px, 1px);
-  box-shadow: 3px 3px 0 rgba(0, 82, 130, 0.14);
+@media (hover: hover) and (pointer: fine) {
+  .pixel-button:hover {
+    box-shadow: 3px 3px 0 rgba(0, 82, 130, 0.14);
+  }
+}
+
+.pixel-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 rgba(0, 82, 130, 0.14);
 }
 
 .pixel-button:focus-visible {
-  outline: 3px solid rgba(124, 77, 255, 0.45);
+  outline: 3px solid var(--psy-focus);
   outline-offset: 2px;
 }
 

@@ -6,6 +6,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptCompletionReport, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { historyDurationSeconds } from './attempt-history-duration.util';
 
 @Component({
   selector: 'app-simulation-catalog',
@@ -108,7 +109,7 @@ import { AttemptCompletionReport, SimulationCaseSummary, StudentAttemptSummary }
                   <span>{{ attempt.accumulatedScore }} pts</span>
                   <span>{{ attempt.adequateDecisions }} adecuadas</span>
                   <span>{{ attempt.prohibitedDecisions }} alertas eticas</span>
-                  <span>{{ formatDuration(attempt.totalDurationSeconds) }}</span>
+                  <span>{{ formatDuration(historyDurationSeconds(attempt)) }}</span>
                 </div>
                 <div class="history-actions">
                   @if (attempt.status === 'IN_PROGRESS') {
@@ -394,6 +395,7 @@ export class SimulationCatalogComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
+  readonly historyDurationSeconds = historyDurationSeconds;
   readonly cases = signal<SimulationCaseSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');

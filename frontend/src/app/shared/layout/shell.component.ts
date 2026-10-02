@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -68,7 +68,13 @@ interface NavItem {
           (click)="closeMenu()"
         ></div>
 
-        <section class="siep-mobile-nav" [class.is-open]="menuOpen" aria-label="Navegacion movil SIEP">
+        <section
+          class="siep-mobile-nav"
+          id="siep-mobile-nav"
+          [class.is-open]="menuOpen"
+          [attr.inert]="menuOpen ? null : ''"
+          aria-label="Navegación móvil SIEP"
+        >
           <span class="siep-mobile-nav__bg top"></span>
           <span class="siep-mobile-nav__bg middle"></span>
           <span class="siep-mobile-nav__bg bottom"></span>
@@ -76,7 +82,7 @@ interface NavItem {
           <button
             class="siep-close-trigger"
             type="button"
-            aria-label="Cerrar menu de navegacion"
+            aria-label="Cerrar menú de navegación"
             (click)="closeMenu()"
           >
             <span class="siep-close-trigger__bar left"></span>
@@ -114,9 +120,12 @@ interface NavItem {
         </section>
         <header class="portal-topbar liquid-glass">
           <button
+            #menuTrigger
             class="siep-menu-trigger"
             type="button"
-            aria-label="Abrir menu de navegacion"
+            aria-label="Abrir menú de navegación"
+            aria-controls="siep-mobile-nav"
+            [attr.aria-expanded]="menuOpen"
             [class.is-hidden]="menuOpen"
             (click)="toggleMenu()"
           >
@@ -160,6 +169,10 @@ interface NavItem {
       padding: 16px 12px;
       color: #fff;
     }
+    /* El foco global es azul marino (~1,3:1 sobre este degradado morado): aquí va en blanco. */
+    .portal-sidenav {
+      --psy-focus: #FFFFFF;
+    }
     .sidenav-header {
       padding: 10px 8px 18px;
       margin-bottom: 8px;
@@ -193,7 +206,7 @@ interface NavItem {
       border-radius: 12px;
       color: rgba(255,255,255,.92);
       background: rgba(255, 255, 255, 0.08);
-      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+      transition: box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
     }
     a[mat-list-item] mat-icon { color: rgba(255,255,255,.88); }
     a[mat-list-item] .mdc-list-item__primary-text,
@@ -203,11 +216,12 @@ interface NavItem {
     a[mat-list-item] .mdc-list-item__secondary-text {
       opacity: 0.72;
     }
-    a[mat-list-item]:hover {
-      border-color: rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.14);
-      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
-      transform: translate(-1px, -1px);
+    @media (hover: hover) and (pointer: fine) {
+      a[mat-list-item]:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
+      }
     }
     .active-link {
       position: relative;
@@ -245,12 +259,15 @@ interface NavItem {
       font-size: 0.88rem;
       font-weight: 800;
       box-shadow: 4px 4px 0 rgba(0,0,0,.14);
-      transition: transform 160ms ease;
+      transition: box-shadow 150ms ease;
     }
-    .sidebar-primary-action:hover,
+    @media (hover: hover) and (pointer: fine) {
+      .sidebar-primary-action:hover {
+        box-shadow: 5px 5px 0 rgba(0,0,0,.2);
+      }
+    }
     .sidebar-primary-action:focus-visible {
-      transform: translate(-1px, -1px);
-      outline: 2px solid rgba(255,255,255,.5);
+      outline: 3px solid #FFFFFF;
       outline-offset: 2px;
     }
     .sidebar-primary-action mat-icon {
@@ -293,10 +310,11 @@ interface NavItem {
       background: #7756a7;
       box-shadow: -8px 0 0 rgba(0, 118, 173, .42);
     }
-    .siep-menu-trigger:hover,
-    .siep-close-trigger:hover {
-      transform: translate(-1px, -1px);
-      box-shadow: 6px 6px 0 rgba(0, 82, 130, 0.14);
+    @media (hover: hover) and (pointer: fine) {
+      .siep-menu-trigger:hover,
+      .siep-close-trigger:hover {
+        box-shadow: 6px 6px 0 rgba(0, 82, 130, 0.14);
+      }
     }
     .siep-menu-trigger.is-hidden {
       opacity: 0;
@@ -709,6 +727,27 @@ export class ShellComponent implements OnDestroy {
   }
 
   toggleNav() { this.drawerOpen.set(!this.drawerOpen()); }
+
+  @ViewChild('menuTrigger') private menuTrigger?: ElementRef<HTMLButtonElement>;
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (!this.menuOpen) return;
+    this.closeMenu();
+    this.menuTrigger?.nativeElement.focus();
+    this.retryTriggerFocus();
+  }
+
+  // Con el menú abierto el botón tiene visibility:hidden y no admite foco. Al cerrar, sigue así
+  // hasta que Angular quita la clase y la transición lo muestra; se reintenta cuadro a cuadro.
+  private retryTriggerFocus(attempts = 10): void {
+    const trigger = this.menuTrigger?.nativeElement;
+    if (!trigger || this.menuOpen || attempts <= 0 || document.activeElement === trigger) return;
+    requestAnimationFrame(() => {
+      trigger.focus();
+      this.retryTriggerFocus(attempts - 1);
+    });
+  }
 
   toggleMenu(): void {
     this.menuOpen = !this.menuOpen;

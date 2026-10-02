@@ -243,12 +243,16 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       text-align: left;
       cursor: pointer;
       box-shadow: 0 14px 34px -22px rgba(124,77,255,.5);
-      transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+      transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, transform 160ms var(--psy-ease-out);
     }
-    .choice-btn:hover {
-      transform: translateY(-1px);
-      border-color: rgba(182,156,255,.7);
-      background: rgba(124,77,255,.16);
+    @media (hover: hover) and (pointer: fine) {
+      .choice-btn:hover {
+        border-color: rgba(182,156,255,.7);
+        background: rgba(124,77,255,.16);
+      }
+    }
+    .choice-btn:active {
+      transform: scale(.97);
     }
     .choice-btn:focus-visible {
       outline: 3px solid rgba(182,156,255,.5);
@@ -256,7 +260,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
     }
     /* Entrada escalonada de opciones (sutil, una sola vez). */
     .choice-btn {
-      animation: choice-in 200ms cubic-bezier(.2,.8,.2,1) both;
+      animation: choice-in 200ms var(--psy-ease-out) backwards;
       animation-delay: calc(var(--stagger, 0) * 45ms);
     }
     /* Confirmación: la card elegida se resalta y las demás ceden. */
@@ -265,7 +269,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
     .choice-btn--chosen {
       border-color: rgba(232,240,244,.85) !important;
       background: rgba(124,77,255,.3);
-      animation: choice-confirm 170ms ease both;
+      animation: choice-confirm 170ms ease;
     }
     @keyframes choice-in {
       from { opacity: 0; transform: translateY(8px); }
@@ -373,7 +377,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       .dialogue-strip { animation: none; }
       .cursor { animation: none; }
       .choice-btn, .choice-btn--chosen { animation: none; }
-      .choice-btn:hover { transform: none; }
+      .choice-btn:active { transform: none; }
     }
   `]
 })

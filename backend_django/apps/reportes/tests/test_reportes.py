@@ -9,10 +9,11 @@ import uuid
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion
+from apps.simulation.models import CaseVersion, SimulationAttempt, SimulationNode
 
 User = get_user_model()
 
@@ -96,6 +97,36 @@ def test_dashboard_structure_is_simulation_only(profesor):
         assert key not in data, f"legacy key should be gone: {key}"
     assert isinstance(data["intentosRecientes"], list)
     assert isinstance(data["ultimosIntentos"], list)
+
+
+def _closed_attempt(estudiante, case_version_id, status):
+    start_node = SimulationNode.objects.filter(
+        case_version_id=case_version_id, start_node=True
+    ).first()
+    return SimulationAttempt.objects.create(
+        attempt_token_hash=uuid.uuid4().hex,
+        case_version_id=case_version_id,
+        student_id=estudiante.id,
+        current_node=start_node,
+        status=status,
+        accumulated_score=40,
+        ended_at=timezone.now(),
+    )
+
+
+def test_dashboard_simulaciones_completadas_excluye_salida_segura(
+    profesor, estudiante, case_version_id
+):
+    """Un intento interrumpido (SAFE_EXITED) no es una simulación completada."""
+    before = cl(profesor).get("/api/reportes/dashboard").data["data"]
+    _closed_attempt(estudiante, case_version_id, "COMPLETED")
+    _closed_attempt(estudiante, case_version_id, "SAFE_EXITED")
+    after = cl(profesor).get("/api/reportes/dashboard").data["data"]
+
+    assert after["simulacionesCompletadas"] - before["simulacionesCompletadas"] == 1
+    assert (
+        after["simulacionesCompletadasHoy"] - before["simulacionesCompletadasHoy"] == 1
+    )
 
 
 # --- group report (sim-only) ----------------------------------------------

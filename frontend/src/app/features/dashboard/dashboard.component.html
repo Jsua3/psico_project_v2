@@ -51,13 +51,15 @@
             </div>
           }
         </dl>
-        <a
-          class="pixel-button pixel-button--accent hero-status-card__action"
-          [routerLink]="statusCard.action.route"
-        >
-          <mat-icon aria-hidden="true">{{ statusCard.action.icon }}</mat-icon>
-          {{ statusCard.action.label }}
-        </a>
+        @if (statusCard.action; as action) {
+          <a
+            class="pixel-button pixel-button--accent hero-status-card__action"
+            [routerLink]="action.route"
+          >
+            <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
+            {{ action.label }}
+          </a>
+        }
       </div>
     </aside>
   </header>
@@ -98,7 +100,9 @@
     </aside>
   }
 
-  <app-quick-actions [actions]="quickActions()" />
+  @if (!isEstudiante()) {
+    <app-quick-actions [actions]="quickActions()" />
+  }
 
   <app-dashboard-charts
     [loading]="loading()"
@@ -157,7 +161,7 @@
       <div class="dashboard-empty__icon" aria-hidden="true"><mat-icon>videogame_asset</mat-icon></div>
       <div>
         <h2 id="training-empty-title">
-          @if (isEstudiante()) { Continuar simulación } @else { Continuar entrenamiento }
+          @if (isEstudiante()) { Sin simulaciones activas } @else { Sin entrenamientos activos }
         </h2>
         <p>No hay simulaciones activas en este momento.</p>
         <p class="dashboard-empty__hint">

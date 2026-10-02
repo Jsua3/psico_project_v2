@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
@@ -415,6 +416,46 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
     assert mine["caseVersionId"] == case_version_id
     assert mine["adequateDecisions"] >= 1
     assert "startedAt" in mine
+    # Intento en curso: el tiempo activo solo se informa al terminar.
+    assert "activeDurationSeconds" in mine
+    assert mine["activeDurationSeconds"] is None
+
+
+def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
+    estudiante, case_version_id
+):
+    """Un intento cerrado informa un tiempo activo entero acotado por el total, y el
+    historial no carga eventos de intentos sin terminar (su duración activa es None)."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-HFIN")
+    c = cl(estudiante)
+    closed = c.post("/api/simulation/attempts",
+                    {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+    # Iniciar otro con forceNew cierra el anterior (SAFE_EXITED con ended_at).
+    running = c.post("/api/simulation/attempts",
+                     {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+
+    with CaptureQueriesContext(connection) as queries:
+        resp = c.get("/api/simulation/attempts/history")
+    assert resp.status_code == 200
+    history = {h["attemptId"]: h for h in resp.data["data"]}
+
+    finished = history[closed["attemptId"]]
+    assert finished["status"] == "SAFE_EXITED"
+    active = finished["activeDurationSeconds"]
+    assert isinstance(active, int) and not isinstance(active, bool)
+    assert 0 <= active <= finished["totalDurationSeconds"] + 1
+
+    unfinished = history[running["attemptId"]]
+    assert unfinished["status"] == "IN_PROGRESS"
+    assert unfinished["activeDurationSeconds"] is None
+
+    # La consulta de marcas de tiempo es la única que lee event_type de attempt_events.
+    marks_sql = [
+        q["sql"] for q in queries.captured_queries if '"attempt_events"."event_type"' in q["sql"]
+    ]
+    assert len(marks_sql) == 1, "una sola consulta de eventos para el tiempo activo"
+    assert closed["attemptId"] in marks_sql[0]
+    assert running["attemptId"] not in marks_sql[0], "no se cargan eventos del intento en curso"
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):

@@ -9,8 +9,8 @@ $psychology-theme: mat.define-theme((
     tertiary: mat.$cyan-palette
   ),
   typography: (
-    brand-family: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
-    plain-family: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif'
+    brand-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    plain-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   ),
   density: (scale: 0)
 ));
@@ -65,6 +65,7 @@ html {
   --psy-motion-fast: 180ms cubic-bezier(.2,.8,.2,1);
   --psy-motion-ui: 300ms cubic-bezier(.2,.8,.2,1);
   --psy-motion-section: 680ms cubic-bezier(.2,.8,.2,1);
+  --psy-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --psy-header-h: 76px;
   --psy-button-h: 48px;
   --psy-z-nav: 80;
@@ -119,6 +120,68 @@ code, .psy-mono {
 
 ::selection {
   background: rgba(79, 163, 165, .24);
+}
+
+/* ─── Texto: Poppins y JetBrains Mono ─────────────────────────────────────── */
+/* Autoalojadas (sin CDN en tiempo de ejecución). Origen: @fontsource/poppins@5.3.0
+   y @fontsource/jetbrains-mono@5.3.0, SIL OFL 1.1 (licencias en assets/fonts/).
+   Solo subset latin: cubre el español. Los pesos 650 y 750 del código se
+   resuelven a 700 y 800. */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-800-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/assets/fonts/poppins-latin-900-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');
 }
 
 /* ─── Icon font: Material Symbols Rounded ──────────────────────────────────── */
@@ -422,21 +485,7 @@ code, .psy-mono {
   font-weight: 700;
   line-height: 1;
   overflow: hidden;
-  transition: transform var(--psy-motion-fast), box-shadow var(--psy-motion-ui), background var(--psy-motion-ui);
-}
-
-.psy-button::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 -70%;
-  width: 56%;
-  transform: skewX(-16deg);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
-  transition: left 520ms ease;
-}
-
-.psy-button:hover::before {
-  left: 118%;
+  transition: transform 160ms var(--psy-ease-out), box-shadow 150ms ease, background-color 150ms ease;
 }
 
 .psy-button:active {
@@ -534,7 +583,7 @@ code, .psy-mono {
 }
 
 .psy-reveal {
-  animation: psy-page-rise var(--psy-motion-section) both;
+  animation: psy-page-fade 150ms var(--psy-ease-out) backwards;
 }
 
 .mat-mdc-card {
@@ -556,9 +605,8 @@ code, .psy-mono {
   background: rgba(79, 124, 172, .06) !important;
 }
 
-@keyframes psy-page-rise {
-  from { opacity: 0; transform: translateY(18px); filter: blur(10px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+@keyframes psy-page-fade {
+  from { opacity: 0; }
 }
 
 @keyframes psy-card-rise {
@@ -670,6 +718,12 @@ body.siep-scroll-locked {
   outline-offset: 3px;
 }
 
+/* Destino de los enlaces de salto: recibe el foco por script, sin contorno de control. */
+main[tabindex="-1"]:focus,
+#main-content:focus {
+  outline: none;
+}
+
 /** Focus indicator: high-contrast for keyboard users (light surfaces). */
 :focus-visible {
   outline: 3px solid var(--psy-focus);
@@ -686,6 +740,11 @@ body.game-mode :focus-visible {
   outline: 2px solid #C9B3FF;
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/** Eyebrow sobre las tarjetas oscuras del simulador: #B69CFF = 7,7:1 sobre #12182A. */
+body.game-mode .psy-eyebrow {
+  color: #B69CFF;
 }
 
 /** AA contrast fix: psy-muted is #687A86 on white bg = 4.03:1. Darkened to 4.5:1+. */

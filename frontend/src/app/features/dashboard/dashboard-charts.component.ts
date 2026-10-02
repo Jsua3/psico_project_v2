@@ -6,6 +6,8 @@ import {
   ChartBar,
   ChartPoint,
   DecisionSlice,
+  attemptStatusBars,
+  caseCompletionBars,
   chartHasData as seriesHasData,
   lineChartPath as buildLinePath,
   ringProgress as toRingProgress
@@ -78,16 +80,7 @@ export class DashboardChartsComponent {
       return items.map(i => ({ ...i, max }));
     }
 
-    const completed = attempts.filter(a => a.status === 'COMPLETED' || a.status === 'SAFE_EXITED').length;
-    const inProgress = attempts.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED').length;
-    const other = attempts.length - completed - inProgress;
-    const items = [
-      { label: 'Completados', value: completed, tone: 'green' as const },
-      { label: 'En curso', value: inProgress, tone: 'purple' as const },
-      { label: 'Otros', value: other, tone: 'blue' as const }
-    ];
-    const max = Math.max(...items.map(i => i.value), 1);
-    return items.map(i => ({ ...i, max }));
+    return attemptStatusBars(attempts);
   }
 
   adminWeeklyChart(): ChartBar[] {
@@ -149,7 +142,7 @@ export class DashboardChartsComponent {
         label: label.length > 16 ? label.slice(0, 16) + '…' : label,
         value,
         max: Math.max(...criticasByCase.values(), 1),
-        tone: 'orange' as const
+        tone: 'blue' as const
       }))
       .slice(0, 5);
 
@@ -176,25 +169,7 @@ export class DashboardChartsComponent {
   }
 
   studentCaseProgressChart(): ChartBar[] {
-    const history = this.studentHistory();
-    if (!history.length) return [];
-
-    const byCase = new Map<string, { completed: number; total: number }>();
-    for (const attempt of history) {
-      const current = byCase.get(attempt.caseTitle) ?? { completed: 0, total: 0 };
-      current.total += 1;
-      if (attempt.status === 'COMPLETED' || attempt.status === 'SAFE_EXITED') current.completed += 1;
-      byCase.set(attempt.caseTitle, current);
-    }
-
-    return [...byCase.entries()]
-      .slice(0, 5)
-      .map(([label, stats]) => ({
-        label: label.length > 14 ? label.slice(0, 14) + '…' : label,
-        value: stats.total ? Math.round((stats.completed / stats.total) * 100) : 0,
-        max: 100,
-        tone: 'purple' as const
-      }));
+    return caseCompletionBars(this.studentHistory());
   }
 
   studentDecisionChart(): DecisionSlice[] {
