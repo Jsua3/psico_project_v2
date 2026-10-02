@@ -1,0 +1,29 @@
+{
+  "id": "valentina",
+  "displayName": "Valentina",
+  "complexion": "a",
+  "pieces": {
+    "hair": "bob-flequillo",
+    "face": "neutral",
+    "top": "chaqueta-capucha",
+    "bottom": "jean",
+    "shoes": "tenis"
+  },
+  "colors": {
+    "skin": "piel-1",
+    "hair": "castano-oscuro",
+    "top": "verde",
+    "accent": "azul",
+    "inner": "blanco",
+    "bottom": "marino",
+    "shoes": "carbon",
+    "sole": "gris-claro"
+  },
+  "literals": {
+    "eye": "#211e2b",
+    "blush": "#efb0b8",
+    "eyeWhite": "#f1f2f4",
+    "iris": "#623b2d",
+    "shine": "#ffffff"
+  }
+}
