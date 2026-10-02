@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
-import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
+import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage } from './world-editor/room-edit.util';
 import { KenneyCharFrames, KenneyDungeonFrames } from './kenney-frames.constants';
 import {
@@ -88,7 +88,7 @@ import { createV1WalkAnimations } from './phaser-avatar-renderer';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
-import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, roomEntryFlash, vignetteFrame } from './game-feel.util';
+import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
@@ -559,6 +559,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   setStressLevel(level: number) {
     this.stressLevel = level;
     this.applyCrisisState();
+  }
+
+  /** Sacudida de cámara por una decisión de alto impacto (nada con movimiento reducido). */
+  playDecisionImpact(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
+    const shake = decisionShake(feedback, this.callbacks.reduceMotion);
+    if (shake && this.ready) this.cameras.main.shake(shake.durationMs, shake.intensity);
   }
 
   setSfxMuted(muted: boolean) {
@@ -1788,7 +1794,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private playPendingRoomFlash(): void {
     const flash = this.pendingRoomFlash;
     this.pendingRoomFlash = null;
-    if (flash) this.cameras.main.flash(flash.durationMs, ...flash.rgb);
+    // Se decidió antes del render: si entre tanto se activó el movimiento reducido, no destella.
+    if (flash && !this.callbacks.reduceMotion) this.cameras.main.flash(flash.durationMs, ...flash.rgb);
   }
 
   private renderCollisionZone(zone: CollisionZoneState) {
@@ -2588,6 +2595,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
+  playDecisionImpact(feedback: SimulationFeedback | null) { this.scene?.playDecisionImpact(feedback); }
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
     this.scene?.updatePatientVisualState(state);
   }

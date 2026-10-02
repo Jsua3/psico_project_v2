@@ -252,6 +252,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
                 [reduceMotion]="reduceMotion()"
+                [stressLevel]="attempt()?.stressIndex ?? 0"
                 (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
@@ -1466,7 +1467,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playSfx('session_complete');
           }
           if (updated.feedback) {
-            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
+            window.setTimeout(() => {
+              this.gameWorld?.playDecisionImpact(updated.feedback!);
+              this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!));
+            }, 400);
           }
         },
         error: () => { this.showActionError('No pudimos ejecutar la intervención.'); this.busy.set(false); this.fadeActive.set(false); }

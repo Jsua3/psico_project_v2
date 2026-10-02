@@ -40,4 +40,13 @@ describe('game-world: game feel del bloque B', () => {
   it('la viñeta de crisis se pinta en el rectángulo visible, compensando el zoom de la cámara', () => {
     expect(source).toMatch(/private applyCrisisVignette\(\): void \{[\s\S]*?const frame = vignetteFrame\(cam\.width, cam\.height, cam\.zoom\);[\s\S]*?g\.strokeRect\(frame\.x \+ i, frame\.y \+ i, frame\.width - i \* 2, frame\.height - i \* 2\);/);
   });
+
+  it('un destello ya decidido no se dispara si entre tanto se activó el movimiento reducido', () => {
+    expect(source).toContain('if (flash && !this.callbacks.reduceMotion) this.cameras.main.flash(flash.durationMs, ...flash.rgb);');
+  });
+
+  it('la sacudida por decisión la decide decisionShake y solo con la escena lista', () => {
+    expect(source).toMatch(/playDecisionImpact\(feedback: Pick<SimulationFeedback, 'classification' \| 'prohibitedConduct'> \| null\): void \{\s*const shake = decisionShake\(feedback, this\.callbacks\.reduceMotion\);\s*if \(shake && this\.ready\) this\.cameras\.main\.shake\(shake\.durationMs, shake\.intensity\);/);
+    expect(source).toMatch(/\n  playDecisionImpact\(feedback: SimulationFeedback \| null\) \{ this\.scene\?\.playDecisionImpact\(feedback\); \}/);
+  });
 });
