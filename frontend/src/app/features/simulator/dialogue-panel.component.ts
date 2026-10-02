@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
+import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
@@ -385,6 +385,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly interaction = input<MapObjectState | null>(null);
   /** 'cinematic' = franja inferior a lo ancho; 'side' = columna en panel derecho. */
   readonly mode        = input<'cinematic' | 'side'>('cinematic');
+  /** Movimiento reducido del juego (interruptor del HUD o preferencia del sistema): la línea aparece completa, sin máquina de escribir. */
+  readonly reduceMotion = input(false);
 
   readonly close   = output<void>();
   readonly execute = output<number>();
@@ -568,6 +570,13 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   private startTypewriter(text: string) {
+    // `untracked`: el efecto del constructor llama aquí y no debe reiniciar el diálogo cuando cambia el interruptor.
+    if (untracked(() => this.reduceMotion())) {
+      this.displayedText.set(text);
+      this.isTypingComplete.set(true);
+      this.requestDialogueFocus();
+      return;
+    }
     this.displayedText.set('');
     this.isTypingComplete.set(false);
     this.requestDialogueFocus();

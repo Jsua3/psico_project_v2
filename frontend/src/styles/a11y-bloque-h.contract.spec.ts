@@ -104,3 +104,11 @@ describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
     expect(dag).toMatch(/\(keydown\.enter\)="selectNode\(ln\.node\)"\s*\(keydown\.space\)="\$event\.preventDefault\(\); selectNode\(ln\.node\)">/);
   });
 });
+
+describe('bloque H: el diálogo recibe el interruptor de movimiento reducido', () => {
+  it('las dos instancias del panel en la partida reciben reduceMotion', () => {
+    const tags = source('../app/features/simulator/simulation-play.component.ts').match(/<app-dialogue-panel[^>]*?\/>/g) ?? [];
+    expect(tags).toHaveLength(2);
+    for (const tag of tags) expect(tag).toContain('[reduceMotion]="reduceMotion()"');
+  });
+});

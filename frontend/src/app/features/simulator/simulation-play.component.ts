@@ -278,7 +278,7 @@ const CASE_INTRO_PARAGRAPHS = [
                     aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
                 }
               </header>
-              <app-dialogue-panel class="dialogue-side" mode="side"
+              <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
                 (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -319,7 +319,7 @@ const CASE_INTRO_PARAGRAPHS = [
         </footer>
 
         @if (viewMode() === 'dialogue-cinematic') {
-          <app-dialogue-panel class="dialogue-cinematic" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
             (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
         }
