@@ -20,6 +20,7 @@ import {
   useToolChoice,
   waitForWorldReady,
 } from './support/siep-flow';
+import { scaled } from './support/time-scale';
 
 type RequiredViewport = (typeof REQUIRED_VIEWPORTS)[number];
 
@@ -28,14 +29,14 @@ async function completeFullCase(
   testInfo: TestInfo,
   viewport: RequiredViewport,
 ): Promise<void> {
-  // Holgura para el runner del CI (sin GPU): ahí el caso tarda ~3-4x más que en local.
-  testInfo.setTimeout(600_000);
+  // 1,6-2,9 min en local; con E2E_TIME_SCALE=4 (runner sin GPU) son 20 min.
+  testInfo.setTimeout(scaled(300_000));
   const input = createWorldInputDriver(page, viewport.inputMode);
 
   await page.goto('/login');
   await loginStudent(page);
   await page.goto('/portal/jugar');
-  await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: scaled(30_000) });
 
   const consent = await enterCaseAtContentWarning(page);
   const introVideo = await acceptContentWarning(page, consent);
@@ -101,7 +102,7 @@ async function completeFullCase(
   expect(paused.pausedAttempt.status).toBe('PAUSED');
   expect(paused.pausedAttempt.currentNode.key).toBe('hospital-sala-escucha');
   expect(paused.pausedAttempt.clinicalState.papApplied).toBe(true);
-  await expect(page.getByRole('alertdialog', { name: /pausa/i })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('alertdialog', { name: /pausa/i })).toBeVisible({ timeout: scaled(30_000) });
 
   const resumed = await reloadAndResumeAttempt(page, 'PAUSED', 'hospital-sala-escucha');
   expect(resumed.activeAttempt.attemptId).toBe(attemptId);
@@ -220,7 +221,7 @@ async function completeFullCase(
   expect(decision.completionReport.metrics.institutionalRouteActivated).toBe(true);
 
   const outcome = page.getByRole('alertdialog', { name: /intento finalizado/i });
-  await expect(outcome).toBeVisible({ timeout: 30_000 });
+  await expect(outcome).toBeVisible({ timeout: scaled(30_000) });
   await expect(outcome.getByText('Recomendadas: 6')).toBeVisible();
   await expect(outcome.getByText(/métricas del caso/i)).toBeVisible();
   const scoreMetric = outcome.locator('.oc-metric').filter({ hasText: /puntaje total/i });

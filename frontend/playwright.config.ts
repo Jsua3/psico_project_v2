@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { scaled } from './e2e/support/time-scale';
+
 /**
  * Suite E2E de SIEP. Corre contra el stack AISLADO que levanta
  * `npm run test:e2e` (scripts/test-e2e.mjs): BD desechable + Django de test +
@@ -9,11 +11,15 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * workers: 1 — los flujos comparten estudiante/intento sembrados; en paralelo
  * los prompts de reanudación/consentimiento se pisarían entre tests.
+ *
+ * Plazos escalados con E2E_TIME_SCALE (e2e/support/time-scale.ts): 1 en
+ * local, más en runners lentos.
  */
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.e2e.ts',
-  timeout: 45_000,
+  timeout: scaled(45_000),
+  expect: { timeout: scaled(5_000) },
   workers: 1,
   // Artefactos (screenshots/traces) fuera del árbol versionado (gitignored).
   outputDir: process.env.E2E_ARTIFACTS_DIR ?? './test-results',

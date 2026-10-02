@@ -1,5 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { scaled } from './support/time-scale';
+
 /**
  * CAST-01 / GAME-09 — lobby con identidad real y entrada fiable.
  *
@@ -42,7 +44,7 @@ test('el lobby carga la hoja del elenco (no el placeholder) y sin errores', asyn
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
 
-  await expect.poll(() => castRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect.poll(() => castRequests.length, { timeout: scaled(10_000) }).toBeGreaterThan(0);
   expect(castRequests.some(url => url.includes('/cast/david.png'))).toBe(true);
   expect(consoleErrors).toEqual([]);
 });
@@ -61,7 +63,7 @@ test('castId inválido cae al modular sin errores de consola', async ({ page }) 
   });
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
-  await expect.poll(() => modularRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect.poll(() => modularRequests.length, { timeout: scaled(10_000) }).toBeGreaterThan(0);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -83,7 +85,7 @@ test('la tecla E con el canvas enfocado entra al caso', async ({ page }) => {
   // click en otro punto del suelo lo haría caminar hacia allá (tap-to-walk).
   await page.locator('.phaser-host').click({ position: { x: 293, y: 509 } });
   await page.keyboard.press('e');
-  await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: 10_000 });
+  await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(10_000) });
 });
 
 test('no quedan controles enfocables ocultos en el lobby', async ({ page }) => {

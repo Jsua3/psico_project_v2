@@ -105,8 +105,20 @@ def _require_nearby(world_state, map_object, what="el objeto"):
         raise ValidationError(f"Estás demasiado lejos de {what} para interactuar")
 
 
-def _position_blocked(scene_map_id, x, y):
-    """¿El hitbox completo de pies solapa la geometría autoritativa del mapa?"""
+def _picked_up(map_object, inventory):
+    """Herramienta ya recogida: sale del mundo (DTO y geometría que bloquea)."""
+    return (map_object.object_type == "TOOL" and bool(map_object.tool_code)
+            and map_object.tool_code in inventory)
+
+
+def _position_blocked(world_state, x, y):
+    """¿El hitbox completo de pies solapa la geometría autoritativa del mapa?
+
+    Solo cuenta lo que el mundo expone al cliente (_to_world_state): así el
+    frontend puede replicar exactamente esta regla y nunca proponer una
+    posición que el servidor rechace en silencio."""
+    scene_map_id = world_state.scene_map_id
+    inventory = set(_read_string_list(world_state.inventory_json))
     player_x, player_y, player_w, player_h = _player_hitbox(x, y)
     for zone in CollisionZone.objects.filter(scene_map_id=scene_map_id):
         if _rectangles_intersect(
@@ -115,6 +127,8 @@ def _position_blocked(scene_map_id, x, y):
         ):
             return True
     for obj in MapObject.objects.filter(scene_map_id=scene_map_id, collision=True, visible=True):
+        if _picked_up(obj, inventory):
+            continue
         if _rectangles_intersect(
             player_x, player_y, player_w, player_h,
             obj.position_x, obj.position_y, obj.width or 0, obj.height or 0,
@@ -175,7 +189,7 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
             and 0 <= hitbox_y and hitbox_y + hitbox_h <= map_h):
         raise ValidationError("La posición está fuera de los límites del mapa")
     _require_plausible_displacement(world_state, x, y)
-    if _position_blocked(world_state.scene_map_id, x, y):
+    if _position_blocked(world_state, x, y):
         raise ValidationError("La posición cae dentro de un obstáculo del mapa")
     world_state.player_x = x
     world_state.player_y = y
@@ -566,7 +580,7 @@ def _to_world_state(attempt, state):
             for o in MapObject.objects.filter(
                 scene_map_id=scene_map.id, visible=True
             ).order_by("id")
-            if not (o.object_type == "TOOL" and o.tool_code and o.tool_code in inventory_set)
+            if not _picked_up(o, inventory_set)
         ],
         "collisions": [
             _to_collision_zone(c)
