@@ -2,7 +2,7 @@
   <app-siep-particle-layer density="medium" [interactive]="true" mode="background"></app-siep-particle-layer>
   <div class="siep-login__glow" aria-hidden="true"></div>
 
-  <a href="/" routerLink="/" class="siep-login__back" aria-label="Volver al inicio">
+  <a href="/" routerLink="/" class="siep-login__back" [attr.aria-label]="'Volver al inicio, ' + brand.institution">
     <mat-icon aria-hidden="true">arrow_back</mat-icon>
     <span>{{ brand.institution }}</span>
   </a>
@@ -29,17 +29,17 @@
         <h1>Solicitar acceso</h1>
         <p class="auth-subtitle">Completa tus datos institucionales para solicitar la activación de tu cuenta.</p>
 
-        <input type="text" placeholder="Nombre" formControlName="nombre" autocomplete="given-name" />
+        <input type="text" placeholder="Nombre" aria-label="Nombre" formControlName="nombre" autocomplete="given-name" />
         @if (registerForm.controls.nombre.touched && registerForm.controls.nombre.hasError('required')) {
           <span class="auth-error" role="alert">El nombre es obligatorio.</span>
         }
 
-        <input type="text" placeholder="Apellido" formControlName="apellido" autocomplete="family-name" />
+        <input type="text" placeholder="Apellido" aria-label="Apellido" formControlName="apellido" autocomplete="family-name" />
         @if (registerForm.controls.apellido.touched && registerForm.controls.apellido.hasError('required')) {
           <span class="auth-error" role="alert">El apellido es obligatorio.</span>
         }
 
-        <input type="email" placeholder="Correo institucional" formControlName="email" autocomplete="email" />
+        <input type="email" placeholder="Correo institucional" aria-label="Correo institucional" formControlName="email" autocomplete="email" />
         @if (registerForm.controls.email.touched && registerForm.controls.email.hasError('required')) {
           <span class="auth-error" role="alert">El correo es obligatorio.</span>
         }
@@ -77,7 +77,7 @@
         <h1>Iniciar sesión</h1>
         <p class="auth-subtitle">Selecciona tu perfil e ingresa con tu correo institucional.</p>
 
-        <div class="auth-role-picker" role="radiogroup" aria-label="Seleccionar rol de acceso">
+        <div class="auth-role-picker" role="group" aria-label="Seleccionar rol de acceso">
           @for (role of roles; track role.id) {
             <button
               type="button"
