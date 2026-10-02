@@ -10,9 +10,8 @@ describe('game-world: game feel del bloque B', () => {
     expect(source).toMatch(/this\.scene = new DataDrivenWorldScene\(\{[\s\S]*?\}\);\s*this\.scene\.setStressLevel\(this\.stressLevel\(\)\);/);
   });
 
-  it('las dos rutas de render pintan la viñeta de crisis y el destello pendiente, también en salas con luz pintada', () => {
+  it('las dos rutas de render pintan la viñeta de crisis, también en salas con luz pintada', () => {
     expect(source.match(/\n {4}this\.applyCrisisVignette\(\);/g) ?? []).toHaveLength(2);
-    expect(source.match(/\n {4}this\.playPendingRoomFlash\(\);/g) ?? []).toHaveLength(2);
   });
 
   it('el destello se decide solo donde se cambia de sala de verdad', () => {
@@ -30,23 +29,32 @@ describe('game-world: game feel del bloque B', () => {
 
   it('activar movimiento reducido reaplica la crisis y el destello pendiente se consume una sola vez', () => {
     expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;\s*this\.applyCrisisState\(\);\s*\}/);
-    expect(source).toMatch(/private playPendingRoomFlash\(\): void \{\s*const flash = this\.pendingRoomFlash;\s*this\.pendingRoomFlash = null;/);
+    expect(source).toMatch(/\n  playPendingRoomFlash\(\): void \{\s*const flash = this\.pendingRoomFlash;\s*this\.pendingRoomFlash = null;/);
   });
 
-  it('la sala única con renderer registrado también pinta la crisis y el destello', () => {
-    expect(source).toMatch(/\n {6}this\.buildGuide\(\);\s*this\.applyCrisisVignette\(\);\s*this\.playPendingRoomFlash\(\);\s*this\.playIntroFade\(\);\s*this\.callbacks\.onReady\(\);\s*return;/);
+  it('la sala única con renderer registrado también pinta la crisis', () => {
+    expect(source).toMatch(/\n {6}this\.buildGuide\(\);\s*this\.applyCrisisVignette\(\);\s*this\.playIntroFade\(\);\s*this\.callbacks\.onReady\(\);\s*return;/);
+  });
+
+  it('ningún render dispara el destello: espera a que la sala se vea', () => {
+    // Única llamada dentro de la escena: el fin del fundido de cámara de la salida cliente.
+    expect(source.match(/this\.playPendingRoomFlash\(\)/g) ?? []).toHaveLength(1);
+    expect(source).toMatch(/this\.cameras\.main\.fadeIn\(180, 0, 0, 0\);[\s\S]{0,200}this\.cameras\.main\.once\('camerafadeincomplete', \(\) => this\.playPendingRoomFlash\(\)\);/);
+    // Angular lo pide al retirar su fundido de escena.
+    expect(source).toMatch(/\n  playPendingRoomFlash\(\) \{ this\.scene\?\.playPendingRoomFlash\(\); \}/);
   });
 
   it('la viñeta de crisis se pinta en el rectángulo visible, compensando el zoom de la cámara', () => {
     expect(source).toMatch(/private applyCrisisVignette\(\): void \{[\s\S]*?const frame = vignetteFrame\(cam\.width, cam\.height, cam\.zoom\);[\s\S]*?g\.strokeRect\(frame\.x \+ i, frame\.y \+ i, frame\.width - i \* 2, frame\.height - i \* 2\);/);
   });
 
-  it('un destello ya decidido no se dispara si entre tanto se activó el movimiento reducido', () => {
-    expect(source).toContain('if (flash && !this.callbacks.reduceMotion) this.cameras.main.flash(flash.durationMs, ...flash.rgb);');
+  it('un destello ya decidido no se dispara con movimiento reducido ni con la escena destruida, y es suave', () => {
+    expect(source).toContain('if (!flash || this.callbacks.reduceMotion || !this.ready || !this.cameras?.main) return;');
+    expect(source).toMatch(/cam\.flashEffect\.alpha = flash\.peakAlpha;\s*cam\.flash\(flash\.durationMs, \.\.\.flash\.rgb\);/);
   });
 
   it('la sacudida por decisión la decide decisionShake y solo con la escena lista', () => {
-    expect(source).toMatch(/playDecisionImpact\(feedback: Pick<SimulationFeedback, 'classification' \| 'prohibitedConduct'> \| null\): void \{\s*const shake = decisionShake\(feedback, this\.callbacks\.reduceMotion\);\s*if \(shake && this\.ready\) this\.cameras\.main\.shake\(shake\.durationMs, shake\.intensity\);/);
+    expect(source).toMatch(/playDecisionImpact\(feedback: Pick<SimulationFeedback, 'classification' \| 'prohibitedConduct'> \| null\): void \{\s*const shake = decisionShake\(feedback, this\.callbacks\.reduceMotion\);\s*if \(shake && this\.ready && this\.cameras\?\.main\) this\.cameras\.main\.shake\(shake\.durationMs, shake\.intensity\);/);
     expect(source).toMatch(/\n  playDecisionImpact\(feedback: SimulationFeedback \| null\) \{ this\.scene\?\.playDecisionImpact\(feedback\); \}/);
   });
 });

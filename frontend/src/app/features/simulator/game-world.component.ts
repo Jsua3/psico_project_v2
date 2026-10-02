@@ -564,7 +564,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Sacudida de cámara por una decisión de alto impacto (nada con movimiento reducido). */
   playDecisionImpact(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
     const shake = decisionShake(feedback, this.callbacks.reduceMotion);
-    if (shake && this.ready) this.cameras.main.shake(shake.durationMs, shake.intensity);
+    if (shake && this.ready && this.cameras?.main) this.cameras.main.shake(shake.durationMs, shake.intensity);
   }
 
   setSfxMuted(muted: boolean) {
@@ -592,6 +592,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.renderRoom(roomConfig, entryX, entryY);
       this.cameras.main.fadeIn(180, 0, 0, 0);
+      // El destello espera a que el fundido deje ver la sala: debajo de él no se percibe.
+      this.cameras.main.once('camerafadeincomplete', () => this.playPendingRoomFlash());
     });
   }
 
@@ -889,7 +891,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.updateNearestInteraction(true);
       this.buildGuide();
       this.applyCrisisVignette();
-      this.playPendingRoomFlash();
       this.playIntroFade();
       this.callbacks.onReady();
       return;
@@ -989,7 +990,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.buildGuide();
     this.applyLightingOverlay();
     this.applyCrisisVignette();
-    this.playPendingRoomFlash();
     this.playIntroFade();
     this.callbacks.onReady();
   }
@@ -1142,7 +1142,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // genérica solo ensuciaría/oscurecería la escena premium.
     if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
     this.applyCrisisVignette();
-    this.playPendingRoomFlash();
     this.playIntroFade();
     this.callbacks.onReady();
   }
@@ -1791,11 +1790,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
-  private playPendingRoomFlash(): void {
+  /**
+   * Dispara el destello decidido al cambiar de sala. Lo llama quien sabe que la sala ya se ve:
+   * el fin del fundido de cámara (salida cliente) o Angular al retirar su fundido de escena.
+   */
+  playPendingRoomFlash(): void {
     const flash = this.pendingRoomFlash;
     this.pendingRoomFlash = null;
-    // Se decidió antes del render: si entre tanto se activó el movimiento reducido, no destella.
-    if (flash && !this.callbacks.reduceMotion) this.cameras.main.flash(flash.durationMs, ...flash.rgb);
+    // Se decidió antes de verse la sala: nada si entre tanto se activó el movimiento reducido
+    // o la escena ya no existe (cambio de ruta con un temporizador pendiente).
+    if (!flash || this.callbacks.reduceMotion || !this.ready || !this.cameras?.main) return;
+    const cam = this.cameras.main;
+    cam.flashEffect.alpha = flash.peakAlpha;
+    cam.flash(flash.durationMs, ...flash.rgb);
   }
 
   private renderCollisionZone(zone: CollisionZoneState) {
@@ -2596,6 +2603,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
   playDecisionImpact(feedback: SimulationFeedback | null) { this.scene?.playDecisionImpact(feedback); }
+  playPendingRoomFlash() { this.scene?.playPendingRoomFlash(); }
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
     this.scene?.updatePatientVisualState(state);
   }

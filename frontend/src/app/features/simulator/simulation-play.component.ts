@@ -41,6 +41,8 @@ import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 
+/** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
+const SCENE_FADE_MS = 320;
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -1305,6 +1307,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private doorNoticeTimer: number | null = null;
+  /** Sacudida por decisión, pendiente hasta que el fundido de escena deje ver el mundo. */
+  private pendingDecisionImpact: SimulationFeedback | null = null;
 
   private showDoorNotice(message: string): void {
     this.doorNotice.set(message);
@@ -1466,11 +1470,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.audioDirector.playResolution();
             this.audioDirector.playSfx('session_complete');
           }
+          this.pendingDecisionImpact = updated.feedback ?? null;
           if (updated.feedback) {
-            window.setTimeout(() => {
-              this.gameWorld?.playDecisionImpact(updated.feedback!);
-              this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!));
-            }, 400);
+            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
         error: () => { this.showActionError('No pudimos ejecutar la intervención.'); this.busy.set(false); this.fadeActive.set(false); }
@@ -1808,6 +1810,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(callback, 340);
   }
 
+  /** Programa los efectos de cámara para cuando el fundido de escena ya dejó ver el mundo. */
+  private scheduleRevealEffects(): void {
+    window.setTimeout(() => this.playRevealEffects(), SCENE_FADE_MS);
+  }
+
+  private playRevealEffects(): void {
+    const impact = this.pendingDecisionImpact;
+    this.pendingDecisionImpact = null;
+    this.gameWorld?.playPendingRoomFlash();
+    if (impact) this.gameWorld?.playDecisionImpact(impact);
+  }
+
   private loadProgressMap(attempt: SimulationAttemptState) {
     this.simulationService.getProgressMap(attempt.attemptId, attempt.attemptToken).subscribe({
       next: map => this.progressMap.set(map),
@@ -1820,6 +1834,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
+        this.pendingDecisionImpact = null;
         this.loading.set(false);
         this.busy.set(false);
         this.fadeActive.set(false);
@@ -1853,7 +1868,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
-    window.setTimeout(() => this.fadeActive.set(false), 80);
+    window.setTimeout(() => {
+      this.fadeActive.set(false);
+      this.scheduleRevealEffects();
+    }, 80);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
@@ -2038,7 +2056,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         next: updated => {
           this.lastSyncedPosition = synced;
           const current = this.world();
-          if (!current || updated.map.key !== current.map.key) this.world.set(updated);
+          if (!current || updated.map.key !== current.map.key) {
+            this.world.set(updated);
+            this.scheduleRevealEffects();
+          }
         },
         error: () => undefined,
       });

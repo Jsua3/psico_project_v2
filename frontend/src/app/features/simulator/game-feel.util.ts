@@ -15,7 +15,12 @@ export interface CrisisVignetteState {
 }
 
 export interface CameraShake { durationMs: number; intensity: number; }
-export interface CameraFlash { durationMs: number; rgb: [number, number, number]; }
+export interface CameraFlash {
+  durationMs: number;
+  rgb: [number, number, number];
+  /** Opacidad con la que arranca el destello (decae hasta 0); menos de 1 = destello suave. */
+  peakAlpha: number;
+}
 export interface VignetteFrame { x: number; y: number; width: number; height: number; }
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -59,7 +64,7 @@ export function roomEntryFlash(
   reduceMotion: boolean,
 ): CameraFlash | null {
   if (reduceMotion || !previousKey || previousKey === nextKey) return null;
-  return { durationMs: 120, rgb: [214, 222, 236] };
+  return { durationMs: 120, rgb: [214, 222, 236], peakAlpha: 0.45 };
 }
 
 /**

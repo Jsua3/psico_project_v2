@@ -56,7 +56,7 @@ describe('game-feel.util', () => {
   describe('roomEntryFlash', () => {
     it('destella al pasar a otra sala', () => {
       expect(roomEntryFlash('hospital-urgencias', 'hospital-sala-escucha', false))
-        .toEqual({ durationMs: 120, rgb: [214, 222, 236] });
+        .toEqual({ durationMs: 120, rgb: [214, 222, 236], peakAlpha: 0.45 });
     });
 
     it('no destella en la primera escena, al repintar la misma sala ni con movimiento reducido', () => {
