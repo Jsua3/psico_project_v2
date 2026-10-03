@@ -562,7 +562,8 @@ const CASE_INTRO_PARAGRAPHS = [
       width: min(560px, calc(100% - 24px));
     }
     @media (min-width: 1100px) {
-      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(520px, calc(100% - 488px)); }
+      /* 380 px: más ancha tapaba la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
+      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(380px, calc(100% - 488px)); }
     }
     /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de «Qué hacer». */
     @media (max-width: 760px) {
