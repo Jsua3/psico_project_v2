@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 // Mismo andamiaje que game-world.collision.spec.ts: Phaser toca canvas/WebGL al importarse (jsdom no lo
 // soporta). Solo se evalúa `extends Phaser.Scene`; la escena nunca arranca aquí: se le dan dobles mínimos.
 jest.mock('phaser', () => ({
@@ -60,6 +63,9 @@ interface SceneProbe {
   setOrientation(next: { nextTargetKey: string | null; doorStates: Record<string, 'open' | 'locked'>; dimmedKeys: ReadonlySet<string> }): void;
   setCompactLabels(compact: boolean): void;
   ready: boolean;
+  ambientMovers: Map<string, unknown>;
+  npcMovers: Map<string, unknown>;
+  followLabels: string[];
 }
 
 const objectState = (key: string, type: MapObjectState['type'], x: number, y: number): MapObjectState => ({
@@ -95,6 +101,7 @@ function crearEscena(player = { x: 480, y: 430 }): Harness {
   scene.sound = { play: jest.fn() };
   scene.markers = new Map(); scene.markerData = new Map(); scene.markerLabels = new Map();
   scene.doorHints = new Map(); scene.npcMarkers = new Map();
+  scene.ambientMovers = new Map(); scene.npcMovers = new Map();
   scene.ready = true;
   const nodes: Record<string, FakeNode> = {};
   const addMarker = (obj: MapObjectState) => {
@@ -114,7 +121,8 @@ function crearEscena(player = { x: 480, y: 430 }): Harness {
   const addNpc = (cfg: NpcConfig) => {
     const container = node(cfg.x, cfg.y);
     container['__npcConfig'] = cfg;
-    container['__labelSprite'] = node(); container['__hintSprite'] = node();
+    const label = node(); label.displayHeight = 14;
+    container['__labelSprite'] = label; container['__hintSprite'] = node(); container['__labelOffsetY'] = -80;
     scene.npcMarkers.set(cfg.key, container);
     nodes[`npc:${cfg.key}`] = container;
   };
@@ -386,5 +394,58 @@ describe('DataDrivenWorldScene: destino, anillo, rótulos y atenuados', () => {
     h.scene.updateNearestInteraction(true);
     expect(h.nodes['tool-pap'].setAlpha.mock.calls.length).toBe(alphaCalls); // por cuadro no se repinta
     expect(h.scene.add.ellipse).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('DataDrivenWorldScene: los rótulos se dibujan sobre los actores y siguen a su dueño', () => {
+  const orient = (h: Harness, over: { nextTargetKey?: string | null } = {}) =>
+    h.scene.setOrientation({ nextTargetKey: over.nextTargetKey ?? null, doorStates: {}, dimmedKeys: new Set() });
+
+  it('el rótulo de una persona se coloca sobre su cabeza y su pista apilada encima del nombre', () => {
+    const h = crearEscena();
+    move(h, 559, 373);
+    const npc = h.nodes['npc:enfermera-urgencias'];
+    const label = npc['__labelSprite'] as FakeNode;
+    const hint = npc['__hintSprite'] as FakeNode;
+    expect(label.setPosition).toHaveBeenLastCalledWith(560, 330 - 80);
+    expect(hint.setPosition).toHaveBeenLastCalledWith(560, 330 - 80 - 14 - 2);
+    expect(label.alpha).toBe(1);
+    expect(hint.alpha).toBe(1);
+  });
+
+  it('el rótulo de un marcador se coloca bajo el icono en su posición de reposo, aunque el icono flote', () => {
+    const h = crearEscena();
+    orient(h, { nextTargetKey: 'tool-pap' });
+    const label = h.nodes['tool-pap#label'];
+    expect([label.x, label.y]).toEqual([318, 412 + 28]);
+    h.nodes['tool-pap'].y = 409; // flotación del tween
+    move(h, 330, 420);
+    expect([label.x, label.y]).toEqual([318, 412 + 28]);
+  });
+
+  it('solo el rótulo de quien se desplaza se recoloca por cuadro', () => {
+    const h = crearEscena();
+    move(h, 559, 373);
+    expect(h.scene.followLabels).toEqual([]); // la enfermera está quieta: nada que seguir por cuadro
+    h.scene.npcMovers.set('enfermera-urgencias', {});
+    move(h, 558, 373);
+    h.callbacks.onProximity.mockClear();
+    // un cambio del conjunto visible reconstruye la lista de seguimiento
+    move(h, 480, 430);
+    move(h, 559, 373);
+    expect(h.scene.followLabels).toEqual(['npc:enfermera-urgencias']);
+    const npc = h.nodes['npc:enfermera-urgencias'];
+    const label = npc['__labelSprite'] as FakeNode;
+    npc.x = 566; npc.y = 331; // camina
+    h.scene.updateNearestInteraction(true);
+    expect([label.x, label.y]).toEqual([566, 331 - 80]);
+  });
+
+  it('los rótulos de marcadores y personas viven fuera de sus contenedores (sobre los actores)', () => {
+    const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
+    expect(source).toContain('const LABEL_DEPTH = DEPTH.UI - 1;');
+    expect(source).toMatch(/const marker = this\.add\.container\(object\.x, object\.y, \[markerShadow, pulse, main\]\);/);
+    expect(source).not.toMatch(/this\.add\.container\([^)]*\[[^\]]*\blabel\b[^\]]*\]\)/);
+    expect(source.match(/\.setDepth\(LABEL_DEPTH\)/g) ?? []).toHaveLength(3);
   });
 });

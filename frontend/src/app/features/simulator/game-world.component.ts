@@ -164,6 +164,8 @@ const DOOR_SPRITE_SCALE = 1.45;
 /** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
 const DOOR_SPRITE_FEET_Y = 16;
 
+/** Profundidad de los rótulos del mundo: sobre todos los actores y bajo los rótulos de puerta (UI). */
+const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
@@ -260,6 +262,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private revealed: string[] = [];
   private revealScratch: string[] = [];
   private readonly npcKeys = new Map<string, string>();
+  /** Claves de los rótulos visibles cuyo dueño se desplaza: son los únicos que se recolocan por cuadro. */
+  private readonly followLabels: string[] = [];
   private ready = false;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
@@ -1547,17 +1551,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         if (baseTint != null) npcSprite.setTint(baseTint);
 
         const headY = spriteOffsetY - Math.round((AVATAR_FRAME_HEIGHT / 2) * scale);
-        const label = this.add.text(0, headY - 4, npc.displayName, {
-          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-          backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
-        }).setOrigin(0.5, 1).setAlpha(0);
-        const hint = this.add.text(0, headY - 18, this.npcHintGlyph(), {
-          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
-          fontStyle: 'bold', align: 'center',
-        }).setOrigin(0.5, 1).setAlpha(0);
-        this.layoutNpcLabel(label, hint);
+        const { label, hint } = this.createNpcLabels(npc, pos, headY - 4);
 
-        const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, npcSprite, label, hint]);
+        const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, npcSprite]);
         this.setFeetOffset(container, 0);   // pies = origen del contenedor
         this.npcMarkers.set(npc.key, container);
         this.registerLivingActor(`npc-${npc.key}`, npcSprite,
@@ -1566,6 +1562,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         bag['__npcConfig'] = npc;
         bag['__hintSprite'] = hint;
         bag['__labelSprite'] = label;
+        bag['__labelOffsetY'] = headY - 4;
         bag['__npcSprite'] = npcSprite;
         bag['__npcPreset'] = presetKey;
         bag['__npcBaseTint'] = baseTint;
@@ -1593,24 +1590,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
       // Nombre oculto hasta estar en rango: la escena no debe leerse como un
       // diagrama etiquetado (`refreshMarkerStates` lo muestra junto a la pista cuando toca).
-      const label = this.add.text(0, -28, npc.displayName, {
-        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
-      }).setOrigin(0.5, 1).setAlpha(0);
+      const { label, hint } = this.createNpcLabels(npc, pos, -28);
 
-      const hint = this.add.text(0, -42, this.npcHintGlyph(), {
-        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
-        fontStyle: 'bold', align: 'center',
-      }).setOrigin(0.5, 1).setAlpha(0);
-      this.layoutNpcLabel(label, hint);
-
-      const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, sprite, label, hint]);
+      const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, sprite]);
       this.setFeetOffset(container, shY);   // la sombra marca los pies del NPC
       this.npcMarkers.set(npc.key, container);
       const bag = container as unknown as Record<string, unknown>;
       bag['__npcConfig'] = npc;
       bag['__hintSprite'] = hint;
       bag['__labelSprite'] = label;
+      bag['__labelOffsetY'] = -28;
       if (sprite instanceof Phaser.GameObjects.Sprite) bag['__npcSprite'] = sprite;
       this.registerNpcMover(npc, pos, null);
     }
@@ -1656,11 +1645,54 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
-  /** Escala el rótulo y la pista de una persona y apila la pista justo encima del nombre. */
-  private layoutNpcLabel(label: Phaser.GameObjects.Text, hint: Phaser.GameObjects.Text): void {
-    label.setScale(this.labelScale);
-    hint.setScale(this.labelScale);
+  /**
+   * Nombre y pista de una persona: objetos de la escena y no hijos de su contenedor, para dibujarse sobre
+   * todos los actores (el contenedor se ordena por su Y y un sprite de delante taparía el nombre). Nacen
+   * ocultos: la escena no debe leerse como un diagrama etiquetado; `refreshMarkerStates` los muestra y
+   * `placeLabel` los coloca cuando toca.
+   */
+  private createNpcLabels(
+    npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
+  ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
+    const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
+      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
+    }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
+    const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
+      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
+      fontStyle: 'bold', align: 'center',
+    }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     hint.setY(label.y - label.displayHeight - 2);
+    return { label, hint };
+  }
+
+  /**
+   * Coloca el rótulo (y la pista) de un candidato junto a su dueño: el de una persona encima de su cabeza
+   * con la pista apilada sobre el nombre; el de un marcador debajo del icono. Un marcador que flota
+   * suavemente usa su posición de reposo (el rótulo no tiembla); solo los que de verdad se desplazan
+   * (deambulan) usan la posición viva.
+   */
+  private placeLabel(key: string): void {
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const container = this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (!container) return;
+      const bag = container as unknown as Record<string, unknown>;
+      const label = bag['__labelSprite'] as Phaser.GameObjects.Text | undefined;
+      const hint = bag['__hintSprite'] as Phaser.GameObjects.Text | undefined;
+      const offsetY = (bag['__labelOffsetY'] as number | undefined) ?? 0;
+      if (!label) return;
+      if (label.x !== container.x || label.y !== container.y + offsetY) label.setPosition(container.x, container.y + offsetY);
+      hint?.setPosition(container.x, label.y - label.displayHeight - 2);
+      return;
+    }
+    const marker = this.markers.get(key);
+    const label = this.markerLabels.get(key);
+    const obj = this.markerData.get(key);
+    if (!marker || !label || !obj) return;
+    const moving = this.ambientMovers.has(key);
+    const x = moving ? marker.x : obj.x;
+    const y = (moving ? marker.y : obj.y) + 28;
+    if (label.x !== x || label.y !== y) label.setPosition(x, y);
   }
 
   /**
@@ -2121,10 +2153,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // El label nace oculto: la escena se lee por iconos/rings y el texto solo
     // aparece para la interacción cercana o seleccionada (refreshMarkerStates).
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
-    const label  = this.add.text(0, 28, displayLabel, {
+    // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
+    const label  = isExit ? null : this.add.text(object.x, object.y + 28, displayLabel, {
       fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
-    }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale);
+    }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
 
@@ -2190,11 +2223,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     // Sombra de contacto: el icono queda asentado en el piso, no flotando.
     const markerShadow = this.add.ellipse(0, 16, 26, 8, 0x000000, .2);
-    const marker = this.add.container(object.x, object.y, [markerShadow, pulse, main, label]);
+    const marker = this.add.container(object.x, object.y, [markerShadow, pulse, main]);
     this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
-    if (!isExit) this.markerLabels.set(object.key, label);
+    if (label) this.markerLabels.set(object.key, label);
     this.applyAmbientLife(marker, object);
 
     if (isExit) {
@@ -2599,6 +2632,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.callbacks.onProximityAlso(alsoKey ? this.proximityObjectFor(alsoKey) : null);
     }
     if (primaryChanged || alsoChanged || revealChanged) this.refreshMarkerStates();
+    // Casi siempre vacío: solo los rótulos visibles de quien camina o deambula siguen a su dueño.
+    for (let i = 0; i < this.followLabels.length; i++) this.placeLabel(this.followLabels[i]);
     // Play blip only when *entering* range (the primary changes to a key), not on every frame.
     // suppressSound=true on spawn/world-switch to avoid a false-positive blip on load.
     if (primaryChanged && primaryKey && !this.callbacks.reduceMotion && !this.callbacks.sfxMuted && !suppressSound) {
@@ -2640,20 +2675,32 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const revealed = this.revealed;
     this.syncTargetRing();
     this.applyDoorStates();
+    this.followLabels.length = 0;
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       m.setScale(sel ? 1.12 : near ? 1.08 : 1);
       m.setAlpha(sel || near ? 1 : this.dimmedKeys.has(key) ? DIMMED_ALPHA : .88);
       const label = this.markerLabels.get(key);
-      if (label) label.setAlpha(sel || near || revealed.includes(key) ? 1 : 0);
+      if (!label) return;
+      const shown = sel || near || revealed.includes(key);
+      label.setAlpha(shown ? 1 : 0);
+      if (shown) {
+        this.placeLabel(key);
+        if (this.ambientMovers.has(key)) this.followLabels.push(key);
+      }
     });
     this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey || revealed.includes(key)));
     this.npcMarkers.forEach((container, key) => {
       const candidateKey = this.npcKeyOf(key);
       const bag = container as unknown as Record<string, unknown>;
-      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setAlpha(revealed.includes(candidateKey) ? 1 : 0);
+      const shown = revealed.includes(candidateKey);
+      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setAlpha(shown ? 1 : 0);
       const inRange = candidateKey === this.nearestKey || candidateKey === this.alsoKey;
       (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setAlpha(inRange ? 1 : 0);
+      if (shown || inRange) {
+        this.placeLabel(candidateKey);
+        if (this.npcMovers.has(key)) this.followLabels.push(candidateKey);
+      }
     });
   }
 
@@ -2669,10 +2716,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;
-      const label = bag['__labelSprite'] as Phaser.GameObjects.Text | undefined;
-      const hint = bag['__hintSprite'] as Phaser.GameObjects.Text | undefined;
-      if (label && hint) this.layoutNpcLabel(label, hint);
+      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
+      (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
     });
+    // Con otro tamaño de rótulo hay que volver a colocarlos (la pista se apila según el alto del nombre).
+    if (this.world) this.refreshMarkerStates();
   }
 
   private borderFor(theme: string): number {
