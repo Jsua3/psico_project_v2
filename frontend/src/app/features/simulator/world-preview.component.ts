@@ -126,6 +126,7 @@ interface EphemeralScore {
               [dialogue]="dialogue()"
               [interaction]="selectedInteraction()"
               (close)="closeDialogue()"
+              (safeExit)="closeDialogue()"
               (execute)="simulateDecision($event)"
               (useTool)="simulateToolUse($event)" />
 

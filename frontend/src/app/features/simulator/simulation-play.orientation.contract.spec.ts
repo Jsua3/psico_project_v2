@@ -126,3 +126,35 @@ describe('ayuda (T9.8)', () => {
     expect(source).toMatch(/<footer class="bottom-zone" \[attr\.inert\]="inputBlocked\(\)/);
   });
 });
+
+describe('el cliente ya no recibe ni usa la clasificación de las opciones (T8.4)', () => {
+  const model = readFileSync(join(__dirname, '../../core/models/simulation.model.ts'), 'utf-8');
+  const block = (name: string) => model.match(new RegExp(`export interface ${name} \\{[\\s\\S]*?\\n\\}`))?.[0] ?? '';
+
+  it('SimulationDecisionOption solo trae id y texto', () => {
+    expect(block('SimulationDecisionOption')).toContain('id: number;');
+    expect(block('SimulationDecisionOption')).not.toMatch(/classification|prohibitedConduct/);
+  });
+
+  it('DialogueChoiceState no lleva ayudas visuales de «recomendada» ni «prohibida»', () => {
+    expect(block('DialogueChoiceState')).not.toMatch(/isRecommended|isProhibited/);
+  });
+
+  it('la pantalla de juego no los asigna', () => {
+    expect(source).not.toMatch(/isRecommended|isProhibited/);
+  });
+
+  it('el reporte de finalización trae retries (opcional, aparte de las decisiones registradas)', () => {
+    expect(block('AttemptCompletionReport')).toMatch(/retries\?: number;/);
+  });
+
+  it('el resultado y la pausa reciben los recursos de apoyo que ya muestra la bitácora', () => {
+    expect(source).toMatch(/<app-attempt-outcome[^>]*\[supportResources\]="supportResources\(\)"/);
+    expect(source).toMatch(/<app-journal-panel[\s\S]*?\[resources\]="supportResources\(\)"/);
+  });
+
+  it('la vista previa de autor cierra el diálogo con su salida segura (no hay intento que pausar)', () => {
+    const preview = readFileSync(join(__dirname, 'world-preview.component.ts'), 'utf-8');
+    expect(preview).toMatch(/<app-dialogue-panel[^>]*\(safeExit\)="closeDialogue\(\)"/);
+  });
+});

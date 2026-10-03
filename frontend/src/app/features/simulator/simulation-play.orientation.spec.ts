@@ -822,6 +822,67 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
+  describe('T9.11: supervisión sin números y herramienta sin «+0%»', () => {
+    const feedback = (extra: Record<string, unknown> = {}) => ({
+      classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
+      prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
+      message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false, ...extra,
+    });
+
+    function decide(fb: Record<string, unknown>): DialogueState | null {
+      component.attempt.set(makeAttempt('nodo-sin-evidencia'));
+      component.world.set(makeWorld('hospital-urgencias', []));
+      sim['chooseDecision'].mockReturnValue(of(makeAttempt('nodo-sin-evidencia', { feedback: fb })));
+      sim['getWorld'].mockReturnValue(of(makeWorld('hospital-urgencias', [])));
+      sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+      component.dialogue.set({
+        key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
+        choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
+      } as DialogueState);
+      component.executeDecision(101);
+      tick(340); tick(100); tick(400);
+      return component.dialogue();
+    }
+
+    it('la supervisión dice que quedó registrada en el seguimiento formativo, sin puntaje ni cifras', () => {
+      const dialogue = decide(feedback());
+      const lines = dialogue?.lines.map(line => line.text) ?? [];
+
+      expect(dialogue?.speakerName).toBe('Supervisión clínica');
+      expect(lines).toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
+      expect(lines.join(' ')).not.toMatch(/Puntaje|Confianza|Riesgo|Estrés|\d/);
+    });
+
+    it('con una primera respuesta que no se aplica conserva el texto del reintento', () => {
+      const dialogue = decide(feedback({ classification: 'RISKY', retryRequired: true }));
+
+      expect(dialogue?.lines.map(line => line.text).join(' ')).toContain('No se avanzó el caso');
+      expect(dialogue?.lines.map(line => line.text)).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
+    });
+
+    function useToolWith(stressDelta: number): DialogueState | null {
+      startInUrgencias();
+      component.selectedInteraction.set(urgenciasObjects().find(o => o.key === 'familia-crisis')!);
+      sim['useTool'].mockReturnValue(of({
+        world: makeWorld('hospital-urgencias', urgenciasObjects(), { usedToolKeys: ['PAP'] }),
+        toolCode: 'PAP', targetKey: 'familia-crisis', pertinent: true, stressDelta, feedbackMessage: 'La familia escucha con más calma.',
+      }));
+      component.useTool('PAP');
+      return component.dialogue();
+    }
+
+    it('un cambio de estrés de 0 no se anuncia como «Estrés +0%»', () => {
+      const lines = useToolWith(0)?.lines.map(line => line.text) ?? [];
+
+      expect(lines).toEqual(['La familia escucha con más calma.']);
+    });
+
+    it('un cambio real de estrés sí se informa, con su signo', () => {
+      expect(useToolWith(-4)?.lines.map(line => line.text)).toEqual(['La familia escucha con más calma.', 'Estrés -4%']);
+      expect(useToolWith(3)?.lines.map(line => line.text)).toEqual(['La familia escucha con más calma.', 'Estrés +3%']);
+    });
+  });
+
   describe('T9.2: contador único y etapa nueva', () => {
     it('el HUD recibe «Decisión k de 6» según la etapa', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));

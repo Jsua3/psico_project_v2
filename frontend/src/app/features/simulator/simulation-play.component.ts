@@ -427,6 +427,7 @@ const CASE_INTRO_PARAGRAPHS = [
         </section>
 
         <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
+          [supportResources]="supportResources()"
           (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
@@ -1798,7 +1799,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           decisionOptionId: null,
           requiredToolCode: null,
           effect: {},
-          isRecommended: true,
         },
         {
           key: 'frontend:proceed-restricted',
@@ -1806,7 +1806,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           decisionOptionId: null,
           requiredToolCode: null,
           effect: {},
-          isProhibited: true,
         },
       ],
     });
@@ -2223,7 +2222,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       portraitKey: null, emotion: result.pertinent ? 'positive' : 'neutral',
       lines: [
         { order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' },
-        { order: 2, speakerName: '', text: `Estrés ${result.stressDelta >= 0 ? '+' : ''}${result.stressDelta}%`, emotion: 'neutral' }
+        // «Estrés +0%» no dice nada: solo se informa cuando el cambio real existe.
+        ...(result.stressDelta !== 0
+          ? [{ order: 2, speakerName: '', text: `Estrés ${result.stressDelta > 0 ? '+' : ''}${result.stressDelta}%`, emotion: 'neutral' }]
+          : []),
       ],
       choices: []
     });
@@ -2275,7 +2277,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         { order: 1, speakerName: 'Criterio profesional', text: message, emotion: 'concerned' },
       ],
       choices: [
-        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {}, isRecommended: true },
+        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
         { key: `frontend:proceed-evidence:${decisionOptionId}`, text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
       ],
     };
@@ -2297,10 +2299,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         emotion: 'concerned'
       });
     } else {
+      // Sin cifras: las del motor no coinciden con las barras del HUD y «puntaje» convierte el caso en un marcador.
       lines.push({
         order: lines.length + 1,
         speakerName: '',
-        text: `Puntaje ${feedback.scoreDelta >= 0 ? '+' : ''}${feedback.scoreDelta} · Estrés ${feedback.stressDelta >= 0 ? '+' : ''}${feedback.stressDelta}% · Confianza ${feedback.trustDelta >= 0 ? '+' : ''}${feedback.trustDelta} · Riesgo ${feedback.victimRiskDelta >= 0 ? '+' : ''}${feedback.victimRiskDelta}`,
+        text: ORIENTATION_COPY.notices.supervision,
         emotion: 'neutral'
       });
     }

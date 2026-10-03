@@ -101,6 +101,8 @@ export interface AttemptCompletionReport {
   timeline?: AttemptTimelineEntry[];
   /** Efecto mariposa: final canónico del caso (solo intentos COMPLETED). */
   ending?: AttemptEnding | null;
+  /** Veces que una primera respuesta riesgosa no se aplicó (reintentos); no cuentan como decisiones registradas. */
+  retries?: number;
 }
 
 export interface AttemptEnding {
@@ -135,11 +137,10 @@ export interface SimulationNodeState {
   options: SimulationDecisionOption[];
 }
 
+/** Solo `id` y `text`: el servidor no manda la clasificación de una opción antes de elegirla (evaluación formativa). */
 export interface SimulationDecisionOption {
   id: number;
   text: string;
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
-  prohibitedConduct: boolean;
 }
 
 export interface SimulationFeedback {
@@ -257,10 +258,6 @@ export interface DialogueChoiceState {
   decisionOptionId: number | null;
   requiredToolCode: string | null;
   effect: Record<string, unknown>;
-  /** UI hint: highlight choice as clinically recommended (optional, backend may omit) */
-  isRecommended?: boolean;
-  /** UI hint: highlight choice as clinically prohibited (optional, backend may omit) */
-  isProhibited?: boolean;
   /** UI: la decisión se tomaría con información incompleta (gating frontend, Fase 9). */
   evidenceWarning?: string;
   /** UI: la opción exige una herramienta que el jugador aún no tiene; no se puede activar. */
