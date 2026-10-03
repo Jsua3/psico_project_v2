@@ -238,6 +238,10 @@ export interface DialogueState {
   emotion: string;
   lines: DialogueLineState[];
   choices: DialogueChoiceState[];
+  /** UI: aviso único sobre las opciones (p. ej. lo que falta antes de decidir). Solo presentación. */
+  notice?: string | null;
+  /** UI: la conversación corresponde a otro momento del caso; se muestra como informativa, sin decisiones. */
+  stale?: boolean;
 }
 
 export interface DialogueLineState {
@@ -259,6 +263,8 @@ export interface DialogueChoiceState {
   isProhibited?: boolean;
   /** UI: la decisión se tomaría con información incompleta (gating frontend, Fase 9). */
   evidenceWarning?: string;
+  /** UI: la opción exige una herramienta que el jugador aún no tiene; no se puede activar. */
+  toolMissing?: boolean;
 }
 
 export interface InteractionResult {
