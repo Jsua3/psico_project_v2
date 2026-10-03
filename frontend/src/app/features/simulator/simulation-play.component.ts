@@ -15,7 +15,11 @@ import {
 import {
   DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
 } from './patient-state.util';
-import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
+import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence } from './evidence-gating.config';
+import { decorateDialogueState } from './dialogue-decoration.util';
+import type { CopyContext } from './evidence-copy.util';
+import { NAME_TOOLS_IN_HINTS } from './orientation.config';
+import { roomGroupOf } from './scene-checklist.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
@@ -1407,33 +1411,34 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (door) this.tryOpenDoor(door);
   }
 
-  /** Fase 9: líneas desbloqueadas por evidencia. Las opciones no revelan
-   * su resultado pedagógico antes de responder. */
+  /**
+   * Fase 9 y F§7.6: decora la conversación antes de mostrarla (líneas desbloqueadas por evidencia,
+   * aviso único de lo que falta, herramienta ausente) y quita las decisiones que no son de esta
+   * etapa: ningún objeto del mundo ofrece una decisión que `currentNode.options` no contiene (AC-3).
+   * Las opciones no revelan su resultado pedagógico antes de responder.
+   */
   private decorateDialogue(dialogue: DialogueState | null): DialogueState | null {
     if (!dialogue) return null;
     const node = this.attempt()?.currentNode;
-    const nodeDef = nodeEvidence(node?.key);
-    const extras = unlockedExtraLines(nodeDef, dialogue.key, this.world(), this.viewedNpcKeys());
-    const lines = extras.length
-      ? [...dialogue.lines, ...extras.map((text, i) => ({
-          order: dialogue.lines.length + i + 1,
-          speakerName: dialogue.speakerName, text, emotion: 'positive',
-        }))]
-      : dialogue.lines;
-    const optionById = new Map((node?.options ?? []).map(o => [o.id, o]));
-    const choices = dialogue.choices.map(choice => {
-      if (choice.decisionOptionId == null) return choice;
-      const option = optionById.get(choice.decisionOptionId);
-      const evidenceDef = mergeEvidence(nodeDef, choiceEvidence(choice));
-      const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
-      const evidenceMessage = evidenceDef && missing.length ? this.evidenceMissingMessage(evidenceDef, missing) : null;
-      return {
-        ...choice,
-        isProhibited: choice.isProhibited || option?.prohibitedConduct || false,
-        ...(evidenceMessage ? { evidenceWarning: evidenceMessage } : {}),
-      };
+    return decorateDialogueState(dialogue, {
+      nodeKey: node?.key ?? null,
+      nodeOptionIds: node?.options?.map(option => option.id) ?? null,
+      evidence: nodeEvidence(node?.key),
+      world: this.world(),
+      viewedNpcKeys: this.viewedNpcKeys(),
+      copy: this.copyContext(),
     });
-    return { ...dialogue, lines, choices };
+  }
+
+  /** Contexto de redacción compartido por el aviso de evidencia (y, en la siguiente fase, la lista y las puertas). */
+  private copyContext(): CopyContext {
+    const world = this.world();
+    return {
+      currentRoom: roomGroupOf(world?.map.key),
+      world,
+      nameTools: NAME_TOOLS_IN_HINTS,
+      npcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
+    };
   }
 
   private showRiskyActionWarning(interaction: MapObjectState) {

@@ -263,6 +263,104 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
     });
   });
 
+  /**
+   * AC-3: ninguna conversación ofrece opciones de decisión que no estén en `currentNode.options`.
+   * Las opciones de herramienta (sin `decisionOptionId`) se conservan: sin ellas «usar el material»
+   * sería imposible en la etapa 6.
+   */
+  describe('AC-3: sin decisiones de otra etapa', () => {
+    const choice = (key: string, decisionOptionId: number | null, requiredToolCode: string | null = null) =>
+      ({ key, text: key, decisionOptionId, requiredToolCode, effect: {} });
+
+    function objectWith(key: string, choices: unknown[]): MapObjectState {
+      return {
+        key, label: key, type: 'PERSON', x: 100, y: 100,
+        dialogue: {
+          key: `dlg-${key}`, speakerName: 'Alguien', portraitKey: null, emotion: 'neutral',
+          lines: [{ order: 1, speakerName: 'Alguien', text: 'Texto.', emotion: 'neutral' }],
+          choices,
+        },
+      } as unknown as MapObjectState;
+    }
+
+    function open(obj: MapObjectState): DialogueState | null {
+      sim['openInteraction'].mockReturnValue(of({
+        world: component.world(), interaction: obj, dialogue: obj.dialogue,
+      }));
+      component.openInteraction(obj);
+      return component.dialogue();
+    }
+
+    it('quita las decisiones de otra etapa y conserva la de esta y las de herramienta', () => {
+      const dialogue = open(objectWith('mixto', [
+        choice('usar-material', null, 'PAP'),
+        choice('esta-etapa', 11),
+        choice('otra-etapa', 99),
+      ]));
+
+      expect(dialogue?.choices.map(c => c.key)).toEqual(['usar-material', 'esta-etapa']);
+      expect(dialogue?.stale).toBeUndefined();
+    });
+
+    it('un objeto con decisiones solo de otra etapa pasa a ser una conversación informativa', () => {
+      const dialogue = open(objectWith('marco-normativo', [choice('otra-1', 98), choice('otra-2', 99)]));
+
+      expect(dialogue?.choices).toEqual([]);
+      expect(dialogue?.stale).toBe(true);
+      expect(dialogue?.lines.at(-1)?.text).toBe('Esta conversación corresponde a otro momento del caso.');
+      expect(component.viewMode()).toBe('dialogue-cinematic');
+    });
+
+    it('en ningún objeto del mundo queda una decisión que el nodo actual no contiene', () => {
+      const optionIds = [11, 12, 13];
+      component.attempt.set(makeAttempt({
+        currentNode: { key: FREE_NODE, title: 'Etapa', options: optionIds.map(id => ({ id, text: `Opción ${id}` })) },
+      }));
+      const objects = [
+        objectWith('a', [choice('a1', 11), choice('a2', 21), choice('a3', 31)]),
+        objectWith('b', [choice('b1', 22), choice('b2', 32)]),
+        objectWith('c', [choice('c1', 12), choice('c2', 13)]),
+        objectWith('d', [choice('d1', null, 'RISK_METER'), choice('d2', 41)]),
+        objectWith('e', []),
+      ];
+
+      for (const obj of objects) {
+        const dialogue = open(obj);
+        for (const c of dialogue!.choices) {
+          if (c.decisionOptionId != null) expect(optionIds).toContain(c.decisionOptionId);
+        }
+        component.closeDialogue();
+      }
+    });
+
+    it('sin la lista de opciones del nodo no filtra nada (no se pierde la decisión por falta de datos)', () => {
+      component.attempt.set(makeAttempt({ currentNode: { key: FREE_NODE, title: 'Etapa' } }));
+
+      const dialogue = open(objectWith('sin-datos', [choice('x', 77)]));
+
+      expect(dialogue?.choices.map(c => c.key)).toEqual(['x']);
+    });
+
+    it('el aviso de lo que falta llega una sola vez, en `notice`, y sin claves internas', () => {
+      component.attempt.set(makeAttempt({
+        currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
+      }));
+
+      const dialogue = open(objectWith('sala', [choice('uno', 11)]));
+
+      expect(dialogue?.notice).toMatch(/^Antes de decidir te falta: /);
+      expect(dialogue?.notice).not.toMatch(/enfermera-urgencias|PAP|npc:|tool:/);
+      expect(dialogue?.choices.every(c => c.evidenceWarning === undefined)).toBe(true);
+    });
+
+    it('marca la opción de herramienta cuyo material aún no se tiene', () => {
+      const dialogue = open(objectWith('familia', [choice('usar-pap', null, 'PAP'), choice('esta-etapa', 11)]));
+
+      expect(dialogue?.choices.find(c => c.key === 'usar-pap')?.toolMissing).toBe(true);
+      expect(dialogue?.choices.find(c => c.key === 'esta-etapa')?.toolMissing).toBeUndefined();
+    });
+  });
+
   describe('abrir una interacción', () => {
     const object = { key: 'familia-crisis', label: 'Familia', type: 'PERSON', x: 190, y: 420 } as MapObjectState;
 
