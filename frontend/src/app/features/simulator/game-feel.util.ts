@@ -1,11 +1,15 @@
 import type { SimulationFeedback } from '../../core/models/simulation.model';
+import { STRESS_TIER_FLOORS } from './stress-tier.util';
 
 /** Tinte rojo-violeta de la viñeta de crisis; no depende del tono del mapa. */
 export const CRISIS_VIGNETTE_TINT = 0x4a0f2e;
-/** Hasta este estrés la viñeta de crisis no se ve. */
-export const CRISIS_VIGNETTE_START = 50;
-/** Por encima de este estrés la viñeta pulsa (Criterio de Done del bloque B). */
-export const CRISIS_PULSE_THRESHOLD = 85;
+/**
+ * Hasta este estrés la viñeta de crisis no se ve: es el piso del tramo «alto» del HUD y del audio
+ * (antes 50, de modo que la viñeta aparecía antes que el color del HUD y la música).
+ */
+export const CRISIS_VIGNETTE_START = STRESS_TIER_FLOORS.high;
+/** Desde este estrés (inclusive, el tramo «crítico» del HUD y del audio) la viñeta pulsa. */
+export const CRISIS_PULSE_THRESHOLD = STRESS_TIER_FLOORS.critical;
 
 export interface CrisisVignetteState {
   /** Opacidad de la capa de crisis (0 = invisible). */
@@ -33,11 +37,13 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 export function crisisVignetteState(stress: number, reduceMotion: boolean): CrisisVignetteState {
   const s = Number.isFinite(stress) ? Math.min(100, Math.max(0, stress)) : 0;
   if (s <= CRISIS_VIGNETTE_START) return { alpha: 0, pulse: null };
-  if (s <= CRISIS_PULSE_THRESHOLD) {
+  if (s < CRISIS_PULSE_THRESHOLD) {
     const t = (s - CRISIS_VIGNETTE_START) / (CRISIS_PULSE_THRESHOLD - CRISIS_VIGNETTE_START);
     return { alpha: round2(0.55 * t), pulse: null };
   }
-  if (reduceMotion) return { alpha: 0.7, pulse: null };
+  // Fija (movimiento reducido o mundo en pausa) en el mínimo del pulso: es donde termina la rampa y donde
+  // arranca el pulso, así que ni al reanudar ni al pasar de 84 a 85 hay un escalón (antes 0,70).
+  if (reduceMotion) return { alpha: 0.55, pulse: null };
   return { alpha: 0.55, pulse: { from: 0.55, to: 0.85, durationMs: 800 } };
 }
 
@@ -64,7 +70,9 @@ export function roomEntryFlash(
   reduceMotion: boolean,
 ): CameraFlash | null {
   if (reduceMotion || !previousKey || previousKey === nextKey) return null;
-  return { durationMs: 120, rgb: [214, 222, 236], peakAlpha: 0.45 };
+  // Pico 0,20 (antes 0,45): a 0,45 el salto de luminancia de la sala medido en pantalla era 0,17, por encima
+  // del umbral de destello general de WCAG 2.3.1 (0,10) y barría la escena entera; a 0,20 queda en ≈ 0,06.
+  return { durationMs: 120, rgb: [214, 222, 236], peakAlpha: 0.2 };
 }
 
 /**
