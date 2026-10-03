@@ -271,6 +271,44 @@ def test_npc_remoto_rechazado_sin_evidencia_ni_evento(estudiante, case_version_i
     assert _world(c, attempt_id, token)["flags"].get("viewedNpcKeys") in (None, [])
 
 
+def _record_npc(c, attempt_id, token, npc_key="enfermera-urgencias"):
+    return c.post(
+        f"/api/simulation/attempts/{attempt_id}/npcs/{npc_key}",
+        {"attemptToken": token}, format="json",
+    )
+
+
+@pytest.mark.parametrize(
+    "player_y, distance, accepted",
+    [
+        (400, 70, True),    # dentro de radio 60 + tolerancia 16
+        (406, 76, True),    # justo en el límite
+        (407, 77, False),   # un píxel fuera de la tolerancia
+        (420, 90, False),   # claramente lejos
+    ],
+)
+def test_npc_acepta_hasta_radio_mas_tolerancia(estudiante, case_version_id, player_y, distance, accepted):
+    """T11.4: la enfermera está en (560, 330) con radio 60 y el cliente sincroniza por
+    muestras, así que puede quedar unos píxeles fuera. Se acepta hasta radio + 16
+    (NPC_RANGE_TOLERANCE_PX), sin re-sembrar la base."""
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+    assert _move(c, attempt_id, token, 560, player_y, world["map"]["key"]).status_code == 200
+    assert distance == abs(player_y - 330)
+
+    resp = _record_npc(c, attempt_id, token)
+
+    if accepted:
+        assert resp.status_code == 200
+        assert "enfermera-urgencias" in resp.data["data"]["flags"]["viewedNpcKeys"]
+        assert _events(attempt_id, "NPC_DIALOGUE_VIEWED") == 1
+    else:
+        assert resp.status_code == 400
+        assert _events(attempt_id, "NPC_DIALOGUE_VIEWED") == 0
+        assert _world(c, attempt_id, token)["flags"].get("viewedNpcKeys") in (None, [])
+
+
 # ─── 4C: herramientas ────────────────────────────────────────────────────────
 def _pickup_pap(c, attempt_id, token, map_key):
     _move(c, attempt_id, token, 340, 430, map_key)
