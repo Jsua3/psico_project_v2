@@ -570,7 +570,9 @@ function paintCell(frame: Frame, x: number, y: number, spec: CellSpec, overlay: 
   if (!inside(frame, x, y)) return;
   const i = y * frame.width + x;
   if (overlay.mode === 'cover') {
-    // Crea o reemplaza la celda con la identidad de la pieza.
+    // Crea o reemplaza la celda con la identidad de la pieza, salvo que lo que
+    // ya hay esté delante (más z): un faldón no tapa la mano que cuelga encima.
+    if (frame.part[i] !== null && frame.z[i] > coverZ) return;
     frame.part[i] = piece.part ?? overlay.anchor;
     frame.z[i] = coverZ;
     frame.far[i] = 0;

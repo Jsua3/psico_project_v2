@@ -21,11 +21,15 @@ export const RAMPS = {
   'gris-claro': ['#d2d2d4', '#adaeb5', '#858690', '#62636c'],
 };
 
-/** Colores literales por defecto (ojos, rubor); una receta puede cambiarlos con `literals`. */
+/** Colores literales por defecto (ojos, rubor, accesorios); una receta puede cambiarlos con `literals`. */
 export const LITERAL_DEFAULTS = {
   eye: '#211e2b',
   blush: '#efb0b8',
   eyeWhite: '#f1f2f4',
   iris: '#623b2d',
   shine: '#ffffff',
+  // accesorios
+  gafas: '#302a3b',
+  gafete: '#f1f2f4',
+  gafeteCinta: '#3d78a8',
 };

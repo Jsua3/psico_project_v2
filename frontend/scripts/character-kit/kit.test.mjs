@@ -265,3 +265,16 @@ test('los rostros sereno y maduro traen expresiones de retrato distintas del neu
     }
   }
 });
+
+test('cover respeta la profundidad: no tapa lo que está delante (el brazo sobre un faldón)', () => {
+  const faldon = {
+    id: 'faldon-prueba', kind: 'accessory', views: {
+      down: [{ anchor: 'P', at: [10, 40], mode: 'cover', legend: { L: { literal: MAGENTA } }, grid: 'L'.repeat(28) }],
+    },
+  };
+  const { bundle, recipe } = withPieces([faldon], { pieces: { accessories: ['faldon-prueba'] } });
+  const { idle } = composeCharacter(bundle, recipe);
+  assert.equal(pixel(idle, 0, 0, 20, 40), MAGENTA, 'tapa la pelvis (misma profundidad)');
+  assert.equal(pixel(idle, 0, 0, 12, 40), MAGENTA, 'crea celdas donde no había nada');
+  assert.notEqual(pixel(idle, 0, 0, 15, 40), MAGENTA, 'no tapa el antebrazo, que está delante');
+});

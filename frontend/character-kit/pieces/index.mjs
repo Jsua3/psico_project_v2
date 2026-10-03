@@ -1,4 +1,6 @@
 /** Todas las piezas del kit. Registro explícito: el build no descubre archivos. */
+import gafas from './accessory/gafas.mjs';
+import gafete from './accessory/gafete.mjs';
 import jean from './bottom/jean.mjs';
 import maduro from './face/maduro.mjs';
 import sereno from './face/sereno.mjs';
@@ -12,7 +14,12 @@ import mediaMelena from './hair/media-melena.mjs';
 import mono from './hair/mono.mjs';
 import rapado from './hair/rapado.mjs';
 import trenza from './hair/trenza.mjs';
+import bata from './layer/bata.mjs';
 import tenis from './shoes/tenis.mjs';
+import blazer from './top/blazer.mjs';
+import blusa from './top/blusa.mjs';
+import camisa from './top/camisa.mjs';
+import camisaSeguridad from './top/camisa-seguridad.mjs';
 import camiseta from './top/camiseta.mjs';
 import cardigan from './top/cardigan.mjs';
 import chaquetaCapucha from './top/chaqueta-capucha.mjs';
@@ -20,6 +27,7 @@ import chaquetaJean from './top/chaqueta-jean.mjs';
 import polo from './top/polo.mjs';
 import sudadera from './top/sudadera.mjs';
 import sueter from './top/sueter.mjs';
+import uniformeClinico from './top/uniforme-clinico.mjs';
 
 export const PIECES = Object.freeze([
   // pelo
@@ -37,6 +45,10 @@ export const PIECES = Object.freeze([
   maduro,
   sereno,
   // arriba
+  blazer,
+  blusa,
+  camisa,
+  camisaSeguridad,
   camiseta,
   cardigan,
   chaquetaCapucha,
@@ -44,8 +56,14 @@ export const PIECES = Object.freeze([
   polo,
   sudadera,
   sueter,
+  uniformeClinico,
+  // capas
+  bata,
   // abajo
   jean,
   // calzado
   tenis,
+  // accesorios
+  gafas,
+  gafete,
 ]);
