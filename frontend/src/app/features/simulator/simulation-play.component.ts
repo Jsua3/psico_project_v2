@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -288,10 +288,12 @@ const CASE_INTRO_PARAGRAPHS = [
 
         <footer class="bottom-zone" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
-            <button class="safe-exit" type="button" (click)="safeExit()" [disabled]="busy()"
-              aria-label="Salida segura (Escape)">
+            <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04). -->
+            <button class="safe-exit" type="button" (click)="pauseFromOverlay()"
+              [attr.aria-busy]="pausing() ? 'true' : null"
+              [attr.aria-label]="pausing() ? 'Pausando…' : 'Salida segura'">
               <mat-icon aria-hidden="true">exit_to_app</mat-icon>
-              <span class="safe-exit__copy"><strong>Salida segura</strong><kbd>Esc</kbd></span>
+              <span class="safe-exit__copy"><strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong><kbd aria-hidden="true">Esc</kbd></span>
             </button>
           }
 
@@ -526,13 +528,17 @@ const CASE_INTRO_PARAGRAPHS = [
     .safe-exit:hover { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
     .safe-exit:focus-visible { outline: 2px solid #f1a79f; outline-offset: 2px; }
     .safe-exit:active { transform: translateY(1px); }
-    .safe-exit:disabled { opacity: .4; cursor: not-allowed; }
+    .safe-exit[aria-busy='true'] { opacity: .75; cursor: progress; }
     .safe-exit mat-icon { font-size: 19px; width: 19px; height: 19px; }
     .safe-exit__copy { display: grid; gap: 1px; text-align: left; }
     .safe-exit__copy strong { font-size: .72rem; font-weight: 900; letter-spacing: .03em; }
     .safe-exit__copy kbd {
       font-size: .58rem; font-family: 'JetBrains Mono', monospace;
       color: rgba(241,167,159,.7);
+    }
+    /* La tecla Esc solo se anuncia donde hay teclado y puntero fino (no se promete en táctil). */
+    @media not all and (hover: hover) and (pointer: fine) {
+      .safe-exit__copy kbd { display: none; }
     }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
     .context-bar {
@@ -747,8 +753,10 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .error-overlay mat-icon { font-size: 36px; color: rgba(168,80,98,.8); }
     .error-overlay p { margin: 0; color: rgba(232,240,244,.6); }
+    /* Por encima de las tarjetas de introducción (380) y del aviso de reanudar (400): un error al
+       pausar desde ellas tiene que verse, no solo anunciarse. */
     .action-toast {
-      position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 320;
+      position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 420;
       max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
@@ -913,6 +921,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly worldStarted = signal(false);
   readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
+  /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
+  readonly helpOpen = signal(false);
+  /**
+   * Hay una salida segura pedida desde una superposición: en cola mientras `busy()` o ya en vuelo.
+   * El pie la muestra como «Pausando…»; impide que dos toques pausen dos veces (F§7.8).
+   */
+  readonly pausing = signal(false);
   readonly caseIntroTitle = CASE_INTRO_TITLE;
   readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
   readonly musicMuted = signal(false);
@@ -981,6 +996,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private doorInteractionArmed = false;
   private readonly doorInteractionRearmDistance = 72;
 
+  constructor() {
+    // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
+    // una pausa en medio de una decisión o de un cruce de puerta (F§7.8, H-04).
+    effect(() => {
+      if (!this.pausing() || this.busy()) return;
+      untracked(() => this.startQueuedPause());
+    });
+  }
+
   ngOnDestroy(): void {
     this.audioDirector.stopIntroLament();
     this.audioDirector.dispose();
@@ -1035,6 +1059,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.busy.set(false);
         this.attempt.set(attempt);
         this.audioDirector.setStressLevel(attempt.stressIndex);
+        // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
+        // decide); el consentimiento ya está dado en esta sesión y no se vuelve a pedir.
+        const world = this.world();
+        if (world) this.maybeShowInitialCaseIntro(world);
         this.announce('Intento reanudado. Continúas exactamente donde quedaste.');
       },
       error: () => { this.showActionError('No pudimos reanudar el intento.'); this.busy.set(false); },
@@ -1111,6 +1139,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (this.showIntroScene() || this.showCaseIntro()) {
+      // REGLA-004: Esc pausa también aquí. Va antes del chequeo de botones porque el foco de las
+      // tarjetas siempre está en uno (`cdkFocusInitial`) y, sin este orden, Esc nunca llegaría.
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.pauseFromOverlay();
+        return;
+      }
       // Los botones de las tarjetas (Continuar, Silenciar música) se activan solos.
       if (tag === 'BUTTON' || tag === 'A') {
         this.activateCardButtonIfCancelled(event);
@@ -1127,10 +1162,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (event.key === 'Escape') {
+      // Cadena: ayuda → bitácora → diálogo → pausa. Con una petición en curso la pausa se encola.
+      if (this.helpOpen())    { event.preventDefault(); this.helpOpen.set(false); return; }
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
       if (this.dialogue())    { event.preventDefault(); this.closeDialogue(); return; }
-      const g = this.attempt();
-      if (g?.status === 'IN_PROGRESS' && !this.busy()) { event.preventDefault(); this.safeExit(); }
+      if (this.attempt()?.status === 'IN_PROGRESS') { event.preventDefault(); this.pauseFromOverlay(); }
       return;
     }
 
@@ -1603,16 +1639,77 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.withSyncedPosition(() => this.pauseCurrentAttempt());
   }
 
+  /**
+   * Salida segura desde cualquier superposición (diálogo con o sin opciones, bitácora, introducción
+   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004 para los estados en que
+   * `safeExit()` no actúa a propósito (overlay abierto) o rechaza el toque (`busy`).
+   *
+   * - No hace nada sin un intento `IN_PROGRESS`, bajo el aviso de contenido (ETH-01) ni bajo el
+   *   de reanudar, ni si ya hay una pausa pedida (un segundo toque no pausa dos veces).
+   * - Con una petición en curso la deja en cola: se ejecuta cuando `busy()` se suelta.
+   */
+  pauseFromOverlay(): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') return;
+    if (this.showResumePrompt() || this.showContentWarning()) return;
+    if (this.pausing()) return;
+    this.pausing.set(true);
+    if (this.busy()) {
+      this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
+      return;
+    }
+    this.startQueuedPause();
+  }
+
+  /** Arranca la pausa pedida con `pauseFromOverlay()`; por el camino de la cola, `busy()` ya está libre. */
+  private startQueuedPause(): void {
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.pausing.set(false);
+      return;
+    }
+    // Sonido discreto: la salida segura es seria, no alarmista.
+    this.audioDirector.playSfx('ui_cancel');
+    this.busy.set(true);
+    this.withSyncedPosition(() => this.pauseCurrentAttempt());
+  }
+
   private pauseCurrentAttempt(): void {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') {
+      this.pausing.set(false);
       this.busy.set(false);
       return;
     }
     this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').subscribe({
-      next: updated => { this.attempt.set(updated); this.selectedInteraction.set(null); this.dialogue.set(null); this.loadWorld(updated); },
-      error: () => { this.showActionError('No pudimos registrar la salida segura.'); this.busy.set(false); }
+      next: updated => {
+        this.pausing.set(false);
+        this.attempt.set(updated);
+        // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
+        // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
+        // la bitácora reaparecería al reanudar.
+        this.clearOverlaysForPause();
+        this.loadWorld(updated);
+      },
+      error: () => {
+        this.pausing.set(false);
+        this.showActionError('No pudimos registrar la salida segura.');
+        this.busy.set(false);
+      },
     });
+  }
+
+  private clearOverlaysForPause(): void {
+    this.selectedInteraction.set(null);
+    this.dialogue.set(null);
+    this.journalOpen.set(false);
+    this.showIntroScene.set(false);
+    this.showCaseIntro.set(false);
+    this.helpOpen.set(false);
+    this.pendingEvidenceDecisionId = null;
+    this.pendingEvidenceMissing = [];
+    this.pendingRestrictedInteraction.set(null);
+    this.audioDirector.stopIntroLament();
   }
 
   rememberPosition(x: number, y: number) {
