@@ -534,10 +534,11 @@ const CASE_INTRO_PARAGRAPHS = [
       overflow: visible;
     }
 
-    /* Tarjeta de primera vez: bajo las tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
+    /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
+       tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
        con sitio de sobra la tarjeta va arriba a la derecha, junto a «Qué hacer», para no taparlo. */
     .help-slot {
-      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 30;
+      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
       width: min(560px, calc(100% - 24px));
     }
     @media (min-width: 1100px) {
@@ -548,7 +549,8 @@ const CASE_INTRO_PARAGRAPHS = [
       .help-slot { top: 52px; bottom: auto; }
     }
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
-      .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); }
+      /* Entre las bandas de las cruces táctiles (≈ 150 px a cada lado): sus botones quedan a la vista y se pueden tocar. */
+      .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 300px)); }
     }
     /* Pantalla de ayuda: deja libres la cabecera (48 px) y el pie (64 px); la capa no captura toques fuera de la hoja. */
     .help-layer {
