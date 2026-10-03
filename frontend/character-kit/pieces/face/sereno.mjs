@@ -7,7 +7,7 @@
  * n sombra de nariz · m boca (piel, tono profundo) · q rubor (color literal).
  */
 
-import { SERENO_PORTRAIT } from './sereno.portrait.mjs';
+import { SERENO_EXPRESSIONS, SERENO_PORTRAIT } from './sereno.portrait.mjs';
 
 const LEGEND = {
   b: { mat: 'hair', tone: 3 },
@@ -21,6 +21,7 @@ export default {
   id: 'sereno',
   kind: 'face',
   portrait: SERENO_PORTRAIT,
+  expressions: SERENO_EXPRESSIONS,
   views: {
     down: [{
       anchor: 'H', at: [16, 11], mode: 'paint', legend: LEGEND,

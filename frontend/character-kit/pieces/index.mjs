@@ -1,5 +1,6 @@
 /** Todas las piezas del kit. Registro explícito: el build no descubre archivos. */
 import jean from './bottom/jean.mjs';
+import maduro from './face/maduro.mjs';
 import sereno from './face/sereno.mjs';
 import afro from './hair/afro.mjs';
 import bobFlequillo from './hair/bob-flequillo.mjs';
@@ -27,6 +28,7 @@ export const PIECES = Object.freeze([
   rapado,
   trenza,
   // rostro
+  maduro,
   sereno,
   // arriba
   chaquetaCapucha,

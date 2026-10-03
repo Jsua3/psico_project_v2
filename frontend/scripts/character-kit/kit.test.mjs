@@ -251,3 +251,17 @@ test('los retratos miden 32×32: se muestran a ×3 en la caja de 96 px (decisió
     assert.equal(portraits.neutral.height, 32);
   }
 });
+
+test('los rostros sereno y maduro traen expresiones de retrato distintas del neutral', () => {
+  const bundle = buildBundle();
+  for (const face of ['sereno', 'maduro']) {
+    const { portraits } = composeCharacter(bundle, sampleRecipe(`face:${face}`, 'a'));
+    const neutral = sha(portraits.neutral.rgba);
+    const seen = new Set([neutral]);
+    for (const state of ['preocupada', 'triste', 'alegre']) {
+      const hash = sha(portraits[state].rgba);
+      assert.ok(!seen.has(hash), `${face}: el retrato «${state}» repite otro estado`);
+      seen.add(hash);
+    }
+  }
+});
