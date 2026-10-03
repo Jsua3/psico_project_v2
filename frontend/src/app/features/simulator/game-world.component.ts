@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
@@ -43,7 +43,6 @@ import { nearbyInteractionChannel } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import {
   NUDGE_SUBSTEPS,
-  PLAYER_SPRITE_OFFSET_Y,
   PlayerDirection,
   PlayerMotionInput,
   computeNudgeStep,
@@ -60,17 +59,11 @@ import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import {
-  AVATAR_ANIM_KEYS,
-  AVATAR_DISPLAY_SCALE,
   AVATAR_FRAME_HEIGHT,
   AVATAR_FRAME_WIDTH,
   AVATAR_IDLE_FRAMES,
-  AVATAR_TEXTURE_KEY,
-  AvatarLayerSpec,
   avatarLayerSpecs,
-  composeAvatarTexture,
   composeAvatarTextureAs,
-  createAvatarAnimations,
   createAvatarAnimationsFor,
   modularAvatarFlipX,
   npcAvatarAnimKeys,
@@ -81,22 +74,22 @@ import {
   NPC_PRESET_RENDER,
   npcPresetConfig,
 } from './npc-avatar-presets';
-import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId, resolveCastId } from './baked-cast.util';
-import {
-  resolvePlayerVisual, v1SheetKey, v1SheetPath, v1IdleFrame, v1WalkAnimKey,
-  V1_FRAME_WIDTH, V1_FRAME_HEIGHT, V1_AVATAR_SCALE, V1_FEET_ORIGIN_Y,
-} from './v1-avatar.util';
-import { createV1WalkAnimations } from './phaser-avatar-renderer';
+import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId } from './baked-cast.util';
 import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
-import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
+import { coerceAvatar, defaultAvatar, hairVariantPatch } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcAvatarPresetKey, NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
 import { AvatarConfig, CLOTHING_COLORS, EXPRESSIONS, GENDER_OPTIONS } from '../character/avatar.model';
 import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-catalog.config';
+import type { KitBundle } from '../character/kit/kit-engine';
+import { CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
+import { KIT_ORIGIN_X, KIT_ORIGIN_Y, ensureCharacterAnims, kitFrameIndex, kitSheetKey, playKitPose, queueCharacterSheets } from '../character/kit/kit-phaser';
+import { KitService } from '../character/kit/kit.service';
+import { playerCharacterRef } from './world-characters.util';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -114,6 +107,8 @@ interface WorldCallbacks {
   onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
+  /** Paquete del kit (null si no cargó: los actores caen a su marcador). */
+  kit: KitBundle | null;
 }
 
 interface AmbientMover {
@@ -153,19 +148,16 @@ const DOOR_SPRITE_FEET_Y = 16;
 export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
-  private avatarSpecs: AvatarLayerSpec[] = [];
-  /** Personaje del elenco horneado elegido (null → composición modular). */
-  private playerCastId: string | null = null;
-  private playerV1Id: string | null = null;
-  /** Textura efectiva del sprite del jugador (elenco u hoja compuesta). */
-  private playerTextureKey = AVATAR_TEXTURE_KEY;
-  private avatarReady = false;
+  /** Visual del jugador en el kit (null si no hay paquete). */
+  private playerVisual: CharacterVisual | null = null;
+  /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
+  private playerKitReady = false;
   private readonly npcCompositesReady = new Set<string>();
   /** Texturas horneadas activas por preset (si no está, usa la compuesta). */
   private readonly npcBakedTexture = new Map<string, string>();
   private lastDirection: PlayerDirection = 'down';
-  /** Última pose aplicada — la animación solo cambia si dirección/caminar cambió. */
-  private lastPose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
+  /** Última pose aplicada — la animación solo cambia si dirección, caminar o movimiento reducido cambiaron. */
+  private lastPose: { direction: PlayerDirection | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -276,23 +268,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       '/assets/game/kenney/rpg-urban-pack/Spritesheet/tilemap_packed.png',
       { frameWidth: 16, frameHeight: 16 });
 
-    // ── Avatar modular del estudiante (config del editor de personaje) ──────
-    // Las capas se componen en create(); si faltan, el jugador cae al fallback.
-    const avatarConfig = parseAvatar(
-      typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
-    );
-    this.playerCastId = resolveCastId(avatarConfig.castId);
-    const playerVisual = resolvePlayerVisual(avatarConfig);
-    if (playerVisual.kind === 'v1') {
-      this.playerV1Id = playerVisual.id;
-      for (const sheet of ['idle', 'walk'] as const) {
-        this.load.spritesheet(v1SheetKey(playerVisual.id, sheet), v1SheetPath(playerVisual.id, sheet),
-          { frameWidth: V1_FRAME_WIDTH, frameHeight: V1_FRAME_HEIGHT });
-      }
-    }
-    this.avatarSpecs = avatarLayerSpecs(avatarConfig);
-    for (const spec of this.avatarSpecs) {
-      this.load.image(spec.textureKey, spec.assetPath);
+    // ── Jugador del kit (spec §8.2): receta publicada (PNG) o avatar compuesto (lienzo) ──
+    const kit = this.callbacks.kit;
+    if (kit) {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null;
+      this.playerVisual = resolveCharacter(kit, playerCharacterRef(stored));
+      queueCharacterSheets(this, this.playerVisual);
     }
 
     // ── Elenco horneado (jugables + NPCs): hojas con el contrato modular 2×.
@@ -388,25 +369,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.input.keyboard?.disableGlobalCapture();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
-    this.createAnimations();
-    // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
-    // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
-    // composición modular de siempre.
-    if (this.playerV1Id && this.textures.exists(v1SheetKey(this.playerV1Id, 'walk'))) {
-      createV1WalkAnimations(this, this.playerV1Id);
-      this.playerTextureKey = v1SheetKey(this.playerV1Id, 'walk');
-      this.avatarReady = true;
-    } else if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
-      this.playerV1Id = null;
-      this.playerTextureKey = castTextureKey(this.playerCastId);
-      createAvatarAnimationsFor(this, this.playerTextureKey, AVATAR_ANIM_KEYS);
-      this.avatarReady = true;
-    } else {
-      this.playerV1Id = null;
-      this.playerTextureKey = AVATAR_TEXTURE_KEY;
-      this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
-      if (this.avatarReady) createAvatarAnimations(this);
-    }
+    this.playerKitReady = this.playerVisual !== null && ensureCharacterAnims(this, this.playerVisual);
     this.scale.on('resize', () => this.refitCamera());
     this.renderWorld();
   }
@@ -789,26 +752,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const m = this.markers.get(key);
     if (!m || this.callbacks.reduceMotion) return;
     this.tweens.add({ targets: m, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
-  }
-
-  private createAnimations() {
-    if (!this.assetsLoaded) return;
-    const anims: Array<{ key: string; frames: readonly number[] }> = [
-      { key: 'walk-down',  frames: KenneyCharFrames.PLAYER_WALK_DOWN },
-      { key: 'walk-left',  frames: KenneyCharFrames.PLAYER_WALK_LEFT },
-      { key: 'walk-right', frames: KenneyCharFrames.PLAYER_WALK_RIGHT },
-      { key: 'walk-up',    frames: KenneyCharFrames.PLAYER_WALK_UP },
-    ];
-    for (const a of anims) {
-      // Always destroy stale anim before recreating — the Phaser anim manager
-      // is global and persists across renderWorld() / scene reloads.
-      if (this.anims.exists(a.key)) this.anims.remove(a.key);
-      this.anims.create({
-        key: a.key,
-        frames: this.anims.generateFrameNumbers('characters', { frames: [...a.frames] }),
-        frameRate: 6, repeat: -1
-      });
-    }
   }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
@@ -1871,37 +1814,27 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private createPlayer(x: number, y: number) {
-    this.lastPose = { direction: null, walking: false };
-    if (this.avatarReady && this.textures.exists(this.playerTextureKey)) {
-      // Contrato de pies (player-motion.util): (x, y) del contenedor = punto de
-      // pies. Sombra centrada en los pies; el sprite sube PLAYER_SPRITE_OFFSET_Y.
-      // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
-      const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
-      const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
-      const sprite = this.playerV1Id
-        ? this.add.sprite(0, 0, v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame('down'))
-            .setOrigin(0.5, V1_FEET_ORIGIN_Y).setScale(V1_AVATAR_SCALE)
-        : this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
-            .setScale(AVATAR_DISPLAY_SCALE);
+    this.lastPose = { direction: null, walking: false, reduce: this.callbacks.reduceMotion };
+    const visual = this.playerVisual;
+    if (visual && this.playerKitReady) {
+      // Contrato de pies (player-motion.util): (x, y) del contenedor = pies; el cuadro del
+      // kit trae los pies en (24, 68). Sombra en dos pasos bajo los pies, a escala 1.
+      const shadowSoft = this.add.ellipse(0, 0, 30, 9, 0x000000, .15);
+      const shadow = this.add.ellipse(0, 0, 20, 6, 0x000000, .27);
+      const sprite = this.add.sprite(0, 0, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', 'down'))
+        .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
-      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
+      playKitPose(sprite, visual, 'down', false, this.callbacks.reduceMotion);
       return;
     }
-    // Fallback Kenney: mismo contrato de pies (sprite 16px × 1.5 → centro -11).
+    // Sin hoja del kit (no cargó): marcador geométrico con el mismo contrato de pies.
     const shadow = this.add.ellipse(0, 0, 16, 5, 0x000000, .22);
-    if (this.assetsLoaded && this.textures.exists('characters')) {
-      const sprite = this.add.sprite(0, -11, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
-      // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
-      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
-      this.playerSprite = sprite;
-      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
-    } else {
-      const body  = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
-      const head  = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
-      const badge = this.add.rectangle(0, -10, 12,  7, 0xffffff, .9);
-      this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
-    }
+    const body = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
+    const head = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
+    const badge = this.add.rectangle(0, -10, 12, 7, 0xffffff, .9);
+    this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
+    this.playerSprite = undefined;
   }
 
   /**
@@ -1930,66 +1863,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
-   * Aplica la pose (dirección + caminando/idle) SOLO si cambió desde el último
-   * frame: la animación no se reinicia en cada update y el idle es inmediato
-   * al soltar teclas o quedar bloqueado contra una pared.
+   * Aplica la pose SOLO si cambió (dirección, caminar o movimiento reducido): la animación no
+   * se reinicia en cada update y el reposo es inmediato al soltar teclas o chocar con una pared.
    */
   private applyPlayerPose(direction: PlayerDirection, walking: boolean): void {
-    if (this.lastPose.direction === direction && this.lastPose.walking === walking) return;
-    this.lastPose = { direction, walking };
-    if (walking) this.playWalkAnimation(direction);
-    else this.setIdleFrame(direction);
-  }
-
-  /**
-   * Caminata del jugador. El avatar modular usa filas down/side/up (la fila
-   * lateral mira a la DERECHA → flip para la izquierda); Kenney usa sus
-   * animaciones `walk-*` (fila lateral mira a la DERECHA → flip para izquierda).
-   */
-  private playWalkAnimation(direction: PlayerDirection): void {
-    if (!this.playerSprite) return;
-    if (this.playerV1Id) {
-      this.playerSprite.setFlipX(false);
-      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
-      this.playerSprite.play(v1WalkAnimKey(this.playerV1Id, direction), true);
-      return;
+    const reduce = this.callbacks.reduceMotion;
+    if (this.lastPose.direction === direction && this.lastPose.walking === walking && this.lastPose.reduce === reduce) return;
+    this.lastPose = { direction, walking, reduce };
+    if (this.playerSprite && this.playerVisual && this.playerKitReady) {
+      playKitPose(this.playerSprite, this.playerVisual, direction, walking, this.callbacks.reduceMotion);
     }
-    if (this.avatarReady) {
-      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
-      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
-      const anim = direction === 'down' ? AVATAR_ANIM_KEYS.down
-        : direction === 'up' ? AVATAR_ANIM_KEYS.up
-        : AVATAR_ANIM_KEYS.side;
-      this.playerSprite.play(anim, true);
-      return;
-    }
-    this.playerSprite.setFlipX(direction === 'left');
-    if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${direction}`, true);
-  }
-
-  /** Frame de reposo limpio según la última dirección. */
-  private setIdleFrame(direction: PlayerDirection): void {
-    if (!this.playerSprite) return;
-    this.playerSprite.stop();
-    if (this.playerV1Id) {
-      this.playerSprite.setFlipX(false);
-      this.playerSprite.setTexture(v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame(direction));
-      return;
-    }
-    if (this.avatarReady) {
-      const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
-        : direction === 'down' ? AVATAR_IDLE_FRAMES.down
-        : AVATAR_IDLE_FRAMES.side;
-      this.playerSprite.setFrame(frame);
-      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
-      return;
-    }
-    const idleFrame =
-      direction === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
-      direction === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
-                             KenneyCharFrames.PLAYER_WALK_RIGHT[0];
-    this.playerSprite.setFrame(idleFrame);
-    this.playerSprite.setFlipX(direction === 'left');
   }
 
   /** Devuelve la clave si su textura ya cargó; si no, null (→ fallback del marcador). */
@@ -2549,6 +2432,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
 
+  private readonly kit = inject(KitService);
+  /** El componente se destruyó mientras llegaba el paquete del kit. */
+  private destroyed = false;
+  private booting = false;
+
   constructor(private readonly zone: NgZone) {}
 
   @ViewChild('gameHost')
@@ -2579,6 +2467,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.destroyed = true;
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
     this.detachHostWatch?.();
@@ -2657,11 +2546,22 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   private boot() {
-    if (!this.gameHost || this.phaserGame) return;
+    if (!this.gameHost || this.phaserGame || this.booting) return;
+    this.booting = true;
+    // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
+    // actores caen a su marcador (KitService lo reintenta en el próximo boot).
+    this.kit.load().then(bundle => bundle, () => null).then(bundle => {
+      this.booting = false;
+      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
+    });
+  }
+
+  private startGame(kit: KitBundle | null) {
     const reduceMotion = this.effectiveReduceMotion();
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
+        kit,
         onReady:       () => this.zone.run(() => {
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
