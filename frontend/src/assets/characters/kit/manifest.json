@@ -1,7 +1,147 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "bbe8b28a0f1688ac6c1e6ac1c22c943b0b56dfb1cda3cd6b503f3b56e189fee8",
+  "kitSha256": "e8648fda1e58d28c5a413f2317ade62ecc056f3ec750892ed93a1956255db492",
   "characters": {
+    "abuela-familia": {
+      "displayName": "Abuela de la niña",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "abuela-familia/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "756b5f36c638d6432979e4d1190976b76d63b477b6468cd1f96a5a64fc9c9a4f"
+        },
+        "walk": {
+          "path": "abuela-familia/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "4656a8552cb6ecf06ed8fad24eafeb740422f1272dd6a18f088a07c898b4b1bf"
+        },
+        "portrait-neutral": {
+          "path": "abuela-familia/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "4436938e73f0edb464d1af4d9777e30f26a3a50ffd057d1654ea3ba1f187c72e"
+        },
+        "portrait-preocupada": {
+          "path": "abuela-familia/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9c9beb830900e053d916d471401bcf0d4d04ce4c6207f9faa7370c7d77b938ed"
+        },
+        "portrait-triste": {
+          "path": "abuela-familia/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "d8d618d0d9f527a73a8d0696b3377059849c44c2713c5021f237032aaaa0f5cb"
+        },
+        "portrait-alegre": {
+          "path": "abuela-familia/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "8a3e6bca94fe21bd01e1f52f8576097e58b4a6d05f66288671061870a417034c"
+        }
+      }
+    },
+    "adolescente": {
+      "displayName": "Adolescente",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "adolescente/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "4af8fbc63f11c81ea55cf5ad8b6061961466596bc388e28670d10e59e99d41c7"
+        },
+        "walk": {
+          "path": "adolescente/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "e3665952ba24966d977214f5f9d9f1bfd4cb7ad4e8fb9fca8e47fea2c5669425"
+        },
+        "portrait-neutral": {
+          "path": "adolescente/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "f49846d4e0a172fea4341287771ce0fc65b005b08806511d5530435bbae5d8e1"
+        },
+        "portrait-preocupada": {
+          "path": "adolescente/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "74f102c0b26c80b5bde588ba32db65d7f6802026a1595b07417015436a7ebc8d"
+        },
+        "portrait-triste": {
+          "path": "adolescente/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9b7779caa8f1a3b868701b5d572a51c1a190f37a11d7b0803e61605fde805fd3"
+        },
+        "portrait-alegre": {
+          "path": "adolescente/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "156ec16a7bc2c6c1a552e2a361820b70482f34db2118eecb10282fd4f9ec8756"
+        }
+      }
+    },
     "andres": {
       "displayName": "Andrés",
       "kind": "jugable",
@@ -210,6 +350,76 @@
         }
       }
     },
+    "enfermera-urgencias": {
+      "displayName": "Enfermera de urgencias",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "enfermera-urgencias/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "6a10fd160ac9b020ba3c52a8205482b6bf14551d9dfa4b0aeb923ad45d5100be"
+        },
+        "walk": {
+          "path": "enfermera-urgencias/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "2693b789baabbfb1c8fe88cf97f480bbe726a5478331ebd47c192834df9ef7a1"
+        },
+        "portrait-neutral": {
+          "path": "enfermera-urgencias/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "79419b835b25df11734f165467feff225ca0fe5f71ef2d8eee436caf3c8a4efe"
+        },
+        "portrait-preocupada": {
+          "path": "enfermera-urgencias/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "2da40726d0fd4227ed26859a85db19d04217a3ee8964ff18f3b7fd68e661a876"
+        },
+        "portrait-triste": {
+          "path": "enfermera-urgencias/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a1ad070d055ae31b31251c4d8a26dce66d0bf0f4067b3e8dbcbe5f7d6b065dc9"
+        },
+        "portrait-alegre": {
+          "path": "enfermera-urgencias/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "923981b962fe38111172fadef733e5c9f25120053b0049b6a07adc9ec8e3565b"
+        }
+      }
+    },
     "felipe": {
       "displayName": "Felipe",
       "kind": "jugable",
@@ -259,6 +469,76 @@
           "width": 32,
           "height": 32,
           "pixelSha256": "61a9d13408e6d330a9288b0f649fca6a29311fef9b170d99de43f4f890f4696e"
+        }
+      }
+    },
+    "funcionaria-recepcion": {
+      "displayName": "Funcionaria de recepción",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "funcionaria-recepcion/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "753e803095ce75bd1cda9fdbc9443039d4568d7c78adaf5450e219cf84222d92"
+        },
+        "walk": {
+          "path": "funcionaria-recepcion/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "619560af1f9cbac34c70af915594d8d05dce5e79e275b9455ba9017f75999387"
+        },
+        "portrait-neutral": {
+          "path": "funcionaria-recepcion/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "c1468f5a0dc45904679bb57e4f78d902fb634456d5886bd0dc2127b96abc6bd1"
+        },
+        "portrait-preocupada": {
+          "path": "funcionaria-recepcion/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "8cffd33a1a37cbd6065707dfc355a50b01cd13c43c951130c067f45be8b5a4a6"
+        },
+        "portrait-triste": {
+          "path": "funcionaria-recepcion/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "30948112ca63d63b9be42af4dfa14ec1568fb747057659c87dd0bc0e906d52cc"
+        },
+        "portrait-alegre": {
+          "path": "funcionaria-recepcion/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "b0dccd3e14e88efec255bf62ae5b0e293fee62c5e2923dc246fd0828562482c8"
         }
       }
     },
@@ -366,6 +646,76 @@
         }
       }
     },
+    "madre-acompanante": {
+      "displayName": "Madre acompañante",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "madre-acompanante/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "9fa0697f3b5be62b5cc2c29bbe5db607b00beef35c593138e3826e0b93aa95ec"
+        },
+        "walk": {
+          "path": "madre-acompanante/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "48d94bfef4d7ae5e058f1eb53280dfbb302aa947d64f0c76b6bf0c3a64d27abd"
+        },
+        "portrait-neutral": {
+          "path": "madre-acompanante/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "cd2eb9f9e7fa7ce8dc2afbd968137a402625a62f19acc2076434eedd0eb2d52f"
+        },
+        "portrait-preocupada": {
+          "path": "madre-acompanante/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "b77a0e71a0664376420ad6391ba526cc84a3ed652f5473024f910ebd8cee4fc3"
+        },
+        "portrait-triste": {
+          "path": "madre-acompanante/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "5f40e0f0afc78d450f834c278363500e045b8a70a6bd2be5674e28c59b890c4a"
+        },
+        "portrait-alegre": {
+          "path": "madre-acompanante/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "08cffd132ae8865ba3de2aef665943433716cb95968bed63908a285eae652ca9"
+        }
+      }
+    },
     "mariana": {
       "displayName": "Mariana",
       "kind": "jugable",
@@ -470,6 +820,198 @@
         }
       }
     },
+    "medico-guardia": {
+      "displayName": "Médico de guardia",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "medico-guardia/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "1dd590da51cae63361db198acd75afef64c9f4273dcfdc71257821325f0b6e31"
+        },
+        "walk": {
+          "path": "medico-guardia/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "8804f3b87cff50087f73d612df2f8cde32b5680156f3b9d53f787a647db99751"
+        },
+        "portrait-neutral": {
+          "path": "medico-guardia/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "97d88d20a83fc61cf630833c47020356da59312461f8cde3f2bc4b06eead3969"
+        },
+        "portrait-preocupada": {
+          "path": "medico-guardia/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a6ae083d5918fc300fef615bb8a35e5cca0c2cb3d0def6668a68dda840252307"
+        },
+        "portrait-triste": {
+          "path": "medico-guardia/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "f3aa8b7f1f1b30afd24edb46d9ecc7d677b4cdca563aa3564fed7e25beb62a8d"
+        },
+        "portrait-alegre": {
+          "path": "medico-guardia/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "59255c1b43b0fd03a65f862d59ba957ecf3cc35cdfcd435eeb5a1214cb18023f"
+        }
+      }
+    },
+    "orientadora-juridica": {
+      "displayName": "Orientadora jurídica",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "orientadora-juridica/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "804ffb366d421c70c8635ae8acc752bca3f133811a582397a32380926d28f134"
+        },
+        "walk": {
+          "path": "orientadora-juridica/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "a9297c0a4f1d7f87db9ce6fe889e84e027c782e5261a2169abe6b0132dfbcf9c"
+        },
+        "portrait-neutral": {
+          "path": "orientadora-juridica/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "25fa8c00dda3876f48d645a34c620453a57a9ef8c52b9fba351d11b43b9062f9"
+        },
+        "portrait-preocupada": {
+          "path": "orientadora-juridica/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "49ce0f99ca93138975b47703359a358b68622118b91a35da047c0561afca33d8"
+        },
+        "portrait-triste": {
+          "path": "orientadora-juridica/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "ad3fc8e9cfab0de1adf968d0b91de70a29da4d917eb24001366d5451e85917a2"
+        },
+        "portrait-alegre": {
+          "path": "orientadora-juridica/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9b79919b17726bed76b5d6761a350ee8a967d400b5fd46a5af43b1b499192a6b"
+        }
+      }
+    },
+    "paciente-espera": {
+      "displayName": "Paciente en espera",
+      "kind": "figurante",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "paciente-espera/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "928faa544d8fde173d77e01cccca6db85301e803761a231357663d9f4eaa6e8d"
+        },
+        "walk": {
+          "path": "paciente-espera/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "955505b548d9b7911095c930c8dfb1bfa79b1211048b6b3661db7e1478646328"
+        },
+        "portrait-neutral": {
+          "path": "paciente-espera/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "4f6bf67747a383b0d51f540bcb48e5a78e0f1efe998495e80af626b4c9793e35"
+        }
+      }
+    },
     "paula": {
       "displayName": "Paula",
       "kind": "jugable",
@@ -522,6 +1064,146 @@
         }
       }
     },
+    "profesional-psicosocial": {
+      "displayName": "Profesional psicosocial",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "profesional-psicosocial/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "d05598039d382e8ca6d43515d6fdf5ac8ef966b5903a43e2a4298e4779f40bc5"
+        },
+        "walk": {
+          "path": "profesional-psicosocial/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "8ed40e931445de800e58143fdc96a440e6416b5b3d0bade4fd345a8ee5dbfe21"
+        },
+        "portrait-neutral": {
+          "path": "profesional-psicosocial/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "41f20d17b42fe84518de105ccf38e403a36bbf9a0d5dfaee189fa0c271f750b9"
+        },
+        "portrait-preocupada": {
+          "path": "profesional-psicosocial/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "1d9cd666690496b1a531d854a39b5d4e0a55f84dc8e08a0412398a95c84eaea1"
+        },
+        "portrait-triste": {
+          "path": "profesional-psicosocial/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "3a042822d75fa90ae745da2bdca717cd7843005ba6b10a4da554ca0934960752"
+        },
+        "portrait-alegre": {
+          "path": "profesional-psicosocial/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "bce132729945e5e494e58f0fde4748f7877b723ae971282e7fcbec8ace752921"
+        }
+      }
+    },
+    "psicologa-hospitalaria": {
+      "displayName": "Psicóloga hospitalaria",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "psicologa-hospitalaria/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "5914ef1bf3626284537e7abd13e2b7793d8ce8a38246989151403f8d86b13b1f"
+        },
+        "walk": {
+          "path": "psicologa-hospitalaria/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "bece25eb5a7f0ffdd2b83ddb80787184f2c6ccbf2ee514044cab4c3bd1de5878"
+        },
+        "portrait-neutral": {
+          "path": "psicologa-hospitalaria/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9731bd06ea6c372874ca7d4228693327803f2578032ac4c5efc1c5c15ca71161"
+        },
+        "portrait-preocupada": {
+          "path": "psicologa-hospitalaria/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "310703e6e01a301fa223b6ee54ad977a7443d9aa814c4df2a3a56c7a759ca58b"
+        },
+        "portrait-triste": {
+          "path": "psicologa-hospitalaria/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "d4018b2d37df8bf8e2b868d613b81abe47094e34c59f97c29db80a44ff47c85c"
+        },
+        "portrait-alegre": {
+          "path": "psicologa-hospitalaria/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "50b85012b5fd0b319c1acca574b533fc7056ef5ecbcd0b163a6795b906c9705d"
+        }
+      }
+    },
     "samuel": {
       "displayName": "Samuel",
       "kind": "jugable",
@@ -571,6 +1253,286 @@
           "width": 32,
           "height": 32,
           "pixelSha256": "2a56b5e0c38f385fc66939f7c38fb2fdb19f98b26d6e95a750dab81cbf35e740"
+        }
+      }
+    },
+    "seguridad": {
+      "displayName": "Seguridad",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 18,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 18,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "seguridad/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "deeb1f646b13a8fe08ea0c000847e8e7172fc710a7bf92fae09b444298915462"
+        },
+        "walk": {
+          "path": "seguridad/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "7600130ccd27385269894823c3114ca6eddfe0a9bf5e3e75beceb3d914a62193"
+        },
+        "portrait-neutral": {
+          "path": "seguridad/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "4e65e78211b08b12380d28c1e1886398cecc95778de4a269d2cc4fda154a4fb6"
+        },
+        "portrait-preocupada": {
+          "path": "seguridad/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "b6a0666aed56d3c7249a11323a4ef87076f13fbb9fe4ffdc8bcc2ffc0007feb3"
+        },
+        "portrait-triste": {
+          "path": "seguridad/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "6e30f1850cf96cd458d81f2cfe4fd59107b8d5b68be4f6ceeb3ae67921a097c6"
+        },
+        "portrait-alegre": {
+          "path": "seguridad/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "ce513572d67ba6a2a0f2185240bf82b2fcba1a9266451c1cadb2e0375ddc5124"
+        }
+      }
+    },
+    "sobreviviente": {
+      "displayName": "Sobreviviente",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "sobreviviente/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "1e55097a5869b62ad9987f71ff0e927638d11f3e035e4876c4c4c86506b0a2ea"
+        },
+        "walk": {
+          "path": "sobreviviente/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "2688b82e3eb1ecbcee6e4607c1d2d3a7ddd723a3d958694eba06ef6149cc3989"
+        },
+        "portrait-neutral": {
+          "path": "sobreviviente/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "04d87e540dd5b3fe2e4472318de0ff154e766ce74c6194f8444875598ce6881e"
+        },
+        "portrait-preocupada": {
+          "path": "sobreviviente/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "b572cfbd1e22c5707193f4607bedebfcf124656e7bcf49efd926d16c546b50cb"
+        },
+        "portrait-triste": {
+          "path": "sobreviviente/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "ee44518beacbcfe4b83d2f8815bcfabe28044190f15114946a9a07dde306028f"
+        },
+        "portrait-alegre": {
+          "path": "sobreviviente/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "1e1217df8cb9271a7d4edec80f7c906fa917dcfbd7929a611ad3350008c9ef9d"
+        }
+      }
+    },
+    "supervisor-clinico": {
+      "displayName": "Supervisor clínico",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "supervisor-clinico/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "02dff3f7c74196490b46cc7d2ed21b95fe41a7b3e7754d1ddcf4c66f2aa26c0c"
+        },
+        "walk": {
+          "path": "supervisor-clinico/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "76ece9a099c6b4c355a60bac04c78c543e56754bbbb1c012c0ec53daa9b98d9a"
+        },
+        "portrait-neutral": {
+          "path": "supervisor-clinico/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "6524d7aec6014acce88a85becd89d914362b7ebfefd3c5b8a233a675224eda3c"
+        },
+        "portrait-preocupada": {
+          "path": "supervisor-clinico/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "dde19e32b0311c4644bd48757a63ea25c78f86042b053d693241c81d6baf6dd0"
+        },
+        "portrait-triste": {
+          "path": "supervisor-clinico/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "14698f7a19fb2b3341c542bbbb6ce898970e0cee3b7c6ab4177bb821f9c78d37"
+        },
+        "portrait-alegre": {
+          "path": "supervisor-clinico/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "4cb8258a6fdd8da02b529d45ae1cd6e06742dbf07b1850179a8ded935ef24eac"
+        }
+      }
+    },
+    "trabajadora-social": {
+      "displayName": "Trabajadora social",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "trabajadora-social/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "546a2c15c284c95232712073fece63f2480ec129491b716b453e051b237051ce"
+        },
+        "walk": {
+          "path": "trabajadora-social/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "1d9e8317102d45a72dac96ea9ae5ef815da2cb232b852681a25d3c05585e464d"
+        },
+        "portrait-neutral": {
+          "path": "trabajadora-social/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "7e0f5b50da676b23f11f035f0faf9a1230be68edd9c80177085d17418c0a719b"
+        },
+        "portrait-preocupada": {
+          "path": "trabajadora-social/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a505a5e92ded6405dfa2d64e556a2406bba102e59607aa7c4512c5c93470183c"
+        },
+        "portrait-triste": {
+          "path": "trabajadora-social/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "c28501c72be659b761f5be88c5dc6ecb3c34df81a0cafd2e416805556ba2957d"
+        },
+        "portrait-alegre": {
+          "path": "trabajadora-social/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "3c89ab3105ef48018b11877533a36c5f90efc8ff287925aead190408c8f641f0"
         }
       }
     },
