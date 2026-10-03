@@ -20,7 +20,7 @@ function findRepoRoot(from: string): string {
 
 export const SEED_PATH = path.join(findRepoRoot(__dirname), ...SEED_RELATIVE);
 
-export interface SeedObject { key: string; label: string; type: string }
+export interface SeedObject { key: string; label: string; type: string; x: number | null; y: number | null }
 export interface SeedDoor {
   key: string; label: string; targetNodeKey: string | null;
   requiresInspected: string[]; requiresNpcs: string[]; requiresTools: string[]; requiresNodes: string[];
@@ -42,8 +42,10 @@ function listOf(segment: string, name: string): string[] {
 export function readSeed(): SeedData {
   const text = fs.readFileSync(SEED_PATH, 'utf-8');
   const objects = [...text.matchAll(
-    /"key":\s*"([^"]+)",\s*"label":\s*"([^"]+)",\s*"type":\s*"(PERSON|OBJECT|TOOL|EXIT|ROUTE|WARNING)"/g,
-  )].map(m => ({ key: m[1], label: m[2], type: m[3] }));
+    /"key":\s*"([^"]+)",\s*"label":\s*"([^"]+)",\s*"type":\s*"(PERSON|OBJECT|TOOL|EXIT|ROUTE|WARNING)",\s*(?:"pos":\s*\((\d+),\s*(\d+)\))?/g,
+  )].map(m => ({
+    key: m[1], label: m[2], type: m[3], x: m[4] === undefined ? null : Number(m[4]), y: m[5] === undefined ? null : Number(m[5]),
+  }));
 
   const doors = [...text.matchAll(
     /"key":\s*"([^"]+)",\s*"label":\s*"([^"]+)",\s*"type":\s*"EXIT"([\s\S]*?)(?="key":|\n\s*\],)/g,

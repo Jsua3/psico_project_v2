@@ -1,5 +1,6 @@
 import { NODE_EVIDENCE } from './evidence-gating.config';
 import { ENTITY_NAMES, ROOM_GRAPH, ROOM_LABELS, ROUTE_ORDER, TOOL_HINTS } from './orientation.config';
+import { placeHint } from './place-hint.util';
 import { readSeed } from './orientation-seed.testing';
 import { textViolations } from './orientation-text.testing';
 import { SCENE_PROGRESS } from './scene-objectives.config';
@@ -142,6 +143,50 @@ describe('stage-route.config: destinos reales', () => {
   it('las salas de cada tramo cubren los destinos de las puertas del seed', () => {
     for (const door of seed.doors) expect(['hospital-urgencias', 'hospital-sala-escucha', 'comisaria-recepcion', 'comisaria-consultorio']).toContain(door.targetNodeKey);
     for (const room of ROUTE_ORDER) expect(ROOM_LABELS[room]).toBeDefined();
+  });
+});
+
+describe('stage-route.config: el «dónde» calculado desde las coordenadas del seed', () => {
+  /** Distancia de un punto a la banda más cercana: si es pequeña, mover un mueble cambia el «dónde». */
+  const marginToBand = (x: number, y: number) => Math.min(...[200, 400, 600, 760].map(edge => Math.abs(x - edge)), Math.abs(y - 360));
+
+  it('el seed trae coordenadas para los objetos y NPC de la ruta', () => {
+    for (const route of ROUTES) {
+      for (const step of steps(route)) {
+        const key = bareKey(step);
+        const positions = step.targetKey.startsWith('npc:')
+          ? seed.ambientNpcs.filter(n => n.key === key).map(n => [n.x, n.y])
+          : seed.objects.filter(o => o.key === key && o.x !== null).map(o => [o.x!, o.y!]);
+        expect(`${step.id}:${positions.length > 0}`).toBe(`${step.id}:true`);
+      }
+    }
+  });
+
+  it('cada destino cae al menos a 10 px de los bordes de banda (una pequeña corrección del seed no cambia el «dónde»)', () => {
+    for (const route of ROUTES) {
+      for (const step of steps(route)) {
+        const key = bareKey(step);
+        const positions = step.targetKey.startsWith('npc:')
+          ? seed.ambientNpcs.filter(n => n.key === key).map(n => [n.x, n.y])
+          : seed.objects.filter(o => o.key === key && o.x !== null).map(o => [o.x!, o.y!]);
+        for (const [x, y] of positions) expect({ id: step.id, margin: marginToBand(x, y) >= 10 }).toEqual({ id: step.id, margin: true });
+      }
+    }
+  });
+
+  it('los lugares del diseño (F§7.3) salen de las coordenadas reales del seed', () => {
+    const at = (key: string) => seed.objects.find(o => o.key === key && o.x !== null)!;
+    const hint = (key: string, door = false) => placeHint(at(key).x!, at(key).y!, { door });
+    expect(hint('tool-pap')).toBe('a la izquierda, al frente');
+    expect(hint('familia-crisis')).toBe('en el extremo izquierdo, al frente');
+    expect(hint('puerta-sala-escucha', true)).toBe('puerta en el extremo derecho');
+    expect(hint('marco-normativo-hospital')).toBe('a la derecha, al fondo');
+    expect(hint('psicologa-acompanante')).toBe('a la derecha, al frente');
+    expect(hint('expediente-caso')).toBe('a la derecha, al fondo');
+    expect(hint('marco-normativo-comisaria')).toBe('en el extremo derecho, al fondo');
+    expect(hint('profesional-psicosocial')).toBe('a la derecha, al frente');
+    const nurse = seed.ambientNpcs.find(n => n.key === 'enfermera-urgencias')!;
+    expect(placeHint(nurse.x, nurse.y)).toBe('en el centro, al fondo');
   });
 });
 
