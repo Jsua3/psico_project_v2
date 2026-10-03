@@ -83,6 +83,14 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     expect(source).not.toContain('Salida segura (Escape)');
   });
 
+  it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
+    const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
+    expect(notice).toContain('class="pausing-notice"');
+    expect(notice).toContain('Pausando el caso…');
+    // El acuse es estático: sin temporizadores ni animación (nada esencial se cierra solo).
+    expect(source).not.toMatch(/\.pausing-notice\s*\{[^}]*animation/);
+  });
+
   it('el aviso de contenido no promete una salida que el estudiante no tiene a mano', () => {
     expect(source).toContain('con el botón «Salida segura»');
     expect(source).not.toContain('Durante el caso tendrás disponible la salida segura');

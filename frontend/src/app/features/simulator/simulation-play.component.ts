@@ -90,6 +90,14 @@ const CASE_INTRO_PARAGRAPHS = [
           <span>{{ doorNotice() }}</span>
         </div>
       }
+      @if (pausing()) {
+        <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
+             Los lectores de pantalla ya reciben el aviso por la región viva. -->
+        <div class="pausing-notice" aria-hidden="true">
+          <mat-icon aria-hidden="true">pause_circle</mat-icon>
+          <span>Pausando el caso…</span>
+        </div>
+      }
       @if (roomBanner() && !fadeActive()) {
         <div class="room-banner" role="status">{{ roomBanner() }}</div>
       }
@@ -786,6 +794,14 @@ const CASE_INTRO_PARAGRAPHS = [
       max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
+    .pausing-notice {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 999px;
+      background: rgba(24,30,46,.96); border: 1px solid rgba(241,167,159,.5);
+      color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
+    }
+    .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .door-notice {
       position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 320;
       display: flex; align-items: center; gap: 10px;
