@@ -12,6 +12,7 @@ import {
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
 import { resolvePortraitAsset } from './portrait-resolver.util';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 const CHARS_PER_SEC = 22;
 const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
@@ -19,7 +20,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule],
+  imports: [A11yModule, CommonModule, SafeExitButtonComponent],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -33,6 +34,16 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
         aria-modal="true"
         [attr.aria-label]="'Diálogo con ' + activeSpeakerName(d)">
 
+        <!-- Cabecera fija (REGLA-004, P5): el panel nunca atrapa, con o sin opciones y en ambos modos.
+             Clases propias: los e2e pulsan «button.close-btn» para avanzar y cerrar diálogos. -->
+        <header class="panel-head">
+          <button type="button" class="panel-back" (click)="close.emit()">
+            <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
+          </button>
+          <app-safe-exit-button class="panel-head__exit" (pause)="safeExit.emit()" />
+        </header>
+
+        <div class="strip-main">
         <div class="portrait" aria-hidden="true" [style.color]="emotionColor(activeEmotion(d))">
           @if (portraitSrc(d); as src) {
             <img class="portrait-img" [src]="src" alt="" (error)="onPortraitError(src)" />
@@ -106,6 +117,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
             </button>
           }
         </div>
+        </div>
       </div>
     }
   `,
@@ -114,7 +126,8 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       width: 100%;
       min-height: 180px;
       display: flex;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: stretch;
       gap: 0;
       padding: 0;
       background: rgba(8,12,18,.95);
@@ -128,6 +141,40 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       border-top-color: rgba(79,163,100,.6);
       background: rgba(8,14,10,.95);
     }
+
+    .strip-main { display: flex; align-items: flex-start; flex: 1 1 auto; min-width: 0; }
+
+    /* Cabecera fija del panel: «Volver al mapa» y «Salida segura» siempre a mano. */
+    .panel-head {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(182,156,255,.18);
+      background: rgba(8,12,18,.97);
+    }
+    .panel-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 6px 14px;
+      border: 1px solid rgba(182,156,255,.4);
+      border-radius: 12px;
+      background: rgba(124,77,255,.12);
+      color: #e8f0f4;
+      font: inherit;
+      font-size: .8rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
+    .panel-back:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 2px; }
+    .panel-back__arrow { font-size: .62rem; }
 
     .portrait {
       position: relative;
@@ -345,6 +392,8 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
       animation: none;
       overflow-y: auto;
     }
+    .dialogue-strip--side .strip-main { flex-direction: column; align-items: stretch; flex: 0 0 auto; }
+    .dialogue-strip--side .panel-head { background: rgba(18,24,42,.97); }
     .dialogue-strip--side .portrait {
       flex-direction: row;
       width: 100%;
@@ -389,6 +438,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly reduceMotion = input(false);
 
   readonly close   = output<void>();
+  /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */
+  readonly safeExit = output<void>();
   readonly execute = output<number>();
   readonly useTool = output<string>();
   readonly frontendChoice = output<string>();
@@ -490,6 +541,9 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   onKeydown(e: KeyboardEvent): void {
     const d = this.dialogue();
     if (!d) return;
+    // La cabecera conserva su propia activación: sin esto, Enter o Espacio sobre «Volver al mapa»
+    // o «Salida segura» avanzarían el texto y el preventDefault cancelaría el clic nativo.
+    if (e.key !== 'Escape' && (e.target as HTMLElement | null)?.closest?.('.panel-head')) return;
     const action = dialogueKeyAction(
       e.key,
       this.isTypingComplete(),

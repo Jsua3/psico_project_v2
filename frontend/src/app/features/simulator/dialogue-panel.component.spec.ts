@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 import { DialogueState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
@@ -10,6 +12,8 @@ import {
   isFinalDialogueLine,
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
+
+const source = readFileSync(join(__dirname, 'dialogue-panel.component.ts'), 'utf-8');
 
 const MULTI_LINE_DIALOGUE: DialogueState = {
   key: 'dialogue-multi',
@@ -177,6 +181,118 @@ describe('DialoguePanelComponent - integración renderizada', () => {
     expect(fixture.nativeElement.querySelector('.speaker-name')?.textContent).toContain('Consultante');
     expect(fixture.nativeElement.querySelector('.portrait-img')?.getAttribute('src'))
       .toBe('/assets/characters/portraits/paciente-vbg_neutral.png');
+  });
+});
+
+describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const head = () => host().querySelector('.panel-head') as HTMLElement | null;
+  const buttonNames = (root: ParentNode) =>
+    Array.from(root.querySelectorAll('button')).map(b => b.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+
+  const INFO_DIALOGUE: DialogueState = {
+    key: 'dialogue-info', speakerName: 'Enfermera', portraitKey: null, emotion: 'neutral',
+    lines: [{ order: 1, speakerName: 'Enfermera', text: 'Buenas tardes', emotion: 'neutral' }],
+    choices: [],
+  };
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(dialogue: DialogueState, mode: 'cinematic' | 'side' = 'cinematic', reveal = true): void {
+    writeInputSignal(component.mode, mode);
+    writeInputSignal(component.dialogue, dialogue);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    if (reveal) {
+      component.skipTypewriter();
+      while (!component.isLastLine()) { component.advanceLine(); component.skipTypewriter(); }
+      fixture.detectChanges();
+    }
+  }
+
+  it.each(['cinematic', 'side'] as const)('con opciones visibles (modo %s) están «Volver al mapa» y «Salida segura»', mode => {
+    render(MULTI_LINE_DIALOGUE, mode);
+    expect(host().querySelector('.choices')).not.toBeNull();
+    const names = buttonNames(head()!);
+    expect(names.some(n => n.includes('Volver al mapa'))).toBe(true);
+    expect(names.some(n => n.includes('Salida segura'))).toBe(true);
+  });
+
+  it.each(['cinematic', 'side'] as const)('sin opciones (modo %s) la cabecera sigue ofreciendo ambas salidas', mode => {
+    render(INFO_DIALOGUE, mode);
+    expect(host().querySelector('.choices')).toBeNull();
+    const names = buttonNames(head()!);
+    expect(names.some(n => n.includes('Volver al mapa'))).toBe(true);
+    expect(names.some(n => n.includes('Salida segura'))).toBe(true);
+  });
+
+  it('la cabecera existe también mientras el texto aún se escribe (antes de ver opciones)', () => {
+    render(MULTI_LINE_DIALOGUE, 'side', false);
+    expect(component.isTypingComplete()).toBe(false);
+    expect(host().querySelector('.choices')).toBeNull();
+    expect(buttonNames(head()!).some(n => n.includes('Volver al mapa'))).toBe(true);
+    expect(buttonNames(head()!).some(n => n.includes('Salida segura'))).toBe(true);
+  });
+
+  it('«Volver al mapa» emite close y no es un botón close-btn (el e2e solo pulsa esos para avanzar)', () => {
+    render(MULTI_LINE_DIALOGUE);
+    const close = jest.fn();
+    component.close.subscribe(close);
+    const back = Array.from(head()!.querySelectorAll('button')).find(b => b.textContent?.includes('Volver al mapa')) as HTMLButtonElement;
+    expect(back.classList).not.toContain('close-btn');
+    back.click();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('ningún botón de la cabecera usa la clase close-btn: closeDialogue de los e2e sigue encontrando solo los de avance', () => {
+    render(INFO_DIALOGUE);
+    expect(head()!.querySelectorAll('.close-btn')).toHaveLength(0);
+    const advance = Array.from(host().querySelectorAll('button.close-btn')).map(b => b.textContent?.replace(/\s+/g, ' ').trim());
+    expect(advance).toEqual(['Continuar ▶']);
+  });
+
+  it('la salida segura de la cabecera reenvía pause como safeExit del panel', () => {
+    // ts-jest no aplica la transformación JIT a `output()`: se fija el cableado sobre el fuente.
+    expect(source).toMatch(/<app-safe-exit-button[^>]*\(pause\)="safeExit\.emit\(\)"/);
+    expect(source).toMatch(/readonly safeExit = output<void>\(\);/);
+  });
+
+  it('la cabecera es fija (sticky) y queda fuera del retrato y del cuerpo que se desplazan', () => {
+    expect(source).toMatch(/\.panel-head \{\s*position: sticky;\s*top: 0;/);
+    render(MULTI_LINE_DIALOGUE, 'side');
+    const strip = host().querySelector('.dialogue-strip') as HTMLElement;
+    expect(strip.firstElementChild).toBe(head());
+    expect(head()!.closest('.strip-main')).toBeNull();
+  });
+
+  it('Enter o Espacio sobre un botón de la cabecera no avanzan el texto ni cancelan su clic nativo', () => {
+    render(MULTI_LINE_DIALOGUE, 'side', false);
+    const back = Array.from(head()!.querySelectorAll('button')).find(b => b.textContent?.includes('Volver al mapa')) as HTMLButtonElement;
+    for (const key of ['Enter', ' ']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      back.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(component.isTypingComplete()).toBe(false);
+    // Escape sigue cerrando desde la cabecera.
+    const close = jest.fn();
+    component.close.subscribe(close);
+    back.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });
 
