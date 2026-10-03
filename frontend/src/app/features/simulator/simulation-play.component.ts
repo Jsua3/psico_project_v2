@@ -18,6 +18,7 @@ import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, n
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
@@ -59,7 +60,8 @@ const CASE_INTRO_PARAGRAPHS = [
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
+    SafeExitButtonComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -137,7 +139,8 @@ const CASE_INTRO_PARAGRAPHS = [
                   emocionalmente exigentes.
                 </p>
                 <p>
-                  Durante el caso tendrás disponible la salida segura (<kbd>Esc</kbd>).
+                  Podrás pausar el caso en cualquier momento con el botón «Salida segura»
+                  (con teclado, también <kbd>Esc</kbd>). Tu avance se guarda y puedes retomarlo.
                   Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
                   cuando lo decidas.
                 </p>
@@ -173,9 +176,12 @@ const CASE_INTRO_PARAGRAPHS = [
                   <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
                   <span>Silenciar música</span>
                 </button>
-                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
-                  Continuar
-                </button>
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
+                    Continuar
+                  </button>
+                </div>
               </footer>
             </article>
           </section>
@@ -201,9 +207,12 @@ const CASE_INTRO_PARAGRAPHS = [
 
               <footer class="case-intro-card__actions">
                 <span>Lee el contexto completo antes de iniciar la intervención.</span>
-                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
-                  Continuar
-                </button>
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
+                    Continuar
+                  </button>
+                </div>
               </footer>
             </article>
           </section>
@@ -280,7 +289,8 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-                (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
+                (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
+                (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
             </aside>
           }
@@ -322,7 +332,8 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-            (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
+            (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
+            (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
         }
 
@@ -334,7 +345,8 @@ const CASE_INTRO_PARAGRAPHS = [
           [saveState]="journalSaveState()"
           [timeline]="visitedStageLabels()"
           [resources]="supportResources()"
-          (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
+          (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)"
+          (safeExit)="pauseFromOverlay()" />
 
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
@@ -344,7 +356,7 @@ const CASE_INTRO_PARAGRAPHS = [
             <p class="sr-only" role="alert">Advertencia: {{ game.currentNode.warningMessage }}</p>
           }
           @if (game.currentNode.sensitiveContent) {
-            <p class="sr-only" role="note">Contenido sensible. Salida segura con Escape.</p>
+            <p class="sr-only" role="note">Contenido sensible. Puedes pausar el caso con el botón «Salida segura» o con la tecla Escape.</p>
           }
           <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
         </section>
@@ -731,6 +743,13 @@ const CASE_INTRO_PARAGRAPHS = [
       flex-shrink: 0;
       min-width: 140px;
     }
+    /* «Salida segura» a la izquierda de «Continuar»: nunca se queda atrás cuando el texto de apoyo crece. */
+    .case-intro-card__buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
 
     /* ── Overlays ────────────────────────────────────────────────────────── */
     .dialogue-cinematic { position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; }
@@ -867,6 +886,8 @@ const CASE_INTRO_PARAGRAPHS = [
         justify-items: stretch;
       }
       .case-intro-card__actions .psy-button { width: 100%; }
+      /* El principal arriba y «Salida segura» debajo, cada uno en su fila. */
+      .case-intro-card__buttons { flex-direction: column-reverse; align-items: stretch; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
