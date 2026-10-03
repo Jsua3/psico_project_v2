@@ -469,6 +469,25 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.checklistNotice()).not.toMatch(/PAP/);
     });
 
+    it('una nota que un diálogo tapó antes de leerse vuelve a mostrarse completa cuando el diálogo se cierra', () => {
+      startInUrgencias();
+      tick();
+      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
+      tick();
+      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
+
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      tick(); // el diálogo tapa la tarjeta
+      tick(10_000); // el jugador lee con calma: la nota no se consume por debajo
+      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
+
+      component.closeDialogue();
+      tick();
+      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
+      tick(4300);
+      expect(component.checklistNotice()).toBeNull();
+    });
+
     it('dos pasos hechos a la vez se anotan uno tras otro', () => {
       startInUrgencias();
       tick();

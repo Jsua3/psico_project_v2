@@ -545,6 +545,8 @@ const CASE_INTRO_PARAGRAPHS = [
       display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
     }
     .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
+    /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
+    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 136px)); }
     .stress-vignette {
       position: absolute; inset: 0; pointer-events: none; z-index: 18; opacity: 0;
       transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
@@ -2608,10 +2610,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.flushNotes();
   }
 
-  /** Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. */
+  /**
+   * Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. Una nota que
+   * un diálogo tapó antes de que se leyera vuelve a empezar sus 4,2 s cuando la escena queda libre.
+   */
   private flushNotes(): void {
-    if (this.noteTimer !== null || !this.pendingNotes.length || this.inputBlocked()) return;
-    this.checklistNotice.set(this.pendingNotes.shift() ?? null);
+    if (this.inputBlocked()) {
+      if (this.noteTimer !== null) {
+        window.clearTimeout(this.noteTimer);
+        this.noteTimer = null;
+      }
+      return;
+    }
+    if (this.noteTimer !== null) return;
+    const note = this.checklistNotice() ?? this.pendingNotes.shift() ?? null;
+    if (note === null) return;
+    this.checklistNotice.set(note);
     this.noteTimer = window.setTimeout(() => {
       this.noteTimer = null;
       this.checklistNotice.set(null);
