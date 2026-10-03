@@ -398,6 +398,123 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
   });
 });
 
+describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const choiceButtons = () => Array.from(host().querySelectorAll<HTMLButtonElement>('.choice-btn'));
+  const clickWithDetail = (button: HTMLElement, detail: number) =>
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail }));
+
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.reduceMotion, true);
+    writeInputSignal(component.dialogue, {
+      ...MULTI_LINE_DIALOGUE,
+      lines: [{ order: 1, speakerName: 'Familia', text: '¿Qué hacemos?', emotion: 'neutral' }],
+      choices: [
+        { key: 'c1', text: 'Opción uno', decisionOptionId: 1, requiredToolCode: null, effect: {} },
+        { key: 'c2', text: 'Opción dos', decisionOptionId: 2, requiredToolCode: null, effect: {} },
+      ],
+    });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    jest.useRealTimers();
+  });
+
+  it('con opciones visibles el foco entra al grupo .choices, no a una opción, y sigue dentro del diálogo', () => {
+    const dialog = host().querySelector('[role="dialog"]') as HTMLElement;
+    const group = host().querySelector('.choices') as HTMLElement;
+    expect(group).not.toBeNull();
+    expect(group.getAttribute('tabindex')).toBe('-1');
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(group);
+    expect(choiceButtons().some(b => b === document.activeElement)).toBe(false);
+  });
+
+  it('el foco sigue sin caer en una opción tras completar el texto a mano', () => {
+    writeInputSignal(component.reduceMotion, false);
+    writeInputSignal(component.dialogue, { ...component.dialogue()!, key: 'otra', lines: [{ order: 1, speakerName: 'Familia', text: 'Texto largo para escribir', emotion: 'neutral' }] });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    fixture.detectChanges();
+    expect(host().querySelector('.choices')).not.toBeNull();
+    expect(choiceButtons().some(b => b === document.activeElement)).toBe(false);
+    expect((host().querySelector('[role="dialog"]') as HTMLElement).contains(document.activeElement)).toBe(true);
+  });
+
+  it('Enter con opciones visibles no emite execute (ni siquiera tras la confirmación)', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    jest.advanceTimersByTime(1000);
+    expect(execute).not.toHaveBeenCalled();
+    expect(component.chosenKey()).toBeNull();
+  });
+
+  it('un clic de teclado (detail 0) en los primeros 500 ms se ignora', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    clickWithDetail(choiceButtons()[0], 0);
+    jest.advanceTimersByTime(300);
+    expect(component.chosenKey()).toBeNull();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('un toque o clic de puntero (detail >= 1) funciona de inmediato', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    clickWithDetail(choiceButtons()[1], 1);
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenCalledWith(2);
+  });
+
+  it('pasada la ventana, una activación por teclado deliberada sí elige', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    jest.advanceTimersByTime(600);
+    clickWithDetail(choiceButtons()[0], 0);
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenCalledWith(1);
+  });
+
+  it('un diálogo nuevo con opciones reinicia la ventana de guarda', () => {
+    jest.advanceTimersByTime(2000);
+    writeInputSignal(component.dialogue, {
+      ...component.dialogue()!,
+      key: 'siguiente',
+    });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    clickWithDetail(choiceButtons()[0], 0);
+    jest.advanceTimersByTime(300);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('elegir con la tecla de dígito sigue siendo una acción deliberada', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true }));
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenCalledWith(2);
+  });
+});
+
 const CHARS_PER_SEC = 22;
 const INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC);
 

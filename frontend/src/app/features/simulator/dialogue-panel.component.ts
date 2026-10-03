@@ -16,6 +16,8 @@ import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 const CHARS_PER_SEC = 22;
 const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
+/** Ventana tras mostrar las opciones en la que se ignora un clic por teclado (Enter/Espacio mantenido). */
+const CHOICE_ACTIVATION_GUARD_MS = 500;
 
 @Component({
   selector: 'app-dialogue-panel',
@@ -71,7 +73,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
           <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{{ fullText() }}</p>
 
           @if (choicesVisible()) {
-            <div class="choices" role="group" aria-label="Opciones de intervención"
+            <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1"
               [class.choices--locked]="chosenKey() !== null">
               @for (choice of d.choices; track choice.key; let i = $index) {
                 <button
@@ -81,7 +83,7 @@ const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
                   [style.--stagger]="i"
                   [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.evidenceWarning ? ' (información incompleta)' : '')"
                   (mouseenter)="onChoiceHover()"
-                  (click)="handleChoice(choice)">
+                  (click)="onChoiceClick($event, choice)">
                   <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
                   <span class="choice-btn__icon" aria-hidden="true"></span>
                   <span class="choice-btn__body">
@@ -467,6 +469,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   private typewriterHandle: ReturnType<typeof setInterval> | null = null;
   private confirmHandle: ReturnType<typeof setTimeout> | null = null;
+  /** Instante en que aparecieron las opciones: base de la guarda contra la decisión accidental. */
+  private choicesShownAt = 0;
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -479,6 +483,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       this.lineIndex.set(0);
       this.chosenKey.set(null);
       this.failedPortrait.set(null);
+      this.choicesShownAt = Date.now();
       if (d?.lines?.length) {
         this.audio.playSfx('ui_select');
         this.startTypewriter(d.lines[0].text);
@@ -486,6 +491,9 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
         this.displayedText.set('');
         this.isTypingComplete.set(true);
       }
+    });
+    effect(() => {
+      if (this.choicesVisible()) this.choicesShownAt = Date.now();
     });
     // Liberación: cada token nuevo suelta la elección en curso (y su ejecución pendiente).
     effect(() => {
@@ -601,6 +609,16 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     this.chosenKey.set(null);
   }
 
+  /**
+   * Clic sobre una opción. Un clic con `detail === 0` es una activación por teclado (o de lector de
+   * pantalla): en el instante en que aparecen las opciones suele ser el Enter o el Espacio con que
+   * se avanzaba el texto, no una elección. Se ignora en la ventana de guarda (DLG-03).
+   */
+  onChoiceClick(event: MouseEvent, choice: DialogueChoiceState): void {
+    if (event.detail === 0 && Date.now() - this.choicesShownAt < CHOICE_ACTIVATION_GUARD_MS) return;
+    this.handleChoice(choice);
+  }
+
   handleChoice(choice: DialogueChoiceState) {
     if (this.chosenKey() !== null) return;   // ya hay una elección en curso
     this.chosenKey.set(choice.key);
@@ -679,9 +697,11 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       write: () => {
         this.focusRenderRef = null;
         const dialogueBox = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip');
-        dialogueBox
-          ?.querySelector<HTMLElement>('.choice-btn:not([disabled]), .close-btn:not([disabled])')
-          ?.focus();
+        // Con opciones visibles el foco entra al grupo, nunca a una opción: un Enter que avanzaba
+        // el texto no puede acabar activando la primera decisión (DLG-03).
+        const target = dialogueBox?.querySelector<HTMLElement>('.choices')
+          ?? dialogueBox?.querySelector<HTMLElement>('.close-btn:not([disabled])');
+        target?.focus();
       },
     }, { injector: this.injector });
   }
