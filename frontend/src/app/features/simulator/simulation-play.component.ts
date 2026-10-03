@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -432,9 +432,11 @@ const CASE_INTRO_PARAGRAPHS = [
           <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
         </section>
 
-        <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
-          [supportResources]="supportResources()"
-          (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
+        @if (!holdingOutcome()) {
+          <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
+            [supportResources]="supportResources()"
+            (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
+        }
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
         }
@@ -1125,6 +1127,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
+  private readonly injector = inject(Injector);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -1179,6 +1182,19 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * elegida (DLG-01): tras un rechazo o un error sus opciones vuelven a poder activarse.
    */
   readonly dialogueReleaseToken = signal(0);
+  /**
+   * DLG-05 acotado a la última decisión (sin la decisión en dos tiempos, T9.12): al decidir por última vez el
+   * intento ya figura como COMPLETED, pero la «Supervisión clínica» se lee primero sobre la escena y el
+   * resultado se abre al cerrarla. Es solo la intención de retener; lo que manda es `holdingOutcome`.
+   */
+  private readonly supervisionHold = signal(false);
+  /**
+   * El resultado espera a que se cierre la supervisión de la última decisión. Solo mientras la supervisión esté
+   * a la vista y el intento esté COMPLETED (nunca con una pausa, REGLA-004): si el diálogo desaparece por
+   * cualquier camino, el resultado se abre igual.
+   */
+  readonly holdingOutcome = computed(() =>
+    this.supervisionHold() && this.dialogue() !== null && this.attempt()?.status === 'COMPLETED');
   readonly caseIntroTitle = CASE_INTRO_TITLE;
   readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
   readonly musicMuted = signal(false);
@@ -1199,6 +1215,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     status: this.attempt()?.status ?? null,
     journalOpen: this.journalOpen(),
     dialogue: this.dialogue(),
+    holdOutcome: this.holdingOutcome(),
   }));
 
   /** Salas del caso ya alcanzadas en este intento (refuerzo de la regla monótona de la lista; sessionStorage). */
@@ -1342,6 +1359,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       if (!this.pausing() || this.busy()) return;
       untracked(() => this.startQueuedPause());
+    });
+    // La supervisión de la última decisión dejó de estar a la vista (se cerró, «Salida segura», Esc o cualquier
+    // otro camino): el resultado ya se ve y es el momento de su sonido y su foco.
+    effect(() => {
+      if (!this.supervisionHold() || this.holdingOutcome()) return;
+      untracked(() => this.releaseHeldOutcome());
     });
     // Pasos recién hechos → notas «Anotado: …». Se evalúa solo cuando cambia la lista (F§7.1).
     effect(() => {
@@ -2010,15 +2033,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.journalPanel?.clear();
+          // Última decisión: la supervisión se lee sobre la escena y el resultado se abre al cerrarla. Se arma
+          // antes de pedir el mundo: si este falla, su error suelta la retención. Sin supervisión que mostrar,
+          // el resultado se abre ya y el cierre suena como siempre.
+          const lastDecision = updated.status === 'COMPLETED';
+          if (lastDecision && !this.holdOutcomeForSupervision(updated.feedback)) this.playCompletionAudio();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
-          if (updated.status === 'COMPLETED') {
-            this.audioDirector.playResolution();
-            this.audioDirector.playSfx('session_complete');
-          }
           this.pendingDecisionImpact = updated.feedback ?? null;
-          if (updated.feedback) {
+          if (!lastDecision && updated.feedback) {
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
@@ -2092,6 +2116,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   closeDialogue() {
+    // Con la supervisión de la última decisión retenida, cerrarla abre el resultado (`releaseHeldOutcome`).
     this.dialogue.set(null);
     // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
     this.selectedInteraction.set(null);
@@ -2184,6 +2209,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * - Con una petición en curso la deja en cola: se ejecuta cuando `busy()` se suelta.
    */
   pauseFromOverlay(): void {
+    // Con la última supervisión a la vista el intento ya terminó: no hay nada que pausar. «Salida segura»
+    // hace lo mismo que «Continuar»: cierra la supervisión y abre el resultado, donde están las salidas.
+    if (this.holdingOutcome()) {
+      this.closeDialogue();
+      return;
+    }
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
     if (this.showResumePrompt() || this.showContentWarning()) return;
@@ -2237,6 +2268,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
   private clearTransientOverlays(): void {
     this.selectedInteraction.set(null);
+    this.supervisionHold.set(false);
     this.dialogue.set(null);
     this.journalOpen.set(false);
     this.showIntroScene.set(false);
@@ -2377,6 +2409,42 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
+  /**
+   * Última decisión (DLG-05): muestra la supervisión sobre la escena y retiene el resultado hasta que se cierre.
+   * Devuelve `false` si no hay nada que mostrar (sin feedback o con uno que no se puede armar): el resultado
+   * se abre entonces como siempre.
+   */
+  private holdOutcomeForSupervision(feedback: SimulationFeedback | null | undefined): boolean {
+    if (!feedback) return false;
+    try {
+      this.dialogue.set(this.buildSupervisionDialogue(feedback));
+    } catch {
+      return false;
+    }
+    this.supervisionHold.set(true);
+    return true;
+  }
+
+  /** La supervisión retenida ya no está a la vista: suena el cierre del caso y el foco pasa al resultado. */
+  private releaseHeldOutcome(): void {
+    this.supervisionHold.set(false);
+    this.announce('Se abre el resultado del caso.');
+    this.playCompletionAudio();
+    // El foco queda en la sección, no en un botón: si se mantuvo Enter para cerrar la supervisión, un botón
+    // enfocado («Reintentar caso») se activaría solo con la repetición de la tecla.
+    afterNextRender(() => {
+      const section = document.querySelector<HTMLElement>('app-attempt-outcome .outcome');
+      if (!section) return;
+      section.setAttribute('tabindex', '-1');
+      section.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
+
+  private playCompletionAudio(): void {
+    this.audioDirector.playResolution();
+    this.audioDirector.playSfx('session_complete');
+  }
+
   private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {
     const retryRequired = this.feedbackRequiresRetry(feedback);
     const lines: DialogueState['lines'] = [
@@ -2438,6 +2506,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
+        // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
+        this.supervisionHold.set(false);
         this.pendingDecisionImpact = null;
         this.pendingStage = null;
         this.loading.set(false);
