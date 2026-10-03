@@ -79,15 +79,29 @@ export function buildOutputs({ retouchRoot = RETOUCH_ROOT } = {}) {
 }
 
 /**
- * Escribe `files` en `outDir` y borra las carpetas de personajes que ya no
- * existen. La carpeta `kit/` es solo del build: nada más debe vivir en ella.
+ * Escribe `files` en `outDir` y deja en ella exactamente esos archivos: borra
+ * lo que sobre (personajes retirados, retratos que ya no existen, archivos
+ * sueltos) y las carpetas que queden vacías. Por seguridad solo escribe en una
+ * carpeta vacía o que ya sea una salida del kit (tiene manifest.json): un
+ * `--out` equivocado no borra nada ajeno.
  */
 export function writeOutputs(files, outDir) {
-  const keepDirs = new Set([...files.keys()].filter(rel => rel.includes('/')).map(rel => rel.split('/')[0]));
   mkdirSync(outDir, { recursive: true });
-  for (const entry of readdirSync(outDir, { withFileTypes: true })) {
-    if (entry.isDirectory() && !keepDirs.has(entry.name)) rmSync(path.join(outDir, entry.name), { recursive: true });
+  const existing = readdirSync(outDir);
+  if (existing.length && !existing.includes('manifest.json')) {
+    throw new Error(`${outDir} no parece una salida del kit (no tiene manifest.json): elige una carpeta vacía o la del kit`);
   }
+  for (const entry of readdirSync(outDir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    const rel = path.relative(outDir, file).split(path.sep).join('/');
+    if (!files.has(rel)) rmSync(file);
+  }
+  const dirs = readdirSync(outDir, { withFileTypes: true, recursive: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => path.join(entry.parentPath, entry.name))
+    .sort((a, b) => b.length - a.length);
+  for (const dir of dirs) if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
   for (const [rel, bytes] of files) {
     const file = path.join(outDir, rel);
     mkdirSync(path.dirname(file), { recursive: true });

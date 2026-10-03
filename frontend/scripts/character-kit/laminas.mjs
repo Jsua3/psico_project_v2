@@ -19,8 +19,10 @@ import { fileURLToPath } from 'node:url';
 
 import { FRAME, PORTRAIT_FRAME, SHEETS, VIEW_ROWS, composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { FRONTEND_ROOT, buildBundle, compilePiece } from './bundle.mjs';
+import { finishCharacter } from './build.mjs';
 import { encodePng } from './kit-png.mjs';
 import { sampleRecipe } from './muestras.mjs';
+import { RETOUCH_ROOT } from './retouch-lib.mjs';
 
 const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
 export const LAMINAS_DIR = path.join(REPO_ROOT, 'docs', 'visual', 'kit-personajes');
@@ -104,7 +106,15 @@ function mannequinBundle() {
   return bundle;
 }
 
+/** Personaje fijo con sus retoques aplicados (como se publica) y la etiqueta que lo dice. */
+function finished(bundle, recipe, retouchRoot) {
+  const { composed, applied } = finishCharacter(recipe.id, composeCharacter(bundle, recipe), retouchRoot);
+  const note = applied.length ? ` · retocado: ${applied.map(r => r.name).join(', ')}` : '';
+  return { composed, note };
+}
+
 export function buildLamina(args) {
+  const retouchRoot = args.retouchRoot ?? RETOUCH_ROOT;
   const k = args.escala ?? (args.elenco ? 3 : 4);
   const sub = mode => `${mode} · escala ×${k}, vecino más cercano · cuadro 48×72, pies en (24,68) · ${headLabel()}`;
   if (args.receta) {
@@ -113,7 +123,8 @@ export function buildLamina(args) {
     const body = ids.map(id => {
       const recipe = bundle.recipes[id];
       if (!recipe) throw new Error(`receta desconocida: ${id}`);
-      return characterSection(recipe.displayName ?? id, composeCharacter(bundle, recipe), k);
+      const { composed, note } = finished(bundle, recipe, retouchRoot);
+      return characterSection(`${recipe.displayName ?? id}${note}`, composed, k);
     }).join('');
     return { name: `receta-${ids.join('-')}`, html: pageHtml(args.titulo ?? `Ficha: ${ids.join(', ')}`, sub('Recetas'), body) };
   }
@@ -130,8 +141,10 @@ export function buildLamina(args) {
   }
   if (args.elenco) {
     const bundle = buildBundle();
-    const body = Object.values(bundle.recipes)
-      .map(r => compactRow(`${r.displayName ?? r.id} (${r.kind ?? '—'})`, composeCharacter(bundle, r), k)).join('');
+    const body = Object.values(bundle.recipes).map(r => {
+      const { composed, note } = finished(bundle, r, retouchRoot);
+      return compactRow(`${r.displayName ?? r.id} (${r.kind ?? '—'})${note}`, composed, k);
+    }).join('');
     return { name: 'elenco', html: pageHtml(args.titulo ?? 'Elenco del kit', sub(`${Object.keys(bundle.recipes).length} recetas`), body) };
   }
   if (args.maniqui) {

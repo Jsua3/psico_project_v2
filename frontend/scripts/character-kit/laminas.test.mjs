@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import { buildBundle } from './bundle.mjs';
 import { buildLamina, parseArgs } from './laminas.mjs';
+import { readPng, writePng } from './kit-png.mjs';
+import { retouchCommand } from './retoque.mjs';
 
 const images = html => (html.match(/<img /g) ?? []).length;
 
@@ -40,4 +45,24 @@ test('modo desconocido o pieza inexistente fallan con un mensaje claro', () => {
 test('las filas no se parten: cada fila de cuadros queda en una sola línea', () => {
   const { html } = buildLamina({ piezas: 'hair:bob-flequillo' });
   assert.match(html, /\.row \{[^}]*flex-wrap: nowrap/);
+});
+
+test('las fichas y el elenco muestran los retoques guardados, y lo dicen', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'retouch-'));
+  try {
+    retouchCommand(['valentina', 'idle'], root);
+    const editFile = path.join(root, 'valentina', 'idle.edit.png');
+    const edit = readPng(editFile);
+    edit.rgba.set([0x3d, 0x6a, 0x55, 255], (30 * edit.width + 24) * 4);
+    writePng(editFile, edit.width, edit.height, edit.rgba);
+    retouchCommand(['valentina', 'idle', '--guardar'], root);
+    const sin = buildLamina({ receta: 'valentina' }).html;
+    const con = buildLamina({ receta: 'valentina', retouchRoot: root }).html;
+    assert.notEqual(con, sin);
+    assert.match(con, /retocado: idle/);
+    assert.doesNotMatch(sin, /retocado/);
+    assert.match(buildLamina({ elenco: true, retouchRoot: root }).html, /retocado: idle/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

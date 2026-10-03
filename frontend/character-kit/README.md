@@ -24,7 +24,7 @@ navegador y Node). Los scripts viven en `scripts/character-kit/`.
 | `npm run kit:check` | Falla si la salida no está al día o rompe el contrato (geometría, paleta, animación, cobertura). Corre en CI. |
 | `npm run test:kit` | Pruebas del motor y los scripts. |
 | `npm run kit:laminas -- --receta <ids> \| --piezas <claves> \| --elenco \| --maniqui` | Láminas ×4 para revisar y aprobar. |
-| `npm run kit:retoque -- <id> <hoja> [--guardar \| --quitar]` | Retoque a mano con LibreSprite o Pixelorama. |
+| `npm run kit:retoque -- <id> <hoja> [--guardar \| --quitar \| --forzar]` | Retoque a mano con LibreSprite o Pixelorama. Exportar no pisa una edición en curso (salvo `--forzar`); las banderas van tras `--`. |
 
 ## Retocar a mano
 

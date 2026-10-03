@@ -5,6 +5,10 @@
  *   node scripts/character-kit/retoque.mjs <id> <hoja>            exporta <hoja>.edit.png para editar
  *   node scripts/character-kit/retoque.mjs <id> <hoja> --guardar  guarda solo los píxeles que cambiaron
  *   node scripts/character-kit/retoque.mjs <id> <hoja> --quitar   borra el retoque de esa hoja
+ *   node scripts/character-kit/retoque.mjs <id> <hoja> --forzar   vuelve a exportar aunque haya una edición
+ *
+ * Exportar nunca pisa una edición en curso (salvo con --forzar). Desde npm, las
+ * banderas van tras «--»: `npm run kit:retoque -- <id> <hoja> --guardar`.
  *
  * <hoja> es idle, walk o portrait-<estado>. El archivo de edición vive en
  * character-kit/retouch/<id>/ y git lo ignora.
@@ -20,8 +24,16 @@ import { publishedImages, sha256 } from './build.mjs';
 import { readPng, writePng } from './kit-png.mjs';
 import { RETOUCH_ROOT, applyRetouch, diffRetouch, loadRetouch, retouchPaths } from './retouch-lib.mjs';
 
-export function retouchCommand([id, sheet, flag], root = RETOUCH_ROOT) {
-  if (!id || !sheet) throw new Error('uso: retoque.mjs <id> <hoja> [--guardar | --quitar]');
+const FLAGS = new Set(['--guardar', '--quitar', '--forzar']);
+
+export function retouchCommand(args, root = RETOUCH_ROOT) {
+  const flags = args.filter(arg => arg.startsWith('--'));
+  for (const flag of flags) {
+    if (!FLAGS.has(flag)) throw new Error(`argumento desconocido «${flag}»: usa --guardar, --quitar o --forzar`);
+  }
+  const [id, sheet, ...extra] = args.filter(arg => !arg.startsWith('--'));
+  if (!id || !sheet || extra.length) throw new Error('uso: retoque.mjs <id> <hoja> [--guardar | --quitar | --forzar]');
+  const flag = flags[0];
   const bundle = buildBundle();
   const recipe = bundle.recipes[id];
   if (!recipe) throw new Error(`receta desconocida: ${id}`);
@@ -42,6 +54,9 @@ export function retouchCommand([id, sheet, flag], root = RETOUCH_ROOT) {
     writeFileSync(paths.meta, `${JSON.stringify({ baseSha256: sha256(base.rgba) }, null, 2)}\n`);
     rmSync(paths.edit);
     return `retoque de ${id}/${sheet} guardado: ${changed} píxeles. Ejecuta npm run kit:build`;
+  }
+  if (existsSync(paths.edit) && flag !== '--forzar') {
+    throw new Error(`ya existe ${paths.edit}: guárdalo con «npm run kit:retoque -- ${id} ${sheet} --guardar» (con «--», o npm se queda la bandera) o vuelve a exportarlo con --forzar`);
   }
   const current = loadRetouch(id, sheet, root);
   const edit = current ? applyRetouch(base, current.layer) : base;

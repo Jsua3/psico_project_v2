@@ -66,3 +66,21 @@ test('flujo completo: exportar, editar, guardar, construir y validar', () => {
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('kit:retoque no pisa una edición en curso y rechaza banderas desconocidas', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'retouch-'));
+  try {
+    retouchCommand(['valentina', 'idle'], root);
+    const editFile = path.join(root, 'valentina', 'idle.edit.png');
+    const edit = readPng(editFile);
+    edit.rgba.set([0x3d, 0x6a, 0x55, 255], (30 * edit.width + 24) * 4);
+    writePng(editFile, edit.width, edit.height, edit.rgba);
+    // Volver a exportar (p. ej. npm se tragó --guardar por faltar «--») no borra el trabajo.
+    assert.throws(() => retouchCommand(['valentina', 'idle'], root), /ya existe .*idle\.edit\.png/);
+    assert.deepEqual([...readPng(editFile).rgba.slice((30 * edit.width + 24) * 4, (30 * edit.width + 24) * 4 + 4)], [0x3d, 0x6a, 0x55, 255]);
+    assert.throws(() => retouchCommand(['valentina', 'idle', '--guarda'], root), /argumento desconocido «--guarda»/);
+    assert.match(retouchCommand(['valentina', 'idle', '--forzar'], root), /edita/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
