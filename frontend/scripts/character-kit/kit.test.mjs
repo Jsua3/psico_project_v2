@@ -44,7 +44,7 @@ function withPieces(extraPieces, patch = {}) {
   return { bundle, recipe };
 }
 
-test('Valentina sale idéntica a la prueba aprobada (76e6171)', () => {
+test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (2026-10-03)', () => {
   const bundle = buildBundle();
   const out = composeCharacter(bundle, bundle.recipes.valentina);
   assert.equal(sha(out.idle.rgba), golden.idle);
@@ -170,11 +170,11 @@ test('un rostro usa la expresión del estado en el retrato', () => {
     ...bundle.pieces[faceKey],
     views: {},
     portrait: [],
-    expressions: { triste: [{ anchor: 'H', at: [47, 40], mode: 'paint', legend: { m: { literal: MAGENTA } }, grid: 'm' }] },
+    expressions: { triste: [{ anchor: 'H', at: [16, 14], mode: 'paint', legend: { m: { literal: MAGENTA } }, grid: 'm' }] },
   });
   const out = composeCharacter(bundle, { ...base, portraits: ['neutral', 'triste'] });
-  assert.equal(pixel(out.portraits.triste, 0, 0, 47, 40, 96, 96), MAGENTA);
-  assert.notEqual(pixel(out.portraits.neutral, 0, 0, 47, 40, 96, 96), MAGENTA);
+  assert.equal(pixel(out.portraits.triste, 0, 0, 16, 14, 32, 32), MAGENTA);
+  assert.notEqual(pixel(out.portraits.neutral, 0, 0, 16, 14, 32, 32), MAGENTA);
 });
 
 test('errores de receta con nombre y clave', () => {
@@ -240,5 +240,14 @@ test('el busto B tiene exactamente la cabeza del busto A', () => {
   const b = decodeRle(bundle.busts.b.grid);
   for (let i = 0; i < a.length; i++) {
     if (head.has(a[i]) || head.has(b[i])) assert.equal(b[i], a[i], `celda ${i}`);
+  }
+});
+
+test('los retratos miden 32×32: se muestran a ×3 en la caja de 96 px (decisión del 2026-10-03)', () => {
+  const bundle = buildBundle();
+  for (const complexion of ['a', 'b']) {
+    const { portraits } = composeCharacter(bundle, { ...bundle.recipes.valentina, complexion });
+    assert.equal(portraits.neutral.width, 32);
+    assert.equal(portraits.neutral.height, 32);
   }
 });

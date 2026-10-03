@@ -48,12 +48,12 @@ const portrait = (image, k, label) => img(frameUri(image, 0, 0, PORTRAIT_FRAME.w
 /** Ficha completa de un personaje: vistas, retratos, reposo y caminata cuadro a cuadro. */
 export function characterSection(title, composed, k) {
   const views = VIEW_ROWS.map((v, row) => sprite(composed.idle, 0, row, k, VIEW_NAMES[v])).join('');
-  const portraits = Object.entries(composed.portraits).map(([state, image]) => portrait(image, Math.max(1, Math.floor(k / 2)), state)).join('');
+  const portraits = Object.entries(composed.portraits).map(([state, image]) => portrait(image, k, state)).join('');
   const sheetRows = sheet => VIEW_ROWS.map((v, row) => `<div class="row"><span class="tag">${VIEW_NAMES[v]}</span>${
     Array.from({ length: SHEETS[sheet].frames }, (_, col) => sprite(composed[sheet], col, row, k, String(col))).join('')}</div>`).join('');
   return `<section><h2>${esc(title)}</h2>
     <h3>Vistas (reposo, cuadro 0)</h3><div class="row ground">${views}</div>
-    <h3>Retratos 96×96</h3><div class="row">${portraits}</div>
+    <h3>Retratos 32×32</h3><div class="row">${portraits}</div>
     <h3>Reposo (4 cuadros, 4 fps)</h3>${sheetRows('idle')}
     <h3>Caminata (6 cuadros, 10 fps; contactos en 0 y 3)</h3>${sheetRows('walk')}</section>`;
 }
@@ -62,7 +62,7 @@ export function characterSection(title, composed, k) {
 export function compactRow(label, composed, k) {
   const views = VIEW_ROWS.map((v, row) => sprite(composed.idle, 0, row, k, VIEW_NAMES[v])).join('');
   const walk = Array.from({ length: SHEETS.walk.frames }, (_, col) => sprite(composed.walk, col, 1, k, `cam. ${col}`)).join('');
-  const portraits = Object.entries(composed.portraits).map(([state, image]) => portrait(image, Math.max(1, Math.floor(k / 2)), state)).join('');
+  const portraits = Object.entries(composed.portraits).map(([state, image]) => portrait(image, k, state)).join('');
   return `<div class="row ground"><span class="tag">${esc(label)}</span>${views}<span class="gap"></span>${walk}<span class="gap"></span>${portraits}</div>`;
 }
 

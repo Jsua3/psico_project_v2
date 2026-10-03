@@ -26,7 +26,8 @@ export type PieceKind = 'hair' | 'face' | 'top' | 'layer' | 'bottom' | 'shoes' |
 export type PortraitState = 'neutral' | 'preocupada' | 'triste' | 'alegre';
 
 export const FRAME = Object.freeze({ width: 48, height: 72, pivotX: 24, pivotY: 68 });
-export const PORTRAIT_FRAME = Object.freeze({ width: 96, height: 96 });
+/** Retrato de 32×32: se muestra a ×3 en una caja de 96 px (estilo tierno de poco detalle). */
+export const PORTRAIT_FRAME = Object.freeze({ width: 32, height: 32 });
 export const SHEETS: Readonly<Record<SheetId, { readonly frames: number; readonly fps: number }>> = Object.freeze({
   idle: Object.freeze({ frames: 4, fps: 4 }),
   walk: Object.freeze({ frames: 6, fps: 10 }),
@@ -471,8 +472,8 @@ export const LIGHT_RULES: LightRules = Object.freeze({
 });
 
 /** Luz del retrato: formas grandes, bandas de sombra más anchas y sombra del mentón. */
-const PORTRAIT_SHADE: Readonly<Record<string, number>> = Object.freeze({ H: 4, hair: 4, T: 5, N: 3 });
-const PORTRAIT_CAST: Readonly<Record<string, number>> = Object.freeze({ N: 4, H: 2, T: 2 });
+const PORTRAIT_SHADE: Readonly<Record<string, number>> = Object.freeze({ H: 2, hair: 2, T: 2, N: 1 });
+const PORTRAIT_CAST: Readonly<Record<string, number>> = Object.freeze({ N: 1, H: 1, T: 1 });
 export const PORTRAIT_LIGHT_RULES: LightRules = Object.freeze({
   group: (part: string) => part,
   shadeWidth: (part: string) => PORTRAIT_SHADE[part] ?? 1,
@@ -740,7 +741,7 @@ function composeSheet(bundle: KitBundle, recipe: Recipe, pieces: Piece[], materi
   return { width, height, rgba };
 }
 
-/** Retrato 96×96 con el mismo método: busto etiquetado + piezas + luz del retrato. */
+/** Retrato 32×32 con el mismo método: busto etiquetado + piezas + luz del retrato. */
 export function composePortrait(bundle: KitBundle, recipe: Recipe, state: PortraitState): RgbaImage {
   const bust = bundle.busts[recipe.complexion];
   if (!bust) throw new Error(`${recipeLabel(recipe)}: complexión sin busto ${recipe.complexion}`);

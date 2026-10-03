@@ -4,7 +4,7 @@
  * vestidos; devuelven listas de errores legibles (vacía = cumple).
  */
 
-import { FRAME, SHEETS, SHEET_IDS, VIEW_ROWS, decodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
+import { FRAME, PORTRAIT_FRAME, SHEETS, SHEET_IDS, VIEW_ROWS, decodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
 
 export const RULES = Object.freeze({
   axisX: 24,
@@ -251,7 +251,7 @@ export function checkCharacter(composed, { name, palette, outline, volume = fals
   }
   errors.push(...checkAnimation(composed, name));
   for (const [state, image] of Object.entries(composed.portraits)) {
-    errors.push(...checkImageContract(image, { name: `${name} retrato ${state}`, fw: 96, fh: 96, cols: 1, rows: 1, palette, outline }));
+    errors.push(...checkImageContract(image, { name: `${name} retrato ${state}`, fw: PORTRAIT_FRAME.width, fh: PORTRAIT_FRAME.height, cols: 1, rows: 1, palette, outline }));
   }
   return errors;
 }

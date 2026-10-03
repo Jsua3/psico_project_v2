@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "f09fad670f31163a057ebe4f6c390e050d0aa7202b8cba3bc322f71472648497",
+  "kitSha256": "26e74a8a9aac32d502b5bcd94e4a6dd72c719875c9340f9945b815a04a30bcbb",
   "characters": {
     "valentina": {
       "displayName": "Valentina",
@@ -48,9 +48,9 @@
         },
         "portrait-neutral": {
           "path": "valentina/portrait-neutral.png",
-          "width": 96,
-          "height": 96,
-          "pixelSha256": "2f9b4dcb289c62eabebbfdd2908c0dbf959a94bd6b3f33f570ec7872adcf093b"
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "efa7a128473dd3833ed33d6c47d7418031b05e00f5a7048c9f49a80e8b0ea9c2"
         }
       }
     }

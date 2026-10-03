@@ -24,7 +24,7 @@ No se reabren; el spec las desarrolla.
 2. Estilo adulto estilizado con las medidas de la biblia v1: cuadro de 48×72, pies en (24,68), cabeza de 18-21 px, altura opaca de 60-66 px, contorno de 1 px `#15131d`, luz arriba-izquierda, alfa binario, sin antialias, escala entera, paleta `palette.v1.json`.
 3. Las vistas laterales son perfiles de verdad.
 4. Izquierda y derecha son vistas propias: el generador refleja lo simétrico, recalcula la luz después del espejo y dibuja por lado lo asimétrico (raya del pelo, bolso, gafete).
-5. Fase 1: reposo (4 cuadros a 4 fps, respiración de 1 px) y caminata (6 cuadros a 10 fps) en las 4 vistas, más retratos del diálogo de 96×96 para quienes hablan. Hablar, interactuar, girar y reaccionar quedan para la fase 2.
+5. Fase 1: reposo (4 cuadros a 4 fps, respiración de 1 px) y caminata (6 cuadros a 10 fps) en las 4 vistas, más retratos del diálogo de 32×32 (mostrados a ×3, decisión 15) para quienes hablan. Hablar, interactuar, girar y reaccionar quedan para la fase 2.
 6. Avatar personalizable como kit compacto: 2 complexiones, 6 tonos de piel, ~10 peinados con 6 colores, ~6 conjuntos con variantes de color. El elenco y los NPC se arman con el mismo kit mediante recetas.
 7. Método A: maniquí como datos de píxel por vista y por cuadro, piezas como capas, generador determinista. Nada de IA generativa. Los retratos se arman por piezas.
 8. Los retoques a mano se guardan como una capa del kit.
@@ -34,6 +34,7 @@ No se reabren; el spec las desarrolla.
 12. *(2026-10-03)* Muebles y puertas se recalibran a la altura nueva **en esta rama** (F8), para que `master` nunca tenga personajes y muebles a escalas distintas.
 13. *(2026-10-03)* El tinte del estado clínico de la paciente se reemplaza por un **icono de pixel art sobre la cabeza**; el sprite no se toca.
 14. *(2026-10-03)* Los peinados marcados como `volumen` (afro, moño alto) pueden llegar a **25 px** de cabeza con pelo; en ellos el validador mide además el cráneo (etiqueta `H`, 17 px con contorno).
+15. *(2026-10-03, PARADA 1)* Los retratos son **tiernos y de poco detalle, a 32×32**, y se muestran a ×3 (caja de 96 px) o ×6 (192 px): cabeza grande y redonda, ojos de 2×3 con un píxel de brillo y 6 px entre ellos, cejas de 2 px, rubor, sonrisa pequeña y sin nariz. Sustituye al retrato de 96×96 de la prueba.
 
 ## 3. Lo que hay hoy (medido)
 
@@ -83,7 +84,7 @@ Además, en todo el mundo y el lobby:
 ```
 frontend/character-kit/                       autoría (no se publica)
   mannequins/complexion-a.mjs, complexion-b.mjs   grillas por vista + rig por cuadro
-  busts/bust-a.mjs, bust-b.mjs                    maniquí de retrato 96×96
+  busts/bust-a.mjs, bust-b.mjs                    maniquí de retrato 32×32
   pieces/<tipo>/<id>.mjs                          piezas: vistas del sprite + versión de retrato
   palette.v2.json                                 paleta maestra (v1 + 6.ª piel)
   ramps.mjs                                       rampas con nombre
@@ -254,7 +255,7 @@ Peso estimado: menos de 200 KB sin comprimir.
 
 1. **Al día:** reconstruye en memoria y compara los píxeles decodificados (no los bytes del PNG) de cada hoja, retrato y `kit.json`. Si difieren, indica que hay que ejecutar `npm run kit:build`.
 2. **Contrato de hoja:**
-   - tamaños: `idle` 192×288, `walk` 288×288, retrato 96×96;
+   - tamaños: `idle` 192×288, `walk` 288×288, retrato 32×32;
    - alfa binario, colores de `palette.v2.json` y borde vacío;
    - el cuerpo (con contorno) termina entre y = 66 y y = 68, como en la biblia: en la caminata de frente el pie que avanza pisa 1 px más abajo; el centro del apoyo (el punto medio entre los dos pies) queda a ±6 px de x = 24;
    - una sola silueta por cuadro (un componente opaco).
@@ -388,8 +389,8 @@ Las constantes compartidas (cuadro 48×72, pivote (24,68), filas abajo/izquierda
 | Lobby | Las mismas hojas del kit y el mismo zoom entero que el mundo (§8.3). |
 | Editor de personaje | Vista previa del avatar compuesto en el navegador a ×4: las 4 vistas con reposo y caminata animados. Opciones del §4.7. Tarjetas del elenco con el cuadro 0 a ×2. |
 | Intro del caso | Hojas del kit (caminata a la derecha y reposo de frente) a la escala entera que ya usa el escenario. |
-| Diálogo | Retrato de la receta del hablante, en una caja de 96 o 192 px según el diseño, sin `object-fit` que lo encoja. |
-| Resultado del intento | Retrato neutral del jugador a 96 px (hoy 64). |
+| Diálogo | Retrato de la receta del hablante a ×3 (96 px) o ×6 (192 px) según el diseño, sin `object-fit` que lo encoja. |
+| Resultado del intento | Retrato neutral del jugador a ×3, 96 px (hoy 64). |
 | Editor de mundo | Cuadro 0 de frente y de perfil a ×1 (48×72). Los campos del NPC pasan a ser «plantilla = receta» u opciones del kit. |
 
 ### 8.3 Render a escala entera
@@ -412,7 +413,7 @@ La cámara sigue a la jugadora con `roundPixels` y se limita a la sala; si la vi
 
 **Nada deforma los píxeles.** Se retira `character-motion.util`: la respiración y el bob ya vienen en las hojas. Se quitan todos los tintes de actores. El tinte del estado clínico de la paciente se reemplaza por un icono de pixel art sobre la cabeza, con colores de la paleta y a la misma escala entera (decisión 13).
 
-**Retratos y vistas CSS.** Siempre a ×1, ×2 o ×4 con `image-rendering: pixelated` y una caja del tamaño exacto.
+**Retratos y vistas CSS.** Los sprites, siempre a ×1, ×2 o ×4; los retratos (32×32), a ×3 o ×6. Todo con `image-rendering: pixelated` y una caja del tamaño exacto.
 
 ### 8.4 Pruebas e2e (aviso)
 
