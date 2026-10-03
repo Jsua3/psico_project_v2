@@ -13,7 +13,13 @@ import mono from './hair/mono.mjs';
 import rapado from './hair/rapado.mjs';
 import trenza from './hair/trenza.mjs';
 import tenis from './shoes/tenis.mjs';
+import camiseta from './top/camiseta.mjs';
+import cardigan from './top/cardigan.mjs';
 import chaquetaCapucha from './top/chaqueta-capucha.mjs';
+import chaquetaJean from './top/chaqueta-jean.mjs';
+import polo from './top/polo.mjs';
+import sudadera from './top/sudadera.mjs';
+import sueter from './top/sueter.mjs';
 
 export const PIECES = Object.freeze([
   // pelo
@@ -31,7 +37,13 @@ export const PIECES = Object.freeze([
   maduro,
   sereno,
   // arriba
+  camiseta,
+  cardigan,
   chaquetaCapucha,
+  chaquetaJean,
+  polo,
+  sudadera,
+  sueter,
   // abajo
   jean,
   // calzado
