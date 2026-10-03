@@ -16,7 +16,14 @@ import {
 } from '@angular/core';
 
 import { ORIENTATION_COPY } from './orientation.config';
-import { OptionalEntry, SceneLogGroup, SceneLogState, SceneLogStep, StepState } from './scene-checklist.util';
+import {
+  OptionalEntry,
+  SceneLogGroup,
+  SceneLogState,
+  SceneLogStep,
+  StepState,
+  pendingStepCount,
+} from './scene-checklist.util';
 
 let nextChecklistId = 0;
 
@@ -381,11 +388,7 @@ export class SceneChecklistCardComponent {
   /** Marca de «hay una etapa nueva» sobre el chip plegado (compacto). */
   protected readonly news = signal(false);
 
-  protected readonly pendingCount = computed(() => {
-    const s = this.state();
-    if (!s) return 0;
-    return s.groups.reduce((total, group) => total + group.steps.filter(step => step.state !== 'done').length, 0);
-  });
+  protected readonly pendingCount = computed(() => pendingStepCount(this.state()));
 
   protected readonly pendingText = computed(() => {
     const n = this.pendingCount();

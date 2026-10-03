@@ -2,7 +2,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import {
-  FIRST_HELP_ID,
   HELP_TEXT,
   HelpModality,
   firstTimeHelpLines,
@@ -74,8 +73,9 @@ describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
     expect(HELP_TEXT.closeHelp).toBe('Cerrar ayuda');
   });
 
-  it('la clave de memoria es estable (la leen help-memory.util y la integración)', () => {
-    expect(FIRST_HELP_ID).toBe('primero');
+  it('no define su propia clave de memoria: la de la tarjeta de primera vez es HELP_FIRST_CARD de help-memory.util', () => {
+    const source = readFileSync(join(__dirname, 'game-help.content.ts'), 'utf-8');
+    expect(source).not.toMatch(/siep\.ayuda|FIRST_HELP_ID|'primero'/);
   });
 });
 

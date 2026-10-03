@@ -16,9 +16,6 @@ import { DECISION_TOTAL, ORIENTATION_COPY } from './orientation.config';
 /** Modalidad de puntero con la que se escribe el texto: teclado y ratón, o pantalla táctil. */
 export type HelpModality = 'keyboard' | 'touch';
 
-/** Clave de la tarjeta de primera vez en la memoria de ayuda (`siep.ayuda.v1`, lista `vistas`). */
-export const FIRST_HELP_ID = 'primero';
-
 export const HELP_TEXT = {
   /** Título de la tarjeta y de la pantalla permanente; el mismo rótulo que el botón del HUD (una sola fuente). */
   title: ORIENTATION_COPY.ui.helpTitle,
