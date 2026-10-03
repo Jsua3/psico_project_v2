@@ -217,7 +217,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       color: rgba(244,247,251,.92);
     }
     .hud-stage-chip {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -420,6 +420,8 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     @media (max-width: 960px) {
       .hud-scene { display: none; }
       .hud-patient { display: none; }
+      /* Sin sala que ceda, el chip puede acortarse antes que recortarse. */
+      .hud-stage-chip { flex-shrink: 1; }
     }
     @media (max-width: 720px) {
       .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
