@@ -56,3 +56,6 @@ backend_django/staticfiles/
 frontend/test-results/
 frontend/playwright-report/
 
+
+# Hojas exportadas para retocar a mano (kit de personajes)
+frontend/character-kit/retouch/**/*.edit.png

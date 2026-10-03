@@ -1,33 +1,36 @@
-# Kit de personajes SIEP (prueba)
+# Kit de personajes SIEP
 
-Estado: **prueba** del método A (kit por código) con un solo personaje, Valentina.
-El formato definitivo se fija en el spec; este directorio no se publica en el build
-(está fuera de `src/assets`).
+Todos los personajes del juego salen de este kit: maniquí etiquetado + piezas +
+recetas + motor determinista. Spec: `docs/superpowers/specs/2026-10-02-personajes-unificados-design.md`.
+Esta carpeta es autoría y no se publica; la salida vive en `src/assets/characters/kit/`.
 
-## Piezas del método
+| Qué | Dónde |
+|---|---|
+| Maniquíes (grillas por vista + rig por cuadro) | `mannequins/complexion-*.mjs`, registro en `mannequins/index.mjs` |
+| Bustos de retrato 96×96 | `busts/bust-*.mjs`, registro en `busts/index.mjs` |
+| Piezas (pelo, rostro, arriba, capa, abajo, calzado, accesorios) | `pieces/<tipo>/<id>.mjs`, registro en `pieces/index.mjs` |
+| Paleta maestra y rampas con nombre | `palette.v2.json`, `ramps.mjs` |
+| Recetas (un personaje fijo por archivo) | `recipes/<id>.json` (`_*.json` = borrador, no se publica) |
+| Retoques a mano | `retouch/<id>/<hoja>.png` + `.json` |
 
-| Qué | Dónde | Qué es |
-|---|---|---|
-| Maniquí | `mannequins/complexion-a.mjs` | Grillas de píxel por vista (cabeza, cuello, torso, pelvis, manos, pies) y un rig por cuadro: `bob`, respiración y articulaciones de brazos y piernas. |
-| Busto | `portraits/bust-a.mjs` | Maniquí del retrato (96×96), mismo lenguaje. |
-| Piezas | `pieces/*.mjs` | Pelo, rostro, parte de arriba, de abajo y calzado. Cada pieza trae sus vistas del sprite y su versión de retrato (`pieces/portrait/`). |
-| Rampas | `ramps.mjs` | Rampas con nombre (luz → base → sombra → profunda), todas de `palette.v1.json`. |
-| Recetas | `recipes/*.json` | Un personaje = complexión + piezas + colores. |
+El motor es `src/app/features/character/kit/kit-engine.ts` (sin imports: lo usan el
+navegador y Node). Los scripts viven en `scripts/character-kit/`.
 
-El código vive en `scripts/character-kit/`:
+## Comandos (desde `frontend/`)
 
-- `build-mannequin.mjs` rasteriza el maniquí a un mapa de etiquetas por vista y por cuadro.
-  La vista derecha es el espejo de la izquierda; lo asimétrico (raya del pelo) se dibuja por lado.
-- `kit-dress.mjs` viste cada cuadro (cobertura por región + superposiciones ancladas).
-- `kit-core.mjs` calcula la luz **después** del espejo (siempre arriba-izquierda), colorea con
-  las rampas y añade el contorno de 1 px `#15131d`.
-- `generate.mjs <receta>` exporta `idle.png` (192×288), `walk.png` (288×288) y
-  `portrait-neutral.png` (96×96) en `src/assets/characters/kit/<id>/`.
+| Comando | Para qué |
+|---|---|
+| `npm run kit:build` | Escribe `kit.json`, las hojas y retratos de cada receta y `manifest.json`. |
+| `npm run kit:check` | Falla si la salida no está al día o rompe el contrato (geometría, paleta, animación, cobertura). Corre en CI. |
+| `npm run test:kit` | Pruebas del motor y los scripts. |
+| `npm run kit:laminas -- --receta <ids> \| --piezas <claves> \| --elenco \| --maniqui` | Láminas ×4 para revisar y aprobar. |
+| `npm run kit:retoque -- <id> <hoja> [--guardar \| --quitar]` | Retoque a mano con LibreSprite o Pixelorama. |
 
-```bash
-node scripts/character-kit/generate.mjs valentina
-```
+## Retocar a mano
 
-Las hojas siguen el contrato del juego: cuadros de 48×72, pies en (24,68), filas
-abajo/izquierda/derecha/arriba, reposo 4 cuadros a 4 fps y caminata 6 cuadros a 10 fps
-con contactos en 0 y 3.
+1. `npm run kit:retoque -- valentina idle` exporta `retouch/valentina/idle.edit.png`.
+2. Edítalo (solo colores de `palette.v2.json`; magenta `#ff00ff` borra un píxel) y guárdalo.
+3. `npm run kit:retoque -- valentina idle --guardar` deja en la capa solo lo que cambió.
+4. `npm run kit:build && npm run kit:check`.
+
+Una corrección que deba valer para todos los personajes se hace en la pieza (texto), no en un retoque.

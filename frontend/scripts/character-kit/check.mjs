@@ -13,9 +13,10 @@ import { fileURLToPath } from 'node:url';
 
 import { OUTLINE, composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { KIT_ROOT } from './bundle.mjs';
-import { DEFAULT_OUT, buildOutputs } from './build.mjs';
+import { DEFAULT_OUT, buildOutputs, finishCharacter, sha256 } from './build.mjs';
 import { decodePng } from './kit-png.mjs';
 import { checkCharacter, checkSharedHead } from './measure.mjs';
+import { RETOUCH_ROOT, checkRetouchLayer } from './retouch-lib.mjs';
 import { sampleRecipes } from './muestras.mjs';
 
 export function loadPalette() {
@@ -75,15 +76,26 @@ export function checkUpToDate(files, outDir) {
 
 const isVolume = (bundle, recipe) => bundle.pieces[`hair:${recipe.pieces.hair}`]?.volume === true;
 
-export function runCheck({ outDir = DEFAULT_OUT } = {}) {
+export function runCheck({ outDir = DEFAULT_OUT, retouchRoot = RETOUCH_ROOT } = {}) {
   const errors = [];
   const warnings = [];
-  const { bundle, files } = buildOutputs();
+  const { bundle, files } = buildOutputs({ retouchRoot });
   const palette = loadPalette();
   errors.push(...checkUpToDate(files, outDir));
   errors.push(...checkColors(bundle, palette));
   errors.push(...checkSharedHead(bundle));
-  for (const recipe of [...Object.values(bundle.recipes), ...sampleRecipes(bundle)]) {
+  for (const recipe of Object.values(bundle.recipes)) {
+    const { composed, applied } = finishCharacter(recipe.id, composeCharacter(bundle, recipe, { keepDressed: true }), retouchRoot);
+    for (const retouch of applied) {
+      const name = `retoque ${recipe.id}/${retouch.name}`;
+      errors.push(...checkRetouchLayer(retouch.layer, { name, palette }));
+      if (retouch.baseSha256 !== sha256(retouch.base.rgba)) {
+        warnings.push(`${name}: la base cambió debajo del retoque; revisa la lámina y vuelve a guardarlo con npm run kit:retoque`);
+      }
+    }
+    errors.push(...checkCharacter(composed, { name: recipe.id, palette, outline: OUTLINE, volume: isVolume(bundle, recipe) }));
+  }
+  for (const recipe of sampleRecipes(bundle)) {
     const composed = composeCharacter(bundle, recipe, { keepDressed: true });
     errors.push(...checkCharacter(composed, { name: recipe.id, palette, outline: OUTLINE, volume: isVolume(bundle, recipe) }));
   }

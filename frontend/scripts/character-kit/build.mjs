@@ -16,6 +16,7 @@ import { composeCharacter } from '../../src/app/features/character/kit/kit-engin
 import { FRONTEND_ROOT, buildBundle, stringifyBundle } from './bundle.mjs';
 import { encodePng } from './kit-png.mjs';
 import { geometry } from './measure.mjs';
+import { RETOUCH_ROOT, applyRetouch, loadRetouch } from './retouch-lib.mjs';
 
 export const DEFAULT_OUT = path.join(FRONTEND_ROOT, 'src', 'assets', 'characters', 'kit');
 
@@ -29,25 +30,43 @@ export function publishedImages(composed) {
 }
 
 /**
+ * Personaje fijo listo para publicar: sus imágenes con los retoques aplicados.
+ * `applied` lista cada retoque con la base sobre la que se pegó (para el validador).
+ */
+export function finishCharacter(id, composed, retouchRoot = RETOUCH_ROOT) {
+  const images = publishedImages(composed);
+  const applied = [];
+  for (const [name, base] of Object.entries(images)) {
+    const retouch = loadRetouch(id, name, retouchRoot);
+    if (!retouch) continue;
+    images[name] = applyRetouch(base, retouch.layer);
+    applied.push({ name, base, ...retouch });
+  }
+  const portraits = Object.fromEntries(Object.keys(composed.portraits).map(state => [state, images[`portrait-${state}`]]));
+  return { composed: { ...composed, idle: images.idle, walk: images.walk, portraits }, images, applied };
+}
+
+/**
  * Todo lo que el build escribe, en memoria. `files` mapea la ruta relativa a
  * `--out` con sus bytes; el validador lo reutiliza para comparar con el disco.
  */
-export function buildOutputs() {
+export function buildOutputs({ retouchRoot = RETOUCH_ROOT } = {}) {
   const bundle = buildBundle();
   const kitJson = stringifyBundle(bundle);
   const files = new Map([['kit.json', Buffer.from(kitJson)]]);
   const characters = {};
   for (const [id, recipe] of Object.entries(bundle.recipes)) {
-    const composed = composeCharacter(bundle, recipe);
+    const { composed, images, applied } = finishCharacter(id, composeCharacter(bundle, recipe), retouchRoot);
     const entry = {
       displayName: recipe.displayName,
       kind: recipe.kind,
       complexion: recipe.complexion,
       provenance: recipe.provenance,
       geometry: geometry(composed),
+      retouched: applied.map(r => r.name),
       files: {},
     };
-    for (const [name, image] of Object.entries(publishedImages(composed))) {
+    for (const [name, image] of Object.entries(images)) {
       const rel = `${id}/${name}.png`;
       files.set(rel, encodePng(image.width, image.height, image.rgba));
       entry.files[name] = { path: rel, width: image.width, height: image.height, pixelSha256: sha256(image.rgba) };

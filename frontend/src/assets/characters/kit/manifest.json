@@ -32,6 +32,7 @@
           "shoulderWidth": 23
         }
       },
+      "retouched": [],
       "files": {
         "idle": {
           "path": "valentina/idle.png",
