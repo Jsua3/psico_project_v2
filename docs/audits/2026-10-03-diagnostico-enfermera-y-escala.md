@@ -73,7 +73,7 @@ Con el radio de cliente subido a 90 solo para la prueba y `interactNearest()` so
 
 - **G (esta pista, T5.2)**: unificar marcadores y NPC en `pickNearby` y emitir al NPC como `proximity` principal (`npc:{clave}`), de modo que la barra lo ofrezca y el `HostListener` de Angular lo atienda como a cualquier marcador; además dejar la escena tolerante a pulsaciones cortas (la ruta de Phaser deja de depender de que `keydown` y `keyup` caigan en cuadros distintos).
 - **Pista de integración (`simulation-play`)**: resolver las claves `npc:` en `openInteraction` y en la rama E de `handleGlobalInteraction` llamando a `openNpcDialogue` con el `NpcConfig` de `scenarioConfig()`; con eso la tecla E funciona igual para personas y objetos (se recomienda que Angular atienda `npc:` y haga `preventDefault`, no ignorarlo: ignorarlo deja la ruta frágil de Phaser como única).
-- **Backend (T11.4, otra pista)**: `_require_nearby_ambient_npc` con `radio + NPC_RANGE_TOLERANCE_PX (16)`; prueba: acepta 70 px y rechaza 90 px. **Dependencia dura**: el cliente de esta pista usa 72 px.
+- **Backend (T11.4, otra pista)**: `_require_nearby_ambient_npc` con `radio + NPC_RANGE_TOLERANCE_PX (16)`; prueba: acepta 70 px y rechaza 90 px. **Dependencia dura**: el cliente de esta pista usa 72 px. (Ya está en el árbol desde el commit `90f7f96`; ver la verificación posterior.)
 
 ## T0.3 Escala del canvas (FEEL-03, TOUCH-04)
 
