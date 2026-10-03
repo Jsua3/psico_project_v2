@@ -115,6 +115,12 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+# Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
+# del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
+# un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.
+AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 AI_ASSISTANT_PROVIDER = os.environ.get("AI_ASSISTANT_PROVIDER", "openai").strip()
 AI_ASSISTANT_API_KEY = os.environ.get("AI_ASSISTANT_API_KEY", "").strip()
 AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()

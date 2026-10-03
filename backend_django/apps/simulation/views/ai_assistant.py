@@ -3,14 +3,20 @@
 The assistant is deliberately constrained: before a decision is taken it can
 explain concepts and ask reflective questions, but it must not reveal which
 option is correct.
+
+It is OFF by default (settings.AI_ASSISTANT_ENABLED): it would send the question
+and the case context to an external provider. Errors go through the project's
+exception handler, so they use the usual ``{success: false, message}`` envelope.
 """
 import json
 import logging
 import urllib.error
 import urllib.request
+import uuid
 
 from django.conf import settings
 from django.utils import timezone
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,35 +30,44 @@ class AIAssistantView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # Primero la bandera: apagado, la ruta no distingue peticiones válidas de
+        # inválidas ni dice por qué (sin nombres de variables internas).
+        if not getattr(settings, "AI_ASSISTANT_ENABLED", False):
+            raise NotFound("El asistente no está disponible")
+
         attempt_id = request.data.get("attempt_id")
         question = (request.data.get("question") or "").strip()
         current_node_id = request.data.get("current_node_id")
         decision_already_taken = self._as_bool(request.data.get("decision_already_taken", False))
 
         if not attempt_id or not question:
-            return Response({"error": "Parametros incompletos"}, status=400)
-
+            raise ValidationError("Parámetros incompletos")
         try:
-            from apps.simulation.models import SimulationAttempt
-            attempt = SimulationAttempt.objects.select_related(
-                "case_version__simulation_case"
-            ).get(id=attempt_id, student=request.user)
-        except SimulationAttempt.DoesNotExist:
-            return Response({"error": "Intento no encontrado"}, status=404)
+            attempt_id = uuid.UUID(str(attempt_id))
+        except ValueError:
+            raise ValidationError("El identificador del intento no es válido")
+
+        from apps.simulation.models import SimulationAttempt
+        attempt = (
+            SimulationAttempt.objects.select_related("case_version__simulation_case")
+            .filter(id=attempt_id, student=request.user)
+            .first()
+        )
+        if attempt is None:
+            raise NotFound("Intento no encontrado")
 
         context = self._build_context(attempt, current_node_id, decision_already_taken)
         try:
             response_text = self._call_llm(question, context)
         except NotConfigured:
-            response_text = (
-                "El asistente aun no esta configurado. Define AI_ASSISTANT_API_KEY "
-                "en el entorno para activar respuestas inteligentes."
-            )
+            # La pista de configuración va al registro del servidor, no al jugador.
+            logger.warning("AIAssistant habilitado pero sin clave de proveedor (AI_ASSISTANT_API_KEY)")
+            response_text = "El asistente aún no está configurado. Consulta a tu docente."
         except Exception as exc:  # pragma: no cover - external provider
             logger.warning("AIAssistant provider error: %s", exc)
-            response_text = "No pude consultar el asistente en este momento. Intenta de nuevo mas tarde."
+            response_text = "No pude consultar el asistente en este momento. Intenta de nuevo más tarde."
 
-        self._write_audit(request, attempt_id, question, current_node_id, decision_already_taken, response_text)
+        self._write_audit(request, str(attempt_id), question, current_node_id, decision_already_taken, response_text)
         return Response({"response": response_text})
 
     @staticmethod
