@@ -235,15 +235,22 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       padding-top: 12px;
     }
     .encrypt-note {
-      display: flex; gap: 8px; align-items: center;
+      display: flex; gap: 8px; align-items: center; flex: 1 1 0; min-width: 0;
       margin: 0; font-size: .7rem;
       color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
-    .footer-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+    .footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
     .continue-btn { flex-shrink: 0; }
 
+    /* Pantallas bajas (844x390): las columnas se desplazan por dentro y el pie, con la salida segura, queda siempre a la vista. */
+    @media (max-height: 520px) {
+      .journal-modal { padding: 12px 16px; gap: 8px; max-height: 94vh; }
+      .journal-columns { overflow-y: auto; }
+    }
     @media (max-width: 700px) {
+      .sheet-footer { flex-wrap: wrap; }
+      .footer-actions { flex-wrap: wrap; width: 100%; }
       .journal-modal { padding: 14px; max-height: 92vh; }
       .journal-columns { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
       .journal-context { order: 2; }

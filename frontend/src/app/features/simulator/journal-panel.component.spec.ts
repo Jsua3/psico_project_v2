@@ -68,4 +68,11 @@ describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004
     const button = safeExitButton();
     expect(button?.disabled).toBe(false);
   });
+
+  it('en pantallas bajas las columnas se desplazan por dentro y el pie con la salida segura no se solapa', () => {
+    expect(source).toMatch(/@media \(max-height: 520px\) \{[^}]*\.journal-modal \{[^}]*\}\s*\.journal-columns \{ overflow-y: auto; \}/);
+    // El pie no se parte en dos filas con los dos botones y la nota cede ancho.
+    expect(source).toMatch(/\.footer-actions \{[^}]*flex-shrink: 0;/);
+    expect(source).toMatch(/\.encrypt-note \{[^}]*flex: 1 1 0; min-width: 0;/);
+  });
 });
