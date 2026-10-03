@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kitSha256": "9f31d8590d207dbb0e46a7db67efcf3d07d8991d81efb2df3a29cf43abd4f266",
+  "characters": {
+    "valentina": {
+      "displayName": "Valentina",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "files": {
+        "idle": {
+          "path": "valentina/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "6fef71e199e544ddc2b0988007f608a534c4c31321365d21c2bf24a15d88ce4d"
+        },
+        "walk": {
+          "path": "valentina/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "8ed695fc79b0694930f5668c4bd4785b1ecc3cd93ff636e14f34f3be6d64ca30"
+        },
+        "portrait-neutral": {
+          "path": "valentina/portrait-neutral.png",
+          "width": 96,
+          "height": 96,
+          "pixelSha256": "2f9b4dcb289c62eabebbfdd2908c0dbf959a94bd6b3f33f570ec7872adcf093b"
+        }
+      }
+    }
+  }
+}

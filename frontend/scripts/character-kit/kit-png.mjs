@@ -1,20 +1,29 @@
-/** E/S de PNG para el kit (Node). El núcleo trabaja con RGBA crudo. */
+/** E/S de PNG para el kit (Node). El motor trabaja con RGBA crudo. */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { PNG } from 'pngjs';
 
-export function writePng(filePath, width, height, rgba) {
+/** RGBA → bytes PNG (RGBA de 8 bits). Determinista. */
+export function encodePng(width, height, rgba) {
   const png = new PNG({ width, height, colorType: 6 });
   png.data = Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+  return PNG.sync.write(png, { colorType: 6 });
+}
+
+export function decodePng(bytes) {
+  const png = PNG.sync.read(bytes);
+  return { width: png.width, height: png.height, rgba: new Uint8Array(png.data) };
+}
+
+export function writePng(filePath, width, height, rgba) {
   mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, PNG.sync.write(png, { colorType: 6 }));
+  writeFileSync(filePath, encodePng(width, height, rgba));
 }
 
 export function readPng(filePath) {
-  const png = PNG.sync.read(readFileSync(filePath));
-  return { width: png.width, height: png.height, rgba: new Uint8Array(png.data) };
+  return decodePng(readFileSync(filePath));
 }
 
 /** Escala entera por vecino más cercano. */
