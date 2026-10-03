@@ -17,7 +17,7 @@ import { DEFAULT_OUT, buildOutputs, finishCharacter, recipeVariants, sha256 } fr
 import { decodePng } from './kit-png.mjs';
 import { checkCharacter, checkSharedHead } from './measure.mjs';
 import { RETOUCH_ROOT, checkRetouchLayer } from './retouch-lib.mjs';
-import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, editorSamples } from './coverage.mjs';
+import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
 import { referencedKeys } from './coverage-sources.mjs';
 import { sampleRecipes } from './muestras.mjs';
 
@@ -105,7 +105,9 @@ export function runCheck({ outDir = DEFAULT_OUT, retouchRoot = RETOUCH_ROOT } = 
     const composed = composeCharacter(bundle, recipe, { keepDressed: true });
     errors.push(...checkCharacter(composed, { name: recipe.id, palette, outline: OUTLINE, volume: isVolume(bundle, recipe) }));
   }
-  errors.push(...checkCatalogKeys(bundle.catalog, referencedKeys(REPO_ROOT)));
+  const refs = referencedKeys(REPO_ROOT);
+  errors.push(...checkCatalogKeys(bundle.catalog, refs));
+  errors.push(...checkScenarioRecipes(bundle.recipes, refs));
   errors.push(...checkCatalogRecipes(bundle));
   for (const recipe of editorSamples(bundle)) {
     const composed = composeCharacter(bundle, recipe, { keepDressed: true });

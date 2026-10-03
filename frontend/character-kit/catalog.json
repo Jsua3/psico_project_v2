@@ -19,28 +19,6 @@
     "sobreviviente-espera": "sobreviviente",
     "trabajadora-social": "trabajadora-social"
   },
-  "scenarioNpcs": {
-    "adolescente-nna": "adolescente",
-    "apoyo-psicosocial": "profesional-psicosocial",
-    "colega-comisaria": "enfermera-urgencias",
-    "colega-guardia": "enfermera-urgencias",
-    "defensor-familia": "supervisor-clinico",
-    "enfermera-urgencias": "enfermera-urgencias",
-    "familiar-comisaria": "madre-acompanante",
-    "madre-acompanante": "madre-acompanante",
-    "madre-familiar": "madre-acompanante",
-    "medico-guardia": "medico-guardia",
-    "orientadora-juridica": "orientadora-juridica",
-    "paciente-comisaria": "sobreviviente",
-    "psicologa-orientadora": "psicologa-hospitalaria",
-    "seguridad-entrada": "seguridad",
-    "sobreviviente-espera": "sobreviviente",
-    "supervisor-cierre": "supervisor-clinico",
-    "supervisor-comisaria": "supervisor-clinico",
-    "supervisor-informe": "supervisor-clinico",
-    "supervisor-ruta": "supervisor-clinico",
-    "trabajadora-social": "trabajadora-social"
-  },
   "speakers": {
     "Abuela de la niña": "abuela-familia",
     "Consultante": "sobreviviente",

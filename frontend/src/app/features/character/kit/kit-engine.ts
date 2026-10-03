@@ -192,7 +192,6 @@ export interface Catalog {
   defaultRecipe: string;
   playables: string[];
   actors: Record<string, string>;
-  scenarioNpcs: Record<string, string>;
   speakers: Record<string, string>;
   voices: string[];
   portraitKeys: Record<string, string>;

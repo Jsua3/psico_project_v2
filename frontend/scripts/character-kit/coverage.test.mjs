@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { buildBundle } from './bundle.mjs';
-import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, editorSamples } from './coverage.mjs';
+import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
 import { referencedKeys } from './coverage-sources.mjs';
 
 test('las fuentes del juego se leen: escenarios, actores, guías, hablantes y plantillas', () => {
@@ -13,6 +13,19 @@ test('las fuentes del juego se leen: escenarios, actores, guías, hablantes y pl
   assert.ok(refs.guides.has('Funcionario de derechos'));
   assert.ok(refs.speakers.has('Sobreviviente (22 años)') && refs.speakers.has('Protocolo clínico'));
   assert.deepEqual([...refs.templates].sort(), ['adolescente', 'hombre-adulto', 'mujer-adulta', 'profesional']);
+});
+
+test('cada NPC de escenario nombra una receta que existe', () => {
+  const bundle = buildBundle();
+  const refs = referencedKeys(REPO_ROOT);
+  assert.deepEqual(checkScenarioRecipes(bundle.recipes, refs), []);
+  refs.scenarioNpcs.set('npc-nuevo', null);
+  refs.scenarioNpcs.set('npc-raro', 'no-existe');
+  assert.deepEqual(checkScenarioRecipes(bundle.recipes, refs), [
+    'escenario: el NPC «npc-nuevo» no tiene recipeId',
+    'escenario: el NPC «npc-raro» usa la receta inexistente «no-existe»',
+  ]);
+  assert.equal(bundle.catalog.scenarioNpcs, undefined);
 });
 
 test('el catálogo cubre todas las claves que el juego referencia', () => {

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { NPC_AVATAR_PRESETS } from './npc-avatar-presets';
+import { testKitBundle } from '../character/kit/testing/kit-testing';
 import {
   CASE_ROOM_FURNITURE,
   caseRoomCollisions,
@@ -130,14 +130,11 @@ describe('case-pdf-rooms (geometría + renderers + escenarios)', () => {
   });
 
   it('escenarios JSON: presets reales, behaviors válidos y diálogo presente', () => {
+    const recipes = testKitBundle().recipes;
     for (const { file, npc } of allNpcs()) {
-      if (npc.avatarPresetKey !== undefined) {
-        expect(Object.keys(NPC_AVATAR_PRESETS)).toContain(npc.avatarPresetKey);
-      }
-      expect(typeof npc.frameIndex).toBe('number');
+      expect(`${file}:${npc.key}:${recipes[npc.recipeId] ? 'ok' : npc.recipeId}`).toBe(`${file}:${npc.key}:ok`);
       expect(npc.dialogue.lines.length).toBeGreaterThan(0);
       if (npc.motion) expect(BEHAVIORS).toContain(npc.motion.behavior);
-      expect(`${file}:${npc.key}`).toBeTruthy();
     }
   });
 
@@ -164,10 +161,10 @@ describe('case-pdf-rooms (geometría + renderers + escenarios)', () => {
   it('todas las salas tienen NPCs modulares y urgencias conserva al menos tres actores', () => {
     for (const file of CASE_SCENARIOS) {
       const npcs = loadScenario(file).rooms[0].npcs;
-      expect(npcs.some(n => n.avatarPresetKey)).toBe(true);
+      expect(npcs.some(n => n.recipeId)).toBe(true);
     }
     const urgencias = loadScenario('hospital-urgencias').rooms[0].npcs;
-    const modular = urgencias.filter(n => n.avatarPresetKey);
+    const modular = urgencias.filter(n => n.recipeId);
     expect(modular.length).toBeGreaterThanOrEqual(3);
     expect(modular.every(n => BEHAVIORS.includes(n.motion?.behavior ?? 'idle'))).toBe(true);
   });

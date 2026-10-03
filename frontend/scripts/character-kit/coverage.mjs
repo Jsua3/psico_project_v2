@@ -12,7 +12,6 @@ import { FRONTEND_ROOT } from './bundle.mjs';
 export const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
 const EMOTIONS = ['neutral', 'vulnerable', 'concerned', 'danger', 'positive'];
 const MAPS = Object.freeze([
-  ['scenarioNpcs', 'el NPC de escenario'],
   ['actors', 'el actor'],
   ['guides', 'el guía'],
   ['portraitKeys', 'la clave de retrato'],
@@ -31,6 +30,16 @@ export function checkCatalogKeys(catalog, refs) {
     if (!(name in catalog.speakers) && !catalog.voices.includes(name)) {
       errors.push(`catálogo: el hablante «${name}» no es receta ni voz sin cuerpo`);
     }
+  }
+  return errors;
+}
+
+/** Cada NPC de escenario nombra una receta que existe (spec §8.1: el par preset/frameIndex pasó a `recipeId`). */
+export function checkScenarioRecipes(recipes, refs) {
+  const errors = [];
+  for (const [key, recipeId] of [...refs.scenarioNpcs].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!recipeId) errors.push(`escenario: el NPC «${key}» no tiene recipeId`);
+    else if (!recipes[recipeId]) errors.push(`escenario: el NPC «${key}» usa la receta inexistente «${recipeId}»`);
   }
   return errors;
 }

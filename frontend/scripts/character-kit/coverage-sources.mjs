@@ -31,19 +31,17 @@ function block(text, start, end) {
   return text.slice(i, text.indexOf(end, i));
 }
 
-function scenarioNpcIds(root) {
+/** NPC de los escenarios → su receta (null si le falta `recipeId`). */
+function scenarioNpcRecipes(root) {
   const dir = path.join(root, COVERAGE_SOURCES.scenarios);
-  const ids = new Set();
-  const walk = node => {
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (!node || typeof node !== 'object') return;
-    if ('avatarPresetKey' in node && typeof node.key === 'string') ids.add(node.key);
-    Object.values(node).forEach(walk);
-  };
+  const recipes = new Map();
   for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
-    walk(JSON.parse(readFileSync(path.join(dir, file), 'utf8')));
+    const json = JSON.parse(readFileSync(path.join(dir, file), 'utf8'));
+    for (const room of json.rooms ?? []) {
+      for (const npc of room.npcs ?? []) recipes.set(npc.key, typeof npc.recipeId === 'string' ? npc.recipeId : null);
+    }
   }
-  return ids;
+  return recipes;
 }
 
 export function referencedKeys(root) {
@@ -56,7 +54,7 @@ export function referencedKeys(root) {
     ...all(block(resolver, 'const SPEAKER_NAME_TO_SLUG', '};'), /'([^']+)':/g),
   ]);
   return {
-    scenarioNpcs: scenarioNpcIds(root),
+    scenarioNpcs: scenarioNpcRecipes(root),
     actors: new Set([
       ...all(block(presets, 'export const MAP_OBJECT_PRESETS', '};'), /'([^']+)':/g),
       ...roster.mappings.map(m => m.actorId),
