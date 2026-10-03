@@ -87,8 +87,13 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(source).toMatch(/@media \(hover: hover\) and \(pointer: fine\) and \(min-width: 1150px\) \{\s*\.context-bar__hint \{ display: block;/);
   });
 
-  it('la <kbd> «E» del botón no se pinta en modo compacto', () => {
+  it('la <kbd> «E» del botón no se pinta en modo compacto ni sin puntero fino', () => {
     expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">E<\/kbd> \}/);
+    expect(source).toMatch(/@media not all and \(hover: hover\) and \(pointer: fine\) \{\s*\.context-bar__interaction kbd \{ display: none; \}/);
+  });
+
+  it('una puerta bloqueada también marca candado cuando es el botón secundario', () => {
+    expect(source).toMatch(/context-bar__interaction--secondary"[\s\S]*?\[class\.context-bar__interaction--locked\]="also\.verb\.locked"[\s\S]*?@if \(also\.verb\.locked\) \{ <mat-icon class="context-bar__lock"/);
   });
 
   it('el pie tiene altura fija: el mundo no cambia de tamaño al acercarte a algo', () => {

@@ -376,7 +376,9 @@ const CASE_INTRO_PARAGRAPHS = [
               </button>
               @if (contextAlso(); as also) {
                 <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
+                  [class.context-bar__interaction--locked]="also.verb.locked"
                   (click)="openInteraction(also.obj)" [attr.title]="also.title" [attr.aria-label]="'También: ' + also.verb.text">
+                  @if (also.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
                   <span class="context-bar__also">También:</span>
                   <strong>{{ also.verb.text }}</strong>
                 </button>
@@ -689,6 +691,10 @@ const CASE_INTRO_PARAGRAPHS = [
       color: #c9b8ff;
     }
     .context-bar__lock { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; color: #F5B84B; }
+    /* La tecla E solo se rotula con teclado y puntero fino: en táctil el botón basta. */
+    @media not all and (hover: hover) and (pointer: fine) {
+      .context-bar__interaction kbd { display: none; }
+    }
     .context-bar__copy { display: grid; min-width: 0; }
     .context-bar__copy strong {
       min-width: 0;
