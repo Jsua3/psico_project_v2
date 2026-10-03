@@ -454,6 +454,35 @@ describe('SceneChecklistCardComponent (T3.1)', () => {
     });
   });
 
+  describe('foco al plegar y desplegar', () => {
+    it('en compacto el foco pasa del chip al botón «Ocultar pasos» y vuelve al chip', () => {
+      create({ compact: true });
+      toggle().focus();
+      toggle().click();
+      fixture.detectChanges();
+      TestBed.inject(ApplicationRef).tick();
+      expect(accessibleText(toggle())).toBe('Ocultar pasos');
+      expect(document.activeElement).toBe(toggle());
+      toggle().click();
+      fixture.detectChanges();
+      TestBed.inject(ApplicationRef).tick();
+      expect(visibleText(toggle())).toBe('Qué hacer · 6');
+      expect(document.activeElement).toBe(toggle());
+    });
+
+    it('no roba el foco si el estudiante no estaba en la tarjeta', () => {
+      const outside = document.createElement('button');
+      document.body.appendChild(outside);
+      create({ compact: true });
+      outside.focus();
+      toggle().click();
+      fixture.detectChanges();
+      TestBed.inject(ApplicationRef).tick();
+      expect(document.activeElement).toBe(outside);
+      outside.remove();
+    });
+  });
+
   describe('compacto', () => {
     it('arranca plegada en un chip «Qué hacer · {n}» con los pasos pendientes', () => {
       create({ compact: true });
