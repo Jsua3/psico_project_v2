@@ -488,6 +488,22 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.checklistNotice()).toBeNull();
     });
 
+    it('una nota que ya se había leído y luego la cubre un diálogo no reaparece al cerrarlo', () => {
+      startInUrgencias();
+      tick();
+      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
+      tick();
+      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
+
+      tick(2000); // el jugador la leyó
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      tick();
+      component.closeDialogue();
+      tick();
+
+      expect(component.checklistNotice()).toBeNull();
+    });
+
     it('dos pasos hechos a la vez se anotan uno tras otro', () => {
       startInUrgencias();
       tick();

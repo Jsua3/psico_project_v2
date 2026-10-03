@@ -73,6 +73,10 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(source).toMatch(/class="context-bar__interaction context-bar__interaction--secondary"[\s\S]*?<strong>\{\{ also\.verb\.text \}\}<\/strong>/);
   });
 
+  it('el secundario conserva «También:» en su nombre accesible aunque el modo compacto lo oculte a la vista', () => {
+    expect(source).toContain(`[attr.aria-label]="'También: ' + also.verb.text"`);
+  });
+
   it('la línea «Ahora: …» tiene su clase propia y la leyenda conserva .context-bar__hint', () => {
     expect(source).toMatch(/<p class="context-bar__now">\{\{ nowLine\(\) \}\}<\/p>/);
     expect(source).toMatch(/<p class="context-bar__hint">WASD mover/);

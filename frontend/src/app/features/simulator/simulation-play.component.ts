@@ -61,6 +61,8 @@ import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modali
 const SCENE_FADE_MS = 320;
 /** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
 const NOTICE_MS = 4200;
+/** Una nota que estuvo a la vista al menos este tiempo se da por leída aunque un diálogo la cubra después. */
+const NOTE_SEEN_MS = 1500;
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
@@ -374,7 +376,7 @@ const CASE_INTRO_PARAGRAPHS = [
               </button>
               @if (contextAlso(); as also) {
                 <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
-                  (click)="openInteraction(also.obj)" [attr.title]="also.title">
+                  (click)="openInteraction(also.obj)" [attr.title]="also.title" [attr.aria-label]="'También: ' + also.verb.text">
                   <span class="context-bar__also">También:</span>
                   <strong>{{ also.verb.text }}</strong>
                 </button>
@@ -1045,10 +1047,13 @@ const CASE_INTRO_PARAGRAPHS = [
       .bottom-zone { flex-wrap: nowrap; align-items: center; height: 56px; padding: 4px 12px; gap: 8px; }
       .safe-exit { min-height: 44px; padding: 4px 10px; }
       .safe-exit__copy kbd, .context-bar__hint { display: none; }
-      .tool-dock { flex: 0 1 auto; }
-      .context-bar { flex: 1; flex-basis: auto; order: 0; height: 100%; justify-content: flex-end; }
+      /* Las cinco herramientas conservan su sitio; la barra cede (elipsis) cuando el motivo de una puerta es largo. */
+      .tool-dock { flex: 0 0 auto; }
+      .context-bar { flex: 1 1 0; order: 0; height: 100%; justify-content: flex-end; }
       .context-bar__interaction { min-height: 44px; padding: 3px 10px; }
-      .context-bar__interaction--secondary { flex-basis: 34%; }
+      /* El secundario pierde el prefijo visible («También:») para que quepa el verbo; su nombre accesible lo conserva. */
+      .context-bar__interaction--secondary { flex-basis: 30%; min-width: 110px; }
+      .context-bar__also { display: none; }
       .context-bar__idle { text-align: left; }
       .context-bar__now { font-size: .78rem; line-height: 1.25; }
       /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
@@ -1313,6 +1318,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Notas «Anotado: …» a la espera de que no haya un diálogo abierto (el servidor marca «hablado» al abrir). */
   private readonly pendingNotes: string[] = [];
   private noteTimer: number | null = null;
+  private noteShownAt = 0;
   private softNoticeTimer: number | null = null;
   private nothingNearbyTimer: number | null = null;
   private helpCardShown = false;
@@ -2621,14 +2627,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. Una nota que
-   * un diálogo tapó antes de que se leyera vuelve a empezar sus 4,2 s cuando la escena queda libre.
+   * Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. Una nota que un
+   * diálogo tapó apenas se vio (menos de 1,5 s) vuelve a empezar sus 4,2 s cuando la escena queda libre; si ya
+   * se había leído, se da por leída (la lista conserva su marca).
    */
   private flushNotes(): void {
     if (this.inputBlocked()) {
       if (this.noteTimer !== null) {
         window.clearTimeout(this.noteTimer);
         this.noteTimer = null;
+        if (Date.now() - this.noteShownAt >= NOTE_SEEN_MS) this.checklistNotice.set(null);
       }
       return;
     }
@@ -2636,6 +2644,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const note = this.checklistNotice() ?? this.pendingNotes.shift() ?? null;
     if (note === null) return;
     this.checklistNotice.set(note);
+    this.noteShownAt = Date.now();
     this.noteTimer = window.setTimeout(() => {
       this.noteTimer = null;
       this.checklistNotice.set(null);
