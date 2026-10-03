@@ -527,8 +527,8 @@ const CASE_INTRO_PARAGRAPHS = [
         0 12px 30px -22px rgba(124,77,255,.55);
     }
     @media (min-width: 1100px) {
-      /* Más ancha, la lista pierde líneas y no baja hasta la Familia en crisis (abajo a la izquierda), el siguiente paso. */
-      .objective-card { width: min(480px, 46%); }
+      /* Más ancha, la lista y el aviso pierden líneas: con el tope de alto se ve entera (o casi) sin tapar el kit ni la Familia en crisis. */
+      .objective-card { width: min(560px, 50%); }
     }
     /* Plegada a su chip (modo compacto) la tarjeta se sostiene sola: sin caja alrededor. */
     .objective-card:has(app-scene-checklist-card[data-collapsed='true']) {
