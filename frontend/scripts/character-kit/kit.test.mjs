@@ -278,3 +278,21 @@ test('cover respeta la profundidad: no tapa lo que está delante (el brazo sobre
   assert.equal(pixel(idle, 0, 0, 12, 40), MAGENTA, 'crea celdas donde no había nada');
   assert.notEqual(pixel(idle, 0, 0, 15, 40), MAGENTA, 'no tapa el antebrazo, que está delante');
 });
+
+test('bordes: depth pinta varias filas desde el borde y edge «top» marca la fila de arriba', () => {
+  const carbon = ['#6c6376', '#494255', '#302a3b', '#211e2b'];
+  const calzado = (id, edges) => ({ id, kind: 'shoes', coverage: { o: 'shoes', O: 'shoes' }, edges, views: {} });
+  const botin = calzado('botin-prueba', [{ labels: ['m', 'M'], edge: 'bottom', depth: 3, mat: 'shoes' }]);
+  const brillo = calzado('brillo-prueba', [{ labels: ['o', 'O'], edge: 'top', tone: 0 }]);
+  const run = id => {
+    const { bundle, recipe } = withPieces([botin, brillo], { pieces: { shoes: id } });
+    return composeCharacter(bundle, recipe).idle;
+  };
+  const conBotin = run('botin-prueba');
+  // De frente, la espinilla izquierda termina en y = 62: las 3 últimas filas son caña del botín.
+  for (const y of [60, 61, 62]) assert.ok(carbon.includes(pixel(conBotin, 0, 0, 21, y)), `y=${y}`);
+  assert.ok(!carbon.includes(pixel(conBotin, 0, 0, 21, 59)), 'la fila 59 sigue siendo pantalón');
+  // El empeine (fila de arriba del pie, y = 63) va en tono de luz.
+  assert.equal(pixel(run('brillo-prueba'), 0, 0, 20, 63), carbon[0]);
+  assert.throws(() => compilePiece({ ...botin, edges: [{ labels: ['o'], edge: 'left' }] }), /borde desconocido/);
+});

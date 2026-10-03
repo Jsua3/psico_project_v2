@@ -63,6 +63,10 @@ export function compilePiece(piece) {
   const key = `${piece.kind}:${piece.id}`;
   if (!PIECE_KINDS.has(piece.kind)) throw new Error(`pieza ${key}: tipo desconocido`);
   if (piece.asymmetric && !piece.views?.right) throw new Error(`pieza ${key}: es asimétrica y le falta la vista right`);
+  for (const rule of piece.edges ?? []) {
+    if (rule.edge !== 'bottom' && rule.edge !== 'top') throw new Error(`pieza ${key}: borde desconocido «${rule.edge}»`);
+    if (rule.depth !== undefined && !(Number.isInteger(rule.depth) && rule.depth >= 1)) throw new Error(`pieza ${key}: depth debe ser un entero ≥ 1`);
+  }
   const views = {};
   for (const [view, list] of Object.entries(piece.views ?? {})) {
     if (!VIEW_ROWS.includes(view)) throw new Error(`pieza ${key}: vista desconocida «${view}»`);

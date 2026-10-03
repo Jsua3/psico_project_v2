@@ -83,7 +83,10 @@ export interface Overlay {
 
 export interface EdgeRule {
   labels: string[];
-  edge: 'bottom';
+  /** Fila de abajo (puños, suelas, caña) o de arriba (empeine) de cada columna de la etiqueta. */
+  edge: 'bottom' | 'top';
+  /** Filas que pinta desde el borde hacia dentro (por defecto 1). */
+  depth?: number;
   mat?: string;
   tone?: number;
 }
@@ -548,14 +551,21 @@ export function targetRows(frame: Frame, anchor: string, restY: number): number[
 }
 
 function applyEdges(frame: Frame, rule: EdgeRule): void {
+  const depth = rule.depth ?? 1;
+  const fromBottom = rule.edge === 'bottom';
   for (const label of rule.labels) {
     for (let x = 0; x < frame.width; x++) {
-      for (let y = frame.height - 1; y >= 0; y--) {
+      let painted = 0;
+      for (let k = 0; k < frame.height && painted < depth; k++) {
+        const y = fromBottom ? frame.height - 1 - k : k;
         const i = y * frame.width + x;
-        if (frame.part[i] !== label) continue;
+        if (frame.part[i] !== label) {
+          if (painted > 0) break;
+          continue;
+        }
         if (rule.mat) frame.mat[i] = rule.mat;
         if (rule.tone !== undefined) frame.fixedTone[i] = rule.tone;
-        break;
+        painted++;
       }
     }
   }
