@@ -515,6 +515,428 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
   });
 });
 
+describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let playSfx: jest.Mock;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const text = (el: Element | null) => el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+  const decision = (id: number, label: string, extra: Partial<DialogueState['choices'][number]> = {}) => ({
+    key: `d${id}`, text: label, decisionOptionId: id, requiredToolCode: null, effect: {}, ...extra,
+  });
+  const tool = (code: string, label: string, extra: Partial<DialogueState['choices'][number]> = {}) => ({
+    key: `t-${code}`, text: label, decisionOptionId: null, requiredToolCode: code, effect: {}, ...extra,
+  });
+  const dialogueWith = (choices: DialogueState['choices'], extra: Partial<DialogueState> = {}): DialogueState => ({
+    key: 'dlg', speakerName: 'Familia en crisis', portraitKey: null, emotion: 'neutral',
+    lines: [{ order: 1, speakerName: 'Familia en crisis', text: 'Necesitamos ayuda', emotion: 'neutral' }],
+    choices, ...extra,
+  });
+
+  beforeEach(async () => {
+    playSfx = jest.fn();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.reduceMotion, true);
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(d: DialogueState): void {
+    writeInputSignal(component.dialogue, d);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  it('muestra un solo aviso de evidencia sobre las opciones, sin insignia por opción ni «(información incompleta)»', () => {
+    render(dialogueWith(
+      [decision(1, 'Escuchar sin juzgar'), decision(2, 'Dar un consejo')],
+      { notice: 'Antes de decidir te falta: hablar con la Enfermera de urgencias.' },
+    ));
+    const notices = host().querySelectorAll('.choices-notice');
+    expect(notices).toHaveLength(1);
+    expect(text(notices[0])).toContain('Antes de decidir te falta');
+    // El aviso va antes del grupo de opciones.
+    const group = host().querySelector('.choices')!;
+    expect(notices[0].compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group.getAttribute('aria-describedby')).toBe('choices-notice');
+    // Ni insignia por opción ni la frase en los nombres accesibles (el e2e chooseDecision la rechaza).
+    expect(host().querySelector('.choice-btn__meta')).toBeNull();
+    for (const button of Array.from(host().querySelectorAll('.choice-btn'))) {
+      expect(button.getAttribute('aria-label')).not.toMatch(/información incompleta/i);
+      expect(text(button)).not.toMatch(/información incompleta/i);
+    }
+  });
+
+  it('con la advertencia heredada repetida en cada opción sigue saliendo un solo aviso', () => {
+    render(dialogueWith([
+      decision(1, 'Escuchar', { evidenceWarning: 'Información insuficiente: falta una conversación.' }),
+      decision(2, 'Aconsejar', { evidenceWarning: 'Información insuficiente: falta una conversación.' }),
+    ]));
+    expect(host().querySelectorAll('.choices-notice')).toHaveLength(1);
+    expect(text(host().querySelector('.choices-notice'))).toBe('Información insuficiente: falta una conversación.');
+  });
+
+  it('sin aviso no hay párrafo ni aria-describedby en el grupo', () => {
+    render(dialogueWith([decision(1, 'Escuchar')]));
+    expect(host().querySelector('.choices-notice')).toBeNull();
+    expect(host().querySelector('.choices')!.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('una opción de herramienta sin la herramienta es aria-disabled, enfocable, con chip, y no ejecuta', () => {
+    jest.useFakeTimers();
+    try {
+      const useTool = jest.fn();
+      component.useTool.subscribe(useTool);
+      render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: true }), decision(1, 'Escuchar')]));
+      const [toolBtn, decisionBtn] = Array.from(host().querySelectorAll<HTMLButtonElement>('.choice-btn'));
+      expect(toolBtn.getAttribute('aria-disabled')).toBe('true');
+      expect(toolBtn.disabled).toBe(false);   // sigue enfocable
+      expect(decisionBtn.hasAttribute('aria-disabled')).toBe(false);
+      const chip = toolBtn.querySelector('.choice-btn__hint')!;
+      expect(text(chip)).toBe('Aún no tienes esta herramienta. Recógela en la sala.');
+      expect(toolBtn.getAttribute('aria-describedby')).toBe(chip.id);
+
+      jest.advanceTimersByTime(600);
+      toolBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true, cancelable: true }));
+      jest.advanceTimersByTime(300);
+      expect(useTool).not.toHaveBeenCalled();
+      expect(component.chosenKey()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('con la herramienta en la mochila la opción es activable sin chip', () => {
+    jest.useFakeTimers();
+    try {
+      const useTool = jest.fn();
+      component.useTool.subscribe(useTool);
+      render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: false })]));
+      const button = host().querySelector<HTMLButtonElement>('.choice-btn')!;
+      expect(button.hasAttribute('aria-disabled')).toBe(false);
+      expect(host().querySelector('.choice-btn__hint')).toBeNull();
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+      jest.advanceTimersByTime(300);
+      expect(useTool).toHaveBeenCalledWith('PAP');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('muestra «Usar una herramienta» y «Decisión clínica» solo cuando conviven, sin reordenar', () => {
+    render(dialogueWith([tool('PAP', 'Aplicar material'), decision(1, 'Escuchar'), decision(2, 'Aconsejar')]));
+    const children = Array.from(host().querySelector('.choices')!.children).map(el =>
+      el.classList.contains('choices-subtitle') ? `# ${text(el)}` : text(el.querySelector('.choice-btn__label')));
+    expect(children).toEqual(['# Usar una herramienta', 'Aplicar material', '# Decisión clínica', 'Escuchar', 'Aconsejar']);
+  });
+
+  it('sin mezcla de herramienta y decisión no hay subtítulos', () => {
+    render(dialogueWith([decision(1, 'Escuchar'), decision(2, 'Aconsejar')]));
+    expect(host().querySelector('.choices-subtitle')).toBeNull();
+    render(dialogueWith([tool('PAP', 'Aplicar material')]));
+    expect(host().querySelector('.choices-subtitle')).toBeNull();
+  });
+
+  it('una conversación de otra etapa (stale) muestra la línea informativa, ninguna decisión y «Continuar»', () => {
+    const close = jest.fn();
+    component.close.subscribe(close);
+    render(dialogueWith([decision(1, 'Escuchar'), tool('PAP', 'Aplicar material')], { stale: true }));
+    expect(host().querySelector('.choices')).toBeNull();
+    expect(host().querySelector('.choice-btn')).toBeNull();
+    expect(text(host().querySelector('.stale-note'))).toBe('Esta conversación corresponde a otro momento del caso.');
+    const advance = Array.from(host().querySelectorAll('button.close-btn')).map(b => text(b));
+    expect(advance).toEqual(['Continuar ▶']);
+    // Enter cierra (no hay nada que elegir) y los dígitos no eligen.
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true, cancelable: true }));
+    expect(execute).not.toHaveBeenCalled();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('si la conversación stale ya trae la frase como línea, no se repite como nota', () => {
+    render(dialogueWith([], {
+      stale: true,
+      lines: [
+        { order: 1, speakerName: 'Familia en crisis', text: 'Hola', emotion: 'neutral' },
+        { order: 2, speakerName: 'Sistema', text: 'Esta conversación corresponde a otro momento del caso.', emotion: 'neutral' },
+      ],
+    }));
+    expect(host().querySelector('.stale-note')).toBeNull();
+  });
+
+  it('la cabecera anuncia «Decisión clínica» solo si alguna opción registra una decisión', () => {
+    render(dialogueWith([decision(1, 'Escuchar')]));
+    expect(text(host().querySelector('.panel-head__note'))).toContain('Decisión clínica');
+    expect(text(host().querySelector('.panel-head__note'))).toContain('Tu elección queda registrada en tu seguimiento formativo.');
+    render(dialogueWith([tool('PAP', 'Aplicar material')]));
+    expect(host().querySelector('.panel-head__note')).toBeNull();
+    render(dialogueWith([]));
+    expect(host().querySelector('.panel-head__note')).toBeNull();
+  });
+
+  it('la pista de teclado nombra el rango real de opciones y solo se pinta con puntero fino', () => {
+    render(dialogueWith([decision(1, 'Escuchar'), decision(2, 'Aconsejar'), decision(3, 'Derivar')]));
+    expect(text(host().querySelector('.keyboard-hint'))).toBe('Enter: continuar · 1 a 3: elegir · Esc: volver al mapa');
+    render(dialogueWith([]));
+    expect(text(host().querySelector('.keyboard-hint'))).toBe('Enter: continuar · Esc: volver al mapa');
+    expect(source).toMatch(/\.keyboard-hint \{ display: none;/);
+    expect(source).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.keyboard-hint \{ display: block; \}/);
+  });
+});
+
+describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.reduceMotion, true);
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(speaker: string, emotion: string): void {
+    writeInputSignal(component.dialogue, {
+      key: 'e', speakerName: speaker, portraitKey: null, emotion,
+      lines: [{ order: 1, speakerName: speaker, text: 'Línea', emotion }],
+      choices: [],
+    });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  it.each(['positive', 'concerned', 'danger', 'vulnerable'])(
+    'una persona con emoción %s no lleva chip ni etiqueta de emoción', emotion => {
+      render('Abuela de la niña', emotion);
+      expect(host().querySelector('.emotion-chip')).toBeNull();
+      expect(host().querySelector('.emotion-tag')).toBeNull();
+    });
+
+  it('la Abuela con emoción positive no recibe el retrato sonriente', () => {
+    render('Abuela de la niña', 'positive');
+    expect(host().querySelector('.portrait-img')?.getAttribute('src')).toBe('/assets/characters/portraits/madre-vbg_neutral.png');
+  });
+
+  it('una voz de sistema conserva la señal de emoción (chip y etiqueta con su color)', () => {
+    render('Supervisión clínica', 'danger');
+    expect(host().querySelector('.emotion-chip')).not.toBeNull();
+    expect(host().querySelector('.emotion-tag')?.textContent?.trim()).toBe('alerta');
+  });
+
+  it('emotionColor y emotionLabel se conservan (contrato de contraste del bloque H)', () => {
+    expect(component.emotionColor('positive')).toBe('#6EC67A');
+    expect(component.emotionColor('danger')).toBe('#E25A4F');
+    expect(component.emotionLabel('concerned')).toBe('preocupada');
+    expect(source).toMatch(/\.emotion-tag \{[^}]*opacity: 1;/);
+  });
+});
+
+describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let playSfx: jest.Mock;
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  beforeEach(async () => {
+    playSfx = jest.fn();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.reduceMotion, true);
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(d: DialogueState): void {
+    writeInputSignal(component.dialogue, d);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  it('«Continuar» tiene como nombre accesible su texto visible, no «Cerrar diálogo (Esc)»', () => {
+    render({ key: 'c', speakerName: 'Enfermera', portraitKey: null, emotion: 'neutral',
+      lines: [{ order: 1, speakerName: 'Enfermera', text: 'Hola', emotion: 'neutral' }], choices: [] });
+    const button = host().querySelector<HTMLButtonElement>('button.close-btn')!;
+    expect(button.textContent?.replace(/\s+/g, ' ').trim()).toBe('Continuar ▶');
+    expect(button.hasAttribute('aria-label')).toBe(false);
+    expect(host().innerHTML).not.toMatch(/Cerrar diálogo/);
+  });
+
+  it('pasar el ratón por una opción no suena; el foco de teclado sí', () => {
+    render({ ...MULTI_LINE_DIALOGUE, lines: [MULTI_LINE_DIALOGUE.lines[1]] });
+    const option = host().querySelector<HTMLButtonElement>('.choice-btn')!;
+    playSfx.mockClear();
+
+    option.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(playSfx).not.toHaveBeenCalled();
+
+    // Foco por puntero (no :focus-visible): sin sonido.
+    Object.defineProperty(option, 'matches', { configurable: true, value: () => false });
+    option.dispatchEvent(new FocusEvent('focus'));
+    expect(playSfx).not.toHaveBeenCalled();
+
+    // Foco de teclado (:focus-visible): suena una vez.
+    Object.defineProperty(option, 'matches', { configurable: true, value: (selector: string) => selector === ':focus-visible' });
+    option.dispatchEvent(new FocusEvent('focus'));
+    expect(playSfx).toHaveBeenCalledWith('ui_select');
+    expect(playSfx).toHaveBeenCalledTimes(1);
+  });
+
+  it('un navegador sin :focus-visible no rompe el foco de la opción', () => {
+    render({ ...MULTI_LINE_DIALOGUE, lines: [MULTI_LINE_DIALOGUE.lines[1]] });
+    const option = host().querySelector<HTMLButtonElement>('.choice-btn')!;
+    Object.defineProperty(option, 'matches', { configurable: true, value: () => { throw new SyntaxError('selector no válido'); } });
+    expect(() => option.dispatchEvent(new FocusEvent('focus'))).not.toThrow();
+  });
+});
+
+describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let scrollIntoView: jest.Mock;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const strip = () => host().querySelector('.dialogue-strip') as HTMLElement;
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+
+  const LONG = 'Texto bastante largo para que la máquina de escribir tarde en terminar de escribirlo todo.';
+  const dialogue = (text = LONG): DialogueState => ({
+    key: 'scroll', speakerName: 'Familia', portraitKey: null, emotion: 'neutral',
+    lines: [{ order: 1, speakerName: 'Familia', text, emotion: 'neutral' }],
+    choices: [
+      { key: 'c1', text: 'Opción uno', decisionOptionId: 1, requiredToolCode: null, effect: {} },
+      { key: 'c2', text: 'Opción dos', decisionOptionId: 2, requiredToolCode: null, effect: {} },
+    ],
+  });
+
+  beforeEach(async () => {
+    scrollIntoView = jest.fn();
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    if (original) Object.defineProperty(Element.prototype, 'scrollIntoView', original);
+    else delete (Element.prototype as unknown as Record<string, unknown>)['scrollIntoView'];
+  });
+
+  function render(d: DialogueState): void {
+    writeInputSignal(component.dialogue, d);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  // ts-jest corre sin zone.js: `fixture.detectChanges()` no invoca ngAfterViewChecked si solo cambian
+  // señales internas. En el navegador Angular lo llama en cada ciclo; aquí se invoca a mano.
+  const checkView = () => { fixture.detectChanges(); component.ngAfterViewChecked(); };
+
+  it('mientras se escribe ancla abajo en cada revisión', () => {
+    render(dialogue());
+    expect(component.isTypingComplete()).toBe(false);
+    Object.defineProperty(strip(), 'scrollHeight', { configurable: true, value: 640 });
+    strip().scrollTop = 0;
+    component.ngAfterViewChecked();
+    expect(strip().scrollTop).toBe(640);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('al aparecer las opciones las revela una sola vez y no vuelve a pelear con el scroll', () => {
+    render(dialogue());
+    component.skipTypewriter();
+    checkView();
+    expect(host().querySelector('.choices')).not.toBeNull();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+
+    // El estudiante se desplaza: ninguna revisión posterior lo devuelve al fondo ni repite el reveal.
+    Object.defineProperty(strip(), 'scrollHeight', { configurable: true, value: 900 });
+    strip().scrollTop = 40;
+    checkView();
+    checkView();
+    expect(strip().scrollTop).toBe(40);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin opciones, al terminar la línea deja a la vista el botón de avance y luego no ancla más', () => {
+    render({ ...dialogue(), choices: [] });
+    component.skipTypewriter();
+    Object.defineProperty(strip(), 'scrollHeight', { configurable: true, value: 500 });
+    strip().scrollTop = 0;
+    checkView();
+    expect(strip().scrollTop).toBe(500);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    strip().scrollTop = 120;
+    checkView();
+    expect(strip().scrollTop).toBe(120);
+  });
+
+  it('si la lista no cabe bajo la cabecera alinea su inicio para que se vean la opción 1 y la 2', () => {
+    render(dialogue());
+    component.skipTypewriter();
+    fixture.detectChanges();
+    Object.defineProperty(strip(), 'clientHeight', { configurable: true, value: 220 });
+    Object.defineProperty(host().querySelector('.panel-head'), 'offsetHeight', { configurable: true, value: 56 });
+    Object.defineProperty(host().querySelector('.choices'), 'offsetHeight', { configurable: true, value: 400 });
+    component.ngAfterViewChecked();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+  });
+
+  it('con movimiento reducido las opciones también se revelan una vez por línea nueva', () => {
+    writeInputSignal(component.reduceMotion, true);
+    render(dialogue('Primera'));
+    component.ngAfterViewChecked();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    component.ngAfterViewChecked();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    writeInputSignal(component.dialogue, { ...dialogue('Segunda'), key: 'otra' });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.ngAfterViewChecked();
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it('el retrato lateral mide clamp(96px, 18vh, 150px) y el panel lateral es lo único que se desplaza', () => {
+    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{\s*width: auto;\s*max-width: 100%;\s*height: clamp\(96px, 18vh, 150px\);/);
+    expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
+    // Ya no se ancla al fondo en cada ciclo de detección.
+    expect(source).not.toMatch(/el\.scrollTop = el\.scrollHeight;\s*\}\s*\}\s*ngOnDestroy/);
+  });
+});
+
 const CHARS_PER_SEC = 22;
 const INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC);
 

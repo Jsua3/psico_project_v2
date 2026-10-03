@@ -11,13 +11,15 @@ import {
   isFinalDialogueLine,
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
-import { resolvePortraitAsset } from './portrait-resolver.util';
+import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 const CHARS_PER_SEC = 22;
 const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
 /** Ventana tras mostrar las opciones en la que se ignora un clic por teclado (Enter/Espacio mantenido). */
 const CHOICE_ACTIVATION_GUARD_MS = 500;
+/** Texto de la línea informativa de una conversación que pertenece a otra etapa. */
+const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 
 @Component({
   selector: 'app-dialogue-panel',
@@ -39,14 +41,22 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
         <!-- Cabecera fija (REGLA-004, P5): el panel nunca atrapa, con o sin opciones y en ambos modos.
              Clases propias: los e2e pulsan «button.close-btn» para avanzar y cerrar diálogos. -->
         <header class="panel-head">
-          <button type="button" class="panel-back" (click)="close.emit()">
-            <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
-          </button>
-          <app-safe-exit-button class="panel-head__exit" (pause)="safeExit.emit()" />
+          <div class="panel-head__row">
+            <button type="button" class="panel-back" (click)="close.emit()">
+              <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
+            </button>
+            <app-safe-exit-button class="panel-head__exit" (pause)="safeExit.emit()" />
+          </div>
+          @if (hasDecisionOptions(d)) {
+            <p class="panel-head__note">
+              <span class="panel-chip">Decisión clínica</span>
+              <span class="panel-head__note-text">Tu elección queda registrada en tu seguimiento formativo.</span>
+            </p>
+          }
         </header>
 
         <div class="strip-main">
-        <div class="portrait" aria-hidden="true" [style.color]="emotionColor(activeEmotion(d))">
+        <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
           @if (portraitSrc(d); as src) {
             <img class="portrait-img" [src]="src" alt="" (error)="onPortraitError(src)" />
           } @else {
@@ -55,41 +65,54 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
               <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
             </svg>
           }
-          @if (activeEmotion(d); as emotion) {
-            @if (emotion !== 'neutral') {
-              <span class="emotion-chip" [attr.data-emotion]="emotion"></span>
-            }
+          @if (showsEmotionCue(d) && activeEmotion(d) !== 'neutral') {
+            <span class="emotion-chip" [attr.data-emotion]="activeEmotion(d)"></span>
           }
         </div>
 
         <!-- Text area -->
         <div class="strip-body">
           <p class="speaker-name">{{ activeSpeakerName(d) }}
-            @if (emotionLabel(activeEmotion(d)); as em) {
+            @if (showsEmotionCue(d) && emotionLabel(activeEmotion(d)); as em) {
               <span class="emotion-tag" [style.color]="emotionColor(activeEmotion(d))">{{ em }}</span>
             }
           </p>
           <p class="dialogue-text" aria-hidden="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()">▋</span></p>
           <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{{ fullText() }}</p>
 
-          @if (choicesVisible()) {
+          @if (staleNote(d); as note) {
+            <p class="stale-note" role="note">{{ note }}</p>
+          }
+
+          @if (choicesVisible() && !d.stale) {
+            @let notice = noticeText(d);
+            @if (notice) {
+              <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
+            }
             <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1"
+              [attr.aria-describedby]="notice ? 'choices-notice' : null"
               [class.choices--locked]="chosenKey() !== null">
               @for (choice of d.choices; track choice.key; let i = $index) {
+                @if (subtitleBefore(d, i); as subtitle) {
+                  <p class="choices-subtitle">{{ subtitle }}</p>
+                }
                 <button
                   type="button"
                   class="choice-btn"
                   [class.choice-btn--chosen]="chosenKey() === choice.key"
+                  [class.choice-btn--unavailable]="choice.toolMissing"
                   [style.--stagger]="i"
-                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.evidenceWarning ? ' (información incompleta)' : '')"
-                  (mouseenter)="onChoiceHover()"
+                  [attr.aria-label]="(i + 1) + '. ' + choice.text"
+                  [attr.aria-disabled]="choice.toolMissing ? 'true' : null"
+                  [attr.aria-describedby]="choice.toolMissing ? 'choice-hint-' + i : null"
+                  (focus)="onChoiceFocus($event)"
                   (click)="onChoiceClick($event, choice)">
                   <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
                   <span class="choice-btn__icon" aria-hidden="true"></span>
                   <span class="choice-btn__body">
                     <span class="choice-btn__label">{{ choice.text }}</span>
-                    @if (choice.evidenceWarning) {
-                      <span class="choice-btn__meta choice-btn__meta--evidence">Información incompleta</span>
+                    @if (choice.toolMissing) {
+                      <span class="choice-btn__hint" [id]="'choice-hint-' + i">Aún no tienes esta herramienta. Recógela en la sala.</span>
                     }
                   </span>
                 </button>
@@ -111,13 +134,14 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
               Siguiente <span aria-hidden="true">▶</span>
             </button>
           }
-          @if (isTypingComplete() && isLastLine() && !d.choices.length) {
+          @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
             <button type="button" class="close-btn psy-button psy-button--ghost"
-              (click)="close.emit()"
-              aria-label="Cerrar diálogo (Esc)">
+              (click)="close.emit()">
               Continuar <span aria-hidden="true">▶</span>
             </button>
           }
+
+          <p class="keyboard-hint">{{ keyboardHint(d) }}</p>
         </div>
         </div>
       </div>
@@ -132,6 +156,8 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
       align-items: stretch;
       gap: 0;
       padding: 0;
+      max-height: 78vh;
+      overflow-y: auto;
       background: rgba(8,12,18,.95);
       border-top: 2px solid rgba(182,156,255,.4);
       animation: strip-rise 160ms cubic-bezier(.2,.8,.2,1) both;
@@ -151,13 +177,37 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
       position: sticky;
       top: 0;
       z-index: 3;
+      display: grid;
+      gap: 4px;
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(182,156,255,.18);
+      background: rgba(8,12,18,.97);
+    }
+    .panel-head__row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 6px 12px;
-      border-bottom: 1px solid rgba(182,156,255,.18);
-      background: rgba(8,12,18,.97);
+    }
+    .panel-head__note {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      font-size: .75rem;
+      line-height: 1.35;
+      color: rgba(232,240,244,.78);
+    }
+    .panel-chip {
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(182,156,255,.5);
+      background: rgba(124,77,255,.16);
+      color: #d6c6ff;
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .04em;
     }
     .panel-back {
       display: inline-flex;
@@ -273,6 +323,9 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 10px;
       margin-top: 4px;
+      /* Deja libre la cabecera fija cuando scrollIntoView alinea el inicio de la lista. */
+      scroll-margin-top: 72px;
+      outline: none;
     }
     .choice-btn {
       display: grid;
@@ -352,20 +405,53 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
     }
     .choice-btn__body { display: grid; gap: 5px; min-width: 0; }
     .choice-btn__label { display: block; }
-    .choice-btn__meta {
+    .choice-btn__hint {
       width: fit-content;
+      max-width: 100%;
       padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid currentColor;
-      font-size: .66rem;
-      font-weight: 900;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      opacity: .85;
-    }
-    .choice-btn__meta--evidence {
-      border-color: rgba(245,184,75,.6);
+      border-radius: 8px;
+      border: 1px solid rgba(245,184,75,.6);
       color: #f5d49b;
+      font-size: .75rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .choice-btn--unavailable { cursor: not-allowed; opacity: .72; box-shadow: none; }
+    .choice-btn--unavailable:active { transform: none; }
+    /* Aviso único de evidencia sobre las opciones (nunca por opción): informa, no bloquea. */
+    .choices-notice {
+      margin: 0;
+      padding: 8px 12px;
+      border-left: 3px solid #f5b84b;
+      border-radius: 6px;
+      background: rgba(245,184,75,.1);
+      color: #f5e3c0;
+      font-size: .8rem;
+      line-height: 1.45;
+    }
+    .choices-subtitle {
+      grid-column: 1 / -1;
+      margin: 4px 0 0;
+      color: #cdbcff;
+      font-size: .75rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .stale-note {
+      margin: 0;
+      padding: 8px 12px;
+      border-left: 3px solid rgba(182,156,255,.6);
+      border-radius: 6px;
+      background: rgba(124,77,255,.1);
+      color: rgba(232,240,244,.88);
+      font-size: .82rem;
+      line-height: 1.45;
+    }
+    /* La pista de teclado solo existe donde hay teclado y puntero fino. */
+    .keyboard-hint { display: none; margin: 0; font-size: .75rem; color: rgba(232,240,244,.72); }
+    @media (hover: hover) and (pointer: fine) {
+      .keyboard-hint { display: block; }
     }
     .close-btn {
       align-self: flex-end;
@@ -409,6 +495,12 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
       border-bottom: 1px solid rgba(182,156,255,.18);
     }
     .dialogue-strip--side .portrait-svg { width: 30px; height: 30px; }
+    /* El retrato lateral ya no ocupa ~350 px: deja sitio a las opciones (TOUCH-01). */
+    .dialogue-strip--side .portrait-img {
+      width: auto;
+      max-width: 100%;
+      height: clamp(96px, 18vh, 150px);
+    }
     .dialogue-strip--side .emotion-chip { position: static; }
     .dialogue-strip--side .strip-body {
       padding: 12px 16px 16px;
@@ -418,6 +510,19 @@ const CHOICE_ACTIVATION_GUARD_MS = 500;
     .dialogue-strip--side .choices { grid-template-columns: minmax(0, 1fr); }
     .dialogue-strip--side .choice-btn { min-height: 56px; }
 
+    /* Pantallas bajas (844x390 táctil): todo más denso y las opciones a la vista. */
+    @media (max-height: 520px) {
+      .dialogue-strip { min-height: 0; }
+      .portrait { min-height: 0; }
+      .panel-head { padding: 4px 10px; }
+      .panel-head__note-text { display: none; }
+      .strip-body { padding: 8px 14px 10px; gap: 8px; }
+      .dialogue-text { font-size: .86rem; line-height: 1.45; }
+      .dialogue-strip--side .portrait { padding: 6px 12px; }
+      .dialogue-strip--side .portrait-img { height: clamp(48px, 12vh, 64px); }
+      .dialogue-strip--side .strip-body { padding: 8px 12px 12px; gap: 8px; }
+      .dialogue-strip--side .choice-btn { min-height: 48px; padding: 8px 10px; }
+    }
     @media (max-width: 560px) {
       .portrait { width: 60px; min-height: 180px; }
       .dialogue-strip--side .portrait { width: 100%; min-height: 0; }
@@ -471,6 +576,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private confirmHandle: ReturnType<typeof setTimeout> | null = null;
   /** Instante en que aparecieron las opciones: base de la guarda contra la decisión accidental. */
   private choicesShownAt = 0;
+  /** La vista ya se asentó para la línea en curso (ancla abajo o opciones reveladas, una sola vez). */
+  private settled = false;
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -484,6 +591,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       this.chosenKey.set(null);
       this.failedPortrait.set(null);
       this.choicesShownAt = Date.now();
+      this.settled = false;
       if (d?.lines?.length) {
         this.audio.playSfx('ui_select');
         this.startTypewriter(d.lines[0].text);
@@ -552,8 +660,64 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     }
   }
 
-  onChoiceHover(): void {
-    this.audio.playSfx('ui_select');
+  /** Hay algo que elegir: una conversación de otra etapa nunca ofrece opciones. */
+  hasChoices(d: DialogueState): boolean {
+    return !d.stale && d.choices.length > 0;
+  }
+
+  /** Alguna opción activa registra una decisión clínica (cabecera con el chip «Decisión clínica»). */
+  hasDecisionOptions(d: DialogueState): boolean {
+    return !d.stale && d.choices.some(choice => choice.decisionOptionId != null);
+  }
+
+  /** Solo las voces de sistema llevan chip y etiqueta de emoción; las personas no (duelo, límite 2). */
+  showsEmotionCue(d: DialogueState): boolean {
+    return isSystemVoice(this.activeSpeakerName(d));
+  }
+
+  /**
+   * Aviso único sobre las opciones. Llega ya decorado en `notice`; el respaldo lee la advertencia
+   * heredada por opción (misma frase repetida) para no perder el aviso mientras el anfitrión migra.
+   */
+  noticeText(d: DialogueState): string | null {
+    return d.notice || d.choices.find(choice => choice.evidenceWarning)?.evidenceWarning || null;
+  }
+
+  /** Línea informativa de «otro momento»; no se repite si la conversación ya la trae como línea. */
+  staleNote(d: DialogueState): string | null {
+    if (!d.stale) return null;
+    return d.lines.some(line => line.text.includes(STALE_NOTE)) ? null : STALE_NOTE;
+  }
+
+  /** Subtítulo de grupo (solo cuando conviven herramientas y decisiones; sin reordenar). */
+  subtitleBefore(d: DialogueState, index: number): string | null {
+    const isTool = (c: DialogueChoiceState) => c.decisionOptionId == null && c.requiredToolCode != null;
+    const isDecision = (c: DialogueChoiceState) => c.decisionOptionId != null;
+    const firstTool = d.choices.findIndex(isTool);
+    const firstDecision = d.choices.findIndex(isDecision);
+    if (firstTool < 0 || firstDecision < 0) return null;
+    if (index === firstTool) return 'Usar una herramienta';
+    if (index === firstDecision) return 'Decisión clínica';
+    return null;
+  }
+
+  /** Pista de teclado (solo se pinta con puntero fino). */
+  keyboardHint(d: DialogueState): string {
+    const count = this.hasChoices(d) ? d.choices.length : 0;
+    if (count === 0) return 'Enter: continuar · Esc: volver al mapa';
+    const range = count === 1 ? '1' : `1 a ${count}`;
+    return `Enter: continuar · ${range}: elegir · Esc: volver al mapa`;
+  }
+
+  /** El sonido de la opción acompaña al foco de teclado; el puntero no lo dispara al pasar por encima. */
+  onChoiceFocus(event: FocusEvent): void {
+    let keyboardFocus = false;
+    try {
+      keyboardFocus = (event.target as HTMLElement | null)?.matches(':focus-visible') ?? false;
+    } catch {
+      keyboardFocus = false;
+    }
+    if (keyboardFocus) this.audio.playSfx('ui_select');
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -567,7 +731,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       e.key,
       this.isTypingComplete(),
       this.isLastLine(),
-      d.choices.length,
+      this.hasChoices(d) ? d.choices.length : 0,
       e.repeat,
     );
 
@@ -587,11 +751,33 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   ngAfterViewChecked() {
-    // Ensure dialogue box is scrolled to bottom when new text renders
-    const el = this.host.nativeElement.querySelector<HTMLDivElement>('.dialogue-strip');
-    if (el) {
-      el.scrollTop = el.scrollHeight;
+    const strip = this.host.nativeElement.querySelector<HTMLDivElement>('.dialogue-strip');
+    if (!strip) return;
+    if (!this.isTypingComplete()) {
+      // Solo mientras se escribe se ancla abajo, para que la línea nueva no se salga de la vista.
+      strip.scrollTop = strip.scrollHeight;
+      this.settled = false;
+      return;
     }
+    if (this.settled) return;
+    this.settled = true;
+    // Al terminar la línea: las opciones se revelan una sola vez y el resto del tiempo el
+    // estudiante manda sobre el scroll; sin opciones se deja a la vista el botón de avance.
+    if (this.choicesVisible()) this.revealChoices(strip);
+    else strip.scrollTop = strip.scrollHeight;
+  }
+
+  /**
+   * Muestra las opciones sin pelear con el scroll del estudiante. Si la lista cabe bajo la
+   * cabecera fija se desplaza lo mínimo; si no, se alinea su inicio para que se vean la 1 y la 2
+   * (y no el final de la lista) en pantallas bajas (TOUCH-01).
+   */
+  private revealChoices(strip: HTMLElement): void {
+    const choices = strip.querySelector<HTMLElement>('.choices');
+    if (!choices || typeof choices.scrollIntoView !== 'function') return;
+    const headHeight = strip.querySelector<HTMLElement>('.panel-head')?.offsetHeight ?? 0;
+    const fits = choices.offsetHeight <= strip.clientHeight - headHeight;
+    choices.scrollIntoView({ block: fits ? 'nearest' : 'start' });
   }
 
   ngOnDestroy() {
@@ -621,6 +807,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   handleChoice(choice: DialogueChoiceState) {
     if (this.chosenKey() !== null) return;   // ya hay una elección en curso
+    if (choice.toolMissing) return;          // sin la herramienta no hay acción: la opción informa, no ejecuta
     this.chosenKey.set(choice.key);
     this.audio.playSfx('ui_confirm');
     // Pausa breve de confirmación: la card elegida se resalta antes de ejecutar.
@@ -662,6 +849,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   private startTypewriter(text: string) {
+    this.settled = false;
     // `untracked`: el efecto del constructor llama aquí y no debe reiniciar el diálogo cuando cambia el interruptor.
     if (untracked(() => this.reduceMotion())) {
       this.displayedText.set(text);
