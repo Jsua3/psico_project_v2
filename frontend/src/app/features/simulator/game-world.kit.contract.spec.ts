@@ -34,3 +34,31 @@ describe('game-world: el jugador sale del kit (spec §8.2)', () => {
     expect(source).toMatch(/new DataDrivenWorldScene\(\{\s*reduceMotion,\s*kit,/);
   });
 });
+
+describe('game-world: NPC, personas, guía y figurantes del kit; nada los deforma ni tiñe', () => {
+  it('nada tiñe ni deforma a un actor', () => {
+    expect(source).not.toMatch(/setTint\(|clearTint\(|character-motion|LivingActor|livingActors|registerLivingActor/);
+  });
+
+  it('sin personajes de Kenney ni del sistema viejo', () => {
+    expect(source).not.toMatch(/KenneyCharFrames|'characters'|npc-avatar-presets|baked-cast|phaser-avatar-renderer|v1-avatar|avatar-config\.util|authoring-catalog|avatarPresetKey|frameIndex/);
+  });
+
+  it('el único espejo que queda es el de las puertas laterales', () => {
+    expect(source.match(/setFlipX\(/g) ?? []).toHaveLength(1);
+    expect(body('private buildDoorSprite(')).toContain('.setFlipX(');
+  });
+
+  it('NPC, personas, guía y figurantes se resuelven con el punto único', () => {
+    expect(source).toContain('this.actorVisual(npcCharacterRef(npc))');
+    expect(source).toContain('personCharacterRef(this.callbacks.kit, object)');
+    expect(source).toContain('guideCharacterRef(kit, entry.guideName)');
+    expect(source).toContain('extrasCharacterRef(kit)');
+  });
+
+  it('el estado de la paciente es un icono sobre la cabeza', () => {
+    const update = body('updatePatientVisualState(state:');
+    expect(update).toContain('patientIconKind(state)');
+    expect(update).toContain('icon.setTexture(patientIconKey(kind))');
+  });
+});

@@ -798,14 +798,8 @@ export interface NpcConfig {
   /** Receta del kit que lo dibuja (spec §8.1; antes avatarPresetKey + frameIndex). */
   recipeId: string;
   dialogue: NpcDialogue;
-  /** @deprecated Ya no se lee; se borra en la tarea 7 del plan 2. */
-  avatarPresetKey?: NpcAvatarPresetKey;
-  /** @deprecated Ya no se lee; se borra en la tarea 7 del plan 2. */
-  frameIndex?: number;
   motion?: NpcMotionConfig;
   facing?: 'down' | 'up' | 'left' | 'right';
-  /** @deprecated El kit dibuja a escala 1 (spec §8.3); se borra en la tarea 7 del plan 2. */
-  scale?: number;
   emotion?: 'neutral' | 'calm' | 'worried' | 'anxious' | 'receptive' | 'closed';
 }
 

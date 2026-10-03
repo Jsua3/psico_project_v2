@@ -4,7 +4,9 @@
  * Lógica pura; game-world solo dibuja lo que esto resuelve.
  */
 import { parseStoredAvatar } from '../character/kit/avatar-v2';
-import type { CharacterRef } from '../character/kit/character-visual.resolver';
+import { type CharacterRef, resolveRecipeId } from '../character/kit/character-visual.resolver';
+import type { KitBundle } from '../character/kit/kit-engine';
+import type { MapObjectState, NpcConfig } from '../../core/models/simulation.model';
 
 /** Alto del cuerpo sobre los pies en el cuadro del kit (pies en y = 68; tope de la cabeza en y ≈ 4). */
 export const KIT_BODY_HEIGHT = 64;
@@ -16,4 +18,34 @@ export const KIT_ICON_OFFSET_Y = -(KIT_BODY_HEIGHT + 2);
 /** El jugador según lo guardado (v1 o v2; lo inválido cae al valor por defecto). */
 export function playerCharacterRef(stored: string | null): CharacterRef {
   return { kind: 'jugador', avatar: parseStoredAvatar(stored).avatar };
+}
+
+/** Receta de la paciente del caso: sus actores llevan el icono del estado clínico. */
+export const PATIENT_RECIPE_ID = 'sobreviviente';
+
+export function npcCharacterRef(npc: Pick<NpcConfig, 'recipeId'>): CharacterRef {
+  return { kind: 'receta', recipeId: npc.recipeId };
+}
+
+/** Figurantes de los mapas legados y respaldo de todo actor sin receta (spec §7.2). */
+export function extrasCharacterRef(bundle: KitBundle): CharacterRef {
+  return { kind: 'receta', recipeId: bundle.catalog.extras };
+}
+
+/** El guía usa la receta de su rol según `guideName` (spec §7.2). */
+export function guideCharacterRef(bundle: KitBundle, guideName: string): CharacterRef {
+  return { kind: 'receta', recipeId: resolveRecipeId(bundle, { guide: guideName }) ?? bundle.catalog.extras };
+}
+
+/**
+ * Persona del caso (marker PERSON): la receta que eligió el docente, su plantilla vieja,
+ * su avatar autorado (v1 o v2) o la receta del actor por su clave; si nada, el figurante.
+ */
+export function personCharacterRef(bundle: KitBundle, object: Pick<MapObjectState, 'key' | 'metadata'>): CharacterRef {
+  const meta = (object.metadata ?? {}) as Record<string, unknown>;
+  const text = (value: unknown) => (typeof value === 'string' ? value : null);
+  const chosen = resolveRecipeId(bundle, { recipeId: text(meta['recipeId']), template: text(meta['npcTemplateId']) });
+  if (chosen) return { kind: 'receta', recipeId: chosen };
+  if (meta['avatar'] !== undefined && meta['avatar'] !== null) return { kind: 'autorado', avatar: meta['avatar'] };
+  return { kind: 'receta', recipeId: resolveRecipeId(bundle, { actor: object.key }) ?? bundle.catalog.extras };
 }
