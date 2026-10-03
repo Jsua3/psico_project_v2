@@ -969,6 +969,20 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         expect(component.showCaseIntro()).toBe(true);
       });
 
+      it('un diálogo que llegó tarde durante la pausa no reaparece al reanudar', () => {
+        sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
+        sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+        sim.getWorld.mockReturnValue(of(component.world()));
+        sim.getScenarioConfig.mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+        component.pauseFromOverlay();
+        // La supervisión de una decisión se abre 400 ms después y puede caer ya con el intento en pausa.
+        component.dialogue.set(optionsDialogue);
+
+        component.resumeCurrentAttempt();
+
+        expect(component.dialogue()).toBeNull();
+      });
+
       it('una introducción ya leída no reaparece', () => {
         sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
 

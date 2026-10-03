@@ -69,6 +69,12 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     expect(source).toMatch(/<app-journal-panel[^>]*\(safeExit\)="pauseFromOverlay\(\)"/);
   });
 
+  it('los dos paneles de diálogo reciben el token que libera la opción elegida tras un fallo', () => {
+    const panels = source.match(/<app-dialogue-panel[^>]*?\/>/g) ?? [];
+    expect(panels).toHaveLength(2);
+    for (const panel of panels) expect(panel).toContain('[releaseToken]="dialogueReleaseToken()"');
+  });
+
   it('el botón del pie acepta el toque con una petición en curso y su nombre no dice «(Escape)»', () => {
     const footerButton = source.match(/<button class="safe-exit"[\s\S]*?<\/button>/)?.[0] ?? '';
     expect(footerButton).toContain('(click)="pauseFromOverlay()"');

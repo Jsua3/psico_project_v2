@@ -4,6 +4,7 @@ import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
@@ -289,6 +290,7 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+                [releaseToken]="dialogueReleaseToken()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -332,6 +334,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+            [releaseToken]="dialogueReleaseToken()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
@@ -949,6 +952,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * El pie la muestra como «Pausando…»; impide que dos toques pausen dos veces (F§7.8).
    */
   readonly pausing = signal(false);
+  /**
+   * Cada incremento le dice al panel de diálogo que suelte la opción que tenía marcada como
+   * elegida (DLG-01): tras un rechazo o un error sus opciones vuelven a poder activarse.
+   */
+  readonly dialogueReleaseToken = signal(0);
   readonly caseIntroTitle = CASE_INTRO_TITLE;
   readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
   readonly musicMuted = signal(false);
@@ -1079,6 +1087,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: attempt => {
         this.busy.set(false);
         this.attempt.set(attempt);
+        // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre 400 ms
+        // después de la decisión) no debe reaparecer al reanudar.
+        this.dialogue.set(null);
         this.audioDirector.setStressLevel(attempt.stressIndex);
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
         // decide); el consentimiento ya está dado en esta sesión y no se vuelve a pedir.
@@ -1094,6 +1105,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) return;
     this.showResumePrompt.set(false);
+    // Nada del intento anterior sobrevive: ni su diálogo o selección, ni la bitácora abierta, ni una
+    // decisión que esperaba confirmación de evidencia (las opciones se repiten entre intentos).
+    this.clearTransientOverlays();
+    this.nearbyInteraction.set(null);
+    this.pausing.set(false);
     this.loading.set(true);
     this.beginAttempt(id, true);
   }
@@ -1308,7 +1324,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
         this.busy.set(false);
       },
-      error: () => { this.showActionError('No pudimos abrir la interacción.'); this.busy.set(false); }
+      error: err => {
+        this.selectedInteraction.set(null);
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos abrir la interacción.');
+        this.busy.set(false);
+      }
     });
   }
 
@@ -1481,12 +1502,30 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(() => this.actionError.set(''), 4500);
   }
 
+  /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
+  private reportApiError(err: unknown, fallback: string): void {
+    const message = apiErrorMessage(err, fallback);
+    if (message) this.showActionError(message);
+  }
+
+  /** Suelta la opción que el panel de diálogo tenía marcada como elegida. */
+  private releaseDialogue(): void {
+    this.dialogueReleaseToken.update(token => token + 1);
+  }
+
   executeDecision(decisionOptionId: number) {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      // La elección se descarta: sin soltar el panel la opción quedaría marcada y bloqueada.
+      this.releaseDialogue();
+      return;
+    }
     if (!(game.currentNode.options ?? []).some(o => o.id === decisionOptionId)) {
-      // Decisión de otra etapa (sala visitada por puerta): feedback claro, sin 400.
+      // Decisión de otra etapa (sala visitada por puerta): feedback claro, sin 400. Red de seguridad:
+      // la decoración del diálogo ya no ofrece estas opciones.
       this.showActionError('Esta intervención pertenece a otra etapa del caso. Vuelve cuando el flujo te lleve a esta sala.');
+      this.releaseDialogue();
       return;
     }
     const selectedChoice = this.dialogue()?.choices.find(choice => choice.decisionOptionId === decisionOptionId);
@@ -1505,6 +1544,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const confirmedMissingEvidence = evidenceOverride ? this.pendingEvidenceMissing : [];
     this.pendingEvidenceDecisionId = null;
     this.pendingEvidenceMissing = [];
+    const previousDialogue = this.dialogue();
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
@@ -1532,7 +1572,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
-        error: () => { this.showActionError('No pudimos ejecutar la intervención.'); this.busy.set(false); this.fadeActive.set(false); }
+        error: err => {
+          // Se devuelve la conversación para poder reintentar en vez de dejar al estudiante en el mapa.
+          this.dialogue.set(previousDialogue);
+          this.releaseDialogue();
+          this.reportApiError(err, 'No pudimos registrar tu decisión. Inténtalo de nuevo.');
+          this.busy.set(false);
+          this.fadeActive.set(false);
+        }
       });
     });
   }
@@ -1540,13 +1587,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   useTool(toolCode: string) {
     const game = this.attempt();
     const target = this.selectedInteraction()?.key ?? null;
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      this.releaseDialogue();
+      return;
+    }
     this.withSyncedPosition(() => this.doUseTool(toolCode, target));
   }
 
   private doUseTool(toolCode: string, target: string | null) {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      this.releaseDialogue();
+      return;
+    }
     this.busy.set(true);
     this.simulationService.useTool(game.attemptId, game.attemptToken, toolCode, target).subscribe({
       next: (result: ToolUseResult) => {
@@ -1561,7 +1616,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.showToolFeedback(result);
         this.busy.set(false);
       },
-      error: () => { this.showActionError('No pudimos usar la herramienta.'); this.busy.set(false); }
+      error: err => {
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos usar la herramienta.');
+        this.busy.set(false);
+      }
     });
   }
 
@@ -1582,7 +1641,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  closeDialogue() { this.dialogue.set(null); }
+  closeDialogue() {
+    this.dialogue.set(null);
+    // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
+    this.selectedInteraction.set(null);
+  }
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
@@ -1608,8 +1671,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.showNpcDialogue(npc);
         this.busy.set(false);
       },
-      error: () => {
-        this.showActionError('No pudimos guardar la interaccion con el NPC.');
+      error: err => {
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos registrar la conversación. Acércate un poco más e inténtalo de nuevo.');
         this.busy.set(false);
       },
     });
@@ -1709,7 +1773,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
         // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
         // la bitácora reaparecería al reanudar.
-        this.clearOverlaysForPause();
+        this.clearTransientOverlays();
         this.loadWorld(updated);
       },
       error: () => {
@@ -1720,7 +1784,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  private clearOverlaysForPause(): void {
+  /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
+  private clearTransientOverlays(): void {
     this.selectedInteraction.set(null);
     this.dialogue.set(null);
     this.journalOpen.set(false);
