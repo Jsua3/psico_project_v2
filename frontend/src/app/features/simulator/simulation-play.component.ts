@@ -312,8 +312,6 @@ const CASE_INTRO_PARAGRAPHS = [
               </div>
             }
 
-            <div class="stress-vignette" [class.vignette--active]="stressVignetteLevel() > 0"
-              [style.--vignette-opacity]="stressVignetteLevel()" aria-hidden="true"></div>
           </section>
 
           @if (viewMode() === 'dialogue-right') {
@@ -562,12 +560,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
     /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
     .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 136px)); }
-    .stress-vignette {
-      position: absolute; inset: 0; pointer-events: none; z-index: 18; opacity: 0;
-      transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
-      background: radial-gradient(ellipse at center, transparent 55%, rgba(120,40,55,.22) 100%);
-    }
-    .vignette--active { opacity: var(--vignette-opacity, 0); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
     .right-panel {
@@ -1115,7 +1107,7 @@ const CASE_INTRO_PARAGRAPHS = [
       .case-intro-card__actions > span { font-size: .72rem; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .stress-vignette, .scene-fade { transition: none; }
+      .scene-fade { transition: none; }
       .right-panel, .overlay-backdrop { animation: none; }
       .door-notice, .room-banner, .transition-note { animation: none; }
     }
@@ -1320,12 +1312,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
     return sel?.type === 'TOOL' ? sel.toolCode : null;
-  });
-
-  readonly stressVignetteLevel = computed(() => {
-    const s = this.attempt()?.stressIndex ?? 0;
-    if (s < 40) return 0;
-    return Math.min(0.45, 0.05 + ((s - 40) / 60) * 0.4);
   });
 
   private lastPosition: { x: number; y: number } | null = null;

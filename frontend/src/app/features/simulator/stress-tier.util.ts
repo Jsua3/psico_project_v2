@@ -1,9 +1,11 @@
 /**
  * Umbrales únicos de estrés (T13.3). Antes cada sistema tenía los suyos: HUD 25/50/75, viñeta DOM 40,
  * viñeta de Phaser 50/85, audio 30/60/85 y sprite 70, de modo que a un mismo valor el corazón, la
- * música y la viñeta contaban historias distintas. Aquí vive la única definición para quien la adopte
- * (hoy el HUD y el director de audio). La viñeta DOM, la de Phaser y el sprite siguen con los suyos
- * hasta que su pista los migre.
+ * música y la viñeta contaban historias distintas. Aquí vive la única definición: la usan el HUD, el
+ * director de audio y la viñeta de Phaser (`game-feel.util`). La viñeta DOM antigua ya no existe (el pase
+ * visual decidió retirarla: aportaba el 6 % de la de Phaser). El sprite de la paciente sigue con su
+ * umbral de 70 a propósito: mide la crisis de ella (`PatientState.crisisLevel`), no el estrés de la
+ * persona que juega.
  *
  * Es solo una clasificación de presentación: no puntúa ni compara a nadie.
  */
