@@ -117,3 +117,14 @@ Una segunda llamada a `refresh()` (o `getParentBounds()` seguido de `refresh()`)
 
 - T0.2: causa = barra sin NPC + pulsación corta perdida en la ruta de Phaser + radio de servidor 60 estricto; arreglo en T5.2 (cliente) y T11.4 (servidor, obligatorio con radio 72).
 - T0.3: causa = el `ResizeObserver` llama `refresh()` sin `getParentBounds()` previo; arreglo en T5.4, comprobado en vivo.
+
+## Verificación posterior (misma cuenta y mismos viewports, con los cambios de la pista G y la tolerancia del servidor)
+
+| Prueba | Antes | Después |
+|---|---|---|
+| E con pulsación de 0, 20 y 80 ms junto a la enfermera (con Angular sin candidato, es decir solo la ruta de Phaser) | nada en 0, 20, 40 y 80 ms; abre desde 150 ms | abre el diálogo y envía un `POST …/npcs/enfermera-urgencias` (200) en las cuatro |
+| Alcance desde el cliente (radio 72) frente al servidor (60 + 16) | el servidor rechazaba desde 62 px | 200 a 58, 62, 66, 70, 72 y 76 px; la histéresis de una persona se limita a 76 px para que el cliente nunca ofrezca lo que el servidor rechaza |
+| 1366x768, canvas tras cerrar el diálogo de la familia | 948x533 en y = 114 (17 % menor, desplazado) | 1142x642 en (111, 60): igual que al inicio (1143x643, ±1 px); con el diálogo abierto el canvas se reencaja a 948x533 sin aplastarse |
+| 844x390, cerca del Kit PAP y de vuelta | 478x254 aplastado cerca; 451x254 pequeño al alejarse | 451x254 con 16:9 intacto cerca (el pie crece de 64 a 79 px: falta el pie fijo de `simulation-play`); 478x269 al alejarse |
+| 844x390, controles táctiles frente al mundo | cruceta de 377x48 sobre el piso | cruz de 152x152 en x 21-173 (el canvas empieza en x = 182) e «Interactuar» en x 667-823 (el canvas termina en x = 660): nada tapa el piso |
+

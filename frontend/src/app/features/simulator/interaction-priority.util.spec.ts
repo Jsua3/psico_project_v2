@@ -6,6 +6,7 @@ import {
   MARKER_INTERACT_RADIUS,
   NPC_BONUS_PX,
   NPC_INTERACT_RADIUS,
+  NPC_SERVER_REACH_PX,
   NearbyCandidate,
   REVEAL_RADIUS,
   labelScaleFor,
@@ -93,6 +94,16 @@ describe('pickNearby', () => {
       expect(pickNearby([justOut], null).primary).toBeNull();
       const tooFar = marker('tool-pap', MARKER_INTERACT_RADIUS + HYSTERESIS_PX + 1);
       expect(pickNearby([tooFar], 'tool-pap').primary).toBeNull();
+    });
+
+    it('una persona aguanta solo hasta lo que acepta el servidor (60 + 16), nunca los ocho píxeles completos', () => {
+      expect(NPC_SERVER_REACH_PX).toBe(76);
+      const holds = npc('enfermera-urgencias', NPC_SERVER_REACH_PX);
+      expect(pickNearby([holds], 'npc:enfermera-urgencias').primary?.key).toBe('npc:enfermera-urgencias');
+      const tooFar = npc('enfermera-urgencias', NPC_SERVER_REACH_PX + 1);
+      expect(pickNearby([tooFar], 'npc:enfermera-urgencias').primary).toBeNull();
+      // sin ser la actual, a 73 px ya no se ofrece
+      expect(pickNearby([npc('enfermera-urgencias', NPC_INTERACT_RADIUS + 1)], null).primary).toBeNull();
     });
 
     it('no cambia de objetivo por una ventaja menor que la histéresis', () => {

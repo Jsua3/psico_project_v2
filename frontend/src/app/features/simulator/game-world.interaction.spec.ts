@@ -166,9 +166,9 @@ describe('DataDrivenWorldScene: proximidad unificada de personas y objetos', () 
     const h = crearEscena();
     move(h, 560, 400); // 70 px
     expect(h.scene.nearestKey).toBe('npc:enfermera-urgencias');
-    move(h, 560, 410); // 80 px: 72 + 8 de histéresis, el actual aguanta
+    move(h, 560, 406); // 76 px: lo más lejos que acepta el servidor (60 + 16); el actual aguanta
     expect(h.scene.nearestKey).toBe('npc:enfermera-urgencias');
-    move(h, 560, 411); // 81 px: fuera
+    move(h, 560, 407); // 77 px: el servidor ya la rechazaría, el cliente deja de ofrecerla
     expect(h.scene.nearestKey).toBeNull();
     expect(h.callbacks.onProximity).toHaveBeenLastCalledWith(null);
     move(h, 560, 405); // 75 px: ya no la ofrece al volver (sin histéresis a la entrada)

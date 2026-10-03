@@ -16,6 +16,8 @@ export function nearbyInteractionChannel(
 
 /** Alcance del cliente para hablar con una persona del escenario. El servidor acepta 60 + 16 de tolerancia. */
 export const NPC_INTERACT_RADIUS = 72;
+/** Lo más lejos que el servidor acepta una conversación con una persona (radio sembrado 60 + tolerancia 16). */
+export const NPC_SERVER_REACH_PX = 76;
 /** Alcance del cliente para marcadores (objetos, herramientas, puertas). El servidor acepta 120. */
 export const MARKER_INTERACT_RADIUS = 74;
 /** A esta distancia un objeto o persona enseña su nombre (máximo destino + 2 más cercanos). */
@@ -42,6 +44,11 @@ export interface NearbyPick {
   secondary: NearbyCandidate | null;
 }
 
+/** Cuánto aguanta `c` fuera de su radio si ya era el actual; una persona nunca más allá de lo que acepta el servidor. */
+function holdPx(c: NearbyCandidate): number {
+  return c.kind === 'npc' ? Math.min(HYSTERESIS_PX, Math.max(0, NPC_SERVER_REACH_PX - c.radius)) : HYSTERESIS_PX;
+}
+
 function score(c: NearbyCandidate): number {
   return c.distance - (c.kind === 'npc' ? NPC_BONUS_PX : 0) + (c.exit ? EXIT_PENALTY_PX : 0);
 }
@@ -55,8 +62,9 @@ function better(a: NearbyCandidate, b: NearbyCandidate): boolean {
 /**
  * Elige qué ofrecer al jugador entre marcadores y personas en rango: una sola pasada, sin ordenar ni
  * copiar la lista (se llama por cuadro). El candidato actual aguanta `HYSTERESIS_PX` fuera de su radio
- * y solo cede ante un rival que lo mejora por más de `HYSTERESIS_PX`: la barra no parpadea entre dos
- * objetos a distancias parecidas. Con `out` reutiliza el resultado (la escena lo llama por cuadro).
+ * (una persona, solo hasta lo que acepta el servidor) y solo cede ante un rival que lo mejora por más de
+ * `HYSTERESIS_PX`: la barra no parpadea entre dos objetos a distancias parecidas. Con `out` reutiliza el
+ * resultado (la escena lo llama por cuadro).
  */
 export function pickNearby(
   candidates: readonly NearbyCandidate[],
@@ -68,7 +76,7 @@ export function pickNearby(
   let current: NearbyCandidate | null = null;
   for (const c of candidates) {
     const isCurrent = currentKey !== null && c.key === currentKey;
-    if (c.distance > c.radius + (isCurrent ? HYSTERESIS_PX : 0)) continue;
+    if (c.distance > c.radius + (isCurrent ? holdPx(c) : 0)) continue;
     if (isCurrent) current = c;
     if (primary === null || better(c, primary)) {
       secondary = primary;
