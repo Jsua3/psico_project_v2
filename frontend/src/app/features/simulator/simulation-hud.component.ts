@@ -317,7 +317,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       padding: 10px;
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 12px;
-      background: rgba(13,18,30,.96);
+      background: rgb(13,18,30);
       box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
     }
     /* Fija arriba: en un móvil horizontal el menú se desplaza y el «x» no debe perderse de vista. */
