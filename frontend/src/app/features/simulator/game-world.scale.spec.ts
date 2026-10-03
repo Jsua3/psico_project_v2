@@ -59,6 +59,7 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     doorHints: Map<string, { x?: number; __doorX?: number; __doorHalfWidth?: number; setScale: jest.Mock }>;
     npcMarkers: Map<string, unknown>;
     onScaleResize(): void;
+    syncLabelScale(): boolean;
   }
 
   function sceneAt(displayScale: number, zoom = 1): LabelProbe {
@@ -106,6 +107,22 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     scene.labelScale = 1;
     scene.onScaleResize();
     expect(left.x).toBeGreaterThanOrEqual(99 * scene.labelScale + 6);
+  });
+
+  it('el zoom de cámara de cada sala cuenta: con zoom 2 (salas Tiled) los rótulos no se duplican', () => {
+    const scene = sceneAt(960 / 478, 1);
+    expect(scene.syncLabelScale()).toBe(true);
+    const atZoom1 = scene.labelScale;
+    scene.cameras.main.zoom = 2;
+    expect(scene.syncLabelScale()).toBe(true); // el render de otra sala cambió el zoom: se recalcula al repintar
+    expect(scene.labelScale).toBeCloseTo(atZoom1 / 2, 5);
+    expect(scene.syncLabelScale()).toBe(false);
+  });
+
+  it('sin escala ni cámara (antes de create o tras destruir la escena) no falla ni toca nada', () => {
+    const scene = new DataDrivenWorldScene({} as never) as unknown as LabelProbe;
+    expect(scene.syncLabelScale()).toBe(false);
+    expect(scene.labelScale).toBe(1);
   });
 
   it('recalcular con el mismo tamaño no vuelve a tocar los rótulos', () => {

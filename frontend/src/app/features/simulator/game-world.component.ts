@@ -2672,6 +2672,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * secundario, conjunto de rótulos, selección, atenuados, destino), nunca por cuadro.
    */
   private refreshMarkerStates() {
+    this.syncLabelScale();
     const revealed = this.revealed;
     this.syncTargetRing();
     this.applyDoorStates();
@@ -2704,14 +2705,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     });
   }
 
-  /** El canvas cambió de tamaño: los rótulos se reescalan para seguir midiendo ≥ 12 px de pantalla. */
-  private onScaleResize(): void {
+  /**
+   * Reescala los rótulos para que midan ≥ 12 px de pantalla con el tamaño del canvas y el zoom de cámara
+   * de ahora. Devuelve true si cambió algo. Se llama al cambiar el tamaño del canvas y al repintar
+   * (el zoom lo fija cada render de sala), nunca por cuadro.
+   */
+  private syncLabelScale(): boolean {
+    // `scale` y `cameras` no existen antes de `create()` ni tras destruir la escena (cambio de ruta).
+    const displayScale = this.scale?.displayScale?.x;
+    if (!displayScale) return false;
     const zoom = this.cameras?.main?.zoom ?? 1;
-    const next = labelScaleFor(this.scale.displayScale.x, zoom);
-    if (Math.abs(next - this.labelScale) < 0.01) return;
+    const next = labelScaleFor(displayScale, zoom);
+    if (Math.abs(next - this.labelScale) < 0.01) return false;
     this.labelScale = next;
     // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
-    this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * this.scale.displayScale.x) / (zoom * next));
+    this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
@@ -2719,8 +2727,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
       (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
     });
-    // Con otro tamaño de rótulo hay que volver a colocarlos (la pista se apila según el alto del nombre).
-    if (this.world) this.refreshMarkerStates();
+    return true;
+  }
+
+  /** El canvas cambió de tamaño: los rótulos se reescalan y se vuelven a colocar (la pista se apila según el alto del nombre). */
+  private onScaleResize(): void {
+    if (this.syncLabelScale() && this.world) this.refreshMarkerStates();
   }
 
   private borderFor(theme: string): number {
