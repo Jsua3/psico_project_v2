@@ -20,7 +20,7 @@ const worldTag = source.match(/<app-game-world[\s\S]*?\/>/)?.[0] ?? '';
 
 describe('tarjeta «Qué hacer» (T9.1)', () => {
   it('el envoltorio .objective-card contiene la tarjeta y no tiene role="status" (la tarjeta ya trae su región viva)', () => {
-    expect(source).toMatch(/<div class="objective-card">\s*<app-scene-checklist-card/);
+    expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">\s*<app-scene-checklist-card/);
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
   });
 
@@ -32,9 +32,41 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
     expect(source).not.toMatch(/<strong>Objetivo<\/strong>/);
   });
 
-  it('el aviso de contenido sensible de la etapa sigue visible, junto a la narrativa del panel lateral', () => {
-    expect(source).toMatch(/class="right-panel__warning"/);
-    expect(source).toContain('game.currentNode.warningMessage');
+  it('el aviso de contenido sensible del nodo vive dentro del envoltorio, bajo la lista, en todos los dispositivos', () => {
+    expect(source).toMatch(
+      /<app-scene-checklist-card[^>]*\/>\s*<\/div>\s*@if \(sensitiveNotice\(\); as notice\) \{[^}]*<p class="objective-card__notice">\{\{ notice \}\}<\/p>\s*\}\s*<\/div>/,
+    );
+    expect(source).toContain('node.warningMessage');
+  });
+
+  it('el panel lateral solo repite el aviso si la etapa no tiene tarjeta (un único sitio)', () => {
+    expect(source).toMatch(/@if \(!sceneLog\(\) && sensitiveNotice\(\); as notice\) \{\s*<p class="right-panel__warning">/);
+  });
+
+  it('el aviso es legible (>= 12 px) y con la tarjeta plegada a su chip no ocupa sitio', () => {
+    const size = /font-size:\s*([\d.]+)rem/.exec(rule('.objective-card__notice'))?.[1];
+    expect(Number(size) * 16).toBeGreaterThanOrEqual(12);
+    expect(source).toMatch(
+      /\.objective-card:has\(app-scene-checklist-card\[data-collapsed='true'\]\) \.objective-card__notice \{ display: none; \}/,
+    );
+    expect(rule('.objective-card__notice')).toContain('color: #f3dfb5;');
+    expect(rule('.objective-card__notice')).not.toMatch(/backdrop-filter/);
+  });
+
+  it('la tarjeta desplegada tiene tope de alto y se desplaza por dentro: no baja sobre el kit ni la Familia en crisis', () => {
+    expect(rule('.objective-card')).toContain('max-height: min(calc(100% - 20px), 66%);');
+    expect(rule('.objective-card')).toMatch(/display: flex;\s*flex-direction: column;\s*overflow: hidden;/);
+    expect(rule('.objective-card__scroll')).toMatch(/min-height: 0;\s*overflow-y: auto;/);
+    // El aviso queda fuera de la zona que se desplaza: siempre a la vista.
+    expect(rule('.objective-card__notice')).toContain('flex: none;');
+  });
+
+  it('en compacto la tarjeta desplegada deja libre la cruz táctil y pone el aviso al lado de la lista', () => {
+    const compact = source.slice(source.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
+    expect(compact).toMatch(
+      /\.objective-card:not\(:has\(app-scene-checklist-card\[data-collapsed='true'\]\)\) \{\s*left: 176px; right: auto; width: min\(640px, calc\(100% - 190px\)\);\s*flex-direction: row;/,
+    );
+    expect(compact).toMatch(/\.objective-card__notice \{\s*flex: 0 0 min\(38%, 220px\);[^}]*border-left:/);
   });
 
   it('la tarjeta arranca plegada en compacto y en móvil vertical (cardFolded)', () => {

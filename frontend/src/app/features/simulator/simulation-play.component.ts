@@ -277,8 +277,15 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (sceneLog(); as log) {
               <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
               <div class="objective-card">
-                <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
-                  [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
+                <!-- La lista se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo); el aviso queda fijo debajo. -->
+                <div class="objective-card__scroll">
+                  <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
+                    [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
+                </div>
+                @if (sensitiveNotice(); as notice) {
+                  <!-- Recordatorio ético del nodo sensible (ETH-01): el único sitio visible en todos los dispositivos. -->
+                  <p class="objective-card__notice">{{ notice }}</p>
+                }
               </div>
             }
 
@@ -323,11 +330,9 @@ const CASE_INTRO_PARAGRAPHS = [
                   <p class="right-panel__narrative" tabindex="0" role="region"
                     aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
                 }
-                <!-- El aviso de contenido sensible de la etapa ya no vive en la tarjeta «Qué hacer»: acompaña a la narrativa. -->
-                @if (game.currentNode.warningMessage || game.currentNode.safeExitRequired) {
-                  <p class="right-panel__warning">
-                    {{ game.currentNode.warningMessage || 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.' }}
-                  </p>
+                <!-- El aviso vive en la tarjeta «Qué hacer»; aquí solo sale si la etapa no tiene tarjeta (no se duplica). -->
+                @if (!sceneLog() && sensitiveNotice(); as notice) {
+                  <p class="right-panel__warning">{{ notice }}</p>
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
@@ -506,10 +511,12 @@ const CASE_INTRO_PARAGRAPHS = [
       top: 10px;
       left: 10px;
       z-index: 20;
-      display: block;
       width: min(380px, 58%);
-      max-height: calc(100% - 20px);
-      overflow-y: auto;
+      /* Tope de alto: sin él la lista desplegada bajaba sobre el kit y la Familia en crisis, que nacen en el tercio inferior. */
+      max-height: min(calc(100% - 20px), 66%);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       padding: 8px 11px;
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 10px;
@@ -533,6 +540,19 @@ const CASE_INTRO_PARAGRAPHS = [
       box-shadow: none;
       overflow: visible;
     }
+    .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__scroll { overflow: visible; }
+    /* Recordatorio ético del nodo sensible: legible (>= 12 px) y fijo bajo la lista; con la tarjeta plegada no ocupa el chip. */
+    .objective-card__notice {
+      flex: none;
+      margin: 6px 0 0;
+      padding-top: 5px;
+      border-top: 1px solid rgba(245,184,75,.22);
+      color: #f3dfb5;
+      font-size: .78rem;
+      line-height: 1.35;
+    }
+    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__notice { display: none; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
        tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
@@ -601,7 +621,7 @@ const CASE_INTRO_PARAGRAPHS = [
       padding-top: 6px;
       border-top: 1px solid rgba(245,184,75,.18);
       color: #f3dfb5;
-      font-size: .72rem;
+      font-size: .78rem;
       line-height: 1.4;
     }
     .dialogue-side { display: block; min-height: 0; overflow: hidden; }
@@ -1065,6 +1085,20 @@ const CASE_INTRO_PARAGRAPHS = [
       .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
       .pausing-notice { bottom: 8px; }
 
+      /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y pone el aviso al lado de la
+         lista, no debajo: así no crece hacia el personaje ni deja la lista en unas pocas líneas. Plegada (chip) sigue en la esquina. */
+      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) {
+        left: 176px; right: auto; width: min(640px, calc(100% - 190px));
+        flex-direction: row; align-items: flex-start; gap: 10px;
+      }
+      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__scroll {
+        flex: 1 1 0; min-width: 0;
+      }
+      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__notice {
+        flex: 0 0 min(38%, 220px); margin: 0; padding: 0 0 0 10px; border-top: 0;
+        border-left: 1px solid rgba(245,184,75,.22); max-height: 100%; overflow-y: auto;
+      }
+
       /* Decisión: hoja inferior flotante. El mundo conserva su tamaño (una sola columna) y el resumen de la etapa
          se oculta: las opciones 1 a 3 tienen que verse y tocarse sin desplazar (TOUCH-01). */
       .game-container[data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
@@ -1217,6 +1251,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly narrowScreen = signal(matchesMedia(NARROW_QUERY));
   /** La tarjeta «Qué hacer» arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
   readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());
+  /**
+   * Aviso ético de un nodo sensible («Este caso aborda…», `warningMessage` del nodo): una línea discreta dentro de
+   * la tarjeta «Qué hacer», visible en todos los dispositivos durante la exploración. No cambia su redacción.
+   */
+  readonly sensitiveNotice = computed<string | null>(() => {
+    const node = this.attempt()?.currentNode;
+    if (!node) return null;
+    if (node.warningMessage) return node.warningMessage;
+    return node.safeExitRequired
+      ? 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.'
+      : null;
+  });
   /** Texto de la región viva de la tarjeta («Anotado: …», «Decisión k registrada»). */
   readonly checklistNotice = signal<string | null>(null);
 
