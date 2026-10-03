@@ -100,7 +100,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
         </p>
         <div class="footer-actions">
           <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->
-          <app-safe-exit-button (pause)="safeExit.emit()" />
+          <app-safe-exit-button data-hide-key (pause)="safeExit.emit()" />
           <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
             Continuar simulación
           </button>

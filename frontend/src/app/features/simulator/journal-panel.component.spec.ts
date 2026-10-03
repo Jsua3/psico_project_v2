@@ -41,8 +41,10 @@ describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004
     // ts-jest no aplica la transformación JIT de Angular a `output()`: un `(pause)` de la plantilla
     // se trata como evento DOM y no se dispara desde aquí. El cableado se fija sobre el fuente
     // y se comprueba jugando; la emisión del propio botón la cubre safe-exit-button.component.spec.ts.
-    expect(source).toMatch(/<app-safe-exit-button\s+\(pause\)="safeExit\.emit\(\)"\s*\/>/);
+    expect(source).toMatch(/<app-safe-exit-button\s+data-hide-key\s+\(pause\)="safeExit\.emit\(\)"\s*\/>/);
     expect(source).toMatch(/readonly safeExit = output<void>\(\);/);
+    // En la bitácora Esc la cierra: el botón no promete Esc.
+    expect(host().querySelector('.sheet-footer app-safe-exit-button')?.hasAttribute('data-hide-key')).toBe(true);
     const safeExit = jest.fn();
     fixture.componentInstance.safeExit.subscribe(safeExit);
     fixture.componentInstance.safeExit.emit();

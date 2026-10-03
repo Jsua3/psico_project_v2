@@ -64,6 +64,11 @@ import { MatIconModule } from '@angular/material/icon';
         display: inline-block;
       }
     }
+    /* Donde Esc hace otra cosa (panel de diálogo, bitácora: cierran y solo el segundo Esc pausa)
+       el anfitrión añade data-hide-key y el botón no promete la tecla. */
+    :host([data-hide-key]) .safe-exit-btn__kbd {
+      display: none;
+    }
     .safe-exit-btn--compact { padding: 4px 10px; gap: 6px; font-size: .74rem; }
     .safe-exit-btn--compact .safe-exit-btn__kbd {
       display: none;

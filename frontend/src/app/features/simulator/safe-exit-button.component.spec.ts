@@ -85,6 +85,14 @@ describe('SafeExitButtonComponent (T1.1)', () => {
     expect(accessibleName(button())).toBe('Salida segura');
   });
 
+  it('con data-hide-key en el anfitrión la pista Esc no se pinta (donde Esc cierra otra cosa)', () => {
+    // La regla de la hoja de estilos del componente es la que la oculta; se fija sobre el fuente.
+    expect(source).toMatch(/:host\(\[data-hide-key\]\) \.safe-exit-btn__kbd \{\s*display: none;/);
+    host().setAttribute('data-hide-key', '');
+    expect(visibleLabel(button())).toBe('Salida segura');
+    expect(accessibleName(button())).toBe('Salida segura');
+  });
+
   it('la pista Esc va oculta a las tecnologías de apoyo', () => {
     const kbd = host().querySelector('kbd');
     expect(kbd?.textContent?.trim()).toBe('Esc');

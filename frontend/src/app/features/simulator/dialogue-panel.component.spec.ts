@@ -268,6 +268,9 @@ describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', 
   it('la salida segura de la cabecera reenvía pause como safeExit del panel', () => {
     // ts-jest no aplica la transformación JIT a `output()`: se fija el cableado sobre el fuente.
     expect(source).toMatch(/<app-safe-exit-button[^>]*\(pause\)="safeExit\.emit\(\)"/);
+    // En el panel Esc cierra el diálogo (el segundo Esc pausa): el botón no promete Esc.
+    render(INFO_DIALOGUE);
+    expect(head()!.querySelector('app-safe-exit-button')?.hasAttribute('data-hide-key')).toBe(true);
     expect(source).toMatch(/readonly safeExit = output<void>\(\);/);
   });
 

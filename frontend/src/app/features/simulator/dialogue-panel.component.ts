@@ -45,7 +45,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             <button type="button" class="panel-back" (click)="close.emit()">
               <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
             </button>
-            <app-safe-exit-button class="panel-head__exit" (pause)="safeExit.emit()" />
+            <app-safe-exit-button class="panel-head__exit" data-hide-key (pause)="safeExit.emit()" />
           </div>
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
