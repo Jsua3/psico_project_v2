@@ -143,8 +143,10 @@ Una superposición se declara así:
 { anchor: 'H'|'T'|'P', at: [x, y], mode: 'paint'|'cover', parts: [...], complexions: ['a', 'b'], legend: {...}, grid: '...' }
 ```
 
-- `paint` solo recolorea celdas del ancla.
-- `cover` crea o tapa celdas (pelo, bulto de capucha).
+- `paint` solo recolorea celdas del ancla (o de `parts`).
+- `repaint` recolorea como `paint`, pero borra antes los tonos fijos y literales que dejaron otras piezas (una bata sobre una camisa).
+- `cover` crea o tapa celdas (pelo, bulto de capucha, falda).
+- `sheets` y `frames` (opcionales) limitan la superposición a una hoja o a unos cuadros (una falda larga que se abre con la zancada).
 - Si una superposición del torso o la pelvis no encaja en las dos complexiones, se dibuja una por complexión (`complexions`).
 
 Toda pieza que ofrece el editor debe funcionar en A y en B.
@@ -228,7 +230,7 @@ Lee la autoría y hace lo siguiente:
 3. Arma las rampas desde `palette.v2.json`.
 4. Escribe `kit.json`, las hojas y los retratos de cada receta fija, y `manifest.json` con los hashes de píxeles decodificados.
 
-Con `--laminas` genera además láminas de revisión ×4 (vistas, cuadro a cuadro, retratos y método) en `docs/visual/kit-personajes/`.
+Las láminas de revisión ×4 (vistas, cuadro a cuadro, retratos, piezas en A y B, elenco y maniquí) las genera `npm run kit:laminas` en `docs/visual/kit-personajes/`.
 
 ### 5.3 Paquete para el navegador (`kit.json`)
 
@@ -238,8 +240,9 @@ Contiene:
 - los bustos;
 - las piezas compiladas;
 - las rampas, los literales por defecto y las recetas;
-- el catálogo;
-- los contratos de hoja.
+- el catálogo.
+
+Los contratos de hoja (cuadro 48×72, pivote, filas, cuadros y fps) son constantes del motor, que comparten el navegador y el build.
 
 Peso estimado: menos de 200 KB sin comprimir.
 
@@ -253,15 +256,17 @@ Peso estimado: menos de 200 KB sin comprimir.
 2. **Contrato de hoja:**
    - tamaños: `idle` 192×288, `walk` 288×288, retrato 96×96;
    - alfa binario, colores de `palette.v2.json` y borde vacío;
-   - suelas en y = 66-67; el centro del apoyo (el punto medio entre los dos pies) queda a ±6 px de x = 24.
-3. **Geometría por vista** (biblia enmendada, §11):
+   - el cuerpo (con contorno) termina entre y = 66 y y = 68, como en la biblia: en la caminata de frente el pie que avanza pisa 1 px más abajo; el centro del apoyo (el punto medio entre los dos pies) queda a ±6 px de x = 24;
+   - una sola silueta por cuadro (un componente opaco).
+3. **Geometría por vista** (biblia enmendada, §11). Como en la biblia §1, cabeza y hombros son **anchos**: el del tramo opaco contiguo que cruza x = 24, medido fila a fila desde el tope del cuerpo.
    - altura opaca de 60-66 px;
-   - cabeza con pelo de 18-21 px, como en la biblia; los peinados marcados como `volumen` (afro, moño alto) pueden llegar a 25 px, y en ellos se comprueba además el cráneo (etiqueta `H`), 17 px con contorno (decisión 14);
-   - hombros de 20-27 px solo de frente y de espalda; en perfil, fondo del torso de 10-16 px;
-   - la derecha no puede ser el espejo exacto de la izquierda.
+   - cabeza con pelo (filas 0-17): 18-21 px durante 6 filas seguidas u 8 en total; con un peinado marcado como `volumen` (afro, moño alto), 18-25 px (decisión 14);
+   - hombros (filas 18-27): 20-27 px de frente y de espalda, durante 3 filas seguidas o 4 en total; en perfil, fondo del torso de 10-16 px con la misma regla;
+   - cráneo: cada complexión tiene exactamente la cabeza de A (etiquetas `H`, `e`, `E` en las mismas celdas de cada vista y cuadro); de frente mide 17 px con contorno. Se valida por complexión y no por peinado, porque el pelo tapa el cráneo;
+   - la derecha no puede ser el espejo exacto de la izquierda (ni con el eje x ↔ 47 − x ni con x ↔ 48 − x).
 4. **Animación:**
    - reposo de 4 cuadros con respiración de exactamente 1 px;
-   - caminata de 6 cuadros con los dos pies en el suelo en los contactos 0 y 3, y bob de 1 px como máximo.
+   - caminata de 6 cuadros con bob de 1 px como máximo y, en las vistas de perfil, los dos pies pisando y = 66 en los contactos 0 y 3 (de frente y de espalda la profundidad 3/4 separa los pies 1-2 px a propósito).
 5. **Retoques:** paleta, alfa binario y retoques huérfanos.
 6. **Cobertura:** todo personaje referenciado resuelve a una receta. Eso abarca los jugables, las claves y presets de los escenarios, los actores del caso, los nombres de guía, los hablantes del diálogo y las plantillas del editor de mundo.
 7. **Sin legado:** una prueba de Node falla si en `src/` aparecen las rutas viejas, `KenneyCharFrames` de personajes, `setTint` sobre actores o `character-motion`, o si existen las carpetas borradas.
@@ -311,9 +316,11 @@ Una receta por identidad visual. La columna «Hoy» indica el arte que comparten
 | `adolescente` | `adolescente-nna` (caso archivado) | adolescente-nna | A, piel 2, media melena cobriza, camiseta morada, jean |
 | `paciente-espera` | figurantes de los mapas legados (hoy Kenney) | Kenney | B, piel 3, corto liso castaño, suéter, pantalón |
 
+Los NPC de los escenarios archivados que la tabla no nombra se asignan así: `supervisor-cierre`, `supervisor-comisaria`, `supervisor-informe` y `supervisor-ruta` → `supervisor-clinico`; `colega-comisaria` y `colega-guardia` → `enfermera-urgencias`.
+
 Las cuatro plantillas del editor de mundo (`mujer-adulta`, `hombre-adulto`, `adolescente`, `profesional`) pasan a apuntar a recetas: `madre-acompanante`, `paciente-espera`, `adolescente` y `profesional-psicosocial`.
 
-El **guía** usa la receta de su rol según `guideName`; todos los nombres actuales tienen receta.
+El **guía** usa la receta de su rol según `guideName`. Los nombres actuales que la tabla no nombra se asignan así: «Colega de psicología» → `psicologa-hospitalaria`; «Funcionario de derechos» → `supervisor-clinico`; «Defensora de familia» → `orientadora-juridica`.
 
 Las **voces sin cuerpo** («Marco normativo y técnico», «Supervisión clínica», «Protocolo clínico», «Herramienta profesional») no son personajes: conservan su icono.
 
@@ -518,7 +525,7 @@ Si un solo plan resulta demasiado largo, se parte en tres: **arte** (F1-F3), **i
 3. **Cambio de identidad de la abuela.** Hoy usa el arte de una madre joven; la receta la hace mayor (moño canoso, rostro maduro). Lo mismo con roles que hoy comparten arte (trabajadora social, orientadora jurídica): pasan a tener aspecto propio.
 4. **Patinaje.** A 150 px/s, una caminata de 6 cuadros a 10 fps patina. Las alternativas (12 fps o zancada más larga) afectan a la biblia; se deja anotado y no se cambia sin decisión.
 5. **Volumen de arte.** 10 peinados × 4 vistas × 2 complexiones, más retratos, más unas 20 prendas: es el grueso del trabajo. Por eso las aprobaciones son por lote (F2 y F3).
-6. **Motor TypeScript importado desde Node.** Se verifica en la F1. El respaldo es el mismo núcleo como `.mjs` con su `.d.mts`.
+6. **Motor TypeScript importado desde Node.** **Verificado (2026-10-03):** Node 24.16 importa `kit-engine.ts` desde `.mjs` y `node --test`; como `frontend/package.json` no declara `type`, los scripts se ejecutan con `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`. El motor portado reproduce los píxeles de la prueba (hashes iguales) y pasa `tsc` con las reglas del proyecto más `erasableSyntaxOnly`.
 7. **Peinados de volumen.** Un afro o un moño alto dentro de 21 px se ven aplastados. **Resuelto (decisión 14):** hasta 25 px solo en peinados marcados como `volumen`, validando el cráneo (17 px con contorno).
 
 ## 14. Fuera de alcance
