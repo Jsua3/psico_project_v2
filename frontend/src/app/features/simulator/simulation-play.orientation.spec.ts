@@ -931,11 +931,20 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(compact.helpModality()).toBe('touch');
     });
 
+    it('un móvil vertical no es compacto, pero la tarjeta «Qué hacer» también arranca plegada', () => {
+      mockMedia(['(max-width: 760px)', '(pointer: coarse)']);
+      const phone = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+
+      expect(phone.compactMode()).toBe(false);
+      expect(phone.cardFolded()).toBe(true);
+    });
+
     it('un portátil no es compacto y la ayuda habla de teclado', () => {
       mockMedia([]);
       const laptop = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
 
       expect(laptop.compactMode()).toBe(false);
+      expect(laptop.cardFolded()).toBe(false);
       expect(laptop.helpModality()).toBe('keyboard');
     });
 
@@ -943,7 +952,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       mockMedia([]);
       const device = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
       device.ngOnInit();
-      expect(listeners.map(entry => entry.query)).toEqual([COMPACT, '(pointer: coarse)']);
+      expect(listeners.map(entry => entry.query)).toEqual([COMPACT, '(pointer: coarse)', '(max-width: 760px)']);
 
       listeners.find(entry => entry.query === COMPACT)?.handler({ matches: true });
       expect(device.compactMode()).toBe(true);

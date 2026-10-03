@@ -37,6 +37,11 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
     expect(source).toContain('game.currentNode.warningMessage');
   });
 
+  it('la tarjeta arranca plegada en compacto y en móvil vertical (cardFolded)', () => {
+    expect(source).toMatch(/<app-scene-checklist-card \[state\]="log" \[compact\]="cardFolded\(\)"/);
+    expect(source).toContain('readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());');
+  });
+
   it('el envoltorio conserva fondo casi opaco y sin desenfoque (contrato de la tarjeta)', () => {
     expect(rule('.objective-card')).toContain('background: rgba(8,12,18,.88);');
     expect(rule('.objective-card')).not.toMatch(/backdrop-filter/);

@@ -63,6 +63,8 @@ const SCENE_FADE_MS = 320;
 const NOTICE_MS = 4200;
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
+/** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
+const NARROW_QUERY = '(max-width: 760px)';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -273,7 +275,7 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (sceneLog(); as log) {
               <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
               <div class="objective-card">
-                <app-scene-checklist-card [state]="log" [compact]="compactMode()"
+                <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
                   [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
               </div>
             }
@@ -535,6 +537,10 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     @media (min-width: 1100px) {
       .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(520px, calc(100% - 488px)); }
+    }
+    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de «Qué hacer». */
+    @media (max-width: 760px) {
+      .help-slot { top: 52px; bottom: auto; }
     }
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); }
@@ -1185,6 +1191,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly visitedRooms = signal<ReadonlySet<RoomGroup>>(new Set<RoomGroup>());
   /** Modo compacto: pantallas bajas o táctil horizontal. Tarjeta plegada, pie sin teclas, panel flotante. */
   readonly compactMode = signal(matchesMedia(COMPACT_QUERY));
+  readonly narrowScreen = signal(matchesMedia(NARROW_QUERY));
+  /** La tarjeta «Qué hacer» arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
+  readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());
   /** Texto de la región viva de la tarjeta («Anotado: …», «Decisión k registrada»). */
   readonly checklistNotice = signal<string | null>(null);
 
@@ -1358,7 +1367,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   ngOnInit() {
     const stopCompact = watchMedia(COMPACT_QUERY, matches => this.compactMode.set(matches));
     const stopCoarse = watchMedia(COARSE_POINTER_QUERY, matches => this.coarsePointer.set(matches));
-    this.stopCompactWatch = () => { stopCompact(); stopCoarse(); };
+    const stopNarrow = watchMedia(NARROW_QUERY, matches => this.narrowScreen.set(matches));
+    this.stopCompactWatch = () => { stopCompact(); stopCoarse(); stopNarrow(); };
     this.simulationService.getInterventionRules().subscribe({
       next: raw => { this.interventionRules = parseInterventionRules(raw); },
       error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
