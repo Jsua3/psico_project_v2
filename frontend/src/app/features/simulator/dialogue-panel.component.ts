@@ -50,7 +50,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
               <span class="panel-chip">Decisión clínica</span>
-              <span class="panel-head__note-text">Tu elección queda registrada en tu seguimiento formativo.</span>
+              <span>Tu elección queda registrada en tu seguimiento formativo.</span>
             </p>
           }
         </header>
@@ -514,14 +514,17 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (max-height: 520px) {
       .dialogue-strip { min-height: 0; }
       .portrait { min-height: 0; }
-      .panel-head { padding: 4px 10px; }
-      .panel-head__note-text { display: none; }
+      .panel-head { padding: 0 10px; }
+      .panel-head__note { display: none; }
+      .choices { scroll-margin-top: 52px; gap: 8px; }
       .strip-body { padding: 8px 14px 10px; gap: 8px; }
       .dialogue-text { font-size: .86rem; line-height: 1.45; }
       .dialogue-strip--side .portrait { padding: 6px 12px; }
       .dialogue-strip--side .portrait-img { height: clamp(48px, 12vh, 64px); }
       .dialogue-strip--side .strip-body { padding: 8px 12px 12px; gap: 8px; }
-      .dialogue-strip--side .choice-btn { min-height: 48px; padding: 8px 10px; }
+      .dialogue-strip--side .choice-btn { min-height: 44px; padding: 6px 10px; gap: 8px; }
+      .dialogue-strip--side .choice-btn__icon { display: none; }
+      .dialogue-strip--side .choice-btn { grid-template-columns: auto minmax(0, 1fr); }
     }
     @media (max-width: 560px) {
       .portrait { width: 60px; min-height: 180px; }
