@@ -1,9 +1,11 @@
-import { MapObjectState } from '../../core/models/simulation.model';
+import {
+  MapObjectState, NpcConfig, SimulationAttemptState, SimulationNodeState, SimulationWorldState,
+} from '../../core/models/simulation.model';
 import { caseRoomKind } from './case-pdf-rooms.geometry';
 import { activeDecisionObjectKeys, otherStageDecisionKeys } from './dialogue-decoration.util';
 import { doorStatus } from './door-status.util';
 import { CopyContext } from './evidence-copy.util';
-import { NODE_EVIDENCE, isToolUsed } from './evidence-gating.config';
+import { NODE_EVIDENCE, collectViewedNpcKeys, isToolUsed } from './evidence-gating.config';
 import {
   DECISION_TOTAL, ENTITY_NAMES, NAME_TOOLS_IN_HINTS, OPTIONAL_EXCLUDED_KEYS, ORIENTATION_COPY, ROOM_GRAPH, ROOM_LABELS,
   ROUTE_ORDER, RoomGroup, TOOL_HINTS,
@@ -428,4 +430,43 @@ export function ringTargetKey(state: SceneLogState | null, highlightTools: boole
 /** Pasos pendientes (no hechos) de la etapa: el número del chip plegado «Qué hacer · {n}». */
 export function pendingStepCount(state: SceneLogState | null): number {
   return state ? state.groups.reduce((n, g) => n + g.steps.filter(s => s.state !== 'done').length, 0) : 0;
+}
+
+/** Lo que el componente de juego ya tiene a mano para pedir la lista. */
+export interface SceneLogSources {
+  attempt: (Pick<SimulationAttemptState, 'status'> & {
+    currentNode: Pick<SimulationNodeState, 'key' | 'title' | 'narrative' | 'terminal'> & {
+      /** Solo se leen los ids de las opciones. */
+      options?: ReadonlyArray<{ id: number }>;
+    };
+  }) | null;
+  world: Pick<SimulationWorldState, 'map' | 'objects' | 'inventory' | 'inspectedObjectKeys' | 'usedToolKeys' | 'flags'> | null;
+  /** La señal viewedNpcKeys del componente (se une con lo que el servidor persistió en el mundo). */
+  viewedNpcKeys: ReadonlySet<string>;
+  visitedRooms: ReadonlySet<RoomGroup>;
+  /** NPC del escenario cargado (scenarioConfig.rooms[].npcs); si no hay, lista vacía. */
+  scenarioNpcs?: ReadonlyArray<Pick<NpcConfig, 'key' | 'displayName' | 'x' | 'y'>>;
+  nameTools?: boolean;
+}
+
+/**
+ * Arma la entrada de deriveSceneLog desde el intento y el mundo: une las personas habladas de la señal con
+ * flags.viewedNpcKeys del servidor y pasa solo los ids de las opciones de decisión. null si aún no hay
+ * intento o mundo. Un intento que no está en curso cuenta como terminal (no hay lista).
+ */
+export function sceneLogInputFrom(sources: SceneLogSources): SceneLogInput | null {
+  const { attempt, world } = sources;
+  if (!attempt || !world) return null;
+  const node = attempt.currentNode;
+  return {
+    nodeKey: node.key, nodeTitle: node.title, nodeNarrative: node.narrative,
+    nodeOptionIds: node.options ? node.options.map(option => option.id) : null,
+    mapKey: world.map.key, objects: world.objects,
+    inventory: world.inventory, inspected: world.inspectedObjectKeys, usedToolKeys: world.usedToolKeys,
+    viewedNpcKeys: collectViewedNpcKeys(world, sources.viewedNpcKeys),
+    visitedRooms: sources.visitedRooms,
+    scenarioNpcs: (sources.scenarioNpcs ?? []).map(({ key, displayName, x, y }) => ({ key, displayName, x, y })),
+    terminal: node.terminal || attempt.status !== 'IN_PROGRESS',
+    ...(sources.nameTools === undefined ? {} : { nameTools: sources.nameTools }),
+  };
 }

@@ -1,10 +1,12 @@
 import { DialogueState, MapObjectState } from '../../core/models/simulation.model';
-import { NODE_EVIDENCE } from './evidence-gating.config';
+import { CopyContext, evidenceNoticeText, humanizeMissing } from './evidence-copy.util';
+import { NODE_EVIDENCE, missingEvidenceItems } from './evidence-gating.config';
+import { doorStatus } from './door-status.util';
 import { ROUTE_ORDER, RoomGroup } from './orientation.config';
 import { textViolations } from './orientation-text.testing';
 import {
   SceneLogInput, SceneLogState, SceneLogStep, deriveSceneLog, diffDone, firstHop, pendingStepCount, ringTargetKey,
-  roomGroupOf,
+  roomGroupOf, sceneLogInputFrom,
 } from './scene-checklist.util';
 import { DoneRule, RouteStep, STAGE_ROUTES } from './stage-route.config';
 
@@ -681,5 +683,106 @@ describe('deriveSceneLog · producto cartesiano de estados (etapa × sala × ava
   it('el estado de lectura no filtra ninguna clasificación: la entrada solo trae ids', () => {
     const state = deriveSceneLog(input('hospital-urgencias', 'sala-escucha'))!;
     expect(JSON.stringify(state)).not.toMatch(/ADEQUATE|RISKY|INADEQUATE|prohibit|recommend/i);
+  });
+});
+
+// ───────────────────────── Una sola fuente: lista, puerta y aviso dicen lo mismo ─────────────────────────
+
+describe('lista, puerta y aviso de evidencia: mismas frases', () => {
+  it('la persona que falta se nombra igual en la fila de la lista, en el aviso y en la puerta', () => {
+    const progress: Progress = { inventory: ['PAP'], inspected: ['familia-crisis'], used: ['PAP@familia-crisis'] };
+    const state = derive('hospital-urgencias', 'urgencias', progress);
+    const world = { inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'], usedToolKeys: ['PAP@familia-crisis'], flags: {}, objects: roomObjects('urgencias', 'hospital-urgencias', new Set(['PAP'])) };
+    const copy: CopyContext = { currentRoom: 'urgencias', world, nameTools: false, npcs: [] };
+    const missing = missingEvidenceItems(NODE_EVIDENCE['hospital-urgencias'], world, new Set());
+    expect(missing).toEqual([{ kind: 'npc', key: 'enfermera-urgencias' }]);
+
+    const row = step(state, 'u1-enfermera').label;                 // «Habla con la Enfermera de urgencias»
+    const notice = evidenceNoticeText(missing, copy)!;              // «…te falta: hablar con la Enfermera de urgencias.»
+    const gate = doorStatus(
+      { ...roomObjects('urgencias', 'hospital-urgencias', new Set())[3], metadata: { requiresNpcs: ['enfermera-urgencias'] } },
+      { nodeKey: 'hospital-urgencias', decisionNumber: 1, world, viewedNpcKeys: new Set(), copy },
+    ).message!;                                                      // «Antes de pasar, habla con la Enfermera de urgencias.»
+    const name = 'la Enfermera de urgencias';
+    for (const text of [row, notice, gate]) expect(text).toContain(name);
+    expect(humanizeMissing(missing, copy)).toEqual([`hablar con ${name}`]);
+    expect(row).toBe('Habla con la Enfermera de urgencias');
+    expect(gate).toBe('Antes de pasar, habla con la Enfermera de urgencias.');
+  });
+
+  it('la herramienta pendiente se describe igual en la lista y en el aviso, con la bandera por defecto', () => {
+    const state = derive('hospital-accion-etica', 'sala-escucha');
+    const world = { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {}, objects: [] };
+    const copy: CopyContext = { currentRoom: 'sala-escucha', world, nameTools: false, npcs: [] };
+    const notice = evidenceNoticeText(missingEvidenceItems(NODE_EVIDENCE['hospital-accion-etica'], world, new Set()), copy)!;
+    expect(step(state, 'u3-recoger').label).toBe('Recoge el material del estante');
+    expect(notice).toContain('recoger el material del estante');
+  });
+});
+
+// ───────────────────────── sceneLogInputFrom ─────────────────────────
+
+describe('sceneLogInputFrom', () => {
+  const node = (over: Record<string, unknown> = {}) => ({
+    key: 'hospital-urgencias', title: 'Urgencias: crisis y contención', narrative: 'Narrativa. Más.', terminal: false,
+    options: [
+      { id: 101, text: 'A', classification: 'ADEQUATE', prohibitedConduct: false },
+      { id: 102, text: 'B', classification: 'RISKY', prohibitedConduct: true },
+    ],
+    ...over,
+  });
+  const world = (over: Record<string, unknown> = {}) => ({
+    map: { id: 1, key: 'hospital-urgencias', title: '', width: 960, height: 540, theme: '', spawnX: 0, spawnY: 0, ambient: {} },
+    objects: roomObjects('urgencias', 'hospital-urgencias', new Set()), inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'],
+    usedToolKeys: [], flags: { viewedNpcKeys: ['enfermera-urgencias'] }, ...over,
+  });
+
+  it('copia del intento y del mundo, y pasa SOLO los ids de las opciones (nunca su clasificación)', () => {
+    const built = sceneLogInputFrom({
+      attempt: { status: 'IN_PROGRESS', currentNode: node() }, world: world(),
+      viewedNpcKeys: new Set(['medico-guardia']), visitedRooms: new Set<RoomGroup>(['urgencias']),
+      scenarioNpcs: [{ key: 'enfermera-urgencias', displayName: 'Enfermera de urgencias', x: 560, y: 330 }],
+    })!;
+    expect(built).toMatchObject({
+      nodeKey: 'hospital-urgencias', nodeTitle: 'Urgencias: crisis y contención', nodeNarrative: 'Narrativa. Más.',
+      nodeOptionIds: [101, 102], mapKey: 'hospital-urgencias', inventory: ['PAP'], inspected: ['familia-crisis'],
+      terminal: false,
+    });
+    expect([...built.viewedNpcKeys].sort()).toEqual(['enfermera-urgencias', 'medico-guardia']);
+    expect(built.scenarioNpcs).toEqual([{ key: 'enfermera-urgencias', displayName: 'Enfermera de urgencias', x: 560, y: 330 }]);
+    expect('nameTools' in built).toBe(false);
+    expect(JSON.stringify(built)).not.toMatch(/ADEQUATE|RISKY|classification|prohibited/);
+  });
+
+  it('con la entrada armada, la lista ya cuenta lo hablado que persistió el servidor', () => {
+    const built = sceneLogInputFrom({
+      attempt: { status: 'IN_PROGRESS', currentNode: node() }, world: world({ usedToolKeys: ['PAP@x'] }),
+      viewedNpcKeys: new Set(), visitedRooms: new Set(),
+    })!;
+    const state = deriveSceneLog(built)!;
+    expect(step(state, 'u1-enfermera').state).toBe('done');
+    expect(state.next?.stepId).toBe('u1-puerta');
+  });
+
+  it('sin intento o sin mundo no hay entrada; un intento que no está en curso o un nodo terminal cuentan como terminal', () => {
+    const base = { viewedNpcKeys: new Set<string>(), visitedRooms: new Set<RoomGroup>() };
+    expect(sceneLogInputFrom({ ...base, attempt: null, world: world() })).toBeNull();
+    expect(sceneLogInputFrom({ ...base, attempt: { status: 'IN_PROGRESS', currentNode: node() }, world: null })).toBeNull();
+    for (const status of ['PAUSED', 'COMPLETED', 'SAFE_EXITED', 'REPLACED'] as const) {
+      const built = sceneLogInputFrom({ ...base, attempt: { status, currentNode: node() }, world: world() })!;
+      expect(built.terminal).toBe(true);
+      expect(deriveSceneLog(built)).toBeNull();
+    }
+    const terminalNode = sceneLogInputFrom({ ...base, attempt: { status: 'IN_PROGRESS', currentNode: node({ terminal: true }) }, world: world() })!;
+    expect(terminalNode.terminal).toBe(true);
+  });
+
+  it('si el nodo no trae opciones (versión antigua) no se filtra nada; nameTools se respeta', () => {
+    const built = sceneLogInputFrom({
+      attempt: { status: 'IN_PROGRESS', currentNode: node({ options: undefined }) }, world: world(),
+      viewedNpcKeys: new Set(), visitedRooms: new Set(), nameTools: true,
+    })!;
+    expect(built.nodeOptionIds).toBeNull();
+    expect(built.nameTools).toBe(true);
   });
 });
