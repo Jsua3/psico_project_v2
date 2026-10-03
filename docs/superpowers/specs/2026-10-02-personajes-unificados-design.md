@@ -35,6 +35,16 @@ No se reabren; el spec las desarrolla.
 13. *(2026-10-03)* El tinte del estado clínico de la paciente se reemplaza por un **icono de pixel art sobre la cabeza**; el sprite no se toca.
 14. *(2026-10-03)* Los peinados marcados como `volumen` (afro, moño alto) pueden llegar a **25 px** de cabeza con pelo; en ellos el validador mide además el cráneo (etiqueta `H`, 17 px con contorno).
 15. *(2026-10-03, PARADA 1)* Los retratos son **tiernos y de poco detalle, a 32×32**, y se muestran a ×3 (caja de 96 px) o ×6 (192 px): cabeza grande y redonda, ojos de 2×3 con un píxel de brillo y 6 px entre ellos, cejas de 2 px, rubor, sonrisa pequeña y sin nariz. Sustituye al retrato de 96×96 de la prueba.
+16. *(2026-10-03)* Los 12 jugables y el avatar personalizado llevan el **uniforme de Psicología de la Universidad Alexander von Humboldt**:
+    - casaca azul acero de cuello mao con tapeta, manga corta y dos bolsillos bajos;
+    - bordado en el pecho y la manga izquierdos, como una marca de 2-3 px, sin texto ni logo literal;
+    - jogger del mismo color con puño elástico;
+    - tenis claros.
+
+    La ropa de calle queda para los NPC. Lo que distingue a cada jugable es complexión, piel, peinado, rostro y accesorios.
+17. *(2026-10-03)* La **bata es opcional y la elige el jugador** (un interruptor en el editor o el lobby; plan 2). De cada jugable el kit genera la versión sin bata y la versión con bata (`<id>/bata/…`). La variante se define una sola vez en el catálogo (`playableVariants`).
+18. *(2026-10-03)* El editor de avatar ofrece dos conjuntos, «uniforme» y «uniforme con bata», sin elección de color.
+19. *(2026-10-03)* `palette.v2.json` suma el azul acero del uniforme, tomado de la foto: `#8293ab`, `#647690`, `#4d5b6f`, `#36404f` (luz, base, sombra, profunda).
 
 ## 3. Lo que hay hoy (medido)
 
@@ -182,7 +192,7 @@ Los colores literales (ojo, blanco del ojo, iris, brillo y rubor) tienen valores
 | `piel-5` | `#ad7758` | `#87543d` | `#623b2d` | `#40271f` |
 | `piel-6` | `#774a35` | `#563223` | `#38231d` | `#241817` |
 
-Fuera de la piel nueva, `palette.v2` es idéntica a v1. El validador exige que todo color del kit esté en ella.
+Fuera de la piel nueva y del azul del uniforme (decisión 19), `palette.v2` es idéntica a v1. El validador exige que todo color del kit esté en ella.
 
 ### 4.6 Retoques a mano (capa del kit)
 
@@ -205,11 +215,11 @@ Fuera de la piel nueva, `palette.v2` es idéntica a v1. El validador exige que t
 | Piel | `piel-1` … `piel-6` |
 | Peinado (10) | rapado, corto liso, corto rizado, bob con flequillo, media melena, largo suelto, cola de caballo, moño, trenza, afro |
 | Color de pelo (6) | negro, castaño oscuro, castaño, cobrizo, rubio, canoso |
-| Conjunto (6) | casual (chaqueta con capucha y jean), formal (camisa y pantalón de tela), suéter y pantalón, blusa y falda, cárdigan y pantalón, bata clínica sobre camisa y pantalón |
-| Color del conjunto | 3-5 variantes por conjunto, todas de la paleta |
+| Conjunto (2) | uniforme de Psicología, o uniforme con bata (decisiones 16 y 18) |
+| Color del conjunto | fijo: el azul del uniforme |
 | Accesorios | gafas, gafete |
 
-Un conjunto es una combinación curada de parte de arriba, parte de abajo y calzado. El kit tiene más piezas de las que ofrece el editor: uniforme clínico, uniforme de seguridad, bata médica, chaqueta de jean, sudadera, polo y blazer. Esas quedan para las recetas del elenco y de los NPC (§7). El rostro, en la fase 1, lo fija la receta; el editor usa el rostro «sereno».
+Un conjunto es una combinación curada de parte de arriba, parte de abajo, calzado y, si la lleva, la bata. La ropa de calle (chaqueta con capucha, camisa, suéter, blusa, cárdigan…) no está en el editor desde la decisión 18: queda para las recetas de los NPC, junto con uniforme clínico, uniforme de seguridad, bata médica, chaqueta de jean, sudadera, polo y blazer. Esas quedan para las recetas del elenco y de los NPC (§7). El rostro, en la fase 1, lo fija la receta; el editor usa el rostro «sereno».
 
 ## 5. Motor y generador
 
@@ -279,7 +289,7 @@ Peso estimado: menos de 200 KB sin comprimir.
 
 ### 7.1 Jugables (12)
 
-La identidad se toma del arte actual: v1 donde existe y cast donde no.
+La identidad se toma del arte actual: v1 donde existe y cast donde no. **Desde la decisión 16, todos llevan el uniforme**: de la tabla siguen valiendo complexión, piel, pelo y extras (gafas, rostro maduro). La columna «Ropa» describe la ropa de calle original, que ya no usan.
 
 | Receta | Compl. | Piel | Pelo | Ropa | Extra |
 |---|---|---|---|---|---|
@@ -458,8 +468,8 @@ Se leen con la misma `migrateAvatarV1` cuando vienen en v1. Al editar, el editor
 | `skinTone` porcelana, clara, media, morena, oscura | `piel-1`, `piel-2`, `piel-3`, `piel-5`, `piel-6` (se respeta el orden; `piel-4` es nueva) |
 | `hairStyle` corto, medio, largo, recogido, ninguno | corto liso, media melena (bob con flequillo si `fringe`), largo suelto, moño, rapado |
 | `hairColor` negro, castaño, rubio, rojizo, gris | negro, castaño, rubio, cobrizo, canoso |
-| `uniform` con bata / sin bata | conjunto bata clínica / formal |
-| `clothingColor` purple, blue, green, burgundy, gray | variante morado, azul, verde, vinotinto, gris |
+| `uniform` con bata / sin bata | conjunto «uniforme con bata» / «uniforme» (decisión 18) |
+| `clothingColor` | se descarta: el uniforme tiene un solo color |
 | `accessory` gafas / pin / ninguno | `['gafas']` / `['gafete']` / `[]` |
 | `eyes`, `brows`, `mouth` | se descartan: el rostro lo fija la complexión en la fase 1 y la expresión solo aplica a retratos |
 
