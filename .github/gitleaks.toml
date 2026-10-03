@@ -1,0 +1,20 @@
+# Configuración de gitleaks para SIEP (paso «Secretos» de .github/workflows/ci.yml).
+# Parte de las reglas por defecto y solo silencia falsos positivos YA REVISADOS:
+# no se excluye ningún archivo entero, así un secreto real en esos mismos archivos
+# seguiría fallando. Cada excepción describe qué es y por qué no es un secreto.
+title = "SIEP · gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Falsos positivos revisados de generic-api-key"
+regexes = [
+  # Claves de dominio del caso (opciones de decisión, nodos, salas): slugs en minúscula
+  # unidos por guiones (p. ej. h1-interrogar-victima). Una credencial real no tiene esa forma.
+  '''^[a-z0-9]+(?:-[a-z0-9]+)+$''',
+  # Marcadores de posición de .env.example: se piden cambiar antes de desplegar.
+  '''^cambia-esto[a-z0-9-]*$''',
+  # Secreto de DESARROLLO del lanzador local (iniciar_siep.ps1); producción exige uno propio.
+  '''^psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256$''',
+]
