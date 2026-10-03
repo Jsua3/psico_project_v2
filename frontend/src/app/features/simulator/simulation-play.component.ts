@@ -19,12 +19,13 @@ import {
 import {
   choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
 } from './evidence-gating.config';
-import { decorateDialogueState } from './dialogue-decoration.util';
+import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decoration.util';
 import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
-import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup } from './orientation.config';
+import { type InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup } from './orientation.config';
 import { SceneChecklistCardComponent } from './scene-checklist-card.component';
-import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
+import { SceneLogState, deriveSceneLog, diffDone, ringTargetKey, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
@@ -284,7 +285,9 @@ const CASE_INTRO_PARAGRAPHS = [
                 [reduceMotion]="reduceMotion()"
                 [stressLevel]="attempt()?.stressIndex ?? 0"
                 [doorStates]="doorStates()"
-                (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
+                [nextTargetKey]="nextTargetKey()" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
+                (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
+                (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
@@ -298,7 +301,7 @@ const CASE_INTRO_PARAGRAPHS = [
           </section>
 
           @if (viewMode() === 'dialogue-right') {
-            <aside class="right-panel" aria-label="Decisión formativa en curso">
+            <aside class="right-panel" aria-label="Decisión formativa en curso" (animationend)="refreshWorldScale()">
               <header class="right-panel__scene">
                 <p class="right-panel__kicker">{{ stageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
@@ -340,18 +343,30 @@ const CASE_INTRO_PARAGRAPHS = [
             (select)="selectTool($event)" />
 
           <div class="context-bar" aria-live="polite" aria-atomic="true">
-            @if (contextualInteraction(); as nb) {
-              <button type="button" class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'"
-                (click)="openInteraction(nb)" [attr.aria-label]="'Interactuar: ' + proximityLabel(nb) + ' (atajo E)'">
-                <kbd aria-hidden="true">E</kbd>
-                <div class="context-bar__copy">
-                  <strong>{{ proximityLabel(nb) }}</strong>
-                  @if (proximityDescription(nb); as desc) {
-                    <p>{{ desc }}</p>
+            @if (contextAction(); as action) {
+              <!-- Un solo botón principal, una línea y altura fija: el mundo no cambia de tamaño al acercarte a algo. -->
+              <button type="button" class="context-bar__interaction"
+                [class.context-bar__interaction--exit]="action.obj.type === 'EXIT'"
+                [class.context-bar__interaction--locked]="action.verb.locked"
+                (click)="openInteraction(action.obj)" [attr.aria-label]="action.ariaLabel" [attr.title]="action.title">
+                @if (!compactMode()) { <kbd aria-hidden="true">E</kbd> }
+                @if (action.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                <span class="context-bar__copy">
+                  <strong>{{ action.verb.text }}</strong>
+                  @if (action.verb.locked && action.verb.reason) {
+                    <span class="context-bar__reason">{{ action.verb.reason }}</span>
                   }
-                </div>
+                </span>
               </button>
+              @if (contextAlso(); as also) {
+                <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
+                  (click)="openInteraction(also.obj)" [attr.title]="also.title">
+                  <span class="context-bar__also">También:</span>
+                  <strong>{{ also.verb.text }}</strong>
+                </button>
+              }
             } @else {
+              <p class="context-bar__now">{{ nowLine() }}</p>
               <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
             }
           </div>
@@ -542,12 +557,14 @@ const CASE_INTRO_PARAGRAPHS = [
     .dialogue-side { display: block; min-height: 0; overflow: hidden; }
 
     /* ── Bottom zone: salida segura + dock + contexto ────────────────────── */
+    /* Altura FIJA: acercarte a algo cambia el texto del pie, nunca su tamaño (el mundo no salta; TOUCH-04). */
     .bottom-zone {
       display: flex;
       align-items: stretch;
       gap: 10px;
+      box-sizing: border-box;
+      height: 64px;
       padding: 8px 12px 10px;
-      min-height: 64px;
       z-index: 30;
     }
     .safe-exit {
@@ -584,14 +601,18 @@ const CASE_INTRO_PARAGRAPHS = [
       display: flex;
       align-items: center;
       justify-content: flex-end;
+      gap: 8px;
       min-width: 0;
+      min-height: 0;
     }
     .context-bar__interaction {
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
       max-width: 100%;
-      padding: 7px 14px;
+      max-height: 100%;
+      padding: 5px 14px;
       border: 1px solid rgba(182,156,255,.35);
       border-radius: 12px;
       background: rgba(8,12,18,.88);
@@ -599,8 +620,11 @@ const CASE_INTRO_PARAGRAPHS = [
       font: inherit;
       text-align: left;
       cursor: pointer;
+      overflow: hidden;
     }
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
+    /* Puerta bloqueada: forma, no solo color (borde discontinuo y candado). */
+    .context-bar__interaction--locked { border-style: dashed; border-color: rgba(245,184,75,.7); }
     .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
     .context-bar__interaction kbd {
       flex-shrink: 0;
@@ -613,26 +637,55 @@ const CASE_INTRO_PARAGRAPHS = [
       font-weight: 800;
       color: #c9b8ff;
     }
+    .context-bar__lock { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; color: #F5B84B; }
     .context-bar__copy { display: grid; min-width: 0; }
-    .context-bar__copy strong { font-size: .8rem; color: #cdbcff; line-height: 1.25; }
-    .context-bar__copy p {
-      margin: 0;
-      font-size: .7rem;
-      line-height: 1.3;
-      color: rgba(232,240,244,.7);
+    .context-bar__copy strong {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .8rem;
+      color: #cdbcff;
+      line-height: 1.25;
+    }
+    .context-bar__reason {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .7rem;
+      line-height: 1.3;
+      color: #ffe2ae;
+    }
+    /* Segundo candidato en rango: más pequeño; la tecla E siempre actúa sobre el principal. */
+    .context-bar__interaction--secondary { flex: 0 1 auto; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25); }
+    .context-bar__interaction--secondary strong { font-size: .72rem; }
+    .context-bar__also { flex-shrink: 0; font-size: .68rem; font-weight: 700; color: rgba(232,240,244,.78); }
+    .context-bar__now {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      font-size: .84rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: rgba(244,247,251,.94);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
+    /* Leyenda de teclado: solo donde hay teclado y espacio de sobra (puntero fino y ancho >= 1150 px). */
     .context-bar__hint {
+      display: none;
       margin: 0;
       font-size: .75rem;
       font-weight: 700;
       letter-spacing: .04em;
       color: rgba(232,240,244,.72);
       white-space: nowrap;
+    }
+    @media (hover: hover) and (pointer: fine) and (min-width: 1150px) {
+      .context-bar__hint { display: block; flex-shrink: 0; }
     }
     .context-bar__hint kbd {
       padding: 1px 5px;
@@ -908,12 +961,12 @@ const CASE_INTRO_PARAGRAPHS = [
         width: auto;
         padding: 7px 10px;
       }
-      .bottom-zone { flex-wrap: wrap; min-height: 0; padding: 6px 8px 8px; }
+      /* En vertical el pie tiene dos filas de altura fija (salida y herramientas; mensaje): tampoco crece. */
+      .bottom-zone { flex-wrap: wrap; height: auto; padding: 6px 8px 8px; }
       /* El dock cede ancho (flex-basis 0) y scrollea por dentro: nunca debe
          empujar el ancho de la página. */
       .tool-dock { flex: 1 1 0; }
-      .context-bar { justify-content: center; flex-basis: 100%; order: 3; }
-      .context-bar__hint { display: none; }
+      .context-bar { justify-content: center; flex-basis: 100%; order: 3; height: 44px; }
       .safe-exit__copy strong { font-size: .66rem; }
       .case-intro-overlay { padding: 10px; }
       .case-intro-card { max-height: 90vh; border-radius: 14px; }
@@ -1073,6 +1126,30 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return context ? doorStateMap(context.world.objects ?? [], context) : {};
   });
 
+  /** Candidato secundario en rango (otra persona u objeto): el botón secundario de la barra. */
+  readonly nearbyAlso = signal<MapObjectState | null>(null);
+  /** Puntero grueso (táctil): el texto de la barra no promete teclas. */
+  readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  /** «No hay nada a tu alcance…» durante 2,5 s tras pedir interactuar sin nada cerca; estático y sin sonido. */
+  readonly nothingNearbyNote = signal('');
+
+  /** Botón principal de la barra: verbo por tipo, candado y motivo en puertas bloqueadas (F§4.3). */
+  readonly contextAction = computed(() => this.interactionAction(this.contextualInteraction()));
+  readonly contextAlso = computed(() => this.contextualInteraction() ? this.interactionAction(this.nearbyAlso()) : null);
+
+  /** Línea «Ahora: …» de la barra cuando no hay nada cerca; sin lista, la invitación a explorar. */
+  readonly nowLine = computed(() =>
+    this.nothingNearbyNote()
+    || this.sceneLog()?.nextLine
+    || (this.coarsePointer() ? ORIENTATION_COPY.now.noListTouch : ORIENTATION_COPY.now.noList));
+
+  /** Destino de la lista: el mundo le pone el anillo (si está en otra sala, el de la puerta que hay que tomar). */
+  readonly nextTargetKey = computed(() => ringTargetKey(this.sceneLog(), HIGHLIGHT_TOOL_TARGETS));
+
+  /** Objetos de decisión de otras etapas: el mundo los atenúa (alfa .55, sin anillo). Nunca marca la opción adecuada. */
+  readonly dimmedKeys = computed<ReadonlySet<string>>(() =>
+    otherStageDecisionKeys(this.world(), this.attempt()?.currentNode.options?.map(option => option.id) ?? null));
+
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
     return sel?.type === 'TOOL' ? sel.toolCode : null;
@@ -1101,6 +1178,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly pendingNotes: string[] = [];
   private noteTimer: number | null = null;
   private softNoticeTimer: number | null = null;
+  private nothingNearbyTimer: number | null = null;
   private roomBannerTimer: number | null = null;
   private stopCompactWatch: (() => void) | null = null;
   /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
@@ -1118,6 +1196,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const next = this.sceneLog();
       untracked(() => this.queueNotesFor(next));
     });
+    // El panel lateral encoge (o devuelve) el mundo: se vuelve a leer el contenedor cuando el diseño ya cambió.
+    effect(() => {
+      this.viewMode();
+      untracked(() => { window.setTimeout(() => this.refreshWorldScale()); });
+    });
     // Las notas encoladas salen cuando ya no hay diálogo, bitácora ni pantalla bloqueando la escena.
     effect(() => {
       this.inputBlocked();
@@ -1127,7 +1210,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCompactWatch?.();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1135,7 +1218,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.stopCompactWatch = watchMedia(COMPACT_QUERY, matches => this.compactMode.set(matches));
+    const stopCompact = watchMedia(COMPACT_QUERY, matches => this.compactMode.set(matches));
+    const stopCoarse = watchMedia(COARSE_POINTER_QUERY, matches => this.coarsePointer.set(matches));
+    this.stopCompactWatch = () => { stopCompact(); stopCoarse(); };
     this.simulationService.getInterventionRules().subscribe({
       next: raw => { this.interventionRules = parseInterventionRules(raw); },
       error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
@@ -1330,7 +1415,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const nb = this.nearbyInteraction();
       if (!nb) return;
       event.preventDefault();
-      this.openInteraction(nb);
+      // Mantener la tecla pulsada no repite la acción (al cerrar el diálogo volvería a abrirse).
+      if (!event.repeat) this.openInteraction(nb);
     }
   }
 
@@ -1351,6 +1437,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
+
+    // Una persona del escenario llega como `npc:{clave}`: no es un objeto del servidor (POST /interactions/npc:… da 404).
+    if (interaction.key.startsWith('npc:')) {
+      const npc = this.scenarioNpc(interaction.key);
+      if (npc) this.openNpcDialogue(npc);
+      return;
+    }
 
     if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
       this.tryOpenDoor(interaction);
@@ -1395,14 +1488,44 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
-  proximityLabel(obj: MapObjectState): string {
-    const mapKey = this.world()?.map.key;
-    if (obj.type === 'EXIT') return `${getSceneDisplayLabel(obj, mapKey)} →`;
-    return getSceneDisplayLabel(obj, mapKey);
+  /** El canvas recupera su tamaño al abrir o cerrar el panel lateral (AC-5): se relee el contenedor. */
+  refreshWorldScale(): void {
+    this.gameWorld?.refreshScale();
   }
 
-  proximityDescription(obj: MapObjectState): string {
-    return getSceneInteractionDescription(obj, this.world()?.map.key);
+  /** Texto, nombre accesible y ayuda del botón de la barra para un objeto o una persona cercana. */
+  private interactionAction(obj: MapObjectState | null): {
+    obj: MapObjectState; verb: InteractionVerb; ariaLabel: string; title: string;
+  } | null {
+    if (!obj) return null;
+    const mapKey = this.world()?.map.key;
+    const shown = { ...obj, label: getSceneDisplayLabel(obj, mapKey) };
+    const verb = interactionVerb(shown, obj.type === 'EXIT' ? this.doorStatusFor(obj) : null);
+    const reason = verb.locked && verb.reason ? verb.reason : null;
+    const description = obj.key.startsWith('npc:') ? '' : getSceneInteractionDescription(obj, mapKey);
+    return {
+      obj,
+      verb,
+      // El nombre contiene el texto visible (WCAG 2.5.3) y no promete la tecla: solo se rotula con puntero fino.
+      ariaLabel: `Interactuar: ${verb.text}${reason ? `, bloqueada: ${reason}` : ''}`,
+      title: reason ? `${verb.text}. ${reason}` : description ? `${verb.text}. ${description}` : verb.text,
+    };
+  }
+
+  /** Pidió interactuar y no hay nada a su alcance (E, Espacio, Enter o el botón táctil): línea estática de 2,5 s. */
+  showNothingNearby(): void {
+    this.nothingNearbyNote.set(ORIENTATION_COPY.now.nothingNearby);
+    if (this.nothingNearbyTimer !== null) window.clearTimeout(this.nothingNearbyTimer);
+    this.nothingNearbyTimer = window.setTimeout(() => {
+      this.nothingNearbyTimer = null;
+      this.nothingNearbyNote.set('');
+    }, 2500);
+  }
+
+  /** Persona del escenario (clave `npc:{clave}` del mundo) → su configuración; null si no está cargada. */
+  private scenarioNpc(key: string): NpcConfig | null {
+    const npcKey = key.replace(/^npc:/, '');
+    return this.scenarioConfig()?.rooms.flatMap(room => room.npcs).find(npc => npc.key === npcKey) ?? null;
   }
 
   private openBackendInteraction(interaction: MapObjectState) {

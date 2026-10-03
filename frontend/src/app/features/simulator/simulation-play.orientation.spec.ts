@@ -501,6 +501,196 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
+  describe('T9.3 y T9.5: barra contextual y personas', () => {
+    const NURSE: NpcConfig = {
+      key: 'enfermera-urgencias', npcType: 'colleague', displayName: 'Enfermera de urgencias', portrait: 'x', x: 560, y: 330,
+      frameIndex: 0, dialogue: { lines: [{ text: 'Hola.' }] },
+    } as NpcConfig;
+    /** Lo que emite el mundo para una persona del escenario (clave `npc:`). */
+    const nurseMarker = (): MapObjectState => obj('npc:enfermera-urgencias', 'Enfermera de urgencias', 'PERSON', 560, 330);
+    const lockedDoor = () => urgenciasObjects().find(o => o.key === 'puerta-sala-escucha')!;
+
+    function withScenario(): void {
+      startInUrgencias();
+      component.scenarioConfig.set({
+        scenarioKey: 'hospital-urgencias', startRoomKey: 'hospital-urgencias',
+        rooms: [{ key: 'hospital-urgencias', npcs: [NURSE] }],
+      } as never);
+    }
+
+    it('una persona cercana se ofrece como «Hablar con …» con el nombre accesible «Interactuar: …»', () => {
+      withScenario();
+      component.nearbyInteraction.set(nurseMarker());
+
+      const action = component.contextAction();
+
+      expect(action?.verb.text).toBe('Hablar con Enfermera de urgencias');
+      expect(action?.ariaLabel).toBe('Interactuar: Hablar con Enfermera de urgencias');
+      expect(action?.ariaLabel).not.toMatch(/atajo/i);
+    });
+
+    it('una herramienta se ofrece como «Recoger …» y un objeto como «Revisar …»', () => {
+      startInUrgencias();
+      component.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'tool-pap')!);
+      expect(component.contextAction()?.verb.text).toBe('Recoger Kit PAP');
+
+      component.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'zona-restringida')!);
+      expect(component.contextAction()?.verb.text).toBe('Revisar Acceso a quirófano');
+    });
+
+    it('el botón no usa la descripción sembrada del objeto como texto: queda solo en el title', () => {
+      startInUrgencias();
+      const tool = { ...urgenciasObjects().find(o => o.key === 'tool-pap')!, interactionPrompt: 'Aplicar PAP', interactionText: 'Material de primeros auxilios.' };
+      component.nearbyInteraction.set(tool);
+
+      const action = component.contextAction();
+
+      expect(action?.verb.text).toBe('Recoger Kit PAP');
+      expect(action?.ariaLabel).not.toContain('Aplicar PAP');
+    });
+
+    it('una puerta bloqueada muestra candado, el motivo vivo y lo dice en su nombre accesible', () => {
+      startInUrgencias();
+      component.nearbyInteraction.set(lockedDoor());
+
+      const action = component.contextAction();
+
+      expect(action?.verb.locked).toBe(true);
+      expect(action?.verb.text).toBe('Pasar a Sala de escucha familiar');
+      expect(action?.verb.reason).toBe('Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+      expect(action?.ariaLabel).toBe(
+        'Interactuar: Pasar a Sala de escucha familiar, bloqueada: Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+      expect(action?.title).toContain(action?.verb.reason ?? '');
+    });
+
+    it('con el motivo cumplido la puerta ya no marca candado', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      component.nearbyInteraction.set(lockedDoor());
+
+      const action = component.contextAction();
+
+      expect(action?.verb.locked).toBe(false);
+      expect(action?.ariaLabel).toBe('Interactuar: Pasar a Sala de escucha familiar');
+    });
+
+    it('el botón secundario solo existe junto a un principal y dice «Pasar a …» sin candado inventado', () => {
+      startInUrgencias();
+      component.nearbyAlso.set(lockedDoor());
+      expect(component.contextAlso()).toBeNull();
+
+      component.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'familia-crisis')!);
+
+      expect(component.contextAlso()?.verb.text).toBe('Pasar a Sala de escucha familiar');
+      expect(component.contextAction()?.verb.text).toBe('Hablar con Familia en crisis');
+    });
+
+    it('con una petición en curso o un diálogo abierto la barra vuelve a «Ahora: …»', () => {
+      startInUrgencias();
+      component.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'familia-crisis')!);
+      expect(component.contextAction()).not.toBeNull();
+
+      component.busy.set(true);
+      expect(component.contextAction()).toBeNull();
+      component.busy.set(false);
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      expect(component.contextAction()).toBeNull();
+    });
+
+    it('URGENTE: pulsar el botón junto a una persona abre su diálogo y no pide `npc:…` al servidor', () => {
+      withScenario();
+
+      component.openInteraction(nurseMarker());
+
+      expect(sim['openInteraction']).not.toHaveBeenCalled();
+      expect(sim['recordNpcInteraction']).toHaveBeenCalledWith('attempt-1', 'token-1', 'enfermera-urgencias');
+    });
+
+    it('URGENTE: la tecla E junto a una persona abre su diálogo (una sola petición, aunque la tecla se repita)', () => {
+      withScenario();
+      component.nearbyInteraction.set(nurseMarker());
+      const press = (repeat: boolean) => {
+        const event = new KeyboardEvent('keydown', { key: 'e', repeat, cancelable: true });
+        component.handleGlobalInteraction(event);
+        return event;
+      };
+
+      const first = press(false);
+      press(true);
+      press(true);
+
+      expect(first.defaultPrevented).toBe(true);
+      expect(sim['recordNpcInteraction']).toHaveBeenCalledTimes(1);
+      expect(sim['openInteraction']).not.toHaveBeenCalled();
+    });
+
+    it('la persona se muestra al responder el servidor, con su conversación', () => {
+      withScenario();
+      sim['recordNpcInteraction'].mockReturnValue(of(makeWorld('hospital-urgencias', urgenciasObjects(), { flags: { viewedNpcKeys: ['enfermera-urgencias'] } })));
+
+      component.openInteraction(nurseMarker());
+
+      expect(component.dialogue()?.speakerName).toBe('Enfermera de urgencias');
+      expect(component.busy()).toBe(false);
+    });
+
+    it('una persona que el escenario no conoce no hace ninguna petición', () => {
+      startInUrgencias();
+
+      component.openInteraction(nurseMarker());
+
+      expect(sim['recordNpcInteraction']).not.toHaveBeenCalled();
+      expect(sim['openInteraction']).not.toHaveBeenCalled();
+    });
+
+    it('E sin nada cerca: el mundo avisa y la barra dice, 2,5 s y sin sonido, que no hay nada al alcance', () => {
+      startInUrgencias();
+
+      component.showNothingNearby();
+
+      expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
+      expect(audio['playSfx']).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(2400);
+      expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
+      jest.advanceTimersByTime(200);
+      expect(component.nowLine()).toMatch(/^Ahora: Recoge el material de apoyo de la sala/);
+    });
+
+    it('sin lista (nodo sin ruta) la barra invita a explorar, sin prometer teclas en táctil', () => {
+      component.attempt.set(makeAttempt('nodo-del-editor', { currentNode: { key: 'nodo-del-editor', title: 'x', narrative: '', terminal: false } }));
+      component.world.set(makeWorld('mapa-del-editor', []));
+
+      expect(component.nowLine()).toBe('Explora la sala. Acércate a una persona o un objeto y pulsa E.');
+      component.coarsePointer.set(true);
+      expect(component.nowLine()).toBe('Explora la sala. Acércate a una persona o un objeto y toca «Interactuar».');
+    });
+  });
+
+  describe('T9.9: destino y atenuados hacia el mundo', () => {
+    it('el anillo empieza en el maletín y pasa a la familia al recogerlo', () => {
+      startInUrgencias();
+      expect(component.nextTargetKey()).toBe('tool-pap');
+
+      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: ['PAP'] }));
+
+      expect(component.nextTargetKey()).toBe('familia-crisis');
+    });
+
+    it('sin lista no hay anillo', () => {
+      expect(component.nextTargetKey()).toBeNull();
+    });
+
+    it('los objetos de decisión de otras etapas se atenúan; el de esta etapa no', () => {
+      const choice = (id: number) => ({ key: `o${id}`, text: 'x', decisionOptionId: id, requiredToolCode: null, effect: {} });
+      const withChoices = (key: string, ids: number[]) => obj(key, key, 'OBJECT', 100, 100, {
+        dialogue: { key: `dlg-${key}`, speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: ids.map(choice) },
+      });
+      component.attempt.set(makeAttempt('hospital-sala-escucha', { currentNode: { key: 'hospital-sala-escucha', title: 't', narrative: '', terminal: false, options: [{ id: 201, text: 'a' }] } }));
+      component.world.set(makeWorld('hospital-sala-escucha', [withChoices('familia-duelo', [101]), withChoices('marco-normativo-hospital', [201])]));
+
+      expect([...component.dimmedKeys()]).toEqual(['familia-duelo']);
+    });
+  });
+
   describe('T9.2: contador único y etapa nueva', () => {
     it('el HUD recibe «Decisión k de 6» según la etapa', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));
