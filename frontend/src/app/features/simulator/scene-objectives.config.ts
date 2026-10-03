@@ -25,15 +25,20 @@ export const SCENE_OBJECTIVES: Record<string, string> = {
     'Revisa el expediente y la orientación de ingreso antes de pasar al consultorio.',
 };
 
+/**
+ * Etapas del caso. `stepLabel` es el TÍTULO de la etapa (sin el prefijo «Paso k — »: el contador
+ * «Decisión k de 6» lo compone la interfaz con `step`). Los seis títulos de decisión coinciden con
+ * stage-route.config (lo vigila un spec).
+ */
 export const SCENE_PROGRESS: Record<string, SceneProgressDef> = {
-  'hospital-urgencias': { step: 1, total: 6, stepLabel: 'Paso 1 — Urgencia vital y crisis' },
-  'hospital-sala-escucha': { step: 2, total: 6, stepLabel: 'Paso 2 — Marco normativo en salud' },
-  'hospital-accion-etica': { step: 3, total: 6, stepLabel: 'Paso 3 — Acción técnica y ética' },
-  'hospital-cierre-bloque': { step: 4, total: 6, stepLabel: 'Paso 4 — Ruta de restablecimiento' },
-  'comisaria-consultorio': { step: 5, total: 6, stepLabel: 'Paso 5 — Marco normativo de derechos' },
-  'comisaria-accion-final': { step: 6, total: 6, stepLabel: 'Paso 6 — Actuación y cierre' },
+  'hospital-urgencias': { step: 1, total: 6, stepLabel: 'Urgencia vital y crisis' },
+  'hospital-sala-escucha': { step: 2, total: 6, stepLabel: 'Marco normativo en salud' },
+  'hospital-accion-etica': { step: 3, total: 6, stepLabel: 'Acción técnica y ética' },
+  'hospital-cierre-bloque': { step: 4, total: 6, stepLabel: 'Ruta de restablecimiento' },
+  'comisaria-consultorio': { step: 5, total: 6, stepLabel: 'Marco normativo de derechos' },
+  'comisaria-accion-final': { step: 6, total: 6, stepLabel: 'Actuación y cierre' },
   'cierre-caso': { step: 6, total: 6, stepLabel: 'Caso cerrado' },
-  'comisaria-recepcion': { step: 4, total: 6, stepLabel: 'Paso 4 — Recepción institucional' },
+  'comisaria-recepcion': { step: 4, total: 6, stepLabel: 'Recepción institucional' },
 };
 
 export function getSceneObjective(nodeKey: string | undefined | null): string | null {
@@ -44,4 +49,9 @@ export function getSceneObjective(nodeKey: string | undefined | null): string | 
 export function getSceneProgress(nodeKey: string | undefined | null): SceneProgressDef | null {
   if (!nodeKey) return null;
   return SCENE_PROGRESS[nodeKey] ?? null;
+}
+
+/** Título de la etapa (chip central del HUD y subtítulo de la tarjeta); null si el nodo no tiene etapa. */
+export function getStageTitle(nodeKey: string | undefined | null): string | null {
+  return getSceneProgress(nodeKey)?.stepLabel ?? null;
 }
