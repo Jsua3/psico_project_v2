@@ -35,8 +35,8 @@ describe('orientation.config: banderas y constantes de producto', () => {
   it('las banderas por defecto son conservadoras (pregunta 1 de Psicología)', () => {
     expect(NAME_TOOLS_IN_HINTS).toBe(false);
     expect(HIGHLIGHT_TOOL_TARGETS).toBe(true);
-    // Otra pista la pone en true en el mismo cambio que hace cierta la promesa.
-    expect(SAFE_EXIT_ALWAYS_REACHABLE).toBe(false);
+    // Se puso en true en el mismo cambio que hizo cierta la promesa (T9.8, verificado estado por estado).
+    expect(SAFE_EXIT_ALWAYS_REACHABLE).toBe(true);
     expect(DECISION_TOTAL).toBe(6);
   });
 

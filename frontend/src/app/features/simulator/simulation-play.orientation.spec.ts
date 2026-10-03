@@ -691,6 +691,137 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
+  describe('T9.8: ayuda', () => {
+    /** Partida ya en marcha: pasó el aviso de contenido, la introducción y el contexto. */
+    function playing(): void {
+      component.worldStarted.set(true);
+      component.loading.set(false);
+      startInUrgencias();
+    }
+    const esc = () => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      component.handleGlobalInteraction(event);
+      return event;
+    };
+
+    it('la tarjeta de primera vez aparece cuando ya se puede jugar', () => {
+      playing();
+
+      expect(component.showHelpCard()).toBe(true);
+    });
+
+    it.each([
+      ['el aviso de contenido (ETH-01)', () => component.showContentWarning.set(true)],
+      ['la introducción', () => component.showIntroScene.set(true)],
+      ['el contexto inicial', () => component.showCaseIntro.set(true)],
+      ['el aviso de reanudar', () => component.showResumePrompt.set(true)],
+      ['un diálogo abierto', () => component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState)],
+      ['la bitácora abierta', () => component.journalOpen.set(true)],
+      ['la pantalla de ayuda abierta', () => component.helpOpen.set(true)],
+      ['el mundo aún sin cargar', () => component.loading.set(true)],
+      ['un intento en pausa', () => component.attempt.set(makeAttempt('hospital-urgencias', { status: 'PAUSED' }))],
+    ])('no aparece con %s', (_name, hide) => {
+      playing();
+      hide();
+
+      expect(component.showHelpCard()).toBe(false);
+    });
+
+    it('«Entendido» la marca como vista en el navegador (sin identificadores ni fechas) y no vuelve', () => {
+      playing();
+
+      component.markHelpCardSeen();
+
+      expect(component.showHelpCard()).toBe(false);
+      expect(JSON.parse(localStorage.getItem('siep.ayuda.v1') ?? 'null')).toEqual({ v: 1, vistas: ['primero'] });
+    });
+
+    it('un intento nuevo en el mismo navegador no la repite', () => {
+      localStorage.setItem('siep.ayuda.v1', JSON.stringify({ v: 1, vistas: ['primero'] }));
+      const again = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+
+      expect(again.helpCardSeen()).toBe(true);
+    });
+
+    it('«Más ayuda» (y el botón «?») abren la pantalla y dan la tarjeta por vista', () => {
+      playing();
+
+      component.openHelp();
+
+      expect(component.helpOpen()).toBe(true);
+      expect(component.helpCardSeen()).toBe(true);
+    });
+
+    it('«Ver la ayuda otra vez» borra la marca y la tarjeta vuelve en esta misma sesión', () => {
+      playing();
+      component.markHelpCardSeen();
+
+      component.resetHelpCard();
+
+      expect(component.showHelpCard()).toBe(true);
+      expect(localStorage.getItem('siep.ayuda.v1')).toBeNull();
+    });
+
+    it('si un diálogo o la bitácora tapan la tarjeta ya vista, no reaparece al cerrarlos', () => {
+      playing();
+      tick();
+      expect(component.showHelpCard()).toBe(true);
+
+      component.journalOpen.set(true);
+      tick();
+      component.journalOpen.set(false);
+      tick();
+
+      expect(component.helpCardSeen()).toBe(true);
+      expect(component.showHelpCard()).toBe(false);
+    });
+
+    it('Esc cierra primero la ayuda y no pausa; el siguiente Esc sí pausa', () => {
+      playing();
+      component.helpOpen.set(true);
+
+      const first = esc();
+      expect(first.defaultPrevented).toBe(true);
+      expect(component.helpOpen()).toBe(false);
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+
+      esc();
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+    });
+
+    it('con la tarjeta visible (no modal) Esc pausa directamente: la tarjeta no consume Esc', () => {
+      playing();
+
+      esc();
+
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+    });
+
+    it('con la pantalla de ayuda abierta E y J no actúan sobre el mundo de debajo, y el personaje no camina', () => {
+      playing();
+      component.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'tool-pap')!);
+      component.helpOpen.set(true);
+
+      component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
+      component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'j', cancelable: true }));
+
+      expect(sim['openInteraction']).not.toHaveBeenCalled();
+      expect(component.journalOpen()).toBe(false);
+      expect(component.worldMotionPaused()).toBe(true);
+    });
+
+    it('pausar con la ayuda abierta la cierra', () => {
+      playing();
+      component.helpOpen.set(true);
+      sim['safeExit'].mockReturnValue(of(makeAttempt('hospital-urgencias', { status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+      tick();
+
+      expect(component.helpOpen()).toBe(false);
+    });
+  });
+
   describe('T9.2: contador único y etapa nueva', () => {
     it('el HUD recibe «Decisión k de 6» según la etapa', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));

@@ -127,8 +127,12 @@ export const TOOL_HINTS: Record<string, ToolHint> = {
  */
 export const NAME_TOOLS_IN_HINTS: boolean = false;
 export const HIGHLIGHT_TOOL_TARGETS: boolean = true;
-/** Se pone en true en el mismo cambio que hace cierto «Salida segura» en todos los estados jugables. */
-export const SAFE_EXIT_ALWAYS_REACHABLE: boolean = false;
+/**
+ * «Salida segura» es alcanzable en todos los estados jugables (F§4.7): introducción, contexto, exploración, ajustes,
+ * ayuda, diálogo con y sin opciones, supervisión, bitácora y pausa. Verificado jugando (T9.8); mientras sea cierto, la
+ * ayuda y el aviso pueden prometerla. Si un estado vuelve a perder la salida, esta bandera debe volver a false.
+ */
+export const SAFE_EXIT_ALWAYS_REACHABLE: boolean = true;
 
 export const DECISION_TOTAL = 6;
 

@@ -108,3 +108,21 @@ describe('enlaces con el mundo (T9.5, T9.9)', () => {
     expect(source).toMatch(/<aside class="right-panel"[^>]*\(animationend\)="refreshWorldScale\(\)"/);
   });
 });
+
+describe('ayuda (T9.8)', () => {
+  it('la tarjeta de primera vez y la pantalla de ayuda están enlazadas, con la promesa de salida segura condicionada', () => {
+    expect(source).toMatch(/<app-game-help view="card"[^>]*\[safeExitPromise\]="safeExitPromise"[\s\S]*?\(dismissed\)="markHelpCardSeen\(\)" \(openFull\)="openHelp\(\)"/);
+    expect(source).toMatch(/<app-game-help view="screen"[^>]*\[safeExitPromise\]="safeExitPromise"[\s\S]*?\(closed\)="helpOpen\.set\(false\)"/);
+    expect(source).toContain('readonly safeExitPromise = SAFE_EXIT_ALWAYS_REACHABLE;');
+  });
+
+  it('el HUD abre la ayuda y reactiva la tarjeta', () => {
+    expect(source).toMatch(/\(openHelp\)="openHelp\(\)" \(helpReset\)="resetHelpCard\(\)"/);
+  });
+
+  it('la pantalla de ayuda deja libres la cabecera y el pie (no se pone inert)', () => {
+    expect(rule('.help-layer')).toMatch(/top: 52px;/);
+    expect(rule('.help-layer')).toMatch(/pointer-events: none;/);
+    expect(source).toMatch(/<footer class="bottom-zone" \[attr\.inert\]="inputBlocked\(\)/);
+  });
+});

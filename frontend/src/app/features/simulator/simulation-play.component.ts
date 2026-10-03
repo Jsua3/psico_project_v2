@@ -23,7 +23,9 @@ import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decora
 import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { type InteractionVerb, interactionVerb } from './interaction-verb.util';
-import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup } from './orientation.config';
+import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { GameHelpComponent } from './game-help.component';
+import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneChecklistCardComponent } from './scene-checklist-card.component';
 import { SceneLogState, deriveSceneLog, diffDone, ringTargetKey, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
@@ -78,7 +80,7 @@ const CASE_INTRO_PARAGRAPHS = [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
-    SafeExitButtonComponent, SceneChecklistCardComponent
+    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -261,7 +263,8 @@ const CASE_INTRO_PARAGRAPHS = [
             (toggleJournal)="journalOpen.set(!journalOpen())"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
-            (toggleReduceMotion)="toggleReduceMotion()" />
+            (toggleReduceMotion)="toggleReduceMotion()"
+            (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
         </header>
 
         <main class="main-zone">
@@ -294,6 +297,15 @@ const CASE_INTRO_PARAGRAPHS = [
                 (positionChange)="rememberPosition($event.x, $event.y)" />
             } @else {
               <div id="game-area" class="world-skeleton" aria-label="Cargando mapa"></div>
+            }
+
+            @if (showHelpCard()) {
+              <!-- Tarjeta de primera vez: no modal, sin temporizador, no roba el foco ni consume Esc. -->
+              <div class="help-slot">
+                <app-game-help view="card" [modality]="helpModality()" [compact]="compactMode()"
+                  [safeExitPromise]="safeExitPromise"
+                  (dismissed)="markHelpCardSeen()" (openFull)="openHelp()" />
+              </div>
             }
 
             <div class="stress-vignette" [class.vignette--active]="stressVignetteLevel() > 0"
@@ -366,8 +378,10 @@ const CASE_INTRO_PARAGRAPHS = [
                 </button>
               }
             } @else {
-              <p class="context-bar__now">{{ nowLine() }}</p>
-              <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+              <div class="context-bar__idle">
+                <p class="context-bar__now">{{ nowLine() }}</p>
+                <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+              </div>
             }
           </div>
         </footer>
@@ -378,6 +392,14 @@ const CASE_INTRO_PARAGRAPHS = [
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
+        }
+
+        @if (helpOpen()) {
+          <!-- Pantalla «Cómo se juega»: encima del mundo pero sin cubrir la cabecera ni el pie, que siguen operables. -->
+          <div class="help-layer">
+            <app-game-help view="screen" [modality]="helpModality()" [safeExitPromise]="safeExitPromise"
+              (closed)="helpOpen.set(false)" />
+          </div>
         }
 
         @if (journalOpen()) {
@@ -504,6 +526,24 @@ const CASE_INTRO_PARAGRAPHS = [
       overflow: visible;
     }
 
+    /* Tarjeta de primera vez: bajo las tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
+       con sitio de sobra la tarjeta va arriba a la derecha, junto a «Qué hacer», para no taparlo. */
+    .help-slot {
+      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 30;
+      width: min(560px, calc(100% - 24px));
+    }
+    @media (min-width: 1100px) {
+      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(520px, calc(100% - 488px)); }
+    }
+    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
+      .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); }
+    }
+    /* Pantalla de ayuda: deja libres la cabecera (48 px) y el pie (64 px); la capa no captura toques fuera de la hoja. */
+    .help-layer {
+      position: absolute; left: 0; right: 0; top: 52px; bottom: 68px; z-index: 90;
+      display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
+    }
+    .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
     .stress-vignette {
       position: absolute; inset: 0; pointer-events: none; z-index: 18; opacity: 0;
       transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
@@ -661,8 +701,9 @@ const CASE_INTRO_PARAGRAPHS = [
     .context-bar__interaction--secondary { flex: 0 1 auto; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25); }
     .context-bar__interaction--secondary strong { font-size: .72rem; }
     .context-bar__also { flex-shrink: 0; font-size: .68rem; font-weight: 700; color: rgba(232,240,244,.78); }
+    /* Sin nada cerca: el siguiente paso arriba y, con teclado y espacio de sobra, la leyenda debajo. */
+    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
     .context-bar__now {
-      flex: 1;
       min-width: 0;
       margin: 0;
       overflow: hidden;
@@ -685,7 +726,7 @@ const CASE_INTRO_PARAGRAPHS = [
       white-space: nowrap;
     }
     @media (hover: hover) and (pointer: fine) and (min-width: 1150px) {
-      .context-bar__hint { display: block; flex-shrink: 0; }
+      .context-bar__hint { display: block; }
     }
     .context-bar__hint kbd {
       padding: 1px 5px;
@@ -967,6 +1008,7 @@ const CASE_INTRO_PARAGRAPHS = [
          empujar el ancho de la página. */
       .tool-dock { flex: 1 1 0; }
       .context-bar { justify-content: center; flex-basis: 100%; order: 3; height: 44px; }
+      .context-bar__idle { text-align: center; }
       .safe-exit__copy strong { font-size: .66rem; }
       .case-intro-overlay { padding: 10px; }
       .case-intro-card { max-height: 90vh; border-radius: 14px; }
@@ -1035,6 +1077,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly showCaseIntro = signal(false);
   /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
   readonly helpOpen = signal(false);
+  /** La tarjeta de primera vez ya se vio en este navegador (`siep.ayuda.v1`). La lectura no es reactiva: se actualiza a mano. */
+  readonly helpCardSeen = signal(readHelpSeen().has(HELP_FIRST_CARD));
+  /** Las ayudas prometen «Salida segura» (y Esc) solo mientras es verdad en todos los estados jugables. */
+  readonly safeExitPromise = SAFE_EXIT_ALWAYS_REACHABLE;
   /**
    * Hay una salida segura pedida desde una superposición: en cola mientras `busy()` o ya en vuelo.
    * El pie la muestra como «Pausando…»; impide que dos toques pausen dos veces (F§7.8).
@@ -1110,7 +1156,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
-  readonly worldMotionPaused = computed(() => this.inputBlocked());
+  /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
+  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen());
 
   readonly contextualInteraction = computed(() => {
     const game = this.attempt();
@@ -1136,6 +1183,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Botón principal de la barra: verbo por tipo, candado y motivo en puertas bloqueadas (F§4.3). */
   readonly contextAction = computed(() => this.interactionAction(this.contextualInteraction()));
   readonly contextAlso = computed(() => this.contextualInteraction() ? this.interactionAction(this.nearbyAlso()) : null);
+
+  readonly helpModality = computed<'keyboard' | 'touch'>(() => this.coarsePointer() ? 'touch' : 'keyboard');
+
+  /**
+   * Tarjeta de primera vez: tras el aviso de contenido, la introducción y el contexto; nunca con un
+   * diálogo, la bitácora o la ayuda completa abiertos, ni con un intento que no está en curso.
+   */
+  readonly showHelpCard = computed(() =>
+    !this.helpCardSeen() && this.worldStarted() && this.world() !== null && !this.loading()
+    && (this.attempt()?.status ?? null) === 'IN_PROGRESS'
+    && !this.showResumePrompt() && !this.showContentWarning() && !this.showIntroScene() && !this.showCaseIntro()
+    && this.dialogue() === null && !this.journalOpen() && !this.helpOpen());
 
   /** Línea «Ahora: …» de la barra cuando no hay nada cerca; sin lista, la invitación a explorar. */
   readonly nowLine = computed(() =>
@@ -1179,6 +1238,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private noteTimer: number | null = null;
   private softNoticeTimer: number | null = null;
   private nothingNearbyTimer: number | null = null;
+  private helpCardShown = false;
   private roomBannerTimer: number | null = null;
   private stopCompactWatch: (() => void) | null = null;
   /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
@@ -1200,6 +1260,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       this.viewMode();
       untracked(() => { window.setTimeout(() => this.refreshWorldScale()); });
+    });
+    // La tarjeta de primera vez que ya estuvo a la vista y cede ante un diálogo o la bitácora se da por vista:
+    // no vuelve a aparecer cada vez que se cierra una conversación.
+    effect(() => {
+      const visible = this.showHelpCard();
+      const covered = this.dialogue() !== null || this.journalOpen();
+      untracked(() => {
+        if (visible) this.helpCardShown = true;
+        else if (this.helpCardShown && covered) this.markHelpCardSeen();
+      });
     });
     // Las notas encoladas salen cuando ya no hay diálogo, bitácora ni pantalla bloqueando la escena.
     effect(() => {
@@ -1405,6 +1475,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Con la pantalla de ayuda abierta E, J, Espacio y Enter no actúan sobre el mundo de debajo (Espacio sigue desplazando el texto).
+    if (this.helpOpen() && ['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) return;
+
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
       this.journalOpen.set(!this.journalOpen());
@@ -1486,6 +1559,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.dialogue.set(null);
       if (interaction) this.openBackendInteraction(interaction);
     }
+  }
+
+  /** Abre «Cómo se juega» (botón «?» del HUD, fila de Ajustes o «Más ayuda»). Quien la abre ya vio la tarjeta de primera vez. */
+  openHelp(): void {
+    this.markHelpCardSeen();
+    this.helpOpen.set(true);
+  }
+
+  markHelpCardSeen(): void {
+    markHelpSeen(HELP_FIRST_CARD);
+    this.helpCardSeen.set(true);
+    this.helpCardShown = false;
+  }
+
+  /** «Ver la ayuda otra vez» (Ajustes): borra la marca y la tarjeta de primera vez vuelve a mostrarse en esta sesión. */
+  resetHelpCard(): void {
+    resetHelpSeen();
+    this.helpCardSeen.set(false);
   }
 
   /** El canvas recupera su tamaño al abrir o cerrar el panel lateral (AC-5): se relee el contenedor. */
