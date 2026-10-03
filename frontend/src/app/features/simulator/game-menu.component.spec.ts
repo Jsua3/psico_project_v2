@@ -14,7 +14,7 @@ jest.mock('phaser', () => ({
 }));
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { readFileSync } from 'fs';
@@ -155,7 +155,7 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
 
   const helpButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>('button.menu-help-btn');
   const helpLayer = (root: HTMLElement) => root.querySelector<HTMLElement>('.menu-help-layer');
-  const helpStub = (fixture: { debugElement: { query: (p: unknown) => { componentInstance: GameHelpStubComponent } | null } }) =>
+  const helpStub = (fixture: ComponentFixture<GameMenuComponent>): GameHelpStubComponent | undefined =>
     fixture.debugElement.query(By.directive(GameHelpStubComponent))?.componentInstance;
 
   afterEach(() => {
