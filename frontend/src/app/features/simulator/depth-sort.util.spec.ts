@@ -20,7 +20,7 @@ describe('tiledLayerDepth', () => {
     expect(tiledLayerDepth('3_props_back')).toBe(DEPTH.PROPS_BACK);
     expect(tiledLayerDepth('PROPS_BACK')).toBe(DEPTH.PROPS_BACK);
     expect(tiledLayerDepth('props_front')).toBe(DEPTH.PROPS_FRONT);
-    expect(tiledLayerDepth('lighting')).toBe(DEPTH.LIGHTING);
+    expect(tiledLayerDepth('lighting')).toBe(DEPTH.LIGHTING_FLOOR);
     expect(tiledLayerDepth('overlay')).toBe(DEPTH.OVERLAY);
   });
 

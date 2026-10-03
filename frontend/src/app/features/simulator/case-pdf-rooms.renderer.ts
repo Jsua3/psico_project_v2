@@ -281,7 +281,7 @@ function paintShell(scene: Phaser.Scene, options: SceneRendererOptions, pal: Roo
 
 /** Pools de luz + viñeta (estático — respeta reduced motion por diseño). */
 function paintLighting(scene: Phaser.Scene, pal: RoomPalette, pools: ScenePoint[]): void {
-  const g = scene.add.graphics().setDepth(DEPTH.LIGHTING);
+  const g = scene.add.graphics().setDepth(DEPTH.LIGHTING_FLOOR);
   for (const pool of pools) {
     ellipseC(g, pool.x, pool.y, 300, 120, pal.lightColor, pal.lightAlpha);
     ellipseC(g, pool.x, pool.y, 180, 70, pal.lightColor, pal.lightAlpha * 0.8);

@@ -57,6 +57,8 @@ import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
+import { cameraBounds, integerZoom } from './pixel-scale.util';
+import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import {
   AVATAR_ANIM_KEYS,
   AVATAR_DISPLAY_SCALE,
@@ -212,6 +214,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private stressLevel = 0;
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
   private crisisVignette?: Phaser.GameObjects.Graphics;
+  /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
+  private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
+  /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
+  private toneVignette?: Phaser.GameObjects.Graphics;
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -401,6 +407,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
       if (this.avatarReady) createAvatarAnimations(this);
     }
+    this.scale.on('resize', () => this.refitCamera());
     this.renderWorld();
   }
 
@@ -869,6 +876,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMovers.clear();
     this.livingActors.clear();
     this.tiledExits.clear();
+    this.toneVignette = undefined;
     this.wallsLayer = undefined;
     this.authoredRoomActive = false;
     this.currentRoomKey = '';
@@ -899,10 +907,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const persisted = { x: this.world.player.x, y: this.world.player.y };
       const spawn = this.wouldCollide(persisted.x, persisted.y) ? AUTHORED_PLAYER_SPAWN : persisted;
       this.createPlayer(spawn.x, spawn.y);
-      const cam = this.cameras.main;
-      cam.setZoom(1);
-      cam.setBounds(0, 0, metadata.bounds.width, metadata.bounds.height);
-      cam.centerOn(metadata.bounds.width / 2, metadata.bounds.height / 2);
+      this.applyPixelCamera(metadata.bounds.width, metadata.bounds.height);
       this.refreshMarkerStates();
       this.updateNearestInteraction(true);
       this.buildGuide();
@@ -991,15 +996,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.spawnAmbientDust(mapW, mapH);
     this.createPlayer(this.world.player.x, this.world.player.y);
 
-    // ── Camera: 2× zoom, smooth follow, clamp to map bounds ────────────────
-    const cam = this.cameras.main;
-    const az = Number((this.world.map.ambient as { cameraZoom?: unknown })?.cameraZoom);
-    cam.setZoom(Number.isFinite(az) && az > 0 ? az : 2);
-    cam.setBounds(0, 0, mapW, mapH);
-    cam.startFollow(this.player!, true, 0.12, 0.12);
-    // startFollow args: target, roundPixels=true, lerpX=0.12, lerpY=0.12
-    // roundPixels prevents sub-pixel shimmer on pixel art.
-    // lerp 0.12 = Undertale-style "slightly behind" smooth follow.
+    // ── Cámara: zoom entero (spec §8.3); sigue a la jugadora dentro de la sala ──
+    this.applyPixelCamera(mapW, mapH);
 
     this.refreshMarkerStates();
     this.updateNearestInteraction(true); // suppress blip on initial spawn
@@ -1034,6 +1032,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMovers.clear();
     this.livingActors.clear();
     this.tiledExits.clear();
+    this.toneVignette = undefined;
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
     this.cameras.main.setBackgroundColor('#0e141a');
@@ -1086,9 +1085,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
     }
 
-    const cam = this.cameras.main;
-    cam.setZoom(authoredClinicalRoom ? 1 : 2);
-    cam.setBounds(0, 0, actualMapW, actualMapH);
 
     let sceneMetadata: SceneRenderMetadata | null = null;
     if (sceneRenderer) {
@@ -1146,11 +1142,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         })
       : keepPosition ?? { x: spawnX, y: spawnY };
     this.createPlayer(spawn.x, spawn.y);
-    if (authoredClinicalRoom) {
-      cam.centerOn(actualMapW / 2, actualMapH / 2);
-    } else {
-      cam.startFollow(this.player!, true, 0.12, 0.12);
-    }
+    this.applyPixelCamera(actualMapW, actualMapH);
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.buildGuide();
@@ -1167,6 +1159,35 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.firstSceneFadeDone) return;
     this.firstSceneFadeDone = true;
     if (!this.callbacks.reduceMotion) this.cameras.main.fadeIn(300, 7, 10, 20);
+  }
+
+  /**
+   * Zoom entero de cámara (spec §8.3): el mayor k que deja ver el 80 % de la sala. La
+   * cámara sigue a la jugadora y se limita a la sala; si la vista es mayor, la centra.
+   */
+  private applyPixelCamera(roomWidth: number, roomHeight: number): void {
+    this.roomSize = { width: roomWidth, height: roomHeight };
+    const cam = this.cameras.main;
+    const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
+    cam.setZoom(k);
+    const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
+    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    if (this.player) {
+      cam.startFollow(this.player, true, 0.12, 0.12);
+      cam.centerOn(this.player.x, this.player.y);
+    }
+  }
+
+  /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
+  private refitCamera(): void {
+    if (!this.ready || !this.player) return;
+    this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
+    if (this.toneVignette) {
+      this.toneVignette.destroy();
+      this.applyLightingOverlay();
+    }
+    this.crisisVignette?.destroy();
+    this.applyCrisisVignette();
   }
 
   private checkExitTriggers() {
@@ -1754,10 +1775,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING);
+    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING_FLOOR);
     // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
     // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
     this.strokeVignetteBand(g, tint, 0.12, 0.3);
+    this.toneVignette = g;
   }
 
   /**
@@ -2411,10 +2433,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   styles: [`
     :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }
-    /* El tamaño del canvas lo gobierna Phaser Scale.FIT (aspect 16:9 intacto,
-       letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
-       desbordaba el viewport en mobile. */
-    :host ::ng-deep .phaser-host canvas { display: block; max-width: 100%; max-height: 100%; }
+    /* El lienzo mide el contenedor × devicePixelRatio y Phaser lo devuelve al tamaño
+       CSS del contenedor (scale.zoom = 1/dpr): nada lo estira a escalas fraccionarias. */
+    :host ::ng-deep .phaser-host canvas { display: block; }
     .touch-controls {
       display: none;
       position: absolute;
@@ -2523,7 +2544,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
-  private hostResizeObserver?: ResizeObserver;
+  /** Deja de seguir el tamaño del contenedor y el devicePixelRatio. */
+  private detachHostWatch?: () => void;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
 
@@ -2559,7 +2581,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   ngOnDestroy() {
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
-    this.hostResizeObserver?.disconnect();
+    this.detachHostWatch?.();
+    this.detachHostWatch = undefined;
     this.phaserGame?.destroy(true);
   }
 
@@ -2608,7 +2631,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
    *  del navegador) sin recargar la página ni perder el intento. */
   retryLoad(): void {
-    this.hostResizeObserver?.disconnect();
+    this.detachHostWatch?.();
+    this.detachHostWatch = undefined;
     this.phaserGame?.destroy(true);
     this.phaserGame = undefined;
     this.scene = undefined;
@@ -2666,11 +2690,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,
-        width: 960, height: 540,
         backgroundColor: '#0e141a',
-        pixelArt: true,    // nearest-neighbour scaling — keeps pixel art sharp
-        roundPixels: true, // 2.5D: evita shimmer sub-pixel al hacer y-sort + follow
-        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
+        pixelArt: true,    // vecino más cercano: el pixel art no se suaviza
+        roundPixels: true, // 2.5D: evita el temblor sub-píxel con el y-sort y el seguimiento
+        scale: pixelScaleConfig(this.gameHost!.nativeElement),
         scene: this.scene
       });
       // Sin la captura de Phaser, flechas y Espacio desplazarían la página (la «Vista previa»
@@ -2678,12 +2701,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       // `keydown` ya cancelados. En un reintento se vuelve a armar tras el nuevo juego.
       this.detachScrollKeyGuard?.();
       this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
-      // Scale.FIT solo escucha resize de window; el contenedor también cambia
-      // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet).
-      if (typeof ResizeObserver !== 'undefined') {
-        this.hostResizeObserver = new ResizeObserver(() => this.phaserGame?.scale.refresh());
-        this.hostResizeObserver.observe(this.gameHost!.nativeElement);
-      }
+      // Lienzo en píxeles físicos: sigue al contenedor (panel derecho, rotación, bottom
+      // sheet) y al devicePixelRatio (zoom del navegador, cambio de monitor).
+      this.detachHostWatch = watchHostSize(this.phaserGame, this.gameHost!.nativeElement);
     });
     window.setTimeout(() => {
       this.scene?.setScenarioConfig(this.scenarioConfig());
