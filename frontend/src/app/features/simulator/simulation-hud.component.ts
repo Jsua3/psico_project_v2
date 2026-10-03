@@ -443,6 +443,9 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     /* Modo compacto (mismo criterio que el resto del simulador): cabecera de 44 px. */
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       .hud-strip { height: 44px; }
+      /* Ajustes en dos columnas: las siete filas caben en 390 px de alto sin desplazarse. */
+      .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
+      .settings-menu__header { grid-column: 1 / -1; }
     }
     /* Objetivos táctiles de 44 px donde hay dedo (HUD-17): cabecera y menú de Ajustes. */
     @media (pointer: coarse) {

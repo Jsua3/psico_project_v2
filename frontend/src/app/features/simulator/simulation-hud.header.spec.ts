@@ -267,6 +267,13 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(hudSource).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
     });
 
+    it('en compacto Ajustes se reparte en dos columnas para caber sin desplazarse en 390 px de alto', () => {
+      expect(hudSource).toMatch(
+        /@media \(max-height: 520px\), \(pointer: coarse\) and \(orientation: landscape\) \{[\s\S]*?\.settings-menu \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+      );
+      expect(hudSource).toMatch(/\.settings-menu__header \{ grid-column: 1 \/ -1; \}/);
+    });
+
     it('la zona central no desborda sobre sus vecinos (HUD-10)', () => {
       expect(hudSource).toMatch(/\.hud-zone--center \{[^}]*min-width: 0;[^}]*overflow: hidden;/);
       expect(hudSource).toMatch(/\.hud-scene \{[^}]*min-width: 0;/);
