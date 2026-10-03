@@ -4,6 +4,7 @@ import { Component, effect, inject, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -14,7 +15,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 @Component({
   selector: 'app-journal-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, FormsModule, MatIconModule],
+  imports: [A11yModule, CommonModule, FormsModule, MatIconModule, SafeExitButtonComponent],
   template: `
     <div class="journal-modal"
       [cdkTrapFocus]="open()"
@@ -97,9 +98,13 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
           <mat-icon aria-hidden="true">lock</mat-icon>
           Las bitácoras se cifran con AES-GCM antes de guardarse.
         </p>
-        <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
-          Continuar simulación
-        </button>
+        <div class="footer-actions">
+          <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->
+          <app-safe-exit-button (pause)="safeExit.emit()" />
+          <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
+            Continuar simulación
+          </button>
+        </div>
       </footer>
     </div>
   `,
@@ -235,6 +240,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    .footer-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
     .continue-btn { flex-shrink: 0; }
 
     @media (max-width: 700px) {
@@ -263,6 +269,8 @@ export class JournalPanelComponent {
   ]);
   readonly save = output<string>();
   readonly closeSheet = output<void>();
+  /** Pausa reanudable pedida desde la bitácora (REGLA-004); el anfitrión llama a la salida segura real. */
+  readonly safeExit = output<void>();
 
   text = '';
   private readonly audio = inject(AudioDirectorService);
