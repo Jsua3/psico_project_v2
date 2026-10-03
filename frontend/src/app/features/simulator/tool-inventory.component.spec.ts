@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ClinicalToolState } from '../../core/models/simulation.model';
+import { ORIENTATION_COPY } from './orientation.config';
 import { ToolInventoryComponent } from './tool-inventory.component';
 
 const source = readFileSync(join(__dirname, 'tool-inventory.component.ts'), 'utf-8');
@@ -61,11 +62,19 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
       expect(root.querySelector('.tool-count strong')?.textContent?.trim()).toBe('3 de 5');
     });
 
-    it('sin herramientas en el mundo dice 0 de 0 sin romper', () => {
+    it('sin herramientas en el mundo no pinta contador y la barra no se rompe', () => {
       mount([]);
       writeInputSignal(dock.tools, []);
       fixture.detectChanges();
+      expect(root.querySelector('.tool-count')).toBeNull();
       expect(root.querySelector('[role="toolbar"]')?.getAttribute('aria-label')).toMatch(/^Herramientas 0 de 0\./);
+    });
+
+    it('el texto del contador y el motivo de las bloqueadas son los de ORIENTATION_COPY (una sola fuente)', () => {
+      mount(['PAP']);
+      expect(root.querySelector('[role="toolbar"]')?.getAttribute('aria-label')).toContain(ORIENTATION_COPY.ui.dockTools(1, 5));
+      expect(card('SPIKES').getAttribute('title')).toContain(ORIENTATION_COPY.ui.dockLocked);
+      expect(source).toContain(`'${ORIENTATION_COPY.ui.dockLocked}'`);
     });
 
     it('el contador visible no es parte del orden de lectura (la barra ya lo anuncia)', () => {

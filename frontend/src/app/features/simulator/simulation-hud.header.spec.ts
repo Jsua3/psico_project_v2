@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SimulationAttemptState } from '../../core/models/simulation.model';
+import { ORIENTATION_COPY } from './orientation.config';
 import { SimulationHudComponent } from './simulation-hud.component';
 
 const hudSource = readFileSync(join(__dirname, 'simulation-hud.component.ts'), 'utf-8');
@@ -116,6 +117,18 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       hud.openHelp.subscribe(emitted);
       help!.click();
       expect(emitted).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('una sola fuente del copy', () => {
+    it('los textos de ayuda del HUD son los de ORIENTATION_COPY', () => {
+      const root = mount();
+      const help = button(root, ORIENTATION_COPY.ui.helpAriaLabel);
+      expect(help).not.toBeNull();
+      expect(help?.getAttribute('title')).toBe(ORIENTATION_COPY.ui.helpTitle);
+      openSettings(root);
+      expect(settingsRow(root, ORIENTATION_COPY.ui.settingsHelpRow)).toBeDefined();
+      expect(settingsRow(root, ORIENTATION_COPY.ui.settingsHelpAgain)).toBeDefined();
     });
   });
 

@@ -19,10 +19,12 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
   imports: [CommonModule, MatIconModule],
   template: `
     <div class="tool-dock-wrap">
-      <span class="tool-count" aria-hidden="true">
-        <span class="tool-count__label">Herramientas</span>
-        <strong>{{ ownedCount() }} de {{ tools().length }}</strong>
-      </span>
+      @if (tools().length > 0) {
+        <span class="tool-count" aria-hidden="true">
+          <span class="tool-count__label">Herramientas</span>
+          <strong>{{ ownedCount() }} de {{ tools().length }}</strong>
+        </span>
+      }
       <div
         class="tool-dock"
         role="toolbar"
