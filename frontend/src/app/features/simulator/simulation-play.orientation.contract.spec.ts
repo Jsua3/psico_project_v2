@@ -158,3 +158,47 @@ describe('el cliente ya no recibe ni usa la clasificación de las opciones (T8.4
     expect(preview).toMatch(/<app-dialogue-panel[^>]*\(safeExit\)="closeDialogue\(\)"/);
   });
 });
+
+describe('modo compacto (T10)', () => {
+  const COMPACT = '@media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {';
+  // Hay dos bloques con esta condición (la tarjeta de ayuda y el principal): el principal es el último.
+  const start = source.lastIndexOf(COMPACT);
+  const compactCss = start >= 0 ? source.slice(start, source.indexOf('\n    }\n', start) + 7) : '';
+
+  it('la condición del CSS es la de la lógica (compactMode)', () => {
+    expect(source).toContain("const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';");
+    expect(start).toBeGreaterThan(-1);
+  });
+
+  it('va después del bloque móvil: un móvil horizontal de 667x375 cumple los dos y manda el compacto', () => {
+    expect(source.indexOf('@media (max-width: 760px) {')).toBeGreaterThan(-1);
+    expect(source.indexOf('@media (max-width: 760px) {')).toBeLessThan(start);
+  });
+
+  it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda', () => {
+    expect(compactCss).toMatch(/\.bottom-zone \{[^}]*flex-wrap: nowrap;[^}]*height: 56px;/);
+    expect(compactCss).toMatch(/\.safe-exit__copy kbd, \.context-bar__hint \{ display: none; \}/);
+  });
+
+  it('los controles del pie miden al menos 44 px', () => {
+    expect(compactCss).toMatch(/\.safe-exit \{[^}]*min-height: 44px;/);
+    expect(compactCss).toMatch(/\.context-bar__interaction \{[^}]*min-height: 44px;/);
+  });
+
+  it('el panel de decisión es una hoja flotante: una columna, sin resumen de etapa y sin reencuadrar el mundo', () => {
+    expect(compactCss).toMatch(/\.game-container\[data-mode='dialogue-right'\] \.main-zone \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    expect(compactCss).toMatch(/\.right-panel \{[^}]*position: fixed;[^}]*bottom: 0;/);
+    expect(compactCss).toMatch(/\.game-container\[data-mode='dialogue-right'\] \.right-panel__scene \{ display: none; \}/);
+  });
+
+  it('la introducción y el contexto tienen cabecera compacta, pie fijo y degradado que avisa del desplazamiento', () => {
+    expect(compactCss).toMatch(/\.case-intro-card__header \{[^}]*grid-template-areas: 'eyebrow extra' 'title extra';/);
+    expect(compactCss).toMatch(/\.case-intro-card__actions::before \{[^}]*linear-gradient\(/);
+    expect(compactCss).toMatch(/\.case-intro-card__actions \{ position: relative; \}/);
+  });
+
+  it('ningún nombre accesible promete teclas que no existen en táctil', () => {
+    expect(source).not.toMatch(/aria-label="[^"]*\((Esc|Escape|J|E)\)/);
+    expect(source).not.toMatch(/\[attr\.aria-label\]="[^"]*\((Esc|Escape|J|E)\)/);
+  });
+});

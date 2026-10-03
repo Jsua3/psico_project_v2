@@ -699,8 +699,12 @@ const CASE_INTRO_PARAGRAPHS = [
       color: #ffe2ae;
     }
     /* Segundo candidato en rango: más pequeño; la tecla E siempre actúa sobre el principal. */
-    .context-bar__interaction--secondary { flex: 0 1 auto; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25); }
-    .context-bar__interaction--secondary strong { font-size: .72rem; }
+    .context-bar__interaction--secondary {
+      flex: 0 1 40%; min-width: 96px; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25);
+    }
+    .context-bar__interaction--secondary strong {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; color: #cdbcff;
+    }
     .context-bar__also { flex-shrink: 0; font-size: .68rem; font-weight: 700; color: rgba(232,240,244,.78); }
     /* Sin nada cerca: el siguiente paso arriba y, con teclado y espacio de sobra, la leyenda debajo. */
     .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
@@ -1024,6 +1028,67 @@ const CASE_INTRO_PARAGRAPHS = [
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
       to   { transform: translateY(0); opacity: 1; }
+    }
+
+    /* ── Modo compacto (F§7.9): pantallas bajas o táctil horizontal ───────────
+       Va después del bloque móvil: un móvil horizontal de 667x375 cumple los dos y manda este. */
+    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
+      /* Pie de altura fija de una sola fila: sin teclas ni leyenda, y el mundo no cambia de tamaño al acercarte a algo. */
+      .bottom-zone { flex-wrap: nowrap; align-items: center; height: 56px; padding: 4px 12px; gap: 8px; }
+      .safe-exit { min-height: 44px; padding: 4px 10px; }
+      .safe-exit__copy kbd, .context-bar__hint { display: none; }
+      .tool-dock { flex: 0 1 auto; }
+      .context-bar { flex: 1; flex-basis: auto; order: 0; height: 100%; justify-content: flex-end; }
+      .context-bar__interaction { min-height: 44px; padding: 3px 10px; }
+      .context-bar__interaction--secondary { flex-basis: 34%; }
+      .context-bar__idle { text-align: left; }
+      .context-bar__now { font-size: .78rem; line-height: 1.25; }
+      /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
+      .soft-notice { bottom: 62px; max-width: min(86vw, 460px); padding: 7px 14px; font-size: .8rem; }
+      .door-notice { bottom: 66px; padding: 8px 14px; }
+      .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
+      .pausing-notice { bottom: 8px; }
+
+      /* Decisión: hoja inferior flotante. El mundo conserva su tamaño (una sola columna) y el resumen de la etapa
+         se oculta: las opciones 1 a 3 tienen que verse y tocarse sin desplazar (TOUCH-01). */
+      .game-container[data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+      .right-panel {
+        position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+        max-height: calc(100% - 52px);
+        z-index: 80;
+        grid-template-rows: minmax(0, 1fr);
+        border-radius: 16px 16px 0 0;
+        animation: sheet-up 200ms cubic-bezier(.2,.8,.2,1) both;
+      }
+      .game-container[data-mode='dialogue-right'] .right-panel__scene { display: none; }
+
+      /* Introducción y contexto: cabecera en dos líneas, pie fijo con «Continuar» y «Salida segura»,
+         y un degradado al pie del texto que avisa de que hay más debajo. */
+      .case-intro-overlay { padding: 8px 12px; }
+      .case-intro-card { max-height: 100%; border-radius: 14px; }
+      .case-intro-card__header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'eyebrow extra' 'title extra';
+        align-items: center;
+        gap: 0 12px;
+        padding: 8px 16px;
+      }
+      .case-intro-card__header .psy-eyebrow { grid-area: eyebrow; margin: 0; }
+      .case-intro-card__header h2 { grid-area: title; font-size: 1.2rem; }
+      .case-intro-card__header .case-intro-card__chip,
+      .case-intro-card__header .intro-music-toggle { grid-area: extra; }
+      .case-intro-card__header .case-intro-card__chip { padding: 3px 9px; font-size: .68rem; }
+      .case-intro-card__header .intro-music-toggle { min-height: 44px; }
+      .case-intro-card__media { padding: 4px 12px; }
+      .case-intro-card__body { padding: 10px 16px 28px; }
+      .case-intro-card__body p { margin-bottom: 8px; font-size: .86rem; line-height: 1.5; }
+      .case-intro-card__actions { position: relative; }
+      .case-intro-card__actions::before {
+        content: ''; position: absolute; left: 0; right: 0; top: -26px; height: 26px; pointer-events: none;
+        background: linear-gradient(180deg, rgba(18,24,42,0), rgba(5,8,14,.94));
+      }
+      .case-intro-card__actions { padding: 8px 16px; gap: 10px; }
+      .case-intro-card__actions > span { font-size: .72rem; }
     }
     @media (prefers-reduced-motion: reduce) {
       .stress-vignette, .scene-fade { transition: none; }
@@ -1594,7 +1659,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const shown = { ...obj, label: getSceneDisplayLabel(obj, mapKey) };
     const verb = interactionVerb(shown, obj.type === 'EXIT' ? this.doorStatusFor(obj) : null);
     const reason = verb.locked && verb.reason ? verb.reason : null;
-    const description = obj.key.startsWith('npc:') ? '' : getSceneInteractionDescription(obj, mapKey);
+    const rawDescription = obj.key.startsWith('npc:') ? '' : getSceneInteractionDescription(obj, mapKey);
+    // La descripción sembrada solo sirve de ayuda (title) si dice algo que el verbo y la etiqueta no dicen.
+    const description = rawDescription && !verb.text.toLowerCase().includes(rawDescription.trim().toLowerCase()) ? rawDescription : '';
     return {
       obj,
       verb,

@@ -883,6 +883,70 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
+  describe('T10: modo compacto', () => {
+    const COMPACT = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
+    let original: typeof window.matchMedia | undefined;
+    let listeners: Array<{ query: string; handler: (event: { matches: boolean }) => void }>;
+
+    function mockMedia(matching: string[]): void {
+      listeners = [];
+      window.matchMedia = ((query: string) => ({
+        matches: matching.includes(query),
+        media: query,
+        addEventListener: (_type: string, handler: (event: { matches: boolean }) => void) => listeners.push({ query, handler }),
+        removeEventListener: (_type: string, handler: (event: { matches: boolean }) => void) => {
+          listeners = listeners.filter(entry => entry.handler !== handler);
+        },
+      })) as unknown as typeof window.matchMedia;
+    }
+
+    beforeEach(() => { original = window.matchMedia; });
+    afterEach(() => { window.matchMedia = original as typeof window.matchMedia; });
+
+    it('una pantalla baja o táctil horizontal arranca en compacto y con puntero grueso', () => {
+      mockMedia([COMPACT, '(pointer: coarse)']);
+      const compact = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+
+      expect(compact.compactMode()).toBe(true);
+      expect(compact.coarsePointer()).toBe(true);
+      expect(compact.helpModality()).toBe('touch');
+    });
+
+    it('un portátil no es compacto y la ayuda habla de teclado', () => {
+      mockMedia([]);
+      const laptop = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+
+      expect(laptop.compactMode()).toBe(false);
+      expect(laptop.helpModality()).toBe('keyboard');
+    });
+
+    it('girar o redimensionar el dispositivo cambia el modo sin recargar, y se deja de escuchar al salir', () => {
+      mockMedia([]);
+      const device = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+      device.ngOnInit();
+      expect(listeners.map(entry => entry.query)).toEqual([COMPACT, '(pointer: coarse)']);
+
+      listeners.find(entry => entry.query === COMPACT)?.handler({ matches: true });
+      expect(device.compactMode()).toBe(true);
+
+      device.ngOnDestroy();
+      expect(listeners).toEqual([]);
+    });
+
+    it('con la bitácora, un diálogo o la ayuda a la vista el pie no cambia: la barra muestra siempre una sola cosa', () => {
+      mockMedia([COMPACT]);
+      const compact = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+      compact.attempt.set(makeAttempt());
+      compact.world.set(makeWorld('hospital-urgencias', urgenciasObjects()));
+
+      expect(compact.contextAction()).toBeNull();
+      expect(compact.nowLine()).toMatch(/^Ahora: /);
+      compact.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'tool-pap')!);
+      expect(compact.contextAction()?.verb.text).toBe('Recoger Kit PAP');
+      expect(compact.contextAlso()).toBeNull();
+    });
+  });
+
   describe('T9.2: contador único y etapa nueva', () => {
     it('el HUD recibe «Decisión k de 6» según la etapa', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));
