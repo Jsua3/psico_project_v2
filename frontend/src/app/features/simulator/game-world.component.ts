@@ -39,7 +39,17 @@ import { resolveSceneRenderer } from './scene-renderer.registry';
 import { caseRoomCollisions } from './case-pdf-rooms.geometry';
 import { SceneRenderMetadata } from './scene-layer.types';
 import { resolveRoomPlayerPosition } from './room-player-position.util';
-import { nearbyInteractionChannel } from './interaction-priority.util';
+import {
+  LABEL_BASE_FONT_PX,
+  LABEL_MAX_SCREEN_WIDTH_PX,
+  MARKER_INTERACT_RADIUS,
+  NPC_INTERACT_RADIUS,
+  NearbyCandidate,
+  NearbyPick,
+  labelScaleFor,
+  pickNearby,
+  selectRevealed,
+} from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import {
   NUDGE_SUBSTEPS,
@@ -98,7 +108,12 @@ import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-ca
 
 interface WorldCallbacks {
   onReady:       () => void;
+  /** Candidato PRINCIPAL en rango (un NPC va como MapObjectState sintético con key `npc:{clave}`); null si no hay. */
   onProximity:   (obj: MapObjectState | null) => void;
+  /** Candidato secundario (otra persona u objeto también en rango); null si no hay. */
+  onProximityAlso: (obj: MapObjectState | null) => void;
+  /** Se pidió interactuar (E o «Interactuar») y no hay nada al alcance. */
+  onNothingNearby: () => void;
   onInteract:    (obj: MapObjectState) => void;
   onPosition:    (x: number, y: number) => void;
   /** Posición de cada cuadro con movimiento, sin limitar; se llama fuera de Angular. */
@@ -147,6 +162,22 @@ const TOOL_SPRITE_SCALE = 0.62;
 const DOOR_SPRITE_SCALE = 1.45;
 /** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
 const DOOR_SPRITE_FEET_Y = 16;
+
+/** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
+const NPC_KEY_PREFIX = 'npc:';
+const NO_KEYS: ReadonlySet<string> = new Set<string>();
+/** Transparencia de los objetos de decisión de otras etapas (F§7.2): se ven, pero no llaman la atención. */
+const DIMMED_ALPHA = 0.55;
+/** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
+const RING_COLOR = 0xcdbcff;
+const RING_HALO_COLOR = 0x0b0f1a;
+
+/** Mismas claves en el mismo orden (listas de a lo sumo cuatro): decide si hay que repintar. */
+function sameKeys(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 
 export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -203,8 +234,31 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private guideBubbleHeight = 0;
   private guideBubbleHalfW = 0;
   private world?: SimulationWorldState;
+  /** Clave del candidato PRINCIPAL en rango: la de un marcador o `npc:{clave}`. */
   private nearestKey: string | null = null;
+  /** Clave del candidato secundario (otro en rango), o null. */
+  private alsoKey: string | null = null;
   private selectedKey: string | null = null;
+  /** Siguiente destino del proceso (lo fija Angular): el anillo y el rótulo fijo van ahí. */
+  private nextTargetKey: string | null = null;
+  private doorStates: Readonly<Record<string, 'open' | 'locked'>> = {};
+  /** Objetos de decisión de otras etapas: se atenúan y no llevan anillo. */
+  private dimmedKeys: ReadonlySet<string> = NO_KEYS;
+  /** Puntero táctil o modo compacto: en los rótulos solo el destino y el más cercano. */
+  private compactLabels = false;
+  private targetRing?: { halo: Phaser.GameObjects.Ellipse; ring: Phaser.GameObjects.Ellipse };
+  /** Escala de los rótulos para medir ≥ 12 px de pantalla; se recalcula al cambiar el tamaño del canvas. */
+  private labelScale = 1;
+  /** Ancho de ajuste de línea de los rótulos de objetos (coordenadas locales del texto). */
+  private labelWrap = 140;
+  /** Lista de trabajo de la proximidad y sus piezas: se reutilizan, nada se asigna por cuadro. */
+  private readonly candidates: NearbyCandidate[] = [];
+  private readonly candidatePool: NearbyCandidate[] = [];
+  private readonly pick: NearbyPick = { primary: null, secondary: null };
+  /** Rótulos visibles ahora y su arreglo de trabajo: solo se repinta cuando el conjunto cambia. */
+  private revealed: string[] = [];
+  private revealScratch: string[] = [];
+  private readonly npcKeys = new Map<string, string>();
   private ready = false;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
@@ -226,6 +280,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private interactionCooldown = 0;
   /** Pulsación de interactuar que espera a que termine el enfriamiento. */
   private interactPending = false;
+  /** `down` recibido de E, Espacio y Enter desde el último cuadro (ver `create()`). */
+  private readonly tappedKeys = { e: false, space: false, enter: false };
   private readonly INTERACTION_COOLDOWN_MS = 260;
   /** Flecha táctil apretada (null si no hay ninguna) y desde cuándo (reloj de la escena). */
   private heldDirection: PlayerDirection | null = null;
@@ -382,6 +438,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.input.keyboard?.disableGlobalCapture();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
+    // Un toque corto (keydown y keyup en el mismo cuadro, habitual con pocos fps) deja `JustDown` en falso
+    // y la pulsación se perdía junto a una persona (T0.2): el evento `down` de la tecla sí llega siempre.
+    this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
+    this.keys['SPACE']?.on('down', () => { this.tappedKeys.space = true; });
+    this.keys['ENTER']?.on('down', () => { this.tappedKeys.enter = true; });
+    // Los rótulos miden ≥ 12 px de pantalla: se reescalan cuando el canvas cambia de tamaño.
+    this.scale.on('resize', this.onScaleResize, this);
+    this.onScaleResize();
     this.createAnimations();
     // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
     // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
@@ -433,7 +497,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number) {
-    if (!this.player || !this.cursors || !this.keys || !this.world) return;
+    if (!this.player || !this.cursors || !this.keys || !this.world) {
+      this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
+      return;
+    }
     // Sin captura de Phaser, las teclas también llegan mientras se escribe en la bitácora o se
     // activa un botón. El foco se lee una vez por cuadro y decide qué teclas cuentan.
     const focus = document.activeElement;
@@ -488,16 +555,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
       enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
     });
+    // El toque corto cuenta igual que `JustDown` (mismas reglas de foco) y se consume en este cuadro.
+    const tapped = resolveInteractPress(focus, this.tappedKeys);
+    this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
     // Una pulsación durante el enfriamiento espera a que termine (como cuando JustDown
     // quedaba sin leer); al escribir, cualquier pulsación pendiente se descarta.
-    this.interactPending = !typing && (this.interactPending || pressed);
+    this.interactPending = !typing && (this.interactPending || pressed || tapped);
     if (this.interactPending && this.interactionCooldown <= 0) {
       this.interactPending = false;
       this.interactionCooldown = this.INTERACTION_COOLDOWN_MS;
       this.interactNearest();
     }
     this.updateNearestInteraction();
-    this.updateNpcHints();
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
     this.updateGuide(delta);
@@ -530,7 +599,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     this.world = world;
     this.nearestKey = null;
+    this.alsoKey = null;
     this.callbacks.onProximity(null);
+    this.callbacks.onProximityAlso(null);
     if (this.ready) this.renderWorld();
   }
 
@@ -768,14 +839,48 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return this.player ? { x: Math.round(this.player.x), y: Math.round(this.player.y) } : null;
   }
 
+  /**
+   * Actúa sobre el candidato principal, despachando por su clave: una persona (`npc:{clave}`) abre su
+   * conversación y un marcador sigue el camino de siempre. Sin nada al alcance avisa una sola vez, sin
+   * sonido de error (F-14): quien escucha decide cómo decirlo.
+   */
   interactNearest() {
-    const channel = nearbyInteractionChannel(this.nearestKey, this.isAnyNpcInRange());
-    if (channel === 'marker') {
-      const obj = this.markerData.get(this.nearestKey!);
-      if (obj) this.callbacks.onInteract(obj);
-      return;
+    const key = this.nearestKey;
+    if (key !== null) {
+      if (key.startsWith(NPC_KEY_PREFIX)) {
+        const npc = this.npcConfigFor(key);
+        if (npc) { this.callbacks.onNpcInteract(npc); return; }
+      } else {
+        const obj = this.proximityObjectFor(key);
+        if (obj) { this.callbacks.onInteract(obj); return; }
+      }
     }
-    if (channel === 'npc') this.interactNearestNpc();
+    this.callbacks.onNothingNearby();
+  }
+
+  /** Siguiente destino, puertas y objetos atenuados (los fija Angular); repinta solo lo que cambió. */
+  setOrientation(next: {
+    nextTargetKey: string | null;
+    doorStates: Readonly<Record<string, 'open' | 'locked'>>;
+    dimmedKeys: ReadonlySet<string>;
+  }): void {
+    const targetChanged = next.nextTargetKey !== this.nextTargetKey;
+    const dimmedChanged = next.dimmedKeys !== this.dimmedKeys;
+    const doorsChanged = next.doorStates !== this.doorStates;
+    this.nextTargetKey = next.nextTargetKey;
+    this.doorStates = next.doorStates;
+    this.dimmedKeys = next.dimmedKeys;
+    if (!this.ready || !this.world) return;
+    if (doorsChanged) this.applyDoorStates();
+    if (targetChanged || dimmedChanged) this.syncTargetRing();
+    // El conjunto de rótulos puede cambiar sin que el jugador se mueva (nuevo destino u objeto atenuado).
+    this.updateNearestInteraction(true);
+    this.refreshMarkerStates();
+  }
+
+  /** Puntero táctil o ventana compacta: rótulos mínimos (destino y el más cercano). */
+  setCompactLabels(compact: boolean): void {
+    this.compactLabels = compact || this.touchPointer();
   }
 
   focus(key: string) {
@@ -869,6 +974,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMovers.clear();
     this.livingActors.clear();
     this.tiledExits.clear();
+    this.resetOrientationVisuals();
     this.wallsLayer = undefined;
     this.authoredRoomActive = false;
     this.currentRoomKey = '';
@@ -1034,6 +1140,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMovers.clear();
     this.livingActors.clear();
     this.tiledExits.clear();
+    this.resetOrientationVisuals();
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
     this.cameras.main.setBackgroundColor('#0e141a');
@@ -1440,12 +1547,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
         const headY = spriteOffsetY - Math.round((AVATAR_FRAME_HEIGHT / 2) * scale);
         const label = this.add.text(0, headY - 4, npc.displayName, {
-          fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8f0f4',
+          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
           backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
         }).setOrigin(0.5, 1).setAlpha(0);
-        const hint = this.add.text(0, headY - 18, '▲ E', {
-          fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
+        const hint = this.add.text(0, headY - 18, this.npcHintGlyph(), {
+          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
+          fontStyle: 'bold', align: 'center',
         }).setOrigin(0.5, 1).setAlpha(0);
+        this.layoutNpcLabel(label, hint);
 
         const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, npcSprite, label, hint]);
         this.setFeetOffset(container, 0);   // pies = origen del contenedor
@@ -1482,15 +1591,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
 
       // Nombre oculto hasta estar en rango: la escena no debe leerse como un
-      // diagrama etiquetado (updateNpcHints lo muestra junto al hint E).
+      // diagrama etiquetado (`refreshMarkerStates` lo muestra junto a la pista cuando toca).
       const label = this.add.text(0, -28, npc.displayName, {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8f0f4',
+        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
       }).setOrigin(0.5, 1).setAlpha(0);
 
-      const hint = this.add.text(0, -42, '▲ E', {
-        fontFamily: 'Arial, sans-serif', fontSize: '8px', color: '#4fa3a5', align: 'center',
+      const hint = this.add.text(0, -42, this.npcHintGlyph(), {
+        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
+        fontStyle: 'bold', align: 'center',
       }).setOrigin(0.5, 1).setAlpha(0);
+      this.layoutNpcLabel(label, hint);
 
       const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, sprite, label, hint]);
       this.setFeetOffset(container, shY);   // la sombra marca los pies del NPC
@@ -1504,42 +1615,51 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
-  private readonly NPC_INTERACT_RANGE = 60;
-
-  private updateNpcHints() {
-    if (!this.player) return;
-    for (const container of this.npcMarkers.values()) {
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      const near = dist <= this.NPC_INTERACT_RANGE;
-      const hint = (container as unknown as Record<string, unknown>)['__hintSprite'] as Phaser.GameObjects.Text;
-      const label = (container as unknown as Record<string, unknown>)['__labelSprite'] as Phaser.GameObjects.Text;
-      if (hint) hint.setAlpha(near ? 1 : 0);
-      if (label) label.setAlpha(near ? 1 : 0);
-    }
-  }
-
-  /** true si algún NPC está a distancia de diálogo del jugador. */
+  /** true si alguna persona está a distancia de diálogo del jugador. */
   private isAnyNpcInRange(): boolean {
     if (!this.player) return false;
     for (const container of this.npcMarkers.values()) {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (d <= this.NPC_INTERACT_RANGE) return true;
+      if (d <= NPC_INTERACT_RADIUS) return true;
     }
     return false;
   }
 
-  private interactNearestNpc() {
-    if (!this.player) return;
-    let closestDist = this.NPC_INTERACT_RANGE;
-    let closestNpc: NpcConfig | null = null;
-    for (const container of this.npcMarkers.values()) {
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestNpc = (container as unknown as Record<string, unknown>)['__npcConfig'] as NpcConfig;
-      }
+  /** Clave de proximidad de una persona (`npc:{clave}`), creada una vez para no concatenar por cuadro. */
+  private npcKeyOf(key: string): string {
+    let candidateKey = this.npcKeys.get(key);
+    if (candidateKey === undefined) {
+      candidateKey = NPC_KEY_PREFIX + key;
+      this.npcKeys.set(key, candidateKey);
     }
-    if (closestNpc) this.callbacks.onNpcInteract(closestNpc);
+    return candidateKey;
+  }
+
+  private npcConfigFor(candidateKey: string): NpcConfig | null {
+    const container = this.npcMarkers.get(candidateKey.slice(NPC_KEY_PREFIX.length));
+    if (!container) return null;
+    return ((container as unknown as Record<string, unknown>)['__npcConfig'] as NpcConfig | undefined) ?? null;
+  }
+
+  /** Pista sobre una persona a su alcance: sin la letra E donde no hay teclado. */
+  private npcHintGlyph(): string {
+    return this.touchPointer() ? '▲' : '▲ E';
+  }
+
+  /** Puntero táctil (sin teclado): evita atajos de teclado en los textos del mundo. */
+  private touchPointer(): boolean {
+    try {
+      return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Escala el rótulo y la pista de una persona y apila la pista justo encima del nombre. */
+  private layoutNpcLabel(label: Phaser.GameObjects.Text, hint: Phaser.GameObjects.Text): void {
+    label.setScale(this.labelScale);
+    hint.setScale(this.labelScale);
+    hint.setY(label.y - label.displayHeight - 2);
   }
 
   /**
@@ -2001,9 +2121,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // aparece para la interacción cercana o seleccionada (refreshMarkerStates).
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     const label  = this.add.text(0, 28, displayLabel, {
-      fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: 140 }
-    }).setOrigin(.5, 0).setAlpha(0);
+      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
+    }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale);
 
     let main: Phaser.GameObjects.GameObject;
 
@@ -2077,14 +2197,111 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyAmbientLife(marker, object);
 
     if (isExit) {
-      const hintBg = this.add.rectangle(0, 0, 88, 22, 0x0e141a, .88).setStrokeStyle(1, 0x4fa3a5, .5);
-      const hintTx = this.add.text(0, 0, `E  ${object.label} →`, {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#4fa3a5', fontStyle: 'bold'
+      const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
+        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
+      // Ancho a la medida del texto + relleno + hueco del candado (a la izquierda, solo si está bloqueada).
+      const hintWidth = Math.ceil(hintTx.width) + 38;
+      const hintBg = this.add.rectangle(0, 0, hintWidth, 22, 0x0e141a, .88).setStrokeStyle(1, 0x4fa3a5, .5);
+      const lock = this.buildDoorLock(hintWidth, hintTx.width);
       // A -90 para librar la puerta a escala real (93 px de alto, base en y+16).
-      const hint = this.add.container(object.x, object.y - 90, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
+      const hint = this.add.container(object.x, object.y - 90, [hintBg, lock, hintTx])
+        .setDepth(DEPTH.UI).setVisible(false).setScale(this.labelScale);
+      const bag = hint as unknown as Record<string, unknown>;
+      bag['__doorBg'] = hintBg;
+      bag['__doorLock'] = lock;
       this.doorHints.set(object.key, hint);
     }
+  }
+
+  /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado. */
+  private doorHintText(label: string): string {
+    return this.touchPointer() ? `${label} →` : `E  ${label} →`;
+  }
+
+  /**
+   * Candado y borde discontinuo de una puerta bloqueada: la forma lo dice, no solo el color (WCAG 1.4.1).
+   * Se dibuja una vez, oculto; `applyDoorStates` lo enciende cuando la puerta está bloqueada.
+   */
+  private buildDoorLock(width: number, textWidth: number): Phaser.GameObjects.Graphics {
+    const g = this.add.graphics().setVisible(false);
+    const left = -width / 2, right = width / 2, top = -11, bottom = 11;
+    g.lineStyle(1, 0xe8f0f4, 0.9);
+    const dashed = (x1: number, y1: number, x2: number, y2: number) => {
+      const length = Math.hypot(x2 - x1, y2 - y1);
+      const dx = (x2 - x1) / length, dy = (y2 - y1) / length;
+      for (let at = 0; at < length; at += 7) {
+        const end = Math.min(at + 4, length);
+        g.lineBetween(x1 + dx * at, y1 + dy * at, x1 + dx * end, y1 + dy * end);
+      }
+    };
+    dashed(left, top, right, top);
+    dashed(left, bottom, right, bottom);
+    dashed(left, top, left, bottom);
+    dashed(right, top, right, bottom);
+    // Candado: cuerpo y arco, a la izquierda del texto.
+    const cx = -textWidth / 2 - 13;
+    g.fillStyle(0xe8f0f4, 1).fillRect(cx - 4, -1, 8, 6);
+    g.lineStyle(1.5, 0xe8f0f4, 1);
+    g.beginPath();
+    g.arc(cx, -1, 3, Math.PI, 0, false);
+    g.strokePath();
+    return g;
+  }
+
+  /** Muestra u oculta el candado y el borde discontinuo según `doorStates`. */
+  private applyDoorStates(): void {
+    this.doorHints.forEach((hint, key) => {
+      const bag = hint as unknown as Record<string, unknown>;
+      const locked = this.doorStates[key] === 'locked';
+      (bag['__doorLock'] as Phaser.GameObjects.Graphics | undefined)?.setVisible(locked);
+      (bag['__doorBg'] as Phaser.GameObjects.Rectangle | undefined)?.setStrokeStyle(1, 0x4fa3a5, locked ? 0 : 0.5);
+    });
+  }
+
+  /** Dónde pisa un candidato (para el anillo): los pies de la persona o el contacto del marcador con el piso. */
+  private feetOf(key: string): { x: number; y: number } | null {
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const npc = this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length));
+      return npc ? { x: npc.x, y: npc.y } : null;
+    }
+    // Posición de reposo del marcador (la del dato, no la del icono que flota): el anillo es estático.
+    const obj = this.markerData.get(key);
+    return obj && this.markers.has(key) ? { x: obj.x, y: obj.y + 16 } : null;
+  }
+
+  /**
+   * Anillo estático bajo el siguiente destino: creado una vez por sala y reposicionado al cambiar la clave.
+   * Sin animación (tampoco con movimiento normal): no hay tween ni trabajo por cuadro. Va bajo los
+   * actores (profundidad de entorno), con halo oscuro para que se lea sobre cualquier piso.
+   */
+  private syncTargetRing(): void {
+    const key = this.nextTargetKey;
+    const feet = key !== null && !this.dimmedKeys.has(key) ? this.feetOf(key) : null;
+    if (!feet) {
+      this.targetRing?.halo.setVisible(false);
+      this.targetRing?.ring.setVisible(false);
+      return;
+    }
+    if (!this.targetRing || !this.targetRing.ring.scene) {
+      const depth = DEPTH.ENVIRONMENT + 0.5;
+      const halo = this.add.ellipse(0, 0, 70, 26).setStrokeStyle(4, RING_HALO_COLOR, 0.85).setDepth(depth);
+      const ring = this.add.ellipse(0, 0, 68, 24).setStrokeStyle(2, RING_COLOR, 0.9).setDepth(depth + 0.01);
+      this.targetRing = { halo, ring };
+    }
+    const { halo, ring } = this.targetRing;
+    if (ring.x !== feet.x || ring.y !== feet.y) {
+      halo.setPosition(feet.x, feet.y);
+      ring.setPosition(feet.x, feet.y);
+    }
+    halo.setVisible(true);
+    ring.setVisible(true);
+  }
+
+  /** Reinicia lo que `children.removeAll` destruye al reconstruir la sala. */
+  private resetOrientationVisuals(): void {
+    this.targetRing = undefined;
+    this.revealed.length = 0;
   }
 
   private isInteractive(o: MapObjectState): boolean {
@@ -2289,60 +2506,159 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return zones.some(z => rectsIntersect(hb, z));
   }
 
+  /** Pieza de la lista de trabajo de candidatos (se crea una sola vez y se reutiliza). */
+  private candidateAt(index: number): NearbyCandidate {
+    return this.candidatePool[index] ??= { key: '', kind: 'marker', exit: false, distance: 0, radius: 0 };
+  }
+
+  /**
+   * Proximidad por cuadro: marcadores y personas en UNA lista (radios 74 y 72), `pickNearby` elige el
+   * principal y el secundario, y `selectRevealed` los rótulos. Reutiliza listas y piezas: no asigna
+   * nada. Solo cuando cambia el principal, el secundario o el conjunto de rótulos avisa a Angular y
+   * repinta (`refreshMarkerStates`); el anillo y los atenuados no cuestan nada por cuadro.
+   */
   private updateNearestInteraction(suppressSound = false) {
-    if (!this.player || !this.world) return;
-
+    const player = this.player;
+    if (!player || !this.world) return;
+    const px = player.x, py = player.y;
     const mapKey = this.world.map.key;
-    const objects = (isHospitalMap(mapKey) || isComisariaMap(mapKey))
-      ? applySceneDisplayLabels(this.renderableWorldObjects(), mapKey)
-      : this.renderableWorldObjects();
+    const list = this.candidates;
+    list.length = 0;
+    let anyInRange = false;
+    let targetX = 0, targetY = 0, targetSeen = false;
+    // Un objeto atenuado nunca es el destino: ni anillo ni rótulo fijo (lo atenuado no llama la atención).
+    const target = this.nextTargetKey !== null && !this.dimmedKeys.has(this.nextTargetKey) ? this.nextTargetKey : null;
 
-    let nearest: MapObjectState | null = null;
-    let nearestD = Infinity;
-    for (const obj of objects) {
-      const marker = this.markers.get(obj.key);
-      if (!marker && obj.type === 'TOOL') continue;
-      const ox = marker?.x ?? obj.x;
-      const oy = marker?.y ?? obj.y;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, ox, oy);
-      if (d < nearestD) { nearest = { ...obj, x: ox, y: oy }; nearestD = d; }
+    for (const [key, marker] of this.markers) {
+      const obj = this.markerData.get(key);
+      if (!obj) continue;
+      const c = this.candidateAt(list.length);
+      c.key = key; c.kind = 'marker'; c.exit = obj.type === 'EXIT';
+      c.distance = Math.hypot(px - marker.x, py - marker.y); c.radius = MARKER_INTERACT_RADIUS;
+      if (c.distance <= c.radius) anyInRange = true;
+      list.push(c);
     }
-
-    // Las zonas ambientales son sabor de último recurso: un NPC en rango de
-    // diálogo SIEMPRE gana (si no, la zona se roba la E junto a la enfermera).
-    const ambientZones = getSceneAmbientZones(mapKey);
-    if (ambientZones.length && !this.isAnyNpcInRange() && (!nearest || nearestD > 74)) {
-      for (const zone of ambientZones) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.x, zone.y);
-        if (d <= zone.radius && d < nearestD) {
-          nearest = buildSceneAmbientObject(zone, mapKey);
-          nearestD = d;
-        }
+    for (const [key, container] of this.npcMarkers) {
+      const c = this.candidateAt(list.length);
+      c.key = this.npcKeyOf(key); c.kind = 'npc'; c.exit = false;
+      c.distance = Math.hypot(px - container.x, py - container.y); c.radius = NPC_INTERACT_RADIUS;
+      if (c.distance <= c.radius) anyInRange = true;
+      if (c.key === target) { targetSeen = true; targetX = container.x; targetY = container.y; }
+      list.push(c);
+    }
+    // Las zonas ambientales son sabor de último recurso: solo cuentan si nada más está a su alcance.
+    if (!anyInRange) {
+      for (const zone of getSceneAmbientZones(mapKey)) {
+        const c = this.candidateAt(list.length);
+        c.key = zone.key; c.kind = 'marker'; c.exit = false;
+        c.distance = Math.hypot(px - zone.x, py - zone.y); c.radius = zone.radius;
+        list.push(c);
       }
     }
 
-    const nextKey = nearest && nearestD <= 74 ? nearest.key : null;
-    if (nextKey !== this.nearestKey) {
-      this.nearestKey = nextKey;
-      this.callbacks.onProximity(nextKey ? nearest : null);
-      this.refreshMarkerStates();
-      // Play blip only when *entering* range (nextKey goes null → key), not on every frame.
-      // suppressSound=true on spawn/world-switch to avoid a false-positive blip on load.
-      if (nextKey && !this.callbacks.reduceMotion && !this.callbacks.sfxMuted && !suppressSound) {
-        this.sound.play('proximity-blip', { volume: 0.45 });
-      }
+    const picked = pickNearby(list, this.nearestKey, this.pick);
+    const primaryKey = picked.primary?.key ?? null;
+    const alsoKey = picked.secondary?.key ?? null;
+    selectRevealed(list, target, primaryKey, this.dimmedKeys, this.compactLabels ? 1 : 2, this.revealScratch);
+    const revealChanged = !sameKeys(this.revealScratch, this.revealed);
+    if (revealChanged) {
+      const swap = this.revealed;
+      this.revealed = this.revealScratch;
+      this.revealScratch = swap;
+    }
+    // Un destino que se mueve (una persona que deambula) arrastra su anillo; el de un marcador queda
+    // quieto en su sitio (la flotación suave del icono no lo mueve).
+    const ring = this.targetRing?.ring;
+    if (targetSeen && ring && (ring.x !== targetX || ring.y !== targetY)) {
+      this.targetRing!.halo.setPosition(targetX, targetY);
+      ring.setPosition(targetX, targetY);
+    }
+
+    const primaryChanged = primaryKey !== this.nearestKey;
+    if (primaryChanged) {
+      this.nearestKey = primaryKey;
+      this.callbacks.onProximity(primaryKey ? this.proximityObjectFor(primaryKey) : null);
+    }
+    const alsoChanged = alsoKey !== this.alsoKey;
+    if (alsoChanged) {
+      this.alsoKey = alsoKey;
+      this.callbacks.onProximityAlso(alsoKey ? this.proximityObjectFor(alsoKey) : null);
+    }
+    if (primaryChanged || alsoChanged || revealChanged) this.refreshMarkerStates();
+    // Play blip only when *entering* range (the primary changes to a key), not on every frame.
+    // suppressSound=true on spawn/world-switch to avoid a false-positive blip on load.
+    if (primaryChanged && primaryKey && !this.callbacks.reduceMotion && !this.callbacks.sfxMuted && !suppressSound) {
+      this.sound.play('proximity-blip', { volume: 0.45 });
     }
   }
 
+  /**
+   * Lo que se le entrega a Angular de un candidato: el marcador con su nombre de pantalla y su posición
+   * viva, la zona ambiental, o una persona como `MapObjectState` sintético (`npc:{clave}`, tipo PERSON,
+   * sin texto sembrado: el texto del botón lo pone quien lo muestra).
+   */
+  private proximityObjectFor(key: string): MapObjectState | null {
+    const mapKey = this.world?.map.key ?? '';
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const container = this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length));
+      const npc = this.npcConfigFor(key);
+      if (!container || !npc) return null;
+      return {
+        key, label: npc.displayName, type: 'PERSON', x: container.x, y: container.y,
+        width: 0, height: 0, color: '#4fa3a5', icon: 'person', shortCode: '', collision: false,
+        interactionPrompt: '', interactionText: '', decisionOptionId: null, toolCode: null, dialogue: null,
+      };
+    }
+    const obj = this.markerData.get(key);
+    const marker = this.markers.get(key);
+    if (obj && marker) {
+      return { ...obj, label: getSceneDisplayLabel(obj, mapKey), x: marker.x, y: marker.y };
+    }
+    const zone = getSceneAmbientZones(mapKey).find(z => z.key === key);
+    return zone ? buildSceneAmbientObject(zone, mapKey) : null;
+  }
+
+  /**
+   * Pinta el estado de los marcadores y personas. Solo se llama cuando algo cambió (principal,
+   * secundario, conjunto de rótulos, selección, atenuados, destino), nunca por cuadro.
+   */
   private refreshMarkerStates() {
+    const revealed = this.revealed;
+    this.syncTargetRing();
+    this.applyDoorStates();
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       m.setScale(sel ? 1.12 : near ? 1.08 : 1);
-      m.setAlpha(sel || near ? 1 : .88);
+      m.setAlpha(sel || near ? 1 : this.dimmedKeys.has(key) ? DIMMED_ALPHA : .88);
       const label = this.markerLabels.get(key);
-      if (label) label.setAlpha(sel || near ? 1 : 0);
+      if (label) label.setAlpha(sel || near || revealed.includes(key) ? 1 : 0);
     });
-    this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey));
+    this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey || revealed.includes(key)));
+    this.npcMarkers.forEach((container, key) => {
+      const candidateKey = this.npcKeyOf(key);
+      const bag = container as unknown as Record<string, unknown>;
+      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setAlpha(revealed.includes(candidateKey) ? 1 : 0);
+      const inRange = candidateKey === this.nearestKey || candidateKey === this.alsoKey;
+      (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setAlpha(inRange ? 1 : 0);
+    });
+  }
+
+  /** El canvas cambió de tamaño: los rótulos se reescalan para seguir midiendo ≥ 12 px de pantalla. */
+  private onScaleResize(): void {
+    const zoom = this.cameras?.main?.zoom ?? 1;
+    const next = labelScaleFor(this.scale.displayScale.x, zoom);
+    if (Math.abs(next - this.labelScale) < 0.01) return;
+    this.labelScale = next;
+    // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
+    this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * this.scale.displayScale.x) / (zoom * next));
+    this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
+    this.doorHints.forEach(hint => hint.setScale(next));
+    this.npcMarkers.forEach(container => {
+      const bag = container as unknown as Record<string, unknown>;
+      const label = bag['__labelSprite'] as Phaser.GameObjects.Text | undefined;
+      const hint = bag['__hintSprite'] as Phaser.GameObjects.Text | undefined;
+      if (label && hint) this.layoutNpcLabel(label, hint);
+    });
   }
 
   private borderFor(theme: string): number {
@@ -2505,7 +2821,20 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly reduceMotion = input<boolean | null>(null);
   /** stressIndex del intento (0-100): mueve la viñeta de crisis. */
   readonly stressLevel = input(0);
+  /** Siguiente destino del proceso (clave de objeto o `npc:{clave}`): lleva el anillo y el rótulo fijo. */
+  readonly nextTargetKey = input<string | null>(null);
+  /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
+  readonly doorStates = input<Record<string, 'open' | 'locked'>>({});
+  /** Objetos de decisión de otras etapas: se atenúan, sin anillo y con rótulo solo muy cerca. */
+  readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
+  /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */
+  readonly compact = input(false);
+  /** Candidato PRINCIPAL en rango; un NPC llega como `MapObjectState` sintético con key `npc:{clave}`. */
   readonly proximity = output<MapObjectState | null>();
+  /** Candidato secundario en rango (otra persona u objeto), o null. */
+  readonly proximityAlso = output<MapObjectState | null>();
+  /** Se pidió interactuar (E o «Interactuar») y no hay nada al alcance. */
+  readonly nothingNearby = output<void>();
   readonly interact = output<MapObjectState>();
   readonly positionChange = output<{ x: number; y: number }>();
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
@@ -2554,6 +2883,29 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
     if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
     if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
+    if (changes['compact']) this.scene?.setCompactLabels(this.compact());
+    if (changes['nextTargetKey'] || changes['doorStates'] || changes['dimmedKeys']) this.pushOrientation();
+  }
+
+  /** Lleva a la escena el destino, el estado de las puertas y los atenuados. */
+  private pushOrientation(): void {
+    this.scene?.setOrientation({
+      nextTargetKey: this.nextTargetKey(),
+      doorStates: this.doorStates(),
+      dimmedKeys: this.dimmedKeys(),
+    });
+  }
+
+  /**
+   * Vuelve a medir el contenedor y reencaja el canvas. Phaser no lo hace solo cuando el contenedor
+   * cambia de tamaño sin que cambie la ventana (panel lateral que se abre y se cierra, pie que crece):
+   * `refresh()` usa el tamaño en caché del contenedor, así que antes hay que leerlo (T0.3).
+   */
+  refreshScale(): void {
+    const scale = this.phaserGame?.scale;
+    if (!scale) return;
+    scale.getParentBounds();
+    scale.refresh();
   }
 
   ngOnDestroy() {
@@ -2645,6 +2997,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.renderReady.set(true);
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
+        onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),
+        onNothingNearby: () => this.zone.run(() => this.nothingNearby.emit()),
         onInteract:    i => this.zone.run(() => this.interact.emit(i)),
         onPosition:    (x, y) => this.zone.run(() => this.positionChange.emit({ x, y })),
         onPositionFrame: (x, y) => this.writePlayerPosition({ x, y }),
@@ -2679,9 +3033,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.detachScrollKeyGuard?.();
       this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
       // Scale.FIT solo escucha resize de window; el contenedor también cambia
-      // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet).
+      // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet). `refreshScale`
+      // lee el contenedor antes de reencajar: sin eso el canvas se quedaba pequeño para siempre.
       if (typeof ResizeObserver !== 'undefined') {
-        this.hostResizeObserver = new ResizeObserver(() => this.phaserGame?.scale.refresh());
+        this.hostResizeObserver = new ResizeObserver(() => this.refreshScale());
         this.hostResizeObserver.observe(this.gameHost!.nativeElement);
       }
     });
@@ -2692,6 +3047,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene?.setMotionPaused(this.motionPaused());
       this.scene?.setSfxMuted(this.sfxMuted());
       this.scene?.setReduceMotion(this.effectiveReduceMotion());
+      this.scene?.setCompactLabels(this.compact());
+      this.pushOrientation();
     }, 0);
   }
 
