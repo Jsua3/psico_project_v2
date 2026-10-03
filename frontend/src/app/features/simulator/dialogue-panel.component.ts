@@ -181,7 +181,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       gap: 4px;
       padding: 6px 12px;
       border-bottom: 1px solid rgba(182,156,255,.18);
-      background: rgba(8,12,18,.97);
+      background: #080c12;
     }
     .panel-head__row {
       display: flex;
@@ -481,7 +481,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       overflow-y: auto;
     }
     .dialogue-strip--side .strip-main { flex-direction: column; align-items: stretch; flex: 0 0 auto; }
-    .dialogue-strip--side .panel-head { background: rgba(18,24,42,.97); }
+    .dialogue-strip--side .panel-head { background: #121a2b; }
     .dialogue-strip--side .portrait {
       flex-direction: row;
       width: 100%;

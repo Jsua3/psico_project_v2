@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { DialogueState } from '../../core/models/simulation.model';
+import { blend, contrastRatio } from '../../../styles/contrast.util';
 import { AudioDirectorService } from './audio-director.service';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import {
@@ -937,6 +938,48 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
     // Ya no se ancla al fondo en cada ciclo de detección.
     expect(source).not.toMatch(/el\.scrollTop = el\.scrollHeight;\s*\}\s*\}\s*ngOnDestroy/);
+  });
+});
+
+describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)', () => {
+  // Peores fondos: panel lateral (vidrio oscuro del HUD) y franja cinemática sobre un píxel blanco del mapa.
+  const SIDE_BG = '#181F31';
+  const CINEMATIC_BG = blend('#080C12', 0.95, '#FFFFFF');
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return source.match(new RegExp(`${escaped} \\{([^}]*)\\}`))?.[1] ?? '';
+  };
+  const hexOf = (body: string, property: string): string => body.match(new RegExp(`${property}: (#[0-9A-Fa-f]{6})`))?.[1] ?? '';
+
+  it('el aviso de evidencia, el chip de herramienta ausente y el chip «Decisión clínica» llegan a 4,5:1', () => {
+    const notice = hexOf(rule('.choices-notice'), 'color');
+    expect(contrastRatio(notice, blend('#F5B84B', 0.10, SIDE_BG))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(notice, blend('#F5B84B', 0.10, CINEMATIC_BG))).toBeGreaterThanOrEqual(4.5);
+    const hint = hexOf(rule('.choice-btn__hint'), 'color');
+    expect(contrastRatio(hint, blend('#FFFFFF', 0.06, SIDE_BG))).toBeGreaterThanOrEqual(4.5);
+    const chip = hexOf(rule('.panel-chip'), 'color');
+    expect(contrastRatio(chip, blend('#7C4DFF', 0.16, '#121A2B'))).toBeGreaterThanOrEqual(4.5);
+    const subtitle = hexOf(rule('.choices-subtitle'), 'color');
+    expect(contrastRatio(subtitle, SIDE_BG)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('el texto de «Volver al mapa» y la cabecera sólida llegan a 4,5:1', () => {
+    const text = hexOf(rule('.panel-back'), 'color');
+    expect(contrastRatio(text, blend('#7C4DFF', 0.12, '#121A2B'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(text, blend('#7C4DFF', 0.12, '#080C12'))).toBeGreaterThanOrEqual(4.5);
+    // La cabecera es opaca: nada de lo que se desplaza se transparenta debajo de los botones.
+    expect(rule('.panel-head')).toMatch(/background: #[0-9A-Fa-f]{6};/);
+    expect(source).toMatch(/\.dialogue-strip--side \.panel-head \{ background: #[0-9A-Fa-f]{6}; \}/);
+  });
+
+  it('la pista de teclado, la nota de cabecera y la línea de otro momento (texto claro con alfa) llegan a 4,5:1', () => {
+    for (const [selector, surface] of [['.keyboard-hint', SIDE_BG], ['.panel-head__note', '#121A2B'], ['.stale-note', SIDE_BG]] as const) {
+      const alpha = Number(rule(selector).match(/color: rgba\(232,240,244,\.(\d+)\)/)?.[1]);
+      expect(alpha).toBeGreaterThan(0);
+      expect(contrastRatio(blend('#E8F0F4', Number(`0.${alpha}`), surface), surface)).toBeGreaterThanOrEqual(4.5);
+    }
+    const hintAlpha = Number(`0.${rule('.keyboard-hint').match(/rgba\(232,240,244,\.(\d+)\)/)?.[1]}`);
+    expect(contrastRatio(blend('#E8F0F4', hintAlpha, CINEMATIC_BG), CINEMATIC_BG)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
