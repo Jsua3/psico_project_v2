@@ -115,7 +115,8 @@ export function buildBundle() {
     if (pieces[key]) throw new Error(`pieza duplicada ${key}`);
     pieces[key] = compilePiece(piece);
   }
-  return { schemaVersion: 1, complexions, busts, pieces, ramps: RAMPS, literals: LITERAL_DEFAULTS, recipes: loadRecipes() };
+  const catalog = JSON.parse(readFileSync(path.join(KIT_ROOT, 'catalog.json'), 'utf8'));
+  return { schemaVersion: 1, complexions, busts, pieces, ramps: RAMPS, literals: LITERAL_DEFAULTS, recipes: loadRecipes(), catalog };
 }
 
 function sortKeys(value) {

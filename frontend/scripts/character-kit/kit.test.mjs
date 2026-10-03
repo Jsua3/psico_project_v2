@@ -220,7 +220,7 @@ test('el paquete serializado es canónico y estable', () => {
   const a = stringifyBundle(buildBundle());
   assert.equal(stringifyBundle(buildBundle()), a);
   assert.ok(a.endsWith('\n'));
-  assert.deepEqual(Object.keys(JSON.parse(a)), ['busts', 'complexions', 'literals', 'pieces', 'ramps', 'recipes', 'schemaVersion']);
+  assert.deepEqual(Object.keys(JSON.parse(a)), ['busts', 'catalog', 'complexions', 'literals', 'pieces', 'ramps', 'recipes', 'schemaVersion']);
 });
 
 test('la complexión B: misma altura y cabeza que A, hombros 25-27, perfil 1 px más profundo', () => {

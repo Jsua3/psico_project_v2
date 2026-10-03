@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "defaultRecipe": "valentina",
+  "playables": ["valentina", "andres", "camila", "daniela", "david", "felipe", "jorge", "luisa", "mariana", "mateo", "paula", "samuel"],
+  "actors": {
+    "apoyo-psicosocial": "profesional-psicosocial",
+    "enfermera-urgencias": "enfermera-urgencias",
+    "escucha-segura": "sobreviviente",
+    "familia-crisis": "abuela-familia",
+    "familia-duelo": "abuela-familia",
+    "funcionaria-recepcion": "funcionaria-recepcion",
+    "madre-acompanante": "madre-acompanante",
+    "medico-guardia": "medico-guardia",
+    "orientadora-juridica": "orientadora-juridica",
+    "profesional-psicosocial": "profesional-psicosocial",
+    "psicologa-acompanante": "psicologa-hospitalaria",
+    "psicologa-orientadora": "psicologa-hospitalaria",
+    "sobreviviente-consulta": "sobreviviente",
+    "sobreviviente-espera": "sobreviviente",
+    "trabajadora-social": "trabajadora-social"
+  },
+  "scenarioNpcs": {
+    "adolescente-nna": "adolescente",
+    "apoyo-psicosocial": "profesional-psicosocial",
+    "colega-comisaria": "enfermera-urgencias",
+    "colega-guardia": "enfermera-urgencias",
+    "defensor-familia": "supervisor-clinico",
+    "enfermera-urgencias": "enfermera-urgencias",
+    "familiar-comisaria": "madre-acompanante",
+    "madre-acompanante": "madre-acompanante",
+    "madre-familiar": "madre-acompanante",
+    "medico-guardia": "medico-guardia",
+    "orientadora-juridica": "orientadora-juridica",
+    "paciente-comisaria": "sobreviviente",
+    "psicologa-orientadora": "psicologa-hospitalaria",
+    "seguridad-entrada": "seguridad",
+    "sobreviviente-espera": "sobreviviente",
+    "supervisor-cierre": "supervisor-clinico",
+    "supervisor-comisaria": "supervisor-clinico",
+    "supervisor-informe": "supervisor-clinico",
+    "supervisor-ruta": "supervisor-clinico",
+    "trabajadora-social": "trabajadora-social"
+  },
+  "speakers": {
+    "Abuela de la niña": "abuela-familia",
+    "Consultante": "sobreviviente",
+    "Funcionaria de recepción": "funcionaria-recepcion",
+    "Profesional psicosocial": "profesional-psicosocial",
+    "Psicóloga hospitalaria": "psicologa-hospitalaria",
+    "Sobreviviente (22 años)": "sobreviviente"
+  },
+  "voices": ["Criterio profesional", "Herramienta profesional", "Marco normativo y técnico", "Protocolo clínico", "Protocolo de protección", "Supervisión clínica"],
+  "portraitKeys": {
+    "escucha-segura": "sobreviviente",
+    "sobreviviente-consulta": "sobreviviente"
+  },
+  "guides": {
+    "Apoyo psicosocial": "profesional-psicosocial",
+    "Colega de psicología": "psicologa-hospitalaria",
+    "Defensora de familia": "orientadora-juridica",
+    "Enfermera de turno": "enfermera-urgencias",
+    "Funcionario de derechos": "supervisor-clinico",
+    "Orientadora juridica": "orientadora-juridica",
+    "Psicologa hospitalaria": "psicologa-hospitalaria",
+    "Trabajadora social": "trabajadora-social"
+  },
+  "templates": {
+    "adolescente": "adolescente",
+    "hombre-adulto": "paciente-espera",
+    "mujer-adulta": "madre-acompanante",
+    "profesional": "profesional-psicosocial"
+  },
+  "extras": "paciente-espera",
+  "emotionToPortrait": {
+    "neutral": "neutral",
+    "vulnerable": "preocupada",
+    "concerned": "preocupada",
+    "danger": "triste",
+    "positive": "alegre"
+  },
+  "editor": {
+    "complexions": ["a", "b"],
+    "skins": ["piel-1", "piel-2", "piel-3", "piel-4", "piel-5", "piel-6"],
+    "hair": ["rapado", "corto-liso", "corto-rizado", "bob-flequillo", "media-melena", "largo-suelto", "cola-caballo", "mono", "trenza", "afro"],
+    "hairColors": ["negro", "castano-oscuro", "castano", "cobrizo", "rubio", "canoso"],
+    "face": "sereno",
+    "accessories": ["gafas", "gafete"],
+    "outfits": [
+      {
+        "id": "casual", "label": "Casual", "top": "chaqueta-capucha", "bottom": "jean", "shoes": "tenis",
+        "variants": [
+          { "id": "morado", "colors": { "top": "morado", "accent": "gris-claro", "inner": "blanco", "bottom": "marino", "shoes": "carbon", "sole": "gris-claro" } },
+          { "id": "azul", "colors": { "top": "azul", "accent": "gris-claro", "inner": "blanco", "bottom": "marino", "shoes": "carbon", "sole": "gris-claro" } },
+          { "id": "verde", "colors": { "top": "verde", "accent": "azul", "inner": "blanco", "bottom": "marino", "shoes": "carbon", "sole": "gris-claro" } },
+          { "id": "vinotinto", "colors": { "top": "vinotinto", "accent": "gris-claro", "inner": "blanco", "bottom": "marino", "shoes": "carbon", "sole": "gris-claro" } },
+          { "id": "gris", "colors": { "top": "gris", "accent": "azul", "inner": "blanco", "bottom": "marino", "shoes": "carbon", "sole": "gris-claro" } }
+        ]
+      },
+      {
+        "id": "formal", "label": "Formal", "top": "camisa", "bottom": "pantalon", "shoes": "zapatos",
+        "variants": [
+          { "id": "morado", "colors": { "top": "morado", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "azul", "colors": { "top": "celeste", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "verde", "colors": { "top": "menta", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "vinotinto", "colors": { "top": "vinotinto", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "gris", "colors": { "top": "gris", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } }
+        ]
+      },
+      {
+        "id": "sueter", "label": "Suéter", "top": "sueter", "bottom": "pantalon", "shoes": "zapatos",
+        "variants": [
+          { "id": "morado", "colors": { "top": "morado", "inner": "blanco", "bottom": "gris", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "azul", "colors": { "top": "azul", "inner": "blanco", "bottom": "gris", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "verde", "colors": { "top": "verde", "inner": "blanco", "bottom": "gris", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "vinotinto", "colors": { "top": "vinotinto", "inner": "blanco", "bottom": "gris", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "gris", "colors": { "top": "gris", "inner": "celeste", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } }
+        ]
+      },
+      {
+        "id": "blusa-falda", "label": "Blusa y falda", "top": "blusa", "bottom": "falda-rodilla", "shoes": "zapatos",
+        "variants": [
+          { "id": "morado", "colors": { "top": "morado", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "azul", "colors": { "top": "celeste", "bottom": "marino", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "verde", "colors": { "top": "menta", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "vinotinto", "colors": { "top": "vinotinto", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "gris", "colors": { "top": "gris", "bottom": "marino", "shoes": "carbon", "sole": "gris-oscuro" } }
+        ]
+      },
+      {
+        "id": "cardigan", "label": "Cárdigan", "top": "cardigan", "bottom": "pantalon", "shoes": "zapatos",
+        "variants": [
+          { "id": "morado", "colors": { "top": "morado", "inner": "blanco", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "azul", "colors": { "top": "azul", "inner": "blanco", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "verde", "colors": { "top": "verde-azulado", "inner": "blanco", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "vinotinto", "colors": { "top": "vinotinto", "inner": "blanco", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "gris", "colors": { "top": "gris", "inner": "blanco", "bottom": "carbon", "shoes": "carbon", "sole": "gris-oscuro" } }
+        ]
+      },
+      {
+        "id": "bata", "label": "Bata clínica", "top": "camisa", "layer": "bata", "bottom": "pantalon", "shoes": "zapatos",
+        "variants": [
+          { "id": "morado", "colors": { "layer": "blanco", "top": "morado", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "azul", "colors": { "layer": "blanco", "top": "celeste", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "verde", "colors": { "layer": "blanco", "top": "menta", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "vinotinto", "colors": { "layer": "blanco", "top": "vinotinto", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } },
+          { "id": "gris", "colors": { "layer": "blanco", "top": "gris", "bottom": "gris-oscuro", "shoes": "carbon", "sole": "gris-oscuro" } }
+        ]
+      }
+    ]
+  }
+}

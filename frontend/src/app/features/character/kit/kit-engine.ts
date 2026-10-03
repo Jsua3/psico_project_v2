@@ -146,6 +146,48 @@ export interface BundleBust {
   z: Record<string, number>;
 }
 
+export interface OutfitVariant {
+  id: string;
+  colors: Record<string, string>;
+}
+
+export interface Outfit {
+  id: string;
+  label: string;
+  top: string;
+  layer?: string;
+  bottom: string;
+  shoes: string;
+  variants: OutfitVariant[];
+}
+
+export interface EditorOptions {
+  complexions: string[];
+  skins: string[];
+  hair: string[];
+  hairColors: string[];
+  face: string;
+  accessories: string[];
+  outfits: Outfit[];
+}
+
+/** Correspondencias de todo el juego → receta, y opciones del editor (`character-kit/catalog.json`). */
+export interface Catalog {
+  schemaVersion: 1;
+  defaultRecipe: string;
+  playables: string[];
+  actors: Record<string, string>;
+  scenarioNpcs: Record<string, string>;
+  speakers: Record<string, string>;
+  voices: string[];
+  portraitKeys: Record<string, string>;
+  guides: Record<string, string>;
+  templates: Record<string, string>;
+  extras: string;
+  emotionToPortrait: Record<string, PortraitState>;
+  editor: EditorOptions;
+}
+
 export interface KitBundle {
   schemaVersion: 1;
   complexions: Record<string, Record<ViewId, BundleView>>;
@@ -154,6 +196,7 @@ export interface KitBundle {
   ramps: Record<string, Ramp>;
   literals: Record<string, string>;
   recipes: Record<string, Recipe>;
+  catalog: Catalog;
 }
 
 export interface RgbaImage {
