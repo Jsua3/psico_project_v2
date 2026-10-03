@@ -121,7 +121,7 @@ function crearEscena(player = { x: 480, y: 430 }): Harness {
   const addNpc = (cfg: NpcConfig) => {
     const container = node(cfg.x, cfg.y);
     container['__npcConfig'] = cfg;
-    const label = node(); label.displayHeight = 14;
+    const label = node(); label['displayHeight'] = 14;
     container['__labelSprite'] = label; container['__hintSprite'] = node(); container['__labelOffsetY'] = -80;
     scene.npcMarkers.set(cfg.key, container);
     nodes[`npc:${cfg.key}`] = container;
