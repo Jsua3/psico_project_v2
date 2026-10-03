@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, input, output, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
@@ -51,6 +51,7 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
+import { interactionVerb } from './interaction-verb.util';
 import {
   NUDGE_SUBSTEPS,
   PLAYER_SPRITE_OFFSET_Y,
@@ -2210,8 +2211,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const bag = hint as unknown as Record<string, unknown>;
       bag['__doorBg'] = hintBg;
       bag['__doorLock'] = lock;
+      bag['__doorX'] = object.x;
+      bag['__doorHalfWidth'] = hintWidth / 2;
+      this.placeDoorHint(hint);
       this.doorHints.set(object.key, hint);
     }
+  }
+
+  /** Centra el rótulo de una puerta sobre ella sin salirse del mapa (las puertas están en los bordes). */
+  private placeDoorHint(hint: Phaser.GameObjects.Container): void {
+    const bag = hint as unknown as Record<string, unknown>;
+    const x = bag['__doorX'] as number | undefined;
+    const half = bag['__doorHalfWidth'] as number | undefined;
+    if (x === undefined || half === undefined) return;
+    const reach = half * this.labelScale + 6;
+    hint.x = Math.max(reach, Math.min(960 - reach, x));
   }
 
   /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado. */
@@ -2652,7 +2666,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * this.scale.displayScale.x) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
-    this.doorHints.forEach(hint => hint.setScale(next));
+    this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;
       const label = bag['__labelSprite'] as Phaser.GameObjects.Text | undefined;
@@ -2701,27 +2715,34 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       </div>
     }
     <div class="touch-controls" role="group" aria-label="Controles táctiles">
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover arriba"
-        (pointerdown)="holdDirection($event, 'up')" (pointerup)="releaseDirection()"
-        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
-        (contextmenu)="$event.preventDefault()"
-        (click)="keyboardNudge($event, 'up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover izquierda"
-        (pointerdown)="holdDirection($event, 'left')" (pointerup)="releaseDirection()"
-        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
-        (contextmenu)="$event.preventDefault()"
-        (click)="keyboardNudge($event, 'left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
-      <button type="button" class="psy-button psy-button--glass touch-interact" (click)="interactNearest()"><mat-icon>touch_app</mat-icon>Interactuar</button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover derecha"
-        (pointerdown)="holdDirection($event, 'right')" (pointerup)="releaseDirection()"
-        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
-        (contextmenu)="$event.preventDefault()"
-        (click)="keyboardNudge($event, 'right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
-      <button type="button" class="psy-icon-button touch-btn" aria-label="Mover abajo"
-        (pointerdown)="holdDirection($event, 'down')" (pointerup)="releaseDirection()"
-        (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
-        (contextmenu)="$event.preventDefault()"
-        (click)="keyboardNudge($event, 'down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
+      <div class="touch-dpad">
+        <button type="button" class="psy-icon-button touch-btn touch-btn--up" aria-label="Mover arriba"
+          (pointerdown)="holdDirection($event, 'up')" (pointerup)="releaseDirection()"
+          (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+          (contextmenu)="$event.preventDefault()"
+          (click)="keyboardNudge($event, 'up')"><mat-icon>keyboard_arrow_up</mat-icon></button>
+        <button type="button" class="psy-icon-button touch-btn touch-btn--left" aria-label="Mover izquierda"
+          (pointerdown)="holdDirection($event, 'left')" (pointerup)="releaseDirection()"
+          (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+          (contextmenu)="$event.preventDefault()"
+          (click)="keyboardNudge($event, 'left')"><mat-icon>keyboard_arrow_left</mat-icon></button>
+        <button type="button" class="psy-icon-button touch-btn touch-btn--right" aria-label="Mover derecha"
+          (pointerdown)="holdDirection($event, 'right')" (pointerup)="releaseDirection()"
+          (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+          (contextmenu)="$event.preventDefault()"
+          (click)="keyboardNudge($event, 'right')"><mat-icon>keyboard_arrow_right</mat-icon></button>
+        <button type="button" class="psy-icon-button touch-btn touch-btn--down" aria-label="Mover abajo"
+          (pointerdown)="holdDirection($event, 'down')" (pointerup)="releaseDirection()"
+          (pointercancel)="releaseDirection()" (lostpointercapture)="releaseDirection()"
+          (contextmenu)="$event.preventDefault()"
+          (click)="keyboardNudge($event, 'down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
+      </div>
+      <!-- Sin [disabled]: sin nada cerca el toque se acepta y la escena avisa (nothingNearby). -->
+      <button type="button" class="psy-button psy-button--glass touch-interact"
+        [class.touch-interact--idle]="!interactLabel()"
+        [attr.aria-disabled]="interactLabel() ? null : 'true'"
+        [attr.aria-label]="'Interactuar: ' + (interactLabel() ?? 'Acércate a algo')"
+        (click)="interactNearest()"><mat-icon aria-hidden="true">touch_app</mat-icon><span class="touch-interact__label">{{ interactLabel() ?? 'Acércate a algo' }}</span></button>
     </div>
   `,
   styles: [`
@@ -2731,17 +2752,35 @@ export class DataDrivenWorldScene extends Phaser.Scene {
        letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
        desbordaba el viewport en mobile. */
     :host ::ng-deep .phaser-host canvas { display: block; max-width: 100%; max-height: 100%; }
+    /* Cruceta abajo a la izquierda y «Interactuar» abajo a la derecha: en un móvil horizontal caen en
+       las bandas negras que deja el encaje 16:9 y no tapan el piso. El contenedor no recibe toques;
+       solo los controles. */
     .touch-controls {
       display: none;
       position: absolute;
-      bottom: 92px;
-      left: 50%;
-      transform: translateX(-50%);
-      grid-template-columns: repeat(5, minmax(44px, auto));
-      justify-content: center;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      grid-template-columns: auto auto;
+      justify-content: space-between;
+      align-items: end;
       gap: 8px;
+      pointer-events: none;
       z-index: 48;
     }
+    .touch-dpad, .touch-interact { pointer-events: auto; }
+    /* Cruz de 3x3 de 48 px: 3 x 48 + 2 x 4 = 152 px, menos que la banda negra de 844x390 (169 px). */
+    .touch-dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 48px);
+      grid-template-rows: repeat(3, 48px);
+      gap: 4px;
+    }
+    .touch-btn { width: 48px; height: 48px; }
+    .touch-btn--up { grid-area: 1 / 2; }
+    .touch-btn--left { grid-area: 2 / 1; }
+    .touch-btn--right { grid-area: 2 / 3; }
+    .touch-btn--down { grid-area: 3 / 2; }
     .touch-btn {
       background: rgba(8,12,18,.7); border-color: rgba(79,163,165,.3); color: #4fa3a5;
       /* Mantener pulsado no debe hacer scroll, zoom, seleccionar texto ni abrir el menú largo. */
@@ -2750,7 +2789,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       -webkit-user-select: none;
       -webkit-touch-callout: none;
     }
-    .touch-interact { font-size: .82rem; }
+    /* El botón dice con qué va a interactuar: el texto cabe en la banda lateral partiéndose en líneas. */
+    .touch-interact {
+      font-size: .82rem;
+      min-height: 48px;
+      max-width: 156px;
+      padding: 6px 10px;
+      gap: 6px;
+      line-height: 1.15;
+      white-space: normal;
+      text-align: center;
+    }
+    .touch-interact__label { overflow-wrap: anywhere; }
+    .touch-interact--idle { color: rgba(232,240,244,.78); }
     /* Aparece solo si la carga pasa de 300 ms: con caché caliente no parpadea. */
     .world-loading {
       position: absolute;
@@ -2807,6 +2858,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     @keyframes world-loading-in { from { opacity: 0; } to { opacity: 1; } }
     /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
     @media (pointer: coarse) { .touch-controls { display: grid; } }
+    /* En anchos cortos (< 700 px) la cruz ya no cabe en las bandas negras y se encima al mundo:
+       se hace semitransparente para que el piso se siga viendo por debajo. */
+    @media (pointer: coarse) and (max-width: 699px) {
+      .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
+      /* Fondo oscuro translúcido: el texto pasa a claro (el vidrio claro de escritorio lleva texto oscuro). */
+      .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
+      .touch-interact--idle { color: rgba(232,240,244,.8); }
+    }
   `]
 })
 export class GameWorldComponent implements OnChanges, OnDestroy {
@@ -2814,6 +2873,14 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly scenarioConfig = input<ScenarioConfig | null>(null);
   readonly selectedInteractionKey = input<string | null>(null);
   readonly nearbyInteraction = input<MapObjectState | null>(null);
+  /** Lo que dice el botón táctil: el verbo y el objeto del candidato principal; null si no hay nada cerca. */
+  readonly interactLabel = computed(() => {
+    const nearby = this.nearbyInteraction();
+    if (!nearby) return null;
+    const state = nearby.type === 'EXIT' ? this.doorStates()[nearby.key] : undefined;
+    const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
+    return interactionVerb(nearby, door).text;
+  });
   readonly guide = input<SceneGuideEntry | null>(null);
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);

@@ -56,7 +56,7 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     labelScale: number;
     labelWrap: number;
     markerLabels: Map<string, { setScale: jest.Mock; setWordWrapWidth: jest.Mock }>;
-    doorHints: Map<string, { setScale: jest.Mock }>;
+    doorHints: Map<string, { x?: number; __doorX?: number; __doorHalfWidth?: number; setScale: jest.Mock }>;
     npcMarkers: Map<string, unknown>;
     onScaleResize(): void;
   }
@@ -90,6 +90,22 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     expect(scene.doorHints.get('puerta')!.setScale).toHaveBeenCalledWith(scene.labelScale);
     const wrapLocal = label.setWordWrapWidth.mock.calls[0][0] as number;
     expect((wrapLocal * scene.labelScale) / displayScale).toBeLessThanOrEqual(LABEL_MAX_SCREEN_WIDTH_PX + 1e-9);
+  });
+
+  it('el rótulo de una puerta pegada al borde se corre hacia dentro para no cortarse con el canvas', () => {
+    const scene = sceneAt(960 / 478);
+    const hint = { x: 838, __doorX: 838, __doorHalfWidth: 99, setScale: jest.fn() };
+    scene.doorHints = new Map([['puerta-sala-escucha', hint]]);
+    scene.onScaleResize();
+    const reach = 99 * scene.labelScale + 6;
+    expect(hint.x).toBeLessThanOrEqual(960 - reach);
+    expect(hint.x).toBeLessThan(838);
+    // una puerta del borde izquierdo se corre hacia la derecha
+    const left = { x: 122, __doorX: 122, __doorHalfWidth: 99, setScale: jest.fn() };
+    scene.doorHints = new Map([['puerta-urgencias', left]]);
+    scene.labelScale = 1;
+    scene.onScaleResize();
+    expect(left.x).toBeGreaterThanOrEqual(99 * scene.labelScale + 6);
   });
 
   it('recalcular con el mismo tamaño no vuelve a tocar los rótulos', () => {
