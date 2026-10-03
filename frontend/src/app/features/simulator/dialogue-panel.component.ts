@@ -436,6 +436,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly mode        = input<'cinematic' | 'side'>('cinematic');
   /** Movimiento reducido del juego (interruptor del HUD o preferencia del sistema): la línea aparece completa, sin máquina de escribir. */
   readonly reduceMotion = input(false);
+  /**
+   * Token de liberación: el anfitrión lo incrementa cuando una acción fallida (decisión, herramienta,
+   * apertura) debe devolver el panel a un estado utilizable. Sin esto `chosenKey` quedaba fijo
+   * hasta que cambiaba el diálogo y el panel se quedaba atrapado (DLG-01).
+   */
+  readonly releaseToken = input(0);
 
   readonly close   = output<void>();
   /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */
@@ -480,6 +486,11 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
         this.displayedText.set('');
         this.isTypingComplete.set(true);
       }
+    });
+    // Liberación: cada token nuevo suelta la elección en curso (y su ejecución pendiente).
+    effect(() => {
+      this.releaseToken();
+      untracked(() => this.releaseSelection());
     });
   }
 
@@ -579,6 +590,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     this.stopTypewriter();
     if (this.confirmHandle !== null) clearTimeout(this.confirmHandle);
     this.focusRenderRef?.destroy();
+  }
+
+  /** Suelta la elección pendiente: las opciones vuelven a ser activables. */
+  private releaseSelection(): void {
+    if (this.confirmHandle !== null) {
+      clearTimeout(this.confirmHandle);
+      this.confirmHandle = null;
+    }
+    this.chosenKey.set(null);
   }
 
   handleChoice(choice: DialogueChoiceState) {

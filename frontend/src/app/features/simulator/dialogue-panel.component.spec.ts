@@ -296,6 +296,108 @@ describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', 
   });
 });
 
+describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.reduceMotion, true);
+    writeInputSignal(component.dialogue, {
+      ...MULTI_LINE_DIALOGUE,
+      lines: [{ order: 1, speakerName: 'Familia', text: '¿Qué hacemos?', emotion: 'neutral' }],
+      choices: [
+        { key: 'c1', text: 'Opción uno', decisionOptionId: 1, requiredToolCode: null, effect: {} },
+        { key: 'c2', text: 'Opción dos', decisionOptionId: 2, requiredToolCode: null, effect: {} },
+      ],
+    });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    jest.useRealTimers();
+  });
+
+  it('elegir una opción la bloquea hasta que el anfitrión libera el panel', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    const [first] = component.dialogue()!.choices;
+
+    component.handleChoice(first);
+    fixture.detectChanges();
+    expect(component.chosenKey()).toBe('c1');
+    expect(host().querySelector('.choices--locked')).not.toBeNull();
+
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenCalledWith(1);
+    // Mientras no haya liberación, una segunda elección se ignora.
+    component.handleChoice(component.dialogue()!.choices[1]);
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('un releaseToken nuevo limpia la elección y las opciones vuelven a ser activables', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    const [first, second] = component.dialogue()!.choices;
+    component.handleChoice(first);
+    jest.advanceTimersByTime(200);
+    fixture.detectChanges();
+    expect(host().querySelector('.choices--locked')).not.toBeNull();
+
+    // El anfitrión falló al registrar la decisión y suma un token.
+    writeInputSignal(component.releaseToken, 1);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+
+    expect(component.chosenKey()).toBeNull();
+    expect(host().querySelector('.choices--locked')).toBeNull();
+    // Y se puede elegir de nuevo, también otra opción.
+    component.handleChoice(second);
+    jest.advanceTimersByTime(200);
+    expect(execute).toHaveBeenLastCalledWith(2);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('cada token nuevo libera otra vez (un fallo tras otro no deja el panel atrapado)', () => {
+    const [first] = component.dialogue()!.choices;
+    for (const token of [1, 2, 3]) {
+      component.handleChoice(first);
+      jest.advanceTimersByTime(200);
+      expect(component.chosenKey()).toBe('c1');
+      writeInputSignal(component.releaseToken, token);
+      TestBed.flushEffects();
+      expect(component.chosenKey()).toBeNull();
+    }
+  });
+
+  it('liberar antes de que venza la pausa de confirmación cancela la ejecución pendiente', () => {
+    const execute = jest.fn();
+    component.execute.subscribe(execute);
+    component.handleChoice(component.dialogue()!.choices[0]);
+    writeInputSignal(component.releaseToken, 1);
+    TestBed.flushEffects();
+    jest.advanceTimersByTime(500);
+    expect(execute).not.toHaveBeenCalled();
+    expect(component.chosenKey()).toBeNull();
+  });
+
+  it('el valor inicial del token es 0 y no altera el diálogo recién abierto', () => {
+    expect(component.releaseToken()).toBe(0);
+    expect(component.chosenKey()).toBeNull();
+  });
+});
+
 const CHARS_PER_SEC = 22;
 const INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC);
 
