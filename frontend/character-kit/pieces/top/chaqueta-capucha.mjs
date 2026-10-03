@@ -12,7 +12,7 @@
  * profundo (costura/borde de capucha).
  */
 
-import { TOP_CHAQUETA_PORTRAIT } from './portrait/top-chaqueta-capucha.portrait.mjs';
+import { TOP_CHAQUETA_PORTRAIT } from './chaqueta-capucha.portrait.mjs';
 
 const LEGEND = {
   i: { mat: 'inner' },

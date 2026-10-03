@@ -1,5 +1,5 @@
 /**
- * Rostro neutro: cejas, ojos, nariz y boca. Solo pinta sobre la cabeza
+ * Rostro sereno: cejas, ojos, nariz y boca. Solo pinta sobre la cabeza
  * (modo `paint`); lo que tape el pelo queda tapado. El perfil derecho sale
  * del espejo del izquierdo (el rostro es simétrico).
  *
@@ -7,7 +7,7 @@
  * n sombra de nariz · m boca (piel, tono profundo) · q rubor (color literal).
  */
 
-import { FACE_NEUTRAL_PORTRAIT } from './portrait/face-neutral.portrait.mjs';
+import { SERENO_PORTRAIT } from './sereno.portrait.mjs';
 
 const LEGEND = {
   b: { mat: 'hair', tone: 3 },
@@ -18,9 +18,9 @@ const LEGEND = {
 };
 
 export default {
-  id: 'neutral',
+  id: 'sereno',
   kind: 'face',
-  portrait: FACE_NEUTRAL_PORTRAIT,
+  portrait: SERENO_PORTRAIT,
   views: {
     down: [{
       anchor: 'H', at: [16, 11], mode: 'paint', legend: LEGEND,

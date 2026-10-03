@@ -8,7 +8,9 @@
     "watch": "ng build --watch --configuration development",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:character-assets": "node --test scripts/character-manifest-lib.test.mjs scripts/visual-asset-manifest-lib.test.mjs"
+    "test:character-assets": "node --test scripts/character-manifest-lib.test.mjs scripts/visual-asset-manifest-lib.test.mjs",
+    "test:kit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"scripts/character-kit/*.test.mjs\"",
+    "kit:types": "tsc -p tsconfig.kit.json"
   },
   "private": true,
   "dependencies": {

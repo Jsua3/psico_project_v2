@@ -7,17 +7,7 @@
  * materiales (`mat`) los pone después la receta (vestir).
  */
 
-import { createFrame, inside, isEmptyChar, mirrorFrame, parseGrid } from './kit-core.mjs';
-
-/** Profundidad por etiqueta y tipo de vista (para sombras proyectadas). */
-const Z = {
-  // La pelvis comparte profundidad con los muslos: la unión no es un borde.
-  front: { H: 5, e: 5, E: 5, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 4, B: 4, C: 4.2, l: 1, m: 1, o: 0.9, L: 1, M: 1, O: 0.9 },
-  // Perfil: todo lo lejano queda detrás de lo cercano (brazo lejano el más al fondo).
-  side: { H: 5, e: 5.1, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 0.5, B: 0.5, C: 0.55, l: 1, m: 1, o: 0.9, L: 0.7, M: 0.7, O: 0.65 },
-};
-
-const FAR_LABELS = new Set(['A', 'B', 'C', 'L', 'M', 'O']);
+import { FAR_LABELS, createFrame, inside, isEmptyChar, labelZ, mirrorFrame, parseGrid } from '../../src/app/features/character/kit/kit-engine.ts';
 
 function stampGrid(frame, gridSpec, dx, dy, kind, opts = {}) {
   const rows = parseGrid(gridSpec.grid);
@@ -57,7 +47,7 @@ function spriteWidth(sprite) {
 function put(frame, x, y, label, kind) {
   if (!inside(frame, x, y)) return;
   const i = y * frame.width + x;
-  const z = Z[kind === 'side' ? 'side' : 'front'][label] ?? 0;
+  const z = labelZ(kind, label);
   // Gana lo que está delante: así el orden de estampado no importa.
   if (frame.part[i] !== null && frame.z[i] > z) return;
   frame.part[i] = label;
@@ -198,7 +188,7 @@ function buildSideFrame(m, view, sheet, f) {
  * Cuadros etiquetados del maniquí para las 4 vistas. `right` es el espejo de
  * `left` (la luz se calcula más tarde, ya reflejada).
  */
-export function buildMannequin(m) {
+export function rasterizeMannequin(m) {
   const out = {};
   for (const [name, view] of Object.entries(m.views)) {
     const build = view.kind === 'side' ? buildSideFrame : buildFrontFrame;
@@ -212,14 +202,4 @@ export function buildMannequin(m) {
     out.right[sheet] = frames.map(fr => mirrorFrame(fr, m.frame.pivotX));
   }
   return out;
-}
-
-/** Desplazamiento vertical de una parte respecto del cuadro de referencia (idle 0). */
-export function partTop(frame, label) {
-  for (let y = 0; y < frame.height; y++) {
-    for (let x = 0; x < frame.width; x++) {
-      if (frame.part[y * frame.width + x] === label) return y;
-    }
-  }
-  return null;
 }

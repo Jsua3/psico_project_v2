@@ -11,7 +11,7 @@
  * el generador las desplaza con la cabeza en cada cuadro.
  */
 
-import { HAIR_BOB_PORTRAIT } from './portrait/hair-bob-flequillo.portrait.mjs';
+import { HAIR_BOB_PORTRAIT } from './bob-flequillo.portrait.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -23,6 +23,7 @@ const LEGEND = {
 export default {
   id: 'bob-flequillo',
   kind: 'hair',
+  asymmetric: true,
   part: 'hair',
   z: 6,
   portrait: HAIR_BOB_PORTRAIT,

@@ -1,5 +1,5 @@
 /**
- * Rostro neutro — versión retrato (96×96). Ojos con blanco, iris y brillo;
+ * Rostro sereno — versión retrato (96×96). Ojos con blanco, iris y brillo;
  * cejas del color del pelo; nariz y boca con la piel en sombra. El ojo
  * derecho es el espejo del izquierdo (x ↔ 95 − x).
  */
@@ -36,7 +36,7 @@ const BLUSH = [
 
 const empty = Array.from({ length: 96 }, () => '.'.repeat(96)).join('\n');
 
-export const FACE_NEUTRAL_PORTRAIT = [{
+export const SERENO_PORTRAIT = [{
   anchor: 'H', at: [0, 0], mode: 'paint',
   legend: {
     k: { literal: 'eye' },

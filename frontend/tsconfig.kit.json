@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "erasableSyntaxOnly": true,
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "files": ["src/app/features/character/kit/kit-engine.ts"]
+}
