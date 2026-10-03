@@ -347,6 +347,29 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.fadeActive()).toBe(false);
     });
 
+    it('al cruzar suena la puerta, no el avance de diálogo', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      sim['enterRoom'].mockReturnValue(EMPTY);
+
+      component.openInteraction(exit());
+
+      expect(audio['playSfx']).toHaveBeenCalledWith('door_open');
+      expect(audio['playSfx']).not.toHaveBeenCalledWith('dialogue_advance');
+    });
+
+    it('decidir sigue sonando como el avance de diálogo', () => {
+      component.attempt.set(makeAttempt('nodo-sin-evidencia'));
+      component.world.set(makeWorld('hospital-urgencias', []));
+      component.dialogue.set({
+        key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
+        choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
+      } as DialogueState);
+
+      component.executeDecision(101);
+
+      expect(audio['playSfx']).toHaveBeenCalledWith('dialogue_advance');
+    });
+
     it('un fallo de red al cruzar usa el mensaje del servidor o el de respaldo', () => {
       startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
       sim['enterRoom'].mockReturnValue(throwError(() => http(500)));
@@ -367,6 +390,114 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.openInteraction(gate);
 
       expect(component.doorNotice()).toBe('Esta salida se abre cuando termines las decisiones del hospital. Te queda 1 decisión.');
+    });
+  });
+
+  describe('T9.6: avisos', () => {
+    const pickup = (): MapObjectState => urgenciasObjects().find(o => o.key === 'tool-pap')!;
+
+    function openResult(interaction: MapObjectState, unlockedToolCode: string | null) {
+      return of({
+        world: makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: unlockedToolCode ? [unlockedToolCode] : [] }),
+        interaction, dialogue: null, preparedDecisionOptionId: null, unlockedToolCode,
+      });
+    }
+
+    it('recoger avisa «Obtuviste: …» con la etiqueta del objeto y suena item_pickup', () => {
+      startInUrgencias();
+      sim['openInteraction'].mockReturnValue(openResult(pickup(), 'PAP'));
+
+      component.openInteraction(pickup());
+
+      expect(component.softNotice()).toBe('Obtuviste: Kit PAP. Ya está en tu barra de herramientas.');
+      expect(audio['playSfx']).toHaveBeenCalledWith('item_pickup');
+    });
+
+    it('el aviso se apaga solo a los 4,2 s', () => {
+      startInUrgencias();
+      sim['openInteraction'].mockReturnValue(openResult(pickup(), 'PAP'));
+      component.openInteraction(pickup());
+
+      jest.advanceTimersByTime(4100);
+      expect(component.softNotice()).not.toBe('');
+      jest.advanceTimersByTime(200);
+
+      expect(component.softNotice()).toBe('');
+    });
+
+    it('revisar un objeto sin herramienta no avisa ni suena a recogida', () => {
+      startInUrgencias();
+      const zona = urgenciasObjects().find(o => o.key === 'zona-restringida')!;
+      sim['openInteraction'].mockReturnValue(openResult(zona, null));
+
+      component.openInteraction(zona);
+
+      expect(component.softNotice()).toBe('');
+      expect(audio['playSfx']).not.toHaveBeenCalledWith('item_pickup');
+    });
+
+    it('«Anotado: …» espera a que se cierre el diálogo y sale una sola vez', () => {
+      startInUrgencias();
+      tick(); // primera evaluación de la lista: no anota nada
+      component.dialogue.set({
+        key: 'npc-enfermera-urgencias', speakerName: 'Enfermera de urgencias', portraitKey: null, emotion: 'neutral', lines: [], choices: [],
+      } as DialogueState);
+      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
+      tick();
+
+      expect(component.checklistNotice()).toBeNull();
+
+      component.closeDialogue();
+      tick();
+
+      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
+      tick(4300);
+      expect(component.checklistNotice()).toBeNull();
+      tick(10_000);
+      expect(component.checklistNotice()).toBeNull();
+    });
+
+    it('usar la herramienta se anota con el nombre genérico, sin nombrar la técnica', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'] }));
+      tick();
+      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(true), {
+        inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'], usedToolKeys: ['PAP'],
+      }));
+      tick();
+
+      expect(component.checklistNotice()).toBe('Anotado: usaste el material de apoyo de la sala en la conversación.');
+      expect(component.checklistNotice()).not.toMatch(/PAP/);
+    });
+
+    it('dos pasos hechos a la vez se anotan uno tras otro', () => {
+      startInUrgencias();
+      tick();
+      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
+      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      tick();
+
+      const first = component.checklistNotice();
+      tick(4300);
+      const second = component.checklistNotice();
+
+      expect([first, second].sort()).toEqual([
+        'Anotado: hablaste con la Enfermera de urgencias.',
+        'Anotado: hablaste con la Familia en crisis.',
+      ]);
+    });
+
+    it('una pausa descarta las notas pendientes', () => {
+      startInUrgencias();
+      tick();
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
+      tick();
+
+      (component as any).clearTransientOverlays();
+      tick();
+
+      expect(component.checklistNotice()).toBeNull();
+      expect((component as any).pendingNotes).toEqual([]);
     });
   });
 

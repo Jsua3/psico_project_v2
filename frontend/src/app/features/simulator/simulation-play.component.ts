@@ -9,7 +9,7 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
-  DialogueState, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
+  DialogueState, InteractionResult, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
@@ -100,6 +100,10 @@ const CASE_INTRO_PARAGRAPHS = [
           <mat-icon aria-hidden="true">lock</mat-icon>
           <span>{{ doorNotice() }}</span>
         </div>
+      }
+      @if (softNotice()) {
+        <!-- Aviso no esencial (4,2 s): lo que dice ya quedó escrito en la lista «Qué hacer», nunca es la única fuente. -->
+        <div class="soft-notice" role="status">{{ softNotice() }}</div>
       }
       @if (pausing()) {
         <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
@@ -803,6 +807,14 @@ const CASE_INTRO_PARAGRAPHS = [
       max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
+    /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie y bajo el aviso de puerta. */
+    .soft-notice {
+      position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
+      max-width: min(92vw, 520px); padding: 9px 16px; border-radius: 12px;
+      background: rgba(18,24,42,.96); border: 1px solid rgba(182,156,255,.45);
+      color: #f4f7fb; font-size: .86rem; font-weight: 700; line-height: 1.35; text-align: center;
+      pointer-events: none;
+    }
     .pausing-notice {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
       display: flex; align-items: center; gap: 8px;
@@ -956,6 +968,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly fadeActive   = signal(false);
   /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
   readonly doorNotice   = signal('');
+  /** Aviso no esencial de 4,2 s («Obtuviste: …»). La lista «Qué hacer» conserva lo que dice. */
+  readonly softNotice   = signal('');
   /** Nombre de la sala al entrar (1-2 s). */
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
@@ -1410,6 +1424,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.mergeViewedNpcKeysFromWorld(result.world);
         this.selectedInteraction.set(result.interaction);
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
+        this.announcePickup(result);
         this.busy.set(false);
       },
       error: err => {
@@ -1467,7 +1482,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           else this.reportApiError(err, 'No pudimos cruzar la puerta.');
         },
       });
-    }));
+    }, 'door_open'));
   }
 
   private doorNoticeTimer: number | null = null;
@@ -1478,7 +1493,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.doorNotice.set(message);
     this.announce(message);
     if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
-    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), 4200);
+    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), NOTICE_MS);
   }
 
   onRoomExit(event: { targetRoomKey: string; entryX: number; entryY: number }) {
@@ -1603,6 +1618,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       }],
       choices: [],
     });
+  }
+
+  /** Recoger algo: sonido discreto y «Obtuviste: {etiqueta}. Ya está en tu barra de herramientas.». */
+  private announcePickup(result: InteractionResult): void {
+    if (!result.unlockedToolCode) return;
+    this.audioDirector.playSfx('item_pickup');
+    this.showSoftNotice(ORIENTATION_COPY.notices.obtained(
+      getSceneDisplayLabel(result.interaction, result.world.map.key),
+    ));
+  }
+
+  /** Aviso no esencial: se anuncia solo (role="status") y se apaga a los 4,2 s. */
+  private showSoftNotice(message: string): void {
+    this.softNotice.set(message);
+    if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
+    this.softNoticeTimer = window.setTimeout(() => {
+      this.softNoticeTimer = null;
+      this.softNotice.set('');
+    }, NOTICE_MS);
   }
 
   private showActionError(message: string) {
@@ -1904,6 +1938,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pendingEvidenceDecisionId = null;
     this.pendingEvidenceMissing = [];
     this.pendingRestrictedInteraction.set(null);
+    this.resetNotices();
     this.audioDirector.stopIntroLament();
   }
 
@@ -2063,8 +2098,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
-  private triggerFade(callback: () => void): void {
-    this.audioDirector.playSfx('dialogue_advance');
+  private triggerFade(callback: () => void, sound: 'dialogue_advance' | 'door_open' = 'dialogue_advance'): void {
+    this.audioDirector.playSfx(sound);
     this.fadeActive.set(true);
     window.setTimeout(callback, 340);
   }
@@ -2307,6 +2342,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (this.noteTimer !== null) window.clearTimeout(this.noteTimer);
     this.noteTimer = null;
     this.checklistNotice.set(null);
+    if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
+    this.softNoticeTimer = null;
+    this.softNotice.set('');
   }
 
   private announce(message: string): void {
