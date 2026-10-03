@@ -18,8 +18,10 @@ import {
 import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence } from './evidence-gating.config';
 import { decorateDialogueState } from './dialogue-decoration.util';
 import type { CopyContext } from './evidence-copy.util';
-import { NAME_TOOLS_IN_HINTS } from './orientation.config';
-import { roomGroupOf } from './scene-checklist.util';
+import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup } from './orientation.config';
+import { SceneChecklistCardComponent } from './scene-checklist-card.component';
+import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
+import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
@@ -41,14 +43,19 @@ import {
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
 import { getSceneGuide } from './scene-guide.config';
-import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
+import { getDecisionCounter, getSceneProgress, getStageTitle } from './scene-objectives.config';
+import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
+/** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
+const NOTICE_MS = 4200;
+/** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
+const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -66,7 +73,7 @@ const CASE_INTRO_PARAGRAPHS = [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
-    SafeExitButtonComponent
+    SafeExitButtonComponent, SceneChecklistCardComponent
   ],
   template: `
     <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
@@ -235,10 +242,8 @@ const CASE_INTRO_PARAGRAPHS = [
           <app-simulation-hud
             [attempt]="game"
             [stressPulse]="stressPulse()"
-            [nearbyInteractionKey]="nearbyInteraction()?.key ?? null"
             [patientState]="patientState()"
-            [stageLabel]="currentStageLabel()"
-            [progressLabel]="progressLabel()"
+            [stageLabel]="stageLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
             [musicMuted]="musicMuted()"
@@ -253,18 +258,11 @@ const CASE_INTRO_PARAGRAPHS = [
         <main class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación"
             [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
-            @if (sceneObjective(); as objective) {
-              <div class="objective-card" role="status">
-                <mat-icon aria-hidden="true">flag</mat-icon>
-                <div class="objective-card__body">
-                  <strong>Objetivo</strong>
-                  <p>{{ objective }}</p>
-                  @if (game.currentNode.warningMessage || game.currentNode.safeExitRequired) {
-                    <p class="objective-card__ethic">
-                      {{ game.currentNode.warningMessage || 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.' }}
-                    </p>
-                  }
-                </div>
+            @if (sceneLog(); as log) {
+              <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
+              <div class="objective-card">
+                <app-scene-checklist-card [state]="log" [compact]="compactMode()"
+                  [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
               </div>
             }
 
@@ -293,11 +291,17 @@ const CASE_INTRO_PARAGRAPHS = [
           @if (viewMode() === 'dialogue-right') {
             <aside class="right-panel" aria-label="Decisión formativa en curso">
               <header class="right-panel__scene">
-                <p class="right-panel__kicker">{{ currentStageLabel() }}</p>
+                <p class="right-panel__kicker">{{ stageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
                 @if (game.currentNode.narrative) {
                   <p class="right-panel__narrative" tabindex="0" role="region"
                     aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
+                }
+                <!-- El aviso de contenido sensible de la etapa ya no vive en la tarjeta «Qué hacer»: acompaña a la narrativa. -->
+                @if (game.currentNode.warningMessage || game.currentNode.safeExitRequired) {
+                  <p class="right-panel__warning">
+                    {{ game.currentNode.warningMessage || 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.' }}
+                  </p>
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
@@ -442,15 +446,17 @@ const CASE_INTRO_PARAGRAPHS = [
     .game-surface { position: absolute; inset: 0; }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
+    /* Envoltorio de la tarjeta «Qué hacer»: aporta posición, borde y fondo (la tarjeta no pinta superficie);
+       los contrastes de la tarjeta se miden contra este fondo (scene-checklist-card.component.spec). */
     .objective-card {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 20;
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      max-width: min(380px, 58%);
+      display: block;
+      width: min(380px, 58%);
+      max-height: calc(100% - 20px);
+      overflow-y: auto;
       padding: 8px 11px;
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 10px;
@@ -460,30 +466,18 @@ const CASE_INTRO_PARAGRAPHS = [
         inset 0 0 0 1px rgba(8,12,18,.95),
         0 12px 30px -22px rgba(124,77,255,.55);
     }
-    .objective-card mat-icon {
-      flex-shrink: 0;
-      display: grid;
-      place-items: center;
-      width: 22px; height: 22px;
-      margin-top: 1px;
-      font-size: 14px;
-      border-radius: 6px;
-      border: 1px solid rgba(182,156,255,.3);
-      background: rgba(124,77,255,.16);
-      color: var(--sim-lavender);
+    @media (min-width: 1100px) {
+      .objective-card { width: min(440px, 46%); }
     }
-    .objective-card__body { display: grid; gap: 2px; min-width: 0; }
-    .objective-card__body strong {
-      font-size: .6rem; font-weight: 900; letter-spacing: .12em;
-      text-transform: uppercase; color: #cdbcff;
-    }
-    .objective-card__body p { margin: 0; font-size: .76rem; line-height: 1.35; color: rgba(232,240,244,.85); }
-    .objective-card__ethic {
-      color: rgba(232,207,154,.85) !important;
-      font-size: .68rem !important;
-      border-top: 1px solid rgba(245,184,75,.18);
-      padding-top: 4px;
-      margin-top: 2px !important;
+    /* Plegada a su chip (modo compacto) la tarjeta se sostiene sola: sin caja alrededor. */
+    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) {
+      right: auto;
+      width: auto;
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
+      overflow: visible;
     }
 
     .stress-vignette {
@@ -527,6 +521,14 @@ const CASE_INTRO_PARAGRAPHS = [
       color: var(--sim-ink-soft);
       font-size: .78rem;
       line-height: 1.5;
+    }
+    .right-panel__warning {
+      margin: 8px 0 0;
+      padding-top: 6px;
+      border-top: 1px solid rgba(245,184,75,.18);
+      color: #f3dfb5;
+      font-size: .72rem;
+      line-height: 1.4;
     }
     .dialogue-side { display: block; min-height: 0; overflow: hidden; }
 
@@ -886,17 +888,9 @@ const CASE_INTRO_PARAGRAPHS = [
       .objective-card {
         left: 8px;
         right: 8px;
-        max-width: none;
         width: auto;
         padding: 7px 10px;
       }
-      .objective-card__body p {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-      .objective-card__ethic { -webkit-line-clamp: 1; }
       .bottom-zone { flex-wrap: wrap; min-height: 0; padding: 6px 8px 8px; }
       /* El dock cede ancho (flex-basis 0) y scrollea por dentro: nunca debe
          empujar el ancho de la página. */
@@ -1001,7 +995,36 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     dialogue: this.dialogue(),
   }));
 
-  readonly sceneObjective = computed(() => getSceneObjective(this.attempt()?.currentNode.key));
+  /** Salas del caso ya alcanzadas en este intento (refuerzo de la regla monótona de la lista; sessionStorage). */
+  readonly visitedRooms = signal<ReadonlySet<RoomGroup>>(new Set<RoomGroup>());
+  /** Modo compacto: pantallas bajas o táctil horizontal. Tarjeta plegada, pie sin teclas, panel flotante. */
+  readonly compactMode = signal(matchesMedia(COMPACT_QUERY));
+  /** Texto de la región viva de la tarjeta («Anotado: …», «Decisión k registrada»). */
+  readonly checklistNotice = signal<string | null>(null);
+
+  /** Lista «Qué hacer»: solo se recalcula cuando cambian el intento, el mundo, las personas habladas, las salas o el escenario. */
+  readonly sceneLog = computed<SceneLogState | null>(() => {
+    const input = sceneLogInputFrom({
+      attempt: this.attempt(),
+      world: this.world(),
+      viewedNpcKeys: this.viewedNpcKeys(),
+      visitedRooms: this.visitedRooms(),
+      scenarioNpcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
+    });
+    if (!input) return null;
+    try {
+      return deriveSceneLog(input);
+    } catch {
+      // La guía es ayuda, no el juego: un mundo con una forma inesperada (payload antiguo) no debe tumbar la pantalla.
+      return null;
+    }
+  });
+
+  /** Contador único del caso («Decisión k de 6»); con un nodo sin etapa, el de respaldo por escenarios. */
+  readonly stageLabel = computed<string | null>(() => {
+    const key = this.attempt()?.currentNode.key;
+    return getDecisionCounter(key) ?? this.fallbackStageLabel();
+  });
   readonly sceneGuide = computed(() => {
     const guide = getSceneGuide(this.attempt()?.currentNode.key);
     const world = this.world();
@@ -1047,6 +1070,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private doorInteractionArmed = false;
   private readonly doorInteractionRearmDistance = 72;
 
+  /** Lista anterior: `diffDone` compara contra ella para anotar solo los pasos recién hechos. */
+  private previousSceneLog: SceneLogState | null = null;
+  /** Notas «Anotado: …» a la espera de que no haya un diálogo abierto (el servidor marca «hablado» al abrir). */
+  private readonly pendingNotes: string[] = [];
+  private noteTimer: number | null = null;
+  private softNoticeTimer: number | null = null;
+  private roomBannerTimer: number | null = null;
+  private stopCompactWatch: (() => void) | null = null;
+  /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
+  private pendingStage: { title: string; previousNumber: number | null } | null = null;
+
   constructor() {
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
     // una pausa en medio de una decisión o de un cruce de puerta (F§7.8, H-04).
@@ -1054,14 +1088,29 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (!this.pausing() || this.busy()) return;
       untracked(() => this.startQueuedPause());
     });
+    // Pasos recién hechos → notas «Anotado: …». Se evalúa solo cuando cambia la lista (F§7.1).
+    effect(() => {
+      const next = this.sceneLog();
+      untracked(() => this.queueNotesFor(next));
+    });
+    // Las notas encoladas salen cuando ya no hay diálogo, bitácora ni pantalla bloqueando la escena.
+    effect(() => {
+      this.inputBlocked();
+      untracked(() => this.flushNotes());
+    });
   }
 
   ngOnDestroy(): void {
+    this.stopCompactWatch?.();
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer]) {
+      if (timer !== null) window.clearTimeout(timer);
+    }
     this.audioDirector.stopIntroLament();
     this.audioDirector.dispose();
   }
 
   ngOnInit() {
+    this.stopCompactWatch = watchMedia(COMPACT_QUERY, matches => this.compactMode.set(matches));
     this.simulationService.getInterventionRules().subscribe({
       next: raw => { this.interventionRules = parseInterventionRules(raw); },
       error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
@@ -1132,6 +1181,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.clearTransientOverlays();
     this.nearbyInteraction.set(null);
     this.pausing.set(false);
+    // Las salas y las notas pendientes eran del intento anterior.
+    const previous = this.attempt() ?? this.pendingActiveAttempt();
+    if (previous) clearVisitedRooms(previous.caseVersionId, previous.attemptId);
+    this.visitedRooms.set(new Set<RoomGroup>());
+    this.resetNotices();
     this.loading.set(true);
     this.beginAttempt(id, true);
   }
@@ -1174,6 +1228,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
     this.patientState.set(PATIENT_INITIAL_STATE);
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
+    this.visitedRooms.set(readVisitedRooms(attempt.caseVersionId, attempt.attemptId));
     this.pendingEvidenceDecisionId = null;
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
@@ -1577,6 +1632,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         evidenceOverride, confirmedMissingEvidence,
       ).subscribe({
         next: updated => {
+          this.trackStageChange(game, updated);
           this.attempt.set(updated);
           this.hydrateClinicalState(updated);
           this.persistAttemptToken(updated);
@@ -1840,20 +1896,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
-  progressLabel(): string {
-    const map = this.progressMap();
-    if (!map?.nodes.length) return 'Progreso: escenario actual';
-    const visited = new Set(map.visitedNodeKeys);
-    const completed = map.nodes.filter(node => visited.has(node.key) || node.key === map.currentNodeKey).length;
-    return `Progreso: ${completed} de ${map.nodes.length} escenarios`;
-  }
-
-  currentStageLabel(): string {
+  /**
+   * Contador de respaldo para un nodo sin etapa conocida (casos del editor): «Escenario k de n» del
+   * mapa de progreso. Sin mapa, sin chip. En el caso SIM-VBG-001 manda siempre «Decisión k de 6».
+   */
+  private fallbackStageLabel(): string | null {
     const map = this.progressMap();
     const currentKey = this.attempt()?.currentNode.key;
-    if (!map?.nodes.length || !currentKey) return 'Escenario actual';
+    if (!map?.nodes.length || !currentKey) return null;
     const index = map.nodes.findIndex(node => node.key === currentKey);
-    return index >= 0 ? `Escenario ${index + 1} de ${map.nodes.length}` : 'Escenario actual';
+    return index >= 0 ? `Escenario ${index + 1} de ${map.nodes.length}` : null;
   }
 
   visitedStageLabels(): string[] {
@@ -2040,6 +2092,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
         this.pendingDecisionImpact = null;
+        this.pendingStage = null;
         this.loading.set(false);
         this.busy.set(false);
         this.fadeActive.set(false);
@@ -2068,6 +2121,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const previousMapKey = this.world()?.map.key ?? null;
     const mapChanged = previousMapKey !== world.map.key;
     if (mapChanged) this.doorInteractionArmed = false;
+    this.rememberVisitedRoom(world);
     this.world.set(world);
     this.hydrateClinicalState(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
@@ -2077,12 +2131,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.fadeActive.set(false);
       this.scheduleRevealEffects();
     }, 80);
+    // Etapa nueva (se decidió): banner con su título aunque el mapa sea el mismo (F§4.5). No se
+    // repite al recargar: `pendingStage` solo lo arma la respuesta de una decisión.
+    const stage = this.pendingStage;
+    this.pendingStage = null;
+    if (stage) this.announceNewStage(stage);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
       this.lastPosition = null;
       this.lastSyncedPosition = null;
-      this.announceRoomChange(world);
+      this.announceRoomChange(world, stage !== null);
     }
     this.maybeShowInitialCaseIntro(world);
   }
@@ -2173,15 +2232,80 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Al cambiar de sala (puerta o decisión): nombre de la sala 1-2 s y, si el
    *  mapa trae texto de transición autorado (salto temporal), overlay breve. */
-  private announceRoomChange(world: SimulationWorldState): void {
-    this.roomBanner.set(world.map.title);
-    window.setTimeout(() => this.roomBanner.set(''), 2200);
+  private announceRoomChange(world: SimulationWorldState, stageBannerShown = false): void {
+    // Con una etapa nueva manda su banner («Nueva etapa: …»), que ya nombra dónde estás.
+    if (!stageBannerShown) this.showRoomBanner(world.map.title, 2200);
     const transition = (world.map.ambient as Record<string, unknown> | undefined)?.['transitionText'];
     if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
       this.seenTransitionMapKeys.add(world.map.key);
       this.transitionNote.set(transition);
       window.setTimeout(() => this.transitionNote.set(''), 4200);
     }
+  }
+
+  private showRoomBanner(text: string, ms: number): void {
+    this.roomBanner.set(text);
+    if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
+    this.roomBannerTimer = window.setTimeout(() => this.roomBanner.set(''), ms);
+  }
+
+  /** La decisión llevó a otra etapa (aunque la sala sea la misma): se recuerda hasta que llegue su mundo. */
+  private trackStageChange(previous: SimulationAttemptState, updated: SimulationAttemptState): void {
+    if (updated.status !== 'IN_PROGRESS' || updated.currentNode.key === previous.currentNode.key) return;
+    this.pendingStage = {
+      title: getStageTitle(updated.currentNode.key) ?? updated.currentNode.title,
+      previousNumber: getSceneProgress(previous.currentNode.key)?.step ?? null,
+    };
+  }
+
+  /** Banner «Nueva etapa: …» y, en la tarjeta, «Decisión k registrada» (omitido sin decisión previa). */
+  private announceNewStage(stage: { title: string; previousNumber: number | null }): void {
+    this.showRoomBanner(ORIENTATION_COPY.notices.newStage(stage.title), 3000);
+    if (stage.previousNumber) {
+      this.pendingNotes.unshift(ORIENTATION_COPY.notices.decisionRegistered(stage.previousNumber));
+      this.flushNotes();
+    }
+  }
+
+  /** Recuerda la sala alcanzada (refuerzo de la regla monótona de la lista, solo en este navegador). */
+  private rememberVisitedRoom(world: SimulationWorldState): void {
+    const attempt = this.attempt();
+    const room = roomGroupOf(world.map.key);
+    if (!attempt || !room) return;
+    const next = markRoomVisited(attempt.caseVersionId, attempt.attemptId, room);
+    const previous = this.visitedRooms();
+    if (next.size !== previous.size || [...next].some(known => !previous.has(known))) this.visitedRooms.set(next);
+  }
+
+  /** Pasos recién hechos de la lista → notas «Anotado: …» (la primera evaluación y los cambios de etapa no anotan). */
+  private queueNotesFor(next: SceneLogState | null): void {
+    const previous = this.previousSceneLog;
+    this.previousSceneLog = next;
+    if (!next) return;
+    for (const step of diffDone(previous, next)) {
+      if (step.doneText) this.pendingNotes.push(step.doneText);
+    }
+    this.flushNotes();
+  }
+
+  /** Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. */
+  private flushNotes(): void {
+    if (this.noteTimer !== null || !this.pendingNotes.length || this.inputBlocked()) return;
+    this.checklistNotice.set(this.pendingNotes.shift() ?? null);
+    this.noteTimer = window.setTimeout(() => {
+      this.noteTimer = null;
+      this.checklistNotice.set(null);
+      this.flushNotes();
+    }, NOTICE_MS);
+  }
+
+  /** Descarta avisos pendientes (intento nuevo o pausa): eran de lo que se estaba haciendo. */
+  private resetNotices(): void {
+    this.pendingNotes.length = 0;
+    this.previousSceneLog = null;
+    if (this.noteTimer !== null) window.clearTimeout(this.noteTimer);
+    this.noteTimer = null;
+    this.checklistNotice.set(null);
   }
 
   private announce(message: string): void {
