@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-02
 - **Rama:** `feat/personajes-unificados` (worktree `.worktrees/personajes-unificados`, sale de `master` @ `51d1409`)
 - **Prueba aprobada:** `76e6171` (maniquí de complexión A y Valentina completa) y `59f4a6d` (por qué se ve distinta dentro del juego)
-- **Estado:** borrador para revisión
+- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas
 
 ## 1. Objetivo
 
@@ -31,6 +31,9 @@ No se reabren; el spec las desarrolla.
 9. *(2026-10-02)* Prueba aprobada: maniquí de complexión A y Valentina.
 10. *(2026-10-02)* Escala entera en pantalla con **zoom entero de cámara** que sigue a la jugadora: ×2 cuando hay espacio, ×1 en pantallas pequeñas.
 11. *(derivada de la prueba)* La luz de las salas se pinta **debajo** de los personajes. Hoy va encima y cambia los 752 píxeles de un perfil; pintada debajo, los 752 llegan iguales a la hoja.
+12. *(2026-10-03)* Muebles y puertas se recalibran a la altura nueva **en esta rama** (F8), para que `master` nunca tenga personajes y muebles a escalas distintas.
+13. *(2026-10-03)* El tinte del estado clínico de la paciente se reemplaza por un **icono de pixel art sobre la cabeza**; el sprite no se toca.
+14. *(2026-10-03)* Los peinados marcados como `volumen` (afro, moño alto) pueden llegar a **25 px** de cabeza con pelo; en ellos el validador mide además el cráneo (etiqueta `H`, 17 px con contorno).
 
 ## 3. Lo que hay hoy (medido)
 
@@ -253,7 +256,7 @@ Peso estimado: menos de 200 KB sin comprimir.
    - suelas en y = 66-67; el centro del apoyo (el punto medio entre los dos pies) queda a ±6 px de x = 24.
 3. **Geometría por vista** (biblia enmendada, §11):
    - altura opaca de 60-66 px;
-   - cabeza con pelo de 18-21 px, como en la biblia. *Pendiente de §13.7:* si se aprueba, los peinados marcados como `volumen` (afro, moño alto) pueden llegar a 25 px, y en ellos se comprueba además el cráneo (etiqueta `H`), 17 px con contorno;
+   - cabeza con pelo de 18-21 px, como en la biblia; los peinados marcados como `volumen` (afro, moño alto) pueden llegar a 25 px, y en ellos se comprueba además el cráneo (etiqueta `H`), 17 px con contorno (decisión 14);
    - hombros de 20-27 px solo de frente y de espalda; en perfil, fondo del torso de 10-16 px;
    - la derecha no puede ser el espejo exacto de la izquierda.
 4. **Animación:**
@@ -400,7 +403,7 @@ La cámara sigue a la jugadora con `roundPixels` y se limita a la sala; si la vi
 
 **Luz debajo.** Los focos y las viñetas de las salas pasan a la banda del suelo (`DEPTH.ENVIRONMENT + 0,5`). Afecta a `case-pdf-rooms.paintLighting`, a la iluminación de `premium-clinical-room` y a `game-world.applyLightingOverlay`. La **viñeta de crisis** (estrés, bloque B) queda como única capa por encima, porque es una señal temporal de juego; se documenta como excepción.
 
-**Nada deforma los píxeles.** Se retira `character-motion.util`: la respiración y el bob ya vienen en las hojas. Se quitan todos los tintes de actores. El tinte del estado clínico de la paciente se reemplaza por un indicador de pixel art sobre la cabeza (propuesta, §13).
+**Nada deforma los píxeles.** Se retira `character-motion.util`: la respiración y el bob ya vienen en las hojas. Se quitan todos los tintes de actores. El tinte del estado clínico de la paciente se reemplaza por un icono de pixel art sobre la cabeza, con colores de la paleta y a la misma escala entera (decisión 13).
 
 **Retratos y vistas CSS.** Siempre a ×1, ×2 o ×4 con `image-rendering: pixelated` y una caja del tamaño exacto.
 
@@ -488,7 +491,7 @@ Se reescriben `lobby-avatar.util`, `editor-preview.util`, `avatar-figure` (pasa 
 
 ## 11. Enmiendas a la biblia v1
 
-- **§1:** la cabeza con pelo sigue en 18-21 px; la excepción para peinados de volumen depende de §13.7. Los hombros (20-27 px) aplican solo de frente y de espalda; en perfil, el fondo del torso es de 10-16 px. La regla «la derecha no es espejo exacto» se cumple con la luz recalculada y las piezas asimétricas, y el validador la comprueba.
+- **§1:** la cabeza con pelo sigue en 18-21 px, salvo los peinados de `volumen`, que llegan a 25 px con el cráneo en 17 px. Los hombros (20-27 px) aplican solo de frente y de espalda; en perfil, el fondo del torso es de 10-16 px. La regla «la derecha no es espejo exacto» se cumple con la luz recalculada y las piezas asimétricas, y el validador la comprueba.
 - **§2-3:** la luz y las viñetas ambientales van debajo de los actores; la viñeta de crisis es la única excepción. La presentación es a escala entera en píxeles físicos (zoom entero de cámara).
 - **§4:** la autoridad pasa a `palette.v2.json` y a `catalog.json` (en lugar de `roster` y `actor-roster`).
 - **§5:** la compuerta de aceptación es `npm run kit:check`, más la aprobación humana sobre láminas generadas en un HEAD concreto.
@@ -504,23 +507,23 @@ Se reescriben `lobby-avatar.util`, `editor-preview.util`, `avatar-figure` (pasa 
 | F5 | Lobby, editor de personaje, intro, diálogo, resultado y editor de mundo | — |
 | F6 | Migración de avatares (`localStorage` y `metadata.avatar`) | — |
 | F7 | Borrado del legado, validador completo («sin legado») y e2e del lobby | aviso por `frontend/e2e/**` |
-| F8 | *(a decidir, §13)* Recalibrar muebles y puertas a la altura nueva | — |
+| F8 | Recalibrar muebles y puertas a la altura nueva (unos 39 px/m) y dibujarlos a ×1 exacto | sí: capturas dentro del juego |
 
-Si un solo plan resulta demasiado largo, se parte en dos: **arte** (F1-F3) e **integración** (F4-F7, más F8 si entra).
+Si un solo plan resulta demasiado largo, se parte en tres: **arte** (F1-F3), **integración** (F4-F7) y **escala del mundo** (F8). La rama no se integra en `master` hasta terminar la F8.
 
 ## 13. Riesgos y preguntas abiertas
 
-1. **Escala del mundo.** A ×1 Valentina mide 64 px. Muebles y puertas están calibrados para unos 82 px (unos 46 px/m; la puerta mide 93 px) y se dibujan a escalas fraccionarias (0,9 a 1,45). Con la cámara a ×2, esos píxeles desiguales se notarán más. Propuesta: recalibrar a unos 39 px/m y reexportar a ×1 exacto en la F8. **Pregunta: ¿en esta rama o en otra?**
-2. **Indicador del estado de la paciente.** Hoy es un tinte rojo, verde o azul. Propuesta: un icono de pixel art sobre la cabeza. **Pregunta: ¿de acuerdo?**
+1. **Escala del mundo.** A ×1 Valentina mide 64 px. Muebles y puertas están calibrados para unos 82 px (unos 46 px/m; la puerta mide 93 px) y se dibujan a escalas fraccionarias (0,9 a 1,45). Con la cámara a ×2, esos píxeles desiguales se notarán más. **Resuelto (decisión 12):** se recalibra a unos 39 px/m y se dibuja a ×1 exacto en la F8, dentro de esta rama.
+2. **Indicador del estado de la paciente.** Hoy es un tinte rojo, verde o azul. **Resuelto (decisión 13):** un icono de pixel art sobre la cabeza.
 3. **Cambio de identidad de la abuela.** Hoy usa el arte de una madre joven; la receta la hace mayor (moño canoso, rostro maduro). Lo mismo con roles que hoy comparten arte (trabajadora social, orientadora jurídica): pasan a tener aspecto propio.
 4. **Patinaje.** A 150 px/s, una caminata de 6 cuadros a 10 fps patina. Las alternativas (12 fps o zancada más larga) afectan a la biblia; se deja anotado y no se cambia sin decisión.
 5. **Volumen de arte.** 10 peinados × 4 vistas × 2 complexiones, más retratos, más unas 20 prendas: es el grueso del trabajo. Por eso las aprobaciones son por lote (F2 y F3).
 6. **Motor TypeScript importado desde Node.** Se verifica en la F1. El respaldo es el mismo núcleo como `.mjs` con su `.d.mts`.
-7. **Peinados de volumen.** Un afro o un moño alto dentro de 21 px se ven aplastados. Propuesta: permitir hasta 25 px solo en peinados marcados como `volumen`, y en ellos validar el cráneo (17 px con contorno). Toca una medida que fijaste. **Pregunta: ¿se permite, o se dibujan dentro de 21 px?**
+7. **Peinados de volumen.** Un afro o un moño alto dentro de 21 px se ven aplastados. **Resuelto (decisión 14):** hasta 25 px solo en peinados marcados como `volumen`, validando el cráneo (17 px con contorno).
 
 ## 14. Fuera de alcance
 
 - Las animaciones de la fase 2 (hablar, interactuar, girar, reaccionar) y los 8 estados de retrato de la biblia.
 - Guardar el avatar del estudiante en el backend: hoy solo vive en su navegador.
-- Tilesets, mobiliario (salvo que se decida la F8) y el arte de la interfaz.
+- Tilesets y el arte de la interfaz. Del mobiliario solo entra su escala (F8), no un rediseño.
 - La velocidad de movimiento del jugador.
