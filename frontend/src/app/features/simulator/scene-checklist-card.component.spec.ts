@@ -4,9 +4,11 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { blend, contrastRatio, hexToRgb, rgbToHex } from '../../../styles/contrast.util';
-import { ORIENTATION_COPY } from './orientation.config';
+import { ENTITY_NAMES, ORIENTATION_COPY, ROUTE_ORDER, RoomGroup } from './orientation.config';
 import { SceneChecklistCardComponent } from './scene-checklist-card.component';
-import { OptionalEntry, SceneLogGroup, SceneLogState, SceneLogStep } from './scene-checklist.util';
+import { MapObjectState } from '../../core/models/simulation.model';
+import { OptionalEntry, SceneLogGroup, SceneLogState, SceneLogStep, deriveSceneLog } from './scene-checklist.util';
+import { STAGE_ROUTES } from './stage-route.config';
 
 type InputSignalNodeLike<T> = {
   applyValueToInputSignal(node: InputSignalNodeLike<T>, value: T): void;
@@ -593,6 +595,13 @@ describe('scene-checklist-card: contratos de fuente', () => {
     expect(source).not.toMatch(/HostListener|keydown|keyup|Escape|stopPropagation|preventDefault/);
   });
 
+  it('movimiento reducido: la única transición (borde y fondo de los controles) se apaga con la clase y con la preferencia del sistema', () => {
+    expect(css).toMatch(/transition: border-color 150ms ease, background-color 150ms ease;/);
+    expect(css).toMatch(/\.checklist--static \.checklist__toggle,\s*\.checklist--static \.checklist__chip \{ transition: none; \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.checklist__toggle,\s*\.checklist__chip \{ transition: none; \}/);
+    expect(css.match(/transition\s*:/g)).toHaveLength(3);
+  });
+
   it('una sola región aria-live y ningún role="status" ni "alert" aparte', () => {
     expect(template.match(/aria-live/g)).toHaveLength(1);
     expect(template).not.toMatch(/role="(status|alert|log)"/);
@@ -724,3 +733,99 @@ describe('scene-checklist-card: contraste sobre el envoltorio .objective-card (A
   });
 });
 
+describe('SceneChecklistCardComponent con datos reales de deriveSceneLog', () => {
+  const MAP_KEY: Record<RoomGroup, string> = {
+    'urgencias': 'hospital-urgencias',
+    'sala-escucha': 'hospital-sala-escucha',
+    'recepcion': 'comisaria-recepcion',
+    'consultorio': 'comisaria-consultorio',
+  };
+
+  function mapObject(key: string, room: RoomGroup): MapObjectState {
+    const entity = ENTITY_NAMES[key];
+    const type = /^(puerta|salida)-/.test(key) ? 'EXIT' : key.startsWith('tool-') ? 'TOOL' : entity.person ? 'PERSON' : 'OBJECT';
+    return {
+      key, label: entity.name, type, x: 300 + (key.length % 7) * 70, y: 330 + (key.length % 3) * 40, width: 32, height: 32,
+      color: '#fff', icon: 'x', shortCode: 'X', collision: false, interactionPrompt: '', interactionText: '',
+      decisionOptionId: null, toolCode: null, dialogue: null, metadata: {},
+    };
+  }
+
+  const objectsIn = (room: RoomGroup): MapObjectState[] =>
+    Object.keys(ENTITY_NAMES).filter(key => ENTITY_NAMES[key].room === room).map(key => mapObject(key, room));
+  const allObjectKeys = Object.keys(ENTITY_NAMES).filter(key => !key.startsWith('tool-'));
+  const personKeys = Object.keys(ENTITY_NAMES).filter(key => ENTITY_NAMES[key].person);
+
+  it('para cada etapa, sala y avance posible la tarjeta se pinta íntegra, sin controles en las filas ni claves internas', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [SceneChecklistCardComponent] });
+    const fixture = TestBed.createComponent(SceneChecklistCardComponent);
+    const host = fixture.nativeElement as HTMLElement;
+    const stateTexts = Object.values(ORIENTATION_COPY.card.stateText);
+    let rendered = 0;
+
+    for (const nodeKey of Object.keys(STAGE_ROUTES)) {
+      for (const room of ROUTE_ORDER) {
+        for (const progress of [0, 1] as const) {
+          const input = {
+            nodeKey, nodeTitle: null, nodeNarrative: null, nodeOptionIds: null,
+            mapKey: MAP_KEY[room], objects: objectsIn(room),
+            inventory: progress ? ['PAP', 'SPIKES', 'RISK_METER'] : [],
+            inspected: progress ? allObjectKeys : [], usedToolKeys: progress ? ['PAP', 'RISK_METER'] : [],
+            viewedNpcKeys: new Set<string>(progress ? personKeys : []),
+            visitedRooms: new Set<RoomGroup>(progress ? ROUTE_ORDER : []),
+            scenarioNpcs: personKeys.filter(key => ENTITY_NAMES[key].room === room)
+              .map(key => ({ key, displayName: ENTITY_NAMES[key].name, x: 400, y: 380 })),
+            terminal: false,
+          };
+          const state = deriveSceneLog(input);
+          if (!state) continue;
+          for (const compact of [false, true]) {
+            writeInputSignal(fixture.componentInstance.compact, compact);
+            writeInputSignal(fixture.componentInstance.state, state);
+            fixture.detectChanges();
+            if (compact) (host.querySelector('[data-checklist-toggle]') as HTMLElement).click();
+            fixture.detectChanges();
+            const text = visibleText(host);
+            const steps = state.groups.flatMap(group => group.steps);
+            const liRows = Array.from(host.querySelectorAll<HTMLElement>('li.step'));
+            // Con los grupos plegados las filas siguen en el DOM (dentro de <details>); se cuentan todas.
+            expect(liRows).toHaveLength(steps.length);
+            for (const row of liRows) {
+              expect(row.querySelector('button, a, input, [role="button"], [tabindex]')).toBeNull();
+              expect(stateTexts).toContain(row.querySelector('.step__body .visually-hidden')?.textContent?.trim());
+            }
+            expect(host.querySelectorAll('[aria-current="step"]')).toHaveLength(state.next ? 1 : 0);
+            expect(host.querySelector('section')?.getAttribute('data-next-step')).toBe(state.next?.stepId ?? null);
+            expect(text).not.toMatch(/\b[a-z]+(-[a-z]+)+\b|npc:|PAP@|\b(PAP|SPIKES|EPICEE|RISK_METER)\b|undefined|null|\[object/);
+            expect(text).not.toMatch(/completad|logro|puntos?\b|¡|correct|adecuad/i);
+            rendered += 1;
+            if (compact) (host.querySelector('[data-checklist-toggle]') as HTMLElement).click();
+          }
+        }
+      }
+    }
+    expect(rendered).toBeGreaterThan(40);
+    fixture.destroy();
+  });
+
+  it('una sala con tramos a pie muestra su encabezado una sola vez y «estás aquí» solo en la actual', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [SceneChecklistCardComponent] });
+    const fixture = TestBed.createComponent(SceneChecklistCardComponent);
+    const state = deriveSceneLog({
+      nodeKey: 'hospital-cierre-bloque', nodeTitle: null, nodeNarrative: null, nodeOptionIds: null,
+      mapKey: MAP_KEY['sala-escucha'], objects: objectsIn('sala-escucha'),
+      inventory: [], inspected: [], usedToolKeys: [], viewedNpcKeys: new Set(),
+      visitedRooms: new Set<RoomGroup>(['urgencias', 'sala-escucha']), scenarioNpcs: [], terminal: false,
+    }) as SceneLogState;
+    writeInputSignal(fixture.componentInstance.state, state);
+    fixture.detectChanges();
+    const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.checklist__room'))
+      .map(h => h.textContent?.trim());
+    expect(headers.length).toBeGreaterThan(1);
+    expect(headers.filter(h => h?.includes('estás aquí'))).toHaveLength(1);
+    expect(headers[0]).toBe('Hospital · Sala de escucha familiar · estás aquí');
+    fixture.destroy();
+  });
+});

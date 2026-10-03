@@ -241,6 +241,7 @@ let nextChecklistId = 0;
       font-size: .75rem;
       font-weight: 800;
       cursor: pointer;
+      transition: border-color 150ms ease, background-color 150ms ease;
     }
     .checklist__toggle { margin-left: auto; }
     .checklist__toggle::after,
@@ -271,6 +272,10 @@ let nextChecklistId = 0;
     }
     .checklist--static .checklist__toggle,
     .checklist--static .checklist__chip { transition: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .checklist__toggle,
+      .checklist__chip { transition: none; }
+    }
 
     .checklist__scroll { display: grid; gap: 6px; min-width: 0; }
     .checklist__scroll--limited { max-height: min(32vh, 132px); overflow-y: auto; overscroll-behavior: contain; }
