@@ -1,4 +1,4 @@
-import { SCENE_PROGRESS, getSceneProgress, getStageTitle } from './scene-objectives.config';
+import { SCENE_PROGRESS, getDecisionCounter, getSceneProgress, getStageTitle } from './scene-objectives.config';
 import { STAGE_ROUTES } from './stage-route.config';
 
 describe('scene-objectives.config: etapas', () => {
@@ -27,5 +27,15 @@ describe('scene-objectives.config: etapas', () => {
     expect(getStageTitle(undefined)).toBeNull();
     expect(getStageTitle('otro')).toBeNull();
     expect(getStageTitle('cierre-caso')).toBe('Caso cerrado');
+  });
+
+  it('getDecisionCounter: «Decisión k de 6» por etapa y «Caso cerrado» al final; sin etapa, null', () => {
+    expect(getDecisionCounter('hospital-urgencias')).toBe('Decisión 1 de 6');
+    expect(getDecisionCounter('hospital-cierre-bloque')).toBe('Decisión 4 de 6');
+    expect(getDecisionCounter('comisaria-accion-final')).toBe('Decisión 6 de 6');
+    expect(getDecisionCounter('cierre-caso')).toBe('Caso cerrado');
+    expect(getDecisionCounter('nodo-de-editor')).toBeNull();
+    expect(getDecisionCounter(null)).toBeNull();
+    expect(getDecisionCounter(undefined)).toBeNull();
   });
 });

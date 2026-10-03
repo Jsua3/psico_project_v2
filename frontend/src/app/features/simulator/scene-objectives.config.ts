@@ -1,4 +1,5 @@
 import { HOSPITAL_SCENE_OBJECTIVE } from './hospital-map.config';
+import { ORIENTATION_COPY } from './orientation.config';
 
 export interface SceneProgressDef {
   step: number;
@@ -54,4 +55,14 @@ export function getSceneProgress(nodeKey: string | undefined | null): SceneProgr
 /** Título de la etapa (chip central del HUD y subtítulo de la tarjeta); null si el nodo no tiene etapa. */
 export function getStageTitle(nodeKey: string | undefined | null): string | null {
   return getSceneProgress(nodeKey)?.stepLabel ?? null;
+}
+
+/**
+ * Contador único del caso (HUD y tarjeta «Qué hacer»): «Decisión 3 de 6», o «Caso cerrado» en el
+ * nodo final. null si el nodo no tiene etapa (la interfaz conserva entonces su contador de respaldo).
+ */
+export function getDecisionCounter(nodeKey: string | undefined | null): string | null {
+  if (nodeKey === 'cierre-caso') return ORIENTATION_COPY.card.counterClosed;
+  const progress = getSceneProgress(nodeKey);
+  return progress ? ORIENTATION_COPY.card.counter(progress.step, progress.total) : null;
 }
