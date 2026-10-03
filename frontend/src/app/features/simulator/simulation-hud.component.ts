@@ -217,7 +217,10 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       color: rgba(244,247,251,.92);
     }
     .hud-stage-chip {
-      flex-shrink: 0;
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       padding: 3px 9px;
       border-radius: 999px;
       border: 1px solid rgba(182,156,255,.3);
@@ -418,7 +421,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       .hud-scene { display: none; }
       .hud-patient { display: none; }
     }
-    @media (max-width: 640px) {
+    @media (max-width: 720px) {
       .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
       .hud-zone--right { min-width: 0; gap: 6px; }
       .hud-brand { display: none; }
@@ -430,6 +433,10 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     /* Teléfono en vertical: el catálogo sigue a un toque en Ajustes («Catálogo»). */
     @media (max-width: 480px) {
       .hud-action--home { display: none; }
+    }
+    /* Pantallas mínimas (320 px): el contador manda sobre el puntaje. */
+    @media (max-width: 380px) {
+      .hud-score { display: none; }
     }
     /* Modo compacto (mismo criterio que el resto del simulador): cabecera de 44 px. */
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
