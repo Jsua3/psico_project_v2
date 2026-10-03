@@ -39,6 +39,8 @@ export const RAMPS = {
   caqui: ['#c08a55', '#a06a40', '#7b4a30', '#5c3928'],
   menta: ['#bad2be', '#85b294', '#5b8d70', '#3d6a55'],
   'verde-azulado': ['#69a2c8', '#5b8d70', '#3d6a55', '#29483d'],
+  /** Azul acero del uniforme de Psicología (Universidad Alexander von Humboldt), tomado de la foto. */
+  'azul-humboldt': ['#8293ab', '#647690', '#4d5b6f', '#36404f'],
 };
 
 /** Colores literales por defecto (ojos, rubor, accesorios); una receta puede cambiarlos con `literals`. */
@@ -52,4 +54,6 @@ export const LITERAL_DEFAULTS = {
   gafas: '#302a3b',
   gafete: '#f1f2f4',
   gafeteCinta: '#3d78a8',
+  /** Bordado del programa en la bata. */
+  bordado: '#3d78a8',
 };

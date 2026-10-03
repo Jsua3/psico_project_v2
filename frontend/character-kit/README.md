@@ -7,10 +7,11 @@ Esta carpeta es autoría y no se publica; la salida vive en `src/assets/characte
 | Qué | Dónde |
 |---|---|
 | Maniquíes (grillas por vista + rig por cuadro) | `mannequins/complexion-*.mjs`, registro en `mannequins/index.mjs` |
-| Bustos de retrato 96×96 | `busts/bust-*.mjs`, registro en `busts/index.mjs` |
+| Bustos de retrato 32×32 | `busts/bust-*.mjs`, registro en `busts/index.mjs` |
 | Piezas (pelo, rostro, arriba, capa, abajo, calzado, accesorios) | `pieces/<tipo>/<id>.mjs`, registro en `pieces/index.mjs` |
 | Paleta maestra y rampas con nombre | `palette.v2.json`, `ramps.mjs` |
 | Recetas (un personaje fijo por archivo) | `recipes/<id>.json` (`_*.json` = borrador, no se publica) |
+| Catálogo: claves del juego → receta, opciones del editor y variantes de los jugables (la bata) | `catalog.json` |
 | Retoques a mano | `retouch/<id>/<hoja>.png` + `.json` |
 
 El motor es `src/app/features/character/kit/kit-engine.ts` (sin imports: lo usan el
@@ -20,7 +21,7 @@ navegador y Node). Los scripts viven en `scripts/character-kit/`.
 
 | Comando | Para qué |
 |---|---|
-| `npm run kit:build` | Escribe `kit.json`, las hojas y retratos de cada receta y `manifest.json`. |
+| `npm run kit:build` | Escribe `kit.json`, las hojas y retratos de cada receta (y de cada variante de jugable, en `<id>/<variante>/`) y `manifest.json`. |
 | `npm run kit:check` | Falla si la salida no está al día o rompe el contrato (geometría, paleta, animación, cobertura). Corre en CI. |
 | `npm run test:kit` | Pruebas del motor y los scripts. |
 | `npm run kit:laminas -- --receta <ids> \| --piezas <claves> \| --elenco \| --maniqui` | Láminas ×4 para revisar y aprobar. |

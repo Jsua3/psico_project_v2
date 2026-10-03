@@ -50,3 +50,15 @@ export function polyline(points) {
   }
   return cells;
 }
+
+/**
+ * Refleja una superposición de perfil izquierdo para usarla en el derecho
+ * (x ↔ 48 − x, como hace el motor con las piezas simétricas). Sirve a las
+ * piezas asimétricas, que reflejan lo común y añaden lo propio de cada lado.
+ */
+export function mirrorOverlay(overlay, frameWidth = 48) {
+  const rows = overlay.grid.replace(/\r/g, '').split('\n').map(r => r.trim()).filter(Boolean);
+  const width = Math.max(...rows.map(r => r.length));
+  const grid = rows.map(r => [...r.padEnd(width, '.')].reverse().join('')).join('\n');
+  return { ...overlay, at: [frameWidth - (overlay.at[0] + width - 1), overlay.at[1]], grid };
+}

@@ -40,8 +40,15 @@ test('todo lo que el catálogo nombra existe', () => {
   ]);
 });
 
-test('muestras del editor: cada conjunto y variante en cada complexión', () => {
+test('muestras del editor: uniforme y uniforme con bata, en cada complexión (decisión 18)', () => {
   const samples = editorSamples(buildBundle());
-  assert.equal(samples.length, 6 * 5 * 2);
-  assert.ok(samples.every(r => r.pieces.face === 'sereno'));
+  assert.equal(samples.length, 2 * 2);
+  assert.ok(samples.every(r => r.pieces.face === 'sereno' && r.pieces.top === 'uniforme-psicologia'));
+  assert.equal(samples.filter(r => r.pieces.layer === 'bata-psicologia').length, 2);
+});
+
+test('las variantes de los jugables nombran piezas y rampas que existen', () => {
+  const bundle = buildBundle();
+  bundle.catalog.playableVariants.bata.pieces.layer = 'capa-inexistente';
+  assert.deepEqual(checkCatalogRecipes(bundle), ['catálogo: la variante bata usa layer:capa-inexistente, que no existe']);
 });

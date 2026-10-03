@@ -42,6 +42,14 @@ test('modo desconocido o pieza inexistente fallan con un mensaje claro', () => {
   assert.throws(() => buildLamina({ piezas: 'hair:no-existe' }), /pieza desconocida: hair:no-existe/);
 });
 
+test('el elenco muestra también la versión con bata de cada jugable, como se publica', () => {
+  const bundle = buildBundle();
+  const { html } = buildLamina({ elenco: true });
+  const jugables = Object.values(bundle.recipes).filter(r => r.kind === 'jugable').length;
+  assert.equal((html.match(/class="row ground"/g) ?? []).length, Object.keys(bundle.recipes).length + jugables);
+  assert.match(html, /Valentina · bata \(jugable\)/);
+});
+
 test('las filas no se parten: cada fila de cuadros queda en una sola línea', () => {
   const { html } = buildLamina({ piezas: 'hair:bob-flequillo' });
   assert.match(html, /\.row \{[^}]*flex-wrap: nowrap/);

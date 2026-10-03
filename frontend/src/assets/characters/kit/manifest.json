@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "6bc07f42e58b3fe47b2627138649264fa6c35c623630a6f2b8043a326c68daa5",
+  "kitSha256": "1a5b5b02d88aa0c0bfe09e22a2458119513f391a0edba7d181acda67a4058362",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -178,19 +178,66 @@
           "path": "andres/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "90e9ce0f7e66312f5e85ee99066c57fc188bf92e41df61e84b9d1b14c6ea8004"
+          "pixelSha256": "c9d0df64d6da9fa9fe96b22457e42fcce3d23ab6541557b2b840c89bf42c5d40"
         },
         "walk": {
           "path": "andres/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "1e86e75560ff5e626c8644bf510f90229a06cdb808f32b77d701df2c1d16c419"
+          "pixelSha256": "3696e42be9321337bbb4ae411d23a14c6cd1492e51b0d1cb9ca74ffbaccb3115"
         },
         "portrait-neutral": {
           "path": "andres/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "26be3ff618b604a892bbdc2b2354633b798806242715de145b716e81db8176d3"
+          "pixelSha256": "ef5f204fb8cc1a2984f1c88b75d6b7d36a8c357bf9679aa6ea7c07e8a62179f7"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "andres/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "f68c92bc78a3fd4c28b4bd7fa6a2faa4e00a70e4184249d5032c7bf373bb2f06"
+            },
+            "walk": {
+              "path": "andres/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "9e2b4d1c6930f88cff49e6746eb8c0da904ad7600acca5233096463cab04d5fa"
+            },
+            "portrait-neutral": {
+              "path": "andres/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "43303bdd0f7145481476af47b048296b477205da6a3505dfba5a157ee2fddbf0"
+            }
+          }
         }
       }
     },
@@ -230,19 +277,66 @@
           "path": "camila/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "2ede5bc05c8fc83746f5366ca2a07eb377e847ed1ef499b0a6b0573718bbeda3"
+          "pixelSha256": "3828acdc440f2c4374ee87b02403452d2eff685d78ce30a77652057d9109daf8"
         },
         "walk": {
           "path": "camila/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "0ed1e8d95c2a927d6cb149ee15b3ceb48d26f2380841f4a8841c4d8fb83635fd"
+          "pixelSha256": "6e0df3818be6f601ff9b1d91ad757c83d25d48ae0907b59a26bc97e66cb11a27"
         },
         "portrait-neutral": {
           "path": "camila/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "55fede6511f0a8e61e51ffa7121b5eac2a869db40f5d0a0c6b265e4f3ae946f1"
+          "pixelSha256": "6f4a8ce2bc2410d68cce9390f461c55988f49f02946f79eb6e965e8ffd24ce6a"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "torsoDepth": 18
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "torsoDepth": 18
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "camila/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "85d1e3a493853408e81d802fadd064649e22baec9b6c3253309c1b0628a6fd64"
+            },
+            "walk": {
+              "path": "camila/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "a95c23fdad43af572f861dd75689a3743e1657a6834b5746b215319824ccd6a2"
+            },
+            "portrait-neutral": {
+              "path": "camila/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "28e8f8fb8605a9e9fe36e1b1eca28e53e4f48c92ae05b636cc64688a1b29afa2"
+            }
+          }
         }
       }
     },
@@ -282,19 +376,66 @@
           "path": "daniela/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "246335d68ef26af84a5e88feaa3b26dfbcd5564dfb400115bf1f3315e1d3e663"
+          "pixelSha256": "ef23a470af1e4eac3219ce02ef08dca30ba504d5b1586b182ee5af16f5357e28"
         },
         "walk": {
           "path": "daniela/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "eeee3dc01544a796ed8d2283d20be62ca1edbd92786331f909dc45a273226374"
+          "pixelSha256": "bd09ce61c2dcc1622ee53f4e02399a472e910abf33988699a6655e6d25edaaab"
         },
         "portrait-neutral": {
           "path": "daniela/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "a46ae55f2af9bed7025827a943703028743e9b1c9f9e0208e07aa80ffca51fc5"
+          "pixelSha256": "29b5aa94f503234197b6b87fa41df42815d31536eadc4e9232707554dec29ef2"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 23
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "torsoDepth": 14
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "torsoDepth": 14
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 23
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "daniela/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "c985d0041aac22139d10072c95592f352a2bb4a6dec9fa62dbc7a7c77f1635b3"
+            },
+            "walk": {
+              "path": "daniela/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "4e8bb0662e9402a5892d50c1a72d68081c4adb01a7a5807ecb5a0abfe1b90b8f"
+            },
+            "portrait-neutral": {
+              "path": "daniela/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "ee307cbf52f05cdf413d10a2dd7ba47516c543fdee80fd288153793e49d19863"
+            }
+          }
         }
       }
     },
@@ -334,19 +475,66 @@
           "path": "david/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "17c0c3a72c4f1b2f1510c48eaa67c7f5abf088f45c19ad5d8c87f75e94682d1f"
+          "pixelSha256": "0daed7ca5da22f4efceba2b69689aed78e10434eba4bb3d03eafb9f30d9cb26f"
         },
         "walk": {
           "path": "david/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "c3e83970398f50ff459118e49db314ed2f854b1af49c21c560d24a2945f38eb1"
+          "pixelSha256": "abddb5130ed21bcb3e394d1520b044665531b542d04e2d4b2e8b898a649ba119"
         },
         "portrait-neutral": {
           "path": "david/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "effbb5c93858992ebf378a7fd31d6934051773298dbedf1605d508064bb62e14"
+          "pixelSha256": "02d69c705232d9f221892ca23e304b6b8ab246ee49f14bf7601a21e325eb175c"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "david/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "2041d8856c23112982eda3a6c5d9497480cd21a954115cfb2649d1f545b89a93"
+            },
+            "walk": {
+              "path": "david/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "4b5e98a95daa5e0ad5fc9130ee0ca2458f41f7482905332a1802a5260267539e"
+            },
+            "portrait-neutral": {
+              "path": "david/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "7bc3ba4789b0b47bf4670498564d917e4fbedb780f9875728a00c2bf0b587a0c"
+            }
+          }
         }
       }
     },
@@ -456,19 +644,66 @@
           "path": "felipe/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "432b1f01056a4045b96f17185e2a06fbd2afe82c885686f6677caa7b59d6fe36"
+          "pixelSha256": "9991f0020321a9c4811d82651cc34e5b6d7c5f5c7feeaecd28443849ea56bfd3"
         },
         "walk": {
           "path": "felipe/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "60f057f796a7cddddcaff3d1e0902066fac3efd72f92f2dc06e8736c01540540"
+          "pixelSha256": "d1c3b60098d224baa094ea1c70718988ab66b2d518667560ae886e8cad72352d"
         },
         "portrait-neutral": {
           "path": "felipe/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "61a9d13408e6d330a9288b0f649fca6a29311fef9b170d99de43f4f890f4696e"
+          "pixelSha256": "43f57fd14e35a9e7ce467a818b61518dc1214e6d4248055f18b7ccf74f34987e"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "felipe/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "5dd843a2ff9a813a4aa2c3d2a0821d8d91941fcfae015d582a1fe1cf5d98f771"
+            },
+            "walk": {
+              "path": "felipe/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "fc24adfafe2389af287ef76b3473cf7bbec2dbe16e89c15125a904ee3fbac3e0"
+            },
+            "portrait-neutral": {
+              "path": "felipe/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "28584fe1d3e740312115c36ba0865f74b4f8990ed92a463f359e0d17c6ee7d1e"
+            }
+          }
         }
       }
     },
@@ -578,19 +813,66 @@
           "path": "jorge/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "cc55ac871690bbc53900d57b8c1c668770f25681d8e6e4f56018f4c16cef52a7"
+          "pixelSha256": "fb0c7872e4501566dedd918d951cff89756d0c55e177d832c981459d32b338dc"
         },
         "walk": {
           "path": "jorge/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "1865272eacb4cf205dee28d62a0baf8a918a36a6b7085595cd6371938e70f5f7"
+          "pixelSha256": "e704f2dbad2e48b436dccfed952573f0b93bb702ea0da5441faba07c64befc61"
         },
         "portrait-neutral": {
           "path": "jorge/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "0b1960defb0fd7aed2356f8583417420e6112d4a241df800346eff5432a24f13"
+          "pixelSha256": "6f53a41aff530e269c44da924d93f659efcdcec05dcc2edde43b4fe2c898f852"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "jorge/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "3fdf83cbe8449b9d59e68bb098ed6912df5904c93b989572fe64efcb3c8e1e2f"
+            },
+            "walk": {
+              "path": "jorge/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "7db3ec8ec8c3f39bad8147b7428603b7f63b2271bc5c6fa985319dc767ee6b46"
+            },
+            "portrait-neutral": {
+              "path": "jorge/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "5d6c6611344a89a86f445bbaa38b11200be0914cd99629633331a52acc838d27"
+            }
+          }
         }
       }
     },
@@ -630,19 +912,66 @@
           "path": "luisa/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "6767eff461d0f93920f9904ac5100638614708b2f4463a554909ad3b75eb6373"
+          "pixelSha256": "f1e3c7ab3e7987db96443654efa66af92066cd1d343ea1a816675b97fd41a9c2"
         },
         "walk": {
           "path": "luisa/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "36370b5235a51e5693e3a2397b79db360d1e0320745d470bfa9e0f7b6cf62089"
+          "pixelSha256": "1d32066fef3a9b805115146bb2044eb1664aad393092f986a8dcc71b903058af"
         },
         "portrait-neutral": {
           "path": "luisa/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "98d2d4892762f95da5cc3c44d242e0d77e1ba7b375e4feb9ab7e52027bdf4860"
+          "pixelSha256": "22b6c4fb71bcb32d627260bb1aee22007a9808840ee2dab1a735806c038eb889"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
+            "left": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 14
+            },
+            "right": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 14
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "luisa/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "6fc894b9efd2739e7bc700d609cf123bbe387d2f8cf372a8dbe4fc1043277e05"
+            },
+            "walk": {
+              "path": "luisa/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "02bf066182207b4cdfd4263085b8490d5b2a055172555ee98d81860c160ba766"
+            },
+            "portrait-neutral": {
+              "path": "luisa/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "6aa995a392e396a64af4df72839fea2ec17ce0ae58acbc4c01a34b20945e7e65"
+            }
+          }
         }
       }
     },
@@ -752,19 +1081,66 @@
           "path": "mariana/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "a25ce6cbec6fb11d44151380b84cf62d875279bd595b99f8bf150989461e06cb"
+          "pixelSha256": "5e3b2cfacbff8aaa8d588775387452b998faa7f5a10696c65fe3ae17f5e28688"
         },
         "walk": {
           "path": "mariana/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "6f330c6c6e0c60363896e645ff434eb29fce9ae0a0f832c40c1ed9543c6c1000"
+          "pixelSha256": "c5316fa5a3a2404c12e47876b8d1515b87872f5022cbef2a93c6d1597b493e96"
         },
         "portrait-neutral": {
           "path": "mariana/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "417f2f04c1adb2773f66faebda3de386d7e9d5c48dc5b355ef9521a52ba3f84d"
+          "pixelSha256": "cd77cf97c1a180b0c5db06cec23aa6457a328e7b452572c4bbe0a0054694e0ee"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 23
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 14
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 14
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 23
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "mariana/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "cd0719d9b8cf6a774ce70daea9f83ff9d6ad43c45244d8ca73547845953919b0"
+            },
+            "walk": {
+              "path": "mariana/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "a5f55ce4e7f54aa3c7c34f54f19386b38e36f24ea5e25416c140fc0e1db00508"
+            },
+            "portrait-neutral": {
+              "path": "mariana/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "3c9c961613d6b1bf8bc184b6fbcb46424aa1f59628e2a04b536b7900bedf286b"
+            }
+          }
         }
       }
     },
@@ -804,19 +1180,66 @@
           "path": "mateo/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "9b1f7c53e81ab7e66164239de44c51a2677558135ae479d924c11fc3eb1294ee"
+          "pixelSha256": "0887d7a50e80784db3bb01f1b2fa4385baec971a7678ba19bf008f006e55ebe6"
         },
         "walk": {
           "path": "mateo/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "bdcf0f6e5d912fdcaf55b78f43b9db1b6e65997e132191f73ad2b154f135bd75"
+          "pixelSha256": "b00306c0d36a4754876ccc998dd4194804ec138cad581475527cd8bb1d1e6ee1"
         },
         "portrait-neutral": {
           "path": "mateo/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "899b704193348cf357d9de51dfbbd8fe21d147d845894e8727472305bf89a640"
+          "pixelSha256": "96e643039e79e78775ad3a716e543cc521521a78cacbd7d86b2a8c6d04502d7d"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 65,
+              "headWidth": 20,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "mateo/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "c1b34e6b8ce93951bf91bcfb0f0cd631f323ee7dc9329a31190c76b0d0fd2aab"
+            },
+            "walk": {
+              "path": "mateo/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "4ba5221bda000b12c7e55515d7467d3eb0eb80fbeb01990634e88e262199c0e2"
+            },
+            "portrait-neutral": {
+              "path": "mateo/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "0e3352d45a271930e0d3a052dd328be8fe6c1974b64594fa007b51e1add81035"
+            }
+          }
         }
       }
     },
@@ -1048,19 +1471,66 @@
           "path": "paula/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "85e45472935f3ffa88142de86f26e7ee223f1bd8906e41f75eb1b3e090a96c19"
+          "pixelSha256": "b4f11e05c92cae43f33c2ac7ee4fd5fc36f93b26fd6d956b1f653efd10d5302a"
         },
         "walk": {
           "path": "paula/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "eec66471b7cc3a3651bde7817738a850803f8af1488c0bf1cc54b6a4b0d02b76"
+          "pixelSha256": "9ff7fc83463b7ece2dda5ddf2517b834c7cf7d17df2a5e93dbd140694c218b58"
         },
         "portrait-neutral": {
           "path": "paula/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "cb36095e98b79ef1a72a50ea8994ac90d7f8481ce8142ef2a54a07a7d4a983ff"
+          "pixelSha256": "ab1da99b127cdd30a16e7351952a20228a8288e1c1cdb680ed0b977380d0ffd0"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "torsoDepth": 18
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "torsoDepth": 18
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "paula/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "2144e399d7f7e1de06dc547b116b9fa86c24ea6f78b412a2d22a0c88a2017a97"
+            },
+            "walk": {
+              "path": "paula/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "26674ddf6fd0b25ba9164d06f131c87dd7084fd866a92cd5a964b22441251654"
+            },
+            "portrait-neutral": {
+              "path": "paula/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "909adb97322a9bf2106e3f5cbdf6705eae3923aae3aae5692baa29ed43a50329"
+            }
+          }
         }
       }
     },
@@ -1240,19 +1710,66 @@
           "path": "samuel/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "a2acc387eb1d3e741369f2a5ec9b6bd5faa9d4585945ff4839199dc689991b6e"
+          "pixelSha256": "4240dbbf8443d02dab74f3b330a16c806a8029c8cfc5a62e218acbb3d25da795"
         },
         "walk": {
           "path": "samuel/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "ca208b37a1a2fa4b7ba7cda4203a3edeb920f729a21351117f2c45b64374ca92"
+          "pixelSha256": "54b83c6b1bf532a7e59e8df1d5a6c0c8eb5f265db300ee71d886cf4432101f24"
         },
         "portrait-neutral": {
           "path": "samuel/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "2a56b5e0c38f385fc66939f7c38fb2fdb19f98b26d6e95a750dab81cbf35e740"
+          "pixelSha256": "a4021655759239559824caf49440f22072b80d5864d619a643aeccfe50770151"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 18,
+              "torsoDepth": 15
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 18,
+              "torsoDepth": 15
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "samuel/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "5661e4f5441cee2f741f7230919cd6c352d14238760f7812b83697384891bbdd"
+            },
+            "walk": {
+              "path": "samuel/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "36d40abb9a079337eecd2c35eb6a0bc1c4bff4060816beaf174fa0cee12982cc"
+            },
+            "portrait-neutral": {
+              "path": "samuel/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "960d429a5a6bf4a1ac1b21fe5bfa67ab2d08c37b207dd482586b787837f0d539"
+            }
+          }
         }
       }
     },
@@ -1572,19 +2089,66 @@
           "path": "valentina/idle.png",
           "width": 192,
           "height": 288,
-          "pixelSha256": "6fef71e199e544ddc2b0988007f608a534c4c31321365d21c2bf24a15d88ce4d"
+          "pixelSha256": "9c2cbd12d3ac9b61b11b67a35b9d21cff63c5c9b176ff0e263011083ad52f05b"
         },
         "walk": {
           "path": "valentina/walk.png",
           "width": 288,
           "height": 288,
-          "pixelSha256": "8ed695fc79b0694930f5668c4bd4785b1ecc3cd93ff636e14f34f3be6d64ca30"
+          "pixelSha256": "2da0b49a052cfed4021a6a06e6546d65368ae64ef1b140ea82ee168f54f96a61"
         },
         "portrait-neutral": {
           "path": "valentina/portrait-neutral.png",
           "width": 32,
           "height": 32,
-          "pixelSha256": "efa7a128473dd3833ed33d6c47d7418031b05e00f5a7048c9f49a80e8b0ea9c2"
+          "pixelSha256": "a2f4ae3a0a850292c10ccaf0cd1f5793cb6268fc63049c16eae3860adba9f3dd"
+        }
+      },
+      "variants": {
+        "bata": {
+          "geometry": {
+            "down": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "torsoDepth": 14
+            },
+            "right": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "torsoDepth": 14
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            }
+          },
+          "retouched": [],
+          "files": {
+            "idle": {
+              "path": "valentina/bata/idle.png",
+              "width": 192,
+              "height": 288,
+              "pixelSha256": "3ffd3a3c6eaa1e907a6c4effa72adc2f72900fdf10723136821724f8c950de58"
+            },
+            "walk": {
+              "path": "valentina/bata/walk.png",
+              "width": 288,
+              "height": 288,
+              "pixelSha256": "bd3ffb158b3150445cfd83db1910a7ff80659e654457e9127bbb22c49e0778f4"
+            },
+            "portrait-neutral": {
+              "path": "valentina/bata/portrait-neutral.png",
+              "width": 32,
+              "height": 32,
+              "pixelSha256": "eb1ca536cb66e8587ce01bf516ae2bcc9fc50fb5e4b3bfa966bdbf3a375177fa"
+            }
+          }
         }
       }
     }

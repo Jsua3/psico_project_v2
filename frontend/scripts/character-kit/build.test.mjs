@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
+import { composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { buildOutputs, writeOutputs } from './build.mjs';
+import { buildBundle } from './bundle.mjs';
 
-const golden = JSON.parse(readFileSync(new URL('./fixtures/valentina-prueba.json', import.meta.url), 'utf8'));
+const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
 test('el build es determinista: dos ejecuciones, mismos bytes', () => {
   const a = buildOutputs().files;
@@ -18,9 +21,11 @@ test('el build es determinista: dos ejecuciones, mismos bytes', () => {
 test('el manifiesto registra los hashes de píxeles de Valentina', () => {
   const { manifest, files } = buildOutputs();
   const v = manifest.characters.valentina;
-  assert.equal(v.files.idle.pixelSha256, golden.idle);
-  assert.equal(v.files.walk.pixelSha256, golden.walk);
-  assert.equal(v.files['portrait-neutral'].pixelSha256, golden['portrait-neutral']);
+  const bundle = buildBundle();
+  const composed = composeCharacter(bundle, bundle.recipes.valentina);
+  assert.equal(v.files.idle.pixelSha256, sha(composed.idle.rgba));
+  assert.equal(v.files.walk.pixelSha256, sha(composed.walk.rgba));
+  assert.equal(v.files['portrait-neutral'].pixelSha256, sha(composed.portraits.neutral.rgba));
   assert.deepEqual(v.provenance, { source: 'Kit SIEP', license: 'SIEP-INTERNAL' });
   assert.ok(files.has('kit.json') && files.has('manifest.json') && files.has('valentina/idle.png'));
 });
@@ -71,4 +76,14 @@ test('writeOutputs se niega a escribir en una carpeta que no es una salida del k
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('el build saca la versión con bata de cada jugable (y solo de los jugables)', () => {
+  const { files, manifest } = buildOutputs();
+  for (const name of ['idle', 'walk', 'portrait-neutral']) assert.ok(files.has(`valentina/bata/${name}.png`), name);
+  const variant = manifest.characters.valentina.variants.bata;
+  assert.equal(variant.files.idle.path, 'valentina/bata/idle.png');
+  assert.notEqual(variant.files.idle.pixelSha256, manifest.characters.valentina.files.idle.pixelSha256);
+  assert.ok(!files.has('abuela-familia/bata/idle.png'), 'los NPC no tienen variante');
+  assert.equal(manifest.characters['abuela-familia'].variants, undefined);
 });

@@ -6,9 +6,9 @@
   "pieces": {
     "hair": "corto-liso",
     "face": "sereno",
-    "top": "sueter",
-    "bottom": "pantalon",
-    "shoes": "zapatos",
+    "top": "uniforme-psicologia",
+    "bottom": "jogger",
+    "shoes": "tenis",
     "accessories": [
       "gafas"
     ]
@@ -16,11 +16,11 @@
   "colors": {
     "skin": "piel-2",
     "hair": "castano",
-    "top": "marino",
-    "inner": "blanco",
-    "bottom": "gris",
-    "shoes": "carbon",
-    "sole": "gris-oscuro"
+    "top": "azul-humboldt",
+    "accent": "blanco",
+    "bottom": "azul-humboldt",
+    "shoes": "blanco",
+    "sole": "gris-claro"
   },
   "portraits": ["neutral"],
   "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }

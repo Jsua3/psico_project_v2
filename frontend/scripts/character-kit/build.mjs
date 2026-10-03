@@ -12,7 +12,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
+import { applyRecipeVariant, composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { FRONTEND_ROOT, buildBundle, stringifyBundle } from './bundle.mjs';
 import { encodePng } from './kit-png.mjs';
 import { geometry } from './measure.mjs';
@@ -47,6 +47,27 @@ export function finishCharacter(id, composed, retouchRoot = RETOUCH_ROOT) {
 }
 
 /**
+ * Variantes de una receta que el build publica: los jugables, una por cada
+ * entrada de `catalog.playableVariants` (decisión 17); el resto, ninguna.
+ * Devuelve [idVariante, receta] con la receta ya mezclada.
+ */
+export function recipeVariants(bundle, recipe) {
+  if (recipe.kind !== 'jugable') return [];
+  return Object.entries(bundle.catalog.playableVariants ?? {}).map(([variantId, variant]) => [variantId, applyRecipeVariant(recipe, variant)]);
+}
+
+/** Imágenes de un personaje (o variante) en `files` y su entrada del manifiesto. */
+function publish(files, prefix, composedWithRetouch, images, applied) {
+  const entry = { geometry: geometry(composedWithRetouch), retouched: applied.map(r => r.name), files: {} };
+  for (const [name, image] of Object.entries(images)) {
+    const rel = `${prefix}/${name}.png`;
+    files.set(rel, encodePng(image.width, image.height, image.rgba));
+    entry.files[name] = { path: rel, width: image.width, height: image.height, pixelSha256: sha256(image.rgba) };
+  }
+  return entry;
+}
+
+/**
  * Todo lo que el build escribe, en memoria. `files` mapea la ruta relativa a
  * `--out` con sus bytes; el validador lo reutiliza para comparar con el disco.
  */
@@ -62,14 +83,15 @@ export function buildOutputs({ retouchRoot = RETOUCH_ROOT } = {}) {
       kind: recipe.kind,
       complexion: recipe.complexion,
       provenance: recipe.provenance,
-      geometry: geometry(composed),
-      retouched: applied.map(r => r.name),
-      files: {},
+      ...publish(files, id, composed, images, applied),
     };
-    for (const [name, image] of Object.entries(images)) {
-      const rel = `${id}/${name}.png`;
-      files.set(rel, encodePng(image.width, image.height, image.rgba));
-      entry.files[name] = { path: rel, width: image.width, height: image.height, pixelSha256: sha256(image.rgba) };
+    const variants = recipeVariants(bundle, recipe);
+    if (variants.length) {
+      entry.variants = {};
+      for (const [variantId, variantRecipe] of variants) {
+        const done = finishCharacter(`${id}/${variantId}`, composeCharacter(bundle, variantRecipe), retouchRoot);
+        entry.variants[variantId] = publish(files, `${id}/${variantId}`, done.composed, done.images, done.applied);
+      }
     }
     characters[id] = entry;
   }

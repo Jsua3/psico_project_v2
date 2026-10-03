@@ -6,18 +6,18 @@
   "pieces": {
     "hair": "trenza",
     "face": "sereno",
-    "top": "sueter",
-    "bottom": "jean",
+    "top": "uniforme-psicologia",
+    "bottom": "jogger",
     "shoes": "tenis",
     "accessories": []
   },
   "colors": {
     "skin": "piel-3",
     "hair": "negro",
-    "top": "morado",
-    "inner": "blanco",
-    "bottom": "marino",
-    "shoes": "carbon",
+    "top": "azul-humboldt",
+    "accent": "blanco",
+    "bottom": "azul-humboldt",
+    "shoes": "blanco",
     "sole": "gris-claro"
   },
   "portraits": ["neutral"],

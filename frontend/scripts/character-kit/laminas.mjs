@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 import { FRAME, PORTRAIT_FRAME, SHEETS, VIEW_ROWS, composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { FRONTEND_ROOT, buildBundle, compilePiece } from './bundle.mjs';
-import { finishCharacter } from './build.mjs';
+import { finishCharacter, recipeVariants } from './build.mjs';
 import { encodePng } from './kit-png.mjs';
 import { sampleRecipe } from './muestras.mjs';
 import { RETOUCH_ROOT } from './retouch-lib.mjs';
@@ -107,8 +107,8 @@ function mannequinBundle() {
 }
 
 /** Personaje fijo con sus retoques aplicados (como se publica) y la etiqueta que lo dice. */
-function finished(bundle, recipe, retouchRoot) {
-  const { composed, applied } = finishCharacter(recipe.id, composeCharacter(bundle, recipe), retouchRoot);
+function finished(bundle, recipe, retouchRoot, id = recipe.id) {
+  const { composed, applied } = finishCharacter(id, composeCharacter(bundle, recipe), retouchRoot);
   const note = applied.length ? ` · retocado: ${applied.map(r => r.name).join(', ')}` : '';
   return { composed, note };
 }
@@ -141,10 +141,12 @@ export function buildLamina(args) {
   }
   if (args.elenco) {
     const bundle = buildBundle();
-    const body = Object.values(bundle.recipes).map(r => {
-      const { composed, note } = finished(bundle, r, retouchRoot);
-      return compactRow(`${r.displayName ?? r.id} (${r.kind ?? '—'})${note}`, composed, k);
-    }).join('');
+    // Cada receta y, debajo, sus variantes publicadas (la bata de los jugables).
+    const body = Object.values(bundle.recipes).flatMap(r => [[r.id, '', r], ...recipeVariants(bundle, r).map(([v, vr]) => [`${r.id}/${v}`, ` · ${v}`, vr])])
+      .map(([id, suffix, r]) => {
+        const { composed, note } = finished(bundle, r, retouchRoot, id);
+        return compactRow(`${r.displayName ?? r.id}${suffix} (${r.kind ?? '—'})${note}`, composed, k);
+      }).join('');
     return { name: 'elenco', html: pageHtml(args.titulo ?? 'Elenco del kit', sub(`${Object.keys(bundle.recipes).length} recetas`), body) };
   }
   if (args.maniqui) {

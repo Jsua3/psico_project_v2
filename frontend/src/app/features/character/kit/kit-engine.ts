@@ -130,6 +130,21 @@ export interface Recipe {
   provenance?: { source: string; license: string };
 }
 
+/** Cambios de una variante sobre una receta (p. ej. el jugable «con bata»). */
+export interface RecipeVariant {
+  pieces?: Partial<RecipePieces>;
+  colors?: Record<string, string>;
+}
+
+/** Receta con la variante aplicada encima; no modifica la original. */
+export function applyRecipeVariant(recipe: Recipe, variant: RecipeVariant): Recipe {
+  return {
+    ...recipe,
+    pieces: { ...recipe.pieces, ...(variant.pieces ?? {}) },
+    colors: { ...recipe.colors, ...(variant.colors ?? {}) },
+  };
+}
+
 export interface EncodedFrame {
   labels: string;
   motion: Motion;
@@ -185,6 +200,8 @@ export interface Catalog {
   templates: Record<string, string>;
   extras: string;
   emotionToPortrait: Record<string, PortraitState>;
+  /** Variantes que el build genera de cada jugable (decisión 17: «bata»). */
+  playableVariants: Record<string, RecipeVariant>;
   editor: EditorOptions;
 }
 

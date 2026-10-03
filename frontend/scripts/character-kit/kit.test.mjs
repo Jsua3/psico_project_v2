@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import {
   FRAME,
   TONE,
+  applyRecipeVariant,
   composeCharacter,
   computeTones,
   createFrame,
@@ -22,6 +23,8 @@ import { sampleRecipe } from './muestras.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const golden = JSON.parse(readFileSync(new URL('./fixtures/valentina-prueba.json', import.meta.url), 'utf8'));
+/** Valentina con la ropa de la prueba aprobada (76e6171), antes del uniforme: base fija de las pruebas del motor. */
+const TRIAL = golden.recipe;
 const MAGENTA = '#ff00ff';
 
 /** Color `#rrggbb` del píxel (x, y) del cuadro (col, row) de una hoja. */
@@ -30,11 +33,11 @@ function pixel(image, col, row, x, y, fw = FRAME.width, fh = FRAME.height) {
   return `#${[0, 1, 2].map(k => image.rgba[i + k].toString(16).padStart(2, '0')).join('')}`;
 }
 
-/** Copia del paquete con piezas extra (ya compiladas) y una receta derivada de Valentina. */
+/** Copia del paquete con piezas extra (ya compiladas) y una receta derivada de la Valentina de la prueba. */
 function withPieces(extraPieces, patch = {}) {
   const bundle = buildBundle();
   for (const piece of extraPieces) bundle.pieces[`${piece.kind}:${piece.id}`] = compilePiece(piece);
-  const base = bundle.recipes.valentina;
+  const base = TRIAL;
   const recipe = {
     ...base,
     ...patch,
@@ -46,7 +49,7 @@ function withPieces(extraPieces, patch = {}) {
 
 test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (2026-10-03)', () => {
   const bundle = buildBundle();
-  const out = composeCharacter(bundle, bundle.recipes.valentina);
+  const out = composeCharacter(bundle, TRIAL);
   assert.equal(sha(out.idle.rgba), golden.idle);
   assert.equal(sha(out.walk.rgba), golden.walk);
   assert.equal(sha(out.portraits.neutral.rgba), golden['portrait-neutral']);
@@ -179,7 +182,7 @@ test('un rostro usa la expresión del estado en el retrato', () => {
 
 test('errores de receta con nombre y clave', () => {
   const bundle = buildBundle();
-  const base = bundle.recipes.valentina;
+  const base = TRIAL;
   assert.throws(() => composeCharacter(bundle, { ...base, pieces: { ...base.pieces, top: 'no-existe' } }), /receta valentina: pieza desconocida top:no-existe/);
   assert.throws(() => composeCharacter(bundle, { ...base, colors: { ...base.colors, top: 'no-existe' } }), /rampa desconocida no-existe \(ranura top\)/);
   assert.throws(() => composeCharacter(bundle, { ...base, complexion: 'z' }), /complexión desconocida z/);
@@ -295,4 +298,14 @@ test('bordes: depth pinta varias filas desde el borde y edge «top» marca la fi
   // El empeine (fila de arriba del pie, y = 63) va en tono de luz.
   assert.equal(pixel(run('brillo-prueba'), 0, 0, 20, 63), carbon[0]);
   assert.throws(() => compilePiece({ ...botin, edges: [{ labels: ['o'], edge: 'left' }] }), /borde desconocido/);
+});
+
+test('applyRecipeVariant mezcla piezas y colores de la variante sin tocar la receta', () => {
+  const bundle = buildBundle();
+  const base = bundle.recipes.valentina;
+  const conBata = applyRecipeVariant(base, { pieces: { layer: 'bata' }, colors: { layer: 'blanco' } });
+  assert.equal(conBata.pieces.layer, 'bata');
+  assert.equal(conBata.colors.layer, 'blanco');
+  assert.equal(conBata.pieces.hair, base.pieces.hair);
+  assert.equal(base.pieces.layer, undefined, 'la receta original no cambia');
 });

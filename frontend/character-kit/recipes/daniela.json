@@ -6,18 +6,19 @@
   "pieces": {
     "hair": "cola-caballo",
     "face": "sereno",
-    "top": "blusa",
-    "bottom": "pantalon",
-    "shoes": "zapatos",
+    "top": "uniforme-psicologia",
+    "bottom": "jogger",
+    "shoes": "tenis",
     "accessories": []
   },
   "colors": {
     "skin": "piel-1",
     "hair": "negro",
-    "top": "coral",
-    "bottom": "marino",
-    "shoes": "carbon",
-    "sole": "gris-oscuro"
+    "top": "azul-humboldt",
+    "accent": "blanco",
+    "bottom": "azul-humboldt",
+    "shoes": "blanco",
+    "sole": "gris-claro"
   },
   "portraits": ["neutral"],
   "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }

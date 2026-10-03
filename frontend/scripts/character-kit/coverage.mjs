@@ -11,8 +11,6 @@ import { FRONTEND_ROOT } from './bundle.mjs';
 
 export const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
 const EMOTIONS = ['neutral', 'vulnerable', 'concerned', 'danger', 'positive'];
-/** Variantes de color de cada conjunto: las que necesita la migración de avatares v1 (spec §9.3). */
-export const OUTFIT_VARIANTS = Object.freeze(['morado', 'azul', 'verde', 'vinotinto', 'gris']);
 const MAPS = Object.freeze([
   ['scenarioNpcs', 'el NPC de escenario'],
   ['actors', 'el actor'],
@@ -76,13 +74,20 @@ export function checkCatalogRecipes(bundle) {
     for (const kind of ['top', 'layer', 'bottom', 'shoes']) {
       if (outfit[kind] && !pieces[`${kind}:${outfit[kind]}`]) errors.push(`editor: el conjunto ${outfit.id} usa ${kind}:${outfit[kind]}, que no existe`);
     }
-    if (outfit.variants.map(v => v.id).join() !== OUTFIT_VARIANTS.join()) {
-      errors.push(`editor: el conjunto ${outfit.id} debe tener las variantes ${OUTFIT_VARIANTS.join(', ')} en ese orden`);
-    }
+    if (!outfit.variants.length) errors.push(`editor: el conjunto ${outfit.id} no tiene ninguna variante de color`);
     for (const variant of outfit.variants) {
       for (const [slot, ramp] of Object.entries(variant.colors)) {
         if (!ramps[ramp]) errors.push(`editor: ${outfit.id}/${variant.id}, ranura ${slot}: rampa inexistente ${ramp}`);
       }
+    }
+  }
+  for (const [variantId, variant] of Object.entries(catalog.playableVariants ?? {})) {
+    for (const [kind, id] of Object.entries(variant.pieces ?? {})) {
+      const key = kind === 'accessories' ? null : `${kind}:${id}`;
+      if (key && !pieces[key]) errors.push(`catálogo: la variante ${variantId} usa ${key}, que no existe`);
+    }
+    for (const [slot, ramp] of Object.entries(variant.colors ?? {})) {
+      if (!ramps[ramp]) errors.push(`catálogo: la variante ${variantId}, ranura ${slot}: rampa inexistente ${ramp}`);
     }
   }
   return errors;

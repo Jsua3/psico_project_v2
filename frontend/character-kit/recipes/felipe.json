@@ -6,18 +6,18 @@
   "pieces": {
     "hair": "corto-rizado",
     "face": "sereno",
-    "top": "chaqueta-jean",
-    "bottom": "jean",
+    "top": "uniforme-psicologia",
+    "bottom": "jogger",
     "shoes": "tenis",
     "accessories": []
   },
   "colors": {
     "skin": "piel-2",
     "hair": "negro",
-    "top": "azul",
-    "inner": "blanco",
-    "bottom": "marino",
-    "shoes": "carbon",
+    "top": "azul-humboldt",
+    "accent": "blanco",
+    "bottom": "azul-humboldt",
+    "shoes": "blanco",
     "sole": "gris-claro"
   },
   "portraits": ["neutral"],

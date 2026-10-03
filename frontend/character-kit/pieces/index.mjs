@@ -4,6 +4,7 @@ import gafete from './accessory/gafete.mjs';
 import faldaLarga from './bottom/falda-larga.mjs';
 import faldaRodilla from './bottom/falda-rodilla.mjs';
 import jean from './bottom/jean.mjs';
+import jogger from './bottom/jogger.mjs';
 import pantalon from './bottom/pantalon.mjs';
 import pantalonUniforme from './bottom/pantalon-uniforme.mjs';
 import maduro from './face/maduro.mjs';
@@ -19,6 +20,7 @@ import mono from './hair/mono.mjs';
 import rapado from './hair/rapado.mjs';
 import trenza from './hair/trenza.mjs';
 import bata from './layer/bata.mjs';
+import bataPsicologia from './layer/bata-psicologia.mjs';
 import botines from './shoes/botines.mjs';
 import tenis from './shoes/tenis.mjs';
 import zapatos from './shoes/zapatos.mjs';
@@ -34,6 +36,7 @@ import polo from './top/polo.mjs';
 import sudadera from './top/sudadera.mjs';
 import sueter from './top/sueter.mjs';
 import uniformeClinico from './top/uniforme-clinico.mjs';
+import uniformePsicologia from './top/uniforme-psicologia.mjs';
 
 export const PIECES = Object.freeze([
   // pelo
@@ -63,12 +66,15 @@ export const PIECES = Object.freeze([
   sudadera,
   sueter,
   uniformeClinico,
+  uniformePsicologia,
   // capas
   bata,
+  bataPsicologia,
   // abajo
   faldaLarga,
   faldaRodilla,
   jean,
+  jogger,
   pantalon,
   pantalonUniforme,
   // calzado
