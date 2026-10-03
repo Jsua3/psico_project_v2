@@ -716,6 +716,8 @@ const CASE_INTRO_PARAGRAPHS = [
     .case-intro-card--scene { width: min(860px, 100%); max-height: min(88vh, 760px); }
     .case-intro-card__media {
       min-height: 0;
+      /* En pantallas bajas el escenario no cabe: recortado, nunca por encima del pie, donde están «Salida segura» y «Continuar». */
+      overflow: hidden;
       display: grid;
       /* Sin esto la pista «auto» crece al ancho del escenario (384 px) y en móvil no se recorta. */
       grid-template-columns: minmax(0, 1fr);
