@@ -119,7 +119,9 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                 <mat-icon aria-hidden="true">settings</mat-icon>
               </button>
               @if (settingsOpen()) {
-                <div id="game-settings-menu" class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
+                <div #settingsMenu id="game-settings-menu" class="settings-menu" popover="manual"
+                  [style.--hud-menu-top]="menuTop() + 'px'"
+                  role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
                   <div class="settings-menu__header">
                     <strong id="game-settings-title">Ajustes</strong>
                     <button type="button" aria-label="Cerrar ajustes" (click)="closeSettings()">
@@ -206,7 +208,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
 
     .hud-case {
-      max-width: 320px;
+      max-width: clamp(160px, 20vw, 320px);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -293,15 +295,18 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-action:active { transform: translateY(1px); }
     .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
     .hud-action mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    /* popover="manual": el menú vive en la capa superior del navegador, por encima de los controles
+       táctiles del mundo (z 48), que si no lo tapaban. Sin soporte de popover se ve igual, fijo y con z-index. */
     .settings-menu {
-      position: absolute;
-      top: calc(100% + 9px);
-      right: 0;
+      position: fixed;
+      inset: auto 8px auto auto;
+      top: var(--hud-menu-top, 53px);
+      margin: 0;
       z-index: 80;
       width: min(280px, calc(100vw - 24px));
       /* Con las filas de ayuda el menú ya no cabe en un móvil horizontal: se desplaza dentro de sí mismo. */
-      max-height: calc(100vh - 64px);
-      max-height: calc(100dvh - 64px);
+      max-height: calc(100vh - var(--hud-menu-top, 53px) - 12px);
+      max-height: calc(100dvh - var(--hud-menu-top, 53px) - 12px);
       overflow-y: auto;
       overscroll-behavior: contain;
       display: grid;
@@ -312,11 +317,18 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       background: rgba(13,18,30,.96);
       box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
     }
+    /* Fija arriba: en un móvil horizontal el menú se desplaza y el «x» no debe perderse de vista. */
     .settings-menu__header {
+      position: sticky;
+      top: -10px;
+      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 2px 2px 6px;
+      margin: -10px -10px 0;
+      padding: 10px 12px 6px;
+      border-radius: 12px 12px 0 0;
+      background: rgb(13,18,30);
       border-bottom: 1px solid rgba(182,156,255,.16);
       color: #e7ddff;
       font-size: .78rem;
@@ -399,7 +411,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 
     /* Sin ancho de sobra primero se va el nombre del caso; después la sala y las barras de la paciente.
        El chip «Decisión k de 6» se queda siempre: es el único contador. */
-    @media (max-width: 1199px) {
+    @media (max-width: 1359px) {
       .hud-zone--case { display: none; }
     }
     @media (max-width: 960px) {
@@ -469,6 +481,9 @@ export class SimulationHudComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
+  private readonly settingsMenu = viewChild<ElementRef<HTMLElement>>('settingsMenu');
+  /** Borde superior del menú (px): justo bajo la cabecera, medido al abrirlo porque su alto cambia en compacto. */
+  readonly menuTop = signal(53);
   private stopPointerListener: (() => void) | null = null;
 
   constructor() {
@@ -477,6 +492,17 @@ export class SimulationHudComponent {
     effect(() => {
       if (this.settingsOpen()) this.listenOutsidePointer();
       else this.unlistenOutsidePointer();
+    });
+    // El menú se abre en la capa superior (popover) cuando el navegador la ofrece.
+    effect(() => {
+      const menu = this.settingsMenu()?.nativeElement;
+      if (!menu) return;
+      this.menuTop.set(Math.round(this.host.nativeElement.getBoundingClientRect().bottom) + 9);
+      try {
+        menu.showPopover?.();
+      } catch {
+        // Ya estaba abierto o el navegador no admite popover: se queda como menú fijo normal.
+      }
     });
     // Un híbrido puede cambiar de puntero principal; la consulta avisa sin escuchar nada de `document`.
     const stopWatchingPointer = watchMedia(COARSE_POINTER_QUERY, coarse => this.coarsePointer.set(coarse));

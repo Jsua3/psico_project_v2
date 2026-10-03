@@ -211,7 +211,31 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
   });
 
+  describe('menú de Ajustes en la capa superior', () => {
+    // ts-jest no compila las consultas con `viewChild()` (igual que las entradas con `input()`): el efecto que
+    // abre el popover solo corre en el navegador, donde se comprobó jugando (`:popover-open` en 844x390).
+    it('el menú es un popover manual y se abre con showPopover protegido por try/catch', () => {
+      expect(hudSource).toMatch(/<div #settingsMenu id="game-settings-menu" class="settings-menu" popover="manual"/);
+      expect(hudSource).toMatch(/try \{\s*menu\.showPopover\?\.\(\);\s*\} catch \{/);
+    });
+
+    it('sin soporte de popover el menú se abre igual (menú fijo con z-index)', () => {
+      const root = mount();
+      expect(() => openSettings(root)).not.toThrow();
+      expect(hudSource).toMatch(/\.settings-menu \{\s*position: fixed;/);
+    });
+
+    it('la cabecera del menú queda fija al desplazarlo y el menú no pasa del alto de la pantalla', () => {
+      expect(hudSource).toMatch(/\.settings-menu__header \{[^}]*position: sticky;/);
+      expect(hudSource).toMatch(/\.settings-menu \{[^}]*max-height: calc\(100dvh - var\(--hud-menu-top, 53px\) - 12px\);[^}]*overflow-y: auto;/);
+    });
+  });
+
   describe('contratos de fuente (CSS)', () => {
+    it('el nombre del caso solo se muestra con ancho de sobra: antes la sala se colapsaba a 35 px a 1200', () => {
+      expect(hudSource).toMatch(/@media \(max-width: 1359px\) \{\s*\.hud-zone--case \{ display: none; \}/);
+    });
+
     /** Todos los `font-size` de texto del HUD (se omiten los iconos de Material: se miden en px de glifo). */
     function textSizesInPx(): { selector: string; px: number }[] {
       const styles = hudSource.slice(hudSource.indexOf('styles: [`'), hudSource.indexOf('`]\n})'));
