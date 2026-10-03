@@ -13,7 +13,9 @@ jest.mock('phaser', () => ({
   },
 }));
 
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -22,7 +24,9 @@ import { EMPTY } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
+import { GameHelpComponent } from './game-help.component';
 import { GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
+import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
   return {
@@ -102,6 +106,20 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
   });
 });
 
+/** Doble de la pantalla de ayuda: ts-jest no compila las entradas con `input()` del componente real. */
+@Component({
+  selector: 'app-game-help',
+  standalone: true,
+  template: '<button type="button" class="stub-close" (click)="closed.emit()">Cerrar ayuda</button>',
+})
+class GameHelpStubComponent {
+  @Input() view = 'card';
+  @Input() modality = 'keyboard';
+  @Input() compact = false;
+  @Input() safeExitPromise = false;
+  @Output() closed = new EventEmitter<void>();
+}
+
 describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () => {
   const source = readFileSync(join(__dirname, 'game-menu.component.ts'), 'utf-8');
   const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
@@ -125,16 +143,24 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
       ],
     });
+    TestBed.overrideComponent(GameMenuComponent, {
+      remove: { imports: [GameHelpComponent] },
+      add: { imports: [GameHelpStubComponent] },
+    });
     const fixture = TestBed.createComponent(GameMenuComponent);
     fixture.detectChanges();
-    return { fixture, component: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
+    const router = TestBed.inject(Router) as unknown as { navigate: jest.Mock };
+    return { fixture, component: fixture.componentInstance, root: fixture.nativeElement as HTMLElement, router };
   }
 
   const helpButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>('button.menu-help-btn');
-  const helpPanel = (root: HTMLElement) => root.querySelector<HTMLElement>('#lobby-help');
+  const helpLayer = (root: HTMLElement) => root.querySelector<HTMLElement>('.menu-help-layer');
+  const helpStub = (fixture: { debugElement: { query: (p: unknown) => { componentInstance: GameHelpStubComponent } | null } }) =>
+    fixture.debugElement.query(By.directive(GameHelpStubComponent))?.componentInstance;
 
   afterEach(() => {
     TestBed.resetTestingModule();
+    jest.useRealTimers();
     if (original) Object.defineProperty(window, 'matchMedia', original);
     else delete (window as { matchMedia?: unknown }).matchMedia;
   });
@@ -175,70 +201,82 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     it('es un botón DOM visible con nombre accesible igual al texto visible y cerrado al inicio', () => {
       const { root } = mount(false);
       const button = helpButton(root);
-      expect(button?.textContent).toContain('Cómo se juega');
+      expect(button?.textContent).toContain(ORIENTATION_COPY.ui.helpTitle);
       expect(button?.hasAttribute('aria-label')).toBe(false);
       expect(button?.getAttribute('aria-expanded')).toBe('false');
-      expect(helpPanel(root)).toBeNull();
+      expect(helpLayer(root)).toBeNull();
     });
 
-    it('al pulsarlo abre un diálogo no modal con nombre y mueve el foco a «Cerrar ayuda»', () => {
+    it('al pulsarlo abre la pantalla «Cómo se juega» del juego (view=screen) con la modalidad de puntero', () => {
+      for (const [coarse, modality] of [[false, 'keyboard'], [true, 'touch']] as const) {
+        const { fixture, root } = mount(coarse);
+        helpButton(root)!.click();
+        fixture.detectChanges();
+        expect(helpLayer(root)).not.toBeNull();
+        const help = helpStub(fixture);
+        expect(help?.view).toBe('screen');
+        expect(help?.modality).toBe(modality);
+        expect(help?.safeExitPromise).toBe(SAFE_EXIT_ALWAYS_REACHABLE);
+        expect(helpButton(root)?.getAttribute('aria-expanded')).toBe('true');
+        TestBed.resetTestingModule();
+      }
+    });
+
+    it('«Cerrar ayuda» (closed) la cierra y devuelve el foco al botón', () => {
       const { fixture, root } = mount(false);
       helpButton(root)!.click();
       fixture.detectChanges();
-      const panel = helpPanel(root);
-      expect(panel).not.toBeNull();
-      expect(panel?.getAttribute('role')).toBe('dialog');
-      expect(panel?.getAttribute('aria-modal')).toBe('false');
-      const title = root.querySelector(`#${panel?.getAttribute('aria-labelledby')}`);
-      expect(title?.textContent).toContain('Cómo se juega');
-      expect(helpButton(root)?.getAttribute('aria-expanded')).toBe('true');
-      expect(document.activeElement?.getAttribute('aria-label')).toBe('Cerrar ayuda');
-    });
-
-    it('con teclado explica flechas y E; sin él, el toque y el botón «Entrar al caso»', () => {
-      const fine = mount(false);
-      helpButton(fine.root)!.click();
-      fine.fixture.detectChanges();
-      expect(helpPanel(fine.root)?.textContent).toMatch(/Flechas o A y D/);
-      expect(helpPanel(fine.root)?.textContent).toMatch(/pulsa E/);
-      TestBed.resetTestingModule();
-
-      const coarse = mount(true);
-      helpButton(coarse.root)!.click();
-      coarse.fixture.detectChanges();
-      const text = helpPanel(coarse.root)?.textContent ?? '';
-      expect(text).toContain('Toca el suelo');
-      expect(text).toContain('«Entrar al caso»');
-      expect(text).not.toMatch(/Flechas|pulsa E|Espacio/);
-    });
-
-    it('promete solo lo que es cierto hoy: ninguna mención de salida segura ni de atajos que no existen', () => {
-      const { fixture, root } = mount(false);
-      helpButton(root)!.click();
+      root.querySelector<HTMLButtonElement>('.stub-close')!.click();
       fixture.detectChanges();
-      const text = helpPanel(root)?.textContent ?? '';
-      expect(text).not.toMatch(/salida segura/i);
-      expect(text).not.toMatch(/1 a 5/);
-      expect(text).toContain('Ninguna opción está marcada como correcta');
-    });
-
-    it('Esc y «Cerrar ayuda» la cierran y devuelven el foco al botón', () => {
-      const { fixture, root } = mount(false);
-      helpButton(root)!.click();
-      fixture.detectChanges();
-      helpPanel(root)!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-      fixture.detectChanges();
-      expect(helpPanel(root)).toBeNull();
+      expect(helpLayer(root)).toBeNull();
       expect(document.activeElement).toBe(helpButton(root));
+    });
+
+    it('Esc la cierra y un toque en la capa también, pero no uno dentro de la pantalla', () => {
+      const { fixture, root } = mount(false);
+      helpButton(root)!.click();
+      fixture.detectChanges();
+      root.querySelector('.stub-close')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(helpLayer(root)).toBeNull();
 
       helpButton(root)!.click();
       fixture.detectChanges();
-      root.querySelector<HTMLButtonElement>('#lobby-help button[aria-label="Cerrar ayuda"]')!.click();
+      helpStub(fixture); // la pantalla sigue abierta
+      root.querySelector('app-game-help')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
-      expect(helpPanel(root)).toBeNull();
+      expect(helpLayer(root)).not.toBeNull();
+      helpLayer(root)!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+      expect(helpLayer(root)).toBeNull();
     });
 
-    it('no registra oyentes globales: el teclado se escucha solo dentro del panel', () => {
+    it('con la ayuda abierta la E del juego no entra al caso (quien lee no debe ser llevado)', () => {
+      jest.useFakeTimers();
+      const { fixture, component, root, router } = mount(false);
+      component.catalog.set([catalogItem]);
+      helpButton(root)!.click();
+      fixture.detectChanges();
+      component.enter(7);
+      component.focused.set(catalogItem);
+      component.enterFocused(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
+      jest.advanceTimersByTime(2000);
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(component.entering()).toBe('');
+
+      component.closeHelp();
+      component.enter(7);
+      jest.advanceTimersByTime(2000);
+      expect(router.navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('no escribe copy propio: el texto sale de app-game-help y la bandera de salida segura es la del juego', () => {
+      expect(source).toContain('<app-game-help view="screen"');
+      expect(source).toContain("import { SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';");
+      expect(source).not.toMatch(/Acércate a una puerta|Toca el suelo para caminar hasta ese punto/);
+    });
+
+    it('no registra oyentes globales: el teclado se escucha solo dentro de la capa de ayuda', () => {
       const add = jest.spyOn(document, 'addEventListener');
       const { fixture, root } = mount(false);
       helpButton(root)!.click();
@@ -248,11 +286,8 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       add.mockRestore();
     });
 
-    it('en pantallas cortas o estrechas la ayuda es una hoja que cubre el lobby (no se corta bajo la tarjeta del caso)', () => {
-      expect(source).toMatch(/@media \(max-height: 520px\), \(max-width: 600px\) \{\s*\.menu-help \{ inset: 64px 12px 12px 12px;/);
-    });
-
-    it('mide al menos 44 px de alto', () => {
+    it('la capa cubre el lobby y el botón mide al menos 44 px de alto', () => {
+      expect(source).toMatch(/\.menu-help-layer \{\s*position: absolute; inset: 0;/);
       expect(source).toMatch(/\.menu-help-btn \{[^}]*min-height: 44px;/);
     });
   });
