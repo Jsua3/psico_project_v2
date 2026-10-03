@@ -1,4 +1,6 @@
-import { Component, inject, input, output } from '@angular/core';
+import { A11yModule } from '@angular/cdk/a11y';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
 import { AvatarFigureComponent } from '../character/avatar-figure.component';
@@ -15,22 +17,65 @@ import { decisionTotal, performanceLabel } from './outcome.util';
 @Component({
   selector: 'app-attempt-outcome',
   standalone: true,
-  imports: [RouterLink, AvatarFigureComponent],
+  imports: [A11yModule, NgTemplateOutlet, RouterLink, AvatarFigureComponent],
   template: `
     @if (status() !== 'IN_PROGRESS') {
       <section class="outcome liquid-glass"
-        [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'" role="alertdialog"
-        aria-labelledby="outcome-title">
+        [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'"
+        [class.outcome--pause]="status() === 'PAUSED'" role="alertdialog"
+        aria-labelledby="outcome-title"
+        [cdkTrapFocus]="status() === 'PAUSED'">
         <header class="oc-head">
           <div class="oc-avatar" aria-hidden="true">
             <app-avatar-figure [config]="avatar()" [portrait]="true" />
           </div>
           <div class="oc-head__copy">
             <p class="oc-eyebrow">{{ eyebrow() }}</p>
-            <h3 id="outcome-title">{{ report()?.summaryMessage ?? headline() }}</h3>
+            <h3 id="outcome-title">{{ title() }}</h3>
           </div>
         </header>
 
+        @if (status() === 'PAUSED') {
+          <!-- Pausa calmada: lo primero es poder volver; el tablero queda plegado y sin puntaje en primer plano. -->
+          <p class="oc-pause-copy">{{ pauseMessage }}</p>
+          <div class="oc-actions oc-actions--pause">
+            <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
+            <button type="button" class="oc-btn oc-btn--go" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
+            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+          </div>
+          @if (supportResources().length) {
+            <div class="oc-block oc-support">
+              <p class="oc-label">Apoyo profesional</p>
+              <ul class="oc-support__list">
+                @for (resource of supportResources(); track resource) { <li>{{ resource }}</li> }
+              </ul>
+            </div>
+          }
+          @if (report()) {
+            <details class="oc-details">
+              <summary>Ver mi seguimiento</summary>
+              <ng-container [ngTemplateOutlet]="board" />
+            </details>
+          }
+        } @else {
+          <ng-container [ngTemplateOutlet]="board" />
+          <footer class="oc-actions">
+            @if (status() === 'REPLACED') {
+              <!-- Ya existe un intento más nuevo: «reintentar» (forceNew) también lo reemplazaría. -->
+              <a class="oc-btn oc-btn--go" routerLink="/portal/simulador">Volver al catálogo</a>
+            } @else if (status() === 'SAFE_EXITED') {
+              <!-- Cierre terminal honesto: la única continuación es un intento nuevo. -->
+              <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Iniciar un nuevo intento</button>
+              <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+            } @else {
+              <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
+              <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
+            }
+            <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+          </footer>
+        }
+
+        <ng-template #board>
         @if (report(); as r) {
           @if (r.ending; as ending) {
             <div class="oc-ending" [attr.data-tone]="ending.tone" role="status">
@@ -129,24 +174,7 @@ import { decisionTotal, performanceLabel } from './outcome.util';
           }
         }
 
-        <footer class="oc-actions">
-          @if (status() === 'PAUSED') {
-            <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
-            <button type="button" class="oc-btn oc-btn--go" (click)="resume.emit()">Reanudar este intento</button>
-            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
-          } @else if (status() === 'REPLACED') {
-            <!-- Ya existe un intento más nuevo: «reintentar» (forceNew) también lo reemplazaría. -->
-            <a class="oc-btn oc-btn--go" routerLink="/portal/simulador">Volver al catálogo</a>
-          } @else if (status() === 'SAFE_EXITED') {
-            <!-- Cierre terminal honesto: la única continuación es un intento nuevo. -->
-            <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Iniciar un nuevo intento</button>
-            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
-          } @else {
-            <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
-            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
-          }
-          <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
-        </footer>
+        </ng-template>
       </section>
     }
   `,
@@ -230,17 +258,52 @@ import { decisionTotal, performanceLabel } from './outcome.util';
     }
     .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
+    .oc-btn:focus-visible, .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
+
+    /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
+    .oc-pause-copy { margin: 0; max-width: 60ch; font-size: 1rem; line-height: 1.6; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
+    .oc-actions--pause { justify-content: flex-start; margin-top: 0; padding-top: 0; }
+    .oc-support__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.5; }
+    .oc-details { border: 1px solid var(--sim-border, rgba(182,156,255,.22)); border-radius: 14px; padding: 4px 14px 14px; }
+    .oc-details summary {
+      display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 800;
+      color: var(--sim-ink-soft, rgba(244,247,251,.74));
+    }
+    .oc-details > :not(summary) { margin-top: 12px; }
   `]
 })
 export class AttemptOutcomeComponent {
   private readonly avatarStore = inject(AvatarStore);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   readonly avatar = this.avatarStore.avatar;
+
+  constructor() {
+    // Al entrar en pausa el foco va a «Reanudar este intento» (cdkFocusInitial): lo primero es poder volver.
+    effect(() => {
+      if (this.status() !== 'PAUSED') return;
+      afterNextRender(() => {
+        this.host.nativeElement.querySelector<HTMLElement>('[cdkFocusInitial]')?.focus();
+      }, { injector: this.injector });
+    });
+  }
 
   readonly report = input<AttemptCompletionReport | null>(null);
   readonly status = input.required<SimulationAttemptState['status']>();
   readonly retry = output<void>();
   /** Pausa reanudable (ETH-02 A): reanuda el MISMO intento, no crea uno nuevo. */
   readonly resume = output<void>();
+  /** Recursos de apoyo que se muestran en la pausa (opcional; los aporta quien conoce el caso). */
+  readonly supportResources = input<string[]>([]);
+
+  /** Texto tranquilizador de la pausa: sin penalización y sin puntaje en primer plano. */
+  readonly pauseMessage = 'Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.';
+
+  /** Título de la pantalla. La pausa siempre dice «pausa» (el e2e la localiza por su nombre accesible). */
+  title(): string {
+    if (this.status() === 'PAUSED') return 'Tu caso está en pausa';
+    return this.report()?.summaryMessage ?? this.headline();
+  }
 
   /** Encabezado corto por estado — lenguaje honesto, sin fingir pausa en cierres. */
   eyebrow(status: SimulationAttemptState['status'] = this.status()): string {
@@ -256,7 +319,7 @@ export class AttemptOutcomeComponent {
   headline(status: SimulationAttemptState['status'] = this.status()): string {
     switch (status) {
       case 'COMPLETED': return 'El intento quedó cerrado para evaluación docente.';
-      case 'PAUSED': return 'Tu intento quedó guardado tal cual; puedes reanudarlo cuando lo decidas.';
+      case 'PAUSED': return this.pauseMessage;
       case 'REPLACED': return 'Empezaste un intento nuevo; este quedó cerrado tal como estaba.';
       default: return 'El intento quedó cerrado sin penalización.';
     }
