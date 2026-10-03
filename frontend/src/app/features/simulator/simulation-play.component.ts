@@ -1,6 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -15,9 +16,12 @@ import {
 import {
   DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
 } from './patient-state.util';
-import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence } from './evidence-gating.config';
+import {
+  choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
+} from './evidence-gating.config';
 import { decorateDialogueState } from './dialogue-decoration.util';
-import type { CopyContext } from './evidence-copy.util';
+import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
+import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup } from './orientation.config';
 import { SceneChecklistCardComponent } from './scene-checklist-card.component';
 import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
@@ -275,6 +279,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [sfxMuted]="sfxMuted()"
                 [reduceMotion]="reduceMotion()"
                 [stressLevel]="attempt()?.stressIndex ?? 0"
+                [doorStates]="doorStates()"
                 (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
@@ -1048,6 +1053,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       : null;
   });
 
+  /** Estado de cada puerta de la sala (clave → abierta/bloqueada): el mundo la rotula con candado. Misma fuente que la barra y `tryOpenDoor`. */
+  readonly doorStates = computed<Record<string, 'open' | 'locked'>>(() => {
+    const context = this.doorContext();
+    return context ? doorStateMap(context.world.objects ?? [], context) : {};
+  });
+
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
     return sel?.type === 'TOOL' ? sel.toolCode : null;
@@ -1422,21 +1433,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const game = this.attempt();
     const target = this.doorTargetNodeKey(door);
     if (!game || !target || this.inputBlocked() || this.busy()) return;
-    const meta = (door.metadata ?? {}) as {
-      requiresNpcs?: string[];
-      requiresTools?: string[]; requiresInspected?: string[];
-      requiresNodes?: string[]; lockedMessage?: string;
-    };
-    const missing = missingEvidence(
-      { npcs: meta.requiresNpcs, tools: meta.requiresTools, inspected: meta.requiresInspected, missingMessage: '' },
-      this.world(), this.viewedNpcKeys(),
-    );
-    const stageLocked = (meta.requiresNodes?.length ?? 0) > 0
-      && !meta.requiresNodes!.includes(game.currentNode.key);
-    if (missing.length || stageLocked) {
-      const message = meta.lockedMessage ?? 'Aún no puedes pasar: te falta información clave de esta sala.';
+    // Una sola función decide si la puerta se abre y por qué no: la misma de la barra, el rótulo y la lista.
+    const context = this.doorContext();
+    const status = context ? doorStatus(door, context) : null;
+    if (!status || status.state === 'locked') {
       this.audioDirector.playSfx('ui_cancel');
-      this.showDoorNotice(message);
+      this.showDoorNotice(status?.message ?? ORIENTATION_COPY.door.fallback);
       return;
     }
     if (!this.doorInteractionArmed) {
@@ -1456,7 +1458,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.applyWorldWithScenario(world);
           this.announce(`Entraste a ${world.map.title}.`);
         },
-        error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
+        error: err => {
+          this.busy.set(false);
+          this.fadeActive.set(false);
+          // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
+          // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
+          if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
+          else this.reportApiError(err, 'No pudimos cruzar la puerta.');
+        },
       });
     }));
   }
@@ -1503,7 +1512,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Contexto de redacción compartido por el aviso de evidencia (y, en la siguiente fase, la lista y las puertas). */
+  /** Estado de una puerta (null si no es una salida o aún no hay mundo): lo leen la barra, el aviso y el rótulo del mundo. */
+  doorStatusFor(door: MapObjectState): DoorStatus | null {
+    if (door.type !== 'EXIT') return null;
+    const context = this.doorContext();
+    return context ? doorStatus(door, context) : null;
+  }
+
+  /** Contexto de las puertas (F§7.5): null mientras no haya intento y mundo. */
+  private doorContext(): (DoorStatusContext & { world: SimulationWorldState }) | null {
+    const game = this.attempt();
+    const world = this.world();
+    if (!game || !world) return null;
+    return {
+      nodeKey: game.currentNode.key,
+      decisionNumber: getSceneProgress(game.currentNode.key)?.step ?? null,
+      world,
+      viewedNpcKeys: collectViewedNpcKeys(world, this.viewedNpcKeys()),
+      copy: this.copyContext(),
+    };
+  }
+
+  /** Contexto de redacción compartido por el aviso de evidencia, la lista «Qué hacer» y las puertas. */
   private copyContext(): CopyContext {
     const world = this.world();
     return {
@@ -1612,7 +1642,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
       this.pendingEvidenceDecisionId = decisionOptionId;
       this.pendingEvidenceMissing = [...missing];
-      const message = this.evidenceMissingMessage(evidenceDef, missing);
+      const message = this.evidenceMissingMessage(evidenceDef);
       this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
       this.announce(message);
       return;
@@ -1976,43 +2006,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce(reduced ? 'Movimiento reducido activado.' : 'Movimiento reducido desactivado.');
   }
 
-  private evidenceMissingMessage(def: NodeEvidenceDef, missing: string[]): string {
-    const items = missing
-      .map(item => this.evidenceMissingItemLabel(item))
-      .filter((item): item is string => item.length > 0);
-    if (!items.length) return def.missingMessage;
-    return `Información incompleta: falta ${this.joinSpanish(items)} antes de decidir.`;
-  }
-
-  private evidenceMissingItemLabel(item: string): string {
-    const [kind, key] = item.split(':', 2);
-    if (!key) return '';
-    if (kind === 'npc') return `hablar con ${this.evidenceNpcLabel(key)}`;
-    if (kind === 'tool') return `tener o usar ${this.evidenceToolLabel(key)}`;
-    if (kind === 'inspected') return `revisar ${this.evidenceObjectLabel(key)}`;
-    return key;
-  }
-
-  private evidenceNpcLabel(key: string): string {
-    const fromScenario = this.scenarioConfig()
-      ?.rooms.flatMap(room => room.npcs)
-      .find(npc => npc.key === key)?.displayName;
-    if (fromScenario) return fromScenario;
-    return this.evidenceObjectLabel(key);
-  }
-
-  private evidenceToolLabel(code: string): string {
-    return this.world()?.tools.find(tool => tool.code === code)?.label ?? code;
-  }
-
-  private evidenceObjectLabel(key: string): string {
-    return this.world()?.objects.find(obj => obj.key === key)?.label ?? key;
-  }
-
-  private joinSpanish(items: string[]): string {
-    if (items.length <= 1) return items[0] ?? '';
-    if (items.length === 2) return `${items[0]} y ${items[1]}`;
-    return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+  /**
+   * Lo que falta antes de decidir, en las mismas frases que la lista y el aviso sobre las opciones
+   * (una sola fuente: `evidenceNoticeText`); nunca una clave interna. El texto del seed solo queda
+   * de respaldo para una evidencia que el copy no sepa nombrar.
+   */
+  private evidenceMissingMessage(def: NodeEvidenceDef): string {
+    const items = missingEvidenceItems(def, this.world(), this.viewedNpcKeys());
+    return evidenceNoticeText(items, this.copyContext()) ?? def.missingMessage;
   }
 
   /** Gate de evidencia (Fase 9): permite cancelar o decidir bajo registro. */
@@ -2020,9 +2021,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return {
       key: `evidence-gate-${decisionOptionId}`,
       speakerName: 'Criterio profesional', portraitKey: 'info', emotion: 'concerned',
+      // El aviso único ya dice que se puede decidir igualmente y que quedará registrado con información incompleta.
       lines: [
         { order: 1, speakerName: 'Criterio profesional', text: message, emotion: 'concerned' },
-        { order: 2, speakerName: 'Criterio profesional', text: 'Puedes intervenir igualmente, pero quedará registrada como una decisión con información incompleta.', emotion: 'neutral' },
       ],
       choices: [
         { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {}, isRecommended: true },

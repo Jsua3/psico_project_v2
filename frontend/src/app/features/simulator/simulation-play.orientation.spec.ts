@@ -224,6 +224,152 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
+  describe('T9.7: evidencia con una sola fuente', () => {
+    const SLUG = /\b(npc:|tool:|inspected:)|enfermera-urgencias|familia-crisis|\bPAP\b|\bSPIKES\b|RISK_METER/;
+
+    function openGate(nodeKey: string, world: SimulationWorldState): DialogueState | null {
+      component.attempt.set(makeAttempt(nodeKey));
+      component.world.set(world);
+      component.dialogue.set({
+        key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
+        choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
+      } as DialogueState);
+      component.executeDecision(101);
+      return component.dialogue();
+    }
+
+    it('el diálogo «Criterio profesional» dice lo que falta con los nombres que ve el jugador, sin claves', () => {
+      const gate = openGate('hospital-urgencias', makeWorld('hospital-urgencias', urgenciasObjects()));
+
+      expect(gate?.speakerName).toBe('Criterio profesional');
+      const text = gate?.lines.map(line => line.text).join(' ') ?? '';
+      expect(text).toMatch(/^Antes de decidir te falta: .*hablar con la Enfermera de urgencias/);
+      expect(text).toContain('quedará registrada con información incompleta');
+      expect(text).not.toMatch(SLUG);
+    });
+
+    it('es el mismo aviso que el de las opciones de la conversación', () => {
+      startInUrgencias();
+      const decorated = (component as any).decorateDialogue({
+        key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
+        choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
+      } as DialogueState) as DialogueState;
+      component.executeDecision(101);
+
+      expect(decorated.notice).toBeTruthy();
+      expect(component.dialogue()?.lines[0].text).toBe(decorated.notice);
+    });
+
+    it('con la evidencia completa no hay aviso y la decisión se registra', () => {
+      const done = makeWorld('hospital-urgencias', urgenciasObjects(true), {
+        inventory: ['PAP'], usedToolKeys: ['PAP'], inspectedObjectKeys: ['familia-crisis'],
+        flags: { viewedNpcKeys: ['enfermera-urgencias'] },
+      });
+      const gate = openGate('hospital-urgencias', done);
+
+      expect(gate?.key.startsWith('evidence-gate')).toBeFalsy();
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(0); // el fundido aún no terminó
+      tick(400);
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+    });
+
+    it('el diálogo del aviso conserva «Explorar primero» y «Decidir con información incompleta»', () => {
+      const gate = openGate('hospital-urgencias', makeWorld('hospital-urgencias', urgenciasObjects()));
+
+      expect(gate?.choices.map(choice => choice.text)).toEqual(['Explorar primero', 'Decidir con información incompleta']);
+    });
+  });
+
+  describe('T9.4: puertas con una sola fuente', () => {
+    const exit = () => urgenciasObjects().find(o => o.key === 'puerta-sala-escucha')!;
+
+    beforeEach(() => {
+      (component as any).doorInteractionArmed = true;
+    });
+
+    it('doorStates marca como bloqueada la puerta que pide hablar con la familia', () => {
+      startInUrgencias();
+
+      expect(component.doorStates()).toEqual({ 'puerta-sala-escucha': 'locked' });
+    });
+
+    it('doorStates abre la puerta cuando ya se habló con la familia', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+
+      expect(component.doorStates()).toEqual({ 'puerta-sala-escucha': 'open' });
+    });
+
+    it('sin intento ni mundo no hay estados de puerta', () => {
+      expect(component.doorStates()).toEqual({});
+    });
+
+    it('una puerta bloqueada explica el motivo vivo, no el texto del seed, y no llama al servidor', () => {
+      startInUrgencias();
+
+      component.openInteraction(exit());
+
+      expect(component.doorNotice()).toBe('Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+      expect(component.doorNotice()).not.toMatch(/contenci[oó]n/i);
+      expect(sim['enterRoom']).not.toHaveBeenCalled();
+      expect(audio['playSfx']).toHaveBeenCalledWith('ui_cancel');
+    });
+
+    it('el motivo del aviso es el mismo que ve la barra antes de pulsar', () => {
+      startInUrgencias();
+
+      component.openInteraction(exit());
+
+      expect(component.doorNotice()).toBe(component.doorStatusFor(exit())?.message);
+    });
+
+    it('con la familia atendida la puerta se abre: fundido y entrada a la sala', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      sim['enterRoom'].mockReturnValue(of(makeWorld('hospital-sala-escucha', [])));
+      sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+
+      component.openInteraction(exit());
+      tick(400);
+
+      expect(component.doorNotice()).toBe('');
+      expect(sim['enterRoom']).toHaveBeenCalledWith('attempt-1', 'token-1', 'hospital-sala-escucha', 'puerta-sala-escucha');
+    });
+
+    it('si el servidor rechaza una puerta que el cliente creía abierta, no muestra el texto del seed', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      sim['enterRoom'].mockReturnValue(throwError(() => http(400, 'Completa la contención de la familia.')));
+
+      component.openInteraction(exit());
+      tick(400);
+
+      expect(component.doorNotice()).toBe('Antes de pasar, revisa lo pendiente en «Qué hacer».');
+      expect(component.actionError()).toBe('');
+      expect(component.busy()).toBe(false);
+      expect(component.fadeActive()).toBe(false);
+    });
+
+    it('un fallo de red al cruzar usa el mensaje del servidor o el de respaldo', () => {
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      sim['enterRoom'].mockReturnValue(throwError(() => http(500)));
+
+      component.openInteraction(exit());
+      tick(400);
+
+      expect(component.actionError()).toBe('No pudimos cruzar la puerta.');
+    });
+
+    it('la puerta de la etapa de hospital explica cuántas decisiones faltan', () => {
+      const gate = door('salida-institucional', 'Salida institucional', 838, 440, {
+        targetNodeKey: 'comisaria-recepcion', requiresNodes: ['hospital-cierre-bloque'],
+      });
+      component.attempt.set(makeAttempt('hospital-accion-etica'));
+      component.world.set(makeWorld('hospital-sala-escucha', [gate]));
+
+      component.openInteraction(gate);
+
+      expect(component.doorNotice()).toBe('Esta salida se abre cuando termines las decisiones del hospital. Te queda 1 decisión.');
+    });
+  });
+
   describe('T9.2: contador único y etapa nueva', () => {
     it('el HUD recibe «Decisión k de 6» según la etapa', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));
