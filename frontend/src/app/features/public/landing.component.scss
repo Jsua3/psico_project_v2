@@ -589,6 +589,18 @@
   font-weight: 700;
 }
 
+/* Casos aún no jugables: borde discontinuo y etiqueta neutra (texto #374151 sobre #eef0f4 ≈ 9:1). */
+.landing-case-card--soon {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.landing-chip--soon {
+  background: #eef0f4;
+  color: #374151;
+  border: 1px dashed #9ca3af;
+}
+
 /* ── Workflow ────────────────────────────────────────────── */
 
 .landing-workflow {

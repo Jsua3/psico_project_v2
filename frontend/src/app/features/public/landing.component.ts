@@ -11,6 +11,8 @@ interface TrainingCase {
   text: string;
   tag: string;
   accent: string;
+  /** Solo hay un caso jugable hoy; los demás se anuncian como «Próximamente». */
+  available: boolean;
 }
 
 interface WorkflowStep {
@@ -69,24 +71,27 @@ export class LandingComponent {
   readonly trainingCases: TrainingCase[] = [
     {
       icon: 'home_work',
-      title: 'Violencia intrafamiliar',
+      title: 'Violencia basada en género',
       text: 'Evalúa señales de riesgo, activa rutas de protección y documenta decisiones con criterio ético y legal.',
-      tag: 'Caso sensible',
-      accent: '#6D28D9'
+      tag: 'Disponible · caso sensible',
+      accent: '#6D28D9',
+      available: true
     },
     {
       icon: 'groups',
       title: 'Desplazamiento forzado',
       text: 'Analiza contexto comunitario, necesidades de apoyo y articulación con redes institucionales del territorio.',
-      tag: 'Psicología social',
-      accent: '#115E59'
+      tag: 'Próximamente',
+      accent: '#115E59',
+      available: false
     },
     {
       icon: 'diversity_3',
       title: 'Conflicto comunitario',
       text: 'Practica mediación psicosocial, lectura del conflicto y decisiones que respeten derechos y convivencia.',
-      tag: 'Intervención',
-      accent: '#9A3412'
+      tag: 'Próximamente',
+      accent: '#9A3412',
+      available: false
     }
   ];
 
