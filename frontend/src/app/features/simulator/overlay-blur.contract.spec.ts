@@ -19,6 +19,8 @@ describe('paneles del juego sin desenfoque caro', () => {
     ['journal-panel.component.ts', '.journal-modal'],
     ['simulation-hud.component.ts', '.hud-shell'],
     ['simulation-hud.component.ts', '.settings-menu'],
+    ['game-help.component.ts', '.help-card'],
+    ['game-help.component.ts', '.help-screen'],
   ];
 
   it.each(opaque)('%s %s no desenfoca lo que tiene detrás', (file, selector) => {
