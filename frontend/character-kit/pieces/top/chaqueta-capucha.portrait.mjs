@@ -31,22 +31,30 @@ const edges = [
   ...polyline([[40, 77], [40, 93]]),
   ...polyline([[55, 77], [55, 93]]),
 ].map(([x, y]) => [x, y, 'x']);
-// Costura del hombro: una sola línea suave que sigue la forma.
-const seams = [
-  ...polyline([[17, 84], [19, 88], [20, 93]]),
-  ...polyline([[78, 84], [76, 88], [75, 93]]),
-].map(([x, y]) => [x, y, 'J']);
+/**
+ * Costura del hombro: una sola línea suave que sigue la forma, a la misma
+ * distancia del borde del hombro en cada complexión (los de B caen 4 px más afuera).
+ */
+function seams(dx) {
+  return [
+    ...polyline([[17 - dx, 84], [19 - dx, 88], [20 - dx, 93]]),
+    ...polyline([[78 + dx, 84], [76 + dx, 88], [75 + dx, 93]]),
+  ].map(([x, y]) => [x, y, 'J']);
+}
 const neckline = polyline([[42, 73], [45, 75], [50, 75], [53, 73]]).map(([x, y]) => [x, y, 'I']);
+const empty = gridFrom(96, 96, () => '.');
 
-export const TOP_CHAQUETA_PORTRAIT = [{
-  anchor: 'T', at: [0, 0], mode: 'paint',
-  legend: {
-    i: { mat: 'inner' },
-    I: { mat: 'inner', tone: 2 },
-    f: { mat: 'accent' },
-    F: { mat: 'accent', tone: 2 },
-    x: { mat: 'top', tone: 3 },
-    J: { mat: 'top', tone: 2 },
-  },
-  grid: stamp(stamp(stamp(base, edges), seams), neckline),
-}];
+const LEGEND = {
+  i: { mat: 'inner' },
+  I: { mat: 'inner', tone: 2 },
+  f: { mat: 'accent' },
+  F: { mat: 'accent', tone: 2 },
+  x: { mat: 'top', tone: 3 },
+  J: { mat: 'top', tone: 2 },
+};
+
+export const TOP_CHAQUETA_PORTRAIT = [
+  { anchor: 'T', at: [0, 0], mode: 'paint', legend: LEGEND, grid: stamp(stamp(base, edges), neckline) },
+  { anchor: 'T', at: [0, 0], mode: 'paint', complexions: ['a'], legend: LEGEND, grid: stamp(empty, seams(0)) },
+  { anchor: 'T', at: [0, 0], mode: 'paint', complexions: ['b'], legend: LEGEND, grid: stamp(empty, seams(4)) },
+];

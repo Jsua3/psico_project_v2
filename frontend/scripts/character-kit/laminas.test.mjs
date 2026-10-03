@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { buildBundle } from './bundle.mjs';
 import { buildLamina, parseArgs } from './laminas.mjs';
 
 const images = html => (html.match(/<img /g) ?? []).length;
@@ -20,7 +21,8 @@ test('ficha de receta: 4 vistas, retratos, 16 cuadros de reposo y 24 de caminata
 test('lámina de piezas: una fila por complexión con vistas, caminata de perfil y retrato', () => {
   const { name, html } = buildLamina({ piezas: 'hair:bob-flequillo' });
   assert.equal(name, 'piezas-hair-bob-flequillo');
-  assert.equal(images(html), 4 + 6 + 1);
+  const complexions = Object.keys(buildBundle().complexions).length;
+  assert.equal(images(html), complexions * (4 + 6 + 1));
 });
 
 test('las escalas de las imágenes son enteras', () => {
@@ -33,4 +35,9 @@ test('las escalas de las imágenes son enteras', () => {
 test('modo desconocido o pieza inexistente fallan con un mensaje claro', () => {
   assert.throws(() => buildLamina({}), /uso: laminas.mjs/);
   assert.throws(() => buildLamina({ piezas: 'hair:no-existe' }), /pieza desconocida: hair:no-existe/);
+});
+
+test('las filas no se parten: cada fila de cuadros queda en una sola línea', () => {
+  const { html } = buildLamina({ piezas: 'hair:bob-flequillo' });
+  assert.match(html, /\.row \{[^}]*flex-wrap: nowrap/);
 });

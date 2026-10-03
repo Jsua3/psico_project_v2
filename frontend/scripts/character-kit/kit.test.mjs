@@ -17,6 +17,8 @@ import {
   targetRows,
 } from '../../src/app/features/character/kit/kit-engine.ts';
 import { buildBundle, compilePiece, loadRecipes, stringifyBundle } from './bundle.mjs';
+import { geometry } from './measure.mjs';
+import { sampleRecipe } from './muestras.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const golden = JSON.parse(readFileSync(new URL('./fixtures/valentina-prueba.json', import.meta.url), 'utf8'));
@@ -219,4 +221,24 @@ test('el paquete serializado es canónico y estable', () => {
   assert.equal(stringifyBundle(buildBundle()), a);
   assert.ok(a.endsWith('\n'));
   assert.deepEqual(Object.keys(JSON.parse(a)), ['busts', 'complexions', 'literals', 'pieces', 'ramps', 'recipes', 'schemaVersion']);
+});
+
+test('la complexión B: misma altura y cabeza que A, hombros 25-27, perfil 1 px más profundo', () => {
+  const bundle = buildBundle();
+  const geo = c => geometry(composeCharacter(bundle, sampleRecipe('top:chaqueta-capucha', c)));
+  const a = geo('a');
+  const b = geo('b');
+  for (const view of ['down', 'left', 'right', 'up']) assert.equal(b[view].opaqueHeight, a[view].opaqueHeight, view);
+  for (const view of ['down', 'up']) assert.ok(b[view].shoulderWidth >= 25 && b[view].shoulderWidth <= 27, `${view}: ${b[view].shoulderWidth}`);
+  for (const view of ['left', 'right']) assert.equal(b[view].torsoDepth, a[view].torsoDepth + 1, view);
+});
+
+test('el busto B tiene exactamente la cabeza del busto A', () => {
+  const bundle = buildBundle();
+  const head = new Set(['H', 'e', 'E']);
+  const a = decodeRle(bundle.busts.a.grid);
+  const b = decodeRle(bundle.busts.b.grid);
+  for (let i = 0; i < a.length; i++) {
+    if (head.has(a[i]) || head.has(b[i])) assert.equal(b[i], a[i], `celda ${i}`);
+  }
 });

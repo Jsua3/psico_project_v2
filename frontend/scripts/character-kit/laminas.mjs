@@ -71,7 +71,7 @@ export function pageHtml(title, subtitle, body) {
     body { margin: 0; padding: 28px 32px; background: #c9c7cf; color: #15131d; font: 15px/1.35 system-ui, sans-serif; }
     h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 28px 0 6px; } h3 { font-size: 15px; margin: 14px 0 6px; }
     p.sub { margin: 0 0 12px; color: #494255; }
-    .row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin: 4px 0; }
+    .row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: nowrap; margin: 4px 0; }
     .ground figure { border-bottom: 2px solid #948a9b; }
     figure { margin: 0; display: flex; flex-direction: column; align-items: center; }
     figcaption { font-size: 12px; color: #494255; }
@@ -167,6 +167,9 @@ async function main() {
   try {
     const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 2200, height: 1000 } });
     await page.setContent(html);
+    // Las filas no se parten: la captura toma el ancho del contenido.
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: out, fullPage: true });
   } finally {
     await browser.close();
