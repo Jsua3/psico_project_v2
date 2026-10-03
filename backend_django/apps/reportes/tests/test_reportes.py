@@ -13,7 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, SimulationAttempt, SimulationNode
+from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt, SimulationNode
 
 User = get_user_model()
 
@@ -154,7 +154,11 @@ def test_grupo_report_simulation_block(profesor, estudiante, case_version_id):
     ).data["data"]
     token, attempt_id = start["attemptToken"], start["attemptId"]
     options = start["currentNode"]["options"]
-    option = next((o for o in options if o["classification"] == "ADEQUATE"), options[0])
+    # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
+    option = next(
+        (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+        options[0],
+    )
     c.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",
         {"attemptToken": token, "decisionOptionId": option["id"]},

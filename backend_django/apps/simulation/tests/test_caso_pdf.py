@@ -332,26 +332,82 @@ def test_final_integral(estudiante, case_version_id):
     assert ending["caseFlags"]["medidas_proteccion_activadas"] is True
 
 
+def _registrada(key):
+    """Una opción mala que SÍ queda registrada: la 1.ª respuesta mala de la escena se
+    reintenta (no se aplica ni cuenta) y la 2.ª se registra y avanza."""
+    return [key, key]
+
+
 def test_final_critico_con_dos_criticas(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     state = _play_full(c, attempt_id, token, case_version_id, [
-        "h1-interrogar-victima", "h1-pap-contencion",
-        "h2-solo-459", "h2-459-1257",
+        *_registrada("h1-interrogar-victima"),
+        "h2-459-1257",
         "h3-integral-psicosocial",
-        "c1-mediacion-perdon", "c1-riesgo-proteccion-derechos",
+        *_registrada("c1-mediacion-perdon"),
         "c2-2126-1098-1257",
         "c3-integral-derechos",
     ])
     assert state["status"] == "COMPLETED"
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "critico"
-    assert ending["severityCounts"]["critical"] >= 2
+    assert ending["severityCounts"]["critical"] == 2
 
 
 def test_final_riesgo_persistente_por_omision(estudiante, case_version_id):
     # Sin críticas, pero sin valorar feminicidio ni activar protección (C1
-    # desviada a patrones de infancia + C3 con valoración pero sin medidas).
+    # desviada a patrones de infancia, registrada) y C3 sin valoración de riesgo.
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    state = _play_full(c, attempt_id, token, case_version_id, [
+        "h1-pap-contencion",
+        "h2-459-1257",
+        "h3-integral-psicosocial",
+        *_registrada("c1-patrones-infancia"),
+        "c2-2126-1098-1257",
+        *_registrada("c3-valoracion-dependientes"),
+    ])
+    ending = state["completionReport"]["ending"]
+    assert ending["key"] == "riesgo"
+    assert ending["severityCounts"]["critical"] == 0
+    assert not ending["caseFlags"].get("medidas_proteccion_activadas")
+
+
+def test_final_riesgo_persistente_por_acumulacion(estudiante, case_version_id):
+    # Protección completa, pero tres decisiones riesgosas REGISTRADAS.
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    state = _play_full(c, attempt_id, token, case_version_id, [
+        "h1-pap-contencion",
+        *_registrada("h2-459-1448"),
+        *_registrada("h3-parcial-disonancia"),
+        "c1-riesgo-proteccion-derechos",
+        *_registrada("c2-eje-1448"),
+        "c3-integral-derechos",
+    ])
+    ending = state["completionReport"]["ending"]
+    assert ending["key"] == "riesgo"
+    assert ending["severityCounts"]["risky"] == 3
+
+
+def test_final_brechas_con_parciales(estudiante, case_version_id):
+    # Protección completa (C1 recomendada) pero parciales acumuladas leves.
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    state = _play_full(c, attempt_id, token, case_version_id, [
+        "h1-pap-contencion",
+        *_registrada("h2-459-1448"),
+        *_registrada("h3-parcial-disonancia"),
+        "c1-riesgo-proteccion-derechos", "c2-2126-1098-1257", "c3-integral-derechos",
+    ])
+    ending = state["completionReport"]["ending"]
+    assert ending["key"] == "brechas"
+    assert ending["severityCounts"]["risky"] == 2
+
+
+def test_un_reintento_no_impide_el_final_integral(estudiante, case_version_id):
+    # DLG-07: una primera respuesta mala (que el juego no aplica) no baja el final.
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     state = _play_full(c, attempt_id, token, case_version_id, [
@@ -363,23 +419,11 @@ def test_final_riesgo_persistente_por_omision(estudiante, case_version_id):
         "c3-integral-derechos",
     ])
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "riesgo"
-    assert ending["severityCounts"]["risky"] >= 3
-
-
-def test_final_brechas_con_parciales(estudiante, case_version_id):
-    # Protección completa (C1 recomendada) pero parciales acumuladas leves.
-    c = cl(estudiante)
-    attempt_id, token = _start(c, case_version_id)
-    state = _play_full(c, attempt_id, token, case_version_id, [
-        "h1-pap-contencion",
-        "h2-459-1448", "h2-459-1257",
-        "h3-parcial-disonancia", "h3-integral-psicosocial",
-        "c1-riesgo-proteccion-derechos", "c2-2126-1098-1257", "c3-integral-derechos",
-    ])
-    ending = state["completionReport"]["ending"]
-    assert ending["key"] == "brechas"
-    assert ending["severityCounts"]["risky"] == 2
+    assert ending["key"] == "integral"
+    assert ending["severityCounts"] == {
+        "recommended": 6, "acceptable": 0, "risky": 0, "critical": 0,
+    }
+    assert state["completionReport"]["retries"] == 4
 
 
 def test_cambiar_sala_no_puntua_ni_avanza(estudiante, case_version_id):

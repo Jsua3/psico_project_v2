@@ -50,11 +50,12 @@ def case_summary(version, node_count):
 
 
 def decision_option_state(option):
+    # Evaluación formativa: antes de elegir, el jugador solo recibe id y texto.
+    # La clasificación y la conducta prohibida viajan únicamente en el feedback
+    # posterior a la decisión (feedback_dto).
     return {
         "id": option.id,
         "text": option.text,
-        "classification": option.classification,
-        "prohibitedConduct": option.prohibited_conduct,
     }
 
 
@@ -138,7 +139,7 @@ def build_timeline(attempt, events):
 
 
 def build_completion_report(attempt, events):
-    adequate = risky = inadequate = prohibited = tools_used = 0
+    adequate = risky = inadequate = prohibited = tools_used = retries = 0
     visited = []
     seen = set()
     for ev in events:
@@ -149,7 +150,11 @@ def build_completion_report(attempt, events):
                 visited.append(title)
         if ev.event_type == "TOOL_USED":
             tools_used += 1
-        if ev.decision_option_id is None:
+        if ev.event_type in case_effects.RETRY_EVENT_TYPES:
+            # Reconsideración: no se aplicó ni puntúa (se reporta aparte).
+            retries += 1
+            continue
+        if ev.decision_option_id is None or ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
             continue
         c = ev.decision_option.classification
         if c == "ADEQUATE":
@@ -205,6 +210,9 @@ def build_completion_report(attempt, events):
         "inadequateDecisions": inadequate,
         "prohibitedDecisions": prohibited,
         "toolsUsed": tools_used,
+        # Primeras respuestas que el juego no aplicó (regla de reintento); no
+        # entran en los conteos de arriba ni en el final.
+        "retries": retries,
         "reflectionsCount": reflections_count,
         # Por evento, no por estado: un intento reanudado y completado también
         # registra honestamente que usó la salida segura en el camino.
