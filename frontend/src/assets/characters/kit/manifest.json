@@ -1,7 +1,579 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "dd12712aa80e8a5dcd77fba97572502f0bed3016deed169a62559c994b346672",
+  "kitSha256": "bbe8b28a0f1688ac6c1e6ac1c22c943b0b56dfb1cda3cd6b503f3b56e189fee8",
   "characters": {
+    "andres": {
+      "displayName": "Andrés",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "andres/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "90e9ce0f7e66312f5e85ee99066c57fc188bf92e41df61e84b9d1b14c6ea8004"
+        },
+        "walk": {
+          "path": "andres/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "1e86e75560ff5e626c8644bf510f90229a06cdb808f32b77d701df2c1d16c419"
+        },
+        "portrait-neutral": {
+          "path": "andres/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "26be3ff618b604a892bbdc2b2354633b798806242715de145b716e81db8176d3"
+        }
+      }
+    },
+    "camila": {
+      "displayName": "Camila",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "camila/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "2ede5bc05c8fc83746f5366ca2a07eb377e847ed1ef499b0a6b0573718bbeda3"
+        },
+        "walk": {
+          "path": "camila/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "0ed1e8d95c2a927d6cb149ee15b3ceb48d26f2380841f4a8841c4d8fb83635fd"
+        },
+        "portrait-neutral": {
+          "path": "camila/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "55fede6511f0a8e61e51ffa7121b5eac2a869db40f5d0a0c6b265e4f3ae946f1"
+        }
+      }
+    },
+    "daniela": {
+      "displayName": "Daniela",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "daniela/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "246335d68ef26af84a5e88feaa3b26dfbcd5564dfb400115bf1f3315e1d3e663"
+        },
+        "walk": {
+          "path": "daniela/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "eeee3dc01544a796ed8d2283d20be62ca1edbd92786331f909dc45a273226374"
+        },
+        "portrait-neutral": {
+          "path": "daniela/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a46ae55f2af9bed7025827a943703028743e9b1c9f9e0208e07aa80ffca51fc5"
+        }
+      }
+    },
+    "david": {
+      "displayName": "David",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "david/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "17c0c3a72c4f1b2f1510c48eaa67c7f5abf088f45c19ad5d8c87f75e94682d1f"
+        },
+        "walk": {
+          "path": "david/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "c3e83970398f50ff459118e49db314ed2f854b1af49c21c560d24a2945f38eb1"
+        },
+        "portrait-neutral": {
+          "path": "david/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "effbb5c93858992ebf378a7fd31d6934051773298dbedf1605d508064bb62e14"
+        }
+      }
+    },
+    "felipe": {
+      "displayName": "Felipe",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "felipe/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "432b1f01056a4045b96f17185e2a06fbd2afe82c885686f6677caa7b59d6fe36"
+        },
+        "walk": {
+          "path": "felipe/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "60f057f796a7cddddcaff3d1e0902066fac3efd72f92f2dc06e8736c01540540"
+        },
+        "portrait-neutral": {
+          "path": "felipe/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "61a9d13408e6d330a9288b0f649fca6a29311fef9b170d99de43f4f890f4696e"
+        }
+      }
+    },
+    "jorge": {
+      "displayName": "Jorge",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "jorge/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "cc55ac871690bbc53900d57b8c1c668770f25681d8e6e4f56018f4c16cef52a7"
+        },
+        "walk": {
+          "path": "jorge/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "1865272eacb4cf205dee28d62a0baf8a918a36a6b7085595cd6371938e70f5f7"
+        },
+        "portrait-neutral": {
+          "path": "jorge/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "0b1960defb0fd7aed2356f8583417420e6112d4a241df800346eff5432a24f13"
+        }
+      }
+    },
+    "luisa": {
+      "displayName": "Luisa",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "luisa/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "6767eff461d0f93920f9904ac5100638614708b2f4463a554909ad3b75eb6373"
+        },
+        "walk": {
+          "path": "luisa/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "36370b5235a51e5693e3a2397b79db360d1e0320745d470bfa9e0f7b6cf62089"
+        },
+        "portrait-neutral": {
+          "path": "luisa/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "98d2d4892762f95da5cc3c44d242e0d77e1ba7b375e4feb9ab7e52027bdf4860"
+        }
+      }
+    },
+    "mariana": {
+      "displayName": "Mariana",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "mariana/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "a25ce6cbec6fb11d44151380b84cf62d875279bd595b99f8bf150989461e06cb"
+        },
+        "walk": {
+          "path": "mariana/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "6f330c6c6e0c60363896e645ff434eb29fce9ae0a0f832c40c1ed9543c6c1000"
+        },
+        "portrait-neutral": {
+          "path": "mariana/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "417f2f04c1adb2773f66faebda3de386d7e9d5c48dc5b355ef9521a52ba3f84d"
+        }
+      }
+    },
+    "mateo": {
+      "displayName": "Mateo",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "mateo/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "9b1f7c53e81ab7e66164239de44c51a2677558135ae479d924c11fc3eb1294ee"
+        },
+        "walk": {
+          "path": "mateo/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "bdcf0f6e5d912fdcaf55b78f43b9db1b6e65997e132191f73ad2b154f135bd75"
+        },
+        "portrait-neutral": {
+          "path": "mateo/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "899b704193348cf357d9de51dfbbd8fe21d147d845894e8727472305bf89a640"
+        }
+      }
+    },
+    "paula": {
+      "displayName": "Paula",
+      "kind": "jugable",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "paula/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "85e45472935f3ffa88142de86f26e7ee223f1bd8906e41f75eb1b3e090a96c19"
+        },
+        "walk": {
+          "path": "paula/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "eec66471b7cc3a3651bde7817738a850803f8af1488c0bf1cc54b6a4b0d02b76"
+        },
+        "portrait-neutral": {
+          "path": "paula/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "cb36095e98b79ef1a72a50ea8994ac90d7f8481ce8142ef2a54a07a7d4a983ff"
+        }
+      }
+    },
+    "samuel": {
+      "displayName": "Samuel",
+      "kind": "jugable",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 18,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 18,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "samuel/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "a2acc387eb1d3e741369f2a5ec9b6bd5faa9d4585945ff4839199dc689991b6e"
+        },
+        "walk": {
+          "path": "samuel/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "ca208b37a1a2fa4b7ba7cda4203a3edeb920f729a21351117f2c45b64374ca92"
+        },
+        "portrait-neutral": {
+          "path": "samuel/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "2a56b5e0c38f385fc66939f7c38fb2fdb19f98b26d6e95a750dab81cbf35e740"
+        }
+      }
+    },
     "valentina": {
       "displayName": "Valentina",
       "kind": "jugable",

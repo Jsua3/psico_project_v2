@@ -1,0 +1,25 @@
+{
+  "id": "samuel",
+  "displayName": "Samuel",
+  "kind": "jugable",
+  "complexion": "b",
+  "pieces": {
+    "hair": "rapado",
+    "face": "sereno",
+    "top": "polo",
+    "bottom": "pantalon",
+    "shoes": "zapatos",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-5",
+    "hair": "negro",
+    "top": "vinotinto",
+    "inner": "blanco",
+    "bottom": "caqui",
+    "shoes": "carbon",
+    "sole": "gris-oscuro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

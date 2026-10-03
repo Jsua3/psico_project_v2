@@ -1,0 +1,25 @@
+{
+  "id": "mateo",
+  "displayName": "Mateo",
+  "kind": "jugable",
+  "complexion": "b",
+  "pieces": {
+    "hair": "corto-rizado",
+    "face": "sereno",
+    "top": "sudadera",
+    "bottom": "jean",
+    "shoes": "tenis",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-1",
+    "hair": "castano",
+    "top": "gris",
+    "accent": "gris-oscuro",
+    "bottom": "marino",
+    "shoes": "carbon",
+    "sole": "gris-claro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

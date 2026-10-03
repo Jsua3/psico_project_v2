@@ -19,6 +19,26 @@ export const RAMPS = {
   marino: ['#2c5884', '#203d61', '#2d2852', '#211e2b'],
   carbon: ['#6c6376', '#494255', '#302a3b', '#211e2b'],
   'gris-claro': ['#d2d2d4', '#adaeb5', '#858690', '#62636c'],
+
+  // pelo
+  negro: ['#594957', '#3d3543', '#2a2630', '#211e2b'],
+  castano: ['#a06a40', '#7b4a30', '#5c3928', '#40271f'],
+  cobrizo: ['#d06c49', '#a84e36', '#79372d', '#552b26'],
+  rubio: ['#f0d17a', '#d7a957', '#b7783e', '#8a542f'],
+  canoso: ['#d2d2d4', '#adaeb5', '#858690', '#62636c'],
+
+  // ropa
+  gris: ['#a3abb5', '#737d8b', '#505866', '#353a46'],
+  'gris-oscuro': ['#737d8b', '#505866', '#353a46', '#211e2b'],
+  celeste: ['#a2cbe1', '#69a2c8', '#3d78a8', '#2c5884'],
+  morado: ['#8a70d3', '#6350a6', '#433878', '#2d2852'],
+  coral: ['#d06c49', '#a84e36', '#79372d', '#552b26'],
+  mostaza: ['#d7a957', '#b7783e', '#8a542f', '#5c3928'],
+  vinotinto: ['#a95366', '#7b3b4c', '#562d3a', '#302a3b'],
+  rosa: ['#efb0b8', '#d47b8b', '#a95366', '#7b3b4c'],
+  caqui: ['#c08a55', '#a06a40', '#7b4a30', '#5c3928'],
+  menta: ['#bad2be', '#85b294', '#5b8d70', '#3d6a55'],
+  'verde-azulado': ['#69a2c8', '#5b8d70', '#3d6a55', '#29483d'],
 };
 
 /** Colores literales por defecto (ojos, rubor, accesorios); una receta puede cambiarlos con `literals`. */

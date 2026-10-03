@@ -1,0 +1,24 @@
+{
+  "id": "andres",
+  "displayName": "Andrés",
+  "kind": "jugable",
+  "complexion": "b",
+  "pieces": {
+    "hair": "corto-liso",
+    "face": "sereno",
+    "top": "camisa",
+    "bottom": "pantalon",
+    "shoes": "zapatos",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-2",
+    "hair": "negro",
+    "top": "celeste",
+    "bottom": "gris",
+    "shoes": "carbon",
+    "sole": "gris-oscuro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

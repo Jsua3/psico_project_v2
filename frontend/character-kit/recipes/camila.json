@@ -1,0 +1,24 @@
+{
+  "id": "camila",
+  "displayName": "Camila",
+  "kind": "jugable",
+  "complexion": "a",
+  "pieces": {
+    "hair": "largo-suelto",
+    "face": "sereno",
+    "top": "blusa",
+    "bottom": "jean",
+    "shoes": "botines",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-2",
+    "hair": "cobrizo",
+    "top": "morado",
+    "bottom": "marino",
+    "shoes": "castano",
+    "sole": "carbon"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "david",
+  "displayName": "David",
+  "kind": "jugable",
+  "complexion": "b",
+  "pieces": {
+    "hair": "corto-liso",
+    "face": "sereno",
+    "top": "sueter",
+    "bottom": "pantalon",
+    "shoes": "zapatos",
+    "accessories": [
+      "gafas"
+    ]
+  },
+  "colors": {
+    "skin": "piel-2",
+    "hair": "castano",
+    "top": "marino",
+    "inner": "blanco",
+    "bottom": "gris",
+    "shoes": "carbon",
+    "sole": "gris-oscuro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

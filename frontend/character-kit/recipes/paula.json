@@ -1,0 +1,26 @@
+{
+  "id": "paula",
+  "displayName": "Paula",
+  "kind": "jugable",
+  "complexion": "a",
+  "pieces": {
+    "hair": "largo-suelto",
+    "face": "sereno",
+    "top": "chaqueta-capucha",
+    "bottom": "pantalon",
+    "shoes": "tenis",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-1",
+    "hair": "rubio",
+    "top": "rosa",
+    "accent": "vinotinto",
+    "inner": "blanco",
+    "bottom": "gris-oscuro",
+    "shoes": "carbon",
+    "sole": "gris-claro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

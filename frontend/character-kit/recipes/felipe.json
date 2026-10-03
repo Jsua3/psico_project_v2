@@ -1,0 +1,25 @@
+{
+  "id": "felipe",
+  "displayName": "Felipe",
+  "kind": "jugable",
+  "complexion": "b",
+  "pieces": {
+    "hair": "corto-rizado",
+    "face": "sereno",
+    "top": "chaqueta-jean",
+    "bottom": "jean",
+    "shoes": "tenis",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-2",
+    "hair": "negro",
+    "top": "azul",
+    "inner": "blanco",
+    "bottom": "marino",
+    "shoes": "carbon",
+    "sole": "gris-claro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}

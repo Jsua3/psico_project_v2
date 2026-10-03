@@ -33,22 +33,24 @@ export default {
   portrait: PORTRAIT,
   views: {
     down: [{
+      // Aro de 5 px alrededor del ojo de 1 px: queda piel dentro y no se lee como gafas de sol.
       anchor: 'H', at: [19, 12], mode: 'paint', legend: LEGEND,
       grid: `
         .ggg...ggg.
-        .g.ggggg.g.
-        .g.g...g.g.
+        g...ggg...g
+        g...g.g...g
         .ggg...ggg.
       `,
     }],
     up: [],
     left: [{
-      anchor: 'H', at: [17, 12], mode: 'paint', legend: LEGEND,
+      // Perfil: el cristal delante del ojo y la patilla hasta la oreja; el ojo queda entre ambos.
+      anchor: 'H', at: [18, 12], mode: 'paint', legend: LEGEND,
       grid: `
-        .ggg.....
-        .g.gggggg
-        .g.g.....
-        .ggg.....
+        gg......
+        g.gggggg
+        g.......
+        gg......
       `,
     }],
   },

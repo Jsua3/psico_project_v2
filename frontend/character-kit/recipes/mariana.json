@@ -1,0 +1,25 @@
+{
+  "id": "mariana",
+  "displayName": "Mariana",
+  "kind": "jugable",
+  "complexion": "a",
+  "pieces": {
+    "hair": "trenza",
+    "face": "sereno",
+    "top": "sueter",
+    "bottom": "jean",
+    "shoes": "tenis",
+    "accessories": []
+  },
+  "colors": {
+    "skin": "piel-3",
+    "hair": "negro",
+    "top": "morado",
+    "inner": "blanco",
+    "bottom": "marino",
+    "shoes": "carbon",
+    "sole": "gris-claro"
+  },
+  "portraits": ["neutral"],
+  "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
+}
