@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { composeCharacter } from '../../src/app/features/character/kit/kit-engine.ts';
 import { FRONTEND_ROOT, buildBundle, stringifyBundle } from './bundle.mjs';
 import { encodePng } from './kit-png.mjs';
+import { geometry } from './measure.mjs';
 
 export const DEFAULT_OUT = path.join(FRONTEND_ROOT, 'src', 'assets', 'characters', 'kit');
 
@@ -43,6 +44,7 @@ export function buildOutputs() {
       kind: recipe.kind,
       complexion: recipe.complexion,
       provenance: recipe.provenance,
+      geometry: geometry(composed),
       files: {},
     };
     for (const [name, image] of Object.entries(publishedImages(composed))) {

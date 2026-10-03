@@ -11,7 +11,8 @@
     "test:character-assets": "node --test scripts/character-manifest-lib.test.mjs scripts/visual-asset-manifest-lib.test.mjs",
     "test:kit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"scripts/character-kit/*.test.mjs\"",
     "kit:types": "tsc -p tsconfig.kit.json",
-    "kit:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/character-kit/build.mjs"
+    "kit:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/character-kit/build.mjs",
+    "kit:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/character-kit/check.mjs && tsc -p tsconfig.kit.json"
   },
   "private": true,
   "dependencies": {
