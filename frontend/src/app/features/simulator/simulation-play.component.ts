@@ -1091,6 +1091,8 @@ const CASE_INTRO_PARAGRAPHS = [
       .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) {
         left: 176px; right: auto; width: min(640px, calc(100% - 190px));
         flex-direction: row; align-items: flex-start; gap: 10px;
+        /* Sin el tope del escritorio: en dos columnas la tarjeta ya es baja y la lista cabe con su paso siguiente. */
+        max-height: calc(100% - 20px);
       }
       .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__scroll {
         flex: 1 1 0; min-width: 0;
