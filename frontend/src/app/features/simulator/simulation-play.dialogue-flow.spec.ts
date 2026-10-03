@@ -14,7 +14,7 @@ jest.mock('phaser', () => ({
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, of, throwError } from 'rxjs';
+import { EMPTY, Subject, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -227,6 +227,50 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(component.actionError()).toBe('');
       expect(component.dialogueReleaseToken()).toBe(before + 1);
       expect(component.busy()).toBe(false);
+    });
+  });
+
+  describe('salida segura con una decisión en vuelo (H-04)', () => {
+    it('la pausa espera a que termine la decisión y usa el intento que devolvió el servidor', () => {
+      const decision$ = new Subject<SimulationAttemptState>();
+      sim['chooseDecision'].mockReturnValue(decision$);
+      sim['getWorld'].mockReturnValue(of(component.world()));
+      sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+      component.dialogue.set(decisionDialogue(11));
+
+      component.executeDecision(11);
+      component.pauseFromOverlay();
+      jest.advanceTimersByTime(400);
+
+      expect(component.pausing()).toBe(true);
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+
+      // El servidor ya avanzó el caso: la pausa debe usar el token del intento nuevo, no el viejo.
+      decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
+      TestBed.tick();
+
+      expect(component.busy()).toBe(true); // la pausa ya está en vuelo
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+      expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+    });
+
+    it('si la decisión falla la pausa pedida se ejecuta igualmente y la conversación no reaparece', () => {
+      sim['chooseDecision'].mockReturnValue(throwError(() => http(500)));
+      sim['safeExit'].mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+      sim['getWorld'].mockReturnValue(of(component.world()));
+      sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+      component.dialogue.set(decisionDialogue(11));
+
+      component.executeDecision(11);
+      component.pauseFromOverlay();
+      jest.advanceTimersByTime(400);
+      TestBed.tick();
+
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.dialogue()).toBeNull();
+      expect(component.pausing()).toBe(false);
     });
   });
 
