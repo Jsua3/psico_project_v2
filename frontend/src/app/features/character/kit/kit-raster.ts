@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/kit-raster.ts
 /** RgbaImage del motor → lienzo (Phaser) o data URL (CSS). Sin contexto 2D, null. */
 import type { SheetSource } from './character-visual.resolver';
 import type { RgbaImage } from './kit-engine';

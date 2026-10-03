@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/kit.service.ts
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';

@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/avatar-v2.spec.ts
 import { readFileSync } from 'fs';
 import { join } from 'path';
 

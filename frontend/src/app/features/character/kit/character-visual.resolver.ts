@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/character-visual.resolver.ts
 /**
  * Punto único de resolución de personajes (spec §8.1): cualquier personaje del
  * juego (el jugador, una receta, un NPC autorado) pasa a un CharacterVisual.

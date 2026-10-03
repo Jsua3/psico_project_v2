@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/kit-raster.spec.ts
 import { sheetSourceUrl } from './kit-raster';
 
 describe('kit-raster', () => {

@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/pixel-scale.util.ts
 /**
  * Escala entera (spec §8.3): el lienzo trabaja en píxeles físicos y la cámara usa
  * un zoom entero, así cada píxel de un sprite mide un número entero de píxeles

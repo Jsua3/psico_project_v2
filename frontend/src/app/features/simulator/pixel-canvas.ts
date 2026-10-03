@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/pixel-canvas.ts
 /**
  * Lienzo de Phaser en píxeles físicos (spec §8.3): el juego mide el contenedor ×
  * devicePixelRatio y `scale.zoom = 1/dpr` lo devuelve al tamaño CSS del contenedor.

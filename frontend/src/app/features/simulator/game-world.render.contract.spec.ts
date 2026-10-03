@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/game-world.render.contract.spec.ts
 import { readFileSync } from 'fs';
 import { join } from 'path';
 

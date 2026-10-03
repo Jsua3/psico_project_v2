@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/character-visual.resolver.spec.ts
 import { AvatarPersonalizado } from './avatar-v2';
 import {
   avatarRecipe,

@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/testing/kit-testing.ts
 /** Solo para specs: el paquete real del kit leído de disco y un KitService que ya lo tiene. */
 import { signal } from '@angular/core';
 import { readFileSync } from 'fs';

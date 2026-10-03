@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/room-lighting.spec.ts
 import { CASE_PDF_ROOM_RENDERERS } from './case-pdf-rooms.renderer';
 import { DEPTH, tiledLayerDepth } from './depth-sort.util';
 import { premiumClinicalRoomRenderer } from './premium-clinical-room.renderer';

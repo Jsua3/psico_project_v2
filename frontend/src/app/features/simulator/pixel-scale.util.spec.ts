@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/pixel-scale.util.spec.ts
 import { cameraBounds, integerZoom, physicalSize } from './pixel-scale.util';
 
 const ROOM = { w: 960, h: 528 };

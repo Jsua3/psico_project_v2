@@ -1,4 +1,3 @@
-// frontend/src/app/features/character/kit/avatar-v2.ts
 /**
  * Avatar del estudiante, formato 2 (spec §9). Vive en `localStorage['psychosim_avatar']`.
  *

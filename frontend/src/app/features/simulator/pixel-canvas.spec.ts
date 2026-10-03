@@ -1,4 +1,3 @@
-// frontend/src/app/features/simulator/pixel-canvas.spec.ts
 jest.mock('phaser', () => ({ __esModule: true, default: { Scale: { NONE: 0 } } }));
 
 import type Phaser from 'phaser';
