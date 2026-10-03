@@ -89,7 +89,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             @if (notice) {
               <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
             }
-            <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1"
+            <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
               [attr.aria-describedby]="notice ? 'choices-notice' : null"
               [class.choices--locked]="chosenKey() !== null">
               @for (choice of d.choices; track choice.key; let i = $index) {
@@ -121,21 +121,21 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           }
 
           @if (!isTypingComplete()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
+            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
               (click)="skipTypewriter()"
               aria-label="Saltar animación de texto">
               Saltar <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && !isLastLine()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
+            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
               (click)="advanceLine()"
               aria-label="Mostrar siguiente intervención">
               Siguiente <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
-            <button type="button" class="close-btn psy-button psy-button--ghost"
+            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
               (click)="close.emit()">
               Continuar <span aria-hidden="true">▶</span>
             </button>
