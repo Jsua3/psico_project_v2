@@ -248,6 +248,10 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       add.mockRestore();
     });
 
+    it('en pantallas cortas o estrechas la ayuda es una hoja que cubre el lobby (no se corta bajo la tarjeta del caso)', () => {
+      expect(source).toMatch(/@media \(max-height: 520px\), \(max-width: 600px\) \{\s*\.menu-help \{ inset: 64px 12px 12px 12px;/);
+    });
+
     it('mide al menos 44 px de alto', () => {
       expect(source).toMatch(/\.menu-help-btn \{[^}]*min-height: 44px;/);
     });

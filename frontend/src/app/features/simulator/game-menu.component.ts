@@ -338,7 +338,7 @@ class ClinicMenuScene extends Phaser.Scene {
       position: absolute; top: 64px; right: 12px; z-index: 25;
       width: min(380px, calc(100vw - 24px)); max-height: calc(100% - 80px); overflow-y: auto;
       padding: 14px 16px; border: 1px solid rgba(157,192,232,.4); border-radius: 14px;
-      background: rgba(8,12,18,.96); color: #e8f0f4;
+      background: rgb(8,12,18); color: #e8f0f4;
     }
     .menu-help__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
     .menu-help__header h2 { margin: 0; font-size: 1rem; color: #9dc0e8; }
@@ -350,6 +350,16 @@ class ClinicMenuScene extends Phaser.Scene {
     .menu-help dl { margin: 0; display: grid; gap: 4px; }
     .menu-help dt { margin-top: 8px; font-size: .8rem; font-weight: 800; letter-spacing: .02em; color: rgba(232,240,244,.92); }
     .menu-help dd { margin: 0; font-size: .85rem; line-height: 1.4; color: rgba(232,240,244,.8); }
+    /* Pantalla corta o estrecha: la ayuda es una hoja que cubre el lobby (nada queda a medias bajo la tarjeta del caso). */
+    @media (max-height: 520px), (max-width: 600px) {
+      .menu-help { inset: 64px 12px 12px 12px; width: auto; max-height: none; }
+    }
+    @media (max-height: 520px) and (min-width: 600px) {
+      .menu-help dl { display: block; columns: 2; column-gap: 28px; }
+      .menu-help dt { break-after: avoid; }
+      .menu-help dt:first-of-type { margin-top: 0; }
+      .menu-help dd { break-inside: avoid; }
+    }
     .banner-enter { margin-top: 6px; min-height: 44px; }
     .banner-enter:disabled { opacity: .55; cursor: not-allowed; }
     .banner-enter:focus-visible { outline: 2px solid rgba(157,192,232,.85); outline-offset: 2px; }
