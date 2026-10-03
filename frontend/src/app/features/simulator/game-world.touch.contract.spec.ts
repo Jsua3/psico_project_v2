@@ -57,8 +57,9 @@ describe('game-world: controles táctiles', () => {
     expect(source).toContain("{{ interactLabel() ?? 'Acércate a algo' }}");
     // sin nada cerca se atenúa pero se puede tocar (la escena avisa): nunca `disabled`
     expect(source).toContain('[class.touch-interact--idle]="!interactLabel()"');
-    expect(source).toMatch(/\[attr\.aria-disabled\]="interactLabel\(\) \? null : 'true'"/);
+    // ni `disabled` ni `aria-disabled`: Playwright los toma por «no habilitado» y el e2e táctil esperaría para siempre
     expect(source).not.toMatch(/touch-interact[^>]*\[disabled\]/);
+    expect(source).not.toMatch(/touch-interact[\s\S]{0,400}\[attr\.aria-disabled\]/);
     // el icono no es parte del nombre accesible
     expect(source).toContain('<mat-icon aria-hidden="true">touch_app</mat-icon>');
   });

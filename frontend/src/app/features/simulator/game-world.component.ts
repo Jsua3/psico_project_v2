@@ -2785,10 +2785,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
           (contextmenu)="$event.preventDefault()"
           (click)="keyboardNudge($event, 'down')"><mat-icon>keyboard_arrow_down</mat-icon></button>
       </div>
-      <!-- Sin [disabled]: sin nada cerca el toque se acepta y la escena avisa (nothingNearby). -->
+      <!-- Sin [disabled] ni aria-disabled (Playwright los toma por «no habilitado» y el e2e táctil no podría
+           tocar): sin nada cerca el toque se acepta y la escena avisa (nothingNearby). -->
       <button type="button" class="psy-button psy-button--glass touch-interact"
         [class.touch-interact--idle]="!interactLabel()"
-        [attr.aria-disabled]="interactLabel() ? null : 'true'"
         [attr.aria-label]="'Interactuar: ' + (interactLabel() ?? 'Acércate a algo')"
         (click)="interactNearest()"><mat-icon aria-hidden="true">touch_app</mat-icon><span class="touch-interact__label">{{ interactLabel() ?? 'Acércate a algo' }}</span></button>
     </div>
