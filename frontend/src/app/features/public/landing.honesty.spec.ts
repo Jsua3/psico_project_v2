@@ -28,7 +28,7 @@ describe('portada honesta (T15.4)', () => {
     expect(link?.[0]).not.toContain('href="#casos"');
   });
 
-  it('sigue habiendo un único enlace de portada a #casos: el botón «Ver casos» del titular', () => {
-    expect(html.match(/href="#casos"/g)).toHaveLength(2); // menú superior + «Ver casos»
+  it('solo quedan dos anclas a #casos, y ambas llevan a otra sección: el menú y el botón «Ver casos»', () => {
+    expect(html.match(/href="#casos"/g)).toHaveLength(2); // menú superior + «Ver casos» del titular
   });
 });
