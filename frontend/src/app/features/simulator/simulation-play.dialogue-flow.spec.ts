@@ -397,6 +397,19 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(dialogue?.choices.every(c => c.evidenceWarning === undefined)).toBe(true);
     });
 
+    it('el aviso dice en qué sala está lo que falta cuando el estudiante está en otra', () => {
+      component.attempt.set(makeAttempt({
+        currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
+      }));
+      component.world.set({
+        ...(component.world() as object), map: { key: 'hospital-sala-escucha' },
+      } as unknown as SimulationWorldState);
+
+      const dialogue = open(objectWith('sala', [choice('uno', 11)]));
+
+      expect(dialogue?.notice).toContain('hablar con la Enfermera de urgencias (en Urgencias)');
+    });
+
     it('marca la opción de herramienta cuyo material aún no se tiene', () => {
       const dialogue = open(objectWith('familia', [choice('usar-pap', null, 'PAP'), choice('esta-etapa', 11)]));
 
