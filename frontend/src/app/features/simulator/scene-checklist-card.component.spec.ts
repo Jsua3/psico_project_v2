@@ -494,6 +494,11 @@ describe('SceneChecklistCardComponent (T3.1)', () => {
       expect(host().getAttribute('data-collapsed')).toBe('true');
     });
 
+    it('el chip anuncia que es un control plegado (aria-expanded="false")', () => {
+      create({ compact: true });
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    });
+
     it('el chip cuenta solo lo que falta: con un paso hecho, 5; con todo hecho, sin número', () => {
       create({ compact: true, state: stageOneAfterCollect() });
       expect(visibleText(toggle())).toBe('Qué hacer · 5');

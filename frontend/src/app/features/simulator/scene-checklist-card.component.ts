@@ -25,8 +25,6 @@ import {
   pendingStepCount,
 } from './scene-checklist.util';
 
-let nextChecklistId = 0;
-
 /**
  * Tarjeta «Qué hacer» (F§4.2, F§6.4). Presentacional: pinta un `SceneLogState` ya derivado y no
  * calcula nada del mundo. Va DENTRO del envoltorio `.objective-card` de la pantalla de juego (que
@@ -56,14 +54,13 @@ let nextChecklistId = 0;
     @if (state(); as s) {
       <section class="checklist" [attr.aria-label]="copy.title"
         [class.checklist--static]="reduceMotion()"
-        [class.checklist--compact]="compact()"
         [attr.data-next-step]="s.next?.stepId ?? null"
         [attr.data-next-room]="s.next?.room ?? null"
         [attr.data-stage]="s.number > 0 ? s.number : null"
         [attr.data-expanded]="expanded()">
 
         @if (compact() && !expanded()) {
-          <button type="button" class="checklist__chip" data-checklist-toggle (click)="toggle()">
+          <button type="button" class="checklist__chip" data-checklist-toggle aria-expanded="false" (click)="toggle()">
             <span class="checklist__chip-label">{{ copy.chip(pendingCount()) }}</span>
             <span class="visually-hidden">{{ pendingText() }}</span>
             @if (news()) {
