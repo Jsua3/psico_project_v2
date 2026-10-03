@@ -178,7 +178,6 @@ export const ORIENTATION_COPY = {
     notedTalked: (article: string, name: string): string => `Anotado: hablaste con ${article} ${name}.`,
     notedReviewed: (article: string, name: string): string => `Anotado: revisaste ${article} ${name}.`,
     notedUsed: (generic: string): string => `Anotado: usaste ${generic} en la conversación.`,
-    notedCollected: (generic: string): string => `Anotado: recogiste ${generic}.`,
     notedArrived: (room: RoomGroup): string => `Anotado: llegaste ${ROOM_LABELS[room].to}.`,
     newStage: (title: string): string => `Nueva etapa: ${title}`,
     decisionRegistered: (k: number): string => `Decisión ${k} registrada`,

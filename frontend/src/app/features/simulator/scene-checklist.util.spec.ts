@@ -535,7 +535,8 @@ describe('diffDone, ringTargetKey y pendingStepCount', () => {
     expect(diffDone(a, a)).toEqual([]);
     const fresh = diffDone(a, b);
     expect(fresh.map(x => x.id)).toEqual(['u1-recoger']);
-    expect(fresh[0].doneText).toBe('Anotado: recogiste el material de apoyo de la sala.');
+    // Recoger se avisa al ocurrir con «Obtuviste: …»; no hay nota «Anotado» duplicada.
+    expect(fresh[0].doneText).toBe('');
     expect(diffDone(b, b)).toEqual([]);
   });
 

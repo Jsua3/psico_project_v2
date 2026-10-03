@@ -33,7 +33,7 @@ export interface SceneLogStep {
   note: string | null;
   targetKey: string;
   room: RoomGroup;
-  /** 'Anotado: …' (para las notas al completarse). */
+  /** 'Anotado: …' al completarse (vacío en «recoger» y «decidir»: recoger se avisa con «Obtuviste: …»). */
   doneText: string;
 }
 
@@ -259,8 +259,8 @@ function doneText(step: RouteStep): string {
     case 'inspect':
       return entity ? ORIENTATION_COPY.notices.notedReviewed(entity.article, entity.name) : '';
     case 'collect':
-      return step.done.type === 'inventory' && TOOL_HINTS[step.done.toolCode]
-        ? ORIENTATION_COPY.notices.notedCollected(TOOL_HINTS[step.done.toolCode].generic) : '';
+      // Recoger ya tiene su propio aviso al ocurrir («Obtuviste: …», F§5.6): sin nota «Anotado» duplicada.
+      return '';
     case 'use':
       return step.done.type === 'toolUsed' && TOOL_HINTS[step.done.toolCode]
         ? ORIENTATION_COPY.notices.notedUsed(TOOL_HINTS[step.done.toolCode].generic) : '';

@@ -156,7 +156,7 @@ describe('orientation.config: textos', () => {
     ...stringsIn(copy.now).map(text => text.trim()), ...stringsIn(copy.ui),
     copy.ui.dockTools(1, 5), copy.notices.obtained('material'), copy.notices.notedTalked('la', 'Enfermera de urgencias'),
     copy.notices.notedReviewed('el', 'Expediente del caso'), copy.notices.notedUsed('el material de apoyo de la sala'),
-    copy.notices.notedCollected('el material del estante'), ...ROUTE_ORDER.map(room => copy.notices.notedArrived(room)),
+    ...ROUTE_ORDER.map(room => copy.notices.notedArrived(room)),
     copy.notices.newStage('Urgencia vital y crisis'), copy.notices.decisionRegistered(2), copy.notices.registering,
     copy.notices.supervision, copy.notices.staleConversation, copy.notices.errorNpc, copy.notices.errorTool, copy.notices.errorDecision,
     copy.evidence.notice('hablar con la Enfermera de urgencias'), copy.evidence.unknownPerson, copy.evidence.unknownThing,
