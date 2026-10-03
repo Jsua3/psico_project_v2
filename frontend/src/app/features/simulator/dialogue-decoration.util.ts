@@ -36,7 +36,7 @@ function hostsDecision(obj: MapObjectState): boolean {
 
 /** Objetos del mundo cuya conversación aloja una de las decisiones activas (el anillo marca el objeto, nunca una opción). */
 export function activeDecisionObjectKeys(
-  world: SimulationWorldState | null, optionIds: readonly number[] | null,
+  world: { objects: readonly MapObjectState[] } | null, optionIds: readonly number[] | null,
 ): Set<string> {
   const ids = activeIds(optionIds);
   const keys = new Set<string>();
@@ -49,7 +49,7 @@ export function activeDecisionObjectKeys(
 
 /** Objetos con decisiones, pero de otra etapa: se atenúan y al abrirlos solo informan. */
 export function otherStageDecisionKeys(
-  world: SimulationWorldState | null, optionIds: readonly number[] | null,
+  world: { objects: readonly MapObjectState[] } | null, optionIds: readonly number[] | null,
 ): Set<string> {
   const ids = activeIds(optionIds);
   const keys = new Set<string>();
