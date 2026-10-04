@@ -6,7 +6,7 @@
  * avatar personalizado se compone aquí con el mismo motor del build (mismos
  * píxeles en el navegador y en CI) y se guarda en una caché pequeña por su huella.
  */
-import { AvatarPersonalizado, AvatarV2, OUTFIT_IDS, avatarFingerprint, toAvatarV2 } from './avatar-v2';
+import { AvatarPersonalizado, AvatarV2, OUTFIT_IDS, authoredAvatarV2, avatarFingerprint } from './avatar-v2';
 import {
   KitBundle,
   PORTRAIT_STATES,
@@ -41,9 +41,27 @@ export interface CharacterVisual {
 
 export function resolveCharacter(bundle: KitBundle, ref: CharacterRef): CharacterVisual {
   if (ref.kind === 'receta') return recipeVisual(bundle, ref.recipeId, ref.variant ?? null);
-  const avatar = ref.kind === 'jugador' ? ref.avatar : toAvatarV2(ref.avatar);
-  if (avatar.mode === 'elenco') return recipeVisual(bundle, avatar.recipeId, avatar.bata ? BATA_VARIANT : null);
-  return composedVisual(bundle, avatar);
+  if (ref.kind === 'autorado') {
+    // Un NPC autorado nunca es un jugable; lo que no es un avatar es el figurante (spec §9.2).
+    const authored = authoredAvatarV2(ref.avatar);
+    return (authored && composedOrNull(bundle, authored)) ?? recipeVisual(bundle, bundle.catalog.extras, null);
+  }
+  const avatar = ref.avatar;
+  const variant = avatar.bata ? BATA_VARIANT : null;
+  if (avatar.mode === 'elenco') return recipeVisual(bundle, avatar.recipeId, variant);
+  return composedOrNull(bundle, avatar) ?? recipeVisual(bundle, bundle.catalog.defaultRecipe, variant);
+}
+
+/**
+ * El motor lanza ante una pieza o rampa desconocida. Con un kit.json que no corresponde a este
+ * código (caché vieja) eso no debe tumbar el lobby, el mundo ni el editor: se usa el respaldo.
+ */
+function composedOrNull(bundle: KitBundle, avatar: AvatarPersonalizado): CharacterVisual | null {
+  try {
+    return composedVisual(bundle, avatar);
+  } catch {
+    return null;
+  }
 }
 
 function recipeVisual(bundle: KitBundle, recipeId: string, variant: string | null): CharacterVisual {

@@ -6,6 +6,10 @@ describe('metadata de NPC del editor de mundo (spec §9.2)', () => {
     expect(npcCustomAvatar({ avatar: { gender: 'male', hairStyle: 'largo', hairColor: 'rubio' } }))
       .toEqual({ ...defaultPersonalizado(), complexion: 'b', hair: 'largo-suelto', hairColor: 'rubio' });
     expect(npcCustomAvatar({ avatar: { castId: 'david' } })).toEqual(defaultPersonalizado());
+    // El castId que el editor viejo copiaba de defaultAvatar() no borra los rasgos del NPC.
+    expect(npcCustomAvatar({ avatar: { castId: 'valentina', gender: 'male', skinTone: 'media' } }))
+      .toEqual({ ...defaultPersonalizado(), complexion: 'b', skin: 'piel-3' });
+    expect(npcCustomAvatar({ avatar: 'basura' })).toEqual(defaultPersonalizado());
     expect(npcCustomAvatar(undefined)).toEqual(defaultPersonalizado());
   });
 

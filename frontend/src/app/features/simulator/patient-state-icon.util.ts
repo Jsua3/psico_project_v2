@@ -16,6 +16,17 @@ export function patientIconKind(state: Pick<PatientState, 'crisisLevel' | 'trust
   return null;
 }
 
+/**
+ * Cómo nace un icono: con el último estado conocido, u oculto si aún no hay ninguno. La escena
+ * recrea a los actores en cada render; sin esto, la señal se apagaba al primer `setWorld`.
+ */
+export function patientIconView(
+  state: Pick<PatientState, 'crisisLevel' | 'trustLevel' | 'emotionalState'> | null,
+): { visible: boolean; key: string } {
+  const kind = state ? patientIconKind(state) : null;
+  return { visible: kind !== null, key: patientIconKey(kind ?? 'crisis') };
+}
+
 /** Colores de palette.v2.json: contorno del kit, blanco, coral profundo, verde y azul. */
 const ICON_COLORS: Record<string, string> = { o: '#15131d', w: '#ffffff', r: '#a95366', g: '#5b8d70', b: '#3d78a8' };
 

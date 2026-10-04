@@ -61,4 +61,21 @@ describe('game-world: NPC, personas, guía y figurantes del kit; nada los deform
     expect(update).toContain('patientIconKind(state)');
     expect(update).toContain('icon.setTexture(patientIconKey(kind))');
   });
+
+  it('el icono sobrevive a un re-render: la escena recuerda el estado y cada icono nace con él', () => {
+    expect(body('updatePatientVisualState(state:')).toContain('this.patientState = state;');
+    const create = body('private patientIcon(feetY: number)');
+    expect(create).toContain('patientIconView(this.patientState)');
+    expect(create).toContain('.setVisible(view.visible)');
+    expect(create).not.toContain('.setVisible(false)');
+  });
+
+  it('una persona del caso no se escala ni se atenúa: el énfasis lo decide markerEmphasis y el pulso va al anillo', () => {
+    const refresh = body('private refreshMarkerStates() {');
+    expect(refresh).toContain("markerEmphasis({ selected: sel, near, kitSprite: bag['__kitSprite'] === true })");
+    expect(refresh).not.toMatch(/m\.setScale\(sel \?|m\.setAlpha\(sel \|\|/);
+    const focus = body('focus(key: string) {');
+    expect(focus).toContain("bag['__kitSprite'] === true ? bag['__pulse'] : m");
+    expect(source).toContain("bag['__kitSprite'] = personVisual !== null;");
+  });
 });

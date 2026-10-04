@@ -73,9 +73,9 @@ import {
 import { KitService } from '../character/kit/kit.service';
 import {
   KIT_HINT_OFFSET_Y, KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
-  extrasCharacterRef, guideCharacterRef, npcCharacterRef, personCharacterRef, playerCharacterRef,
+  extrasCharacterRef, guideCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
-import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind } from './patient-state-icon.util';
+import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -134,6 +134,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private playerSprite?: Phaser.GameObjects.Sprite;
   /** Visual del jugador en el kit (null si no hay paquete). */
   private playerVisual: CharacterVisual | null = null;
+  /** Último estado clínico recibido: cada icono nace con él (los actores se recrean en cada render). */
+  private patientState: import('../../core/models/simulation.model').PatientState | null = null;
   /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
   private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
@@ -698,7 +700,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   focus(key: string) {
     const m = this.markers.get(key);
     if (!m || this.callbacks.reduceMotion) return;
-    this.tweens.add({ targets: m, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
+    // Una persona del kit no se escala: el pulso va a su anillo.
+    const bag = m as unknown as Record<string, unknown>;
+    const target = bag['__kitSprite'] === true ? bag['__pulse'] : m;
+    this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
   }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
@@ -1343,6 +1348,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * actor dibujado con su receta; el sprite no se toca. La crisis, además, sacude 2 px.
    */
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
+    this.patientState = state;
     const kind = patientIconKind(state);
     for (const container of [...this.npcMarkers.values(), ...this.markers.values()]) {
       const icon = (container as unknown as Record<string, unknown>)['__patientIcon'] as Phaser.GameObjects.Image | null | undefined;
@@ -1651,10 +1657,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Icono del estado clínico (oculto hasta que haya estado), con los pies del actor en `feetY`. */
+  /** Icono del estado clínico con los pies del actor en `feetY`; nace con el último estado conocido. */
   private patientIcon(feetY: number): Phaser.GameObjects.Image | null {
     if (!this.textures.exists(patientIconKey('crisis'))) return null;
-    return this.add.image(0, feetY + KIT_ICON_OFFSET_Y, patientIconKey('crisis')).setOrigin(0.5, 1).setVisible(false);
+    const view = patientIconView(this.patientState);
+    return this.add.image(0, feetY + KIT_ICON_OFFSET_Y, view.key).setOrigin(0.5, 1).setVisible(view.visible);
   }
 
   /** Figurante de los mapas legados (spec §7.2): de frente, a escala 1, pies en `feetY`. */
@@ -1759,11 +1766,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    const bag = marker as unknown as Record<string, unknown>;
+    bag['__kitSprite'] = personVisual !== null;
+    bag['__pulse'] = pulse;
     if (personVisual?.recipeId === PATIENT_RECIPE_ID) {
       const icon = this.patientIcon(16);
       if (icon) {
         marker.add(icon);
-        (marker as unknown as Record<string, unknown>)['__patientIcon'] = icon;
+        bag['__patientIcon'] = icon;
       }
     }
     if (!isExit) this.markerLabels.set(object.key, label);
@@ -2034,8 +2044,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private refreshMarkerStates() {
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
-      m.setScale(sel ? 1.12 : near ? 1.08 : 1);
-      m.setAlpha(sel || near ? 1 : .88);
+      const bag = m as unknown as Record<string, unknown>;
+      const emphasis = markerEmphasis({ selected: sel, near, kitSprite: bag['__kitSprite'] === true });
+      m.setScale(emphasis.scale);
+      m.setAlpha(emphasis.alpha);
       const label = this.markerLabels.get(key);
       if (label) label.setAlpha(sel || near ? 1 : 0);
     });

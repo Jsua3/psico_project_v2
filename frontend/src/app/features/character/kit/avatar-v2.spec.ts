@@ -10,6 +10,7 @@ import {
   OUTFIT_IDS,
   PLAYABLE_IDS,
   SKINS,
+  authoredAvatarV2,
   avatarFingerprint,
   coerceAvatarV2,
   defaultAvatarV2,
@@ -96,5 +97,37 @@ describe('avatar v2', () => {
     expect(avatarFingerprint(a)).toBe(avatarFingerprint({ ...a, accessories: ['gafete', 'gafas'] }));
     expect(avatarFingerprint(a)).not.toBe(avatarFingerprint({ ...a, bata: true }));
     expect(avatarFingerprint(a)).not.toBe(avatarFingerprint({ ...a, hair: 'trenza' }));
+  });
+});
+
+describe('authoredAvatarV2: el avatar de un NPC autorado en el editor de mundo (spec §9.2)', () => {
+  // El editor viejo armaba metadata.avatar con `{ ...defaultAvatar(), … }`, y defaultAvatar() traía
+  // `castId: 'valentina'`; el render viejo de las personas del caso lo ignoraba (siempre modular).
+  const v1Autorado = {
+    castId: 'valentina', gender: 'male', clothingColor: 'blue', skinTone: 'morena', hairStyle: 'corto', hairColor: 'gris',
+    fringe: false, eyes: 'atentos', brows: 'rectas', mouth: 'neutral', accessory: 'ninguno', uniform: 'sin-bata',
+  };
+
+  it('un v1 conserva sus rasgos: el castId heredado no lo convierte en un jugable', () => {
+    expect(authoredAvatarV2(v1Autorado)).toEqual({
+      schemaVersion: 2, mode: 'personalizado', complexion: 'b', skin: 'piel-5', hair: 'corto-liso', hairColor: 'canoso', accessories: [], bata: false,
+    });
+  });
+
+  it('un v2 personalizado se valida campo a campo', () => {
+    expect(authoredAvatarV2({ ...P, hair: 'afro', skin: 'no-existe', bata: true })).toEqual({
+      ...P, complexion: 'a', skin: 'piel-2', hair: 'afro', hairColor: 'negro', accessories: [], bata: true,
+    });
+  });
+
+  it.each([
+    ['texto', 'basura'],
+    ['número', 7],
+    ['lista', []],
+    ['null', null],
+    ['un v2 del elenco', { schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: false }],
+    ['otra versión', { schemaVersion: 3, mode: 'personalizado' }],
+  ])('%s no es un avatar autorado: null (el NPC cae a su receta o al figurante)', (_name, value) => {
+    expect(authoredAvatarV2(value)).toBeNull();
   });
 });

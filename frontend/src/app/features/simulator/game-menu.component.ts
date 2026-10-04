@@ -319,8 +319,10 @@ export class GameMenuComponent implements OnDestroy {
     this.avatarStore.loadSaved();
     const avatar = toAvatarV2(this.avatarStore.avatar());
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+    // Sin kit, o con uno que no se puede resolver, el lobby arranca igual con el marcador geométrico.
     this.kit.load()
-      .then(bundle => resolveCharacter(bundle, { kind: 'jugador', avatar }), () => null)
+      .then(bundle => resolveCharacter(bundle, { kind: 'jugador', avatar }))
+      .catch(() => null)
       .then(visual => {
         this.booting = false;
         if (this.destroyed || !this.host || this.game) return;

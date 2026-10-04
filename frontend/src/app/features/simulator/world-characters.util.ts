@@ -3,7 +3,7 @@
  * las personas del caso, el guía y los figurantes, como CharacterRef del kit.
  * Lógica pura; game-world solo dibuja lo que esto resuelve.
  */
-import { parseStoredAvatar } from '../character/kit/avatar-v2';
+import { authoredAvatarV2, parseStoredAvatar } from '../character/kit/avatar-v2';
 import { type CharacterRef, resolveRecipeId } from '../character/kit/character-visual.resolver';
 import type { KitBundle } from '../character/kit/kit-engine';
 import type { MapObjectState, NpcConfig } from '../../core/models/simulation.model';
@@ -27,6 +27,16 @@ export function npcCharacterRef(npc: Pick<NpcConfig, 'recipeId'>): CharacterRef 
   return { kind: 'receta', recipeId: npc.recipeId };
 }
 
+/**
+ * Énfasis de un marcador según la cercanía y la selección. Una persona dibujada con el kit
+ * nunca se escala ni se atenúa (spec §8.2: sprites a escala 1, nada los deforma); su señal
+ * es el nombre y el anillo.
+ */
+export function markerEmphasis(state: { selected: boolean; near: boolean; kitSprite: boolean }): { scale: number; alpha: number } {
+  if (state.kitSprite) return { scale: 1, alpha: 1 };
+  return { scale: state.selected ? 1.12 : state.near ? 1.08 : 1, alpha: state.selected || state.near ? 1 : 0.88 };
+}
+
 /** Figurantes de los mapas legados y respaldo de todo actor sin receta (spec §7.2). */
 export function extrasCharacterRef(bundle: KitBundle): CharacterRef {
   return { kind: 'receta', recipeId: bundle.catalog.extras };
@@ -46,6 +56,6 @@ export function personCharacterRef(bundle: KitBundle, object: Pick<MapObjectStat
   const text = (value: unknown) => (typeof value === 'string' ? value : null);
   const chosen = resolveRecipeId(bundle, { recipeId: text(meta['recipeId']), template: text(meta['npcTemplateId']) });
   if (chosen) return { kind: 'receta', recipeId: chosen };
-  if (meta['avatar'] !== undefined && meta['avatar'] !== null) return { kind: 'autorado', avatar: meta['avatar'] };
+  if (authoredAvatarV2(meta['avatar'])) return { kind: 'autorado', avatar: meta['avatar'] };
   return { kind: 'receta', recipeId: resolveRecipeId(bundle, { actor: object.key }) ?? bundle.catalog.extras };
 }

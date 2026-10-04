@@ -36,4 +36,18 @@ describe('KitService', () => {
     http.expectOne(KIT_BUNDLE_URL).flush(testKitBundle());
     await expect(retry).resolves.toBeTruthy();
   });
+
+  it.each([
+    ['de otra versión', { ...testKitBundle(), schemaVersion: 2 }],
+    ['sin su receta por defecto', { ...testKitBundle(), recipes: {} }],
+    ['que no es un paquete', { ok: true }],
+  ])('un kit.json %s cuenta como carga fallida: nada se publica y el siguiente load reintenta', async (_name, body) => {
+    const failed = service.load();
+    http.expectOne(KIT_BUNDLE_URL).flush(body);
+    await expect(failed).rejects.toThrow('kit.json');
+    expect(service.bundle()).toBeNull();
+    const retry = service.load();
+    http.expectOne(KIT_BUNDLE_URL).flush(testKitBundle());
+    await expect(retry).resolves.toBeTruthy();
+  });
 });

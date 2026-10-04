@@ -56,9 +56,28 @@ describe('resolveCharacter', () => {
     expect(resolveCharacter(bundle, { kind: 'jugador', avatar: { ...custom, hair: 'trenza' } }).key).not.toBe(visual.key);
   });
 
-  it('un NPC autorado en v1 se migra; la basura cae a la receta por defecto', () => {
-    expect(resolveCharacter(bundle, { kind: 'autorado', avatar: { castId: 'david', uniform: 'con-bata' } }).key).toBe('kit-david-bata');
-    expect(resolveCharacter(bundle, { kind: 'autorado', avatar: 'basura' }).key).toBe('kit-valentina');
+  it('un NPC autorado en v1 conserva su aspecto: nunca resuelve a un jugable; la basura cae al figurante', () => {
+    // El editor viejo copiaba `castId: 'valentina'` de defaultAvatar() en todo avatar autorado.
+    const v1 = { castId: 'valentina', gender: 'male', skinTone: 'morena', hairStyle: 'corto', hairColor: 'gris', uniform: 'sin-bata' };
+    const autorado = resolveCharacter(bundle, { kind: 'autorado', avatar: v1 });
+    expect(autorado.recipeId).toBeNull();
+    expect(autorado.key).toMatch(/^kit-avatar-[0-9a-f]{8}$/);
+    expect(autorado).toBe(resolveCharacter(bundle, {
+      kind: 'jugador',
+      avatar: { schemaVersion: 2, mode: 'personalizado', complexion: 'b', skin: 'piel-5', hair: 'corto-liso', hairColor: 'canoso', accessories: [], bata: false },
+    }));
+    expect(resolveCharacter(bundle, { kind: 'autorado', avatar: 'basura' }).key).toBe(`kit-${bundle.catalog.extras}`);
+    expect(resolveCharacter(bundle, { kind: 'autorado', avatar: { schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: true } }).key)
+      .toBe(`kit-${bundle.catalog.extras}`);
+  });
+
+  it('un paquete incoherente con el código (una pieza que ya no existe) no lanza: receta por defecto o figurante', () => {
+    const broken = JSON.parse(JSON.stringify(bundle)) as typeof bundle;
+    delete (broken.pieces as Record<string, unknown>)['hair:afro'];
+    expect(resolveCharacter(broken, { kind: 'jugador', avatar: custom }).key).toBe(`kit-${broken.catalog.defaultRecipe}`);
+    expect(resolveCharacter(broken, { kind: 'autorado', avatar: custom }).key).toBe(`kit-${broken.catalog.extras}`);
+    // El paquete sano sigue componiendo el mismo avatar.
+    expect(resolveCharacter(bundle, { kind: 'jugador', avatar: custom }).recipeId).toBeNull();
   });
 });
 

@@ -141,6 +141,26 @@ export function migrateAvatarV1(x: unknown): AvatarV2 {
   };
 }
 
+/**
+ * Avatar de un NPC autorado en el editor de mundo (spec §9.2): siempre un personalizado. En v1
+ * se ignora `castId`: el editor viejo lo copiaba de defaultAvatar() (`'valentina'`) en todo avatar
+ * y el render de las personas del caso nunca lo usó. Lo que no es un avatar (o es del elenco)
+ * devuelve null, y el NPC cae a la receta de su clave o al figurante.
+ */
+export function authoredAvatarV2(x: unknown): AvatarPersonalizado | null {
+  const a = asRecord(x);
+  if (!a) return null;
+  if (a['schemaVersion'] === undefined) {
+    const traits = { ...a };
+    delete traits['castId'];
+    const migrated = migrateAvatarV1(traits);
+    return migrated.mode === 'personalizado' ? migrated : null;
+  }
+  if (a['schemaVersion'] !== 2 || a['mode'] !== 'personalizado') return null;
+  const coerced = coerceAvatarV2(a);
+  return coerced.mode === 'personalizado' ? coerced : null;
+}
+
 /** Punto de entrada único: acepta v1 o v2; una versión desconocida cae al valor por defecto. */
 export function toAvatarV2(x: unknown): AvatarV2 {
   const a = asRecord(x);

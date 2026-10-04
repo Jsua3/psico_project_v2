@@ -22,6 +22,10 @@ describe('lobby: kit, píxeles físicos y zoom entero (spec §8.2-8.3)', () => {
     expect(source).not.toMatch(/\.rectangle\(0, [^)]*\bW\b/);
   });
 
+  it('si el kit no carga o no se puede resolver el avatar, el lobby arranca igual con el marcador geométrico', () => {
+    expect(source).toMatch(/\.then\(bundle => resolveCharacter\(bundle, \{ kind: 'jugador', avatar \}\)\)\s*\.catch\(\(\) => null\)\s*\.then\(visual => \{/);
+  });
+
   it('los rótulos fijos viven en el DOM (el zoom de cámara no los saca de la vista)', () => {
     expect(source).not.toMatch(/setScrollFactor\(0\)/);
     expect(source).toContain('<div class="lobby-sign" aria-hidden="true">CLÍNICA · SIEP</div>');

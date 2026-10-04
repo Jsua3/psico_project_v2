@@ -6,6 +6,7 @@ import {
   KIT_LABEL_OFFSET_Y,
   extrasCharacterRef,
   guideCharacterRef,
+  markerEmphasis,
   npcCharacterRef,
   personCharacterRef,
   playerCharacterRef,
@@ -45,6 +46,9 @@ describe('world-characters.util — NPC, personas, guía y figurantes', () => {
     ['una receta inexistente cae al figurante', { key: 'npc-4', metadata: { recipeId: 'no-existe' } }, recipe('paciente-espera')],
     ['basura en metadata cae al figurante', { key: 'npc-5', metadata: 'basura' as never }, recipe('paciente-espera')],
     ['avatar null cae al figurante', { key: 'npc-6', metadata: { avatar: null } }, recipe('paciente-espera')],
+    ['basura en el avatar cae al figurante', { key: 'npc-7', metadata: { avatar: 'basura' } }, recipe('paciente-espera')],
+    ['basura en el avatar de un actor conocido cae a la receta del actor', { key: 'familia-crisis', metadata: { avatar: 7 } }, recipe('abuela-familia')],
+    ['un avatar v2 del elenco no vale para un NPC', { key: 'npc-8', metadata: { avatar: { schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: false } } }, recipe('paciente-espera')],
   ])('persona del caso: %s', (_name, object, expected) => {
     expect(personCharacterRef(bundle, object)).toEqual(expected);
   });
@@ -53,5 +57,21 @@ describe('world-characters.util — NPC, personas, guía y figurantes', () => {
     expect(guideCharacterRef(bundle, 'Colega de psicología')).toEqual(recipe('psicologa-hospitalaria'));
     expect(guideCharacterRef(bundle, 'Guía sin receta')).toEqual(recipe('paciente-espera'));
     expect(extrasCharacterRef(bundle)).toEqual(recipe('paciente-espera'));
+  });
+});
+
+describe('world-characters.util — énfasis de los marcadores', () => {
+  it('un marcador de objeto crece y se aclara al acercarse o seleccionarlo', () => {
+    expect(markerEmphasis({ selected: false, near: false, kitSprite: false })).toEqual({ scale: 1, alpha: 0.88 });
+    expect(markerEmphasis({ selected: false, near: true, kitSprite: false })).toEqual({ scale: 1.08, alpha: 1 });
+    expect(markerEmphasis({ selected: true, near: true, kitSprite: false })).toEqual({ scale: 1.12, alpha: 1 });
+  });
+
+  it('una persona del kit nunca se escala ni se atenúa (spec §8.2: sprites a escala 1, sin deformar)', () => {
+    for (const selected of [false, true]) {
+      for (const near of [false, true]) {
+        expect(markerEmphasis({ selected, near, kitSprite: true })).toEqual({ scale: 1, alpha: 1 });
+      }
+    }
   });
 });
