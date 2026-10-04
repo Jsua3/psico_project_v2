@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { blend, contrastRatio } from '../../../styles/contrast.util';
+
 /**
  * Contratos de fuente de la integración de la orientación en `simulation-play.component.ts` (T9, T10, T8.4):
  * lo que la plantilla y el CSS tienen que seguir diciendo aunque Jest no renderice la plantilla.
@@ -32,41 +34,57 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
     expect(source).not.toMatch(/<strong>Objetivo<\/strong>/);
   });
 
-  it('el aviso de contenido sensible del nodo vive dentro del envoltorio, bajo la lista, en todos los dispositivos', () => {
+  it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: franja bajo la cabecera, en todos los dispositivos (L-01)', () => {
     expect(source).toMatch(
-      /<app-scene-checklist-card[^>]*\/>\s*<\/div>\s*@if \(sensitiveNotice\(\); as notice\) \{[^}]*<p class="objective-card__notice">\{\{ notice \}\}<\/p>\s*\}\s*<\/div>/,
+      /<app-simulation-hud[\s\S]*?\/>\s*@if \(sensitiveNotice\(\); as notice\) \{\s*(<!--[\s\S]*?-->\s*)?<p class="sensitive-strip">\{\{ notice \}\}<\/p>\s*\}\s*<\/header>/,
     );
     expect(source).toContain('node.warningMessage');
+    // Ya no está dentro de .objective-card (que se pliega a su chip) ni en el panel lateral: un único sitio.
+    expect(source).not.toContain('objective-card__notice');
+    expect(source).not.toContain('right-panel__warning');
+    expect(source).not.toMatch(/<div class="objective-card">[\s\S]*?sensitiveNotice\(\)[\s\S]*?<app-scene-checklist-card/);
   });
 
-  it('el panel lateral solo repite el aviso si la etapa no tiene tarjeta (un único sitio)', () => {
-    expect(source).toMatch(/@if \(!sceneLog\(\) && sensitiveNotice\(\); as notice\) \{\s*<p class="right-panel__warning">/);
+  it('el pliegue de la tarjeta (chip, «Ocultar pasos», compacto, móvil vertical) ya no toca el aviso ético', () => {
+    // Antes, `.objective-card:has([data-collapsed=true]) .objective-card__notice { display: none }` lo ocultaba al plegar.
+    const foldRules = source.match(/[^\n{}]*data-collapsed='true'[^{}]*\{[^}]*\}/g) ?? [];
+    expect(foldRules.length).toBeGreaterThan(0);
+    for (const foldRule of foldRules) {
+      expect(foldRule).not.toMatch(/sensitive|notice/);
+    }
+    expect(rule('.sensitive-strip')).not.toMatch(/display:\s*none/);
+    expect(source).not.toMatch(/\.sensitive-strip[^{]*\{[^}]*display:\s*none/);
   });
 
-  it('el aviso es legible (>= 12 px) y con la tarjeta plegada a su chip no ocupa sitio', () => {
-    const size = /font-size:\s*([\d.]+)rem/.exec(rule('.objective-card__notice'))?.[1];
+  it('el aviso es legible (>= 12 px, también en compacto), con contraste alto y sin desenfoque', () => {
+    const size = /font-size:\s*([\d.]+)rem/.exec(rule('.sensitive-strip'))?.[1];
     expect(Number(size) * 16).toBeGreaterThanOrEqual(12);
-    expect(source).toMatch(
-      /\.objective-card:has\(app-scene-checklist-card\[data-collapsed='true'\]\) \.objective-card__notice \{ display: none; \}/,
-    );
-    expect(rule('.objective-card__notice')).toContain('color: #f3dfb5;');
-    expect(rule('.objective-card__notice')).not.toMatch(/backdrop-filter/);
+    const compact = source.slice(source.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
+    const compactSize = /\.sensitive-strip \{[^}]*font-size:\s*([\d.]+)rem/.exec(compact)?.[1];
+    expect(Number(compactSize) * 16).toBeGreaterThanOrEqual(12);
+    expect(rule('.sensitive-strip')).toContain('color: #f3dfb5;');
+    expect(rule('.sensitive-strip')).toContain('background: rgba(8,12,18,.94);');
+    expect(rule('.sensitive-strip')).not.toMatch(/backdrop-filter/);
+    // Fondo y color de la franja: razón de contraste >= 7:1 (AAA) sobre el peor fondo (opaco al 94 % sobre blanco).
+    expect(contrastRatio('#f3dfb5', blend('#080c12', 0.94, '#ffffff'))).toBeGreaterThanOrEqual(7);
+  });
+
+  it('la franja ocupa su propio sitio en la cabecera (no es una capa flotante): no tapa al personaje ni los controles', () => {
+    expect(rule('.sensitive-strip')).not.toMatch(/position:\s*(absolute|fixed)/);
+    expect(source).toMatch(/<header class="top-bar"[^>]*>\s*<app-simulation-hud/);
   });
 
   it('la tarjeta desplegada tiene tope de alto y se desplaza por dentro: no baja sobre el kit ni la Familia en crisis', () => {
     expect(rule('.objective-card')).toContain('max-height: min(calc(100% - 20px), 66%);');
     expect(rule('.objective-card')).toMatch(/display: flex;\s*flex-direction: column;\s*overflow: hidden;/);
     expect(rule('.objective-card__scroll')).toMatch(/min-height: 0;\s*overflow-y: auto;/);
-    // El aviso queda fuera de la zona que se desplaza: siempre a la vista.
-    expect(rule('.objective-card__notice')).toContain('flex: none;');
   });
 
-  it('en compacto la tarjeta desplegada deja libre la cruz táctil y pone el aviso al lado de la lista', () => {
+  it('en compacto la tarjeta desplegada deja libre la cruz táctil y se sostiene a la derecha de ella', () => {
     const compact = source.slice(source.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
     expect(compact).toMatch(
       /\.objective-card:not\(:has\(app-scene-checklist-card\[data-collapsed='true'\]\)\) \{\s*left: 176px; right: auto; width: min\(640px, calc\(100% - 190px\)\);\s*flex-direction: row;/,
     );
-    expect(compact).toMatch(/\.objective-card__notice \{\s*flex: 0 0 min\(38%, 220px\);[^}]*border-left:/);
   });
 
   it('la tarjeta arranca plegada en compacto y en móvil vertical (cardFolded)', () => {

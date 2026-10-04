@@ -21,7 +21,7 @@ import { SimulationAttemptState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
 
-/** Aviso del nodo sensible (ETH): el recordatorio que la tarjeta «Qué hacer» muestra en todos los dispositivos. */
+/** Aviso del nodo sensible (ETH): el recordatorio que la franja bajo la cabecera muestra en todos los dispositivos. */
 const WARNING = 'Este caso aborda violencia de género, tentativa de feminicidio y la muerte de una niña. Puedes usar la salida segura en cualquier momento.';
 
 function attemptWith(node: Record<string, unknown>): SimulationAttemptState {

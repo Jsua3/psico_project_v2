@@ -277,6 +277,11 @@ const CASE_INTRO_PARAGRAPHS = [
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()"
             (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
+          @if (sensitiveNotice(); as notice) {
+            <!-- Recordatorio ético del nodo sensible (ETH-01): franja fija bajo la cabecera, siempre a la vista en todos los dispositivos
+                 (no vive en la tarjeta «Qué hacer», que se pliega a su chip). Ocupa su propio sitio: no tapa al personaje ni los controles. -->
+            <p class="sensitive-strip">{{ notice }}</p>
+          }
         </header>
 
         <main class="main-zone">
@@ -285,15 +290,11 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (sceneLog(); as log) {
               <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
               <div class="objective-card">
-                <!-- La lista se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo); el aviso queda fijo debajo. -->
+                <!-- La lista se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
                 <div class="objective-card__scroll">
                   <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
                     [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
                 </div>
-                @if (sensitiveNotice(); as notice) {
-                  <!-- Recordatorio ético del nodo sensible (ETH-01): el único sitio visible en todos los dispositivos. -->
-                  <p class="objective-card__notice">{{ notice }}</p>
-                }
               </div>
             }
 
@@ -337,10 +338,6 @@ const CASE_INTRO_PARAGRAPHS = [
                 @if (game.currentNode.narrative) {
                   <p class="right-panel__narrative" tabindex="0" role="region"
                     aria-label="Contexto narrativo de la etapa">{{ game.currentNode.narrative }}</p>
-                }
-                <!-- El aviso vive en la tarjeta «Qué hacer»; aquí solo sale si la etapa no tiene tarjeta (no se duplica). -->
-                @if (!sceneLog() && sensitiveNotice(); as notice) {
-                  <p class="right-panel__warning">{{ notice }}</p>
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
@@ -553,17 +550,18 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
     .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__scroll { overflow: visible; }
-    /* Recordatorio ético del nodo sensible: legible (>= 12 px) y fijo bajo la lista; con la tarjeta plegada no ocupa el chip. */
-    .objective-card__notice {
-      flex: none;
-      margin: 6px 0 0;
-      padding-top: 5px;
-      border-top: 1px solid rgba(245,184,75,.22);
+    /* Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, fuera de la tarjeta plegable. Legible (>= 12 px) y con
+       contraste alto; ocupa su propio sitio (el mundo se reencuadra solo), así que no tapa al personaje ni los controles. */
+    .sensitive-strip {
+      margin: 0;
+      padding: 5px 14px;
+      background: rgba(8,12,18,.94);
+      border-bottom: 1px solid rgba(245,184,75,.28);
       color: #f3dfb5;
       font-size: .78rem;
       line-height: 1.35;
+      text-align: center;
     }
-    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__notice { display: none; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
        tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
@@ -627,14 +625,6 @@ const CASE_INTRO_PARAGRAPHS = [
       color: var(--sim-ink-soft);
       font-size: .78rem;
       line-height: 1.5;
-    }
-    .right-panel__warning {
-      margin: 8px 0 0;
-      padding-top: 6px;
-      border-top: 1px solid rgba(245,184,75,.18);
-      color: #f3dfb5;
-      font-size: .78rem;
-      line-height: 1.4;
     }
     .dialogue-side { display: block; min-height: 0; overflow: hidden; }
 
@@ -1112,21 +1102,19 @@ const CASE_INTRO_PARAGRAPHS = [
       .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
       .pausing-notice { bottom: 8px; }
 
-      /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y pone el aviso al lado de la
-         lista, no debajo: así no crece hacia el personaje ni deja la lista en unas pocas líneas. Plegada (chip) sigue en la esquina. */
+      /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
+         Plegada (chip) sigue en la esquina. */
       .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) {
         left: 176px; right: auto; width: min(640px, calc(100% - 190px));
         flex-direction: row; align-items: flex-start; gap: 10px;
-        /* Sin el tope del escritorio: en dos columnas la tarjeta ya es baja y la lista cabe con su paso siguiente. */
+        /* Sin el tope del escritorio: la tarjeta ya es ancha y baja, y la lista cabe con su paso siguiente. */
         max-height: calc(100% - 20px);
       }
       .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__scroll {
         flex: 1 1 0; min-width: 0;
       }
-      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__notice {
-        flex: 0 0 min(38%, 220px); margin: 0; padding: 0 0 0 10px; border-top: 0;
-        border-left: 1px solid rgba(245,184,75,.22); max-height: 100%; overflow-y: auto;
-      }
+      /* La franja ética se compacta sin bajar de 12 px: el mundo pierde lo mínimo. */
+      .sensitive-strip { padding: 3px 12px; font-size: .75rem; line-height: 1.3; }
 
       /* Decisión: hoja inferior flotante. El mundo conserva su tamaño (una sola columna) y el resumen de la etapa
          se oculta: las opciones 1 a 3 tienen que verse y tocarse sin desplazar (TOUCH-01). */
@@ -1296,8 +1284,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** La tarjeta «Qué hacer» arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
   readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());
   /**
-   * Aviso ético de un nodo sensible («Este caso aborda…», `warningMessage` del nodo): una línea discreta dentro de
-   * la tarjeta «Qué hacer», visible en todos los dispositivos durante la exploración. No cambia su redacción.
+   * Aviso ético de un nodo sensible («Este caso aborda…», `warningMessage` del nodo): franja fija bajo la cabecera,
+   * visible en todos los dispositivos mientras dure el nodo, plegada o no la tarjeta «Qué hacer». No cambia su redacción.
    */
   readonly sensitiveNotice = computed<string | null>(() => {
     const node = this.attempt()?.currentNode;
