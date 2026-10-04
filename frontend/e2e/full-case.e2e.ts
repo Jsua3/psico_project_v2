@@ -15,6 +15,7 @@ import {
   loginStudent,
   moveAndPersistPosition,
   pauseWithPendingPosition,
+  reachNearby,
   reloadAndResumeAttempt,
   seekNpcDialogue,
   useToolChoice,
@@ -60,15 +61,14 @@ async function completeFullCase(
   expect(papUse.world.usedToolKeys).toContain('PAP@familia-crisis');
   await closeDialogue(page, /herramienta pertinente/i);
 
-  await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
-  await input.moveBy('ArrowLeft', 203);
-  await input.moveBy('ArrowUp', 50);
+  // La enfermera aparece en la barra («Hablar con Enfermera de urgencias»): se
+  // la busca en diagonal hacia arriba y a la derecha, sin conocer su posición.
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowUp'], /enfermera de urgencias/i);
   await seekNpcDialogue(page, /enfermera de urgencias/i, input);
   await closeDialogue(page, /enfermera de urgencias/i);
 
-  // Rodear la camilla por el pasillo frontal antes de buscar la puerta.
-  await input.moveBy('ArrowDown', 83);
-  await input.moveUntilNearby('ArrowRight', /sala de escucha familiar/i);
+  // Hacia la puerta por el pasillo frontal, rodeando la camilla.
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown'], /sala de escucha familiar/i);
   const escuchaEntry = await enterDoor(page, /sala de escucha familiar/i, 'hospital-sala-escucha');
   expect(escuchaEntry.player).toMatchObject({ x: 160, y: 452 });
 
@@ -116,8 +116,7 @@ async function completeFullCase(
 
   // H2 — marco normativo hospitalario.
   await input.moveUntilNearby('ArrowRight', /bitácora/i);
-  await input.moveBy('ArrowRight', 120);
-  await input.moveUntilNearby('ArrowUp', /marco normativo/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowUp'], /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-hospital$/);
   decision = await chooseDecision(
     page,
@@ -132,8 +131,7 @@ async function completeFullCase(
   await input.moveUntilNearby('ArrowUp', /protocolo epicee/i);
   const spikes = await interactNearby(page, /protocolo epicee/i, /\/interactions\/tool-spikes$/);
   expect(spikes.world.inventory).toContain('SPIKES');
-  await input.moveBy('ArrowDown', 50);
-  await input.moveUntilNearby('ArrowRight', /psicóloga hospitalaria/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowDown'], /psicóloga hospitalaria/i);
   await interactNearby(page, /psicóloga hospitalaria/i, /\/interactions\/psicologa-acompanante$/);
   decision = await chooseDecision(
     page,
@@ -148,13 +146,10 @@ async function completeFullCase(
   await enterDoor(page, /salida institucional/i, 'comisaria-recepcion');
 
   // Recepción — expediente antes del consultorio.
-  await input.moveUntilNearby('ArrowRight', /consultorio/i);
-  await input.moveBy('ArrowLeft', 60);
-  await input.moveUntilNearby('ArrowUp', /expediente del caso/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowUp'], /expediente del caso/i);
   await interactNearby(page, /expediente del caso/i, /\/interactions\/expediente-caso$/);
   await closeDialogue(page, /expediente del caso/i);
-  await input.moveBy('ArrowDown', 68);
-  await input.moveUntilNearby('ArrowRight', /consultorio/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown'], /consultorio/i);
   await enterDoor(page, /consultorio/i, 'comisaria-consultorio');
 
   // C1 — valoración de riesgo y protección.
@@ -184,10 +179,7 @@ async function completeFullCase(
 
   // C2 — marco integral de Comisaría.
   await input.moveUntilNearby('ArrowRight', /ruta de protección/i);
-  // Ruta en x=610 → se para en x≈536-551; +210 deja al jugador a 29-44 px del
-  // marco (x=790). Con +180 quedaba en el borde de su radio de 74 px.
-  await input.moveBy('ArrowRight', 210);
-  await input.moveUntilNearby('ArrowUp', /marco normativo/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowUp'], /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-comisaria$/);
   decision = await chooseDecision(
     page,
@@ -198,11 +190,9 @@ async function completeFullCase(
   await closeDialogue(page, /supervisión clínica/i);
   await waitForWorldReady(page);
 
-  // C3 — cierre técnico y reporte integral. Tras C2 el jugador reaparece en
-  // ~(670, 430), con la Ruta de protección (610, 436) aún en rango: si el
-  // profesional (NPC que se mueve) se aleja justo antes del clic, la barra
-  // contextual salta a la ruta. Apartarse a la derecha la deja fuera de rango.
-  await input.moveBy('ArrowRight', 40);
+  // C3 — cierre técnico y reporte integral. Tras C2 la Ruta de protección aún
+  // puede estar en rango: la interacción se busca por su nombre (la barra ofrece
+  // el principal y un secundario), no por el orden en que aparecen.
   await input.moveUntilNearby('ArrowRight', /profesional psicosocial/i);
   await interactNearby(page, /profesional psicosocial/i, /\/interactions\/profesional-psicosocial$/);
   decision = await chooseDecision(
@@ -219,6 +209,14 @@ async function completeFullCase(
     critical: 0,
   });
   expect(decision.completionReport.metrics.institutionalRouteActivated).toBe(true);
+
+  // AC-9: la supervisión de la ÚLTIMA decisión se mantiene a la vista y el
+  // resultado del intento solo se abre cuando se cierra.
+  const supervision = page.getByRole('dialog', { name: /supervisión clínica/i });
+  await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
+  await expect(page.locator('app-attempt-outcome .outcome')).toHaveCount(0);
+  await assertQualityState(page, testInfo, `${viewport.name}-full-case-last-supervision`);
+  await closeDialogue(page, /supervisión clínica/i);
 
   const outcome = page.getByRole('alertdialog', { name: /intento finalizado/i });
   await expect(outcome).toBeVisible({ timeout: scaled(30_000) });

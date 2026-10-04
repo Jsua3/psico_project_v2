@@ -28,5 +28,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [{
+    name: 'chromium',
+    use: {
+      ...devices['Desktop Chrome'],
+      // Equipos con un Chromium ya instalado (sin `playwright install`, p. ej.
+      // un contenedor de desarrollo): E2E_CHROMIUM_PATH apunta al ejecutable y
+      // E2E_CHROMIUM_ARGS (separados por espacio) a sus banderas, p. ej. el
+      // WebGL por software. Sin ellas se usa el Chromium que descarga Playwright.
+      launchOptions: {
+        executablePath: process.env.E2E_CHROMIUM_PATH || undefined,
+        args: process.env.E2E_CHROMIUM_ARGS?.split(/\s+/).filter(Boolean),
+      },
+    },
+  }],
 });

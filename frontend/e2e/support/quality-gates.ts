@@ -36,6 +36,13 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
     });
     return activeOverlays.every(element => Number.parseFloat(getComputedStyle(element).opacity) >= 0.99);
   }, undefined, { timeout: scaled(10_000) });
+  // Axe mide el contraste con los colores calculados en ese instante: una transición o una
+  // animación FINITA aún en curso (la entrada del panel, el fondo del botón «Salida segura»)
+  // da un color intermedio y un falso «color-contrast». Las infinitas (cursor, pulsos) no se esperan.
+  await page.waitForFunction(() => document.getAnimations().every(animation => {
+    const timing = animation.effect?.getComputedTiming();
+    return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
+  }), undefined, { timeout: scaled(10_000) });
 }
 
 async function assertNoBlockingAxeViolations(
