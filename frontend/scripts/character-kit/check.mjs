@@ -18,7 +18,7 @@ import { decodePng } from './kit-png.mjs';
 import { checkCharacter, checkSharedHead } from './measure.mjs';
 import { RETOUCH_ROOT, checkRetouchLayer } from './retouch-lib.mjs';
 import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
-import { referencedKeys } from './coverage-sources.mjs';
+import { checkSourceMinimums, referencedKeys } from './coverage-sources.mjs';
 import { sampleRecipes } from './muestras.mjs';
 
 export function loadPalette() {
@@ -108,6 +108,7 @@ export function runCheck({ outDir = DEFAULT_OUT, retouchRoot = RETOUCH_ROOT } = 
   const refs = referencedKeys(REPO_ROOT);
   errors.push(...checkCatalogKeys(bundle.catalog, refs));
   errors.push(...checkScenarioRecipes(bundle.recipes, refs));
+  errors.push(...checkSourceMinimums(refs));
   errors.push(...checkCatalogRecipes(bundle));
   for (const recipe of editorSamples(bundle)) {
     const composed = composeCharacter(bundle, recipe, { keepDressed: true });

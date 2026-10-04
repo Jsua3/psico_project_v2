@@ -746,17 +746,6 @@ export interface RoomExitConfig {
 
 // ─── NPC modular (flujo competitivo) ──────────────────────────────────────────
 
-export type NpcAvatarPresetKey =
-  | 'madre-vbg'
-  | 'paciente-vbg'
-  | 'colega-clinica'
-  | 'supervisor-clinico'
-  | 'seguridad'
-  | 'adolescente-nna'
-  | 'psicologa-hospitalaria'
-  | 'funcionaria-recepcion'
-  | 'comisaria-profesional';
-
 export type NpcMotionBehavior =
   | 'idle'
   | 'subtle-wander'

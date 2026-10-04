@@ -1,34 +1,26 @@
 /**
- * Claves de personaje que el juego referencia hoy, leídas de sus fuentes.
- * El chequeo de cobertura exige que cada una resuelva a una receta (o a una
- * voz sin cuerpo). Si una fuente cambia de sitio, se actualiza aquí.
+ * Claves de personaje que el juego referencia, leídas de sus fuentes. La cobertura exige que
+ * cada una resuelva a una receta (o a una voz sin cuerpo). Si una fuente se mueve, se
+ * actualiza aquí; SOURCE_MINIMUMS evita que una fuente perdida pase como «cero claves».
  */
-
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 export const COVERAGE_SOURCES = Object.freeze({
   scenarios: 'frontend/src/assets/game/scenarios',
-  mapObjectPresets: 'frontend/src/app/features/simulator/npc-avatar-presets.ts',
-  actorRoster: 'frontend/src/assets/characters/v1/actor-roster.v1.json',
   guides: 'frontend/src/app/features/simulator/scene-guide.config.ts',
   seed: 'backend_django/apps/simulation/management/commands/seed_caso_pdf.py',
   speakerLiterals: [
     'frontend/src/app/features/simulator/risky-interaction.config.ts',
     'frontend/src/app/features/simulator/simulation-play.component.ts',
   ],
-  templates: 'frontend/src/app/features/simulator/authoring-catalog.config.ts',
 });
+
+/** Claves que da hoy cada fuente (2026-10); menos es una fuente que dejó de leerse. */
+export const SOURCE_MINIMUMS = Object.freeze({ scenarioNpcs: 20, actors: 6, guides: 8, speakers: 6 });
 
 const read = (root, rel) => readFileSync(path.join(root, rel), 'utf8');
 const all = (text, re) => [...text.matchAll(re)].map(m => m[1]);
-
-/** Texto entre `start` y el primer `end` que le sigue. */
-function block(text, start, end) {
-  const i = text.indexOf(start);
-  if (i < 0) throw new Error(`cobertura: no encuentro «${start}»`);
-  return text.slice(i, text.indexOf(end, i));
-}
 
 /** NPC de los escenarios → su receta (null si le falta `recipeId`). */
 function scenarioNpcRecipes(root) {
@@ -44,23 +36,26 @@ function scenarioNpcRecipes(root) {
 }
 
 export function referencedKeys(root) {
-  const presets = read(root, COVERAGE_SOURCES.mapObjectPresets);
-  const roster = JSON.parse(read(root, COVERAGE_SOURCES.actorRoster));
-  const speakers = new Set([
-    ...all(read(root, COVERAGE_SOURCES.seed), /"dialogue":\s*\("([^"]+)"/g),
-    ...COVERAGE_SOURCES.speakerLiterals.flatMap(rel => all(read(root, rel), /speakerName: '([^']+)'/g)),
-  ]);
+  const seed = read(root, COVERAGE_SOURCES.seed);
   return {
     scenarioNpcs: scenarioNpcRecipes(root),
-    actors: new Set([
-      ...all(block(presets, 'export const MAP_OBJECT_PRESETS', '};'), /'([^']+)':/g),
-      ...roster.mappings.map(m => m.actorId),
-    ]),
+    // Personas del caso sembradas por el backend (markers PERSON).
+    actors: new Set(all(seed, /"key":\s*"([^"]+)",\s*"label":\s*"[^"]*",\s*"type":\s*"PERSON"/g)),
     guides: new Set(all(read(root, COVERAGE_SOURCES.guides), /guideName: '([^']+)'/g)),
-    speakers,
-    // Sin fuente viva: el catálogo conserva los `portraitKey` para árboles ya guardados y
-    // checkCatalogRecipes valida sus recetas.
+    speakers: new Set([
+      ...all(seed, /"dialogue":\s*\("([^"]+)"/g),
+      ...COVERAGE_SOURCES.speakerLiterals.flatMap(rel => all(read(root, rel), /speakerName: '([^']+)'/g)),
+    ]),
+    // Sin fuente viva: el catálogo los conserva para datos ya guardados (portraitKey de árboles
+    // autorados, npcTemplateId de casos viejos) y checkCatalogRecipes valida sus recetas.
     portraitKeys: new Set(),
-    templates: new Set(all(block(read(root, COVERAGE_SOURCES.templates), 'export const AUTHORING_NPC_TEMPLATES', '];'), /^\s+id: '([^']+)'/gm)),
+    templates: new Set(),
   };
+}
+
+/** Fuentes que dieron menos claves que su mínimo. */
+export function checkSourceMinimums(refs) {
+  return Object.entries(SOURCE_MINIMUMS)
+    .filter(([source, min]) => refs[source].size < min)
+    .map(([source, min]) => `cobertura: la fuente ${source} dio ${refs[source].size} claves (mínimo ${min}); ¿se movió de sitio?`);
 }

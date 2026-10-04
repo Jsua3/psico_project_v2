@@ -3,16 +3,22 @@ import { test } from 'node:test';
 
 import { buildBundle } from './bundle.mjs';
 import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
-import { referencedKeys } from './coverage-sources.mjs';
+import { checkSourceMinimums, referencedKeys } from './coverage-sources.mjs';
 
-test('las fuentes del juego se leen: escenarios, actores, guías, hablantes y plantillas', () => {
+test('las fuentes del juego se leen: escenarios, personas del seed, guías y hablantes', () => {
   const refs = referencedKeys(REPO_ROOT);
   assert.equal(refs.scenarioNpcs.size, 20);
   assert.ok(refs.scenarioNpcs.has('supervisor-cierre'));
-  assert.ok(refs.actors.has('familia-crisis') && refs.actors.has('sobreviviente-espera'));
+  assert.ok(refs.actors.has('familia-crisis') && refs.actors.has('funcionaria-recepcion'));
   assert.ok(refs.guides.has('Funcionario de derechos'));
   assert.ok(refs.speakers.has('Sobreviviente (22 años)') && refs.speakers.has('Protocolo clínico'));
-  assert.deepEqual([...refs.templates].sort(), ['adolescente', 'hombre-adulto', 'mujer-adulta', 'profesional']);
+});
+
+test('una fuente que deja de leerse falla en vez de cubrir cero', () => {
+  const refs = referencedKeys(REPO_ROOT);
+  assert.deepEqual(checkSourceMinimums(refs), []);
+  refs.guides.clear();
+  assert.deepEqual(checkSourceMinimums(refs), ['cobertura: la fuente guides dio 0 claves (mínimo 8); ¿se movió de sitio?']);
 });
 
 test('cada NPC de escenario nombra una receta que existe', () => {
