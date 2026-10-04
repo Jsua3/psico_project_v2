@@ -6,6 +6,7 @@ import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState }
 import { AvatarFigureComponent } from '../character/avatar-figure.component';
 import { AvatarStore } from '../character/avatar.store';
 import { decisionTotal, performanceLabel } from './outcome.util';
+import { reconsideredChip } from './reconsidered.util';
 
 /**
  * Pantalla de fin de partida (liquid-glass) extraída de SimulationPlayComponent.
@@ -123,6 +124,8 @@ import { decisionTotal, performanceLabel } from './outcome.util';
               <span class="oc-chip">Reflexiones: {{ r.reflectionsCount }}</span>
               @if (r.safeExitUsed) { <span class="oc-chip">Salida segura</span> }
               @if (r.prohibitedDecisions) { <span class="oc-chip oc-chip--alert">Alertas éticas: {{ r.prohibitedDecisions }}</span> }
+              <!-- No son decisiones ni bajan el desempeño: el juego no aplicó esa primera respuesta y se le pidió reconsiderar (L-03). -->
+              @if (reconsidered(r); as chip) { <span class="oc-chip">{{ chip }}</span> }
             </div>
           </div>
 
@@ -328,6 +331,11 @@ export class AttemptOutcomeComponent {
   perf(r: AttemptCompletionReport): string { return performanceLabel(r); }
 
   /** Tono visual de una entrada del timeline: prohibida pisa la clasificación. */
+  /** Chip «Reconsideradas: N» (solo con reintentos): lo único que el cierre no puede callar de ellos. */
+  reconsidered(r: AttemptCompletionReport): string | null {
+    return reconsideredChip(r.retries);
+  }
+
   timelineTone(t: AttemptTimelineEntry): string {
     return t.prohibited ? 'PROHIBITED' : (t.classification ?? 'EVENT');
   }

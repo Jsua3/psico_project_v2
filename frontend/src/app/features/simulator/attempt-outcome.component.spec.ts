@@ -254,5 +254,37 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     render('IN_PROGRESS');
     expect(host().querySelector('section')).toBeNull();
   });
+
+  describe('respuestas reconsideradas (L-03)', () => {
+    const chips = () => Array.from(host().querySelectorAll('.oc-chip')).map(el => text(el));
+
+    it('con reintentos el cierre muestra el chip «Reconsideradas: N» junto a los de decisiones', () => {
+      render('COMPLETED', { report: makeReport({ retries: 6 }) });
+      expect(chips()).toContain('Reconsideradas: 6');
+    });
+
+    it('no son decisiones: no cambian las barras ni las alertas éticas ni el desempeño', () => {
+      render('COMPLETED', { report: makeReport({ retries: 2, prohibitedRetries: 1 }) });
+      expect(chips().some(chip => /alertas éticas/i.test(chip))).toBe(false);
+      expect(host().textContent).toMatch(/Adecuadas\s*3/);
+      expect(component.perf(makeReport({ retries: 6, adequateDecisions: 6 }))).toBe('Excelente');
+    });
+
+    it('sin reintentos (0 o ausente) no aparece el chip', () => {
+      render('COMPLETED', { report: makeReport({ retries: 0 }) });
+      expect(chips().some(chip => /reconsideradas/i.test(chip))).toBe(false);
+      fixture.destroy();
+      TestBed.resetTestingModule();
+      render('COMPLETED', { report: makeReport() });
+      expect(chips().some(chip => /reconsideradas/i.test(chip))).toBe(false);
+    });
+
+    it('la recomendación del servidor sobre lo reconsiderado llega tal cual a «Retroalimentación del sistema»', () => {
+      render('COMPLETED', {
+        report: makeReport({ retries: 1, recommendations: ['Reconsideraste 1 respuesta antes de decidir; revísala con tu docente.'] }),
+      });
+      expect(host().querySelector('.oc-feedback')?.textContent).toContain('Reconsideraste 1 respuesta antes de decidir; revísala con tu docente.');
+    });
+  });
 });
 

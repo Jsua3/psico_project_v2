@@ -103,6 +103,8 @@ export interface AttemptCompletionReport {
   ending?: AttemptEnding | null;
   /** Veces que una primera respuesta riesgosa no se aplicó (reintentos); no cuentan como decisiones registradas. */
   retries?: number;
+  /** De esos reintentos, los que eran conducta prohibida (el docente los distingue en su traza). */
+  prohibitedRetries?: number;
 }
 
 export interface AttemptEnding {
@@ -301,6 +303,9 @@ export interface AttemptTrace {
   riskyDecisions: number;
   inadequateDecisions: number;
   prohibitedDecisions: number;
+  /** Primeras respuestas que el juego no aplicó (reintento): no entran en los contadores de decisiones (T11.1, L-02). */
+  retries?: number;
+  prohibitedRetries?: number;
   safeExitUsed: boolean;
   timeline: AttemptTimelineEntry[];
   visitedNodeTitles: string[];
