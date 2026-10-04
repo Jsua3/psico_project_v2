@@ -1418,6 +1418,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private nothingNearbyTimer: number | null = null;
   private helpCardShown = false;
   private roomBannerTimer: number | null = null;
+  private transitionNoteTimer: number | null = null;
   private pauseDeadlineTimer: number | null = null;
   /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
   private pauseSent = false;
@@ -1467,7 +1468,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCompactWatch?.();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -2776,7 +2777,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
       this.seenTransitionMapKeys.add(world.map.key);
       this.transitionNote.set(transition);
-      window.setTimeout(() => this.transitionNote.set(''), 4200);
+      if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
+      this.transitionNoteTimer = window.setTimeout(() => {
+        this.transitionNoteTimer = null;
+        this.transitionNote.set('');
+      }, 4200);
     }
   }
 
@@ -2851,7 +2856,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, NOTICE_MS);
   }
 
-  /** Descarta avisos pendientes (intento nuevo o pausa): eran de lo que se estaba haciendo. */
+  /** Descarta avisos pendientes y visibles (intento nuevo o pausa): eran de lo que se estaba haciendo. */
   private resetNotices(): void {
     this.pendingNotes.length = 0;
     this.previousSceneLog = null;
@@ -2861,6 +2866,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
     this.softNoticeTimer = null;
     this.softNotice.set('');
+    // Banner de sala o de etapa, aviso de puerta y nota de transición (z 320-340): sin esto quedaban pintados —y, con
+    // role="status" o "alert", anunciados— encima de la pantalla de pausa (F7). Eran de lo que se estaba haciendo.
+    if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
+    this.roomBannerTimer = null;
+    this.roomBanner.set('');
+    if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
+    this.doorNoticeTimer = null;
+    this.doorNotice.set('');
+    if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
+    this.transitionNoteTimer = null;
+    this.transitionNote.set('');
   }
 
   private announce(message: string): void {

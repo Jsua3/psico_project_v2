@@ -176,6 +176,73 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     });
   });
 
+  describe('F7: ningún aviso queda sobre la pantalla de pausa', () => {
+    const paused = () => makeAttempt({ status: 'PAUSED' });
+
+    function showAllNotices(): void {
+      component.roomBanner.set('Nueva etapa: Marco normativo en salud');
+      component.doorNotice.set('Aún no puedes pasar.');
+      component.transitionNote.set('Quince días después…');
+      component.softNotice.set('Obtuviste: Kit PAP.');
+    }
+
+    it('al pausar se apagan el banner de etapa, el aviso de puerta y la nota de transición', () => {
+      sim['safeExit'].mockReturnValue(of(paused()));
+      showAllNotices();
+
+      component.pauseFromOverlay();
+
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.roomBanner()).toBe('');
+      expect(component.doorNotice()).toBe('');
+      expect(component.transitionNote()).toBe('');
+      expect(component.softNotice()).toBe('');
+    });
+
+    it('los temporizadores de esos avisos no los vuelven a pintar tras la pausa', () => {
+      sim['safeExit'].mockReturnValue(of(paused()));
+      // Los avisos reales nacen con su temporizador (4,2 s, 3 s…): se ejercitan por las rutas privadas.
+      const internals = component as unknown as {
+        showRoomBanner(text: string, ms: number): void;
+        showDoorNotice(message: string): void;
+      };
+      internals.showRoomBanner('Nueva etapa: Marco normativo en salud', 3000);
+      internals.showDoorNotice('Aún no puedes pasar.');
+
+      component.pauseFromOverlay();
+      jest.advanceTimersByTime(10_000);
+
+      expect(component.roomBanner()).toBe('');
+      expect(component.doorNotice()).toBe('');
+    });
+
+    it('si la pausa falla, los avisos siguen: la superposición no cambió (se limpia al éxito, no antes)', () => {
+      const failing = new Subject<never>();
+      sim['safeExit'].mockReturnValue(failing);
+      showAllNotices();
+
+      component.pauseFromOverlay();
+      failing.error(new Error('sin red'));
+
+      expect(component.roomBanner()).not.toBe('');
+      expect(component.doorNotice()).not.toBe('');
+    });
+
+    it('un intento nuevo también limpia los avisos del intento anterior', () => {
+      showAllNotices();
+
+      component.startNewAttempt();
+
+      expect(component.roomBanner()).toBe('');
+      expect(component.doorNotice()).toBe('');
+      expect(component.transitionNote()).toBe('');
+    });
+
+    it('la nota de transición ya no es un temporizador anónimo: se puede cancelar', () => {
+      expect(source).toMatch(/this\.transitionNoteTimer = window\.setTimeout\(\(\) => \{\s*this\.transitionNoteTimer = null;\s*this\.transitionNote\.set\(''\);/);
+    });
+  });
+
   describe('F2: la pausa en cola tiene plazo (petición colgada)', () => {
     const DEADLINE_MS = 10_000;
     const paused = () => makeAttempt({ status: 'PAUSED' });
