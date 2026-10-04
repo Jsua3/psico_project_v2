@@ -1,7 +1,7 @@
 # Informe de la sesión de jugabilidad — «se sabe qué hacer y se siente bien»
 
 **Fecha:** noche del 2026-10-02 al 2026-10-04 (hora de Colombia) · **Rama:** `claude/peaceful-goodall-a2gobv` (sale de `master` @ `51d1409`), respaldada en `origin`, **sin PR y sin merge**
-**Encargo:** «que el simulador cumpla con todas sus líneas de desarrollo y sea jugable bien; hoy lo probé y está muy mal en que no se sabe muy bien qué hacer» · **Cifras:** {{COMMITS}} commits, {{FILES}}
+**Encargo:** «que el simulador cumpla con todas sus líneas de desarrollo y sea jugable bien; hoy lo probé y está muy mal en que no se sabe muy bien qué hacer» · **Cifras:** 113 commits, 154 archivos. +21.607/−829 líneas
 
 ## En una página
 
@@ -9,7 +9,7 @@
 |---|---|
 | ¿Por qué «no se sabía qué hacer»? | No era falta de pulido: el objetivo seguía al **nodo** del caso y no a la **sala**, ninguna señal decía qué era interactivo, la decisión 1 y sus requisitos vivían en salas distintas, y no existía ninguna ayuda («Cómo se juega»). Además había **bloqueos reales**: una decisión «muerta» sin mensaje, una enfermera obligatoria que no se podía hablar, y la salida segura inalcanzable con un diálogo abierto. Lo midieron tres jugadores de prueba con Chromium real ([diagnóstico](2026-10-03-diagnostico-jugabilidad/)). |
 | ¿Qué cambió? | Hay una lista viva **«Qué hacer»** con el siguiente paso (también entre salas), un contador único «Decisión k de 6», una barra inferior con verbos («Hablar con Enfermera de urgencias», «Recoger…», «Pasar a…» con candado y motivo), un anillo sobre el siguiente destino, avisos al recoger y al anotar un paso, ayuda de primera vez y pantalla «Cómo se juega», y un modo compacto para móvil. La **salida segura** funciona en todos los estados. |
-| ¿Está verificado? | Jest **{{JEST}}** · pytest **{{PYTEST}}** · build de producción limpio · e2e **{{E2E}}** · dos revisiones adversariales independientes (límites de producto y salida segura/accesibilidad) con hallazgos reproducidos y corregidos. Todo jugado en Chromium real en 1366×768, 1600×900, 1024×768, 844×390 táctil y 390×844/412×915 vertical. |
+| ¿Está verificado? | Jest **149 suites / 1.802 pruebas en verde (línea base: 111 / 886)** · pytest **297 en verde (línea base: 254)** · build de producción limpio · e2e **todo en verde contra el código final: caso completo de las seis decisiones en los 4 viewports (escritorio 1600 y 1366, móvil 390 y 412), salida segura 6/6 (escritorio y táctil, incluido el servidor lento), recorrido guiado 3 (+1 táctil omitido, ver §5), axe de calidad 4/4, consentimiento 3/3, lobby 6/6, mundo vivo 4/4, sin chatbot y fuentes** · dos revisiones adversariales independientes (límites de producto y salida segura/accesibilidad) con hallazgos reproducidos y corregidos. Todo jugado en Chromium real en 1366×768, 1600×900, 1024×768, 844×390 táctil y 390×844/412×915 vertical. |
 | ¿Qué NO está? | El contenido clínico de los bloques C (ritmo y pausas), E (mapa de la red) y F (tensión verbal) **no se inventó**: lo debe redactar y validar Psicología. Tampoco la decisión en dos tiempos (T9.12), los atajos de una tecla (WCAG 2.1.4) ni la generalización a un segundo caso. Ver §5. |
 | ¿Qué necesita una persona? | **Confirmar T11.1** (los reintentos ya no cuentan como decisiones), decidir la sacudida de cámara, revisar la longitud y redacción de las opciones (la más larga acierta en 4 de 6 nodos) y varias decisiones de copy. Ver §6. |
 
@@ -48,7 +48,7 @@ Causa de fondo: el caso tiene tres capas (**nodo** del DAG, **sala**, **objeto d
 5. **El reporte contaba las primeras respuestas malas como decisiones** y podía dar el Final 4 «Intervención Crítica / Revictimizante» con seis respuestas finales correctas. Corregido (T11.1) y, tras la revisión, hecho visible: ver §6, pregunta 1.
 6. **La línea de tiempo del estudiante mostraba claves internas** («PAP sobre familia-crisis»); ahora nombra la herramienta y el objeto.
 7. **Tras la integración, el primer Enter no avanzaba el diálogo** (la cabecera fija robaba el foco inicial). Hallado jugando; corregido y con prueba de contrato.
-8. **El aviso de contenido sensible del nodo 1** se había escondido al plegar la tarjeta (en móvil, siempre). La revisión lo detectó; ahora es una línea fija y visible.
+8. **El aviso de contenido sensible del nodo 1** se había escondido al plegar la tarjeta (en móvil, siempre). La revisión lo detectó; ahora es una franja fija bajo la cabecera, visible en 1366×768, 844×390, 390×844 y 1024×768 con la tarjeta plegada o no.
 9. **La salida segura quedaba bajo el fundido de escena** mientras una puerta o decisión esperaban al servidor; con una petición colgada no había plazo para la pausa. Corregido en la ronda de revisión.
 10. **Higiene de CI y build:** el e2e medía el contraste a mitad de una animación (falso fallo ya anotado en el informe nocturno), una carrera táctil hacía fallar el caso completo en 390 px, y el presupuesto de CSS de `simulation-play` superaba el aviso (ahora 20 kB de aviso y 22 kB de error, deuda anotada: extraer ese CSS).
 
@@ -66,6 +66,9 @@ Detalle por bloque en la [actualización de la hoja de ruta](2026-10-02-brechas-
 | **J** segundo caso | Antes hay que generalizar finales, métricas, aviso e introducción atados a `SIM-VBG-001` |
 | Endurecer `JWT_SECRET` y la contraseña del administrador (T15.2-3) | Podría tumbar un despliegue existente; depende de si el despliegue de Railway es público |
 | Recortar `roster.v1.json` a 8 identidades | Está fijado por hash y lo exige el generador; se dejó una prueba de contrato del desajuste |
+| Informe de grupo y CSV con los **reintentos** (L-02) | Vive en `backend_django/apps/reportes`, el CSV es posicional y la pantalla de reportes no tiene dónde mostrarlo. El docente ya los ve en la traza individual («Primera respuesta no aplicada (reintento)», contador «Reconsideradas») y el estudiante en su cierre |
+| Anuncios del **cambio de sala** para lector de pantalla (F6) | Cuatro avisos casi simultáneos («Entraste a…», banner, nota de la tarjeta y barra); hay que decidir cuál es la fuente única. Los de puerta, herramienta y leyenda sí se deduplicaron |
+| Recorrido guiado **táctil** de 844×390 (prueba `guided-first-minute`) | El barrido «sin coordenadas» no siempre llega a la enfermera; esa prueba queda solo en escritorio, con nota en el código. El primer minuto táctil y el caso completo en móvil (390 y 412) sí pasan |
 | Hallazgos bajos de la revisión (L-05, L-06, L-07, L-09 a L-12, F8, F10 a F12) | Decisiones de copy o de producto, código muerto, o de impacto menor; están reproducidos en [`2026-10-04-revision-adversarial/`](2026-10-04-revision-adversarial/) |
 | Verificación con lector de pantalla real, FPS reales y teléfono físico | No hay GPU ni hardware aquí: el WebGL es por software (≈ 20 fps), así que no sirve para medir los 59 FPS |
 
