@@ -31,3 +31,50 @@ describe('F6: anuncios de las regiones vivas, una sola vez', () => {
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
   });
 });
+
+describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaciones CSS del simulador', () => {
+  /** Los cuatro selectores de la regla: el contenedor y todo lo que hay dentro, también en componentes hijos (::ng-deep). */
+  const selectors = [
+    '.game-container--reduce-motion,',
+    '.game-container--reduce-motion ::ng-deep *,',
+    '.game-container--reduce-motion ::ng-deep *::before,',
+    '.game-container--reduce-motion ::ng-deep *::after {',
+  ];
+  const reduceRule = source.slice(source.indexOf(selectors[0]), source.indexOf('}', source.indexOf(selectors[3])) + 1);
+
+  it('el contenedor lleva la clase mientras el interruptor (reduceMotion) está activo', () => {
+    expect(source).toMatch(/<div class="game-container" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)">/);
+  });
+
+  it('la regla alcanza al contenedor y a todos sus descendientes, también a los componentes hijos', () => {
+    for (const selector of selectors) expect(reduceRule).toContain(selector);
+  });
+
+  it('apaga animaciones y transiciones igual que la regla global de prefers-reduced-motion', () => {
+    expect(reduceRule).toContain('animation-duration: 1ms !important;');
+    expect(reduceRule).toContain('animation-iteration-count: 1 !important;');
+    expect(reduceRule).toContain('transition-duration: 1ms !important;');
+    expect(reduceRule).toContain('scroll-behavior: auto !important;');
+    const globalRule = readFileSync(join(__dirname, '../../../styles/styles.scss'), 'utf-8');
+    const media = globalRule.slice(globalRule.indexOf('@media (prefers-reduced-motion: reduce) {\n  *,'));
+    for (const declaration of ['animation-duration: 1ms !important;', 'animation-iteration-count: 1 !important;', 'transition-duration: 1ms !important;']) {
+      expect(media).toContain(declaration);
+    }
+  });
+
+  it('las animaciones que la revisión encontró encendidas existen y quedan dentro del alcance de la regla', () => {
+    for (const name of ['sheet-up', 'panel-in', 'door-notice-in', 'fade-in']) {
+      expect(source).toContain(`@keyframes ${name}`);
+    }
+    const dialogue = readFileSync(join(__dirname, 'dialogue-panel.component.ts'), 'utf-8');
+    expect(dialogue).toContain('@keyframes choice-in');
+    expect(readFileSync(join(__dirname, 'tool-inventory.component.ts'), 'utf-8')).toContain('@keyframes tool-pop');
+    // La regla está en la hoja de la pantalla de juego, que contiene al panel y al inventario como hijos: ::ng-deep los alcanza.
+    expect(source).toContain('<app-dialogue-panel');
+    expect(source).toContain('<app-tool-inventory');
+  });
+
+  it('el ajuste del sistema sigue funcionando: la media query se conserva', () => {
+    expect(source).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.scene-fade \{ transition: none; \}/);
+  });
+});

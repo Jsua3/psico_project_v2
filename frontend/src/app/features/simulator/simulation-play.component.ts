@@ -93,7 +93,8 @@ const CASE_INTRO_PARAGRAPHS = [
     SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent
   ],
   template: `
-    <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
+    <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
+      [class.game-container--reduce-motion]="reduceMotion()">
       <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
 
       @if (loading()) {
@@ -1167,6 +1168,18 @@ const CASE_INTRO_PARAGRAPHS = [
       }
       .case-intro-card__actions { padding: 8px 16px; gap: 10px; }
       .case-intro-card__actions > span { font-size: .72rem; }
+    }
+    /* Interruptor «Movimiento reducido» del juego (Ajustes): apaga también las animaciones y transiciones CSS de la pantalla y
+       de todos sus componentes (sheet-up, panel-in, choice-in, door-notice-in, tool-pop, fade-in…), igual que la regla global de
+       prefers-reduced-motion (styles.scss). Antes solo valía el ajuste del sistema. */
+    .game-container--reduce-motion,
+    .game-container--reduce-motion ::ng-deep *,
+    .game-container--reduce-motion ::ng-deep *::before,
+    .game-container--reduce-motion ::ng-deep *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
     }
     @media (prefers-reduced-motion: reduce) {
       .scene-fade { transition: none; }
