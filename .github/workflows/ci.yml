@@ -21,6 +21,31 @@ env:
   PYTHON_VERSION: '3.13'
 
 jobs:
+  secrets:
+    name: Secretos (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Historial completo: un secreto borrado en un commit posterior sigue publicado.
+          fetch-depth: 0
+      # Binario fijado y verificado por suma de comprobación (sin la acción oficial,
+      # que pide licencia en repositorios de organización). Falla solo si hay hallazgos
+      # que no estén en .github/gitleaks.toml (falsos positivos ya revisados).
+      - name: Instalar gitleaks
+        env:
+          GITLEAKS_VERSION: '8.24.2'
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -O "${base}/${archive}"
+          curl -sSfL -O "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum --check --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar -xzf "${archive}" gitleaks
+      - name: Buscar secretos en el historial
+        run: ./gitleaks detect --source . --config .github/gitleaks.toml --redact --no-banner --verbose
+
   scripts:
     name: Scripts de entorno (node --test)
     runs-on: ubuntu-latest
@@ -71,9 +96,10 @@ jobs:
 
   e2e:
     name: E2E (matriz API + Playwright)
-    # Solo si lo barato pasó. Sin los recorridos completos (@full-case): en el
-    # runner sin GPU van ~3-4x más lentos que en local, así que corren aparte
-    # en e2e-full-case.yml (nocturno + manual) y no bloquean el PR.
+    # Solo si lo barato pasó. Sin los recorridos completos (@full-case) ni los
+    # de orientación (@orientation: recorren la etapa 1 y la salida segura en
+    # cada estado): en el runner sin GPU van ~3-4x más lentos que en local, así
+    # que corren aparte en e2e-full-case.yml (nocturno + manual) y no bloquean el PR.
     needs: [scripts, backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -97,7 +123,7 @@ jobs:
       - name: Instalar Chromium de Playwright
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --grep-invert @full-case
+      - run: npm run test:e2e -- --grep-invert "@full-case|@orientation"
       - name: Subir artefactos de Playwright
         if: failure()
         uses: actions/upload-artifact@v7

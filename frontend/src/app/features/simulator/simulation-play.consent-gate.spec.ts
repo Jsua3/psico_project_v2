@@ -674,4 +674,332 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
     expect(component.contextualInteraction()).toBeNull();
   });
+
+  /**
+   * REGLA-004 / ETH-02 (F§7.8): la salida segura debe poder alcanzarse desde cada superposición.
+   * `safeExit()` no se toca (arriba sigue fijado que no actúa con un overlay abierto); el camino
+   * de las superposiciones es `pauseFromOverlay()`, que comparte con él `pauseCurrentAttempt()`.
+   */
+  describe('salida segura desde las superposiciones (pauseFromOverlay)', () => {
+    const optionsDialogue = {
+      key: 'dialogue-opciones',
+      lines: [{ order: 1, speakerName: 'Familia', text: 'Ayúdanos.', emotion: 'concerned' }],
+      choices: [{ key: 'opt-1', text: 'Opción', decisionOptionId: 11, requiredToolCode: null, effect: {} }],
+    } as unknown as DialogueState;
+
+    function escapeOn(target?: HTMLElement): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      if (target) Object.defineProperty(event, 'target', { value: target });
+      return event;
+    }
+
+    beforeEach(() => {
+      setup(makeAttempt());
+      component.attempt.set(makeAttempt());
+    });
+
+    it('con un diálogo con opciones abierto pausa y llama UNA sola vez a sim.safeExit', () => {
+      component.dialogue.set(optionsDialogue);
+
+      component.pauseFromOverlay();
+      component.pauseFromOverlay(); // segundo toque mientras la pausa sigue en curso
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      expect(sim.safeExit).toHaveBeenCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
+      expect(audio.playSfx).toHaveBeenCalledWith('ui_cancel');
+    });
+
+    it('pausar desde la introducción limpia las superposiciones y detiene el tema', () => {
+      component.showIntroScene.set(true);
+      component.journalOpen.set(true);
+      component.dialogue.set(optionsDialogue);
+      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.showIntroScene()).toBe(false);
+      expect(component.showCaseIntro()).toBe(false);
+      expect(component.journalOpen()).toBe(false);
+      expect(component.helpOpen()).toBe(false);
+      expect(component.dialogue()).toBeNull();
+      expect(component.selectedInteraction()).toBeNull();
+      expect(audio.stopIntroLament).toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('pausar desde el contexto inicial limpia la tarjeta', () => {
+      component.showCaseIntro.set(true);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect(component.showCaseIntro()).toBe(false);
+      expect(component.attempt()?.status).toBe('PAUSED');
+    });
+
+    it('descarta la evidencia y la restricción pendientes al pausar', () => {
+      (component as any).pendingEvidenceDecisionId = 11;
+      (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
+      (component as any).pendingRestrictedInteraction.set({ key: 'objeto-riesgoso' } as MapObjectState);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect((component as any).pendingEvidenceDecisionId).toBeNull();
+      expect((component as any).pendingEvidenceMissing).toEqual([]);
+      expect((component as any).pendingRestrictedInteraction()).toBeNull();
+    });
+
+    it('sincroniza la posición pendiente antes de pausar y pausa una sola vez', () => {
+      component.world.set({ map: { key: 'hospital-urgencias' }, flags: {} } as SimulationWorldState);
+      (component as any).lastPosition = { x: 612, y: 444 };
+      const sync$ = new Subject<SimulationWorldState>();
+      sim.updateWorldState.mockReturnValue(sync$);
+      component.showCaseIntro.set(true);
+
+      component.pauseFromOverlay();
+      component.pauseFromOverlay();
+
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.updateWorldState).toHaveBeenCalledWith('attempt-1', 'token-1', 612, 444, 'hospital-urgencias');
+      expect(sim.safeExit).not.toHaveBeenCalled();
+
+      sync$.next(component.world()!);
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el servidor falla la superposición sigue ahí y se puede reintentar', () => {
+      component.showIntroScene.set(true);
+      sim.safeExit.mockReturnValueOnce(throwError(() => new Error('sin red')));
+
+      component.pauseFromOverlay();
+
+      expect(component.showIntroScene()).toBe(true);
+      expect(component.attempt()?.status).toBe('IN_PROGRESS');
+      expect(component.busy()).toBe(false);
+      expect(component.pausing()).toBe(false);
+      expect(component.actionError()).toMatch(/salida segura/i);
+
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(2);
+      expect(component.showIntroScene()).toBe(false);
+    });
+
+    it('no actúa bajo el aviso de contenido (ETH-01) ni bajo el aviso de reanudar', () => {
+      component.showContentWarning.set(true);
+      component.pauseFromOverlay();
+      component.showContentWarning.set(false);
+
+      component.showResumePrompt.set(true);
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).not.toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('no actúa sin un intento en progreso', () => {
+      component.attempt.set(makeAttempt({ status: 'PAUSED' }));
+      component.pauseFromOverlay();
+      component.attempt.set(null);
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).not.toHaveBeenCalled();
+    });
+
+    describe('con una petición en curso (H-04)', () => {
+      it('encola la pausa, la anuncia y la ejecuta al soltarse busy', () => {
+        component.busy.set(true);
+
+        component.pauseFromOverlay();
+
+        expect(component.pausing()).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+
+        TestBed.tick();
+        expect(sim.safeExit).not.toHaveBeenCalled(); // busy sigue activo
+
+        component.busy.set(false);
+        TestBed.tick();
+
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('varios toques mientras espera no producen más de una pausa', () => {
+        component.busy.set(true);
+
+        component.pauseFromOverlay();
+        component.pauseFromOverlay();
+        component.pauseFromOverlay();
+        component.busy.set(false);
+        TestBed.tick();
+        TestBed.tick();
+
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('si el intento terminó mientras tanto, la pausa en cola se descarta sin llamar al servidor', () => {
+        component.busy.set(true);
+        component.pauseFromOverlay();
+
+        component.attempt.set(makeAttempt({ status: 'COMPLETED' }));
+        component.busy.set(false);
+        TestBed.tick();
+
+        expect(sim.safeExit).not.toHaveBeenCalled();
+        expect(component.pausing()).toBe(false);
+      });
+    });
+
+    describe('Esc', () => {
+      it('en la introducción animada pausa aunque el foco esté en un botón', () => {
+        component.showIntroScene.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('en el contexto inicial pausa aunque el foco esté en un botón', () => {
+        component.showCaseIntro.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('si otro manejador ya consumió Esc no se pausa por segunda vez', () => {
+        component.showIntroScene.set(true);
+        const event = escapeOn();
+        event.preventDefault();
+
+        component.handleGlobalInteraction(event);
+
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+
+      it('bajo el aviso de contenido sigue sin pausar', () => {
+        component.showContentWarning.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+
+      it('con el mundo activo cierra primero la ayuda, luego la bitácora, luego el diálogo y al final pausa', () => {
+        component.helpOpen.set(true);
+        component.journalOpen.set(true);
+        component.dialogue.set(optionsDialogue);
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.helpOpen()).toBe(false);
+        expect(component.journalOpen()).toBe(true);
+        expect(component.dialogue()).not.toBeNull();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.journalOpen()).toBe(false);
+        expect(component.dialogue()).not.toBeNull();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.dialogue()).toBeNull();
+        expect(sim.safeExit).not.toHaveBeenCalled();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('con una petición en curso encola la pausa en vez de ignorar la tecla', () => {
+        component.busy.set(true);
+        const event = escapeOn();
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(component.pausing()).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('al reanudar', () => {
+      const world = { map: { key: 'hospital-urgencias' }, flags: {} } as SimulationWorldState;
+
+      function pauseThenResume(): void {
+        sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+        // El mundo se recarga al pausar (suelta busy); la sala no cambia.
+        sim.getWorld.mockReturnValue(of(component.world()));
+        sim.getScenarioConfig.mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+        component.pauseFromOverlay();
+        expect(component.attempt()?.status).toBe('PAUSED');
+        component.resumeCurrentAttempt();
+      }
+
+      beforeEach(() => {
+        component.world.set(world);
+        sessionStorage.setItem(consentKey(makeAttempt()), 'given');
+      });
+
+      it('la introducción sin leer reaparece (no queda la pausa tapada por la tarjeta)', () => {
+        component.showIntroScene.set(true);
+        component.reduceMotion.set(false);
+
+        pauseThenResume();
+
+        expect(component.attempt()?.status).toBe('IN_PROGRESS');
+        expect(component.showIntroScene()).toBe(true);
+        expect(audio.playIntroLament).toHaveBeenCalled();
+      });
+
+      it('con movimiento reducido reaparece directamente el contexto inicial', () => {
+        component.showCaseIntro.set(true);
+        component.reduceMotion.set(true);
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(true);
+      });
+
+      it('un diálogo que llegó tarde durante la pausa no reaparece al reanudar', () => {
+        sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
+        sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+        sim.getWorld.mockReturnValue(of(component.world()));
+        sim.getScenarioConfig.mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+        component.pauseFromOverlay();
+        // La supervisión de una decisión se abre 400 ms después y puede caer ya con el intento en pausa.
+        component.dialogue.set(optionsDialogue);
+
+        component.resumeCurrentAttempt();
+
+        expect(component.dialogue()).toBeNull();
+      });
+
+      it('una introducción ya leída no reaparece', () => {
+        sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(false);
+      });
+
+      it('en otra sala del caso no reabre la introducción', () => {
+        component.world.set({ map: { key: 'hospital-sala-escucha' }, flags: {} } as SimulationWorldState);
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(false);
+      });
+    });
+  });
 });

@@ -104,7 +104,7 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.setReduceMotion(true);
 
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(0.7);
+      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
     });
 
@@ -114,11 +114,23 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.setStressLevel(92);
       scene.setMotionPaused(true);
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(0.7);
+      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
 
       scene.setMotionPaused(false);
       expect(scene.tweens.add).toHaveBeenCalledTimes(2);
       expect(tweens[1].isPlaying()).toBe(true);
+    });
+
+    it('al reanudar tras una pausa el pulso arranca donde quedó la viñeta fija: sin escalón', () => {
+      const { scene, vignette } = crearEscena();
+
+      scene.setStressLevel(92);
+      scene.setMotionPaused(true);
+      const fija = vignette!.alpha;
+      scene.setMotionPaused(false);
+
+      const pulso = scene.tweens.add.mock.calls[1][0] as { alpha: { from: number } };
+      expect(pulso.alpha.from).toBe(fija);
     });
 
     it('sin estrés no hay pulso y un valor roto no dibuja ni lanza', () => {
@@ -172,7 +184,8 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.playRevealEffects(feedback);
       expect(camera.flash).toHaveBeenCalledTimes(1);
       expect(camera.flash).toHaveBeenCalledWith(120, 214, 222, 236);
-      expect(camera.flashEffect.alpha).toBe(0.45);
+      expect(camera.flashEffect.alpha).toBe(roomEntryFlash('a', 'b', false)!.peakAlpha);
+      expect(camera.flashEffect.alpha).toBeLessThanOrEqual(0.25);
       expect(camera.shake).not.toHaveBeenCalled();
 
       scene.playPendingRoomFlash();

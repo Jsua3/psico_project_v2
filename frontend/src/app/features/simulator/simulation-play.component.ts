@@ -1,23 +1,38 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
-  DialogueState, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
+  DialogueState, InteractionResult, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import {
   DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
 } from './patient-state.util';
-import { choiceEvidence, mergeEvidence, type NodeEvidenceDef, missingEvidence, nodeEvidence, unlockedExtraLines } from './evidence-gating.config';
+import {
+  choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
+} from './evidence-gating.config';
+import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decoration.util';
+import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
+import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
+import { type InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { GameHelpComponent } from './game-help.component';
+import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
+import { SceneChecklistCardComponent } from './scene-checklist-card.component';
+import { SceneLogState, deriveSceneLog, diffDone, ringTargetKey, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
+import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
@@ -35,14 +50,29 @@ import {
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
 import { getSceneGuide } from './scene-guide.config';
-import { getSceneObjective } from './scene-objectives.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
+import { getDecisionCounter, getSceneProgress, getStageTitle } from './scene-objectives.config';
+import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
+/** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
+const NOTICE_MS = 4200;
+/** Una nota que estuvo a la vista al menos este tiempo se da por leída aunque un diálogo la cubra después. */
+const NOTE_SEEN_MS = 1500;
+/** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
+const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
+/** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
+const NARROW_QUERY = '(max-width: 760px)';
+/**
+ * Plazo de seguridad de la pausa en cola (F2, REGLA-004): una petición colgada (servidor atascado, red muy lenta) no
+ * puede dejar la salida segura sin enviar. Pasado el plazo la pausa se envía igualmente; el servidor valida el token.
+ */
+const QUEUED_PAUSE_DEADLINE_MS = 10_000;
+const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pausando el caso igualmente.';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -59,10 +89,12 @@ const CASE_INTRO_PARAGRAPHS = [
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
+    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent
   ],
   template: `
-    <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()">
+    <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
+      [class.game-container--reduce-motion]="reduceMotion()">
       <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
 
       @if (loading()) {
@@ -78,9 +110,22 @@ const CASE_INTRO_PARAGRAPHS = [
         <div class="action-toast" role="alert">{{ actionError() }}</div>
       }
       @if (doorNotice()) {
-        <div class="door-notice" role="alert">
+        <!-- Sin role="alert": showDoorNotice ya lo anuncia por la región viva (con los dos se leía dos veces). -->
+        <div class="door-notice">
           <mat-icon aria-hidden="true">lock</mat-icon>
           <span>{{ doorNotice() }}</span>
+        </div>
+      }
+      @if (softNotice()) {
+        <!-- Aviso no esencial (4,2 s): lo que dice ya quedó escrito en la lista «Qué hacer», nunca es la única fuente. -->
+        <div class="soft-notice" role="status">{{ softNotice() }}</div>
+      }
+      @if (pausing()) {
+        <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
+             Los lectores de pantalla ya reciben el aviso por la región viva. -->
+        <div class="pausing-notice" aria-hidden="true">
+          <mat-icon aria-hidden="true">pause_circle</mat-icon>
+          <span>{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}</span>
         </div>
       }
       @if (roomBanner() && !fadeActive()) {
@@ -137,7 +182,8 @@ const CASE_INTRO_PARAGRAPHS = [
                   emocionalmente exigentes.
                 </p>
                 <p>
-                  Durante el caso tendrás disponible la salida segura (<kbd>Esc</kbd>).
+                  Podrás pausar el caso en cualquier momento con el botón «Salida segura»
+                  (con teclado, también <kbd>Esc</kbd>). Tu avance se guarda y puedes retomarlo.
                   Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
                   cuando lo decidas.
                 </p>
@@ -173,9 +219,12 @@ const CASE_INTRO_PARAGRAPHS = [
                   <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
                   <span>Silenciar música</span>
                 </button>
-                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
-                  Continuar
-                </button>
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
+                    Continuar
+                  </button>
+                </div>
               </footer>
             </article>
           </section>
@@ -201,9 +250,12 @@ const CASE_INTRO_PARAGRAPHS = [
 
               <footer class="case-intro-card__actions">
                 <span>Lee el contexto completo antes de iniciar la intervención.</span>
-                <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
-                  Continuar
-                </button>
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
+                    Continuar
+                  </button>
+                </div>
               </footer>
             </article>
           </section>
@@ -213,10 +265,8 @@ const CASE_INTRO_PARAGRAPHS = [
           <app-simulation-hud
             [attempt]="game"
             [stressPulse]="stressPulse()"
-            [nearbyInteractionKey]="nearbyInteraction()?.key ?? null"
             [patientState]="patientState()"
-            [stageLabel]="currentStageLabel()"
-            [progressLabel]="progressLabel()"
+            [stageLabel]="stageLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
             [musicMuted]="musicMuted()"
@@ -225,23 +275,25 @@ const CASE_INTRO_PARAGRAPHS = [
             (toggleJournal)="journalOpen.set(!journalOpen())"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
-            (toggleReduceMotion)="toggleReduceMotion()" />
+            (toggleReduceMotion)="toggleReduceMotion()"
+            (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
+          @if (sensitiveNotice(); as notice) {
+            <!-- Recordatorio ético del nodo sensible (ETH-01): franja fija bajo la cabecera, siempre a la vista en todos los dispositivos
+                 (no vive en la tarjeta «Qué hacer», que se pliega a su chip). Ocupa su propio sitio: no tapa al personaje ni los controles. -->
+            <p class="sensitive-strip">{{ notice }}</p>
+          }
         </header>
 
         <main class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación"
             [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
-            @if (sceneObjective(); as objective) {
-              <div class="objective-card" role="status">
-                <mat-icon aria-hidden="true">flag</mat-icon>
-                <div class="objective-card__body">
-                  <strong>Objetivo</strong>
-                  <p>{{ objective }}</p>
-                  @if (game.currentNode.warningMessage || game.currentNode.safeExitRequired) {
-                    <p class="objective-card__ethic">
-                      {{ game.currentNode.warningMessage || 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.' }}
-                    </p>
-                  }
+            @if (sceneLog(); as log) {
+              <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
+              <div class="objective-card">
+                <!-- La lista se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
+                <div class="objective-card__scroll">
+                  <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
+                    [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
                 </div>
               </div>
             }
@@ -255,7 +307,10 @@ const CASE_INTRO_PARAGRAPHS = [
                 [sfxMuted]="sfxMuted()"
                 [reduceMotion]="reduceMotion()"
                 [stressLevel]="attempt()?.stressIndex ?? 0"
-                (proximity)="nearbyInteraction.set($event)" (interact)="openInteraction($event)"
+                [doorStates]="doorStates()"
+                [nextTargetKey]="nextTargetKey()" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
+                (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
+                (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
@@ -264,14 +319,21 @@ const CASE_INTRO_PARAGRAPHS = [
               <div id="game-area" class="world-skeleton" aria-label="Cargando mapa"></div>
             }
 
-            <div class="stress-vignette" [class.vignette--active]="stressVignetteLevel() > 0"
-              [style.--vignette-opacity]="stressVignetteLevel()" aria-hidden="true"></div>
+            @if (showHelpCard()) {
+              <!-- Tarjeta de primera vez: no modal, sin temporizador, no roba el foco ni consume Esc. -->
+              <div class="help-slot">
+                <app-game-help view="card" [modality]="helpModality()" [compact]="compactMode()"
+                  [safeExitPromise]="safeExitPromise"
+                  (dismissed)="markHelpCardSeen()" (openFull)="openHelp()" />
+              </div>
+            }
+
           </section>
 
           @if (viewMode() === 'dialogue-right') {
-            <aside class="right-panel" aria-label="Decisión formativa en curso">
+            <aside class="right-panel" aria-label="Decisión formativa en curso" (animationend)="refreshWorldScale()">
               <header class="right-panel__scene">
-                <p class="right-panel__kicker">{{ currentStageLabel() }}</p>
+                <p class="right-panel__kicker">{{ stageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
                 @if (game.currentNode.narrative) {
                   <p class="right-panel__narrative" tabindex="0" role="region"
@@ -280,18 +342,24 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-                (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
+                [releaseToken]="dialogueReleaseToken()"
+                (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
+                (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
             </aside>
           }
         </main>
 
-        <footer class="bottom-zone" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
+        <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
+        <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
+          [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
-            <button class="safe-exit" type="button" (click)="safeExit()" [disabled]="busy()"
-              aria-label="Salida segura (Escape)">
+            <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04). -->
+            <button class="safe-exit" type="button" (click)="pauseFromOverlay()"
+              [attr.aria-busy]="pausing() ? 'true' : null"
+              [attr.aria-label]="pausing() ? 'Pausando…' : 'Salida segura'">
               <mat-icon aria-hidden="true">exit_to_app</mat-icon>
-              <span class="safe-exit__copy"><strong>Salida segura</strong><kbd>Esc</kbd></span>
+              <span class="safe-exit__copy"><strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong><kbd aria-hidden="true">Esc</kbd></span>
             </button>
           }
 
@@ -301,27 +369,54 @@ const CASE_INTRO_PARAGRAPHS = [
             (select)="selectTool($event)" />
 
           <div class="context-bar" aria-live="polite" aria-atomic="true">
-            @if (contextualInteraction(); as nb) {
-              <button type="button" class="context-bar__interaction" [class.context-bar__interaction--exit]="nb.type === 'EXIT'"
-                (click)="openInteraction(nb)" [attr.aria-label]="'Interactuar: ' + proximityLabel(nb) + ' (atajo E)'">
-                <kbd aria-hidden="true">E</kbd>
-                <div class="context-bar__copy">
-                  <strong>{{ proximityLabel(nb) }}</strong>
-                  @if (proximityDescription(nb); as desc) {
-                    <p>{{ desc }}</p>
+            @if (contextAction(); as action) {
+              <!-- Un solo botón principal, una línea y altura fija: el mundo no cambia de tamaño al acercarte a algo. -->
+              <button type="button" class="context-bar__interaction"
+                [class.context-bar__interaction--exit]="action.obj.type === 'EXIT'"
+                [class.context-bar__interaction--locked]="action.verb.locked"
+                (click)="openInteraction(action.obj)" [attr.aria-label]="action.ariaLabel" [attr.title]="action.title">
+                @if (!compactMode()) { <kbd aria-hidden="true">E</kbd> }
+                @if (action.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                <span class="context-bar__copy">
+                  <strong>{{ action.verb.text }}</strong>
+                  @if (action.verb.locked && action.verb.reason) {
+                    <span class="context-bar__reason">{{ action.verb.reason }}</span>
                   }
-                </div>
+                </span>
               </button>
+              @if (contextAlso(); as also) {
+                <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
+                  [class.context-bar__interaction--locked]="also.verb.locked"
+                  (click)="openInteraction(also.obj)" [attr.title]="also.title" [attr.aria-label]="'También: ' + also.verb.text">
+                  @if (also.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                  <span class="context-bar__also">También:</span>
+                  <strong>{{ also.verb.text }}</strong>
+                </button>
+              }
             } @else {
-              <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+              <div class="context-bar__idle">
+                <p class="context-bar__now">{{ nowLine() }}</p>
+                <!-- aria-hidden: la barra es una región viva y esta leyenda se volvía a leer entera cada vez que volvía al reposo; la ayuda ya la dice. -->
+                <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+              </div>
             }
           </div>
         </footer>
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-            (close)="closeDialogue()" (execute)="executeDecision($event)" (useTool)="useTool($event)"
+            [releaseToken]="dialogueReleaseToken()"
+            (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
+            (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
+        }
+
+        @if (helpOpen()) {
+          <!-- Pantalla «Cómo se juega»: encima del mundo pero sin cubrir la cabecera ni el pie, que siguen operables. -->
+          <div class="help-layer">
+            <app-game-help view="screen" [modality]="helpModality()" [safeExitPromise]="safeExitPromise"
+              (closed)="helpOpen.set(false)" />
+          </div>
         }
 
         @if (journalOpen()) {
@@ -332,7 +427,8 @@ const CASE_INTRO_PARAGRAPHS = [
           [saveState]="journalSaveState()"
           [timeline]="visitedStageLabels()"
           [resources]="supportResources()"
-          (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)" />
+          (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)"
+          (safeExit)="pauseFromOverlay()" />
 
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
@@ -342,13 +438,16 @@ const CASE_INTRO_PARAGRAPHS = [
             <p class="sr-only" role="alert">Advertencia: {{ game.currentNode.warningMessage }}</p>
           }
           @if (game.currentNode.sensitiveContent) {
-            <p class="sr-only" role="note">Contenido sensible. Salida segura con Escape.</p>
+            <p class="sr-only" role="note">Contenido sensible. Puedes pausar el caso con el botón «Salida segura» o con la tecla Escape.</p>
           }
           <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
         </section>
 
-        <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
-          (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
+        @if (!holdingOutcome()) {
+          <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
+            [supportResources]="supportResources()"
+            (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
+        }
 
         <div class="scene-fade" [class.scene-fade--active]="fadeActive()" aria-hidden="true"></div>
         }
@@ -413,15 +512,19 @@ const CASE_INTRO_PARAGRAPHS = [
     .game-surface { position: absolute; inset: 0; }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
+    /* Envoltorio de la tarjeta «Qué hacer»: aporta posición, borde y fondo (la tarjeta no pinta superficie);
+       los contrastes de la tarjeta se miden contra este fondo (scene-checklist-card.component.spec). */
     .objective-card {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 20;
+      width: min(380px, 58%);
+      /* Tope de alto: sin él la lista desplegada bajaba sobre el kit y la Familia en crisis, que nacen en el tercio inferior. */
+      max-height: min(calc(100% - 20px), 66%);
       display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      max-width: min(380px, 58%);
+      flex-direction: column;
+      overflow: hidden;
       padding: 8px 11px;
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 10px;
@@ -431,38 +534,62 @@ const CASE_INTRO_PARAGRAPHS = [
         inset 0 0 0 1px rgba(8,12,18,.95),
         0 12px 30px -22px rgba(124,77,255,.55);
     }
-    .objective-card mat-icon {
-      flex-shrink: 0;
-      display: grid;
-      place-items: center;
-      width: 22px; height: 22px;
-      margin-top: 1px;
-      font-size: 14px;
-      border-radius: 6px;
-      border: 1px solid rgba(182,156,255,.3);
-      background: rgba(124,77,255,.16);
-      color: var(--sim-lavender);
+    @media (min-width: 1100px) {
+      /* Más ancha, la lista y el aviso pierden líneas: con el tope de alto se ve entera (o casi) sin tapar el kit ni la Familia en crisis. */
+      .objective-card { width: min(560px, 50%); }
     }
-    .objective-card__body { display: grid; gap: 2px; min-width: 0; }
-    .objective-card__body strong {
-      font-size: .6rem; font-weight: 900; letter-spacing: .12em;
-      text-transform: uppercase; color: #cdbcff;
+    /* Plegada a su chip (modo compacto) la tarjeta se sostiene sola: sin caja alrededor. */
+    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) {
+      right: auto;
+      width: auto;
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
+      overflow: visible;
     }
-    .objective-card__body p { margin: 0; font-size: .76rem; line-height: 1.35; color: rgba(232,240,244,.85); }
-    .objective-card__ethic {
-      color: rgba(232,207,154,.85) !important;
-      font-size: .68rem !important;
-      border-top: 1px solid rgba(245,184,75,.18);
-      padding-top: 4px;
-      margin-top: 2px !important;
+    .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__scroll { overflow: visible; }
+    /* Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, fuera de la tarjeta plegable. Legible (>= 12 px) y con
+       contraste alto; ocupa su propio sitio (el mundo se reencuadra solo), así que no tapa al personaje ni los controles. */
+    .sensitive-strip {
+      margin: 0;
+      padding: 5px 14px;
+      background: rgba(8,12,18,.94);
+      border-bottom: 1px solid rgba(245,184,75,.28);
+      color: #f3dfb5;
+      font-size: .78rem;
+      line-height: 1.35;
+      text-align: center;
     }
 
-    .stress-vignette {
-      position: absolute; inset: 0; pointer-events: none; z-index: 18; opacity: 0;
-      transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
-      background: radial-gradient(ellipse at center, transparent 55%, rgba(120,40,55,.22) 100%);
+    /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
+       tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
+       con sitio de sobra la tarjeta va arriba a la derecha, junto a «Qué hacer», para no taparlo. */
+    .help-slot {
+      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
+      width: min(560px, calc(100% - 24px));
     }
-    .vignette--active { opacity: var(--vignette-opacity, 0); }
+    @media (min-width: 1100px) {
+      /* 380 px: más ancha tapaba la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
+      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(380px, calc(100% - 488px)); }
+    }
+    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de «Qué hacer». */
+    @media (max-width: 760px) {
+      .help-slot { top: 52px; bottom: auto; }
+    }
+    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
+      /* Entre las bandas de las cruces táctiles (≈ 150 px a cada lado): sus botones quedan a la vista y se pueden tocar. */
+      .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 300px)); }
+    }
+    /* Pantalla de ayuda: deja libres la cabecera (48 px) y el pie (64 px); la capa no captura toques fuera de la hoja. */
+    .help-layer {
+      position: absolute; left: 0; right: 0; top: 52px; bottom: 68px; z-index: 90;
+      display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
+    }
+    .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
+    /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
+    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 136px)); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
     .right-panel {
@@ -502,14 +629,19 @@ const CASE_INTRO_PARAGRAPHS = [
     .dialogue-side { display: block; min-height: 0; overflow: hidden; }
 
     /* ── Bottom zone: salida segura + dock + contexto ────────────────────── */
+    /* Altura FIJA: acercarte a algo cambia el texto del pie, nunca su tamaño (el mundo no salta; TOUCH-04). */
     .bottom-zone {
       display: flex;
       align-items: stretch;
       gap: 10px;
+      box-sizing: border-box;
+      height: 64px;
       padding: 8px 12px 10px;
-      min-height: 64px;
       z-index: 30;
     }
+    /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
+       «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
+    .bottom-zone--above-veils { z-index: 350; }
     .safe-exit {
       display: inline-flex;
       align-items: center;
@@ -526,7 +658,7 @@ const CASE_INTRO_PARAGRAPHS = [
     .safe-exit:hover { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
     .safe-exit:focus-visible { outline: 2px solid #f1a79f; outline-offset: 2px; }
     .safe-exit:active { transform: translateY(1px); }
-    .safe-exit:disabled { opacity: .4; cursor: not-allowed; }
+    .safe-exit[aria-busy='true'] { opacity: .75; cursor: progress; }
     .safe-exit mat-icon { font-size: 19px; width: 19px; height: 19px; }
     .safe-exit__copy { display: grid; gap: 1px; text-align: left; }
     .safe-exit__copy strong { font-size: .72rem; font-weight: 900; letter-spacing: .03em; }
@@ -534,20 +666,28 @@ const CASE_INTRO_PARAGRAPHS = [
       font-size: .58rem; font-family: 'JetBrains Mono', monospace;
       color: rgba(241,167,159,.7);
     }
+    /* La tecla Esc solo se anuncia donde hay teclado y puntero fino (no se promete en táctil). */
+    @media not all and (hover: hover) and (pointer: fine) {
+      .safe-exit__copy kbd { display: none; }
+    }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
     .context-bar {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: flex-end;
+      gap: 8px;
       min-width: 0;
+      min-height: 0;
     }
     .context-bar__interaction {
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
       max-width: 100%;
-      padding: 7px 14px;
+      max-height: 100%;
+      padding: 5px 14px;
       border: 1px solid rgba(182,156,255,.35);
       border-radius: 12px;
       background: rgba(8,12,18,.88);
@@ -555,8 +695,11 @@ const CASE_INTRO_PARAGRAPHS = [
       font: inherit;
       text-align: left;
       cursor: pointer;
+      overflow: hidden;
     }
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
+    /* Puerta bloqueada: forma, no solo color (borde discontinuo y candado). */
+    .context-bar__interaction--locked { border-style: dashed; border-color: rgba(245,184,75,.7); }
     .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
     .context-bar__interaction kbd {
       flex-shrink: 0;
@@ -569,26 +712,64 @@ const CASE_INTRO_PARAGRAPHS = [
       font-weight: 800;
       color: #c9b8ff;
     }
+    .context-bar__lock { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; color: #F5B84B; }
+    /* La tecla E solo se rotula con teclado y puntero fino: en táctil el botón basta. */
+    @media not all and (hover: hover) and (pointer: fine) {
+      .context-bar__interaction kbd { display: none; }
+    }
     .context-bar__copy { display: grid; min-width: 0; }
-    .context-bar__copy strong { font-size: .8rem; color: #cdbcff; line-height: 1.25; }
-    .context-bar__copy p {
-      margin: 0;
-      font-size: .7rem;
-      line-height: 1.3;
-      color: rgba(232,240,244,.7);
+    .context-bar__copy strong {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .8rem;
+      color: #cdbcff;
+      line-height: 1.25;
+    }
+    .context-bar__reason {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .7rem;
+      line-height: 1.3;
+      color: #ffe2ae;
+    }
+    /* Segundo candidato en rango: más pequeño; la tecla E siempre actúa sobre el principal. */
+    .context-bar__interaction--secondary {
+      flex: 0 1 40%; min-width: 96px; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25);
+    }
+    .context-bar__interaction--secondary strong {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; color: #cdbcff;
+    }
+    .context-bar__also { flex-shrink: 0; font-size: .68rem; font-weight: 700; color: rgba(232,240,244,.78); }
+    /* Sin nada cerca: el siguiente paso arriba y, con teclado y espacio de sobra, la leyenda debajo. */
+    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
+    .context-bar__now {
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      font-size: .84rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: rgba(244,247,251,.94);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
+    /* Leyenda de teclado: solo donde hay teclado y espacio de sobra (puntero fino y ancho >= 1150 px). */
     .context-bar__hint {
+      display: none;
       margin: 0;
       font-size: .75rem;
       font-weight: 700;
       letter-spacing: .04em;
       color: rgba(232,240,244,.72);
       white-space: nowrap;
+    }
+    @media (hover: hover) and (pointer: fine) and (min-width: 1150px) {
+      .context-bar__hint { display: block; }
     }
     .context-bar__hint kbd {
       padding: 1px 5px;
@@ -683,6 +864,8 @@ const CASE_INTRO_PARAGRAPHS = [
     .case-intro-card--scene { width: min(860px, 100%); max-height: min(88vh, 760px); }
     .case-intro-card__media {
       min-height: 0;
+      /* En pantallas bajas el escenario no cabe: recortado, nunca por encima del pie, donde están «Salida segura» y «Continuar». */
+      overflow: hidden;
       display: grid;
       /* Sin esto la pista «auto» crece al ancho del escenario (384 px) y en móvil no se recorta. */
       grid-template-columns: minmax(0, 1fr);
@@ -725,6 +908,13 @@ const CASE_INTRO_PARAGRAPHS = [
       flex-shrink: 0;
       min-width: 140px;
     }
+    /* «Salida segura» a la izquierda de «Continuar»: nunca se queda atrás cuando el texto de apoyo crece. */
+    .case-intro-card__buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
 
     /* ── Overlays ────────────────────────────────────────────────────────── */
     .dialogue-cinematic { position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; }
@@ -747,11 +937,30 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .error-overlay mat-icon { font-size: 36px; color: rgba(168,80,98,.8); }
     .error-overlay p { margin: 0; color: rgba(232,240,244,.6); }
+    /* Por encima de las tarjetas de introducción (380) y del aviso de reanudar (400): un error al
+       pausar desde ellas tiene que verse, no solo anunciarse. */
     .action-toast {
-      position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 320;
+      position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 420;
       max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
       background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
     }
+    /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie y bajo el aviso de puerta. */
+    .soft-notice {
+      position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
+      max-width: min(92vw, 520px); padding: 9px 16px; border-radius: 12px;
+      background: rgba(18,24,42,.96); border: 1px solid rgba(182,156,255,.45);
+      color: #f4f7fb; font-size: .86rem; font-weight: 700; line-height: 1.35; text-align: center;
+      pointer-events: none;
+    }
+    .pausing-notice {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
+      display: flex; align-items: center; gap: 8px;
+      width: max-content; max-width: min(92vw, 520px);
+      padding: 8px 16px; border-radius: 18px;
+      background: rgba(24,30,46,.96); border: 1px solid rgba(241,167,159,.5);
+      color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
+    }
+    .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .door-notice {
       position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 320;
       display: flex; align-items: center; gap: 10px;
@@ -782,12 +991,15 @@ const CASE_INTRO_PARAGRAPHS = [
       line-height: 1.6; letter-spacing: .02em; font-style: italic;
     }
     @keyframes transition-note-in { from { opacity: 0; } }
+    /* Con scroll propio y la tarjeta centrada por margen automático: si no cabe (móvil horizontal), se alinea arriba y se
+       desplaza; con place-items: center la parte de abajo quedaba sin scroll posible y «Volver al catálogo» fuera de pantalla. */
     .resume-overlay {
-      position: absolute; inset: 0; z-index: 400; display: grid; place-items: center;
+      position: absolute; inset: 0; z-index: 400; display: grid; place-items: start center;
       padding: 24px; background: rgba(8,12,18,.88);
+      overflow-y: auto; overscroll-behavior: contain;
     }
     .resume-card {
-      width: min(560px, 100%); padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
+      width: min(560px, 100%); margin-block: auto; padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
       border: 1px solid rgba(182,156,255,.34);
       border-radius: 18px;
       background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
@@ -804,6 +1016,14 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
     .resume-actions .psy-button { width: 100%; }
+    /* Pantallas bajas (móvil horizontal de 390 px): tarjeta más ancha y baja, con las tres salidas en una fila. */
+    @media (max-height: 520px) {
+      .resume-overlay { padding: 10px 16px; }
+      .resume-card { width: min(760px, 100%); padding: 14px 20px; }
+      .resume-card h2 { margin: 6px 0; font-size: 1.25rem; }
+      .resume-metrics { margin: 10px 0; }
+      .resume-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; }
+    }
 
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }
@@ -834,23 +1054,16 @@ const CASE_INTRO_PARAGRAPHS = [
       .objective-card {
         left: 8px;
         right: 8px;
-        max-width: none;
         width: auto;
         padding: 7px 10px;
       }
-      .objective-card__body p {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-      .objective-card__ethic { -webkit-line-clamp: 1; }
-      .bottom-zone { flex-wrap: wrap; min-height: 0; padding: 6px 8px 8px; }
+      /* En vertical el pie tiene dos filas de altura fija (salida y herramientas; mensaje): tampoco crece. */
+      .bottom-zone { flex-wrap: wrap; height: auto; padding: 6px 8px 8px; }
       /* El dock cede ancho (flex-basis 0) y scrollea por dentro: nunca debe
          empujar el ancho de la página. */
       .tool-dock { flex: 1 1 0; }
-      .context-bar { justify-content: center; flex-basis: 100%; order: 3; }
-      .context-bar__hint { display: none; }
+      .context-bar { justify-content: center; flex-basis: 100%; order: 3; height: 44px; }
+      .context-bar__idle { text-align: center; }
       .safe-exit__copy strong { font-size: .66rem; }
       .case-intro-overlay { padding: 10px; }
       .case-intro-card { max-height: 90vh; border-radius: 14px; }
@@ -859,13 +1072,105 @@ const CASE_INTRO_PARAGRAPHS = [
         justify-items: stretch;
       }
       .case-intro-card__actions .psy-button { width: 100%; }
+      /* El principal arriba y «Salida segura» debajo, cada uno en su fila. */
+      .case-intro-card__buttons { flex-direction: column-reverse; align-items: stretch; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
       to   { transform: translateY(0); opacity: 1; }
     }
+
+    /* ── Modo compacto (F§7.9): pantallas bajas o táctil horizontal ───────────
+       Va después del bloque móvil: un móvil horizontal de 667x375 cumple los dos y manda este. */
+    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
+      /* Pie de altura fija de una sola fila: sin teclas ni leyenda, y el mundo no cambia de tamaño al acercarte a algo. */
+      .bottom-zone { flex-wrap: nowrap; align-items: center; height: 56px; padding: 4px 12px; gap: 8px; }
+      .safe-exit { min-height: 44px; padding: 4px 10px; }
+      .safe-exit__copy kbd, .context-bar__hint { display: none; }
+      /* Las cinco herramientas conservan su sitio; la barra cede (elipsis) cuando el motivo de una puerta es largo. */
+      .tool-dock { flex: 0 0 auto; }
+      .context-bar { flex: 1 1 0; order: 0; height: 100%; justify-content: flex-end; }
+      .context-bar__interaction { min-height: 44px; padding: 3px 10px; }
+      /* El secundario pierde el prefijo visible («También:») para que quepa el verbo; su nombre accesible lo conserva. */
+      .context-bar__interaction--secondary { flex-basis: 30%; min-width: 110px; }
+      .context-bar__also { display: none; }
+      .context-bar__idle { text-align: left; }
+      .context-bar__now { font-size: .78rem; line-height: 1.25; }
+      /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
+      .soft-notice { bottom: 62px; max-width: min(86vw, 460px); padding: 7px 14px; font-size: .8rem; }
+      .door-notice { bottom: 66px; padding: 8px 14px; }
+      .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
+      .pausing-notice { bottom: 8px; }
+
+      /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
+         Plegada (chip) sigue en la esquina. */
+      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) {
+        left: 176px; right: auto; width: min(640px, calc(100% - 190px));
+        flex-direction: row; align-items: flex-start; gap: 10px;
+        /* Sin el tope del escritorio: la tarjeta ya es ancha y baja, y la lista cabe con su paso siguiente. */
+        max-height: calc(100% - 20px);
+      }
+      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__scroll {
+        flex: 1 1 0; min-width: 0;
+      }
+      /* La franja ética se compacta sin bajar de 12 px: el mundo pierde lo mínimo. */
+      .sensitive-strip { padding: 3px 12px; font-size: .75rem; line-height: 1.3; }
+
+      /* Decisión: hoja inferior flotante. El mundo conserva su tamaño (una sola columna) y el resumen de la etapa
+         se oculta: las opciones 1 a 3 tienen que verse y tocarse sin desplazar (TOUCH-01). */
+      .game-container[data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+      .right-panel {
+        position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+        max-height: calc(100% - 52px);
+        z-index: 80;
+        grid-template-rows: minmax(0, 1fr);
+        border-radius: 16px 16px 0 0;
+        animation: sheet-up 200ms cubic-bezier(.2,.8,.2,1) both;
+      }
+      .game-container[data-mode='dialogue-right'] .right-panel__scene { display: none; }
+
+      /* Introducción y contexto: cabecera en dos líneas, pie fijo con «Continuar» y «Salida segura»,
+         y un degradado al pie del texto que avisa de que hay más debajo. */
+      .case-intro-overlay { padding: 8px 12px; }
+      .case-intro-card { max-height: 100%; border-radius: 14px; }
+      .case-intro-card__header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'eyebrow extra' 'title extra';
+        align-items: center;
+        gap: 0 12px;
+        padding: 8px 16px;
+      }
+      .case-intro-card__header .psy-eyebrow { grid-area: eyebrow; margin: 0; }
+      .case-intro-card__header h2 { grid-area: title; font-size: 1.2rem; }
+      .case-intro-card__header .case-intro-card__chip,
+      .case-intro-card__header .intro-music-toggle { grid-area: extra; }
+      .case-intro-card__header .case-intro-card__chip { padding: 3px 9px; font-size: .68rem; }
+      .case-intro-card__header .intro-music-toggle { min-height: 44px; }
+      .case-intro-card__media { padding: 4px 12px; }
+      .case-intro-card__body { padding: 10px 16px 28px; }
+      .case-intro-card__body p { margin-bottom: 8px; font-size: .86rem; line-height: 1.5; }
+      .case-intro-card__actions { position: relative; }
+      .case-intro-card__actions::before {
+        content: ''; position: absolute; left: 0; right: 0; top: -26px; height: 26px; pointer-events: none;
+        background: linear-gradient(180deg, rgba(18,24,42,0), rgba(5,8,14,.94));
+      }
+      .case-intro-card__actions { padding: 8px 16px; gap: 10px; }
+      .case-intro-card__actions > span { font-size: .72rem; }
+    }
+    /* Interruptor «Movimiento reducido» del juego (Ajustes): apaga también las animaciones y transiciones CSS de la pantalla y
+       de todos sus componentes (sheet-up, panel-in, choice-in, door-notice-in, tool-pop, fade-in…), igual que la regla global de
+       prefers-reduced-motion (styles.scss). Antes solo valía el ajuste del sistema. */
+    .game-container--reduce-motion,
+    .game-container--reduce-motion ::ng-deep *,
+    .game-container--reduce-motion ::ng-deep *::before,
+    .game-container--reduce-motion ::ng-deep *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+    }
     @media (prefers-reduced-motion: reduce) {
-      .stress-vignette, .scene-fade { transition: none; }
+      .scene-fade { transition: none; }
       .right-panel, .overlay-backdrop { animation: none; }
       .door-notice, .room-banner, .transition-note { animation: none; }
     }
@@ -877,6 +1182,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
+  private readonly injector = inject(Injector);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -903,6 +1209,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly fadeActive   = signal(false);
   /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
   readonly doorNotice   = signal('');
+  /** Aviso no esencial de 4,2 s («Obtuviste: …»). La lista «Qué hacer» conserva lo que dice. */
+  readonly softNotice   = signal('');
   /** Nombre de la sala al entrar (1-2 s). */
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
@@ -913,6 +1221,38 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly worldStarted = signal(false);
   readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
+  /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
+  readonly helpOpen = signal(false);
+  /** La tarjeta de primera vez ya se vio en este navegador (`siep.ayuda.v1`). La lectura no es reactiva: se actualiza a mano. */
+  readonly helpCardSeen = signal(readHelpSeen().has(HELP_FIRST_CARD));
+  /** Las ayudas prometen «Salida segura» (y Esc) solo mientras es verdad en todos los estados jugables. */
+  readonly safeExitPromise = SAFE_EXIT_ALWAYS_REACHABLE;
+  /**
+   * Hay una salida segura pedida desde una superposición: en cola mientras `busy()` o ya en vuelo.
+   * El pie la muestra como «Pausando…»; impide que dos toques pausen dos veces (F§7.8).
+   */
+  readonly pausing = signal(false);
+  /** La pausa en cola pasó su plazo (F2): se envía aunque la acción en curso no haya terminado, y el aviso lo dice. */
+  readonly pausingSlow = signal(false);
+  readonly slowPauseNotice = QUEUED_PAUSE_SLOW_NOTICE;
+  /**
+   * Cada incremento le dice al panel de diálogo que suelte la opción que tenía marcada como
+   * elegida (DLG-01): tras un rechazo o un error sus opciones vuelven a poder activarse.
+   */
+  readonly dialogueReleaseToken = signal(0);
+  /**
+   * DLG-05 acotado a la última decisión (sin la decisión en dos tiempos, T9.12): al decidir por última vez el
+   * intento ya figura como COMPLETED, pero la «Supervisión clínica» se lee primero sobre la escena y el
+   * resultado se abre al cerrarla. Es solo la intención de retener; lo que manda es `holdingOutcome`.
+   */
+  private readonly supervisionHold = signal(false);
+  /**
+   * El resultado espera a que se cierre la supervisión de la última decisión. Solo mientras la supervisión esté
+   * a la vista y el intento esté COMPLETED (nunca con una pausa, REGLA-004): si el diálogo desaparece por
+   * cualquier camino, el resultado se abre igual.
+   */
+  readonly holdingOutcome = computed(() =>
+    this.supervisionHold() && this.dialogue() !== null && this.attempt()?.status === 'COMPLETED');
   readonly caseIntroTitle = CASE_INTRO_TITLE;
   readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
   readonly musicMuted = signal(false);
@@ -933,9 +1273,54 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     status: this.attempt()?.status ?? null,
     journalOpen: this.journalOpen(),
     dialogue: this.dialogue(),
+    holdOutcome: this.holdingOutcome(),
   }));
 
-  readonly sceneObjective = computed(() => getSceneObjective(this.attempt()?.currentNode.key));
+  /** Salas del caso ya alcanzadas en este intento (refuerzo de la regla monótona de la lista; sessionStorage). */
+  readonly visitedRooms = signal<ReadonlySet<RoomGroup>>(new Set<RoomGroup>());
+  /** Modo compacto: pantallas bajas o táctil horizontal. Tarjeta plegada, pie sin teclas, panel flotante. */
+  readonly compactMode = signal(matchesMedia(COMPACT_QUERY));
+  readonly narrowScreen = signal(matchesMedia(NARROW_QUERY));
+  /** La tarjeta «Qué hacer» arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
+  readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());
+  /**
+   * Aviso ético de un nodo sensible («Este caso aborda…», `warningMessage` del nodo): franja fija bajo la cabecera,
+   * visible en todos los dispositivos mientras dure el nodo, plegada o no la tarjeta «Qué hacer». No cambia su redacción.
+   */
+  readonly sensitiveNotice = computed<string | null>(() => {
+    const node = this.attempt()?.currentNode;
+    if (!node) return null;
+    if (node.warningMessage) return node.warningMessage;
+    return node.safeExitRequired
+      ? 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.'
+      : null;
+  });
+  /** Texto de la región viva de la tarjeta («Anotado: …», «Decisión k registrada»). */
+  readonly checklistNotice = signal<string | null>(null);
+
+  /** Lista «Qué hacer»: solo se recalcula cuando cambian el intento, el mundo, las personas habladas, las salas o el escenario. */
+  readonly sceneLog = computed<SceneLogState | null>(() => {
+    const input = sceneLogInputFrom({
+      attempt: this.attempt(),
+      world: this.world(),
+      viewedNpcKeys: this.viewedNpcKeys(),
+      visitedRooms: this.visitedRooms(),
+      scenarioNpcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
+    });
+    if (!input) return null;
+    try {
+      return deriveSceneLog(input);
+    } catch {
+      // La guía es ayuda, no el juego: un mundo con una forma inesperada (payload antiguo) no debe tumbar la pantalla.
+      return null;
+    }
+  });
+
+  /** Contador único del caso («Decisión k de 6»); con un nodo sin etapa, el de respaldo por escenarios. */
+  readonly stageLabel = computed<string | null>(() => {
+    const key = this.attempt()?.currentNode.key;
+    return getDecisionCounter(key) ?? this.fallbackStageLabel();
+  });
   readonly sceneGuide = computed(() => {
     const guide = getSceneGuide(this.attempt()?.currentNode.key);
     const world = this.world();
@@ -943,13 +1328,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return guide;
   });
 
+  /**
+   * Un velo a pantalla completa (fundido de escena, nota de transición) cubre el pie: mientras dure, el pie sube por
+   * encima para que «Salida segura» siga a la vista (REGLA-004). Con una superposición abierta el pie queda inerte y
+   * la superposición trae su propio botón, así que no sube.
+   */
+  readonly footerAboveVeils = computed(() =>
+    (this.fadeActive() || this.transitionNote() !== '') && !this.inputBlocked());
+
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning() || this.showIntroScene()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
-  readonly worldMotionPaused = computed(() => this.inputBlocked());
+  /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
+  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen());
 
   readonly contextualInteraction = computed(() => {
     const game = this.attempt();
@@ -959,15 +1353,51 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       : null;
   });
 
+  /** Estado de cada puerta de la sala (clave → abierta/bloqueada): el mundo la rotula con candado. Misma fuente que la barra y `tryOpenDoor`. */
+  readonly doorStates = computed<Record<string, 'open' | 'locked'>>(() => {
+    const context = this.doorContext();
+    return context ? doorStateMap(context.world.objects ?? [], context) : {};
+  });
+
+  /** Candidato secundario en rango (otra persona u objeto): el botón secundario de la barra. */
+  readonly nearbyAlso = signal<MapObjectState | null>(null);
+  /** Puntero grueso (táctil): el texto de la barra no promete teclas. */
+  readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  /** «No hay nada a tu alcance…» durante 2,5 s tras pedir interactuar sin nada cerca; estático y sin sonido. */
+  readonly nothingNearbyNote = signal('');
+
+  /** Botón principal de la barra: verbo por tipo, candado y motivo en puertas bloqueadas (F§4.3). */
+  readonly contextAction = computed(() => this.interactionAction(this.contextualInteraction()));
+  readonly contextAlso = computed(() => this.contextualInteraction() ? this.interactionAction(this.nearbyAlso()) : null);
+
+  readonly helpModality = computed<'keyboard' | 'touch'>(() => this.coarsePointer() ? 'touch' : 'keyboard');
+
+  /**
+   * Tarjeta de primera vez: tras el aviso de contenido, la introducción y el contexto; nunca con un
+   * diálogo, la bitácora o la ayuda completa abiertos, ni con un intento que no está en curso.
+   */
+  readonly showHelpCard = computed(() =>
+    !this.helpCardSeen() && this.worldStarted() && this.world() !== null && !this.loading()
+    && (this.attempt()?.status ?? null) === 'IN_PROGRESS'
+    && !this.showResumePrompt() && !this.showContentWarning() && !this.showIntroScene() && !this.showCaseIntro()
+    && this.dialogue() === null && !this.journalOpen() && !this.helpOpen());
+
+  /** Línea «Ahora: …» de la barra cuando no hay nada cerca; sin lista, la invitación a explorar. */
+  readonly nowLine = computed(() =>
+    this.nothingNearbyNote()
+    || this.sceneLog()?.nextLine
+    || (this.coarsePointer() ? ORIENTATION_COPY.now.noListTouch : ORIENTATION_COPY.now.noList));
+
+  /** Destino de la lista: el mundo le pone el anillo (si está en otra sala, el de la puerta que hay que tomar). */
+  readonly nextTargetKey = computed(() => ringTargetKey(this.sceneLog(), HIGHLIGHT_TOOL_TARGETS));
+
+  /** Objetos de decisión de otras etapas: el mundo los atenúa (alfa .55, sin anillo). Nunca marca la opción adecuada. */
+  readonly dimmedKeys = computed<ReadonlySet<string>>(() =>
+    otherStageDecisionKeys(this.world(), this.attempt()?.currentNode.options?.map(option => option.id) ?? null));
+
   readonly selectedToolCode = computed(() => {
     const sel = this.selectedInteraction();
     return sel?.type === 'TOOL' ? sel.toolCode : null;
-  });
-
-  readonly stressVignetteLevel = computed(() => {
-    const s = this.attempt()?.stressIndex ?? 0;
-    if (s < 40) return 0;
-    return Math.min(0.45, 0.05 + ((s - 40) / 60) * 0.4);
   });
 
   private lastPosition: { x: number; y: number } | null = null;
@@ -981,12 +1411,78 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private doorInteractionArmed = false;
   private readonly doorInteractionRearmDistance = 72;
 
+  /** Lista anterior: `diffDone` compara contra ella para anotar solo los pasos recién hechos. */
+  private previousSceneLog: SceneLogState | null = null;
+  /** Notas «Anotado: …» a la espera de que no haya un diálogo abierto (el servidor marca «hablado» al abrir). */
+  private readonly pendingNotes: string[] = [];
+  private noteTimer: number | null = null;
+  private noteShownAt = 0;
+  private softNoticeTimer: number | null = null;
+  private nothingNearbyTimer: number | null = null;
+  private helpCardShown = false;
+  private roomBannerTimer: number | null = null;
+  private transitionNoteTimer: number | null = null;
+  private pauseDeadlineTimer: number | null = null;
+  /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
+  private pauseSent = false;
+  private stopCompactWatch: (() => void) | null = null;
+  /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
+  private pendingStage: { title: string; previousNumber: number | null } | null = null;
+
+  constructor() {
+    // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
+    // una pausa en medio de una decisión o de un cruce de puerta (F§7.8, H-04).
+    effect(() => {
+      if (!this.pausing() || this.busy()) return;
+      untracked(() => this.startQueuedPause());
+    });
+    // La supervisión de la última decisión dejó de estar a la vista (se cerró, «Salida segura», Esc o cualquier
+    // otro camino): el resultado ya se ve y es el momento de su sonido y su foco.
+    effect(() => {
+      if (!this.supervisionHold() || this.holdingOutcome()) return;
+      untracked(() => this.releaseHeldOutcome());
+    });
+    // Pasos recién hechos → notas «Anotado: …». Se evalúa solo cuando cambia la lista (F§7.1).
+    effect(() => {
+      const next = this.sceneLog();
+      untracked(() => this.queueNotesFor(next));
+    });
+    // El panel lateral encoge (o devuelve) el mundo: se vuelve a leer el contenedor cuando el diseño ya cambió.
+    effect(() => {
+      this.viewMode();
+      untracked(() => { window.setTimeout(() => this.refreshWorldScale()); });
+    });
+    // La tarjeta de primera vez que ya estuvo a la vista y cede ante un diálogo o la bitácora se da por vista:
+    // no vuelve a aparecer cada vez que se cierra una conversación.
+    effect(() => {
+      const visible = this.showHelpCard();
+      const covered = this.dialogue() !== null || this.journalOpen();
+      untracked(() => {
+        if (visible) this.helpCardShown = true;
+        else if (this.helpCardShown && covered) this.markHelpCardSeen();
+      });
+    });
+    // Las notas encoladas salen cuando ya no hay diálogo, bitácora ni pantalla bloqueando la escena.
+    effect(() => {
+      this.inputBlocked();
+      untracked(() => this.flushNotes());
+    });
+  }
+
   ngOnDestroy(): void {
+    this.stopCompactWatch?.();
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer]) {
+      if (timer !== null) window.clearTimeout(timer);
+    }
     this.audioDirector.stopIntroLament();
     this.audioDirector.dispose();
   }
 
   ngOnInit() {
+    const stopCompact = watchMedia(COMPACT_QUERY, matches => this.compactMode.set(matches));
+    const stopCoarse = watchMedia(COARSE_POINTER_QUERY, matches => this.coarsePointer.set(matches));
+    const stopNarrow = watchMedia(NARROW_QUERY, matches => this.narrowScreen.set(matches));
+    this.stopCompactWatch = () => { stopCompact(); stopCoarse(); stopNarrow(); };
     this.simulationService.getInterventionRules().subscribe({
       next: raw => { this.interventionRules = parseInterventionRules(raw); },
       error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
@@ -1034,7 +1530,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: attempt => {
         this.busy.set(false);
         this.attempt.set(attempt);
+        // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre 400 ms
+        // después de la decisión) no debe reaparecer al reanudar.
+        this.dialogue.set(null);
         this.audioDirector.setStressLevel(attempt.stressIndex);
+        // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
+        // decide); el consentimiento ya está dado en esta sesión y no se vuelve a pedir.
+        const world = this.world();
+        if (world) this.maybeShowInitialCaseIntro(world);
         this.announce('Intento reanudado. Continúas exactamente donde quedaste.');
       },
       error: () => { this.showActionError('No pudimos reanudar el intento.'); this.busy.set(false); },
@@ -1045,6 +1548,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) return;
     this.showResumePrompt.set(false);
+    // Nada del intento anterior sobrevive: ni su diálogo o selección, ni la bitácora abierta, ni una
+    // decisión que esperaba confirmación de evidencia (las opciones se repiten entre intentos).
+    this.clearTransientOverlays();
+    this.nearbyInteraction.set(null);
+    this.endPausing();
+    // Las salas y las notas pendientes eran del intento anterior.
+    const previous = this.attempt() ?? this.pendingActiveAttempt();
+    if (previous) clearVisitedRooms(previous.caseVersionId, previous.attemptId);
+    this.visitedRooms.set(new Set<RoomGroup>());
+    this.resetNotices();
     this.loading.set(true);
     this.beginAttempt(id, true);
   }
@@ -1087,6 +1600,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
     this.patientState.set(PATIENT_INITIAL_STATE);
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
+    this.visitedRooms.set(readVisitedRooms(attempt.caseVersionId, attempt.attemptId));
     this.pendingEvidenceDecisionId = null;
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
@@ -1099,6 +1613,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // con Escape en document:keydown), no reinterpretarla aquí: sin esta
     // guarda, un solo Escape cerraba el diálogo Y disparaba la salida segura.
     if (event.defaultPrevented) return;
+    // Un Esc mantenido (temblor, pulsación larga) no encadena acciones: sin esto, una sola pulsación cerraba la ayuda,
+    // la bitácora y el diálogo y además pausaba el caso (~30 eventos por segundo). Solo cuenta el primer evento.
+    if (event.key === 'Escape' && event.repeat) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
 
@@ -1111,6 +1628,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (this.showIntroScene() || this.showCaseIntro()) {
+      // REGLA-004: Esc pausa también aquí. Va antes del chequeo de botones porque el foco de las
+      // tarjetas siempre está en uno (`cdkFocusInitial`) y, sin este orden, Esc nunca llegaría.
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.pauseFromOverlay();
+        return;
+      }
       // Los botones de las tarjetas (Continuar, Silenciar música) se activan solos.
       if (tag === 'BUTTON' || tag === 'A') {
         this.activateCardButtonIfCancelled(event);
@@ -1127,10 +1651,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (event.key === 'Escape') {
+      // Cadena: ayuda → bitácora → diálogo → pausa. Con una petición en curso la pausa se encola.
+      if (this.helpOpen())    { event.preventDefault(); this.helpOpen.set(false); return; }
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
       if (this.dialogue())    { event.preventDefault(); this.closeDialogue(); return; }
-      const g = this.attempt();
-      if (g?.status === 'IN_PROGRESS' && !this.busy()) { event.preventDefault(); this.safeExit(); }
+      if (this.attempt()?.status === 'IN_PROGRESS') { event.preventDefault(); this.pauseFromOverlay(); }
       return;
     }
 
@@ -1145,6 +1670,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Con la pantalla de ayuda abierta E, J, Espacio y Enter no actúan sobre el mundo de debajo (Espacio sigue desplazando el texto).
+    if (this.helpOpen() && ['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) return;
+
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
       this.journalOpen.set(!this.journalOpen());
@@ -1155,7 +1683,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const nb = this.nearbyInteraction();
       if (!nb) return;
       event.preventDefault();
-      this.openInteraction(nb);
+      // Mantener la tecla pulsada no repite la acción (al cerrar el diálogo volvería a abrirse).
+      if (!event.repeat) this.openInteraction(nb);
     }
   }
 
@@ -1176,6 +1705,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
+
+    // Una persona del escenario llega como `npc:{clave}`: no es un objeto del servidor (POST /interactions/npc:… da 404).
+    if (interaction.key.startsWith('npc:')) {
+      const npc = this.scenarioNpc(interaction.key);
+      if (npc) this.openNpcDialogue(npc);
+      return;
+    }
 
     if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
       this.tryOpenDoor(interaction);
@@ -1220,14 +1756,64 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
-  proximityLabel(obj: MapObjectState): string {
-    const mapKey = this.world()?.map.key;
-    if (obj.type === 'EXIT') return `${getSceneDisplayLabel(obj, mapKey)} →`;
-    return getSceneDisplayLabel(obj, mapKey);
+  /** Abre «Cómo se juega» (botón «?» del HUD, fila de Ajustes o «Más ayuda»). Quien la abre ya vio la tarjeta de primera vez. */
+  openHelp(): void {
+    this.markHelpCardSeen();
+    this.helpOpen.set(true);
   }
 
-  proximityDescription(obj: MapObjectState): string {
-    return getSceneInteractionDescription(obj, this.world()?.map.key);
+  markHelpCardSeen(): void {
+    markHelpSeen(HELP_FIRST_CARD);
+    this.helpCardSeen.set(true);
+    this.helpCardShown = false;
+  }
+
+  /** «Ver la ayuda otra vez» (Ajustes): borra la marca y la tarjeta de primera vez vuelve a mostrarse en esta sesión. */
+  resetHelpCard(): void {
+    resetHelpSeen();
+    this.helpCardSeen.set(false);
+  }
+
+  /** El canvas recupera su tamaño al abrir o cerrar el panel lateral (AC-5): se relee el contenedor. */
+  refreshWorldScale(): void {
+    this.gameWorld?.refreshScale();
+  }
+
+  /** Texto, nombre accesible y ayuda del botón de la barra para un objeto o una persona cercana. */
+  private interactionAction(obj: MapObjectState | null): {
+    obj: MapObjectState; verb: InteractionVerb; ariaLabel: string; title: string;
+  } | null {
+    if (!obj) return null;
+    const mapKey = this.world()?.map.key;
+    const shown = { ...obj, label: getSceneDisplayLabel(obj, mapKey) };
+    const verb = interactionVerb(shown, obj.type === 'EXIT' ? this.doorStatusFor(obj) : null);
+    const reason = verb.locked && verb.reason ? verb.reason : null;
+    const rawDescription = obj.key.startsWith('npc:') ? '' : getSceneInteractionDescription(obj, mapKey);
+    // La descripción sembrada solo sirve de ayuda (title) si dice algo que el verbo y la etiqueta no dicen.
+    const description = rawDescription && !verb.text.toLowerCase().includes(rawDescription.trim().toLowerCase()) ? rawDescription : '';
+    return {
+      obj,
+      verb,
+      // El nombre contiene el texto visible (WCAG 2.5.3) y no promete la tecla: solo se rotula con puntero fino.
+      ariaLabel: `Interactuar: ${verb.text}${reason ? `, bloqueada: ${reason}` : ''}`,
+      title: reason ? `${verb.text}. ${reason}` : description ? `${verb.text}. ${description}` : verb.text,
+    };
+  }
+
+  /** Pidió interactuar y no hay nada a su alcance (E, Espacio, Enter o el botón táctil): línea estática de 2,5 s. */
+  showNothingNearby(): void {
+    this.nothingNearbyNote.set(ORIENTATION_COPY.now.nothingNearby);
+    if (this.nothingNearbyTimer !== null) window.clearTimeout(this.nothingNearbyTimer);
+    this.nothingNearbyTimer = window.setTimeout(() => {
+      this.nothingNearbyTimer = null;
+      this.nothingNearbyNote.set('');
+    }, 2500);
+  }
+
+  /** Persona del escenario (clave `npc:{clave}` del mundo) → su configuración; null si no está cargada. */
+  private scenarioNpc(key: string): NpcConfig | null {
+    const npcKey = key.replace(/^npc:/, '');
+    return this.scenarioConfig()?.rooms.flatMap(room => room.npcs).find(npc => npc.key === npcKey) ?? null;
   }
 
   private openBackendInteraction(interaction: MapObjectState) {
@@ -1249,9 +1835,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.mergeViewedNpcKeysFromWorld(result.world);
         this.selectedInteraction.set(result.interaction);
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
+        this.announcePickup(result);
         this.busy.set(false);
       },
-      error: () => { this.showActionError('No pudimos abrir la interacción.'); this.busy.set(false); }
+      error: err => {
+        this.selectedInteraction.set(null);
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos abrir la interacción.');
+        this.busy.set(false);
+      }
     });
   }
 
@@ -1267,21 +1859,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const game = this.attempt();
     const target = this.doorTargetNodeKey(door);
     if (!game || !target || this.inputBlocked() || this.busy()) return;
-    const meta = (door.metadata ?? {}) as {
-      requiresNpcs?: string[];
-      requiresTools?: string[]; requiresInspected?: string[];
-      requiresNodes?: string[]; lockedMessage?: string;
-    };
-    const missing = missingEvidence(
-      { npcs: meta.requiresNpcs, tools: meta.requiresTools, inspected: meta.requiresInspected, missingMessage: '' },
-      this.world(), this.viewedNpcKeys(),
-    );
-    const stageLocked = (meta.requiresNodes?.length ?? 0) > 0
-      && !meta.requiresNodes!.includes(game.currentNode.key);
-    if (missing.length || stageLocked) {
-      const message = meta.lockedMessage ?? 'Aún no puedes pasar: te falta información clave de esta sala.';
+    // Una sola función decide si la puerta se abre y por qué no: la misma de la barra, el rótulo y la lista.
+    const context = this.doorContext();
+    const status = context ? doorStatus(door, context) : null;
+    if (!status || status.state === 'locked') {
       this.audioDirector.playSfx('ui_cancel');
-      this.showDoorNotice(message);
+      this.showDoorNotice(status?.message ?? ORIENTATION_COPY.door.fallback);
       return;
     }
     if (!this.doorInteractionArmed) {
@@ -1301,9 +1884,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.applyWorldWithScenario(world);
           this.announce(`Entraste a ${world.map.title}.`);
         },
-        error: () => { this.showActionError('No pudimos cruzar la puerta.'); this.busy.set(false); this.fadeActive.set(false); },
+        error: err => {
+          this.busy.set(false);
+          this.fadeActive.set(false);
+          // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
+          // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
+          if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
+          else this.reportApiError(err, 'No pudimos cruzar la puerta.');
+        },
       });
-    }));
+    }, 'door_open'));
   }
 
   private doorNoticeTimer: number | null = null;
@@ -1314,7 +1904,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.doorNotice.set(message);
     this.announce(message);
     if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
-    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), 4200);
+    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), NOTICE_MS);
   }
 
   onRoomExit(event: { targetRoomKey: string; entryX: number; entryY: number }) {
@@ -1329,33 +1919,55 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (door) this.tryOpenDoor(door);
   }
 
-  /** Fase 9: líneas desbloqueadas por evidencia. Las opciones no revelan
-   * su resultado pedagógico antes de responder. */
+  /**
+   * Fase 9 y F§7.6: decora la conversación antes de mostrarla (líneas desbloqueadas por evidencia,
+   * aviso único de lo que falta, herramienta ausente) y quita las decisiones que no son de esta
+   * etapa: ningún objeto del mundo ofrece una decisión que `currentNode.options` no contiene (AC-3).
+   * Las opciones no revelan su resultado pedagógico antes de responder.
+   */
   private decorateDialogue(dialogue: DialogueState | null): DialogueState | null {
     if (!dialogue) return null;
     const node = this.attempt()?.currentNode;
-    const nodeDef = nodeEvidence(node?.key);
-    const extras = unlockedExtraLines(nodeDef, dialogue.key, this.world(), this.viewedNpcKeys());
-    const lines = extras.length
-      ? [...dialogue.lines, ...extras.map((text, i) => ({
-          order: dialogue.lines.length + i + 1,
-          speakerName: dialogue.speakerName, text, emotion: 'positive',
-        }))]
-      : dialogue.lines;
-    const optionById = new Map((node?.options ?? []).map(o => [o.id, o]));
-    const choices = dialogue.choices.map(choice => {
-      if (choice.decisionOptionId == null) return choice;
-      const option = optionById.get(choice.decisionOptionId);
-      const evidenceDef = mergeEvidence(nodeDef, choiceEvidence(choice));
-      const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
-      const evidenceMessage = evidenceDef && missing.length ? this.evidenceMissingMessage(evidenceDef, missing) : null;
-      return {
-        ...choice,
-        isProhibited: choice.isProhibited || option?.prohibitedConduct || false,
-        ...(evidenceMessage ? { evidenceWarning: evidenceMessage } : {}),
-      };
+    return decorateDialogueState(dialogue, {
+      nodeKey: node?.key ?? null,
+      nodeOptionIds: node?.options?.map(option => option.id) ?? null,
+      evidence: nodeEvidence(node?.key),
+      world: this.world(),
+      viewedNpcKeys: this.viewedNpcKeys(),
+      copy: this.copyContext(),
     });
-    return { ...dialogue, lines, choices };
+  }
+
+  /** Estado de una puerta (null si no es una salida o aún no hay mundo): lo leen la barra, el aviso y el rótulo del mundo. */
+  doorStatusFor(door: MapObjectState): DoorStatus | null {
+    if (door.type !== 'EXIT') return null;
+    const context = this.doorContext();
+    return context ? doorStatus(door, context) : null;
+  }
+
+  /** Contexto de las puertas (F§7.5): null mientras no haya intento y mundo. */
+  private doorContext(): (DoorStatusContext & { world: SimulationWorldState }) | null {
+    const game = this.attempt();
+    const world = this.world();
+    if (!game || !world) return null;
+    return {
+      nodeKey: game.currentNode.key,
+      decisionNumber: getSceneProgress(game.currentNode.key)?.step ?? null,
+      world,
+      viewedNpcKeys: collectViewedNpcKeys(world, this.viewedNpcKeys()),
+      copy: this.copyContext(),
+    };
+  }
+
+  /** Contexto de redacción compartido por el aviso de evidencia, la lista «Qué hacer» y las puertas. */
+  private copyContext(): CopyContext {
+    const world = this.world();
+    return {
+      currentRoom: roomGroupOf(world?.map.key),
+      world,
+      nameTools: NAME_TOOLS_IN_HINTS,
+      npcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
+    };
   }
 
   private showRiskyActionWarning(interaction: MapObjectState) {
@@ -1383,7 +1995,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           decisionOptionId: null,
           requiredToolCode: null,
           effect: {},
-          isRecommended: true,
         },
         {
           key: 'frontend:proceed-restricted',
@@ -1391,7 +2002,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           decisionOptionId: null,
           requiredToolCode: null,
           effect: {},
-          isProhibited: true,
         },
       ],
     });
@@ -1419,17 +2029,54 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Recoger algo: sonido discreto y «Obtuviste: {etiqueta}. Ya está en tu barra de herramientas.». */
+  private announcePickup(result: InteractionResult): void {
+    if (!result.unlockedToolCode) return;
+    this.audioDirector.playSfx('item_pickup');
+    this.showSoftNotice(ORIENTATION_COPY.notices.obtained(
+      getSceneDisplayLabel(result.interaction, result.world.map.key),
+    ));
+  }
+
+  /** Aviso no esencial: se anuncia solo (role="status") y se apaga a los 4,2 s. */
+  private showSoftNotice(message: string): void {
+    this.softNotice.set(message);
+    if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
+    this.softNoticeTimer = window.setTimeout(() => {
+      this.softNoticeTimer = null;
+      this.softNotice.set('');
+    }, NOTICE_MS);
+  }
+
   private showActionError(message: string) {
     this.actionError.set(message);
     window.setTimeout(() => this.actionError.set(''), 4500);
   }
 
+  /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
+  private reportApiError(err: unknown, fallback: string): void {
+    const message = apiErrorMessage(err, fallback);
+    if (message) this.showActionError(message);
+  }
+
+  /** Suelta la opción que el panel de diálogo tenía marcada como elegida. */
+  private releaseDialogue(): void {
+    this.dialogueReleaseToken.update(token => token + 1);
+  }
+
   executeDecision(decisionOptionId: number) {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      // La elección se descarta: sin soltar el panel la opción quedaría marcada y bloqueada.
+      this.releaseDialogue();
+      return;
+    }
     if (!(game.currentNode.options ?? []).some(o => o.id === decisionOptionId)) {
-      // Decisión de otra etapa (sala visitada por puerta): feedback claro, sin 400.
+      // Decisión de otra etapa (sala visitada por puerta): feedback claro, sin 400. Red de seguridad:
+      // la decoración del diálogo ya no ofrece estas opciones.
       this.showActionError('Esta intervención pertenece a otra etapa del caso. Vuelve cuando el flujo te lleve a esta sala.');
+      this.releaseDialogue();
       return;
     }
     const selectedChoice = this.dialogue()?.choices.find(choice => choice.decisionOptionId === decisionOptionId);
@@ -1438,7 +2085,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
       this.pendingEvidenceDecisionId = decisionOptionId;
       this.pendingEvidenceMissing = [...missing];
-      const message = this.evidenceMissingMessage(evidenceDef, missing);
+      const message = this.evidenceMissingMessage(evidenceDef);
       this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
       this.announce(message);
       return;
@@ -1448,6 +2095,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const confirmedMissingEvidence = evidenceOverride ? this.pendingEvidenceMissing : [];
     this.pendingEvidenceDecisionId = null;
     this.pendingEvidenceMissing = [];
+    const previousDialogue = this.dialogue();
     this.busy.set(true);
     this.dialogue.set(null);
     this.journalMessage.set('');
@@ -1457,25 +2105,41 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         evidenceOverride, confirmedMissingEvidence,
       ).subscribe({
         next: updated => {
+          // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
+          // esta decisión no lo pisa con uno anterior.
+          if (this.attempt()?.status === 'PAUSED') {
+            this.busy.set(false);
+            this.fadeActive.set(false);
+            return;
+          }
+          this.trackStageChange(game, updated);
           this.attempt.set(updated);
           this.hydrateClinicalState(updated);
           this.persistAttemptToken(updated);
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.journalPanel?.clear();
+          // Última decisión: la supervisión se lee sobre la escena y el resultado se abre al cerrarla. Se arma
+          // antes de pedir el mundo: si este falla, su error suelta la retención. Sin supervisión que mostrar,
+          // el resultado se abre ya y el cierre suena como siempre.
+          const lastDecision = updated.status === 'COMPLETED';
+          if (lastDecision && !this.holdOutcomeForSupervision(updated.feedback)) this.playCompletionAudio();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
-          if (updated.status === 'COMPLETED') {
-            this.audioDirector.playResolution();
-            this.audioDirector.playSfx('session_complete');
-          }
           this.pendingDecisionImpact = updated.feedback ?? null;
-          if (updated.feedback) {
+          if (!lastDecision && updated.feedback) {
             window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
           }
         },
-        error: () => { this.showActionError('No pudimos ejecutar la intervención.'); this.busy.set(false); this.fadeActive.set(false); }
+        error: err => {
+          // Se devuelve la conversación para poder reintentar en vez de dejar al estudiante en el mapa.
+          this.dialogue.set(previousDialogue);
+          this.releaseDialogue();
+          this.reportApiError(err, 'No pudimos registrar tu decisión. Inténtalo de nuevo.');
+          this.busy.set(false);
+          this.fadeActive.set(false);
+        }
       });
     });
   }
@@ -1483,13 +2147,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   useTool(toolCode: string) {
     const game = this.attempt();
     const target = this.selectedInteraction()?.key ?? null;
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      this.releaseDialogue();
+      return;
+    }
     this.withSyncedPosition(() => this.doUseTool(toolCode, target));
   }
 
   private doUseTool(toolCode: string, target: string | null) {
     const game = this.attempt();
-    if (!game || this.busy()) return;
+    if (!game) return;
+    if (this.busy()) {
+      this.releaseDialogue();
+      return;
+    }
     this.busy.set(true);
     this.simulationService.useTool(game.attemptId, game.attemptToken, toolCode, target).subscribe({
       next: (result: ToolUseResult) => {
@@ -1504,7 +2176,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.showToolFeedback(result);
         this.busy.set(false);
       },
-      error: () => { this.showActionError('No pudimos usar la herramienta.'); this.busy.set(false); }
+      error: err => {
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos usar la herramienta.');
+        this.busy.set(false);
+      }
     });
   }
 
@@ -1525,7 +2201,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  closeDialogue() { this.dialogue.set(null); }
+  closeDialogue() {
+    // Con la supervisión de la última decisión retenida, cerrarla abre el resultado (`releaseHeldOutcome`).
+    this.dialogue.set(null);
+    // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
+    this.selectedInteraction.set(null);
+  }
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
   openNpcDialogue(npc: NpcConfig) {
@@ -1551,8 +2232,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.showNpcDialogue(npc);
         this.busy.set(false);
       },
-      error: () => {
-        this.showActionError('No pudimos guardar la interaccion con el NPC.');
+      error: err => {
+        this.releaseDialogue();
+        this.reportApiError(err, 'No pudimos registrar la conversación. Acércate un poco más e inténtalo de nuevo.');
         this.busy.set(false);
       },
     });
@@ -1603,16 +2285,126 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.withSyncedPosition(() => this.pauseCurrentAttempt());
   }
 
-  private pauseCurrentAttempt(): void {
+  /**
+   * Salida segura desde cualquier superposición (diálogo con o sin opciones, bitácora, introducción
+   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004 para los estados en que
+   * `safeExit()` no actúa a propósito (overlay abierto) o rechaza el toque (`busy`).
+   *
+   * - No hace nada sin un intento `IN_PROGRESS`, bajo el aviso de contenido (ETH-01) ni bajo el
+   *   de reanudar, ni si ya hay una pausa pedida (un segundo toque no pausa dos veces).
+   * - Con una petición en curso la deja en cola: se ejecuta cuando `busy()` se suelta.
+   */
+  pauseFromOverlay(): void {
+    // Con la última supervisión a la vista el intento ya terminó: no hay nada que pausar. «Salida segura»
+    // hace lo mismo que «Continuar»: cierra la supervisión y abre el resultado, donde están las salidas.
+    if (this.holdingOutcome()) {
+      this.closeDialogue();
+      return;
+    }
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') return;
+    if (this.showResumePrompt() || this.showContentWarning()) return;
+    if (this.pausing()) return;
+    this.pausing.set(true);
+    // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
+    this.pauseDeadlineTimer = window.setTimeout(() => this.forcePauseAtDeadline(), QUEUED_PAUSE_DEADLINE_MS);
+    if (this.busy()) {
+      this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
+      return;
+    }
+    this.startQueuedPause();
+  }
+
+  /** Arranca la pausa pedida con `pauseFromOverlay()`; por el camino de la cola, `busy()` ya está libre. */
+  private startQueuedPause(): void {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') {
+      this.endPausing();
+      return;
+    }
+    // La petición ya salió (por el plazo): la liberación tardía de `busy()` no la repite.
+    if (this.pauseSent) return;
+    // Sonido discreto: la salida segura es seria, no alarmista.
+    this.audioDirector.playSfx('ui_cancel');
+    this.busy.set(true);
+    this.withSyncedPosition(() => this.pauseCurrentAttempt());
+  }
+
+  /**
+   * Pasó el plazo de la pausa pedida y sigue sin salir: hay una petición colgada (o la sincronización de la posición).
+   * La pausa se envía igualmente, sin esperar y sin sincronizar la posición, con aviso visible y anunciado. El
+   * servidor valida el token; no cambia `safeExit()` ni la semántica de la pausa (ETH-02).
+   */
+  private forcePauseAtDeadline(): void {
+    this.pauseDeadlineTimer = null;
+    if (!this.pausing() || this.pauseSent) return;
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.endPausing();
+      return;
+    }
+    this.pausingSlow.set(true);
+    this.announce(QUEUED_PAUSE_SLOW_NOTICE);
+    this.audioDirector.playSfx('ui_cancel');
+    this.busy.set(true);
+    this.pauseCurrentAttempt();
+  }
+
+  /** La pausa pedida terminó o se descartó: se apagan el estado, el aviso de lentitud y el plazo. */
+  private endPausing(): void {
+    if (this.pauseDeadlineTimer !== null) window.clearTimeout(this.pauseDeadlineTimer);
+    this.pauseDeadlineTimer = null;
+    this.pausingSlow.set(false);
+    this.pausing.set(false);
+  }
+
+  private pauseCurrentAttempt(): void {
+    // Ya hay una pausa en camino (el plazo se adelantó a la sincronización de la posición, que responde tarde): no se repite.
+    if (this.pauseSent) return;
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.endPausing();
       this.busy.set(false);
       return;
     }
+    // Ya está en camino: el plazo no la repite.
+    if (this.pauseDeadlineTimer !== null) window.clearTimeout(this.pauseDeadlineTimer);
+    this.pauseDeadlineTimer = null;
+    this.pauseSent = true;
     this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').subscribe({
-      next: updated => { this.attempt.set(updated); this.selectedInteraction.set(null); this.dialogue.set(null); this.loadWorld(updated); },
-      error: () => { this.showActionError('No pudimos registrar la salida segura.'); this.busy.set(false); }
+      next: updated => {
+        this.pauseSent = false;
+        this.endPausing();
+        this.attempt.set(updated);
+        // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
+        // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
+        // la bitácora reaparecería al reanudar.
+        this.clearTransientOverlays();
+        this.loadWorld(updated);
+      },
+      error: () => {
+        this.pauseSent = false;
+        this.endPausing();
+        this.showActionError('No pudimos registrar la salida segura.');
+        this.busy.set(false);
+      },
     });
+  }
+
+  /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
+  private clearTransientOverlays(): void {
+    this.selectedInteraction.set(null);
+    this.supervisionHold.set(false);
+    this.dialogue.set(null);
+    this.journalOpen.set(false);
+    this.showIntroScene.set(false);
+    this.showCaseIntro.set(false);
+    this.helpOpen.set(false);
+    this.pendingEvidenceDecisionId = null;
+    this.pendingEvidenceMissing = [];
+    this.pendingRestrictedInteraction.set(null);
+    this.resetNotices();
+    this.audioDirector.stopIntroLament();
   }
 
   rememberPosition(x: number, y: number) {
@@ -1634,20 +2426,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
-  progressLabel(): string {
-    const map = this.progressMap();
-    if (!map?.nodes.length) return 'Progreso: escenario actual';
-    const visited = new Set(map.visitedNodeKeys);
-    const completed = map.nodes.filter(node => visited.has(node.key) || node.key === map.currentNodeKey).length;
-    return `Progreso: ${completed} de ${map.nodes.length} escenarios`;
-  }
-
-  currentStageLabel(): string {
+  /**
+   * Contador de respaldo para un nodo sin etapa conocida (casos del editor): «Escenario k de n» del
+   * mapa de progreso. Sin mapa, sin chip. En el caso SIM-VBG-001 manda siempre «Decisión k de 6».
+   */
+  private fallbackStageLabel(): string | null {
     const map = this.progressMap();
     const currentKey = this.attempt()?.currentNode.key;
-    if (!map?.nodes.length || !currentKey) return 'Escenario actual';
+    if (!map?.nodes.length || !currentKey) return null;
     const index = map.nodes.findIndex(node => node.key === currentKey);
-    return index >= 0 ? `Escenario ${index + 1} de ${map.nodes.length}` : 'Escenario actual';
+    return index >= 0 ? `Escenario ${index + 1} de ${map.nodes.length}` : null;
   }
 
   visitedStageLabels(): string[] {
@@ -1686,13 +2474,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       portraitKey: null, emotion: result.pertinent ? 'positive' : 'neutral',
       lines: [
         { order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' },
-        { order: 2, speakerName: '', text: `Estrés ${result.stressDelta >= 0 ? '+' : ''}${result.stressDelta}%`, emotion: 'neutral' }
+        // «Estrés +0%» no dice nada: solo se informa cuando el cambio real existe.
+        ...(result.stressDelta !== 0
+          ? [{ order: 2, speakerName: '', text: `Estrés ${result.stressDelta > 0 ? '+' : ''}${result.stressDelta}%`, emotion: 'neutral' }]
+          : []),
       ],
       choices: []
     });
     this.stressPulse.set(true);
     window.setTimeout(() => this.stressPulse.set(false), 700);
-    this.announce(result.feedbackMessage);
+    // Sin announce(): el panel de diálogo ya anuncia esta misma línea por su región viva (con las dos se leía dos veces).
   }
 
   toggleMusicMute(): void {
@@ -1718,43 +2509,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce(reduced ? 'Movimiento reducido activado.' : 'Movimiento reducido desactivado.');
   }
 
-  private evidenceMissingMessage(def: NodeEvidenceDef, missing: string[]): string {
-    const items = missing
-      .map(item => this.evidenceMissingItemLabel(item))
-      .filter((item): item is string => item.length > 0);
-    if (!items.length) return def.missingMessage;
-    return `Información incompleta: falta ${this.joinSpanish(items)} antes de decidir.`;
-  }
-
-  private evidenceMissingItemLabel(item: string): string {
-    const [kind, key] = item.split(':', 2);
-    if (!key) return '';
-    if (kind === 'npc') return `hablar con ${this.evidenceNpcLabel(key)}`;
-    if (kind === 'tool') return `tener o usar ${this.evidenceToolLabel(key)}`;
-    if (kind === 'inspected') return `revisar ${this.evidenceObjectLabel(key)}`;
-    return key;
-  }
-
-  private evidenceNpcLabel(key: string): string {
-    const fromScenario = this.scenarioConfig()
-      ?.rooms.flatMap(room => room.npcs)
-      .find(npc => npc.key === key)?.displayName;
-    if (fromScenario) return fromScenario;
-    return this.evidenceObjectLabel(key);
-  }
-
-  private evidenceToolLabel(code: string): string {
-    return this.world()?.tools.find(tool => tool.code === code)?.label ?? code;
-  }
-
-  private evidenceObjectLabel(key: string): string {
-    return this.world()?.objects.find(obj => obj.key === key)?.label ?? key;
-  }
-
-  private joinSpanish(items: string[]): string {
-    if (items.length <= 1) return items[0] ?? '';
-    if (items.length === 2) return `${items[0]} y ${items[1]}`;
-    return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+  /**
+   * Lo que falta antes de decidir, en las mismas frases que la lista y el aviso sobre las opciones
+   * (una sola fuente: `evidenceNoticeText`); nunca una clave interna. El texto del seed solo queda
+   * de respaldo para una evidencia que el copy no sepa nombrar.
+   */
+  private evidenceMissingMessage(def: NodeEvidenceDef): string {
+    const items = missingEvidenceItems(def, this.world(), this.viewedNpcKeys());
+    return evidenceNoticeText(items, this.copyContext()) ?? def.missingMessage;
   }
 
   /** Gate de evidencia (Fase 9): permite cancelar o decidir bajo registro. */
@@ -1762,15 +2524,51 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return {
       key: `evidence-gate-${decisionOptionId}`,
       speakerName: 'Criterio profesional', portraitKey: 'info', emotion: 'concerned',
+      // El aviso único ya dice que se puede decidir igualmente y que quedará registrado con información incompleta.
       lines: [
         { order: 1, speakerName: 'Criterio profesional', text: message, emotion: 'concerned' },
-        { order: 2, speakerName: 'Criterio profesional', text: 'Puedes intervenir igualmente, pero quedará registrada como una decisión con información incompleta.', emotion: 'neutral' },
       ],
       choices: [
-        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {}, isRecommended: true },
+        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
         { key: `frontend:proceed-evidence:${decisionOptionId}`, text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
       ],
     };
+  }
+
+  /**
+   * Última decisión (DLG-05): muestra la supervisión sobre la escena y retiene el resultado hasta que se cierre.
+   * Devuelve `false` si no hay nada que mostrar (sin feedback o con uno que no se puede armar): el resultado
+   * se abre entonces como siempre.
+   */
+  private holdOutcomeForSupervision(feedback: SimulationFeedback | null | undefined): boolean {
+    if (!feedback) return false;
+    try {
+      this.dialogue.set(this.buildSupervisionDialogue(feedback));
+    } catch {
+      return false;
+    }
+    this.supervisionHold.set(true);
+    return true;
+  }
+
+  /** La supervisión retenida ya no está a la vista: suena el cierre del caso y el foco pasa al resultado. */
+  private releaseHeldOutcome(): void {
+    this.supervisionHold.set(false);
+    this.announce('Se abre el resultado del caso.');
+    this.playCompletionAudio();
+    // El foco queda en la sección, no en un botón: si se mantuvo Enter para cerrar la supervisión, un botón
+    // enfocado («Reintentar caso») se activaría solo con la repetición de la tecla.
+    afterNextRender(() => {
+      const section = document.querySelector<HTMLElement>('app-attempt-outcome .outcome');
+      if (!section) return;
+      section.setAttribute('tabindex', '-1');
+      section.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
+
+  private playCompletionAudio(): void {
+    this.audioDirector.playResolution();
+    this.audioDirector.playSfx('session_complete');
   }
 
   private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {
@@ -1789,10 +2587,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         emotion: 'concerned'
       });
     } else {
+      // Sin cifras: las del motor no coinciden con las barras del HUD y «puntaje» convierte el caso en un marcador.
       lines.push({
         order: lines.length + 1,
         speakerName: '',
-        text: `Puntaje ${feedback.scoreDelta >= 0 ? '+' : ''}${feedback.scoreDelta} · Estrés ${feedback.stressDelta >= 0 ? '+' : ''}${feedback.stressDelta}% · Confianza ${feedback.trustDelta >= 0 ? '+' : ''}${feedback.trustDelta} · Riesgo ${feedback.victimRiskDelta >= 0 ? '+' : ''}${feedback.victimRiskDelta}`,
+        text: ORIENTATION_COPY.notices.supervision,
         emotion: 'neutral'
       });
     }
@@ -1804,8 +2603,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
-  private triggerFade(callback: () => void): void {
-    this.audioDirector.playSfx('dialogue_advance');
+  private triggerFade(callback: () => void, sound: 'dialogue_advance' | 'door_open' = 'dialogue_advance'): void {
+    this.audioDirector.playSfx(sound);
     this.fadeActive.set(true);
     window.setTimeout(callback, 340);
   }
@@ -1833,7 +2632,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
+        // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
+        this.supervisionHold.set(false);
         this.pendingDecisionImpact = null;
+        this.pendingStage = null;
         this.loading.set(false);
         this.busy.set(false);
         this.fadeActive.set(false);
@@ -1862,6 +2664,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const previousMapKey = this.world()?.map.key ?? null;
     const mapChanged = previousMapKey !== world.map.key;
     if (mapChanged) this.doorInteractionArmed = false;
+    this.rememberVisitedRoom(world);
     this.world.set(world);
     this.hydrateClinicalState(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
@@ -1871,12 +2674,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.fadeActive.set(false);
       this.scheduleRevealEffects();
     }, 80);
+    // Etapa nueva (se decidió): banner con su título aunque el mapa sea el mismo (F§4.5). No se
+    // repite al recargar: `pendingStage` solo lo arma la respuesta de una decisión.
+    const stage = this.pendingStage;
+    this.pendingStage = null;
+    if (stage) this.announceNewStage(stage);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
       this.lastPosition = null;
       this.lastSyncedPosition = null;
-      this.announceRoomChange(world);
+      this.announceRoomChange(world, stage !== null);
     }
     this.maybeShowInitialCaseIntro(world);
   }
@@ -1967,15 +2775,113 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Al cambiar de sala (puerta o decisión): nombre de la sala 1-2 s y, si el
    *  mapa trae texto de transición autorado (salto temporal), overlay breve. */
-  private announceRoomChange(world: SimulationWorldState): void {
-    this.roomBanner.set(world.map.title);
-    window.setTimeout(() => this.roomBanner.set(''), 2200);
+  private announceRoomChange(world: SimulationWorldState, stageBannerShown = false): void {
+    // Con una etapa nueva manda su banner («Nueva etapa: …»), que ya nombra dónde estás.
+    if (!stageBannerShown) this.showRoomBanner(world.map.title, 2200);
     const transition = (world.map.ambient as Record<string, unknown> | undefined)?.['transitionText'];
     if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
       this.seenTransitionMapKeys.add(world.map.key);
       this.transitionNote.set(transition);
-      window.setTimeout(() => this.transitionNote.set(''), 4200);
+      if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
+      this.transitionNoteTimer = window.setTimeout(() => {
+        this.transitionNoteTimer = null;
+        this.transitionNote.set('');
+      }, 4200);
     }
+  }
+
+  private showRoomBanner(text: string, ms: number): void {
+    this.roomBanner.set(text);
+    if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
+    this.roomBannerTimer = window.setTimeout(() => this.roomBanner.set(''), ms);
+  }
+
+  /** La decisión llevó a otra etapa (aunque la sala sea la misma): se recuerda hasta que llegue su mundo. */
+  private trackStageChange(previous: SimulationAttemptState, updated: SimulationAttemptState): void {
+    if (updated.status !== 'IN_PROGRESS' || updated.currentNode.key === previous.currentNode.key) return;
+    this.pendingStage = {
+      title: getStageTitle(updated.currentNode.key) ?? updated.currentNode.title,
+      previousNumber: getSceneProgress(previous.currentNode.key)?.step ?? null,
+    };
+  }
+
+  /** Banner «Nueva etapa: …» y, en la tarjeta, «Decisión k registrada» (omitido sin decisión previa). */
+  private announceNewStage(stage: { title: string; previousNumber: number | null }): void {
+    this.showRoomBanner(ORIENTATION_COPY.notices.newStage(stage.title), 3000);
+    if (stage.previousNumber) {
+      this.pendingNotes.unshift(ORIENTATION_COPY.notices.decisionRegistered(stage.previousNumber));
+      this.flushNotes();
+    }
+  }
+
+  /** Recuerda la sala alcanzada (refuerzo de la regla monótona de la lista, solo en este navegador). */
+  private rememberVisitedRoom(world: SimulationWorldState): void {
+    const attempt = this.attempt();
+    const room = roomGroupOf(world.map.key);
+    if (!attempt || !room) return;
+    const next = markRoomVisited(attempt.caseVersionId, attempt.attemptId, room);
+    const previous = this.visitedRooms();
+    if (next.size !== previous.size || [...next].some(known => !previous.has(known))) this.visitedRooms.set(next);
+  }
+
+  /** Pasos recién hechos de la lista → notas «Anotado: …» (la primera evaluación y los cambios de etapa no anotan). */
+  private queueNotesFor(next: SceneLogState | null): void {
+    const previous = this.previousSceneLog;
+    this.previousSceneLog = next;
+    if (!next) return;
+    for (const step of diffDone(previous, next)) {
+      if (step.doneText) this.pendingNotes.push(step.doneText);
+    }
+    this.flushNotes();
+  }
+
+  /**
+   * Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. Una nota que un
+   * diálogo tapó apenas se vio (menos de 1,5 s) vuelve a empezar sus 4,2 s cuando la escena queda libre; si ya
+   * se había leído, se da por leída (la lista conserva su marca).
+   */
+  private flushNotes(): void {
+    if (this.inputBlocked()) {
+      if (this.noteTimer !== null) {
+        window.clearTimeout(this.noteTimer);
+        this.noteTimer = null;
+        if (Date.now() - this.noteShownAt >= NOTE_SEEN_MS) this.checklistNotice.set(null);
+      }
+      return;
+    }
+    if (this.noteTimer !== null) return;
+    const note = this.checklistNotice() ?? this.pendingNotes.shift() ?? null;
+    if (note === null) return;
+    this.checklistNotice.set(note);
+    this.noteShownAt = Date.now();
+    this.noteTimer = window.setTimeout(() => {
+      this.noteTimer = null;
+      this.checklistNotice.set(null);
+      this.flushNotes();
+    }, NOTICE_MS);
+  }
+
+  /** Descarta avisos pendientes y visibles (intento nuevo o pausa): eran de lo que se estaba haciendo. */
+  private resetNotices(): void {
+    this.pendingNotes.length = 0;
+    this.previousSceneLog = null;
+    if (this.noteTimer !== null) window.clearTimeout(this.noteTimer);
+    this.noteTimer = null;
+    this.checklistNotice.set(null);
+    if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
+    this.softNoticeTimer = null;
+    this.softNotice.set('');
+    // Banner de sala o de etapa, aviso de puerta y nota de transición (z 320-340): sin esto quedaban pintados —y, con
+    // role="status" o "alert", anunciados— encima de la pantalla de pausa (F7). Eran de lo que se estaba haciendo.
+    if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
+    this.roomBannerTimer = null;
+    this.roomBanner.set('');
+    if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
+    this.doorNoticeTimer = null;
+    this.doorNotice.set('');
+    if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
+    this.transitionNoteTimer = null;
+    this.transitionNote.set('');
   }
 
   private announce(message: string): void {

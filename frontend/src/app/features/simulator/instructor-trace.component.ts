@@ -7,6 +7,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptTrace, AttemptTimelineEntry, RecentAttempt, ReflectionTrace, RubricCriterionView, RubricEvaluationView, RubricSummary, TraceEvent } from '../../core/models/simulation.model';
+import { RECONSIDERED_LABEL, RECONSIDERED_TEACHER_HINT, isRetryEventType } from './reconsidered.util';
 
 type SummaryFeedbackKey = 'TOTAL' | 'ADEQUATE' | 'RISKY' | 'INADEQUATE' | 'REFLECTIONS' | 'EVALUATION' | 'TIME' | 'RECORRIDO';
 
@@ -241,7 +242,7 @@ interface FeedbackPanelView {
                       @for (entry of panel.timeline; track $index) {
                         <article class="feedback-decision-card pixel-card" [ngClass]="timelineEntryClass(entry)">
                           <div class="feedback-decision-card__top">
-                            <span class="pixel-badge" [ngClass]="classificationClass(entry.classification)">
+                            <span class="pixel-badge" [ngClass]="timelineBadgeClass(entry)">
                               {{ timelineEntryLabel(entry) }}
                             </span>
                             <small>{{ entry.time }}</small>
@@ -340,6 +341,9 @@ interface FeedbackPanelView {
                   <h2 id="trace-title">Línea de tiempo de eventos</h2>
                 </div>
                 <span class="pixel-badge">{{ timelineEntries(item).length }} eventos</span>
+                @if (item.retries) {
+                  <span class="pixel-badge">Reconsideradas: {{ item.retries }}</span>
+                }
                 <button type="button" class="pixel-button pixel-button--mini" (click)="openFeedback('RECORRIDO', item)">
                   Ver retroalimentación
                 </button>
@@ -359,7 +363,7 @@ interface FeedbackPanelView {
                   <div class="trace-event-card__body">
                     <div class="trace-event-card__top">
                       <strong>{{ clean(entry.label, 'Evento registrado') }}</strong>
-                      <span class="pixel-badge" [ngClass]="classificationClass(entry.classification)">
+                      <span class="pixel-badge" [ngClass]="timelineBadgeClass(entry)">
                         {{ timelineEntryLabel(entry) }}
                       </span>
                     </div>
@@ -1419,6 +1423,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   eventTitle(event: TraceEvent): string {
+    if (isRetryEventType(event.type)) return RECONSIDERED_LABEL;
     if (event.classification) return `Decisión ${this.classificationLabel(event.classification).toLowerCase()}`;
     return this.classificationLabel(event.type);
   }
@@ -1475,6 +1480,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   timelineFeedback(entry: AttemptTimelineEntry): string {
+    if (isRetryEventType(entry.type)) return RECONSIDERED_TEACHER_HINT;
     if (entry.prohibited) {
       return 'Evento marcado como contraindicado en el recorrido del estudiante.';
     }
@@ -1620,6 +1626,8 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   timelineEntryClass(entry: AttemptTimelineEntry): string {
+    // Una primera respuesta que el juego no aplicó no es una decisión registrada: sin el tono rojo de «contraindicada».
+    if (isRetryEventType(entry.type)) return '';
     if (entry.prohibited) return 'trace-event-card--inadequate';
     const normalized = (entry.classification ?? '').toUpperCase();
     if (normalized === 'ADEQUATE') return 'trace-event-card--adequate';
@@ -1629,9 +1637,15 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   timelineEntryLabel(entry: AttemptTimelineEntry): string {
+    if (isRetryEventType(entry.type)) return RECONSIDERED_LABEL;
     if (entry.prohibited) return 'Contraindicada';
     if (entry.classification) return this.classificationLabel(entry.classification);
     return this.classificationLabel(entry.type);
+  }
+
+  /** Insignia de la fila: la de la clasificación, salvo en un reintento (neutra, igual que su tarjeta). */
+  timelineBadgeClass(entry: AttemptTimelineEntry): string {
+    return isRetryEventType(entry.type) ? '' : this.classificationClass(entry.classification);
   }
 
   timelineIcon(entry: AttemptTimelineEntry): string {

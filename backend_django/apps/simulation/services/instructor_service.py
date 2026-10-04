@@ -125,6 +125,10 @@ def trace(attempt_id, instructor=None):
         "riskyDecisions": report["riskyDecisions"],
         "inadequateDecisions": report["inadequateDecisions"],
         "prohibitedDecisions": report["prohibitedDecisions"],
+        # Primeras respuestas que el juego no aplicó (regla de reintento): no entran en los contadores de
+        # arriba; sin esto la fila «reintento» de la línea de tiempo contradice el contador de contraindicadas.
+        "retries": report["retries"],
+        "prohibitedRetries": report["prohibitedRetries"],
         "safeExitUsed": report["safeExitUsed"],
         "totalDurationSeconds": total_duration,
         "timeline": report["timeline"],

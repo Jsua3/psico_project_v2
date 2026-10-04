@@ -3,11 +3,12 @@ import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, e
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
-import { getSceneProgress } from './scene-objectives.config';
-import { getProximityStepHint } from './risky-interaction.config';
+import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { Heart, stressToHearts } from './stress-hearts.util';
+import { StressTier, stressTier as resolveStressTier } from './stress-tier.util';
 
-type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
+/** Marca de «ayuda vista» (la escribe la tarjeta de primera vez; aquí solo se borra desde Ajustes). */
+const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 
 @Component({
   selector: 'app-simulation-hud',
@@ -33,23 +34,19 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             <span class="brand-word">SIEP</span>
           </div>
 
-          <!-- Case + stage -->
+          <!-- Caso (solo con ancho de sobra) -->
           <div class="hud-zone hud-zone--case">
             <span class="hud-case" [title]="game.caseTitle">{{ game.caseTitle }}</span>
-            <span class="hud-stage-chip">{{ stageLabel() }}</span>
           </div>
 
-          <!-- CENTER: location + step -->
+          <!-- CENTRO: sala + contador único de decisión (lo calcula quien integra el HUD) -->
           <div class="hud-zone hud-zone--center">
             <div class="hud-scene">
               <mat-icon aria-hidden="true">location_on</mat-icon>
               <span>{{ locationLabel() || game.currentNode.title }}</span>
             </div>
-            @if (sceneProgress(); as progress) {
-              <div class="hud-step">
-                <mat-icon aria-hidden="true">timeline</mat-icon>
-                <span>{{ progress.stepLabel }}@if (progress.step > 0) { ({{ progress.step }}/{{ progress.total }}) }</span>
-              </div>
+            @if (stageLabel(); as stage) {
+              <span class="hud-stage-chip">{{ stage }}</span>
             }
           </div>
 
@@ -104,9 +101,14 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
             </div>
 
             <div class="hud-actions">
+              <button type="button" class="hud-action" (click)="openHelp.emit()"
+                aria-label="Abrir cómo se juega" title="Cómo se juega">
+                <mat-icon aria-hidden="true">help</mat-icon>
+              </button>
               <button type="button" class="hud-action" [class.hud-action--active]="journalOpen()"
                 (click)="toggleJournal.emit()"
-                aria-label="Abrir bitácora reflexiva (J)" title="Bitácora (J)">
+                [attr.aria-label]="coarsePointer() ? 'Abrir bitácora reflexiva' : 'Abrir bitácora reflexiva (J)'"
+                [title]="coarsePointer() ? 'Bitácora' : 'Bitácora (J)'">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
               <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
@@ -117,7 +119,9 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                 <mat-icon aria-hidden="true">settings</mat-icon>
               </button>
               @if (settingsOpen()) {
-                <div id="game-settings-menu" class="settings-menu" role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
+                <div #settingsMenu id="game-settings-menu" class="settings-menu" popover="manual"
+                  [style.--hud-menu-top]="menuTop() + 'px'"
+                  role="dialog" aria-modal="false" aria-labelledby="game-settings-title">
                   <div class="settings-menu__header">
                     <strong id="game-settings-title">Ajustes</strong>
                     <button type="button" aria-label="Cerrar ajustes" (click)="closeSettings()">
@@ -142,18 +146,29 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
                   <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
                     <mat-icon aria-hidden="true">menu_book</mat-icon>
                     <span>Bitácora</span>
-                    <strong>J</strong>
+                    <strong>{{ coarsePointer() ? '' : 'J' }}</strong>
                   </button>
+                  <button type="button" (click)="showHelp()">
+                    <mat-icon aria-hidden="true">help_outline</mat-icon>
+                    <span>Cómo se juega</span>
+                    <strong></strong>
+                  </button>
+                  <button type="button" (click)="resetHelpMemory()">
+                    <mat-icon aria-hidden="true">replay</mat-icon>
+                    <span>Ver la ayuda otra vez</span>
+                    <strong>{{ helpResetDone() ? 'Lista' : '' }}</strong>
+                  </button>
+                  <span class="settings-menu__status" role="status">{{ helpResetDone() ? 'La ayuda de primera vez volverá a mostrarse.' : '' }}</span>
                   <a routerLink="/portal/simulador">
-                    <mat-icon aria-hidden="true">apps</mat-icon>
+                    <mat-icon aria-hidden="true">home</mat-icon>
                     <span>Catálogo</span>
                     <strong></strong>
                   </a>
                 </div>
               }
-              <a class="hud-action" routerLink="/portal/simulador"
+              <a class="hud-action hud-action--home" routerLink="/portal/simulador"
                 aria-label="Volver al catálogo de simulaciones" title="Volver al catálogo">
-                <mat-icon aria-hidden="true">logout</mat-icon>
+                <mat-icon aria-hidden="true">home</mat-icon>
               </a>
             </div>
           </div>
@@ -183,7 +198,9 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     }
     .hud-zone { display: flex; align-items: center; }
     .hud-zone--case { gap: 10px; min-width: 0; flex-shrink: 1; }
-    .hud-zone--center { flex: 1; min-width: 0; gap: 10px; justify-content: center; }
+    /* overflow: hidden + min-width: 0 en la zona y en la sala: nada del centro se derrama sobre el
+       caso ni sobre el estrés (HUD-10: entre 961 y 1200 px se encimaban y la sala quedaba en 0 px). */
+    .hud-zone--center { flex: 1; min-width: 0; overflow: hidden; gap: 10px; justify-content: center; }
     .hud-zone--right { flex-shrink: 0; gap: 12px; margin-left: auto; }
 
     .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 10px; border-right: 1px solid rgba(182,156,255,.18); }
@@ -191,7 +208,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
 
     .hud-case {
-      max-width: 320px;
+      max-width: clamp(160px, 20vw, 320px);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -200,12 +217,15 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       color: rgba(244,247,251,.92);
     }
     .hud-stage-chip {
-      flex-shrink: 0;
+      flex: 0 0 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       padding: 3px 9px;
       border-radius: 999px;
       border: 1px solid rgba(182,156,255,.3);
       background: rgba(124,77,255,.14);
-      font-size: .66rem;
+      font-size: .75rem;
       font-weight: 800;
       color: #cdbcff;
       white-space: nowrap;
@@ -220,7 +240,7 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-metric-label,
     .bar-label {
       color: rgba(232,240,244,.68);
-      font-size: .62rem;
+      font-size: .75rem;
       font-weight: 900;
       letter-spacing: .04em;
       text-transform: uppercase;
@@ -240,22 +260,14 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-patient { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .patient-bars { display: flex; flex-direction: column; gap: 3px; }
     .patient-bar-row { display: grid; grid-template-columns: 68px 56px 34px; align-items: center; gap: 5px; }
-    .bar-label { font-size: .58rem; text-transform: none; letter-spacing: 0; }
-    .bar-value { color: rgba(232,240,244,.58); font-family: 'JetBrains Mono', monospace; font-size: .62rem; text-align: right; }
+    .bar-label { font-size: .75rem; text-transform: none; letter-spacing: 0; }
+    .bar-value { color: rgba(232,240,244,.58); font-family: 'JetBrains Mono', monospace; font-size: .75rem; text-align: right; }
     .mini-track { width: 56px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
     .mini-track span { display: block; height: 100%; border-radius: inherit; transition: width .5s ease, background .5s ease; }
 
     .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
     .hud-scene mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
     .hud-scene span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: rgba(232,240,244,.7); }
-
-    .hud-step {
-      display: flex; align-items: center; gap: 5px; flex-shrink: 0;
-      padding: 4px 8px; border-radius: 8px;
-      background: rgba(79,122,172,.1); border: 1px solid rgba(79,122,172,.2);
-    }
-    .hud-step mat-icon { color: rgba(157,192,232,.85); font-size: 14px; width: 14px; height: 14px; }
-    .hud-step span { font-size: .68rem; font-weight: 700; color: rgba(157,192,232,.85); white-space: nowrap; }
 
     .hud-actions {
       position: relative;
@@ -286,25 +298,40 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .hud-action:active { transform: translateY(1px); }
     .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
     .hud-action mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    /* popover="manual": el menú vive en la capa superior del navegador, por encima de los controles
+       táctiles del mundo (z 48), que si no lo tapaban. Sin soporte de popover se ve igual, fijo y con z-index. */
     .settings-menu {
-      position: absolute;
-      top: calc(100% + 9px);
-      right: 0;
+      position: fixed;
+      inset: auto 8px auto auto;
+      top: var(--hud-menu-top, 53px);
+      margin: 0;
       z-index: 80;
       width: min(280px, calc(100vw - 24px));
+      /* Con las filas de ayuda el menú ya no cabe en un móvil horizontal: se desplaza dentro de sí mismo. */
+      max-height: calc(100vh - var(--hud-menu-top, 53px) - 12px);
+      max-height: calc(100dvh - var(--hud-menu-top, 53px) - 12px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
       display: grid;
       gap: 6px;
       padding: 10px;
       border: 1px solid rgba(182,156,255,.32);
       border-radius: 12px;
-      background: rgba(13,18,30,.96);
+      background: rgb(13,18,30);
       box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
     }
+    /* Fija arriba: en un móvil horizontal el menú se desplaza y el «x» no debe perderse de vista. */
     .settings-menu__header {
+      position: sticky;
+      top: -10px;
+      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 2px 2px 6px;
+      margin: -10px -10px 0;
+      padding: 10px 12px 6px;
+      border-radius: 12px 12px 0 0;
+      background: rgb(13,18,30);
       border-bottom: 1px solid rgba(182,156,255,.16);
       color: #e7ddff;
       font-size: .78rem;
@@ -363,8 +390,20 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
     .settings-menu a strong {
       color: rgba(232,240,244,.55);
       font-family: 'JetBrains Mono', monospace;
-      font-size: .68rem;
+      font-size: .75rem;
       text-align: right;
+    }
+    /* Región viva del menú: anuncia el reinicio de la ayuda sin ocupar sitio. */
+    .settings-menu .settings-menu__status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     @keyframes stress-pulse {
@@ -373,19 +412,48 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
       100% { box-shadow: none; }
     }
 
-    @media (max-width: 960px) {
-      .hud-zone--center { display: none; }
-    }
-    @media (max-width: 640px) {
-      .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
+    /* Sin ancho de sobra primero se va el nombre del caso; después la sala y las barras de la paciente.
+       El chip «Decisión k de 6» se queda siempre: es el único contador. */
+    @media (max-width: 1359px) {
       .hud-zone--case { display: none; }
-      .hud-zone--right { min-width: 0; gap: 6px; }
-      .brand-word { display: none; }
+    }
+    @media (max-width: 960px) {
+      .hud-scene { display: none; }
       .hud-patient { display: none; }
+      /* Sin sala que ceda, el chip puede acortarse antes que recortarse. */
+      .hud-stage-chip { flex-shrink: 1; }
+    }
+    @media (max-width: 720px) {
+      .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
+      .hud-zone--right { min-width: 0; gap: 6px; }
+      .hud-brand { display: none; }
       .hud-metric-label,
       .hud-hearts { display: none; }
       .stress-pct { min-width: 0; }
       .hud-actions { min-width: 0; gap: 4px; padding-left: 6px; }
+    }
+    /* Teléfono en vertical: el catálogo sigue a un toque en Ajustes («Catálogo»). */
+    @media (max-width: 480px) {
+      .hud-action--home { display: none; }
+    }
+    /* Pantallas mínimas (320 px): el contador manda sobre el puntaje. */
+    @media (max-width: 380px) {
+      .hud-score { display: none; }
+    }
+    /* Modo compacto (mismo criterio que el resto del simulador): cabecera de 44 px. */
+    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
+      .hud-strip { height: 44px; }
+      /* Ajustes en dos columnas: las siete filas caben en 390 px de alto sin desplazarse. */
+      .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
+      .settings-menu__header { grid-column: 1 / -1; }
+    }
+    /* Objetivos táctiles de 44 px donde hay dedo (HUD-17): cabecera y menú de Ajustes. */
+    @media (pointer: coarse) {
+      .hud-action { width: 44px; height: 44px; }
+      .hud-action mat-icon { font-size: 22px; width: 22px; height: 22px; }
+      .settings-menu__header button { width: 44px; height: 44px; }
+      .settings-menu > button,
+      .settings-menu > a { min-height: 44px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
@@ -396,9 +464,11 @@ type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 export class SimulationHudComponent {
   readonly attempt = input<SimulationAttemptState | null>(null);
   readonly stressPulse = input(false);
+  /** Sin uso desde que el HUD no pinta el «paso» de la proximidad; se conserva para no romper el enlace de quien integra el HUD, que puede quitarlo. */
   readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
-  readonly stageLabel = input('Escenario actual');
+  /** Contador único del chip central («Decisión k de 6»); lo calcula quien integra el HUD. Sin valor, no hay chip. */
+  readonly stageLabel = input<string | null>(null);
   readonly progressLabel = input('');
   /** Sala física actual (world.map.title); con puertas puede diferir del nodo DAG. */
   readonly locationLabel = input('');
@@ -407,7 +477,15 @@ export class SimulationHudComponent {
   readonly sfxMuted = input(false);
   readonly reduceMotion = input(false);
   readonly settingsOpen = signal(false);
+  /** Sin teclado de por medio: los nombres accesibles y textos de este HUD no prometen atajos (J). */
+  readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  /** Tras «Ver la ayuda otra vez»: lo confirma la fila y una región viva (sin temporizadores). */
+  readonly helpResetDone = signal(false);
   readonly toggleJournal = output<void>();
+  /** Botón «?» de la cabecera y fila «Cómo se juega» de Ajustes: piden abrir la pantalla de ayuda. */
+  readonly openHelp = output<void>();
+  /** «Ver la ayuda otra vez» ya borró la marca de ayuda vista: quien integra puede volver a mostrar la tarjeta de primera vez. */
+  readonly helpReset = output<void>();
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();
@@ -415,6 +493,9 @@ export class SimulationHudComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
+  private readonly settingsMenu = viewChild<ElementRef<HTMLElement>>('settingsMenu');
+  /** Borde superior del menú (px): justo bajo la cabecera, medido al abrirlo porque su alto cambia en compacto. */
+  readonly menuTop = signal(53);
   private stopPointerListener: (() => void) | null = null;
 
   constructor() {
@@ -424,14 +505,48 @@ export class SimulationHudComponent {
       if (this.settingsOpen()) this.listenOutsidePointer();
       else this.unlistenOutsidePointer();
     });
-    inject(DestroyRef).onDestroy(() => this.unlistenOutsidePointer());
+    // El menú se abre en la capa superior (popover) cuando el navegador la ofrece.
+    effect(() => {
+      const menu = this.settingsMenu()?.nativeElement;
+      if (!menu) return;
+      this.menuTop.set(Math.round(this.host.nativeElement.getBoundingClientRect().bottom) + 9);
+      try {
+        menu.showPopover?.();
+      } catch {
+        // Ya estaba abierto o el navegador no admite popover: se queda como menú fijo normal.
+      }
+    });
+    // Un híbrido puede cambiar de puntero principal; la consulta avisa sin escuchar nada de `document`.
+    const stopWatchingPointer = watchMedia(COARSE_POINTER_QUERY, coarse => this.coarsePointer.set(coarse));
+    inject(DestroyRef).onDestroy(() => {
+      this.unlistenOutsidePointer();
+      stopWatchingPointer();
+    });
   }
 
   /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
   closeSettings(restoreFocus = true): void {
     if (!this.settingsOpen()) return;
     this.settingsOpen.set(false);
+    this.helpResetDone.set(false);
     if (restoreFocus) this.settingsTrigger()?.nativeElement.focus();
+  }
+
+  /** Fila «Cómo se juega»: cierra Ajustes sin devolver el foco al engranaje (lo toma la ayuda) y pide abrirla. */
+  showHelp(): void {
+    this.closeSettings(false);
+    this.openHelp.emit();
+  }
+
+  /** Fila «Ver la ayuda otra vez»: olvida que la ayuda de primera vez ya se vio. Solo borra una marca del navegador. */
+  resetHelpMemory(): void {
+    try {
+      localStorage.removeItem(HELP_MEMORY_KEY);
+    } catch {
+      // Almacenamiento bloqueado (modo privado): entonces la marca no se guardaba y no hay nada que borrar.
+    }
+    this.helpResetDone.set(true);
+    this.helpReset.emit();
   }
 
   /** `document` recibe la tecla antes que el `window:keydown` de la partida. Consumirla
@@ -462,13 +577,8 @@ export class SimulationHudComponent {
     this.stopPointerListener = null;
   }
 
-  readonly stressTier = computed<StressTier>(() => {
-    const s = this.attempt()?.stressIndex ?? 0;
-    if (s >= 75) return 'critical';
-    if (s >= 50) return 'high';
-    if (s >= 25) return 'moderate';
-    return 'calm';
-  });
+  /** Tramos de estrés de `stress-tier.util` (umbrales únicos de toda la partida). */
+  readonly stressTier = computed<StressTier>(() => resolveStressTier(this.attempt()?.stressIndex));
 
   readonly hearts = computed<Heart[]>(() => stressToHearts(this.attempt()?.stressIndex ?? 0));
 
@@ -485,15 +595,6 @@ export class SimulationHudComponent {
     high:     'Estrés elevado — considere herramientas de contención',
     critical: 'Nivel crítico — priorice seguridad y autocuidado'
   })[this.stressTier()]);
-
-  readonly sceneProgress = computed(() => {
-    const proximityLabel = getProximityStepHint(this.nearbyInteractionKey());
-    if (proximityLabel) {
-      return { stepLabel: proximityLabel, step: 0, total: 6 };
-    }
-    const nodeKey = this.attempt()?.currentNode.key;
-    return getSceneProgress(nodeKey);
-  });
 
   trustColor(v: number): string {
     if (v >= 60) return '#4fa3a5';

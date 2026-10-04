@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.progression.models import StudentCaseCompletion
-from apps.simulation.models import CaseVersion
+from apps.simulation.models import CaseVersion, DecisionOption
 
 User = get_user_model()
 
@@ -55,7 +55,11 @@ def test_completing_case_records_completion(estudiante, case_version_id):
             break
         options = state["currentNode"]["options"]
         assert options
-        option = next((o for o in options if o["classification"] == "ADEQUATE"), options[0])
+        # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
+        option = next(
+            (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+            options[0],
+        )
         state = c.post(
             f"/api/simulation/attempts/{attempt_id}/decisions",
             {"attemptToken": token, "decisionOptionId": option["id"]},

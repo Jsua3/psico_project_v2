@@ -18,6 +18,13 @@ clasificación legacy, así otros casos siguen funcionando sin registro propio.
 from apps.simulation.models import AttemptWorldState
 from shared.jsonutils import read_map as _read_map, write_map as _write_map
 
+#: Eventos de decisión REGISTRADA: los únicos que cuentan en el reporte y en el
+#: final. La primera respuesta riesgosa/inadecuada de una escena no se aplica
+#: (regla de reintento) y queda como evento *_RETRY_REQUIRED, que se reporta
+#: aparte: contarla contradiría lo que el juego le promete a la persona.
+REGISTERED_DECISION_EVENT_TYPES = ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")
+RETRY_EVENT_TYPES = ("DECISION_RETRY_REQUIRED", "PROHIBITED_DECISION_RETRY_REQUIRED")
+
 SEVERITY_RECOMMENDED = "recommended"
 SEVERITY_ACCEPTABLE = "acceptable"
 SEVERITY_RISKY = "risky"
@@ -286,7 +293,10 @@ def compute_ending(attempt, events):
     if attempt.status != "COMPLETED":
         return None
 
-    decisions = [ev.decision_option for ev in events if ev.decision_option_id]
+    decisions = [
+        ev.decision_option for ev in events
+        if ev.decision_option_id and ev.event_type in REGISTERED_DECISION_EVENT_TYPES
+    ]
     if not decisions:
         return None
     counts = severity_counts(decisions)

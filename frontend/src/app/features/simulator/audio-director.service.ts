@@ -1,12 +1,14 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { Howl, Howler } from 'howler';
 import { FADE_TICK_MS, fadeStep } from './audio-fade.util';
+import { STRESS_TIER_FLOORS, stressTier } from './stress-tier.util';
 
 export type MusicLayer = 'ambient' | 'tension' | 'resolution' | 'crisis';
 export type SoundEffect =
   | 'footstep_tile'
   | 'footstep_wood'
   | 'door_open'
+  | 'item_pickup'
   | 'ui_select'
   | 'ui_confirm'
   | 'ui_cancel'
@@ -20,6 +22,16 @@ interface StemTrack {
   volume: number;
   targetVolume: number;
 }
+
+/**
+ * Con una sola capa de música cargada (hoy solo `ambient`), bajarla o apagarla por el estrés deja el
+ * caso sin música justo en los momentos más tensos: las otras capas no existen para tomar el relevo.
+ * Mientras sea la única, no baja de esta fracción de su volumen.
+ */
+const SINGLE_STEM_AMBIENT_FLOOR = 0.6;
+
+/** Ganancia de efectos concretos respecto al volumen base de los SFX (recoger es un detalle, no un aviso). */
+const SFX_GAIN: Partial<Record<SoundEffect, number>> = { item_pickup: 0.7 };
 
 /** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
  *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la pista. */
@@ -80,6 +92,7 @@ export class AudioDirectorService {
       footstep_tile:    'assets/game/audio/footstep_concrete_000.ogg',
       footstep_wood:    'assets/game/audio/footstep_concrete_001.ogg',
       door_open:        `${base}/switch3.ogg`,
+      item_pickup:      `${base}/rollover5.ogg`,
       ui_select:        `${base}/rollover1.ogg`,
       ui_confirm:       `${base}/click1.ogg`,
       ui_cancel:        `${base}/mouserelease1.ogg`,
@@ -92,7 +105,7 @@ export class AudioDirectorService {
     for (const [key, src] of Object.entries(sfxFiles) as [SoundEffect, string][]) {
       this.sfx.set(key, new Howl({
         src: [src],
-        volume: this.sfxVolume,
+        volume: this.sfxVolume * (SFX_GAIN[key] ?? 1),
         mute: this.sfxMuted,
         preload: true,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] SFX error ${src}:`, err),
@@ -129,27 +142,34 @@ export class AudioDirectorService {
   setStressLevel(stress: number): void {
     if (!this.initialized || this.stems.size === 0) return;
 
-    if (stress <= 30) {
-      this.setTargetVolume('ambient', 1.0);
-      this.setTargetVolume('tension', 0);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else if (stress <= 60) {
-      const t = (stress - 30) / 30;
-      this.setTargetVolume('ambient', 1.0 - t * 0.5);
-      this.setTargetVolume('tension', t);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else if (stress <= 85) {
-      this.setTargetVolume('ambient', 0.2);
-      this.setTargetVolume('tension', 1.0);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else {
-      this.setTargetVolume('ambient', 0);
-      this.setTargetVolume('tension', 0.3);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 1.0);
+    // Los tramos salen de stress-tier.util (umbrales únicos); aquí solo se decide qué capa suena en cada uno.
+    switch (stressTier(stress)) {
+      case 'calm':
+        this.setAmbientTarget(1.0);
+        this.setTargetVolume('tension', 0);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      case 'moderate': {
+        const t = (stress - STRESS_TIER_FLOORS.moderate) / (STRESS_TIER_FLOORS.high - STRESS_TIER_FLOORS.moderate);
+        this.setAmbientTarget(1.0 - t * 0.5);
+        this.setTargetVolume('tension', t);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      }
+      case 'high':
+        this.setAmbientTarget(0.2);
+        this.setTargetVolume('tension', 1.0);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      case 'critical':
+        this.setAmbientTarget(0);
+        this.setTargetVolume('tension', 0.3);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 1.0);
+        break;
     }
 
     this.stems.forEach(stem => {
@@ -161,7 +181,7 @@ export class AudioDirectorService {
     if (!this.initialized || this.stems.size === 0) return;
     const res = this.stems.get('resolution');
     if (res?.howl.playing()) return; // evita restart en llamadas múltiples
-    this.setTargetVolume('ambient', 0.3);
+    this.setAmbientTarget(0.3);
     this.setTargetVolume('tension', 0);
     this.setTargetVolume('resolution', 1.0);
     this.setTargetVolume('crisis', 0);
@@ -243,6 +263,11 @@ export class AudioDirectorService {
     this.stems.clear();
     this.sfx.clear();
     this.initialized = false;
+  }
+
+  /** Volumen pedido a `ambient`, con el piso de {@link SINGLE_STEM_AMBIENT_FLOOR} mientras sea la única capa. */
+  private setAmbientTarget(wanted: number): void {
+    this.setTargetVolume('ambient', this.stems.size === 1 ? Math.max(wanted, SINGLE_STEM_AMBIENT_FLOOR) : wanted);
   }
 
   private setTargetVolume(layer: MusicLayer, vol: number): void {

@@ -20,7 +20,28 @@ async function requireOk(response: Response, context: string): Promise<void> {
   throw new Error(`${context}: HTTP ${response.status()} ${response.url()} — ${body}`);
 }
 
-export async function loginStudent(page: Page): Promise<void> {
+/** Clave y valor con que el juego recuerda que ya se mostró la ayuda de primera vez. */
+const HELP_MEMORY_KEY = 'siep.ayuda.v1';
+const HELP_MEMORY_SEEN = JSON.stringify({ v: 1, vistas: ['primero'] });
+
+/**
+ * La tarjeta «Cómo se juega» de primera vez aparece en cada contexto de
+ * navegador nuevo (cada test de Playwright) y cubre parte del mundo. Se marca
+ * como vista con addInitScript, antes de que cargue cualquier página, y también
+ * en la página ya abierta. Los tests que SÍ prueban la ayuda de primera vez
+ * llaman a loginStudent(page, { seedHelp: false }).
+ */
+export async function markFirstTimeHelpSeen(page: Page): Promise<void> {
+  await page.addInitScript(([key, value]) => {
+    try { window.localStorage.setItem(key, value); } catch { /* almacenamiento bloqueado */ }
+  }, [HELP_MEMORY_KEY, HELP_MEMORY_SEEN]);
+  await page.evaluate(([key, value]) => {
+    try { window.localStorage.setItem(key, value); } catch { /* almacenamiento bloqueado */ }
+  }, [HELP_MEMORY_KEY, HELP_MEMORY_SEEN]).catch(() => undefined);
+}
+
+export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+  if (options.seedHelp !== false) await markFirstTimeHelpSeen(page);
   if (!/\/login$/.test(new URL(page.url()).pathname)) await page.goto('/login');
   await page.locator('input[type="email"]').last().fill(EMAIL);
   await page.locator('input[type="password"]').last().fill(PASSWORD);
@@ -55,6 +76,51 @@ export async function finishCaseIntroduction(page: Page, introVideo: Locator): P
   return caseIntro;
 }
 
+/**
+ * Login → lobby → aviso de contenido → introducción → contexto → mundo listo,
+ * con un intento nuevo. `seedHelp: false` deja que aparezca la ayuda de primera vez.
+ */
+export async function enterWorld(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+  await page.goto('/login');
+  await loginStudent(page, options);
+  await page.goto('/portal/jugar');
+  await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: scaled(30_000) });
+  const consent = await enterCaseAtContentWarning(page);
+  const introVideo = await acceptContentWarning(page, consent);
+  const caseIntro = await finishCaseIntroduction(page, introVideo);
+  await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+  await waitForWorldReady(page);
+}
+
+/** Tamaño real del canvas de Phaser en pantalla (AC-5: debe recuperarse al cerrar un diálogo). */
+export async function canvasSize(page: Page): Promise<{ width: number; height: number }> {
+  const box = await page.locator('app-game-world canvas').boundingBox();
+  if (!box) throw new Error('El canvas del mundo no está en pantalla');
+  return { width: box.width, height: box.height };
+}
+
+/** Tarjeta «Qué hacer»: su sección lleva data-next-step (id del siguiente paso) y data-stage. */
+export function checklistCard(page: Page): Locator {
+  return page.locator('app-scene-checklist-card section.checklist');
+}
+
+/** Lo que dice la tarjeta «Qué hacer» sin depender de que esté desplegada: etapa, siguiente paso y su sala. */
+export async function readSceneLog(page: Page): Promise<{ stage: number | null; nextStep: string | null; nextRoom: string | null }> {
+  const card = checklistCard(page);
+  const [stage, nextStep, nextRoom] = await Promise.all([
+    card.getAttribute('data-stage'),
+    card.getAttribute('data-next-step'),
+    card.getAttribute('data-next-room'),
+  ]);
+  return { stage: stage === null ? null : Number(stage), nextStep, nextRoom };
+}
+
+/** La tarjeta «Qué hacer» señala stepId (p. ej. 'u1-recoger') como el siguiente paso. */
+export async function expectNextStep(page: Page, stepId: string): Promise<void> {
+  await expect(checklistCard(page), `El siguiente paso de «Qué hacer» debería ser ${stepId}`)
+    .toHaveAttribute('data-next-step', stepId, { timeout: scaled(15_000) });
+}
+
 export async function waitForWorldReady(page: Page, expectedMapKey?: string): Promise<void> {
   const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
   await expect(host).toBeVisible({ timeout: scaled(45_000) });
@@ -79,15 +145,38 @@ export async function readPlayerPosition(page: Page): Promise<{ x: number; y: nu
   return { x: Number(x), y: Number(y) };
 }
 
-function nearbyAction(page: Page, label: RegExp): Locator {
-  const primaryLabel = page.locator('strong').filter({ hasText: label });
-  return page.locator('button.context-bar__interaction').filter({ has: primaryLabel });
+/**
+ * Botón de la barra contextual cuyo verbo+nombre casa con label. La barra tiene
+ * un principal y, con dos candidatos a la vez, un secundario («También: …») que
+ * también es `button.context-bar__interaction`: el nombre decide cuál es, y
+ * `.first()` evita el modo estricto si dos coincidieran.
+ */
+export function nearbyAction(page: Page, label: RegExp): Locator {
+  const named = page.locator('strong').filter({ hasText: label });
+  return page.locator('button.context-bar__interaction').filter({ has: named }).first();
+}
+
+/** Solo el botón PRINCIPAL de la barra (el que actúa con la tecla E). */
+export function primaryNearbyAction(page: Page): Locator {
+  return page.locator('button.context-bar__interaction:not(.context-bar__interaction--secondary)');
+}
+
+/** Línea «Ahora: …» del pie (`.context-bar__now`). */
+export function nowLine(page: Page): Locator {
+  return page.locator('.context-bar__now');
 }
 
 export interface WorldInputDriver {
   readonly mode: SiepInputMode;
-  /** timeout: plazo base en ms (se escala con E2E_TIME_SCALE). */
-  moveUntilNearby(key: MovementKey, label: RegExp, timeout?: number): Promise<Locator>;
+  /**
+   * Camina hasta que la barra contextual ofrece una interacción cuyo verbo y
+   * nombre casan con label (el principal o el secundario). `key` puede ser un
+   * rumbo de varias teclas: se pulsan en ciclo (['ArrowRight', 'ArrowRight',
+   * 'ArrowUp'] avanza dos tramos a la derecha por cada uno hacia arriba), de modo
+   * que se llega a un destino en diagonal sin conocer su posición en píxeles.
+   * timeout: plazo base en ms (se escala con E2E_TIME_SCALE).
+   */
+  moveUntilNearby(key: MovementKey | readonly MovementKey[], label: RegExp, timeout?: number): Promise<Locator>;
   /**
    * Desplaza al jugador ~distancePx en la dirección de key, en lazo cerrado
    * sobre su posición real (data-player-x/y): no depende de los fps del
@@ -170,10 +259,11 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
   };
 
   const moveUntilNearby = async (
-    key: MovementKey,
+    heading: MovementKey | readonly MovementKey[],
     label: RegExp,
     timeout = 20_000,
   ): Promise<Locator> => {
+    const keys: readonly MovementKey[] = typeof heading === 'string' ? [heading] : heading;
     const action = nearbyAction(page, label);
     if (await action.isVisible().catch(() => false)) return action;
 
@@ -183,12 +273,14 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     // sobrepasar un marcador y el botón contextual cambiar de objetivo antes
     // del clic. Sin lecturas de posición por ciclo: cada ida y vuelta al
     // navegador es cara en el CI sin GPU.
-    const control = mode === 'touch' ? touchControl(key) : null;
-    if (control) await expect(control).toBeVisible();
+    if (mode === 'touch') {
+      for (const key of new Set(keys)) await expect(touchControl(key)).toBeVisible();
+    }
     const deadline = Date.now() + scaled(timeout);
-    while (Date.now() < deadline && !(await action.isVisible().catch(() => false))) {
-      if (control) {
-        await tap(control);
+    for (let pulse = 0; Date.now() < deadline && !(await action.isVisible().catch(() => false)); pulse += 1) {
+      const key = keys[pulse % keys.length];
+      if (mode === 'touch') {
+        await tap(touchControl(key));
         continue;
       }
       await page.keyboard.down(key);
@@ -201,7 +293,7 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
     if (!(await action.isVisible().catch(() => false))) {
       const at = await readPlayerPosition(page).catch(() => null);
       const where = at ? ` (jugador en x=${at.x}, y=${at.y})` : '';
-      const how = mode === 'keyboard' ? `moviendo ${key}` : `con el control ${key}`;
+      const how = mode === 'keyboard' ? `moviendo ${keys.join('/')}` : `con el control ${keys.join('/')}`;
       await expect(action, `No se alcanzó la interacción ${label} ${how}${where}`)
         .toBeVisible({ timeout: scaled(1_000) });
     }
@@ -238,6 +330,96 @@ export function createWorldInputDriver(page: Page, mode: SiepInputMode): WorldIn
       await control.tap();
     },
   };
+}
+
+const EXPLORE_BUDGET_MS = 45_000;
+/** Largo de cada empujón del barrido: muy por debajo del radio de interacción (72-74 px). */
+const EXPLORE_STEP_PX = 36;
+/** Separación entre pasillos del barrido (menos que el doble del radio de interacción). */
+const EXPLORE_LANE_PX = 56;
+const OPPOSITE_KEY: Record<MovementKey, MovementKey> = {
+  ArrowUp: 'ArrowDown',
+  ArrowDown: 'ArrowUp',
+  ArrowLeft: 'ArrowRight',
+  ArrowRight: 'ArrowLeft',
+};
+
+/**
+ * Busca una interacción por su nombre SIN conocer dónde está: barre la sala en
+ * pasillos (a un lado hasta chocar, un pasillo hacia arriba, de vuelta) en lazo
+ * cerrado con data-player-x/y y se detiene en cuanto la barra ofrece label. Si
+ * una persona o un objeto de la ruta no se alcanza dentro del plazo, falla: es
+ * también la prueba de alcanzabilidad real.
+ */
+export async function exploreUntilNearby(
+  page: Page,
+  input: WorldInputDriver,
+  label: RegExp,
+  timeout = EXPLORE_BUDGET_MS,
+): Promise<Locator> {
+  const action = nearbyAction(page, label);
+  const found = () => action.isVisible().catch(() => false);
+  if (await found()) return action;
+
+  const advanced = async (key: MovementKey, distancePx: number): Promise<boolean> => {
+    const before = await readPlayerPosition(page);
+    await input.moveBy(key, distancePx);
+    const after = await readPlayerPosition(page);
+    return Math.abs(after.x - before.x) + Math.abs(after.y - before.y) >= 4;
+  };
+
+  const budgetMs = scaled(timeout);
+  const deadline = Date.now() + budgetMs;
+  let horizontal: MovementKey = 'ArrowRight';
+  let vertical: MovementKey = 'ArrowUp';
+  let stuckLanes = 0;
+  while (Date.now() < deadline && stuckLanes < 4) {
+    // Un pasillo: se avanza hasta chocar con una pared o un mueble.
+    let steps = 0;
+    while (Date.now() < deadline && !(await found())) {
+      if (!(await advanced(horizontal, EXPLORE_STEP_PX))) break;
+      steps += 1;
+    }
+    if (await found()) return action;
+    // Sin avanzar nada es una pared: se invierte el sentido. Si antes se avanzó, era un
+    // mueble a mitad del pasillo y se rodea cambiando de pasillo en el MISMO sentido.
+    if (steps === 0) horizontal = OPPOSITE_KEY[horizontal];
+    if (await advanced(vertical, EXPLORE_LANE_PX)) {
+      stuckLanes = 0;
+    } else {
+      // Tope arriba/abajo: el barrido sigue hacia el otro lado.
+      vertical = OPPOSITE_KEY[vertical];
+      stuckLanes += (await advanced(vertical, EXPLORE_LANE_PX)) ? 0 : 1;
+    }
+    if (await found()) return action;
+  }
+  const at = await readPlayerPosition(page).catch(() => null);
+  const where = at ? ` (jugador en x=${at.x}, y=${at.y})` : '';
+  await expect(action, `No se alcanzó ${label} explorando la sala durante ${budgetMs / 1000} s${where}`)
+    .toBeVisible({ timeout: scaled(1_000) });
+  return action;
+}
+
+/** Plazo base del rumbo aproximado de reachNearby antes de pasar al barrido de la sala. */
+const HEADING_BUDGET_MS = 10_000;
+
+/**
+ * Llega a una interacción por su nombre: primero con un rumbo aproximado
+ * (moveUntilNearby en diagonal, rápido) y, si el jugador se pasa de largo o choca
+ * con algo antes de que la barra la ofrezca, barriendo la sala (exploreUntilNearby).
+ * Así el recorrido no depende de en qué punto exacto reaparece el jugador.
+ */
+export async function reachNearby(
+  page: Page,
+  input: WorldInputDriver,
+  heading: MovementKey | readonly MovementKey[],
+  label: RegExp,
+): Promise<Locator> {
+  try {
+    return await input.moveUntilNearby(heading, label, HEADING_BUDGET_MS);
+  } catch {
+    return exploreUntilNearby(page, input, label);
+  }
 }
 
 const isWorldStatePatch = (response: Response) =>
@@ -375,11 +557,31 @@ export async function reloadAndResumeAttempt(
   return { activeAttempt, resumedAttempt, world };
 }
 
+/**
+ * Espera a que el jugador deje de moverse (misma posición en dos lecturas separadas por
+ * quietMs). Con el toque, un empujón puede seguir caminando unos cuadros tras soltar y la
+ * barra contextual cambia de botón mientras tanto: pulsar en ese instante reintenta el clic
+ * sobre un botón que se desmonta. Si el jugador nunca se detiene falla con un mensaje claro
+ * (un movimiento atascado es un defecto real del producto, no se oculta).
+ */
+export async function waitUntilPlayerStill(page: Page, quietMs = 300, timeout = 6_000): Promise<void> {
+  const deadline = Date.now() + scaled(timeout);
+  let previous = await readPlayerPosition(page);
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(quietMs);
+    const current = await readPlayerPosition(page);
+    if (current.x === previous.x && current.y === previous.y) return;
+    previous = current;
+  }
+  throw new Error(`El jugador no se detiene (último punto x=${previous.x}, y=${previous.y})`);
+}
+
 export async function interactNearby(
   page: Page,
   label: RegExp,
   responseUrl: RegExp,
 ): Promise<ApiData> {
+  await waitUntilPlayerStill(page);
   const action = nearbyAction(page, label);
   await expect(action, `Interacción visible requerida: ${label}`).toBeVisible();
   const responsePromise = page.waitForResponse(response =>
@@ -397,6 +599,7 @@ export async function enterDoor(
   label: RegExp,
   expectedMapKey: string,
 ): Promise<ApiData> {
+  await waitUntilPlayerStill(page);
   const action = nearbyAction(page, label);
   await expect(action, `Puerta visible requerida: ${label}`).toBeVisible();
   const responsePromise = page.waitForResponse(response =>
@@ -458,7 +661,17 @@ export async function seekNpcDialogue(
       return finishNpcInteraction();
     }
 
-    await input.interact();
+    // E (o el botón táctil) actúa sobre el candidato PRINCIPAL. Con dos personas a la vez
+    // (la enfermera y el médico de guardia) la buscada puede ser la secundaria («También: …»):
+    // entonces se pulsa su propio botón en vez de abrir la conversación de la otra.
+    const named = nearbyAction(page, npcName);
+    const namedIsSecondary = await named.evaluate(
+      el => el.classList.contains('context-bar__interaction--secondary'),
+      undefined,
+      { timeout: scaled(500) },
+    ).catch(() => false);
+    if (namedIsSecondary) await named.click({ timeout: scaled(2_000) }).catch(() => undefined);
+    else await input.interact();
     const observed = await Promise.race([
       responsePromise.then(() => 'response' as const),
       requestPromise.then(() => 'request' as const),
@@ -507,7 +720,8 @@ export async function closeDialogue(page: Page, dialogueName: RegExp): Promise<v
       if (await dialogue.isHidden().catch(() => false)) {
         return;
       }
-      const close = dialogue.getByRole('button', { name: /cerrar diálogo/i });
+      // «Continuar» (antes «Cerrar diálogo (Esc)»): el último botón de cada diálogo.
+      const close = dialogue.getByRole('button', { name: /continuar|cerrar diálogo/i });
       if (!(await visible(close))) continue;
     }
     if (await dialogue.isHidden().catch(() => false)) {
@@ -562,7 +776,9 @@ export async function useToolChoice(
 }
 
 export async function openFamilyDialogue(page: Page, touch: boolean): Promise<Locator> {
-  const familyAction = page.getByRole('button', { name: /interactuar:.*familia en crisis/i });
+  // En táctil el nombre «Interactuar: Hablar con …» lo llevan DOS botones (la
+  // barra y .touch-interact): se acota a la barra contextual.
+  const familyAction = nearbyAction(page, /familia en crisis/i);
   if (touch) {
     const moveRight = page.getByRole('button', { name: /mover derecha/i });
     const moveLeft = page.getByRole('button', { name: /mover izquierda/i });

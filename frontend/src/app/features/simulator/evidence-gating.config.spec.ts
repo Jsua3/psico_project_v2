@@ -1,5 +1,8 @@
 import { SimulationWorldState } from '../../core/models/simulation.model';
-import { NODE_EVIDENCE, choiceEvidence, mergeEvidence, missingEvidence, nodeEvidence, toolUsed, unlockedExtraLines } from './evidence-gating.config';
+import {
+  NODE_EVIDENCE, choiceEvidence, collectViewedNpcKeys, isToolUsed, mergeEvidence, missingEvidence,
+  missingEvidenceItems, nodeEvidence, toolUsed, unlockedExtraLines,
+} from './evidence-gating.config';
 
 function worldWith(partial: Partial<SimulationWorldState>): SimulationWorldState {
   return {
@@ -85,5 +88,61 @@ describe('evidence-gating.config', () => {
     const merged = mergeEvidence(nodeEvidence('hospital-urgencias'), def)!;
     expect(merged.tools).toEqual(['RISK_METER']);
     expect(merged.usedTools).toEqual(['PAP']);
+  });
+});
+
+describe('evidence-gating.config: lo que falta, estructurado', () => {
+  it('missingEvidenceItems distingue TENER (toolOwned) de USAR (toolUsed) y conserva el orden', () => {
+    const def = nodeEvidence('hospital-urgencias')!;
+    expect(missingEvidenceItems(def, worldWith({}), new Set())).toEqual([
+      { kind: 'npc', key: 'enfermera-urgencias' },
+      { kind: 'toolUsed', key: 'PAP' },
+    ]);
+    // tener la herramienta no basta para la compuerta de «usar»
+    expect(missingEvidenceItems(def, worldWith({ inventory: ['PAP'] }), new Set(['enfermera-urgencias'])))
+      .toEqual([{ kind: 'toolUsed', key: 'PAP' }]);
+    const spikes = nodeEvidence('hospital-accion-etica')!;
+    expect(missingEvidenceItems(spikes, worldWith({}), new Set())).toEqual([{ kind: 'toolOwned', key: 'SPIKES' }]);
+    expect(missingEvidenceItems(spikes, worldWith({ inventory: ['SPIKES'] }), new Set())).toEqual([]);
+  });
+
+  it('missingEvidenceItems incluye lo revisado y respeta el mundo nulo o la definición nula', () => {
+    const def = { inspected: ['expediente-caso'], missingMessage: '' };
+    expect(missingEvidenceItems(def, worldWith({}), new Set())).toEqual([{ kind: 'inspected', key: 'expediente-caso' }]);
+    expect(missingEvidenceItems(def, worldWith({ inspectedObjectKeys: ['expediente-caso'] }), new Set())).toEqual([]);
+    expect(missingEvidenceItems(null, worldWith({}), new Set())).toEqual([]);
+    expect(missingEvidenceItems(def, null, new Set())).toEqual([]);
+  });
+
+  it('las personas habladas salen de la señal del componente y de flags.viewedNpcKeys del servidor', () => {
+    const def = nodeEvidence('hospital-urgencias')!;
+    const persisted = worldWith({ usedToolKeys: ['PAP'], flags: { viewedNpcKeys: ['enfermera-urgencias', 7, ''] } });
+    expect(missingEvidenceItems(def, persisted, new Set())).toEqual([]);
+    expect([...collectViewedNpcKeys(persisted, new Set(['otra']))].sort()).toEqual(['enfermera-urgencias', 'otra']);
+    expect([...collectViewedNpcKeys(null, new Set(['a']))]).toEqual(['a']);
+  });
+
+  it('missingEvidence se conserva idéntico (cadenas npc:/tool:/inspected:) sobre la nueva base', () => {
+    const def = { npcs: ['n'], usedTools: ['U'], tools: ['T'], inspected: ['i'], missingMessage: '' };
+    expect(missingEvidence(def, worldWith({}), new Set())).toEqual(['npc:n', 'tool:U', 'tool:T', 'inspected:i']);
+  });
+
+  it('isToolUsed reconoce el uso persistido con o sin objetivo', () => {
+    expect(isToolUsed(['PAP'], 'PAP')).toBe(true);
+    expect(isToolUsed(['PAP@familia-crisis'], 'PAP')).toBe(true);
+    expect(isToolUsed(['PAPA@x'], 'PAP')).toBe(false);
+    expect(isToolUsed([], 'PAP')).toBe(false);
+  });
+
+  it('los mensajes de respaldo llevan tilde y no nombran técnicas (límite de producto 1)', () => {
+    const fallback = choiceEvidence({
+      key: 'c', text: 't', decisionOptionId: 1, requiredToolCode: 'PAP', effect: {},
+    })!;
+    expect(fallback.missingMessage).toMatch(/^Información insuficiente:/);
+    for (const def of [...Object.values(NODE_EVIDENCE), fallback]) {
+      expect(def.missingMessage).toMatch(/^Información insuficiente: /);
+      expect(def.missingMessage).not.toMatch(/PAP|SPIKES|EPICEE|RISK_METER|Primeros Auxilios|valoraci[oó]n/i);
+      expect(def.missingMessage).not.toMatch(/\binformacion\b/i);
+    }
   });
 });
