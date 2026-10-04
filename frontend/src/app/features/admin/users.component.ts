@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -226,6 +226,7 @@ interface UserFormValue {
     />
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .admin-users { display: grid; gap: 18px; }
     .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

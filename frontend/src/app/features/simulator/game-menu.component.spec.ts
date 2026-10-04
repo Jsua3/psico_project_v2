@@ -13,7 +13,7 @@ jest.mock('phaser', () => ({
   },
 }));
 
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
@@ -110,6 +110,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
 @Component({
   selector: 'app-game-help',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: '<button type="button" class="stub-close" (click)="closed.emit()">Cerrar ayuda</button>',
 })
 class GameHelpStubComponent {

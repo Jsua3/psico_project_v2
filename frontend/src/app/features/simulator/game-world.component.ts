@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
@@ -2805,6 +2805,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         (click)="interactNearest()"><mat-icon aria-hidden="true">touch_app</mat-icon><span class="touch-interact__label">{{ interactLabel() ?? 'Acércate a algo' }}</span></button>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }

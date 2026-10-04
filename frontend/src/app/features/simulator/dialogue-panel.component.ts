@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
@@ -147,6 +147,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .dialogue-strip {
       width: 100%;

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
@@ -176,6 +176,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .hud-shell {
       display: flex;

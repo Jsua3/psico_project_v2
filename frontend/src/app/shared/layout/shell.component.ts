@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -153,6 +153,7 @@ interface NavItem {
       </mat-sidenav-content>
     </mat-sidenav-container>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .portal-shell {
       min-height: 100vh;

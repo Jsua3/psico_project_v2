@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -454,6 +454,7 @@ const CASE_INTRO_PARAGRAPHS = [
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .game-container {

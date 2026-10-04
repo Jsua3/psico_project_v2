@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -193,6 +193,7 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
       </div>
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .rubrics-page { display: grid; gap: 16px; }
     .rubrics-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }

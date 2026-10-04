@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -170,6 +170,7 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
       }
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .sim-catalog {
       display: grid;

@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -121,7 +121,8 @@ function writeInputSignal<T>(inputSignal: () => T, value: T): void {
 const source = readFileSync(join(__dirname, 'attempt-outcome.component.ts'), 'utf-8');
 
 /** El avatar real exige entradas `input.required` que ts-jest no registra: se sustituye por un doble. */
-@Component({ selector: 'app-avatar-figure', standalone: true, template: '' })
+@Component({ selector: 'app-avatar-figure', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '' })
 class AvatarFigureStubComponent {
   @Input() config: unknown;
   @Input() portrait = false;

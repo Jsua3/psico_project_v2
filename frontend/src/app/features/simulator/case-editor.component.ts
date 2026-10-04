@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -537,6 +537,7 @@ type EditorPanel =
       (confirm)="runConfirm()"
     />
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .editor-page { display: grid; gap: 18px; }
     .editor-hero {

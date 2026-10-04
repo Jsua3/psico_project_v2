@@ -1,6 +1,6 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { AsyncPipe, NgClass } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 import { NotificationMessage, NotificationService } from '../../core/notifications/notification.service';
@@ -9,6 +9,7 @@ import { NotificationMessage, NotificationService } from '../../core/notificatio
   selector: 'app-notification-host',
   standalone: true,
   imports: [AsyncPipe, NgClass, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="siep-notifications" aria-label="Mensajes del sistema">
       @for (message of notifications.messages$ | async; track message.id) {

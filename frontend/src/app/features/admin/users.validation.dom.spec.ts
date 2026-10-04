@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -35,7 +35,8 @@ const solicitud = {
 // ts-jest no aplica la transformación JIT de Angular a los inputs con signals
 // (NG0303 al enlazar `[open]`, `[title]`...). El diálogo de confirmación no
 // interviene en el formulario, así que se sustituye por un doble con @Input.
-@Component({ selector: 'app-confirm-dialog', standalone: true, template: '' })
+@Component({ selector: 'app-confirm-dialog', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '' })
 class ConfirmDialogStub {
   @Input() open = false;
   @Input() title = '';

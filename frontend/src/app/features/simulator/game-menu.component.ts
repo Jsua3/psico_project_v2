@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, ViewChild, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -295,6 +295,7 @@ class ClinicMenuScene extends Phaser.Scene {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .menu-root { position: fixed; inset: 0; overflow: hidden; background: #0a0f14; }

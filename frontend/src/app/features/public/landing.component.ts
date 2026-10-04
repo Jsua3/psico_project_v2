@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { APP_BRAND } from '../../core/config/brand.config';
@@ -42,6 +42,7 @@ interface EthicsItem {
   standalone: true,
   imports: [CommonModule, RouterLink, MatIconModule, SiepParticleLayerComponent],
   templateUrl: './landing.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './landing.component.scss'
 })
 export class LandingComponent {
