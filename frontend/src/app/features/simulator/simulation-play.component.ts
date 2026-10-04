@@ -2359,6 +2359,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private pauseCurrentAttempt(): void {
+    // Ya hay una pausa en camino (el plazo se adelantó a la sincronización de la posición, que responde tarde): no se repite.
+    if (this.pauseSent) return;
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') {
       this.endPausing();

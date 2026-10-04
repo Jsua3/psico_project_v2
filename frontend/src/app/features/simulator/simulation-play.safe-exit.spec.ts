@@ -335,6 +335,8 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
     it('si la sincronización de la posición queda colgada, el plazo envía la pausa sin esperarla', () => {
       // Hay una posición pendiente: `startQueuedPause` primero la guarda y esa petición nunca responde.
+      const sync = new Subject<unknown>();
+      sim['updateWorldState'].mockReturnValue(sync);
       (component as unknown as { lastPosition: { x: number; y: number } }).lastPosition = { x: 120, y: 340 };
       component.world.set({ map: { key: 'hospital-urgencias' }, objects: [], tools: [], inventory: [], flags: {} } as never);
 
@@ -347,6 +349,12 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(component.pausingSlow()).toBe(true);
+
+      // La sincronización de la posición responde tarde: ya no repite la pausa.
+      sync.next({});
+      sync.complete();
+
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
     it('la respuesta tardía de una decisión no pisa el estado de una pausa ya registrada', () => {
