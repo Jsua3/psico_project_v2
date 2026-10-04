@@ -1,5 +1,7 @@
 # Backlog ejecutable: SIEP SIM-VBG-001 (orientación, interacción y sensación de juego)
 
+> **Estado (2026-10-04):** ejecutado casi todo salvo T9.12 (decisión en dos tiempos), el informe de grupo/CSV con reintentos y los carriles de H T11/T13/T15. Qué se hizo, qué no y las preguntas abiertas: [`docs/audits/2026-10-04-informe-sesion-jugabilidad.md`](../../audits/2026-10-04-informe-sesion-jugabilidad.md).
+
 Diseño de referencia: `design/FINAL.md` (las secciones se citan como «F§n»). Base: `master` @ `51d1409`. Estimaciones mías, sin calibrar (S < 0,5 d, M 0,5-2 d, L > 2 d).
 
 Este backlog se ejecuta por **pistas** con archivos exclusivos. Si dos pistas tocan el mismo archivo, van en secuencia (`depends_on`). Los tres archivos grandes (`game-world.component.ts`, `simulation-play.component.ts`, `simulation-hud.component.ts`) tienen un dueño a la vez; la lógica nueva va en archivos nuevos con spec.

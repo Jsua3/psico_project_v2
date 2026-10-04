@@ -1,5 +1,7 @@
 # SIEP SIM-VBG-001: diseño final de orientación, interacción y sensación de juego
 
+> **Estado (2026-10-04):** ejecutado casi todo salvo T9.12 (decisión en dos tiempos), el informe de grupo/CSV con reintentos y los carriles de H T11/T13/T15. Qué se hizo, qué no y las preguntas abiertas: [`docs/audits/2026-10-04-informe-sesion-jugabilidad.md`](../../audits/2026-10-04-informe-sesion-jugabilidad.md).
+
 Fecha: 2026-10-03. Código medido: `master` @ `51d1409`. Este documento es el DISEÑO FINAL elegido por el juez-sintetizador a partir de los tres diseños (`design/minimal.md`, `design/guided.md`, `design/questlog.md`), los siete informes (`reports/`) y una verificación propia en el código. El backlog ejecutable por pistas está en `design/BACKLOG.md`.
 
 Convenciones: `archivo:línea` fue leído hoy. «(inferencia)» = deducido por lectura, no ejecutado. Esfuerzo S < 0,5 d, M 0,5-2 d, L > 2 d. Todas las estimaciones son mías y no están calibradas con histórico.
