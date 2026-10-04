@@ -296,6 +296,9 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await waitForWorldReady(page);
 
       // Recorrido de H1 hasta la puerta de la sala de escucha (mismo camino que el test de supervisión, sin sus pausas previas).
+      // Desde el punto de salida se camina a la izquierda hasta la Familia en crisis y el kit queda a unos pasos a la derecha:
+      // barrer la sala desde el punto de salida sin ese rumbo dependía de por dónde pasaban los pasillos del barrido.
+      await input.moveUntilNearby('ArrowLeft', /familia en crisis/i);
       await exploreUntilNearby(page, input, /kit pap/i);
       await interactNearby(page, /kit pap/i, /\/interactions\/tool-pap$/);
       await input.moveUntilNearby('ArrowLeft', /familia en crisis/i);
