@@ -73,7 +73,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
               <div class="context-block">
                 <p class="context-title">Trazabilidad</p>
                 <ol>
-                  @for (stage of timeline(); track stage) {
+                  @for (stage of timeline(); track $index) {
                     <li>{{ stage }}</li>
                   }
                 </ol>

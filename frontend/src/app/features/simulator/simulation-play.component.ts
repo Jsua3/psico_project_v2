@@ -1426,6 +1426,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private pauseDeadlineTimer: number | null = null;
   /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
   private pauseSent = false;
+  /** Tras pausar se recarga el mundo (dos GET encadenados) y `busy()` sigue activo hasta que termina. */
+  private worldReloadPending = false;
+  /** «Reanudar» pulsado durante esa recarga: se ejecuta al terminar en vez de descartarse en silencio. */
+  private resumeQueued = false;
   private stopCompactWatch: (() => void) | null = null;
   /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
   private pendingStage: { title: string; previousNumber: number | null } | null = null;
@@ -1525,7 +1529,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
   resumeCurrentAttempt(): void {
     const current = this.attempt();
-    if (!current || current.status !== 'PAUSED' || this.busy()) return;
+    if (!current || current.status !== 'PAUSED') return;
+    if (this.busy()) {
+      // La pausa recarga el mundo y la tarjeta «Reanudar» aparece antes de que termine: ese toque
+      // no se pierde, queda encolado y se atiende al liberar `busy()` (ver `finishWorldReload`).
+      if (this.worldReloadPending) this.resumeQueued = true;
+      return;
+    }
     this.busy.set(true);
     this.simulationService.resumeAttempt(current.attemptId, current.attemptToken).subscribe({
       next: attempt => {
@@ -2381,6 +2391,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
         // la bitácora reaparecería al reanudar.
         this.clearTransientOverlays();
+        this.worldReloadPending = true;
         this.loadWorld(updated);
       },
       error: () => {
@@ -2633,6 +2644,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: world => this.applyWorldWithScenario(world),
       error: () => {
         this.error.set('No pudimos cargar el mapa del caso.');
+        this.worldReloadPending = false;
+        this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
         this.supervisionHold.set(false);
         this.pendingDecisionImpact = null;
@@ -2659,6 +2672,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.applyLoadedWorld(world);
       },
     });
+  }
+
+  /** Termina la recarga del mundo tras una pausa y atiende el «Reanudar» que llegó mientras tanto. */
+  private finishWorldReload(): void {
+    const resume = this.resumeQueued;
+    this.worldReloadPending = false;
+    this.resumeQueued = false;
+    if (resume) this.resumeCurrentAttempt();
   }
 
   private applyLoadedWorld(world: SimulationWorldState): void {
@@ -2688,6 +2709,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.announceRoomChange(world, stage !== null);
     }
     this.maybeShowInitialCaseIntro(world);
+    // Al final, con la escena ya aplicada: si «Reanudar» llegó durante la recarga, se atiende ahora.
+    this.finishWorldReload();
   }
 
   private hydrateClinicalState(attempt: SimulationAttemptState | null): void {

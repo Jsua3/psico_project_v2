@@ -1002,6 +1002,72 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         expect(component.showIntroScene()).toBe(false);
         expect(component.showCaseIntro()).toBe(false);
       });
+
+      describe('con el mundo recargándose tras la pausa', () => {
+        const scenario = { scenarioKey: 'x', startRoomKey: 'x', rooms: [] };
+
+        it('«Reanudar» pulsado antes de que termine la recarga no se pierde: sale al terminar', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+          expect(component.attempt()?.status).toBe('PAUSED');
+          expect(component.busy()).toBe(true);
+
+          component.resumeCurrentAttempt();
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+
+          worldReload.next(world);
+
+          expect(sim.resumeAttempt).toHaveBeenCalledTimes(1);
+          expect(component.attempt()?.status).toBe('IN_PROGRESS');
+          expect(component.busy()).toBe(false);
+        });
+
+        it('varios toques durante la recarga producen una sola reanudación', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+
+          component.resumeCurrentAttempt();
+          component.resumeCurrentAttempt();
+          component.resumeCurrentAttempt();
+          worldReload.next(world);
+
+          expect(sim.resumeAttempt).toHaveBeenCalledTimes(1);
+        });
+
+        it('si la recarga falla, el toque encolado se descarta y no reanuda por sorpresa', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          component.pauseFromOverlay();
+          component.resumeCurrentAttempt();
+
+          worldReload.error(new Error('sin red'));
+
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+          expect(component.attempt()?.status).toBe('PAUSED');
+          expect(component.busy()).toBe(false);
+        });
+
+        it('sin recarga pendiente, un toque con una petición en curso sigue sin encolarse', () => {
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(of(component.world()));
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+          expect(component.busy()).toBe(false);
+
+          component.busy.set(true);
+          component.resumeCurrentAttempt();
+          component.busy.set(false);
+
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+        });
+      });
     });
   });
 });
