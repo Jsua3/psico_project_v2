@@ -235,6 +235,8 @@ export interface DialogueState {
   key: string;
   speakerName: string;
   portraitKey: string | null;
+  /** Receta del kit del NPC que habla (solo en el cliente: diálogos de NPC de escenario). */
+  recipeId?: string | null;
   emotion: string;
   lines: DialogueLineState[];
   choices: DialogueChoiceState[];

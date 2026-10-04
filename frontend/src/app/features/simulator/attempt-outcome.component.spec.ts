@@ -3,6 +3,8 @@ import { provideRouter } from '@angular/router';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { AttemptCompletionReport } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 
 function makeReport(overrides: Partial<AttemptCompletionReport> = {}): AttemptCompletionReport {
   return {
@@ -45,9 +47,19 @@ describe('AttemptOutcomeComponent', () => {
       imports: [AttemptOutcomeComponent],
       // `new AvatarStore()` sidesteps JIT reflection of its optional `Storage`
       // constructor param (NG0202 in ts-jest); it falls back to jsdom localStorage.
-      providers: [provideRouter([]), { provide: AvatarStore, useFactory: () => new AvatarStore() }],
+      providers: [
+        provideRouter([]),
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     });
     component = TestBed.createComponent(AttemptOutcomeComponent).componentInstance;
+  });
+
+  it('el encabezado muestra al jugador con el retrato neutral de su receta del kit', () => {
+    const visual = component.playerVisual();
+    expect(visual?.recipeId).toBe('valentina');
+    expect(visual?.portraits.neutral).toEqual({ kind: 'url', url: '/assets/characters/kit/valentina/portrait-neutral.png' });
   });
 
   it('la pausa habla de reanudar y el cierre terminal no finge pausa (ETH-02 A)', () => {

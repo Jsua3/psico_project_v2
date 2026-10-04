@@ -1562,6 +1562,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!npc.dialogue?.lines?.length) return;
     this.dialogue.set({
       key: `npc-${npc.key}`,
+      recipeId: npc.recipeId,
       speakerName: npc.displayName,
       portraitKey: npc.portrait ?? null,
       emotion: 'neutral',

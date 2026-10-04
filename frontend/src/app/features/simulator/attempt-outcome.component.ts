@@ -1,8 +1,11 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, computed, inject, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
-import { AvatarFigureComponent } from '../character/avatar-figure.component';
 import { AvatarStore } from '../character/avatar.store';
+import { toAvatarV2 } from '../character/kit/avatar-v2';
+import { resolveCharacter } from '../character/kit/character-visual.resolver';
+import { KitFigureComponent } from '../character/kit/kit-figure.component';
+import { KitService } from '../character/kit/kit.service';
 import { decisionTotal, performanceLabel } from './outcome.util';
 
 /**
@@ -15,7 +18,7 @@ import { decisionTotal, performanceLabel } from './outcome.util';
 @Component({
   selector: 'app-attempt-outcome',
   standalone: true,
-  imports: [RouterLink, AvatarFigureComponent],
+  imports: [RouterLink, KitFigureComponent],
   template: `
     @if (status() !== 'IN_PROGRESS') {
       <section class="outcome liquid-glass"
@@ -23,7 +26,7 @@ import { decisionTotal, performanceLabel } from './outcome.util';
         aria-labelledby="outcome-title">
         <header class="oc-head">
           <div class="oc-avatar" aria-hidden="true">
-            <app-avatar-figure [config]="avatar()" [portrait]="true" />
+            <app-kit-figure [visual]="playerVisual()" portrait="neutral" [scale]="3" />
           </div>
           <div class="oc-head__copy">
             <p class="oc-eyebrow">{{ eyebrow() }}</p>
@@ -159,11 +162,10 @@ import { decisionTotal, performanceLabel } from './outcome.util';
     }
     .oc-head { display: flex; align-items: center; gap: 16px; }
     .oc-avatar {
-      width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
+      width: 96px; height: 96px; flex: 0 0 auto; border-radius: 16px; overflow: hidden;
       background: rgba(124,77,255,.14); border: 1px solid rgba(182,156,255,.4);
       display: grid; place-items: center;
     }
-    .oc-avatar app-avatar-figure { width: 64px; height: 64px; }
     .oc-eyebrow { margin: 0; color: var(--sim-lavender, #B69CFF); font-size: .8rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
     .outcome--safe .oc-eyebrow { color: rgba(244,247,251,.7); }
     .oc-head__copy h3 { margin: 4px 0 0; font-family: 'Poppins', system-ui, sans-serif; font-size: clamp(1.1rem, 2vw, 1.5rem); color: var(--sim-ink, #F4F7FB); }
@@ -234,7 +236,16 @@ import { decisionTotal, performanceLabel } from './outcome.util';
 })
 export class AttemptOutcomeComponent {
   private readonly avatarStore = inject(AvatarStore);
-  readonly avatar = this.avatarStore.avatar;
+  private readonly kit = inject(KitService);
+  /** Retrato neutral del jugador (spec §8.2: ×3, 96 px). */
+  readonly playerVisual = computed(() => {
+    const bundle = this.kit.bundle();
+    return bundle ? resolveCharacter(bundle, { kind: 'jugador', avatar: toAvatarV2(this.avatarStore.avatar()) }) : null;
+  });
+
+  constructor() {
+    this.kit.load().catch(() => undefined);
+  }
 
   readonly report = input<AttemptCompletionReport | null>(null);
   readonly status = input.required<SimulationAttemptState['status']>();

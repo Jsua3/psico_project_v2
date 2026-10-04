@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { DialogueState } from '../../core/models/simulation.model';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { AudioDirectorService } from './audio-director.service';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import {
@@ -81,7 +83,10 @@ describe('DialoguePanelComponent - integración renderizada', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: jest.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -176,7 +181,50 @@ describe('DialoguePanelComponent - integración renderizada', () => {
 
     expect(fixture.nativeElement.querySelector('.speaker-name')?.textContent).toContain('Consultante');
     expect(fixture.nativeElement.querySelector('.portrait-img')?.getAttribute('src'))
-      .toBe('/assets/characters/portraits/paciente-vbg_neutral.png');
+      .toBe('/assets/characters/kit/sobreviviente/portrait-neutral.png');
+  });
+
+  const portraitSrc = () => fixture.nativeElement.querySelector('.portrait-img')?.getAttribute('src') ?? null;
+
+  it('el NPC de escenario muestra el retrato de su receta aunque se llame como una voz sin cuerpo', () => {
+    render({
+      key: 'npc-supervisor-cierre',
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      recipeId: 'supervisor-clinico',
+      emotion: 'neutral',
+      lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Buen cierre.', emotion: 'positive' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBe('/assets/characters/kit/supervisor-clinico/portrait-alegre.png');
+  });
+
+  it('una voz sin cuerpo no tiene retrato: queda la silueta', () => {
+    render({
+      ...MULTI_LINE_DIALOGUE,
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Revisa el protocolo.', emotion: 'danger' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBeNull();
+    expect(fixture.nativeElement.querySelector('.portrait-svg')).not.toBeNull();
+  });
+
+  it('la receta del árbol no vale para la línea de otro hablante', () => {
+    render({
+      key: 'npc-supervisor-cierre',
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      recipeId: 'supervisor-clinico',
+      emotion: 'neutral',
+      lines: [{ order: 1, speakerName: 'Abuela de la niña', text: 'Gracias por venir.', emotion: 'neutral' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBe('/assets/characters/kit/abuela-familia/portrait-neutral.png');
   });
 });
 

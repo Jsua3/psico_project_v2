@@ -17,7 +17,6 @@ export const COVERAGE_SOURCES = Object.freeze({
     'frontend/src/app/features/simulator/risky-interaction.config.ts',
     'frontend/src/app/features/simulator/simulation-play.component.ts',
   ],
-  portraitResolver: 'frontend/src/app/features/simulator/portrait-resolver.util.ts',
   templates: 'frontend/src/app/features/simulator/authoring-catalog.config.ts',
 });
 
@@ -47,11 +46,9 @@ function scenarioNpcRecipes(root) {
 export function referencedKeys(root) {
   const presets = read(root, COVERAGE_SOURCES.mapObjectPresets);
   const roster = JSON.parse(read(root, COVERAGE_SOURCES.actorRoster));
-  const resolver = read(root, COVERAGE_SOURCES.portraitResolver);
   const speakers = new Set([
     ...all(read(root, COVERAGE_SOURCES.seed), /"dialogue":\s*\("([^"]+)"/g),
     ...COVERAGE_SOURCES.speakerLiterals.flatMap(rel => all(read(root, rel), /speakerName: '([^']+)'/g)),
-    ...all(block(resolver, 'const SPEAKER_NAME_TO_SLUG', '};'), /'([^']+)':/g),
   ]);
   return {
     scenarioNpcs: scenarioNpcRecipes(root),
@@ -61,7 +58,9 @@ export function referencedKeys(root) {
     ]),
     guides: new Set(all(read(root, COVERAGE_SOURCES.guides), /guideName: '([^']+)'/g)),
     speakers,
-    portraitKeys: new Set(all(block(resolver, 'const PORTRAIT_KEY_TO_SLUG', '};'), /'([^']+)':/g)),
+    // Sin fuente viva: el catálogo conserva los `portraitKey` para árboles ya guardados y
+    // checkCatalogRecipes valida sus recetas.
+    portraitKeys: new Set(),
     templates: new Set(all(block(read(root, COVERAGE_SOURCES.templates), 'export const AUTHORING_NPC_TEMPLATES', '];'), /^\s+id: '([^']+)'/gm)),
   };
 }
