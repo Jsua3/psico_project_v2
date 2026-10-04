@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { blend, contrastRatio } from './contrast.util';
+
 function source(relativePath: string): string {
   return readFileSync(join(__dirname, relativePath), 'utf-8');
 }
@@ -125,5 +127,34 @@ describe('contraste: navegación lateral', () => {
     const stops = ['#2a006b', '#4b00b5', '#3a0090'];
     stops.forEach(stop => expect(shell).toContain(stop));
     stops.forEach(stop => expect(contrast('#FFFFFF', stop)).toBeGreaterThanOrEqual(3));
+  });
+});
+
+describe('contraste: botón táctil «Interactuar» en reposo', () => {
+  const world = source('../app/features/simulator/game-world.component.ts');
+  const styles = source('./styles.scss');
+
+  /** Color del texto en reposo en anchos >= 700 px (la primera regla, fuera de la media query de < 700 px). */
+  const idleColor = /\.touch-interact--idle \{ color: (#[0-9a-fA-F]{6});/.exec(world)?.[1] ?? '';
+
+  it('en reposo (>= 700 px) el texto es oscuro sobre el vidrio claro y llega a AA incluso sobre un mundo negro', () => {
+    expect(idleColor).not.toBe('');
+    // Vidrio de .psy-button--glass: blanco al 52 %. El peor fondo es el que tiene un mundo negro debajo.
+    expect(styles).toMatch(/\.psy-button--glass \{\s*background: rgba\(255,255,255,\.52\);/);
+    const worstGlass = blend('#FFFFFF', 0.52, '#000000');
+    expect(contrastRatio(idleColor, worstGlass)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('el color de antes (claro al 78 %) no llegaba: 2,3:1 sobre el vidrio medido', () => {
+    expect(contrastRatio(blend('#E8F0F4', 0.78, '#8B8E95'), '#8B8E95')).toBeLessThan(3);
+  });
+
+  it('el reposo se marca también por forma (borde discontinuo), no solo por tono', () => {
+    expect(world).toMatch(/\.touch-interact--idle \{ color: #[0-9a-fA-F]{6}; border-style: dashed; \}/);
+  });
+
+  it('en anchos < 700 px el texto en reposo es claro sobre el fondo oscuro translúcido, con la misma marca por forma', () => {
+    expect(world).toMatch(/\.touch-interact \{ background: rgba\(8,12,18,\.6\);[^}]*color: #e8f0f4; \}/);
+    expect(world).toMatch(/\.touch-interact--idle \{ color: rgba\(232,240,244,\.8\); border-style: dashed; \}/);
   });
 });

@@ -2861,7 +2861,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       text-align: center;
     }
     .touch-interact__label { overflow-wrap: anywhere; }
-    .touch-interact--idle { color: rgba(232,240,244,.78); }
+    /* Sin nada cerca (el estado más frecuente): texto oscuro sobre el vidrio claro (>= 4,5:1 incluso sobre un mundo negro,
+       el peor fondo) y borde discontinuo: el reposo no se distingue solo por el tono. En anchos < 700 px manda el fondo oscuro. */
+    .touch-interact--idle { color: #10131a; border-style: dashed; }
     /* Aparece solo si la carga pasa de 300 ms: con caché caliente no parpadea. */
     .world-loading {
       position: absolute;
@@ -2924,7 +2926,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
       /* Fondo oscuro translúcido: el texto pasa a claro (el vidrio claro de escritorio lleva texto oscuro). */
       .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
-      .touch-interact--idle { color: rgba(232,240,244,.8); }
+      .touch-interact--idle { color: rgba(232,240,244,.8); border-style: dashed; }
     }
   `]
 })
