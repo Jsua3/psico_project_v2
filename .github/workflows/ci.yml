@@ -58,10 +58,11 @@ jobs:
       - run: npm run test:scripts
 
   audit:
-    name: Vulnerabilidades (pip-audit)
-    # Falla si alguna dependencia del backend (directa o transitiva) tiene un aviso
-    # conocido. Corre en cada PR y push a master; Dependabot (ver dependabot.yml)
-    # propone cada semana las actualizaciones que lo mantienen en verde.
+    name: Vulnerabilidades (pip-audit + npm audit)
+    # Falla si alguna dependencia (directa o transitiva) del backend o del frontend
+    # tiene un aviso conocido de severidad alta o crítica. Corre en cada PR y push a
+    # master; Dependabot (ver dependabot.yml) propone cada semana las
+    # actualizaciones que lo mantienen en verde.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -71,6 +72,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install pip-audit
       - run: pip-audit -r backend_django/requirements.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm audit --prefix frontend --audit-level=high
 
   backend:
     name: Backend (check + pytest)
