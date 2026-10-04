@@ -4,8 +4,9 @@
 # los PR: en el runner sin GPU cada recorrido tarda ~3-4x más que en local. Los
 # dos grupos corren en jobs paralelos (cada uno en su runner, con su propia BD)
 # cada noche sobre master y a mano (Actions → "E2E recorridos completos" → Run
-# workflow, eligiendo la rama). El recorrido de escritorio-1366 también corre en
-# los PR que tocan el simulador: ver e2e-full-case-pr.yml.
+# workflow, eligiendo la rama). Propuesta pendiente de decisión (pregunta 10 del
+# backlog): correr también el recorrido de escritorio-1366 en los PR que tocan el
+# simulador; hay un borrador inactivo en docs/superpowers/plans/e2e-full-case-pr.yml.draft.
 name: E2E recorridos completos
 
 on:
