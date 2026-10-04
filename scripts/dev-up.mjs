@@ -61,7 +61,8 @@ function venvPythonVersion() {
 }
 
 function isSupportedPython(version) {
-  return version === '3.12' || version === '3.13';
+  // Django 6.1 exige Python >= 3.12; psycopg 3 ya tiene ruedas para 3.14.
+  return version === '3.12' || version === '3.13' || version === '3.14';
 }
 
 function ensureLocalSettings() {
@@ -81,18 +82,20 @@ function ensureLocalSettings() {
 function ensureVenv() {
   const existingVersion = venvPythonVersion();
   if (existingVersion && !isSupportedPython(existingVersion)) {
-    console.log(`[siep] .venv usa Python ${existingVersion}; recreando con 3.12/3.13...`);
+    console.log(`[siep] .venv usa Python ${existingVersion}; recreando con 3.12-3.14...`);
     rmSync(join(BACKEND, '.venv'), { recursive: true, force: true });
   }
 
   const py = venvPython();
   if (!existsSync(py)) {
-    console.log('[siep] Creando entorno virtual Python (3.12 o 3.13)...');
+    console.log('[siep] Creando entorno virtual Python (3.14, 3.13 o 3.12)...');
     const attempts = [
-      ['py', ['-3.12', '-m', 'venv', '.venv']],
+      ['py', ['-3.14', '-m', 'venv', '.venv']],
       ['py', ['-3.13', '-m', 'venv', '.venv']],
-      ['python3.12', ['-m', 'venv', '.venv']],
+      ['py', ['-3.12', '-m', 'venv', '.venv']],
+      ['python3.14', ['-m', 'venv', '.venv']],
       ['python3.13', ['-m', 'venv', '.venv']],
+      ['python3.12', ['-m', 'venv', '.venv']],
     ];
     let created = false;
     for (const [cmd, args] of attempts) {
@@ -103,8 +106,8 @@ function ensureVenv() {
       }
     }
     if (!created) {
-      console.error('[siep] Se requiere Python 3.12 o 3.13 (psycopg2 no soporta 3.14 aún).');
-      console.error('[siep] En Windows: py install 3.12');
+      console.error('[siep] Se requiere Python 3.12, 3.13 o 3.14 (Django 6.1 exige >= 3.12).');
+      console.error('[siep] En Windows: py install 3.14');
       process.exit(1);
     }
   }
@@ -117,7 +120,7 @@ function ensureVenv() {
   );
   if (pip.status !== 0) {
     process.stderr.write(pip.stderr ?? pip.stdout ?? '');
-    console.error('[siep] Falló pip install. ¿Python 3.12/3.13? Ejecuta: py install 3.12');
+    console.error('[siep] Falló pip install. ¿Python 3.12-3.14? Ejecuta: py install 3.14');
     process.exit(pip.status ?? 1);
   }
 }
