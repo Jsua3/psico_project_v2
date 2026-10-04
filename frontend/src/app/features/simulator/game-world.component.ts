@@ -943,7 +943,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const layerData of tilemap.layers) {
       const depth = tiledLayerDepth(layerData.name);
       if (depth === null) continue;
-      const layer = tilemap.createLayer(layerData.name, tilesets);
+      // Sin el parámetro `gpu` (Phaser 4), createLayer() siempre crea la variante CPU clásica;
+      // el tipo de retorno es la unión TilemapLayer | TilemapGPULayer solo porque la firma no
+      // tiene sobrecargas para distinguirlo según ese argumento.
+      const layer = tilemap.createLayer(layerData.name, tilesets) as Phaser.Tilemaps.TilemapLayer | null;
       if (!layer) continue;
       layer.setDepth(depth);
       // La capa de paredes (legacy `Walls` o `walls_back`/`collision`) es la sólida.
