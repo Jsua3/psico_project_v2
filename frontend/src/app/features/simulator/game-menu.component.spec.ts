@@ -20,6 +20,8 @@ import { EMPTY } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { GameMenuComponent } from './game-menu.component';
 
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -45,6 +47,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
         { provide: SimulationService, useValue: { getCatalog: jest.fn(() => EMPTY) } },
         { provide: Router, useValue: router },
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
       ],
     });
     component = TestBed.createComponent(GameMenuComponent).componentInstance;
