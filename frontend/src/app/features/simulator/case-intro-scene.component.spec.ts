@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { AvatarStore } from '../character/avatar.store';
+import { PlayableId } from '../character/kit/avatar-v2';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
@@ -34,7 +35,7 @@ describe('CaseIntroSceneComponent', () => {
   const layerImages = () =>
     Array.from(host().querySelectorAll<HTMLElement>('.intro-actor__layer')).map(layer => layer.style.backgroundImage);
 
-  function create(options: { reduceMotion?: boolean; castId?: string; kit?: KitService } = {}): void {
+  function create(options: { reduceMotion?: boolean; recipeId?: PlayableId; kit?: KitService } = {}): void {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [CaseIntroSceneComponent],
@@ -45,7 +46,9 @@ describe('CaseIntroSceneComponent', () => {
         { provide: KitService, useValue: options.kit ?? fakeKitService() },
       ],
     });
-    if (options.castId !== undefined) TestBed.inject(AvatarStore).update({ castId: options.castId });
+    if (options.recipeId !== undefined) {
+      TestBed.inject(AvatarStore).set({ schemaVersion: 2, mode: 'elenco', recipeId: options.recipeId, bata: false });
+    }
     fixture = TestBed.createComponent(CaseIntroSceneComponent);
     if (options.reduceMotion) writeInputSignal(fixture.componentInstance.reduceMotion, true);
     fixture.detectChanges();
@@ -99,7 +102,7 @@ describe('CaseIntroSceneComponent', () => {
   });
 
   it('otro jugable del elenco entra con sus propias hojas del kit', () => {
-    create({ castId: 'paula' });
+    create({ recipeId: 'paula' });
     expect(layerImages()).toHaveLength(1);
     expect(layerImages()[0]).toContain('/assets/characters/kit/paula/walk.png');
   });
