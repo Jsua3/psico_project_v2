@@ -221,3 +221,30 @@ el caso demo y elimina sus intentos):
 cd backend_django
 .\.venv\Scripts\python.exe manage.py bootstrap_dev_db
 ```
+
+### Pruebas del frontend que fallan solo en tu máquina (fin de línea CRLF)
+
+`.gitattributes` fija el fin de línea del repositorio: todo el texto va en LF,
+salvo los scripts de Windows (`*.cmd`, `*.ps1`), que van en CRLF. No hace falta
+tocar `core.autocrlf`: el `eol` del archivo prevalece. Los clones y worktrees
+nuevos ya salen bien.
+
+Si tu checkout es **anterior** a ese archivo, el árbol de trabajo sigue en CRLF
+aunque `git status` salga limpio, y unas 12 pruebas de contrato (las que leen
+fuentes `.ts`/`.scss` con `readFileSync` y buscan `\n`) fallan solo en local.
+Para reescribirlo en LF:
+
+> **Guarda tu trabajo antes.** `git reset --hard` descarta todo lo que no esté
+> en un commit. Haz commit (puede ser uno WIP) y confirma que `git status`
+> sale limpio.
+
+```bash
+git pull   # o fusiona/rebasa master: tu rama necesita el .gitattributes
+git rm -r -q --cached .
+git reset --hard
+```
+
+Comprueba el resultado con `git ls-files --eol`: todo el texto debe mostrar
+`i/lf w/lf`, salvo los 4 scripts `.cmd`/`.ps1` (`i/lf w/crlf`). La alternativa
+sin riesgo es un worktree nuevo (`git worktree add`) en lugar de reescribir el
+actual.
