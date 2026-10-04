@@ -74,6 +74,8 @@ Detalle por bloque en la [actualización de la hoja de ruta](2026-10-02-brechas-
 
 ## 6. Preguntas para personas (valor por defecto ya aplicado)
 
+Las preguntas de Psicología (1, 2, 4, 5, 6, 7, 13) y dos de producto (8, 9) están también en la [guía de revisión para Psicología](2026-10-04-guia-revision-psicologia.md): un recorrido de 15 minutos con casillas para responder.
+
 | # | Quién | Pregunta | Por defecto |
 |---|---|---|---|
 | 1 | Psicología | **T11.1:** los reintentos («la primera respuesta mala no se aplica») ya no cuentan como decisiones en el reporte ni en el final. ¿Es lo que se quiere? Se hicieron visibles (recomendación y chip para el estudiante, etiqueta propia para el docente). Una sonda gratuita por escena existía antes | Aplicado: no cuentan, se muestran aparte |
