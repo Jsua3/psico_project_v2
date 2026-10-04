@@ -345,7 +345,9 @@ const CASE_INTRO_PARAGRAPHS = [
           }
         </main>
 
-        <footer class="bottom-zone" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
+        <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
+        <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
+          [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
             <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04). -->
             <button class="safe-exit" type="button" (click)="pauseFromOverlay()"
@@ -638,6 +640,9 @@ const CASE_INTRO_PARAGRAPHS = [
       padding: 8px 12px 10px;
       z-index: 30;
     }
+    /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
+       «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
+    .bottom-zone--above-veils { z-index: 350; }
     .safe-exit {
       display: inline-flex;
       align-items: center;
@@ -1298,6 +1303,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!guide || !world?.objects.some(object => object.key === guide.targetKey)) return null;
     return guide;
   });
+
+  /**
+   * Un velo a pantalla completa (fundido de escena, nota de transición) cubre el pie: mientras dure, el pie sube por
+   * encima para que «Salida segura» siga a la vista (REGLA-004). Con una superposición abierta el pie queda inerte y
+   * la superposición trae su propio botón, así que no sube.
+   */
+  readonly footerAboveVeils = computed(() =>
+    (this.fadeActive() || this.transitionNote() !== '') && !this.inputBlocked());
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>

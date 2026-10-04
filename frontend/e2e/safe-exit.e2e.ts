@@ -14,9 +14,11 @@ import {
   finishCaseIntroduction,
   interactNearby,
   loginStudent,
+  nearbyAction,
   seekNpcDialogue,
   useToolChoice,
   waitForWorldReady,
+  waitUntilPlayerStill,
 } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
@@ -121,6 +123,44 @@ async function advanceToWorld(page: Page): Promise<void> {
     await page.waitForTimeout(250);
   }
   throw new Error('No se llegó al mundo tras reanudar desde la introducción');
+}
+
+/** Retraso inyectado a la respuesta del servidor (un servidor lento o atascado): mayor que el fundido de escena (320 ms). */
+const SLOW_SERVER_MS = 7_000;
+
+/**
+ * F1 (REGLA-004): con el fundido de escena a pantalla completa esperando al servidor, «Salida segura» sigue a la
+ * vista (nada la cubre en ningún punto de su caja) y se puede pulsar o tocar de verdad. El clic de Playwright
+ * comprueba además que ninguna capa recibe el toque, y no espera más de 3 s: si el fundido la tapara, fallaría.
+ */
+async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean): Promise<void> {
+  await expect(page.locator('.scene-fade--active'), `${state}: el fundido de escena debe estar activo`).toHaveCount(1);
+  const exit = page.getByRole('button', { name: /salida segura/i });
+  await expect(exit, `${state}: un único «Salida segura» bajo el fundido`).toHaveCount(1);
+  await expect(exit).toBeVisible();
+  const covered = await exit.evaluate(button => {
+    const rect = button.getBoundingClientRect();
+    return [[.5, .5], [.15, .5], [.85, .5], [.5, .2], [.5, .8]].some(([fx, fy]) => {
+      const top = document.elementFromPoint(rect.left + rect.width * fx, rect.top + rect.height * fy);
+      return !top || !(button === top || button.contains(top));
+    });
+  });
+  expect(covered, `${state}: algo cubre «Salida segura» (el fundido de escena la tapaba)`).toBe(false);
+  expect(await page.locator('.scene-fade--active').count(), `${state}: el fundido sigue activo al pulsar`).toBe(1);
+  if (touch) await exit.tap({ timeout: 3_000 });
+  else await exit.click({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: /pausando/i }), `${state}: el pie acusa la pausa pedida`).toBeVisible();
+}
+
+/** La pausa pedida bajo el fundido llega cuando el servidor responde: una sola llamada, pantalla de pausa y sin avisos encima. */
+async function expectQueuedPauseThenResume(page: Page, state: string, safeExitCalls: () => number): Promise<void> {
+  const pause = page.getByRole('alertdialog', { name: /pausa/i });
+  await expect(pause, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(40_000) });
+  expect(safeExitCalls(), `${state}: una sola llamada a safe-exit`).toBe(1);
+  // Ningún aviso de etapa o de sala queda pintado (ni anunciado) encima de la pausa.
+  await expect(page.locator('.room-banner, .door-notice, .transition-note'), `${state}: avisos sobre la pausa`).toHaveCount(0);
+  await page.getByRole('button', { name: /reanudar este intento/i }).click();
+  await expect(pause).toBeHidden({ timeout: scaled(30_000) });
 }
 
 for (const viewport of GUIDED_VIEWPORTS) {
@@ -233,6 +273,64 @@ for (const viewport of GUIDED_VIEWPORTS) {
       const supervision = page.getByRole('dialog', { name: /supervisión clínica/i });
       await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
       await assertSafeExitPauses(page, 'supervisión', viewport);
+    });
+
+    test(`@orientation salida segura bajo el fundido de escena con el servidor lento: puerta y decisión (${viewport.name})`, async ({ page }) => {
+      test.setTimeout(scaled(420_000));
+      const touch = viewport.inputMode === 'touch';
+      const input = createWorldInputDriver(page, viewport.inputMode);
+      let safeExitCalls = 0;
+      page.on('request', request => {
+        if (request.method() === 'POST' && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(request.url()).pathname)) safeExitCalls += 1;
+      });
+      await page.goto('/login');
+      await loginStudent(page);
+      await page.goto('/portal/jugar');
+      await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: scaled(30_000) });
+      const consent = await enterCaseAtContentWarning(page);
+      const introVideo = await acceptContentWarning(page, consent);
+      const caseIntro = await finishCaseIntroduction(page, introVideo);
+      await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+      await waitForWorldReady(page);
+
+      // Recorrido de H1 hasta la puerta de la sala de escucha (mismo camino que el test de supervisión, sin sus pausas previas).
+      await exploreUntilNearby(page, input, /kit pap/i);
+      await interactNearby(page, /kit pap/i, /\/interactions\/tool-pap$/);
+      await input.moveUntilNearby('ArrowLeft', /familia en crisis/i);
+      await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-crisis$/);
+      await useToolChoice(page, /abuela de la niña/i, /aplicar pap a la familia en crisis/i);
+      await closeDialogue(page, /herramienta pertinente/i);
+      await exploreUntilNearby(page, input, /enfermera de urgencias/i);
+      await seekNpcDialogue(page, /enfermera de urgencias/i, input);
+      await closeDialogue(page, /enfermera de urgencias/i);
+      await exploreUntilNearby(page, input, /sala de escucha familiar/i);
+
+      // 1. Puerta con enter-room lento: el fundido espera y «Salida segura» se toca igualmente.
+      const slow = async (route: import('@playwright/test').Route) => {
+        await new Promise(resolve => setTimeout(resolve, SLOW_SERVER_MS));
+        await route.continue();
+      };
+      await page.route(/\/api\/simulation\/attempts\/[^/]+\/enter-room$/, slow);
+      await waitUntilPlayerStill(page);
+      const door = nearbyAction(page, /sala de escucha familiar/i);
+      await expect(door).toBeVisible();
+      await door.click();
+      await assertSafeExitAboveFade(page, 'puerta con el servidor lento', touch);
+      await expectQueuedPauseThenResume(page, 'puerta con el servidor lento', () => safeExitCalls);
+      await page.unroute(/\/api\/simulation\/attempts\/[^/]+\/enter-room$/, slow);
+      await waitForWorldReady(page, 'hospital-sala-escucha');
+
+      // 2. Decisión con /decisions lento: mismo contrato.
+      await input.moveUntilNearby('ArrowUp', /familia en crisis/i);
+      await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-duelo$/);
+      const family = await advanceDialogueToChoices(page, /abuela de la niña/i);
+      const option = family.getByRole('button', { name: /aplicar pap: contención emocional, acompañamiento en duelo/i });
+      await expect(option).toBeVisible();
+      await page.route(/\/api\/simulation\/attempts\/[^/]+\/decisions$/, slow);
+      await option.click();
+      await assertSafeExitAboveFade(page, 'decisión con el servidor lento', touch);
+      await expectQueuedPauseThenResume(page, 'decisión con el servidor lento', () => safeExitCalls);
+      expect(safeExitCalls, 'una pausa por cada estado probado').toBe(2);
     });
   });
 }
