@@ -52,6 +52,9 @@ for (const viewport of REQUIRED_VIEWPORTS) {
       await page.getByRole('button', { name: /abrir bitácora reflexiva/i }).click();
       const journal = page.getByRole('dialog', { name: /bitácora reflexiva cifrada/i });
       await expect(journal).toBeVisible();
+      // «Trazabilidad» muestra el título completo de la etapa (la API ya no lo recorta a «Urgencias: cr…»).
+      await expect(journal.getByRole('listitem').filter({ hasText: 'Urgencias' }))
+        .toHaveText('Urgencias: crisis y contención');
       await assertQualityState(page, testInfo, `${viewport.name}-journal`);
       await journal.getByRole('button', { name: /cerrar bitácora/i }).click();
 

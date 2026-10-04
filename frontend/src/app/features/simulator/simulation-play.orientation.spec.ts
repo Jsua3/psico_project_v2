@@ -1015,6 +1015,24 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.stageLabel()).toBe('Escenario 2 de 2');
     });
 
+    it('la «Trazabilidad» de la bitácora recibe los títulos completos de las etapas visitadas', () => {
+      // La API ya no recorta a 14 caracteres: estos dos nodos eran idénticos («Consultorio: …»).
+      component.progressMap.set({
+        currentNodeKey: 'comisaria-accion-final',
+        visitedNodeKeys: ['comisaria-consultorio', 'comisaria-accion-final'],
+        nodes: [
+          { key: 'hospital-urgencias', label: 'Urgencias: crisis y contención' },
+          { key: 'comisaria-consultorio', label: 'Consultorio: protección y marco' },
+          { key: 'comisaria-accion-final', label: 'Consultorio: acción técnica y ética' },
+        ],
+      } as never);
+
+      expect(component.visitedStageLabels()).toEqual([
+        'Consultorio: protección y marco',
+        'Consultorio: acción técnica y ética',
+      ]);
+    });
+
     /** Decide en `previousNode` (mundo `fromMap`) y deja que llegue el mundo `toMap` de la etapa nueva. */
     function decideTo(nextNodeKey: string, toMap: string, previousNode: string, fromMap = toMap): void {
       component.attempt.set(makeAttempt(previousNode));
