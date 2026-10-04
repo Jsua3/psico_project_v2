@@ -57,3 +57,32 @@ def test_evento_de_herramienta_dice_estres_con_tilde(estudiante, case_version_id
     detail = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="TOOL_USED").detail
     assert "(estrés -5%)" in detail
     assert not UNACCENTED.search(detail), detail
+
+
+def test_linea_de_tiempo_del_estudiante_no_muestra_claves_internas(estudiante, case_version_id):
+    """L-08: «PAP sobre familia-crisis» es un identificador interno; el estudiante lee nombres."""
+    from apps.simulation.models import SimulationAttempt as Attempt
+    from apps.simulation.serializers import game_dtos
+
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    world = _world(c, attempt_id, token)
+    _pickup_pap(c, attempt_id, token, world["map"]["key"])
+    _move(c, attempt_id, token, 250, 430, world["map"]["key"])
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/tools/use",
+        {"attemptToken": token, "toolCode": "PAP", "targetInteractionKey": "familia-crisis"},
+        format="json",
+    )
+    assert resp.status_code == 200
+
+    attempt = Attempt.objects.get(pk=attempt_id)
+    events = list(AttemptEvent.objects.filter(attempt_id=attempt_id).order_by("occurred_at", "id"))
+    labels = [row["label"] for row in game_dtos.build_timeline(attempt, events) if row["type"] == "TOOL_USED"]
+
+    assert labels, "el evento de herramienta debe aparecer en la línea de tiempo"
+    label = labels[0]
+    assert label.startswith("Herramienta aplicada: ")
+    assert "familia-crisis" not in label and "PAP" not in label and "@" not in label, label
+    assert "Familia en crisis" in label
+    assert label.endswith("pertinente")

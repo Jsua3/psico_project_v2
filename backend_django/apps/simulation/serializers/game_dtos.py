@@ -1,9 +1,12 @@
 """Response DTO builders for the student simulation flow — field names match
 Spring SimulationDtos exactly (camelCase JSON)."""
 import json
+import re
 
 from apps.simulation.models import (
+    ClinicalTool,
     DecisionOption,
+    MapObject,
     ReflectionJournal,
 )
 from apps.simulation.services import case_effects
@@ -114,10 +117,53 @@ def _format_mmss(seconds):
     return f"{minutes:02d}:{secs:02d}"
 
 
+# Detalle que guarda world_service al usar una herramienta: lleva claves internas (código de la
+# herramienta y clave del objeto), que no deben llegar al estudiante.
+_TOOL_USED_DETAIL = re.compile(
+    r"^Herramienta usada: (?P<tool>\S+)(?: sobre (?P<target>\S+))? — (?P<verdict>no pertinente|pertinente)"
+)
+
+
+def _tool_event_labels(attempt, events):
+    """Nombres legibles (herramienta y objeto) para los eventos TOOL_USED de la línea de tiempo."""
+    details = [
+        _TOOL_USED_DETAIL.match(ev.detail or "")
+        for ev in events
+        if ev.event_type == "TOOL_USED"
+    ]
+    details = [m for m in details if m]
+    if not details:
+        return {}, {}
+    tools = {
+        t.tool_code: t.label
+        for t in ClinicalTool.objects.filter(case_version_id=attempt.case_version_id)
+    }
+    targets = {m["target"] for m in details if m["target"]}
+    objects = {
+        o.object_key: o.label
+        for o in MapObject.objects.filter(
+            scene_map__case_version_id=attempt.case_version_id, object_key__in=targets
+        )
+    } if targets else {}
+    return tools, objects
+
+
+def _tool_event_label(detail, tools, objects):
+    """«Herramienta aplicada: Primeros Auxilios Psicológicos con Familia en crisis — pertinente»."""
+    match = _TOOL_USED_DETAIL.match(detail or "")
+    if not match:
+        return "Herramienta aplicada"
+    label = f"Herramienta aplicada: {tools.get(match['tool'], 'una herramienta')}"
+    if match["target"]:
+        label += f" con {objects.get(match['target'], 'la persona o el objeto de la sala')}"
+    return f"{label} — {match['verdict']}"
+
+
 def build_timeline(attempt, events):
     """Línea de tiempo de decisiones/acciones clave para el reporte del estudiante."""
     start = attempt.started_at
     timeline = []
+    tool_labels, object_labels = _tool_event_labels(attempt, events)
     for ev in events:
         if ev.event_type not in TIMELINE_EVENT_TYPES:
             continue
@@ -131,7 +177,11 @@ def build_timeline(attempt, events):
             "type": ev.event_type,
             "classification": decision.classification if decision else None,
             "prohibited": bool(decision.prohibited_conduct) if decision else False,
-            "label": (decision.text if decision else ev.detail) or "",
+            "label": (
+                decision.text if decision
+                else _tool_event_label(ev.detail, tool_labels, object_labels) if ev.event_type == "TOOL_USED"
+                else ev.detail
+            ) or "",
             "scoreDelta": ev.score_delta,
             "stressDelta": ev.stress_delta,
         })
