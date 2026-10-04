@@ -133,10 +133,17 @@ ACCESS_REQUEST_NOTIFY_EMAILS = [
     ).split(",")
     if email.strip()
 ]
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",
-)
+# Django 6.1: MAILERS reemplaza a EMAIL_BACKEND/EMAIL_HOST/... (deprecados, se
+# retiran en Django 7.0). Por defecto el correo sale por consola; en producción
+# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y, si hace falta, sus OPTIONS.
+MAILERS = {
+    "default": {
+        "BACKEND": os.environ.get(
+            "EMAIL_BACKEND",
+            "django.core.mail.backends.console.EmailBackend",
+        ),
+    },
+}
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "siep@psychosim.edu.co")
 
 SPECTACULAR_SETTINGS = {

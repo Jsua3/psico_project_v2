@@ -7,7 +7,9 @@ from apps.users.models import AccessRequest, AccessRequestStatus
 
 @pytest.fixture(autouse=True)
 def locmem_email(settings):
-    settings.EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    settings.MAILERS = {
+        "default": {"BACKEND": "django.core.mail.backends.locmem.EmailBackend"},
+    }
 
 
 @pytest.fixture

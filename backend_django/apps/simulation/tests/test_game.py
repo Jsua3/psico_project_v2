@@ -470,8 +470,10 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
         if '"attempt_events"."event_type"' in q["sql"].split(" FROM ")[0]
     ]
     assert len(marks_sql) == 1, "una sola consulta de eventos para el tiempo activo"
-    assert closed["attemptId"] in marks_sql[0]
-    assert running["attemptId"] not in marks_sql[0], "no se cargan eventos del intento en curso"
+    # Según el driver (psycopg 3) el UUID viaja sin guiones dentro del SQL literal.
+    sql_text = marks_sql[0].replace("-", "")
+    assert closed["attemptId"].replace("-", "") in sql_text
+    assert running["attemptId"].replace("-", "") not in sql_text, "no se cargan eventos del intento en curso"
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):
