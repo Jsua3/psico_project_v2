@@ -3,13 +3,14 @@ import { TestBed } from '@angular/core/testing';
 
 import { NotificationService } from '../../core/notifications/notification.service';
 import { NotificationHostComponent } from './notification-host.component';
+import type { Mock } from 'vitest';
 
 describe('NotificationHostComponent', () => {
   let service: NotificationService;
-  let announce: jest.Mock;
+  let announce: Mock;
 
   beforeEach(() => {
-    announce = jest.fn().mockResolvedValue(undefined);
+    announce = vi.fn().mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       imports: [NotificationHostComponent],
       providers: [{ provide: LiveAnnouncer, useValue: { announce } }],
@@ -87,8 +88,8 @@ describe('NotificationHostComponent', () => {
 
   it('pausa con el cursor o el foco y reanuda al salir', () => {
     service.info('Hola'); // show() ya invoca resume() para armar el temporizador: espiar después
-    const pause = jest.spyOn(service, 'pause');
-    const resume = jest.spyOn(service, 'resume');
+    const pause = vi.spyOn(service, 'pause');
+    const resume = vi.spyOn(service, 'resume');
     const fixture = render();
     const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
     item.dispatchEvent(new Event('mouseenter'));
@@ -112,7 +113,7 @@ describe('NotificationHostComponent', () => {
   describe('la pausa es un booleano en el servicio: no se reanuda mientras quede cursor o foco', () => {
     it('al salir el cursor no reanuda si el foco sigue dentro del aviso', () => {
       service.info('Hola');
-      const resume = jest.spyOn(service, 'resume');
+      const resume = vi.spyOn(service, 'resume');
       const fixture = render();
       const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
       const button = item.querySelector('button') as HTMLButtonElement;
@@ -131,13 +132,13 @@ describe('NotificationHostComponent', () => {
 
     it('al salir el foco no reanuda si el cursor sigue encima', () => {
       service.info('Hola');
-      const resume = jest.spyOn(service, 'resume');
+      const resume = vi.spyOn(service, 'resume');
       const fixture = render();
       const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
 
       // jsdom no calcula :hover, así que se simula que el cursor sigue sobre el aviso.
       const matches = item.matches.bind(item);
-      const matchesSpy = jest.spyOn(item, 'matches').mockImplementation(selector =>
+      const matchesSpy = vi.spyOn(item, 'matches').mockImplementation(selector =>
         selector === ':hover' ? true : matches(selector)
       );
       item.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
@@ -150,7 +151,7 @@ describe('NotificationHostComponent', () => {
 
     it('al mover el foco a otro punto del mismo aviso no reanuda', () => {
       service.info('Hola');
-      const resume = jest.spyOn(service, 'resume');
+      const resume = vi.spyOn(service, 'resume');
       const fixture = render();
       const item = fixture.nativeElement.querySelector('.siep-notification') as HTMLElement;
       const button = item.querySelector('button') as HTMLButtonElement;

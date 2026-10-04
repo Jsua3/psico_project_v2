@@ -7,6 +7,7 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
+import type { Mock } from 'vitest';
 
 /**
  * Feedback de acciones de la pantalla Rúbricas.
@@ -34,25 +35,25 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
   let component: RubricsComponent;
   let rubrics: Record<
     'list' | 'detail' | 'create' | 'update' | 'activate' | 'deactivate' | 'duplicate' | 'setDefault' | 'assignToCaseVersion',
-    jest.Mock
+    Mock
   >;
-  let simulation: { listCases: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
+  let simulation: { listCases: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
 
   beforeEach(() => {
     rubrics = {
-      list: jest.fn(() => of([])),
-      detail: jest.fn(() => of(rubric)),
-      create: jest.fn(),
-      update: jest.fn(),
-      activate: jest.fn(),
-      deactivate: jest.fn(),
-      duplicate: jest.fn(),
-      setDefault: jest.fn(),
-      assignToCaseVersion: jest.fn(),
+      list: vi.fn(() => of([])),
+      detail: vi.fn(() => of(rubric)),
+      create: vi.fn(),
+      update: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      duplicate: vi.fn(),
+      setDefault: vi.fn(),
+      assignToCaseVersion: vi.fn(),
     };
-    simulation = { listCases: jest.fn(() => of([])) };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
+    simulation = { listCases: vi.fn(() => of([])) };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [

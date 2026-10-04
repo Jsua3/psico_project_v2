@@ -3,7 +3,7 @@ import { join } from 'path';
 
 // Mismo andamiaje que game-world.collision.spec.ts: Phaser toca canvas/WebGL al importarse (jsdom no lo
 // soporta). Solo se evalúa `extends Phaser.Scene`; la escena nunca arranca aquí: se le dan dobles mínimos.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -21,23 +21,24 @@ jest.mock('phaser', () => ({
 import { MapObjectState, NpcConfig, SimulationWorldState } from '../../core/models/simulation.model';
 import { DataDrivenWorldScene } from './game-world.component';
 import { MARKER_INTERACT_RADIUS, NPC_INTERACT_RADIUS } from './interaction-priority.util';
+import type { Mock } from 'vitest';
 
 interface FakeNode {
   x: number; y: number; scene: object; visible: boolean; alpha: number; scale: number;
-  setScale: jest.Mock; setAlpha: jest.Mock; setVisible: jest.Mock; setPosition: jest.Mock;
-  setStrokeStyle: jest.Mock; setDepth: jest.Mock;
+  setScale: Mock; setAlpha: Mock; setVisible: Mock; setPosition: Mock;
+  setStrokeStyle: Mock; setDepth: Mock;
   [extra: string]: unknown;
 }
 
 function node(x = 0, y = 0): FakeNode {
   const self: FakeNode = {
     x, y, scene: {}, visible: true, alpha: 1, scale: 1,
-    setScale: jest.fn((v: number) => { self.scale = v; return self; }),
-    setAlpha: jest.fn((v: number) => { self.alpha = v; return self; }),
-    setVisible: jest.fn((v: boolean) => { self.visible = v; return self; }),
-    setPosition: jest.fn((nx: number, ny: number) => { self.x = nx; self.y = ny; return self; }),
-    setStrokeStyle: jest.fn(() => self),
-    setDepth: jest.fn(() => self),
+    setScale: vi.fn((v: number) => { self.scale = v; return self; }),
+    setAlpha: vi.fn((v: number) => { self.alpha = v; return self; }),
+    setVisible: vi.fn((v: boolean) => { self.visible = v; return self; }),
+    setPosition: vi.fn((nx: number, ny: number) => { self.x = nx; self.y = ny; return self; }),
+    setStrokeStyle: vi.fn(() => self),
+    setDepth: vi.fn(() => self),
   };
   return self;
 }
@@ -51,8 +52,8 @@ interface SceneProbe {
   markerLabels: Map<string, FakeNode>;
   doorHints: Map<string, FakeNode>;
   npcMarkers: Map<string, FakeNode>;
-  sound: { play: jest.Mock };
-  add: { ellipse: jest.Mock };
+  sound: { play: Mock };
+  add: { ellipse: Mock };
   nearestKey: string | null;
   alsoKey: string | null;
   revealed: string[];
@@ -80,8 +81,8 @@ const npcConfig = (key: string, displayName: string, x: number, y: number): NpcC
 interface Harness {
   scene: SceneProbe;
   callbacks: {
-    onProximity: jest.Mock; onProximityAlso: jest.Mock; onNothingNearby: jest.Mock;
-    onInteract: jest.Mock; onNpcInteract: jest.Mock; reduceMotion: boolean; sfxMuted: boolean;
+    onProximity: Mock; onProximityAlso: Mock; onNothingNearby: Mock;
+    onInteract: Mock; onNpcInteract: Mock; reduceMotion: boolean; sfxMuted: boolean;
   };
   nodes: Record<string, FakeNode>;
 }
@@ -92,13 +93,13 @@ interface Harness {
  */
 function crearEscena(player = { x: 480, y: 430 }): Harness {
   const callbacks = {
-    onProximity: jest.fn(), onProximityAlso: jest.fn(), onNothingNearby: jest.fn(),
-    onInteract: jest.fn(), onNpcInteract: jest.fn(), reduceMotion: false, sfxMuted: false,
+    onProximity: vi.fn(), onProximityAlso: vi.fn(), onNothingNearby: vi.fn(),
+    onInteract: vi.fn(), onNpcInteract: vi.fn(), reduceMotion: false, sfxMuted: false,
   };
   const scene = new DataDrivenWorldScene(callbacks as never) as unknown as SceneProbe;
   scene.world = { map: { key: 'hospital-urgencias', width: 960, height: 528 }, objects: [], collisions: [], inventory: [] } as unknown as SimulationWorldState;
   scene.player = { ...player };
-  scene.sound = { play: jest.fn() };
+  scene.sound = { play: vi.fn() };
   scene.markers = new Map(); scene.markerData = new Map(); scene.markerLabels = new Map();
   scene.doorHints = new Map(); scene.npcMarkers = new Map();
   scene.ambientMovers = new Map(); scene.npcMovers = new Map();
@@ -132,7 +133,7 @@ function crearEscena(player = { x: 480, y: 430 }): Harness {
   addNpc(npcConfig('enfermera-urgencias', 'Enfermera de urgencias', 560, 330));
   addNpc(npcConfig('psicologa-orientadora', 'Psicóloga hospitalaria', 780, 440));
   const ellipses: FakeNode[] = [];
-  scene.add = { ellipse: jest.fn(() => { const e = node(); ellipses.push(e); return e; }) };
+  scene.add = { ellipse: vi.fn(() => { const e = node(); ellipses.push(e); return e; }) };
   nodes['#ellipses'] = ellipses as unknown as FakeNode;
   return { scene, callbacks, nodes };
 }
@@ -328,10 +329,10 @@ describe('DataDrivenWorldScene: destino, anillo, rótulos y atenuados', () => {
 
   it('el anillo no usa tweens ni animación (también con movimiento normal)', () => {
     const h = crearEscena();
-    (h.scene as unknown as { tweens: { add: jest.Mock } }).tweens = { add: jest.fn() };
+    (h.scene as unknown as { tweens: { add: Mock } }).tweens = { add: vi.fn() };
     orient(h, { nextTargetKey: 'tool-pap' });
     move(h, 330, 420);
-    expect((h.scene as unknown as { tweens: { add: jest.Mock } }).tweens.add).not.toHaveBeenCalled();
+    expect((h.scene as unknown as { tweens: { add: Mock } }).tweens.add).not.toHaveBeenCalled();
   });
 
   it('el rótulo del destino se ve aunque esté lejos y se oculta al cambiar de destino', () => {

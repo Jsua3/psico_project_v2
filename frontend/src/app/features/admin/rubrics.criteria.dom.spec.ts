@@ -6,6 +6,7 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
+import type { Mock } from 'vitest';
 
 /**
  * Cada fila de criterio debe seguir a su propio grupo del `FormArray`.
@@ -37,7 +38,7 @@ describe('rúbricas: criterios enlazados a su control (DOM con Material)', () =>
   let fixture: ComponentFixture<RubricsComponent>;
   let component: RubricsComponent;
   let root: HTMLElement;
-  let service: { list: jest.Mock; detail: jest.Mock };
+  let service: { list: Mock; detail: Mock };
 
   /** Valores visibles de los campos de nombre, peso y orden de todos los criterios. */
   const shown = () => Array.from(root.querySelectorAll<HTMLInputElement>('.criterion input')).map(input => input.value);
@@ -55,14 +56,14 @@ describe('rúbricas: criterios enlazados a su control (DOM con Material)', () =>
   };
 
   beforeEach(() => {
-    service = { list: jest.fn(() => of([])), detail: jest.fn(() => of(primera)) };
+    service = { list: vi.fn(() => of([])), detail: vi.fn(() => of(primera)) };
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
         provideNoopAnimations(),
         { provide: RubricService, useValue: service },
-        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([])) } },
-        { provide: NotificationService, useValue: { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
     fixture = TestBed.createComponent(RubricsComponent);

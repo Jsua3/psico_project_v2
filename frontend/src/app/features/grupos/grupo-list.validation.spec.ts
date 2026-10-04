@@ -6,6 +6,7 @@ import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { GrupoListComponent } from './grupo-list.component';
+import type { Mock } from 'vitest';
 
 /**
  * Validar al enviar en el formulario de grupo (crear / editar).
@@ -18,24 +19,24 @@ const grupoA: Grupo = { id: 1, nombre: 'Cohorte A', codigo: 'COH-A', totalEstudi
 describe('grupos: validar al enviar el formulario de grupo (comportamiento)', () => {
   let component: GrupoListComponent;
   let host: HTMLElement;
-  let grupos: { listar: jest.Mock; crear: jest.Mock; actualizar: jest.Mock; importSpec: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
+  let grupos: { listar: Mock; crear: Mock; actualizar: Mock; importSpec: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
 
   beforeEach(() => {
     host = document.createElement('div');
     document.body.appendChild(host);
     grupos = {
-      listar: jest.fn(() => of([grupoA])),
-      crear: jest.fn(),
-      actualizar: jest.fn(),
-      importSpec: jest.fn(),
+      listar: vi.fn(() => of([grupoA])),
+      crear: vi.fn(),
+      actualizar: vi.fn(),
+      importSpec: vi.fn(),
     };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: GrupoService, useValue: grupos },
-        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([])) } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: notify },
         { provide: ElementRef, useValue: new ElementRef(host) },
       ],

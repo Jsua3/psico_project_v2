@@ -6,6 +6,7 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
+import type { Mock } from 'vitest';
 
 /**
  * Validar al enviar en el formulario de Rúbricas.
@@ -28,8 +29,8 @@ const entrevista = {
 describe('rúbricas: validar al enviar (comportamiento)', () => {
   let component: RubricsComponent;
   let host: HTMLElement;
-  let rubrics: { list: jest.Mock; detail: jest.Mock; create: jest.Mock; update: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
+  let rubrics: { list: Mock; detail: Mock; create: Mock; update: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
 
   /** Primer criterio del formulario (el que crea `newRubric()`). */
   const criterion = () => component.criteria.at(0);
@@ -43,17 +44,17 @@ describe('rúbricas: validar al enviar (comportamiento)', () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     rubrics = {
-      list: jest.fn(() => of([])),
-      detail: jest.fn(() => of(entrevista)),
-      create: jest.fn(),
-      update: jest.fn(),
+      list: vi.fn(() => of([])),
+      detail: vi.fn(() => of(entrevista)),
+      create: vi.fn(),
+      update: vi.fn(),
     };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: RubricService, useValue: rubrics },
-        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([])) } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: notify },
         { provide: ElementRef, useValue: new ElementRef(host) },
       ],

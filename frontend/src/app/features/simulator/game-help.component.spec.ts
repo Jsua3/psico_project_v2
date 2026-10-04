@@ -83,9 +83,9 @@ describe('GameHelpComponent (T3.2)', () => {
 
     it('«Entendido» emite dismissed y «Más ayuda» emite openFull, una vez cada uno', () => {
       create();
-      const dismissed = jest.fn();
-      const openFull = jest.fn();
-      const closed = jest.fn();
+      const dismissed = vi.fn();
+      const openFull = vi.fn();
+      const closed = vi.fn();
       fixture.componentInstance.dismissed.subscribe(dismissed);
       fixture.componentInstance.openFull.subscribe(openFull);
       fixture.componentInstance.closed.subscribe(closed);
@@ -171,7 +171,7 @@ describe('GameHelpComponent (T3.2)', () => {
 
     it('«Cerrar ayuda» emite closed y es el único botón', () => {
       create({ view: 'screen' });
-      const closed = jest.fn();
+      const closed = vi.fn();
       fixture.componentInstance.closed.subscribe(closed);
       expect(buttons().map(accessibleName)).toEqual(['Cerrar ayuda']);
       buttonByName('Cerrar ayuda')?.click();
@@ -189,7 +189,7 @@ describe('GameHelpComponent (T3.2)', () => {
 
     it('no escucha Esc: no emite closed ni cancela el evento (la cadena de Esc es de la pantalla de juego)', () => {
       create({ view: 'screen' });
-      const closed = jest.fn();
+      const closed = vi.fn();
       fixture.componentInstance.closed.subscribe(closed);
       const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
       (host().querySelector('.help-screen') as HTMLElement).dispatchEvent(event);

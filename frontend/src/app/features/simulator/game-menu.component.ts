@@ -376,7 +376,10 @@ export class GameMenuComponent implements OnDestroy {
   private game?: Phaser.Game;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
-  private enterTimer?: ReturnType<typeof window.setTimeout>;
+  // number explícito (no ReturnType<typeof window.setTimeout>): con @types/node en el
+  // programa de tipos de los specs, ese ReturnType resuelve a NodeJS.Timeout aunque la
+  // llamada real a window.setTimeout en el navegador siga devolviendo number.
+  private enterTimer?: number;
   private host?: ElementRef<HTMLDivElement>;
   private helpTrigger?: ElementRef<HTMLButtonElement>;
 

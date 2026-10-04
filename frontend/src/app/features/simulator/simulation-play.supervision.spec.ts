@@ -1,6 +1,6 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -22,6 +22,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { DialogueState, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
 
 /**
  * DLG-05 acotado a la última decisión: tras la sexta decisión el intento ya figura como COMPLETED, pero la
@@ -70,32 +71,32 @@ const completed = (extra: Record<string, unknown> = {}) =>
 
 describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)', () => {
   let component: SimulationPlayComponent;
-  let sim: Record<string, jest.Mock>;
-  let audio: Record<string, jest.Mock>;
+  let sim: Record<string, Mock>;
+  let audio: Record<string, Mock>;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     sessionStorage.clear();
     localStorage.clear();
     sim = {
-      getInterventionRules: jest.fn(() => throwError(() => new Error('sin reglas'))),
-      getActiveAttempt: jest.fn(() => of(null)),
-      startAttempt: jest.fn(() => of(makeAttempt())),
-      getProgressMap: jest.fn(() => EMPTY),
-      getWorld: jest.fn(() => of(makeWorld())),
-      getScenarioConfig: jest.fn(() => throwError(() => new Error('sin escenario'))),
-      safeExit: jest.fn(() => EMPTY),
-      enterRoom: jest.fn(() => EMPTY),
-      recordNpcInteraction: jest.fn(() => EMPTY),
-      updateWorldState: jest.fn(() => EMPTY),
-      openInteraction: jest.fn(() => EMPTY),
-      chooseDecision: jest.fn(() => of(completed())),
-      useTool: jest.fn(() => EMPTY),
+      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
+      getActiveAttempt: vi.fn(() => of(null)),
+      startAttempt: vi.fn(() => of(makeAttempt())),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => of(makeWorld())),
+      getScenarioConfig: vi.fn(() => throwError(() => new Error('sin escenario'))),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      openInteraction: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => of(completed())),
+      useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: jest.fn(), setStressLevel: jest.fn(), isMusicMuted: jest.fn(() => false), isSfxMuted: jest.fn(() => false),
-      dispose: jest.fn(), stopIntroLament: jest.fn(), playIntroLament: jest.fn(), playSfx: jest.fn(),
-      toggleMusicMuted: jest.fn(() => false), playResolution: jest.fn(),
+      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -103,7 +104,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
@@ -114,13 +115,13 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
     TestBed.resetTestingModule();
   });
 
-  const tick = (ms = 0) => { jest.advanceTimersByTime(ms); TestBed.tick(); };
+  const tick = (ms = 0) => { vi.advanceTimersByTime(ms); TestBed.tick(); };
 
   /** Decide por última vez: el servidor responde con el intento ya COMPLETED. */
   function decideLast(response: SimulationAttemptState = completed()): void {
@@ -130,7 +131,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
     component.dialogue.set({
       key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
       choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-    } as DialogueState);
+    } as unknown as DialogueState);
     component.executeDecision(101);
     // Sin evidencia pendiente en este nodo: solo el fundido y la respuesta del servidor.
     tick(340);
@@ -178,7 +179,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       component.dialogue.set({
         key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState);
+      } as unknown as DialogueState);
 
       component.executeDecision(101);
       tick(340);
@@ -238,7 +239,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
 
       component.dialogue.set({
         key: 'otro', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [],
-      } as DialogueState);
+      } as unknown as DialogueState);
 
       expect(component.holdingOutcome()).toBe(false);
       expect(component.viewMode()).toBe('outcome');

@@ -33,17 +33,23 @@ const SINGLE_STEM_AMBIENT_FLOOR = 0.6;
 /** Ganancia de efectos concretos respecto al volumen base de los SFX (recoger es un detalle, no un aviso). */
 const SFX_GAIN: Partial<Record<SoundEffect, number>> = { item_pickup: 0.7 };
 
-/** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
- *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la pista. */
-const HTML5_VOLUME_WORKS = (() => {
+/**
+ * Expuesta para pruebas: antes el test recargaba todo el módulo (reload dinámico) para forzar
+ * esta detección con otro `Audio`. Vitest trata cualquier `import()` dinámico en un archivo con
+ * `vi.mock()` como si fuera una llamada de mock fuera del alcance de nivel superior y rechaza el
+ * archivo entero ("was defined outside of the module's top level scope"), así que la detección
+ * se extrae a una función exportada que el test llama directamente con el `Audio` que simula.
+ */
+export function detectHtml5VolumeWorks(AudioCtor: typeof Audio): boolean {
   try {
-    const probe = new Audio();
+    const probe = new AudioCtor();
     probe.volume = 0.5;
     return probe.volume === 0.5;
   } catch {
     return false;
   }
-})();
+}
+
 
 @Injectable({ providedIn: 'root' })
 export class AudioDirectorService {
@@ -60,6 +66,11 @@ export class AudioDirectorService {
   private fadeInterval?: number;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private initialized = false;
+  /** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
+   *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la
+   *  pista. Por instancia (no constante de módulo) para que los dobles de `Audio` en pruebas,
+   *  fijados antes de crear el servicio, se detecten igual que `reducedMotion` arriba. */
+  private readonly html5Works = detectHtml5VolumeWorks(window.Audio);
 
   init(): void {
     if (this.initialized) return;
@@ -80,7 +91,7 @@ export class AudioDirectorService {
         preload: true,
         // Pista de ~150 s. Con HTML5 se transmite; Web Audio la decodificaría entera (~50 MB de PCM).
         // Solo donde el navegador respeta el volumen del elemento; en iOS/iPadOS se queda en Web Audio.
-        html5: HTML5_VOLUME_WORKS,
+        html5: this.html5Works,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] No se pudo cargar ${src}:`, err),
       });
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
@@ -127,7 +138,7 @@ export class AudioDirectorService {
         loop: true,
         volume: this.musicVolume,
         preload: true,
-        html5: HTML5_VOLUME_WORKS,
+        html5: this.html5Works,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
     }

@@ -113,7 +113,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(help).not.toBeNull();
       expect(help?.getAttribute('title')).toBe('Cómo se juega');
       expect(help?.querySelector('mat-icon')?.textContent?.trim()).toBe('help');
-      const emitted = jest.fn();
+      const emitted = vi.fn();
       hud.openHelp.subscribe(emitted);
       help!.click();
       expect(emitted).toHaveBeenCalledTimes(1);
@@ -174,7 +174,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     it('«Cómo se juega» emite openHelp y cierra Ajustes', () => {
       const root = mount();
       openSettings(root);
-      const emitted = jest.fn();
+      const emitted = vi.fn();
       hud.openHelp.subscribe(emitted);
       settingsRow(root, 'Cómo se juega')!.click();
       fixture.detectChanges();
@@ -187,7 +187,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       localStorage.setItem('otra-clave', 'se conserva');
       const root = mount();
       openSettings(root);
-      const reset = jest.fn();
+      const reset = vi.fn();
       hud.helpReset.subscribe(reset);
       settingsRow(root, 'Ver la ayuda otra vez')!.click();
       fixture.detectChanges();
@@ -201,10 +201,10 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     it('si el almacenamiento está bloqueado, borrar la ayuda no rompe nada', () => {
       const root = mount();
       openSettings(root);
-      const removeItem = jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
         throw new DOMException('bloqueado', 'SecurityError');
       });
-      const reset = jest.fn();
+      const reset = vi.fn();
       hud.helpReset.subscribe(reset);
       expect(() => settingsRow(root, 'Ver la ayuda otra vez')!.click()).not.toThrow();
       expect(reset).toHaveBeenCalledTimes(1);
@@ -212,7 +212,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
 
     it('las filas nuevas no añaden oyentes globales', () => {
-      const add = jest.spyOn(document, 'addEventListener');
+      const add = vi.spyOn(document, 'addEventListener');
       const root = mount();
       openSettings(root);
       const keyboard = add.mock.calls.filter(([type]) => String(type).startsWith('key'));

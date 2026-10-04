@@ -5,10 +5,10 @@ function installMatchMedia(matches: boolean) {
   const listeners = new Set<(event: { matches: boolean }) => void>();
   const list = {
     matches,
-    addEventListener: jest.fn((_type: string, cb: (event: { matches: boolean }) => void) => listeners.add(cb)),
-    removeEventListener: jest.fn((_type: string, cb: (event: { matches: boolean }) => void) => listeners.delete(cb)),
+    addEventListener: vi.fn((_type: string, cb: (event: { matches: boolean }) => void) => listeners.add(cb)),
+    removeEventListener: vi.fn((_type: string, cb: (event: { matches: boolean }) => void) => listeners.delete(cb)),
   };
-  const mm = jest.fn(() => list);
+  const mm = vi.fn(() => list);
   Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: mm });
   return { list, listeners, mm };
 }

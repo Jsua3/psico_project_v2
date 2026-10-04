@@ -1,7 +1,7 @@
 // Phaser toca canvas/WebGL al importarse (jsdom no lo soporta). Solo se evalúa
 // `extends Phaser.Scene` al cargar el módulo; estos tests de instancia nunca
 // arrancan la escena (boot() requiere el template, que ts-jest no renderiza).
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -27,6 +27,7 @@ import { AvatarStore } from '../character/avatar.store';
 import { GameHelpComponent } from './game-help.component';
 import { GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
 import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import type { Mock } from 'vitest';
 
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
   return {
@@ -40,15 +41,15 @@ function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
 
 describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
   let component: GameMenuComponent;
-  let router: { navigate: jest.Mock };
+  let router: { navigate: Mock };
 
   beforeEach(() => {
-    jest.useFakeTimers();
-    router = { navigate: jest.fn() };
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    router = { navigate: vi.fn() };
     TestBed.configureTestingModule({
       imports: [GameMenuComponent],
       providers: [
-        { provide: SimulationService, useValue: { getCatalog: jest.fn(() => EMPTY) } },
+        { provide: SimulationService, useValue: { getCatalog: vi.fn(() => EMPTY) } },
         { provide: Router, useValue: router },
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
       ],
@@ -57,7 +58,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     TestBed.resetTestingModule();
   });
 
@@ -65,7 +66,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     component.catalog.set([makeItem()]);
     component.enter(7);
     expect(component.entering()).toBe('Caso demo');
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
   });
@@ -74,7 +75,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     component.catalog.set([makeItem({ unlocked: false })]);
     component.enter(7);
     expect(component.entering()).toBe('');
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
@@ -82,7 +83,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     component.catalog.set([makeItem()]);
     component.enter(7);
     component.enter(7); // E + click casi simultáneos
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
   });
 
@@ -92,7 +93,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     const event = new KeyboardEvent('keydown', { key: 'e', cancelable: true });
     component.enterFocused(event);
     expect(event.defaultPrevented).toBe(true);
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
   });
 
@@ -101,7 +102,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     component.enterFocused(new KeyboardEvent('keydown', { key: 'e' }));
     component.focused.set(makeItem({ unlocked: false }));
     component.enterFocused(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(router.navigate).not.toHaveBeenCalled();
   });
 });
@@ -139,8 +140,8 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     TestBed.configureTestingModule({
       imports: [GameMenuComponent],
       providers: [
-        { provide: SimulationService, useValue: { getCatalog: jest.fn(() => EMPTY) } },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: SimulationService, useValue: { getCatalog: vi.fn(() => EMPTY) } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
       ],
     });
@@ -150,7 +151,7 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     });
     const fixture = TestBed.createComponent(GameMenuComponent);
     fixture.detectChanges();
-    const router = TestBed.inject(Router) as unknown as { navigate: jest.Mock };
+    const router = TestBed.inject(Router) as unknown as { navigate: Mock };
     return { fixture, component: fixture.componentInstance, root: fixture.nativeElement as HTMLElement, router };
   }
 
@@ -161,7 +162,7 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
 
   afterEach(() => {
     TestBed.resetTestingModule();
-    jest.useRealTimers();
+    vi.useRealTimers();
     if (original) Object.defineProperty(window, 'matchMedia', original);
     else delete (window as { matchMedia?: unknown }).matchMedia;
   });
@@ -253,7 +254,7 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     });
 
     it('con la ayuda abierta la E del juego no entra al caso (quien lee no debe ser llevado)', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
       const { fixture, component, root, router } = mount(false);
       component.catalog.set([catalogItem]);
       helpButton(root)!.click();
@@ -261,13 +262,13 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       component.enter(7);
       component.focused.set(catalogItem);
       component.enterFocused(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
-      jest.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2000);
       expect(router.navigate).not.toHaveBeenCalled();
       expect(component.entering()).toBe('');
 
       component.closeHelp();
       component.enter(7);
-      jest.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2000);
       expect(router.navigate).toHaveBeenCalledTimes(1);
     });
 
@@ -278,7 +279,7 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     });
 
     it('no registra oyentes globales: el teclado se escucha solo dentro de la capa de ayuda', () => {
-      const add = jest.spyOn(document, 'addEventListener');
+      const add = vi.spyOn(document, 'addEventListener');
       const { fixture, root } = mount(false);
       helpButton(root)!.click();
       fixture.detectChanges();

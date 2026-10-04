@@ -2,11 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
-    "types": ["jest"]
+    "types": ["vitest/globals", "node"]
   },
   "include": [
     "src/**/*.spec.ts",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "e2e/support/*.spec.ts"
   ],
   "angularCompilerOptions": {
     "extendedDiagnostics": {

@@ -68,7 +68,7 @@ describe('SafeExitButtonComponent (T1.1)', () => {
   });
 
   it('emite pause exactamente una vez por activación', () => {
-    const spy = jest.fn();
+    const spy = vi.fn();
     fixture.componentInstance.pause.subscribe(spy);
     button().click();
     expect(spy).toHaveBeenCalledTimes(1);

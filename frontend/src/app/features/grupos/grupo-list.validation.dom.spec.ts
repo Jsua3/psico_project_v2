@@ -11,6 +11,7 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
 import { GrupoListComponent } from './grupo-list.component';
+import type { Mock } from 'vitest';
 
 /**
  * Validar al enviar el formulario de grupo, con Material real y el DOM renderizado.
@@ -46,7 +47,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
   let fixture: ComponentFixture<GrupoListComponent>;
   let component: GrupoListComponent;
   let root: HTMLElement;
-  let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes' | 'listarCasos', jest.Mock>;
+  let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes' | 'listarCasos', Mock>;
 
   const errorTexts = () => Array.from(root.querySelectorAll('mat-error')).map(node => (node.textContent ?? '').trim());
   const groupForm = () => root.querySelector<HTMLFormElement>('.form-card form')!;
@@ -69,21 +70,21 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
 
   beforeEach(() => {
     service = {
-      listar: jest.fn(() => of([grupoA, grupoB])),
-      crear: jest.fn(),
-      actualizar: jest.fn(),
-      eliminar: jest.fn(),
-      importSpec: jest.fn(() => of({ requiredColumns: ['nombre'], optionalColumns: [], columns: ['nombre'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
-      listarEstudiantes: jest.fn(() => of([])),
-      listarCasos: jest.fn(() => of([])),
+      listar: vi.fn(() => of([grupoA, grupoB])),
+      crear: vi.fn(),
+      actualizar: vi.fn(),
+      eliminar: vi.fn(),
+      importSpec: vi.fn(() => of({ requiredColumns: ['nombre'], optionalColumns: [], columns: ['nombre'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
+      listarEstudiantes: vi.fn(() => of([])),
+      listarCasos: vi.fn(() => of([])),
     };
     TestBed.configureTestingModule({
       imports: [GrupoListComponent],
       providers: [
         provideNoopAnimations(),
         { provide: GrupoService, useValue: service },
-        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([caso])) } },
-        { provide: NotificationService, useValue: { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
     TestBed.overrideComponent(GrupoListComponent, {

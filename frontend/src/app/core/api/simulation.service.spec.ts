@@ -1,6 +1,7 @@
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Observable } from 'rxjs';
 
 import { AttemptCompletionReport } from '../models/simulation.model';
 import { SimulationService } from './simulation.service';
@@ -27,7 +28,12 @@ describe('SimulationService private attempt GETs', () => {
     ['getWorld', () => service.getWorld(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}/world`],
     ['getCompletionReport', () => service.getCompletionReport(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}/completion-report`],
   ])('%s keeps the token out of the URL and sends it in the private header', (_name, call, url) => {
-    call().subscribe();
+    // `call` es una unión de funciones con distintos Observable<T>: TypeScript no puede
+    // resolver una llamada a un método sobrecargado (subscribe) sobre una unión de tipos de
+    // función, con o sin argumentos (antes no se type-chequeaba bajo ts-jest). El cast a
+    // Observable<unknown> es solo para esa limitación del checker; en runtime sigue siendo
+    // el mismo Observable real.
+    (call() as Observable<unknown>).subscribe(() => {});
 
     const request = httpMock.expectOne(url);
     expect(request.request.method).toBe('GET');

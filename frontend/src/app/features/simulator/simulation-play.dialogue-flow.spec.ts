@@ -1,6 +1,6 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -23,6 +23,7 @@ import {
 } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
 
 /**
  * Flujo del diálogo sin callejones (F§7.6, F§5.6, B§T8.3): un panel que se queda bloqueado tras un
@@ -75,37 +76,37 @@ function http(status: number, message?: string): HttpErrorResponse {
 
 describe('SimulationPlayComponent: diálogo sin callejones', () => {
   let component: SimulationPlayComponent;
-  let sim: Record<string, jest.Mock>;
-  let audio: Record<string, jest.Mock>;
+  let sim: Record<string, Mock>;
+  let audio: Record<string, Mock>;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     sessionStorage.clear();
     sim = {
-      getInterventionRules: jest.fn(() => throwError(() => new Error('sin reglas'))),
-      getActiveAttempt: jest.fn(() => of(null)),
-      startAttempt: jest.fn(() => of(makeAttempt({ attemptId: 'attempt-2', attemptToken: 'token-2' }))),
-      getProgressMap: jest.fn(() => EMPTY),
-      getWorld: jest.fn(() => EMPTY),
-      getScenarioConfig: jest.fn(() => EMPTY),
-      safeExit: jest.fn(() => EMPTY),
-      enterRoom: jest.fn(() => EMPTY),
-      recordNpcInteraction: jest.fn(() => EMPTY),
-      updateWorldState: jest.fn(() => EMPTY),
-      openInteraction: jest.fn(() => EMPTY),
-      chooseDecision: jest.fn(() => EMPTY),
-      useTool: jest.fn(() => EMPTY),
+      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
+      getActiveAttempt: vi.fn(() => of(null)),
+      startAttempt: vi.fn(() => of(makeAttempt({ attemptId: 'attempt-2', attemptToken: 'token-2' }))),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => EMPTY),
+      getScenarioConfig: vi.fn(() => EMPTY),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      openInteraction: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => EMPTY),
+      useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: jest.fn(),
-      setStressLevel: jest.fn(),
-      isMusicMuted: jest.fn(() => false),
-      isSfxMuted: jest.fn(() => false),
-      dispose: jest.fn(),
-      stopIntroLament: jest.fn(),
-      playIntroLament: jest.fn(),
-      playSfx: jest.fn(),
-      toggleMusicMuted: jest.fn(() => false),
+      init: vi.fn(),
+      setStressLevel: vi.fn(),
+      isMusicMuted: vi.fn(() => false),
+      isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(),
+      stopIntroLament: vi.fn(),
+      playIntroLament: vi.fn(),
+      playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false),
     };
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -113,7 +114,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
@@ -129,14 +130,14 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     sessionStorage.clear();
     TestBed.resetTestingModule();
   });
 
   describe('cerrar y empezar de nuevo', () => {
     it('cerrar el diálogo deja de marcar el objeto como seleccionado (DLG-31)', () => {
-      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
+      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.dialogue.set(decisionDialogue(11));
 
       component.closeDialogue();
@@ -147,8 +148,8 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
     it('un intento nuevo no hereda el diálogo, la selección ni la bitácora abierta', () => {
       component.dialogue.set(decisionDialogue(11));
-      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
-      component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
+      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+      component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.journalOpen.set(true);
       (component as any).pendingEvidenceDecisionId = 11;
       (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
@@ -196,7 +197,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       const before = component.dialogueReleaseToken();
 
       component.executeDecision(11);
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
       expect(component.actionError()).toBe('Esta decisión ya fue registrada.');
@@ -211,7 +212,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       component.dialogue.set(decisionDialogue(11));
 
       component.executeDecision(11);
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(component.actionError()).toBe('No pudimos registrar tu decisión. Inténtalo de nuevo.');
     });
@@ -222,7 +223,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       const before = component.dialogueReleaseToken();
 
       component.executeDecision(11);
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(component.actionError()).toBe('');
       expect(component.dialogueReleaseToken()).toBe(before + 1);
@@ -240,7 +241,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
       component.executeDecision(11);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(component.pausing()).toBe(true);
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
@@ -264,7 +265,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
       component.executeDecision(11);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
       TestBed.tick();
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
@@ -277,7 +278,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   describe('usar una herramienta', () => {
     it('si el servidor falla libera el panel y dice la causa', () => {
       sim['useTool'].mockReturnValue(throwError(() => http(400, 'Esa herramienta no está en tu barra.')));
-      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
+      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       const before = component.dialogueReleaseToken();
 
       component.useTool('PAP');
@@ -419,7 +420,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   describe('abrir una interacción', () => {
-    const object = { key: 'familia-crisis', label: 'Familia', type: 'PERSON', x: 190, y: 420 } as MapObjectState;
+    const object = { key: 'familia-crisis', label: 'Familia', type: 'PERSON', x: 190, y: 420 } as unknown as MapObjectState;
 
     it('si el servidor falla suelta la selección, libera el panel y dice la causa', () => {
       sim['openInteraction'].mockReturnValue(throwError(() => http(400, 'Estás demasiado lejos de este objeto.')));
@@ -443,7 +444,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
     it('si falla el registro de la conversación con una persona dice cómo seguir', () => {
       sim['recordNpcInteraction'].mockReturnValue(throwError(() => http(500)));
-      const npc = { key: 'enfermera-urgencias', displayName: 'Enfermera', dialogue: { lines: [{ text: 'Hola.' }] } } as NpcConfig;
+      const npc = { key: 'enfermera-urgencias', displayName: 'Enfermera', dialogue: { lines: [{ text: 'Hola.' }] } } as unknown as NpcConfig;
       const before = component.dialogueReleaseToken();
 
       component.openNpcDialogue(npc);
@@ -457,7 +458,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
     it('usa el mensaje del servidor cuando explica la distancia a una persona', () => {
       sim['recordNpcInteraction'].mockReturnValue(throwError(() => http(400, 'Estás demasiado lejos del NPC.')));
-      const npc = { key: 'enfermera-urgencias', displayName: 'Enfermera', dialogue: { lines: [{ text: 'Hola.' }] } } as NpcConfig;
+      const npc = { key: 'enfermera-urgencias', displayName: 'Enfermera', dialogue: { lines: [{ text: 'Hola.' }] } } as unknown as NpcConfig;
 
       component.openNpcDialogue(npc);
 

@@ -184,7 +184,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
 
   it('«Reanudar este intento» emite resume y es el elemento con foco inicial', () => {
     render('PAUSED');
-    const resume = jest.fn();
+    const resume = vi.fn();
     component.resume.subscribe(resume);
     const button = host().querySelector('button.oc-btn--go') as HTMLButtonElement;
     expect(button.hasAttribute('cdkFocusInitial')).toBe(true);

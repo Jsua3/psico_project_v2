@@ -8,6 +8,7 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
+import type { Mock } from 'vitest';
 
 /**
  * Validar al enviar, con Material real y el DOM renderizado.
@@ -41,7 +42,7 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
   let fixture: ComponentFixture<RubricsComponent>;
   let component: RubricsComponent;
   let root: HTMLElement;
-  let service: { list: jest.Mock; detail: jest.Mock; create: jest.Mock; update: jest.Mock };
+  let service: { list: Mock; detail: Mock; create: Mock; update: Mock };
 
   const errorTexts = () => Array.from(root.querySelectorAll('mat-error')).map(node => (node.textContent ?? '').trim());
   const actionButton = (label: string) =>
@@ -67,18 +68,18 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
 
   beforeEach(() => {
     service = {
-      list: jest.fn(() => of([])),
-      detail: jest.fn(() => of(completa)),
-      create: jest.fn(),
-      update: jest.fn(),
+      list: vi.fn(() => of([])),
+      detail: vi.fn(() => of(completa)),
+      create: vi.fn(),
+      update: vi.fn(),
     };
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
         provideNoopAnimations(),
         { provide: RubricService, useValue: service },
-        { provide: SimulationService, useValue: { listCases: jest.fn(() => of([])) } },
-        { provide: NotificationService, useValue: { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
     fixture = TestBed.createComponent(RubricsComponent);

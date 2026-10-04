@@ -1,6 +1,6 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -38,10 +38,10 @@ describe('SimulationPlayComponent: aviso del nodo sensible', () => {
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
       providers: [
-        { provide: SimulationService, useValue: { getActiveAttempt: jest.fn(() => of(null)), getInterventionRules: jest.fn(() => EMPTY) } },
-        { provide: AudioDirectorService, useValue: { init: jest.fn(), dispose: jest.fn(), stopIntroLament: jest.fn(), isMusicMuted: jest.fn(() => false), isSfxMuted: jest.fn(() => false) } },
+        { provide: SimulationService, useValue: { getActiveAttempt: vi.fn(() => of(null)), getInterventionRules: vi.fn(() => EMPTY) } },
+        { provide: AudioDirectorService, useValue: { init: vi.fn(), dispose: vi.fn(), stopIntroLament: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false) } },
         { provide: AuthService, useValue: {} },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: '7' }) } } },
       ],
     });
