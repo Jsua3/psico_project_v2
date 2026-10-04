@@ -1,7 +1,10 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { AvatarStore } from '../character/avatar.store';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 
 type InputSignalNodeLike<T> = {
@@ -17,7 +20,12 @@ function writeInputSignal<T>(inputSignal: () => T, value: T): void {
   node.applyValueToInputSignal(node, value);
 }
 
-const source = readFileSync(join(__dirname, 'case-intro-scene.component.ts'), 'utf-8');
+const source = readFileSync(join(__dirname, 'case-intro-scene.component.ts'), 'utf-8').replace(/\r\n/g, '\n');
+
+/** El kit todavía no llegó: `bundle()` es null y `load()` sigue pendiente. */
+function pendingKitService(): KitService {
+  return { bundle: signal(null).asReadonly(), load: () => new Promise(() => undefined) } as unknown as KitService;
+}
 
 describe('CaseIntroSceneComponent', () => {
   let fixture: ComponentFixture<CaseIntroSceneComponent>;
@@ -26,13 +34,16 @@ describe('CaseIntroSceneComponent', () => {
   const layerImages = () =>
     Array.from(host().querySelectorAll<HTMLElement>('.intro-actor__layer')).map(layer => layer.style.backgroundImage);
 
-  function create(options: { reduceMotion?: boolean; castId?: string } = {}): void {
+  function create(options: { reduceMotion?: boolean; castId?: string; kit?: KitService } = {}): void {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [CaseIntroSceneComponent],
       // `new AvatarStore()` evita la reflexión JIT de su parámetro opcional `Storage`
       // (NG0202 en ts-jest); recurre al localStorage de jsdom.
-      providers: [{ provide: AvatarStore, useFactory: () => new AvatarStore() }],
+      providers: [
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: options.kit ?? fakeKitService() },
+      ],
     });
     if (options.castId !== undefined) TestBed.inject(AvatarStore).update({ castId: options.castId });
     fixture = TestBed.createComponent(CaseIntroSceneComponent);
@@ -45,12 +56,12 @@ describe('CaseIntroSceneComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  it('el personaje elegido entra caminando con su hoja de caminata, en pixel art', () => {
+  it('el personaje elegido entra caminando con su hoja de caminata del kit, a tamaño nativo', () => {
     create();
     expect(actor().classList).toContain('intro-actor--walking');
-    expect(actor().classList).toContain('intro-actor--pixel');
     expect(layerImages()).toHaveLength(1);
-    expect(layerImages()[0]).toContain('/assets/characters/v1/valentina/base/walk.png');
+    expect(layerImages()[0]).toContain('/assets/characters/kit/valentina/walk.png');
+    expect(host().querySelector<HTMLElement>('.intro-actor__layer')!.style.backgroundSize).toBe('288px 288px');
     // El primer cuadro ya está puesto antes del primer requestAnimationFrame (fila derecha).
     expect(actor().style.getPropertyValue('--frame-y')).toBe('-144px');
   });
@@ -60,18 +71,18 @@ describe('CaseIntroSceneComponent', () => {
     actor().dispatchEvent(new Event('animationend'));
     fixture.detectChanges();
     expect(actor().classList).not.toContain('intro-actor--walking');
-    expect(layerImages()[0]).toContain('/assets/characters/v1/valentina/base/idle.png');
+    expect(layerImages()[0]).toContain('/assets/characters/kit/valentina/idle.png');
     expect(actor().style.getPropertyValue('--frame-y')).toBe('0px');
   });
 
   it('con movimiento reducido empieza quieto, de frente y en su sitio', () => {
     create({ reduceMotion: true });
     expect(actor().classList).not.toContain('intro-actor--walking');
-    expect(layerImages()[0]).toContain('/assets/characters/v1/valentina/base/idle.png');
+    expect(layerImages()[0]).toContain('/assets/characters/kit/valentina/idle.png');
     expect(actor().style.getPropertyValue('--frame-x')).toBe('0px');
   });
 
-  it('baja la hoja de reposo mientras camina, para no dejar al personaje en blanco al cambiar de hoja', () => {
+  it('baja la hoja de reposo mientras camina, para no dejar al personaje en blanco al cambiar de hoja', async () => {
     const requested: string[] = [];
     const RealImage = window.Image;
     class FakeImage {
@@ -80,16 +91,28 @@ describe('CaseIntroSceneComponent', () => {
     window.Image = FakeImage as unknown as typeof Image;
     try {
       create();
+      await Promise.resolve(); // la precarga espera a `kit.load()`
     } finally {
       window.Image = RealImage;
     }
-    expect(requested).toEqual(['/assets/characters/v1/valentina/base/idle.png']);
+    expect(requested).toEqual(['/assets/characters/kit/valentina/idle.png']);
   });
 
-  it('un personaje del elenco horneado usa su hoja propia, reducida con suavizado', () => {
+  it('otro jugable del elenco entra con sus propias hojas del kit', () => {
     create({ castId: 'paula' });
-    expect(actor().classList).not.toContain('intro-actor--pixel');
-    expect(layerImages()[0]).toContain('/assets/characters/cast/paula.png');
+    expect(layerImages()).toHaveLength(1);
+    expect(layerImages()[0]).toContain('/assets/characters/kit/paula/walk.png');
+  });
+
+  it('mientras el kit no llega no hay hoja que dibujar, y la escena no falla', () => {
+    create({ kit: pendingKitService() });
+    expect(layerImages()).toEqual(['none']);
+    expect(actor().style.getPropertyValue('--frame-x')).toBe('0px');
+  });
+
+  it('la hoja se dibuja siempre en pixel art (ya no hay hojas suavizadas)', () => {
+    expect(source).toMatch(/\.intro-actor__layer \{[^}]*image-rendering: pixelated;/);
+    expect(source).not.toContain('intro-actor--pixel');
   });
 
   it('describe la escena a los lectores de pantalla', () => {
