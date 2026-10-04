@@ -1,6 +1,6 @@
 # SIEP — Estrategia de stack, esquema de base de datos y despliegue
 
-Fecha: 2026-10-04 · Estado: **propuesta para aprobación** (no se ha cambiado código)
+Fecha: 2026-10-04 · Estado: **actualizaciones ejecutadas en la rama `chore/actualizar-stack` (sin mergear)**; esquema (§4) y despliegue (§7) pendientes. Ver §9.
 Alcance: (1) qué actualizar y por qué, (2) quién debe ser dueño del esquema de Postgres,
 (3) si conviene cambiar de stack (Laravel + Filament), (4) cómo desplegar de forma
 profesional y barata, (5) plan de ejecución.
@@ -18,7 +18,7 @@ profesional y barata, (5) plan de ejecución.
 |---|---|---|
 | D1 | ¿Cambiar de stack (Django → Laravel + Filament)? | **No.** Quedarse en Django y actualizar. Confianza media (ver §5) |
 | D2 | ¿Quién es dueño del esquema de Postgres? | **Django**, mediante migraciones con una baseline (§4, opción A) |
-| D3 | ¿Qué actualizar ya? | Django 5.1 → **5.2 LTS**, psycopg 3, dependencias del backend, Node 20 → **24 LTS**, retirar restos de Spring (§3) |
+| D3 | ¿Qué actualizar ya? | **Hecho en rama (§9):** Django **6.1.1** (decisión del usuario: «lo más actual»; la propuesta era 5.2 LTS), psycopg 3, Python 3.14, Node 24, Angular 22, Vitest, Phaser 4, PostgreSQL 18 en pruebas |
 | D4 | ¿Dónde desplegar? | **Hetzner** (VPS ~6 USD/mes) con Docker Compose + Caddy + respaldos + CI/CD; staging gratis opcional (§7) |
 | D5 | ¿Panel de administración generado (Django admin / Unfold / Filament)? | **Aplazar.** Hoy los CRUD ya existen en Angular; hay una trampa técnica con el usuario personalizado (§5.4) |
 | D6 | ¿Y el siguiente salto? | Django **6.2 LTS** cuando salga (abril 2027, soporte hasta 2030) y Angular 22 + Vitest (§6) |
@@ -321,7 +321,92 @@ reflexiones cifradas de estudiantes); si SIEP tiene usuarios reales hoy; dominio
 
 ---
 
-## 9. Fuentes
+## 9. Ejecución de las actualizaciones (2026-10-04)
+
+Decisión del usuario: quedarse en Django y actualizar todo a lo más actual. Se ejecutó en
+`.worktrees/actualizar-stack`, rama `chore/actualizar-stack`, **sin mergear a `master`** y
+sin push. Commits (de `92354c2` a `d687c7d`): vectores de cifrado → backend → infra → CI →
+Angular 22 → Vitest → dependencias → Phaser 4 → scripts/README → arreglo «Reanudar» → limpieza.
+
+### 9.1 Versiones (antes → después)
+
+| Pieza | Antes | Después |
+|---|---|---|
+| Django | 5.1.8 | **6.1.1** |
+| DRF / simplejwt | 3.15.2 / 5.3.1 | **3.18.1 / 5.5.1** |
+| cryptography / bcrypt | 43.0.3 / 4.2.0 | **50.0.2 / 5.0.0** |
+| Driver de BD | psycopg2-binary 2.9 | **psycopg 3.3.6** |
+| gunicorn / whitenoise / pytest | 23 / 6.7 / 8.3 | **26.2 / 6.12 / 9.1** |
+| Python (Docker, CI, dev-up) | 3.13 | **3.14** (dev-up acepta 3.12–3.14) |
+| Node (Docker) | 20 (sin soporte) | **24 LTS** (`npm ci`) |
+| PostgreSQL (BD de pruebas) | 16 | **18** (desarrollo sigue en 16, ver 9.4) |
+| Angular | 21.2 | **22.2.1** (builders `@angular/build`) |
+| TypeScript | 5.9 | **6.0.3** (7.0.2 bloqueado por el peer de Angular 22) |
+| Tests frontend | Jest 30 + ts-jest | **Vitest 5.0.3** (`@angular/build:unit-test`, jsdom) |
+| Phaser | 3.90 | **4.2.1** |
+| konva / Playwright / axe-core | 10.3 / 1.60 / 4.12 | **10.7 / 1.63 / 4.13** |
+
+### 9.2 Verificación (hechos medidos, no estimados)
+
+- **Backend:** 297 pruebas verdes antes → **303** después (6 de vectores fijos), también con
+  `-W error::DeprecationWarning`, en Python 3.14 + PG 18. API e2e 16/16.
+- **Frontend:** 1802 → **1806** pruebas verdes (4 nuevas), 76/76 de assets de personajes,
+  build limpio (bundle inicial 472 → 487 kB, presupuesto 850 kB).
+- **E2E con Phaser 4** (Chromium real): 20/20 del CI; los 4 `@full-case` (las seis decisiones
+  completas en 4 viewports); `@orientation` 9 OK + 1 omitido por diseño + 0 fallos.
+- **Imagen de producción:** construye, sirve el SPA, la API da 401 sin token y el **login con el
+  hash bcrypt de la semilla funciona**; `userId` del JWT sigue numérico.
+- **Volcado de producción:** `deploy/db_seed.sql` restaura sin errores en PostgreSQL 18.6.
+- **Seguridad:** `pip-audit` sobre las versiones anteriores: **27 avisos únicos** (17 Django,
+  6 cryptography, 2 DRF, 1 simplejwt, 1 pytest); sobre las nuevas: **0**, también transitivas.
+  `npm audit`: 0. Ambos quedan como job de CI y Dependabot semanal.
+
+### 9.3 Problemas que la actualización destapó (todos resueltos)
+
+| Problema | Causa | Resolución |
+|---|---|---|
+| Claim `userId` del JWT pasó a texto | simplejwt 5.5 hace `str(user_id)` | Se conserva el contrato numérico (`serializers.py`); el frontend lo tipa como `number` |
+| Prueba de historial rota | psycopg 3 escribe el UUID sin guiones en el SQL | La prueba compara sin guiones |
+| `EMAIL_BACKEND` deprecado | Django 6.1 introduce `MAILERS`; se retira en 7.0 | Migrado a `MAILERS` |
+| Prueba de `scene-checklist-card` (140 ≠ 70) | Angular 22 encola dos `afterNextRender`; el mock de geometría era estático | El mock sigue al scroll; la intención del test no cambia |
+| **«Reanudar» no hacía nada tras una pausa segura** (e2e determinista) | `busy()` seguía activo durante dos GET encadenados y `resumeCurrentAttempt()` descartaba el toque **en silencio** (bug **preexistente**, visible ahora por un servidor de desarrollo más lento) | El toque se encola y se atiende al terminar la recarga; 4 pruebas unitarias (2 fallan sin el arreglo) |
+| 503 avisos `NG0955` (claves duplicadas en `@for`) | La «Trazabilidad» de la bitácora usaba `track stage` y el backend recorta los títulos a 14 caracteres (`progress_map_node`), dejando dos nodos como «Consultorio: …» | `track $index`; el recorte sigue pendiente (9.5) |
+| `test:frontend` con `--runInBand` | Vitest no tiene ese flag | Eliminado del script raíz |
+
+### 9.4 Decisiones tomadas y por qué
+
+- **Django 6.1 y no 5.2 LTS:** el usuario pidió «lo más actual». 6.1 recibe parches ~16 meses;
+  la LTS 6.2 sale en abril 2027 (soporte hasta 2030), con el mismo esfuerzo de salto que desde 5.2.
+- **Python 3.14 en Docker y CI:** la suite completa pasa; el venv local de 3.13 sigue válido.
+- **PostgreSQL 18 solo en pruebas:** el volumen de desarrollo es persistente y subir de mayor
+  exige `pg_dump`/restore de los datos de cada persona; no se tocó sin avisar.
+- **Phaser 4:** el inventario de APIs afectadas (FX, máscaras, pipelines, `renderer.snapshot`)
+  dio cero usos; solo 2 ajustes de **tipos** (`fillPoints`, `createLayer`). El e2e real y una
+  captura confirman que el render del juego es correcto.
+- **TypeScript 6.0.3:** `@angular/compiler-cli@22.2.1` exige `>=6.0 <6.1`.
+- **`isolate: true` en Vitest:** sin él los relojes falsos se contaminan entre archivos; la suite
+  tarda ~60 s en vez de ~7 s. Prioriza corrección.
+
+### 9.5 Pendiente
+
+1. **Revisar y mergear** la rama (o abrir PR). Antes de empujar, el CI en Linux es el juez final.
+2. **Fin de línea en Windows:** con `core.autocrlf=true` y sin `.gitattributes`, 12 pruebas de
+   «contrato de código fuente» (51 specs leen `.ts` con `
+` literal) fallan localmente aunque
+   pasan en CI y con los archivos en LF. Preexistente en `master`. Solución recomendada:
+   `.gitattributes` con `eol=lf` (cambia cómo se escriben los archivos de cada colaborador).
+3. **Recorte de etiquetas** del mapa de progreso a 14 caracteres (`game_dtos.progress_map_node`):
+   «Consultorio: protección y marco» y «Consultorio: acción técnica y ética» se ven iguales.
+4. **BD de desarrollo** a PostgreSQL 18 (dump/restore) y alinear `docker-compose.yml`.
+5. **Fase 2 (esquema, §4)** y **Fase 3 (Hetzner, §7)** siguen como estaban.
+6. **Angular 22 deja `changeDetection: Eager` explícito** en ~30 componentes (migración
+   automática que conserva el comportamiento); migrar a `OnPush` es una mejora futura.
+7. Endurecimiento de producción detectado por `check --deploy`: `X-Frame-Options`, HSTS.
+8. **Django 6.2 LTS** en abril 2027.
+
+---
+
+## 10. Fuentes
 
 Consultadas el 2026-10-04 salvo indicación.
 
