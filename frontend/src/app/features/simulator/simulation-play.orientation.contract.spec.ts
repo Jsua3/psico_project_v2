@@ -111,7 +111,7 @@ describe('barra contextual (T9.3, T9.5)', () => {
 
   it('la línea «Ahora: …» tiene su clase propia y la leyenda conserva .context-bar__hint', () => {
     expect(source).toMatch(/<p class="context-bar__now">\{\{ nowLine\(\) \}\}<\/p>/);
-    expect(source).toMatch(/<p class="context-bar__hint">WASD mover/);
+    expect(source).toMatch(/<p class="context-bar__hint" aria-hidden="true">WASD mover/);
   });
 
   it('la leyenda de teclado solo se enciende con puntero fino y ancho >= 1150 px', () => {
@@ -169,7 +169,7 @@ describe('ayuda (T9.8)', () => {
   it('la pantalla de ayuda deja libres la cabecera y el pie (no se pone inert)', () => {
     expect(rule('.help-layer')).toMatch(/top: 52px;/);
     expect(rule('.help-layer')).toMatch(/pointer-events: none;/);
-    expect(source).toMatch(/<footer class="bottom-zone" \[attr\.inert\]="inputBlocked\(\)/);
+    expect(source).toMatch(/<footer class="bottom-zone"[^>]*\[attr\.inert\]="inputBlocked\(\)/);
   });
 });
 

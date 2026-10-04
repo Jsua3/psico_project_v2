@@ -109,7 +109,8 @@ const CASE_INTRO_PARAGRAPHS = [
         <div class="action-toast" role="alert">{{ actionError() }}</div>
       }
       @if (doorNotice()) {
-        <div class="door-notice" role="alert">
+        <!-- Sin role="alert": showDoorNotice ya lo anuncia por la región viva (con los dos se leía dos veces). -->
+        <div class="door-notice">
           <mat-icon aria-hidden="true">lock</mat-icon>
           <span>{{ doorNotice() }}</span>
         </div>
@@ -397,7 +398,8 @@ const CASE_INTRO_PARAGRAPHS = [
             } @else {
               <div class="context-bar__idle">
                 <p class="context-bar__now">{{ nowLine() }}</p>
-                <p class="context-bar__hint">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+                <!-- aria-hidden: la barra es una región viva y esta leyenda se volvía a leer entera cada vez que volvía al reposo; la ayuda ya la dice. -->
+                <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
               </div>
             }
           </div>
@@ -2478,7 +2480,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
     this.stressPulse.set(true);
     window.setTimeout(() => this.stressPulse.set(false), 700);
-    this.announce(result.feedbackMessage);
+    // Sin announce(): el panel de diálogo ya anuncia esta misma línea por su región viva (con las dos se leía dos veces).
   }
 
   toggleMusicMute(): void {
