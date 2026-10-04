@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-02
 - **Rama:** `feat/personajes-unificados` (worktree `.worktrees/personajes-unificados`, sale de `master` @ `51d1409`)
 - **Prueba aprobada:** `76e6171` (maniquí de complexión A y Valentina completa) y `59f4a6d` (por qué se ve distinta dentro del juego)
-- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas
+- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas; plan 2 (F4-F7) ejecutado en `feat/personajes-unificados`
 
 ## 1. Objetivo
 
@@ -483,6 +483,8 @@ Se leen con la misma `migrateAvatarV1` cuando vienen en v1. Al editar, el editor
 - las hojas de `characters/v1/<id>/`, junto con `roster.v1.json`, `actor-roster.v1.json` y `clinical-emotion-map.v1.json`, cuyo contenido pasa a `catalog.json`
 
 `palette.v1.json` se reemplaza por `palette.v2.json` del kit. La hoja Kenney `rpg-urban-pack` **se queda** si algún mapa la usa como tileset, pero deja de cargarse como `characters`.
+
+> *(2026-10, plan 2)* `palette.v1.json` se movió a `assets/visual/v1/`: la usan las 74 entradas del arte del mundo (`inventory.v1.json`).
 
 **Código:**
 

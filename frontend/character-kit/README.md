@@ -27,6 +27,19 @@ navegador y Node). Los scripts viven en `scripts/character-kit/`.
 | `npm run kit:laminas -- --receta <ids> \| --piezas <claves> \| --elenco \| --maniqui` | Láminas ×4 para revisar y aprobar. |
 | `npm run kit:retoque -- <id> <hoja> [--guardar \| --quitar \| --forzar]` | Retoque a mano con LibreSprite o Pixelorama. Exportar no pisa una edición en curso (salvo `--forzar`); las banderas van tras `--`. |
 
+## Cómo lo usa el juego
+
+| Qué | Dónde |
+|---|---|
+| Formato 2 del avatar y migración desde v1 | `src/app/features/character/kit/avatar-v2.ts` |
+| Punto único de resolución (`CharacterRef` → `CharacterVisual`) | `src/app/features/character/kit/character-visual.resolver.ts` |
+| Carga de `kit.json` | `src/app/features/character/kit/kit.service.ts` |
+| Hojas, animaciones y poses en Phaser | `src/app/features/character/kit/kit-phaser.ts` |
+| Sprite o retrato en CSS | `<app-kit-figure>` (`kit-figure.component.ts`) |
+| Zoom entero y lienzo en píxeles físicos | `src/app/features/simulator/pixel-scale.util.ts`, `pixel-canvas.ts` |
+
+Las recetas fijas se dibujan con los PNG de `src/assets/characters/kit/`; el avatar personalizado se compone en el navegador con el mismo motor. Un NPC de escenario nombra su receta en el JSON (`recipeId`).
+
 ## Retocar a mano
 
 1. `npm run kit:retoque -- valentina idle` exporta `retouch/valentina/idle.edit.png`.
