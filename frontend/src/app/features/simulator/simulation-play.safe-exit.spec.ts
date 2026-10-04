@@ -129,6 +129,53 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(rule('.scene-fade--active')).toContain('pointer-events: auto;');
     });
   });
+  describe('F5: un Esc mantenido no cierra y además pausa', () => {
+    const dialogue = { key: 'd', lines: [{ order: 1, speakerName: 'A', text: 'x', emotion: 'neutral' }], choices: [] } as never;
+    const escape = (repeat: boolean): KeyboardEvent => new KeyboardEvent('keydown', { key: 'Escape', repeat, cancelable: true });
+
+    it('los eventos repetidos de Esc se ignoran: ni cierran la ayuda, la bitácora o el diálogo, ni pausan', () => {
+      component.helpOpen.set(true);
+      component.journalOpen.set(true);
+      component.dialogue.set(dialogue);
+
+      for (let i = 0; i < 10; i += 1) component.handleGlobalInteraction(escape(true));
+
+      expect(component.helpOpen()).toBe(true);
+      expect(component.journalOpen()).toBe(true);
+      expect(component.dialogue()).not.toBeNull();
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('una pulsación mantenida cierra solo lo primero (primer evento) y nunca llega a la pausa', () => {
+      component.dialogue.set(dialogue);
+
+      component.handleGlobalInteraction(escape(false)); // primer evento: cierra el diálogo
+      for (let i = 0; i < 10; i += 1) component.handleGlobalInteraction(escape(true)); // los repetidos
+
+      expect(component.dialogue()).toBeNull();
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('Esc mantenido en la introducción no repite la pausa y un Esc nuevo sí pausa', () => {
+      component.showIntroScene.set(true);
+
+      component.handleGlobalInteraction(escape(true));
+      expect(component.pausing()).toBe(false);
+
+      component.handleGlobalInteraction(escape(false));
+      expect(component.pausing()).toBe(true);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+    });
+
+    it('un Esc nuevo (no repetido) sigue pausando con el mundo libre', () => {
+      component.handleGlobalInteraction(escape(false));
+
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('F2: la pausa en cola tiene plazo (petición colgada)', () => {
     const DEADLINE_MS = 10_000;
     const paused = () => makeAttempt({ status: 'PAUSED' });

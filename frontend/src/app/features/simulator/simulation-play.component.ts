@@ -1609,6 +1609,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // con Escape en document:keydown), no reinterpretarla aquí: sin esta
     // guarda, un solo Escape cerraba el diálogo Y disparaba la salida segura.
     if (event.defaultPrevented) return;
+    // Un Esc mantenido (temblor, pulsación larga) no encadena acciones: sin esto, una sola pulsación cerraba la ayuda,
+    // la bitácora y el diálogo y además pausaba el caso (~30 eventos por segundo). Solo cuenta el primer evento.
+    if (event.key === 'Escape' && event.repeat) return;
     const tag = (event.target as HTMLElement | null)?.tagName;
     const editable = (event.target as HTMLElement | null)?.isContentEditable;
 

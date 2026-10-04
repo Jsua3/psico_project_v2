@@ -71,6 +71,8 @@ describe('DialoguePanelComponent - contrato de progresion narrativa', () => {
 
   it('mantiene Escape disponible y bloquea opciones antes del final', () => {
     expect(dialogueKeyAction('Escape', false, false, 1, false)).toBe('close');
+    // Mantenida, solo el primer evento cierra (F5): los repetidos no cierran el diálogo siguiente.
+    expect(dialogueKeyAction('Escape', true, true, 0, true)).toBe('none');
     expect(dialogueKeyAction('1', true, false, 1, false)).toBe('none');
     expect(dialogueKeyAction('1', true, true, 1, false)).toBe('choose');
     expect(dialogueKeyAction('2', true, true, 1, false)).toBe('none');
