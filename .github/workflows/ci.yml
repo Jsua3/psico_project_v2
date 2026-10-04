@@ -94,7 +94,7 @@ jobs:
       - run: npm run test:backend
 
   frontend:
-    name: Frontend (jest + assets + build)
+    name: Frontend (vitest + assets + build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

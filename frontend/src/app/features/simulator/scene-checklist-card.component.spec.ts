@@ -551,7 +551,9 @@ describe('SceneChecklistCardComponent (T3.1)', () => {
       const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
       const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
         if (this === scroller) return rect(0, 100);
-        if (this.matches('li.step[aria-current="step"]')) return rect(150, 170);
+        // La fila se mueve con el desplazamiento de la lista, como en el navegador: la segunda
+        // revelación (Angular 22 puede encolar dos) ya la encuentra a la vista y no desplaza más.
+        if (this.matches('li.step[aria-current="step"]')) return rect(150 - scrollTop, 170 - scrollTop);
         return rect(0, 0);
       });
       update(fixture.componentInstance.state, stageOneAfterCollect());
