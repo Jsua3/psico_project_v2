@@ -188,8 +188,14 @@ def build_timeline(attempt, events):
     return timeline
 
 
+def _reconsidered_recommendation(retries):
+    if retries == 1:
+        return "Reconsideraste 1 respuesta antes de decidir; revísala con tu docente."
+    return f"Reconsideraste {retries} respuestas antes de decidir; revísalas con tu docente."
+
+
 def build_completion_report(attempt, events):
-    adequate = risky = inadequate = prohibited = tools_used = retries = 0
+    adequate = risky = inadequate = prohibited = tools_used = retries = prohibited_retries = 0
     visited = []
     seen = set()
     for ev in events:
@@ -203,6 +209,8 @@ def build_completion_report(attempt, events):
         if ev.event_type in case_effects.RETRY_EVENT_TYPES:
             # Reconsideración: no se aplicó ni puntúa (se reporta aparte).
             retries += 1
+            if ev.event_type == "PROHIBITED_DECISION_RETRY_REQUIRED":
+                prohibited_retries += 1
             continue
         if ev.decision_option_id is None or ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
             continue
@@ -231,6 +239,10 @@ def build_completion_report(attempt, events):
     recommendations = []
     if risky > 0 or inadequate > 0:
         recommendations.append("Revisa las decisiones riesgosas o inadecuadas con tu docente en sesión de retroalimentación.")
+    if retries > 0:
+        # No son decisiones ni bajan el desempeño, pero el estudiante debe ver que reconsideró algo: el juego le
+        # dijo en el momento «no se aplicó, reconsidera» y el cierre no puede callarlo.
+        recommendations.append(_reconsidered_recommendation(retries))
     if attempt.stress_index >= 70:
         recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
     if attempt.revictimization_risk:
@@ -263,6 +275,8 @@ def build_completion_report(attempt, events):
         # Primeras respuestas que el juego no aplicó (regla de reintento); no
         # entran en los conteos de arriba ni en el final.
         "retries": retries,
+        # De esas, las que eran conducta prohibida (el docente las distingue en su traza).
+        "prohibitedRetries": prohibited_retries,
         "reflectionsCount": reflections_count,
         # Por evento, no por estado: un intento reanudado y completado también
         # registra honestamente que usó la salida segura en el camino.

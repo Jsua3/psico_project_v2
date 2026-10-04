@@ -584,6 +584,79 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
     assert len(retry_events) == 2  # la trazabilidad conserva el reintento
 
 
+def test_report_recommends_reviewing_a_reconsidered_answer_without_counting_it(estudiante, case_version_id):
+    """L-03: una primera respuesta prohibida que el juego no aplicó queda en la recomendación del cierre
+    (el estudiante ve que reconsideró algo), sin contarla como decisión ni bajar el desempeño."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-RETRYREC")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+
+    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # prohibida: reintento
+    _decide(c, attempt_id, token, case_version_id, "h1-pap-contencion")      # la adecuada se registra
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 1
+    assert report["prohibitedRetries"] == 1
+    assert "Reconsideraste 1 respuesta antes de decidir; revísala con tu docente." in report["recommendations"]
+    # No son decisiones: los contadores y el final no cambian.
+    assert report["prohibitedDecisions"] == 0
+    assert report["inadequateDecisions"] == 0
+    assert report["adequateDecisions"] == 1
+
+
+def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(estudiante, case_version_id):
+    """Con varias reconsideraciones la recomendación va en plural y el cierre genérico («Consolida el
+    aprendizaje…») ya no es la única huella: el estudiante ve que reconsideró respuestas."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-RETRYPLURAL")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+
+    bad_keys = ("h1-interrogar-victima", "c1-mediacion-perdon")
+    state = None
+    for key in (
+        "h1-interrogar-victima", "h1-pap-contencion",
+        "h2-459-1257", "h3-integral-psicosocial",
+        "c1-mediacion-perdon", "c1-riesgo-proteccion-derechos",
+        "c2-2126-1098-1257", "c3-integral-derechos",
+    ):
+        state = _decide(c, attempt_id, token, case_version_id, key)
+
+    assert state["status"] == "COMPLETED"
+    report = state["completionReport"]
+    assert report["retries"] == 2
+    expected_prohibited = sum(
+        1 for key in bad_keys
+        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).prohibited_conduct
+    )
+    assert report["prohibitedRetries"] == expected_prohibited
+    assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
+    assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
+    assert report["ending"]["key"] == "integral"
+
+
+def test_report_without_retries_has_no_reconsideration_recommendation(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-NORETRYREC")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 0
+    assert report["prohibitedRetries"] == 0
+    assert not any("Reconsideraste" in text for text in report["recommendations"])
+
+
 def test_report_reports_zero_retries_when_none_happened(estudiante, case_version_id):
     assign_case_to_student(estudiante, case_version_id, "SIM-NORETRY")
     c = cl(estudiante)

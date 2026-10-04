@@ -7,7 +7,7 @@ from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion
+from apps.simulation.models import CaseVersion, DecisionOption
 
 User = get_user_model()
 
@@ -167,3 +167,35 @@ def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
     trace = p.get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
     assert len(trace["rubricEvaluations"]) >= 1
     assert trace["rubricEvaluations"][0]["totalScore"] == 3.0
+
+
+def test_trace_exposes_reconsidered_answers_apart_from_decisions(estudiante, profesor, case_version_id):
+    """L-02: la traza del docente trae `retries` y `prohibitedRetries`: la primera respuesta prohibida que el
+    juego no aplicó ya no se contradice con el contador de contraindicadas (0), y se distingue en la línea de tiempo."""
+    grupo = assign_case_to_student(estudiante, case_version_id, "INST-RETRY", profesor=profesor)
+    assert grupo.id
+    client = cl(estudiante)
+    start = client.post(
+        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json"
+    ).data["data"]
+    token, attempt_id = start["attemptToken"], start["attemptId"]
+    client.get(f"/api/simulation/attempts/{attempt_id}/world", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
+    for key in ("h1-interrogar-victima", "h1-pap-contencion"):  # prohibida (reintento) y luego la adecuada
+        option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=key)
+        resp = client.post(
+            f"/api/simulation/attempts/{attempt_id}/decisions",
+            {"attemptToken": token, "decisionOptionId": option.id}, format="json",
+        )
+        assert resp.status_code == 200, resp.data
+
+    trace = cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
+
+    assert trace["retries"] == 1
+    assert trace["prohibitedRetries"] == 1
+    # Los contadores siguen contando solo decisiones registradas.
+    assert trace["prohibitedDecisions"] == 0
+    assert trace["inadequateDecisions"] == 0
+    assert trace["adequateDecisions"] == 1
+    retry_rows = [t for t in trace["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
+    assert [t["type"] for t in retry_rows] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
+    assert [e["type"] for e in trace["events"] if e["type"].endswith("RETRY_REQUIRED")] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
