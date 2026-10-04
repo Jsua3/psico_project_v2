@@ -998,12 +998,15 @@ const CASE_INTRO_PARAGRAPHS = [
       line-height: 1.6; letter-spacing: .02em; font-style: italic;
     }
     @keyframes transition-note-in { from { opacity: 0; } }
+    /* Con scroll propio y la tarjeta centrada por margen automático: si no cabe (móvil horizontal), se alinea arriba y se
+       desplaza; con place-items: center la parte de abajo quedaba sin scroll posible y «Volver al catálogo» fuera de pantalla. */
     .resume-overlay {
-      position: absolute; inset: 0; z-index: 400; display: grid; place-items: center;
+      position: absolute; inset: 0; z-index: 400; display: grid; place-items: start center;
       padding: 24px; background: rgba(8,12,18,.88);
+      overflow-y: auto; overscroll-behavior: contain;
     }
     .resume-card {
-      width: min(560px, 100%); padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
+      width: min(560px, 100%); margin-block: auto; padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
       border: 1px solid rgba(182,156,255,.34);
       border-radius: 18px;
       background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
@@ -1020,6 +1023,14 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
     .resume-actions .psy-button { width: 100%; }
+    /* Pantallas bajas (móvil horizontal de 390 px): tarjeta más ancha y baja, con las tres salidas en una fila. */
+    @media (max-height: 520px) {
+      .resume-overlay { padding: 10px 16px; }
+      .resume-card { width: min(760px, 100%); padding: 14px 20px; }
+      .resume-card h2 { margin: 6px 0; font-size: 1.25rem; }
+      .resume-metrics { margin: 10px 0; }
+      .resume-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; }
+    }
 
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }

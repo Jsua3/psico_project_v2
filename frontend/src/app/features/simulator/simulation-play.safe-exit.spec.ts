@@ -273,3 +273,25 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     });
   });
 });
+
+describe('F3: el aviso de reanudar conserva sus tres salidas en pantallas bajas (844x390)', () => {
+  it('la capa se desplaza por dentro y la tarjeta se centra con margen automático: si no cabe, no queda inalcanzable por arriba', () => {
+    expect(rule('.resume-overlay')).toMatch(/overflow-y: auto;/);
+    expect(rule('.resume-overlay')).toMatch(/place-items: start center;/);
+    expect(rule('.resume-card')).toMatch(/margin-block: auto;/);
+    // `place-items: center` con contenido más alto que la capa recortaba la parte de arriba sin scroll posible.
+    expect(rule('.resume-overlay')).not.toMatch(/place-items: center;/);
+  });
+
+  it('en pantallas bajas la tarjeta se compacta: más ancha, con menos relleno y las tres salidas en una fila', () => {
+    const start = source.indexOf('@media (max-height: 520px) {\n      .resume-overlay');
+    expect(start).toBeGreaterThan(-1);
+    const block = source.slice(start, source.indexOf('\n    }\n', start));
+    expect(block).toMatch(/\.resume-card \{ width: min\(760px, 100%\); padding: 14px 20px; \}/);
+    expect(block).toMatch(/\.resume-actions \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  });
+
+  it('las tres salidas siguen en la plantilla: reanudar, iniciar uno nuevo y volver al catálogo', () => {
+    expect(source).toMatch(/resumeAttempt\(\)[\s\S]*?startNewAttempt\(\)[\s\S]*?routerLink="\/portal\/simulador">Volver al catálogo/);
+  });
+});
