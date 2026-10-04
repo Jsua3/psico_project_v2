@@ -19,6 +19,7 @@ import {
   OnInit,
   OnDestroy,
   ViewChild,
+  computed,
   inject,
   input,
   effect,
@@ -30,9 +31,12 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import Konva from 'konva';
-import { AvatarConfig, CLOTHING_COLORS, EYES, GENDER_OPTIONS, HairVariantId, MOUTHS } from '../../character/avatar.model';
-import { AvatarFigureComponent } from '../../character/avatar-figure.component';
-import { coerceAvatar, defaultAvatar, hairVariantId, hairVariantPatch } from '../../character/avatar-config.util';
+import { AVATAR_LABELS, AvatarPersonalizado, COMPLEXIONS, HAIRS, HAIR_COLORS, SKINS } from '../../character/kit/avatar-v2';
+import { resolveCharacter } from '../../character/kit/character-visual.resolver';
+import { KitFigureComponent } from '../../character/kit/kit-figure.component';
+import { KitService } from '../../character/kit/kit.service';
+import { personCharacterRef } from '../world-characters.util';
+import { npcCustomAvatar, npcMetadataForCustom, npcMetadataForRecipe } from './npc-metadata.util';
 
 import {
   WorldEditorStore,
@@ -68,8 +72,6 @@ import {
   cameraZoom, setCameraZoom, backgroundImage, setBackgroundImage
 } from './room-edit.util';
 import {
-  AUTHORING_HAIR_VARIANTS,
-  AUTHORING_NPC_TEMPLATES,
   AUTHORING_OBJECT_TEMPLATES,
   AUTHORING_SCENE_TEMPLATES,
   applySceneTemplate,
@@ -99,7 +101,7 @@ const OBJECT_COLORS: Record<string, string> = {
 @Component({
   selector: 'app-world-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, MatProgressBarModule, AvatarFigureComponent],
+  imports: [CommonModule, FormsModule, MatIconModule, MatProgressBarModule, KitFigureComponent],
   providers: [WorldEditorStore],
   template: `
     <div class="we-root">
@@ -284,55 +286,44 @@ const OBJECT_COLORS: Record<string, string> = {
                   <div class="we-npc-head">
                     <h4>NPC</h4>
                     <div class="we-npc-preview" aria-hidden="true">
-                      <app-avatar-figure [config]="npcAvatar(obj)" pose="front" />
-                      <app-avatar-figure [config]="npcAvatar(obj)" pose="side" />
+                      <app-kit-figure [visual]="npcVisual(obj)" view="down" [scale]="1" />
+                      <app-kit-figure [visual]="npcVisual(obj)" view="left" [scale]="1" />
                     </div>
                   </div>
-                  <label><span>Genero</span>
-                    <select [ngModel]="npcGender(obj)" (ngModelChange)="setNpcGender(obj.key, $event)">
-                      @for (gender of genderOptions; track gender.id) {
-                        <option [value]="gender.id">{{ gender.label }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label><span>Ropa</span>
-                    <select [ngModel]="npcAvatar(obj).clothingColor" (ngModelChange)="setNpcAvatarField(obj.key, 'clothingColor', $event)">
-                      @for (color of clothingColors; track color.id) {
-                        <option [value]="color.id">{{ color.label }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label><span>Plantilla</span>
-                    <select [ngModel]="npcTemplateId(obj)" (ngModelChange)="applyNpcTemplate(obj.key, $event)">
+                  <label><span>Personaje</span>
+                    <select [ngModel]="npcRecipeChoice(obj)" (ngModelChange)="setNpcRecipe(obj.key, $event)">
                       <option value="">Personalizado</option>
-                      @for (tpl of npcTemplates; track tpl.id) {
-                        <option [value]="tpl.id">{{ tpl.label }}</option>
+                      @for (recipe of npcRecipes(); track recipe.id) {
+                        <option [value]="recipe.id">{{ recipe.label }}</option>
                       }
                     </select>
                   </label>
-                  <label><span>Pelo</span>
-                    <select [ngModel]="npcHairVariant(obj)" (ngModelChange)="setNpcHair(obj.key, $event)">
-                      @for (hair of hairVariants; track hair.id) {
-                        <option [value]="hair.id">{{ hair.label }}</option>
-                      }
-                    </select>
-                  </label>
-                  <div class="we-form-row">
-                    <label><span>Cara</span>
-                      <select [ngModel]="npcAvatar(obj).mouth" (ngModelChange)="setNpcAvatarField(obj.key, 'mouth', $event)">
-                        @for (mouth of mouthOptions; track mouth.id) {
-                          <option [value]="mouth.id">{{ mouth.label }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label><span>Ojos</span>
-                      <select [ngModel]="npcAvatar(obj).eyes" (ngModelChange)="setNpcAvatarField(obj.key, 'eyes', $event)">
-                        @for (eyes of eyeOptions; track eyes.id) {
-                          <option [value]="eyes.id">{{ eyes.label }}</option>
-                        }
-                      </select>
-                    </label>
-                  </div>
+                  @if (!npcRecipeChoice(obj)) {
+                    <div class="we-form-row">
+                      <label><span>Complexión</span>
+                        <select [ngModel]="npcCustom(obj).complexion" (ngModelChange)="setNpcCustom(obj.key, { complexion: $event })">
+                          @for (id of complexions; track id) { <option [value]="id">{{ labels.complexion[id] }}</option> }
+                        </select>
+                      </label>
+                      <label><span>Piel</span>
+                        <select [ngModel]="npcCustom(obj).skin" (ngModelChange)="setNpcCustom(obj.key, { skin: $event })">
+                          @for (id of skins; track id; let i = $index) { <option [value]="id">Tono {{ i + 1 }}</option> }
+                        </select>
+                      </label>
+                    </div>
+                    <div class="we-form-row">
+                      <label><span>Pelo</span>
+                        <select [ngModel]="npcCustom(obj).hair" (ngModelChange)="setNpcCustom(obj.key, { hair: $event })">
+                          @for (id of hairs; track id) { <option [value]="id">{{ labels.hair[id] }}</option> }
+                        </select>
+                      </label>
+                      <label><span>Color</span>
+                        <select [ngModel]="npcCustom(obj).hairColor" (ngModelChange)="setNpcCustom(obj.key, { hairColor: $event })">
+                          @for (id of hairColors; track id) { <option [value]="id">{{ labels.hairColor[id] }}</option> }
+                        </select>
+                      </label>
+                    </div>
+                  }
                 </div>
               }
               <button class="psy-button psy-button--ghost we-delete-btn" (click)="deleteSelected()" type="button">
@@ -809,8 +800,7 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-npc-kit { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(79,124,172,.14); border-radius: 12px; background: rgba(255,255,255,.52); }
     .we-npc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .we-npc-head h4 { margin: 0; font-size: .96rem; }
-    .we-npc-preview { display: flex; align-items: center; gap: 4px; }
-    .we-npc-preview app-avatar-figure { width: 36px; height: 54px; }
+    .we-npc-preview { display: flex; gap: 6px; align-items: flex-end; }
     .we-movement { display: grid; gap: 8px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--psy-border); }
     .we-movement h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
     .we-wp-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 6px; align-items: center; }
@@ -832,12 +822,21 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   readonly nodeId = input<number>();
   readonly sceneTemplates = AUTHORING_SCENE_TEMPLATES;
   readonly objectTemplates = AUTHORING_OBJECT_TEMPLATES;
-  readonly npcTemplates = AUTHORING_NPC_TEMPLATES;
-  readonly hairVariants = AUTHORING_HAIR_VARIANTS;
-  readonly genderOptions = GENDER_OPTIONS;
-  readonly clothingColors = CLOTHING_COLORS;
-  readonly mouthOptions = MOUTHS;
-  readonly eyeOptions = EYES;
+  private readonly kit = inject(KitService);
+  readonly complexions = COMPLEXIONS;
+  readonly skins = SKINS;
+  readonly hairs = HAIRS;
+  readonly hairColors = HAIR_COLORS;
+  readonly labels = AVATAR_LABELS;
+  /** Recetas que un docente puede asignar a un NPC: todas menos los jugables, por nombre. */
+  readonly npcRecipes = computed(() => {
+    const bundle = this.kit.bundle();
+    if (!bundle) return [];
+    return Object.entries(bundle.recipes)
+      .filter(([, recipe]) => recipe.kind !== 'jugable')
+      .map(([id, recipe]) => ({ id, label: recipe.displayName ?? id }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  });
 
   @ViewChild('konvaHost', { static: false }) konvaHost!: ElementRef<HTMLDivElement>;
   @ViewChild('canvasWrap', { static: false }) canvasWrap!: ElementRef<HTMLDivElement>;
@@ -859,6 +858,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private spawnMarker: Konva.Group | null = null;
 
   constructor() {
+    this.kit.load().catch(() => undefined);
     // Re-render Konva on editor-state OR selection changes
     // (the pattern overlay + selection highlight depend on the current selection).
     effect(() => {
@@ -955,66 +955,40 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     this.store.execute(new UpdateInspectorCommand(key, { [field]: value } as Partial<WorldObject>));
   }
 
-  npcAvatar(obj: WorldObject): AvatarConfig {
-    return coerceAvatar((obj.metadata as { avatar?: unknown } | undefined)?.avatar ?? defaultAvatar());
+  /** Lo mismo que dibuja el mundo (personCharacterRef), para la vista previa. */
+  npcVisual(obj: WorldObject) {
+    const bundle = this.kit.bundle();
+    return bundle ? resolveCharacter(bundle, personCharacterRef(bundle, obj)) : null;
   }
 
-  npcGender(obj: WorldObject): string {
-    const gender = (obj.metadata as { gender?: unknown } | undefined)?.gender;
-    return gender === 'male' ? gender : 'female';
+  /** Receta elegida, o '' si el NPC es personalizado (avatar autorado). */
+  npcRecipeChoice(obj: WorldObject): string {
+    const bundle = this.kit.bundle();
+    if (!bundle) return '';
+    const ref = personCharacterRef(bundle, obj);
+    return ref.kind === 'receta' ? ref.recipeId : '';
   }
 
-  npcTemplateId(obj: WorldObject): string {
-    const id = (obj.metadata as { npcTemplateId?: unknown } | undefined)?.npcTemplateId;
-    return typeof id === 'string' ? id : '';
+  npcCustom(obj: WorldObject): AvatarPersonalizado {
+    return npcCustomAvatar(obj.metadata);
   }
 
-  npcHairVariant(obj: WorldObject): string {
-    return hairVariantId(this.npcAvatar(obj));
-  }
-
-  private updateNpcMetadata(key: string, updates: Record<string, unknown>): void {
+  setNpcRecipe(key: string, recipeId: string): void {
     const obj = this.store.selectedObject();
     if (!obj) return;
-    this.store.execute(new UpdateInspectorCommand(key, {
-      metadata: { ...(obj.metadata ?? {}), ...updates },
-    }));
+    this.updateNpcMetadataTo(key, recipeId
+      ? npcMetadataForRecipe(obj.metadata, recipeId)
+      : npcMetadataForCustom(obj.metadata, npcCustomAvatar(obj.metadata)));
   }
 
-  setNpcGender(key: string, gender: 'female' | 'male'): void {
+  setNpcCustom(key: string, patch: Partial<AvatarPersonalizado>): void {
     const obj = this.store.selectedObject();
     if (!obj) return;
-    this.updateNpcMetadata(key, {
-      gender,
-      npcTemplateId: '',
-      avatar: { ...this.npcAvatar(obj), gender },
-    });
+    this.updateNpcMetadataTo(key, npcMetadataForCustom(obj.metadata, { ...npcCustomAvatar(obj.metadata), ...patch }));
   }
 
-  applyNpcTemplate(key: string, templateId: string): void {
-    const template = this.npcTemplates.find(t => t.id === templateId);
-    if (!template) return;
-    this.updateNpcMetadata(key, {
-      gender: template.gender,
-      npcTemplateId: template.id,
-      avatar: template.avatar,
-    });
-  }
-
-  setNpcHair(key: string, variant: string): void {
-    const obj = this.store.selectedObject();
-    if (!obj) return;
-    const avatar = { ...this.npcAvatar(obj), ...hairVariantPatch(variant as HairVariantId) };
-    this.updateNpcMetadata(key, { npcTemplateId: '', avatar });
-  }
-
-  setNpcAvatarField(key: string, field: keyof AvatarConfig, value: string): void {
-    const obj = this.store.selectedObject();
-    if (!obj) return;
-    this.updateNpcMetadata(key, {
-      npcTemplateId: '',
-      avatar: { ...this.npcAvatar(obj), [field]: value },
-    });
+  private updateNpcMetadataTo(key: string, metadata: Record<string, unknown>): void {
+    this.store.execute(new UpdateInspectorCommand(key, { metadata }));
   }
 
   updateZoneLabel(key: string, label: string): void {
