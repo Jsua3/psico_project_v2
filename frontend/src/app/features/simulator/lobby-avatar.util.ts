@@ -7,6 +7,13 @@
 export const LOBBY_DOOR_RANGE = 70;
 /** Sala del lobby para el zoom entero: la vista base de 960 y la fachada de 540 px de alto. */
 export const LOBBY_ROOM = Object.freeze({ width: 960, height: 540 });
+/** Sangrado de la fachada: con zoom ×1 la vista es mayor que la sala y la cámara la centra. */
+export const LOBBY_BLEED = 2000;
+
+/** Tramo horizontal de las franjas de la fachada (muro, cornisa, piso): la sala más el sangrado a cada lado. */
+export function lobbyFacadeBand(worldWidth: number): { x: number; width: number } {
+  return { x: -LOBBY_BLEED, width: worldWidth + 2 * LOBBY_BLEED };
+}
 
 export interface LobbyPose {
   /** Vista a la que mira al caminar; null = quieto (conserva la que tenía). */

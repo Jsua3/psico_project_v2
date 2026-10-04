@@ -11,7 +11,7 @@ import { toAvatarV2 } from '../character/kit/avatar-v2';
 import { CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
 import { KIT_ORIGIN_X, KIT_ORIGIN_Y, ensureCharacterAnims, kitFrameIndex, kitSheetKey, playKitPose, queueCharacterSheets } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
-import { LOBBY_DOOR_RANGE, LOBBY_ROOM, lobbyPose, nearestLobbyDoor } from './lobby-avatar.util';
+import { LOBBY_BLEED, LOBBY_DOOR_RANGE, LOBBY_ROOM, lobbyFacadeBand, lobbyPose, nearestLobbyDoor } from './lobby-avatar.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
@@ -52,15 +52,17 @@ class ClinicMenuScene extends Phaser.Scene {
   }
 
   create() {
-    const W = this.worldW, H = 540;
+    const W = this.worldW, H = LOBBY_ROOM.height;
     // ── Layered clinic façade ────────────────────────────────────────────────
-    this.add.rectangle(0, 0, W, H, 0x0e141a).setOrigin(0, 0);                  // sky/base
-    this.add.rectangle(0, 96, W, 168, 0x1c2a3a).setOrigin(0, 0);               // building band
-    this.add.rectangle(0, 96, W, 6, 0x2f4763).setOrigin(0, 0);                 // cornice
-    this.add.rectangle(0, this.floorY, W, H - this.floorY, 0x1b2733).setOrigin(0, 0); // floor
-    this.add.rectangle(0, this.floorY, W, 4, 0x2f4763).setOrigin(0, 0);        // floor edge
+    // El cielo es el color de fondo del juego. Las franjas sangran más allá de la sala: con
+    // zoom ×1 la vista es mayor que 960×540 y no debe verse el borde de la fachada.
+    const band = lobbyFacadeBand(W);
+    this.add.rectangle(band.x, 96, band.width, 168, 0x1c2a3a).setOrigin(0, 0);               // building band
+    this.add.rectangle(band.x, 96, band.width, 6, 0x2f4763).setOrigin(0, 0);                 // cornice
+    this.add.rectangle(band.x, this.floorY, band.width, H - this.floorY + LOBBY_BLEED, 0x1b2733).setOrigin(0, 0); // floor
+    this.add.rectangle(band.x, this.floorY, band.width, 4, 0x2f4763).setOrigin(0, 0);        // floor edge
     // Entrance mat in front of the doors
-    this.add.rectangle(0, this.doorY + 6, W, 26, 0x223247, 0.6).setOrigin(0, 0);
+    this.add.rectangle(band.x, this.doorY + 6, band.width, 26, 0x223247, 0.6).setOrigin(0, 0);
 
     this.doors = [];
     this.items.forEach((item, i) => {

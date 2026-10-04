@@ -17,6 +17,11 @@ describe('lobby: kit, píxeles físicos y zoom entero (spec §8.2-8.3)', () => {
     expect(source).not.toContain('Phaser.Scale.FIT');
   });
 
+  it('la fachada llena la vista: ninguna franja se pinta con el ancho justo de la sala', () => {
+    expect(source).toContain('const band = lobbyFacadeBand(W);');
+    expect(source).not.toMatch(/\.rectangle\(0, [^)]*\bW\b/);
+  });
+
   it('los rótulos fijos viven en el DOM (el zoom de cámara no los saca de la vista)', () => {
     expect(source).not.toMatch(/setScrollFactor\(0\)/);
     expect(source).toContain('<div class="lobby-sign" aria-hidden="true">CLÍNICA · SIEP</div>');
