@@ -67,6 +67,12 @@ const NOTE_SEEN_MS = 1500;
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
 const NARROW_QUERY = '(max-width: 760px)';
+/**
+ * Plazo de seguridad de la pausa en cola (F2, REGLA-004): una petición colgada (servidor atascado, red muy lenta) no
+ * puede dejar la salida segura sin enviar. Pasado el plazo la pausa se envía igualmente; el servidor valida el token.
+ */
+const QUEUED_PAUSE_DEADLINE_MS = 10_000;
+const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pausando el caso igualmente.';
 const CASE_INTRO_TITLE = 'Contexto inicial del caso';
 const CASE_INTRO_PARAGRAPHS = [
   'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
@@ -117,7 +123,7 @@ const CASE_INTRO_PARAGRAPHS = [
              Los lectores de pantalla ya reciben el aviso por la región viva. -->
         <div class="pausing-notice" aria-hidden="true">
           <mat-icon aria-hidden="true">pause_circle</mat-icon>
-          <span>Pausando el caso…</span>
+          <span>{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}</span>
         </div>
       }
       @if (roomBanner() && !fadeActive()) {
@@ -956,7 +962,8 @@ const CASE_INTRO_PARAGRAPHS = [
     .pausing-notice {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
       display: flex; align-items: center; gap: 8px;
-      padding: 8px 16px; border-radius: 999px;
+      width: max-content; max-width: min(92vw, 520px);
+      padding: 8px 16px; border-radius: 18px;
       background: rgba(24,30,46,.96); border: 1px solid rgba(241,167,159,.5);
       color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
     }
@@ -1211,6 +1218,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * El pie la muestra como «Pausando…»; impide que dos toques pausen dos veces (F§7.8).
    */
   readonly pausing = signal(false);
+  /** La pausa en cola pasó su plazo (F2): se envía aunque la acción en curso no haya terminado, y el aviso lo dice. */
+  readonly pausingSlow = signal(false);
+  readonly slowPauseNotice = QUEUED_PAUSE_SLOW_NOTICE;
   /**
    * Cada incremento le dice al panel de diálogo que suelte la opción que tenía marcada como
    * elegida (DLG-01): tras un rechazo o un error sus opciones vuelven a poder activarse.
@@ -1397,6 +1407,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private nothingNearbyTimer: number | null = null;
   private helpCardShown = false;
   private roomBannerTimer: number | null = null;
+  private pauseDeadlineTimer: number | null = null;
+  /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
+  private pauseSent = false;
   private stopCompactWatch: (() => void) | null = null;
   /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
   private pendingStage: { title: string; previousNumber: number | null } | null = null;
@@ -1443,7 +1456,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCompactWatch?.();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1524,7 +1537,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // decisión que esperaba confirmación de evidencia (las opciones se repiten entre intentos).
     this.clearTransientOverlays();
     this.nearbyInteraction.set(null);
-    this.pausing.set(false);
+    this.endPausing();
     // Las salas y las notas pendientes eran del intento anterior.
     const previous = this.attempt() ?? this.pendingActiveAttempt();
     if (previous) clearVisitedRooms(previous.caseVersionId, previous.attemptId);
@@ -2074,6 +2087,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         evidenceOverride, confirmedMissingEvidence,
       ).subscribe({
         next: updated => {
+          // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
+          // esta decisión no lo pisa con uno anterior.
+          if (this.attempt()?.status === 'PAUSED') {
+            this.busy.set(false);
+            this.fadeActive.set(false);
+            return;
+          }
           this.trackStageChange(game, updated);
           this.attempt.set(updated);
           this.hydrateClinicalState(updated);
@@ -2268,6 +2288,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (this.showResumePrompt() || this.showContentWarning()) return;
     if (this.pausing()) return;
     this.pausing.set(true);
+    // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
+    this.pauseDeadlineTimer = window.setTimeout(() => this.forcePauseAtDeadline(), QUEUED_PAUSE_DEADLINE_MS);
     if (this.busy()) {
       this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
       return;
@@ -2279,25 +2301,60 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private startQueuedPause(): void {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') {
-      this.pausing.set(false);
+      this.endPausing();
       return;
     }
+    // La petición ya salió (por el plazo): la liberación tardía de `busy()` no la repite.
+    if (this.pauseSent) return;
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
     this.busy.set(true);
     this.withSyncedPosition(() => this.pauseCurrentAttempt());
   }
 
+  /**
+   * Pasó el plazo de la pausa pedida y sigue sin salir: hay una petición colgada (o la sincronización de la posición).
+   * La pausa se envía igualmente, sin esperar y sin sincronizar la posición, con aviso visible y anunciado. El
+   * servidor valida el token; no cambia `safeExit()` ni la semántica de la pausa (ETH-02).
+   */
+  private forcePauseAtDeadline(): void {
+    this.pauseDeadlineTimer = null;
+    if (!this.pausing() || this.pauseSent) return;
+    const game = this.attempt();
+    if (!game || game.status !== 'IN_PROGRESS') {
+      this.endPausing();
+      return;
+    }
+    this.pausingSlow.set(true);
+    this.announce(QUEUED_PAUSE_SLOW_NOTICE);
+    this.audioDirector.playSfx('ui_cancel');
+    this.busy.set(true);
+    this.pauseCurrentAttempt();
+  }
+
+  /** La pausa pedida terminó o se descartó: se apagan el estado, el aviso de lentitud y el plazo. */
+  private endPausing(): void {
+    if (this.pauseDeadlineTimer !== null) window.clearTimeout(this.pauseDeadlineTimer);
+    this.pauseDeadlineTimer = null;
+    this.pausingSlow.set(false);
+    this.pausing.set(false);
+  }
+
   private pauseCurrentAttempt(): void {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') {
-      this.pausing.set(false);
+      this.endPausing();
       this.busy.set(false);
       return;
     }
+    // Ya está en camino: el plazo no la repite.
+    if (this.pauseDeadlineTimer !== null) window.clearTimeout(this.pauseDeadlineTimer);
+    this.pauseDeadlineTimer = null;
+    this.pauseSent = true;
     this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').subscribe({
       next: updated => {
-        this.pausing.set(false);
+        this.pauseSent = false;
+        this.endPausing();
         this.attempt.set(updated);
         // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
         // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
@@ -2306,7 +2363,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.loadWorld(updated);
       },
       error: () => {
-        this.pausing.set(false);
+        this.pauseSent = false;
+        this.endPausing();
         this.showActionError('No pudimos registrar la salida segura.');
         this.busy.set(false);
       },
