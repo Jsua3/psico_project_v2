@@ -153,10 +153,12 @@ async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean
 }
 
 /** La pausa pedida bajo el fundido llega cuando el servidor responde: una sola llamada, pantalla de pausa y sin avisos encima. */
-async function expectQueuedPauseThenResume(page: Page, state: string, safeExitCalls: () => number): Promise<void> {
+async function expectQueuedPauseThenResume(
+  page: Page, state: string, safeExitCalls: () => number, expectedTotalCalls: number,
+): Promise<void> {
   const pause = page.getByRole('alertdialog', { name: /pausa/i });
   await expect(pause, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(40_000) });
-  expect(safeExitCalls(), `${state}: una sola llamada a safe-exit`).toBe(1);
+  expect(safeExitCalls(), `${state}: una sola llamada a safe-exit por pausa pedida`).toBe(expectedTotalCalls);
   // Ningún aviso de etapa o de sala queda pintado (ni anunciado) encima de la pausa.
   await expect(page.locator('.room-banner, .door-notice, .transition-note'), `${state}: avisos sobre la pausa`).toHaveCount(0);
   await page.getByRole('button', { name: /reanudar este intento/i }).click();
@@ -316,7 +318,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await expect(door).toBeVisible();
       await door.click();
       await assertSafeExitAboveFade(page, 'puerta con el servidor lento', touch);
-      await expectQueuedPauseThenResume(page, 'puerta con el servidor lento', () => safeExitCalls);
+      await expectQueuedPauseThenResume(page, 'puerta con el servidor lento', () => safeExitCalls, 1);
       await page.unroute(/\/api\/simulation\/attempts\/[^/]+\/enter-room$/, slow);
       await waitForWorldReady(page, 'hospital-sala-escucha');
 
@@ -329,8 +331,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await page.route(/\/api\/simulation\/attempts\/[^/]+\/decisions$/, slow);
       await option.click();
       await assertSafeExitAboveFade(page, 'decisión con el servidor lento', touch);
-      await expectQueuedPauseThenResume(page, 'decisión con el servidor lento', () => safeExitCalls);
-      expect(safeExitCalls, 'una pausa por cada estado probado').toBe(2);
+      await expectQueuedPauseThenResume(page, 'decisión con el servidor lento', () => safeExitCalls, 2);
     });
   });
 }
