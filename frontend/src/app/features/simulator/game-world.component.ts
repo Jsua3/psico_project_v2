@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
@@ -943,7 +943,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const layerData of tilemap.layers) {
       const depth = tiledLayerDepth(layerData.name);
       if (depth === null) continue;
-      const layer = tilemap.createLayer(layerData.name, tilesets);
+      // Sin el parámetro `gpu` (Phaser 4), createLayer() siempre crea la variante CPU clásica;
+      // el tipo de retorno es la unión TilemapLayer | TilemapGPULayer solo porque la firma no
+      // tiene sobrecargas para distinguirlo según ese argumento.
+      const layer = tilemap.createLayer(layerData.name, tilesets) as Phaser.Tilemaps.TilemapLayer | null;
       if (!layer) continue;
       layer.setDepth(depth);
       // La capa de paredes (legacy `Walls` o `walls_back`/`collision`) es la sólida.
@@ -2805,6 +2808,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         (click)="interactNearest()"><mat-icon aria-hidden="true">touch_app</mat-icon><span class="touch-interact__label">{{ interactLabel() ?? 'Acércate a algo' }}</span></button>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }

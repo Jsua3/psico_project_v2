@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SimulationHudComponent } from './simulation-hud.component';
+import type { MockInstance } from 'vitest';
 
 const hudSource = readFileSync(join(__dirname, 'simulation-hud.component.ts'), 'utf-8');
 const playSource = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
@@ -51,12 +52,12 @@ describe('HUD: menú de Ajustes', () => {
   });
 
   describe('oyentes globales solo cuando hacen falta', () => {
-    function pointerdownRegistrations(spy: jest.SpyInstance): number {
+    function pointerdownRegistrations(spy: MockInstance): number {
       return spy.mock.calls.filter(([type]) => type === 'pointerdown').length;
     }
 
     it('con Ajustes cerrado no hay oyente de pointerdown en document', () => {
-      const add = jest.spyOn(document, 'addEventListener');
+      const add = vi.spyOn(document, 'addEventListener');
       const fresh = TestBed.createComponent(SimulationHudComponent);
       fresh.detectChanges();
       expect(pointerdownRegistrations(add)).toBe(0);
@@ -64,8 +65,8 @@ describe('HUD: menú de Ajustes', () => {
     });
 
     it('se registra al abrir Ajustes y se retira al cerrar', () => {
-      const add = jest.spyOn(document, 'addEventListener');
-      const remove = jest.spyOn(document, 'removeEventListener');
+      const add = vi.spyOn(document, 'addEventListener');
+      const remove = vi.spyOn(document, 'removeEventListener');
       hud.settingsOpen.set(true);
       fixture.detectChanges();
       expect(pointerdownRegistrations(add)).toBe(1);
@@ -86,7 +87,7 @@ describe('HUD: menú de Ajustes', () => {
     });
 
     it('abrir dos veces seguidas no duplica el oyente', () => {
-      const add = jest.spyOn(document, 'addEventListener');
+      const add = vi.spyOn(document, 'addEventListener');
       hud.settingsOpen.set(true);
       fixture.detectChanges();
       hud.settingsOpen.set(false);
@@ -97,7 +98,7 @@ describe('HUD: menú de Ajustes', () => {
     });
 
     it('destruir el HUD con Ajustes abierto retira el oyente', () => {
-      const remove = jest.spyOn(document, 'removeEventListener');
+      const remove = vi.spyOn(document, 'removeEventListener');
       hud.settingsOpen.set(true);
       fixture.detectChanges();
       fixture.destroy();

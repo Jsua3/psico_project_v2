@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AvatarFigureComponent } from './avatar-figure.component';
 import { AvatarStore } from './avatar.store';
@@ -169,6 +169,7 @@ import { editorPreview, sheetFrameStyle } from './editor-preview.util';
       </footer>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .ce-container {

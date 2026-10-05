@@ -17,8 +17,8 @@ describe('app.config: arranque', () => {
   });
 
   describe('initializeAuthSession', () => {
-    beforeEach(() => jest.useFakeTimers());
-    afterEach(() => jest.useRealTimers());
+    beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] }));
+    afterEach(() => vi.useRealTimers());
 
     function iniciar(syncCurrentUser: () => unknown) {
       TestBed.configureTestingModule({
@@ -33,11 +33,11 @@ describe('app.config: arranque', () => {
     it('deja de esperar a /me a los 1500 ms y resuelve con undefined', async () => {
       const { promesa, estaResuelta } = iniciar(() => NEVER);
 
-      jest.advanceTimersByTime(1499);
+      vi.advanceTimersByTime(1499);
       await Promise.resolve();
       expect(estaResuelta()).toBe(false);
 
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
       await expect(promesa).resolves.toBeUndefined();
       expect(estaResuelta()).toBe(true);
     });
@@ -47,7 +47,7 @@ describe('app.config: arranque', () => {
       const { promesa } = iniciar(() => of(usuario));
 
       await expect(promesa).resolves.toBe(usuario);
-      expect(jest.getTimerCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
     });
   });
 });

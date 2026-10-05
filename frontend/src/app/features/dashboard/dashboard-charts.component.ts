@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { AdminUser } from '../../core/api/user-admin.service';
 import { Dashboard } from '../../core/models/sesion.model';
 import { RecentAttempt, StudentAttemptSummary } from '../../core/models/simulation.model';
@@ -27,6 +27,7 @@ type DashboardRole = 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE';
   selector: 'app-dashboard-charts',
   standalone: true,
   templateUrl: './dashboard-charts.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard-charts.component.scss'
 })
 export class DashboardChartsComponent {

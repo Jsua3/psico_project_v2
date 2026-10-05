@@ -13,6 +13,7 @@ import {
   isFinalDialogueLine,
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
+import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'dialogue-panel.component.ts'), 'utf-8');
 
@@ -88,7 +89,7 @@ describe('DialoguePanelComponent - integración renderizada', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -125,11 +126,14 @@ describe('DialoguePanelComponent - integración renderizada', () => {
   });
 
   it('con movimiento reducido la línea aparece completa, sin máquina de escribir, y el foco entra al diálogo', () => {
-    jest.useFakeTimers();
+    // render() bajo reloj real: igual que en el resto del archivo, instalar el reloj falso
+    // ANTES del primer detectChanges() deja a mitad de camino el tick de estabilización del
+    // planificador zone-coalesced de Angular 22 y una siguiente llamada reentra en
+    // ApplicationRef.tick (NG0101).
+    writeInputSignal(component.reduceMotion, true);
+    render(MULTI_LINE_DIALOGUE);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     try {
-      writeInputSignal(component.reduceMotion, true);
-      render(MULTI_LINE_DIALOGUE);
-
       const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
       expect(component.displayedText()).toBe('Primera');
       expect(component.isTypingComplete()).toBe(true);
@@ -139,16 +143,16 @@ describe('DialoguePanelComponent - integración renderizada', () => {
       expect(dialog.querySelector('[aria-label="Saltar animación de texto"]')).toBeNull();
       expect(dialog.querySelector('[aria-label="Mostrar siguiente intervención"]')).not.toBeNull();
       // La máquina de escribir no dejó ningún temporizador programado.
-      expect(jest.getTimerCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
 
       component.advanceLine();
       fixture.detectChanges();
       expect(component.displayedText()).toBe('Segunda');
       expect(component.isTypingComplete()).toBe(true);
       expect(dialog.querySelector('[aria-label="Saltar animación de texto"]')).toBeNull();
-      expect(jest.getTimerCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
@@ -204,7 +208,7 @@ describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -253,7 +257,7 @@ describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', 
 
   it('«Volver al mapa» emite close y no es un botón close-btn (el e2e solo pulsa esos para avanzar)', () => {
     render(MULTI_LINE_DIALOGUE);
-    const close = jest.fn();
+    const close = vi.fn();
     component.close.subscribe(close);
     const back = Array.from(head()!.querySelectorAll('button')).find(b => b.textContent?.includes('Volver al mapa')) as HTMLButtonElement;
     expect(back.classList).not.toContain('close-btn');
@@ -295,7 +299,7 @@ describe('DialoguePanelComponent - cabecera fija con salida (T4.1, REGLA-004)', 
     }
     expect(component.isTypingComplete()).toBe(false);
     // Escape sigue cerrando desde la cabecera.
-    const close = jest.fn();
+    const close = vi.fn();
     component.close.subscribe(close);
     back.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(close).toHaveBeenCalledTimes(1);
@@ -308,10 +312,9 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
   const host = () => fixture.nativeElement as HTMLElement;
 
   beforeEach(async () => {
-    jest.useFakeTimers();
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -326,16 +329,21 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
     });
     TestBed.flushEffects();
     fixture.detectChanges();
+    // Instalados DESPUÉS del detectChanges() inicial (no antes): con Angular 22 instalarlos
+    // primero deja el tick de estabilización del planificador zone-coalesced a mitad de camino
+    // bajo el reloj falso de Vitest, y una siguiente detectChanges()/advanceTimersByTime()
+    // termina re-entrando en ApplicationRef.tick (NG0101).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   });
 
   afterEach(() => {
     fixture.destroy();
     TestBed.resetTestingModule();
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('elegir una opción la bloquea hasta que el anfitrión libera el panel', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     const [first] = component.dialogue()!.choices;
 
@@ -344,20 +352,20 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
     expect(component.chosenKey()).toBe('c1');
     expect(host().querySelector('.choices--locked')).not.toBeNull();
 
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(1);
     // Mientras no haya liberación, una segunda elección se ignora.
     component.handleChoice(component.dialogue()!.choices[1]);
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
   it('un releaseToken nuevo limpia la elección y las opciones vuelven a ser activables', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     const [first, second] = component.dialogue()!.choices;
     component.handleChoice(first);
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     fixture.detectChanges();
     expect(host().querySelector('.choices--locked')).not.toBeNull();
 
@@ -370,7 +378,7 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
     expect(host().querySelector('.choices--locked')).toBeNull();
     // Y se puede elegir de nuevo, también otra opción.
     component.handleChoice(second);
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenLastCalledWith(2);
     expect(execute).toHaveBeenCalledTimes(2);
   });
@@ -379,7 +387,10 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
     const [first] = component.dialogue()!.choices;
     for (const token of [1, 2, 3]) {
       component.handleChoice(first);
-      jest.advanceTimersByTime(200);
+      vi.advanceTimersByTime(200);
+      // Asienta aquí el tick pendiente del reloj falso: sin esto, el flushEffects()/escritura
+      // de signal que sigue reentra en ApplicationRef.tick (NG0101).
+      fixture.detectChanges();
       expect(component.chosenKey()).toBe('c1');
       writeInputSignal(component.releaseToken, token);
       TestBed.flushEffects();
@@ -388,12 +399,14 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
   });
 
   it('liberar antes de que venza la pausa de confirmación cancela la ejecución pendiente', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     component.handleChoice(component.dialogue()!.choices[0]);
+    fixture.detectChanges();
     writeInputSignal(component.releaseToken, 1);
     TestBed.flushEffects();
-    jest.advanceTimersByTime(500);
+    fixture.detectChanges();
+    vi.advanceTimersByTime(500);
     expect(execute).not.toHaveBeenCalled();
     expect(component.chosenKey()).toBeNull();
   });
@@ -413,10 +426,9 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
     button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail }));
 
   beforeEach(async () => {
-    jest.useFakeTimers();
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -431,12 +443,17 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
     });
     TestBed.flushEffects();
     fixture.detectChanges();
+    // Instalados DESPUÉS del detectChanges() inicial (no antes): con Angular 22 instalarlos
+    // primero deja el tick de estabilización del planificador zone-coalesced a mitad de camino
+    // bajo el reloj falso de Vitest, y una siguiente detectChanges()/advanceTimersByTime()
+    // termina re-entrando en ApplicationRef.tick (NG0101).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   });
 
   afterEach(() => {
     fixture.destroy();
     TestBed.resetTestingModule();
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('con opciones visibles el foco entra al grupo .choices, no a una opción, y sigue dentro del diálogo', () => {
@@ -462,61 +479,63 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
   });
 
   it('Enter con opciones visibles no emite execute (ni siquiera tras la confirmación)', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
     document.dispatchEvent(event);
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(execute).not.toHaveBeenCalled();
     expect(component.chosenKey()).toBeNull();
   });
 
   it('un clic de teclado (detail 0) en los primeros 500 ms se ignora', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     clickWithDetail(choiceButtons()[0], 0);
-    jest.advanceTimersByTime(300);
+    vi.advanceTimersByTime(300);
     expect(component.chosenKey()).toBeNull();
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('un toque o clic de puntero (detail >= 1) funciona de inmediato', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     clickWithDetail(choiceButtons()[1], 1);
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(2);
   });
 
   it('pasada la ventana, una activación por teclado deliberada sí elige', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
-    jest.advanceTimersByTime(600);
+    vi.advanceTimersByTime(600);
+    // detectChanges() asienta aquí el tick que el reloj falso deja pendiente: sin esto, un
+    // segundo advanceTimersByTime más adelante reentra en ApplicationRef.tick (NG0101).
+    fixture.detectChanges();
     clickWithDetail(choiceButtons()[0], 0);
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(1);
   });
 
   it('un diálogo nuevo con opciones reinicia la ventana de guarda', () => {
-    jest.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2000);
     writeInputSignal(component.dialogue, {
       ...component.dialogue()!,
       key: 'siguiente',
     });
-    TestBed.flushEffects();
     fixture.detectChanges();
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     clickWithDetail(choiceButtons()[0], 0);
-    jest.advanceTimersByTime(300);
+    vi.advanceTimersByTime(300);
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('elegir con la tecla de dígito sigue siendo una acción deliberada', () => {
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true }));
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(2);
   });
 });
@@ -524,7 +543,7 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
 describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
   let component: DialoguePanelComponent;
-  let playSfx: jest.Mock;
+  let playSfx: Mock;
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -541,7 +560,7 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
   });
 
   beforeEach(async () => {
-    playSfx = jest.fn();
+    playSfx = vi.fn();
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
       providers: [{ provide: AudioDirectorService, useValue: { playSfx } }],
@@ -598,11 +617,13 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
   });
 
   it('una opción de herramienta sin la herramienta es aria-disabled, enfocable, con chip, y no ejecuta', () => {
-    jest.useFakeTimers();
+    const useTool = vi.fn();
+    component.useTool.subscribe(useTool);
+    render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: true }), decision(1, 'Escuchar')]));
+    // Instalado DESPUÉS del render(): antes deja a mitad de camino el tick de estabilización
+    // del planificador zone-coalesced de Angular 22 (NG0101 en el primer advanceTimersByTime).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     try {
-      const useTool = jest.fn();
-      component.useTool.subscribe(useTool);
-      render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: true }), decision(1, 'Escuchar')]));
       const [toolBtn, decisionBtn] = Array.from(host().querySelectorAll<HTMLButtonElement>('.choice-btn'));
       expect(toolBtn.getAttribute('aria-disabled')).toBe('true');
       expect(toolBtn.disabled).toBe(false);   // sigue enfocable
@@ -611,31 +632,32 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
       expect(text(chip)).toBe('Aún no tienes esta herramienta. Recógela en la sala.');
       expect(toolBtn.getAttribute('aria-describedby')).toBe(chip.id);
 
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
+      fixture.detectChanges();
       toolBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true, cancelable: true }));
-      jest.advanceTimersByTime(300);
+      vi.advanceTimersByTime(300);
       expect(useTool).not.toHaveBeenCalled();
       expect(component.chosenKey()).toBeNull();
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
   it('con la herramienta en la mochila la opción es activable sin chip', () => {
-    jest.useFakeTimers();
+    const useTool = vi.fn();
+    component.useTool.subscribe(useTool);
+    render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: false })]));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     try {
-      const useTool = jest.fn();
-      component.useTool.subscribe(useTool);
-      render(dialogueWith([tool('PAP', 'Aplicar el material de apoyo', { toolMissing: false })]));
       const button = host().querySelector<HTMLButtonElement>('.choice-btn')!;
       expect(button.hasAttribute('aria-disabled')).toBe(false);
       expect(host().querySelector('.choice-btn__hint')).toBeNull();
       button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
-      jest.advanceTimersByTime(300);
+      vi.advanceTimersByTime(300);
       expect(useTool).toHaveBeenCalledWith('PAP');
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
@@ -654,7 +676,7 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
   });
 
   it('una conversación de otra etapa (stale) muestra la línea informativa, ninguna decisión y «Continuar»', () => {
-    const close = jest.fn();
+    const close = vi.fn();
     component.close.subscribe(close);
     render(dialogueWith([decision(1, 'Escuchar'), tool('PAP', 'Aplicar material')], { stale: true }));
     expect(host().querySelector('.choices')).toBeNull();
@@ -663,7 +685,7 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
     const advance = Array.from(host().querySelectorAll('button.close-btn')).map(b => text(b));
     expect(advance).toEqual(['Continuar ▶']);
     // Enter cierra (no hay nada que elegir) y los dígitos no eligen.
-    const execute = jest.fn();
+    const execute = vi.fn();
     component.execute.subscribe(execute);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true, cancelable: true }));
     expect(execute).not.toHaveBeenCalled();
@@ -710,7 +732,7 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -761,11 +783,11 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
 describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
   let component: DialoguePanelComponent;
-  let playSfx: jest.Mock;
+  let playSfx: Mock;
   const host = () => fixture.nativeElement as HTMLElement;
 
   beforeEach(async () => {
-    playSfx = jest.fn();
+    playSfx = vi.fn();
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
       providers: [{ provide: AudioDirectorService, useValue: { playSfx } }],
@@ -826,7 +848,7 @@ describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', (
 describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
   let component: DialoguePanelComponent;
-  let scrollIntoView: jest.Mock;
+  let scrollIntoView: Mock;
   const host = () => fixture.nativeElement as HTMLElement;
   const strip = () => host().querySelector('.dialogue-strip') as HTMLElement;
   const original = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
@@ -842,11 +864,11 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
   });
 
   beforeEach(async () => {
-    scrollIntoView = jest.fn();
+    scrollIntoView = vi.fn();
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -913,6 +935,13 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     render(dialogue());
     component.skipTypewriter();
     fixture.detectChanges();
+    // Con Angular 22 ese detectChanges() ya invoca ngAfterViewChecked() automáticamente (antes
+    // ocurría más tarde, de forma menos eager), así que el guard `settled` de revealChoices()
+    // ya quedó fijo con las medidas por defecto (0) antes de poder simular las reales. Se
+    // reabre a propósito para que la llamada manual de abajo, ya con las medidas simuladas,
+    // vuelva a decidir entre 'start' y 'nearest'.
+    (component as unknown as { settled: boolean }).settled = false;
+    scrollIntoView.mockClear(); // la primera llamada (automática, con medidas en 0) no es la que se mide aquí.
     Object.defineProperty(strip(), 'clientHeight', { configurable: true, value: 220 });
     Object.defineProperty(host().querySelector('.panel-head'), 'offsetHeight', { configurable: true, value: 56 });
     Object.defineProperty(host().querySelector('.choices'), 'offsetHeight', { configurable: true, value: 400 });

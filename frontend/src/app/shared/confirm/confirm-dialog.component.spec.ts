@@ -27,7 +27,7 @@ describe('ConfirmDialogComponent', () => {
     writeInputSignal(fixture.componentInstance.loading, loading);
     writeInputSignal(fixture.componentInstance.message, 'Se eliminará el grupo.');
     fixture.detectChanges();
-    const cancelSpy = jest.fn();
+    const cancelSpy = vi.fn();
     fixture.componentInstance.cancel.subscribe(cancelSpy);
     return { fixture, cancelSpy, root: fixture.nativeElement as HTMLElement };
   }

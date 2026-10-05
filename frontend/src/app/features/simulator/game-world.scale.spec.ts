@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 // Phaser toca canvas/WebGL al importarse (jsdom no lo soporta); la escena y el componente nunca arrancan aquí.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -16,6 +16,7 @@ jest.mock('phaser', () => ({
 
 import { DataDrivenWorldScene, GameWorldComponent } from './game-world.component';
 import { LABEL_MAX_SCREEN_WIDTH_PX, LABEL_MIN_SCREEN_PX } from './interaction-priority.util';
+import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
 
@@ -33,7 +34,7 @@ describe('game-world: escala del canvas (T5.4)', () => {
 
   it('refreshScale lee el contenedor y luego reencaja, en ese orden', () => {
     const calls: string[] = [];
-    const scale = { getParentBounds: jest.fn(() => { calls.push('getParentBounds'); return true; }), refresh: jest.fn(() => { calls.push('refresh'); }) };
+    const scale = { getParentBounds: vi.fn(() => { calls.push('getParentBounds'); return true; }), refresh: vi.fn(() => { calls.push('refresh'); }) };
     componentWith(scale).refreshScale();
     expect(calls).toEqual(['getParentBounds', 'refresh']);
   });
@@ -51,12 +52,12 @@ describe('game-world: escala del canvas (T5.4)', () => {
 
 describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
   interface LabelProbe {
-    scale: { displayScale: { x: number }; on: jest.Mock };
+    scale: { displayScale: { x: number }; on: Mock };
     cameras: { main: { zoom: number } };
     labelScale: number;
     labelWrap: number;
-    markerLabels: Map<string, { setScale: jest.Mock; setWordWrapWidth: jest.Mock }>;
-    doorHints: Map<string, { x?: number; __doorX?: number; __doorHalfWidth?: number; setScale: jest.Mock }>;
+    markerLabels: Map<string, { setScale: Mock; setWordWrapWidth: Mock }>;
+    doorHints: Map<string, { x?: number; __doorX?: number; __doorHalfWidth?: number; setScale: Mock }>;
     npcMarkers: Map<string, unknown>;
     onScaleResize(): void;
     syncLabelScale(): boolean;
@@ -64,11 +65,11 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
 
   function sceneAt(displayScale: number, zoom = 1): LabelProbe {
     const scene = new DataDrivenWorldScene({} as never) as unknown as LabelProbe;
-    scene.scale = { displayScale: { x: displayScale }, on: jest.fn() };
+    scene.scale = { displayScale: { x: displayScale }, on: vi.fn() };
     scene.cameras = { main: { zoom } };
-    const label = { setScale: jest.fn(function (this: unknown) { return this; }), setWordWrapWidth: jest.fn(function (this: unknown) { return this; }) };
+    const label = { setScale: vi.fn(function (this: unknown) { return this; }), setWordWrapWidth: vi.fn(function (this: unknown) { return this; }) };
     scene.markerLabels = new Map([['tool-pap', label]]);
-    scene.doorHints = new Map([['puerta', { setScale: jest.fn() }]]);
+    scene.doorHints = new Map([['puerta', { setScale: vi.fn() }]]);
     scene.npcMarkers = new Map();
     return scene;
   }
@@ -95,14 +96,14 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
 
   it('el rótulo de una puerta pegada al borde se corre hacia dentro para no cortarse con el canvas', () => {
     const scene = sceneAt(960 / 478);
-    const hint = { x: 838, __doorX: 838, __doorHalfWidth: 99, setScale: jest.fn() };
+    const hint = { x: 838, __doorX: 838, __doorHalfWidth: 99, setScale: vi.fn() };
     scene.doorHints = new Map([['puerta-sala-escucha', hint]]);
     scene.onScaleResize();
     const reach = 99 * scene.labelScale + 6;
     expect(hint.x).toBeLessThanOrEqual(960 - reach);
     expect(hint.x).toBeLessThan(838);
     // una puerta del borde izquierdo se corre hacia la derecha
-    const left = { x: 122, __doorX: 122, __doorHalfWidth: 99, setScale: jest.fn() };
+    const left = { x: 122, __doorX: 122, __doorHalfWidth: 99, setScale: vi.fn() };
     scene.doorHints = new Map([['puerta-urgencias', left]]);
     scene.labelScale = 1;
     scene.onScaleResize();

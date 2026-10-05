@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
 import { AvatarFigureComponent } from '../character/avatar-figure.component';
@@ -181,6 +181,7 @@ import { reconsideredChip } from './reconsidered.util';
       </section>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .outcome {
       position: absolute; inset: 0; z-index: 150; display: flex; flex-direction: column;

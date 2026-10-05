@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, ViewChild, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -295,6 +295,7 @@ class ClinicMenuScene extends Phaser.Scene {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .menu-root { position: fixed; inset: 0; overflow: hidden; background: #0a0f14; }
@@ -375,7 +376,10 @@ export class GameMenuComponent implements OnDestroy {
   private game?: Phaser.Game;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
-  private enterTimer?: ReturnType<typeof window.setTimeout>;
+  // number explícito (no ReturnType<typeof window.setTimeout>): con @types/node en el
+  // programa de tipos de los specs, ese ReturnType resuelve a NodeJS.Timeout aunque la
+  // llamada real a window.setTimeout en el navegador siga devolviendo number.
+  private enterTimer?: number;
   private host?: ElementRef<HTMLDivElement>;
   private helpTrigger?: ElementRef<HTMLButtonElement>;
 

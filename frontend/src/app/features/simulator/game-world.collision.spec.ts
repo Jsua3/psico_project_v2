@@ -1,6 +1,6 @@
 // Phaser toca canvas/WebGL al importarse (jsdom no lo soporta). Solo se evalúa
 // `extends Phaser.Scene` al cargar el módulo; la escena nunca arranca aquí.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},

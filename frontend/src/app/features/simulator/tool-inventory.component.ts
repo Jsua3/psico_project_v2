@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { ClinicalToolState } from '../../core/models/simulation.model';
 
@@ -53,6 +53,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       <p class="tool-notice" role="status">{{ notice() }}</p>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { position: relative; }
     .tool-dock-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }

@@ -1,6 +1,6 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -23,6 +23,7 @@ import {
 } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
 
 /**
  * Integración de la orientación en la pantalla de juego (T9.1 a T9.11, T8.4): la tarjeta «Qué hacer»,
@@ -89,32 +90,32 @@ const http = (status: number, message?: string) => new HttpErrorResponse({ statu
 
 describe('SimulationPlayComponent: orientación integrada', () => {
   let component: SimulationPlayComponent;
-  let sim: Record<string, jest.Mock>;
-  let audio: Record<string, jest.Mock>;
+  let sim: Record<string, Mock>;
+  let audio: Record<string, Mock>;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     sessionStorage.clear();
     localStorage.clear();
     sim = {
-      getInterventionRules: jest.fn(() => throwError(() => new Error('sin reglas'))),
-      getActiveAttempt: jest.fn(() => of(null)),
-      startAttempt: jest.fn(() => of(makeAttempt())),
-      getProgressMap: jest.fn(() => EMPTY),
-      getWorld: jest.fn(() => EMPTY),
-      getScenarioConfig: jest.fn(() => throwError(() => new Error('sin escenario'))),
-      safeExit: jest.fn(() => EMPTY),
-      enterRoom: jest.fn(() => EMPTY),
-      recordNpcInteraction: jest.fn(() => EMPTY),
-      updateWorldState: jest.fn(() => EMPTY),
-      openInteraction: jest.fn(() => EMPTY),
-      chooseDecision: jest.fn(() => EMPTY),
-      useTool: jest.fn(() => EMPTY),
+      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
+      getActiveAttempt: vi.fn(() => of(null)),
+      startAttempt: vi.fn(() => of(makeAttempt())),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => EMPTY),
+      getScenarioConfig: vi.fn(() => throwError(() => new Error('sin escenario'))),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      openInteraction: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => EMPTY),
+      useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: jest.fn(), setStressLevel: jest.fn(), isMusicMuted: jest.fn(() => false), isSfxMuted: jest.fn(() => false),
-      dispose: jest.fn(), stopIntroLament: jest.fn(), playIntroLament: jest.fn(), playSfx: jest.fn(),
-      toggleMusicMuted: jest.fn(() => false), playResolution: jest.fn(),
+      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -122,7 +123,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
@@ -133,7 +134,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
     TestBed.resetTestingModule();
@@ -145,7 +146,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     component.world.set(world);
   }
 
-  const tick = (ms = 0) => { jest.advanceTimersByTime(ms); TestBed.tick(); };
+  const tick = (ms = 0) => { vi.advanceTimersByTime(ms); TestBed.tick(); };
 
   describe('T9.1: tarjeta «Qué hacer»', () => {
     it('sin mundo o sin intento no hay lista', () => {
@@ -233,7 +234,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.dialogue.set({
         key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState);
+      } as unknown as DialogueState);
       component.executeDecision(101);
       return component.dialogue();
     }
@@ -253,7 +254,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       const decorated = (component as any).decorateDialogue({
         key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState) as DialogueState;
+      } as unknown as DialogueState) as DialogueState;
       component.executeDecision(101);
 
       expect(decorated.notice).toBeTruthy();
@@ -363,7 +364,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.dialogue.set({
         key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState);
+      } as unknown as DialogueState);
 
       component.executeDecision(101);
 
@@ -418,9 +419,9 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       sim['openInteraction'].mockReturnValue(openResult(pickup(), 'PAP'));
       component.openInteraction(pickup());
 
-      jest.advanceTimersByTime(4100);
+      vi.advanceTimersByTime(4100);
       expect(component.softNotice()).not.toBe('');
-      jest.advanceTimersByTime(200);
+      vi.advanceTimersByTime(200);
 
       expect(component.softNotice()).toBe('');
     });
@@ -441,7 +442,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       tick(); // primera evaluación de la lista: no anota nada
       component.dialogue.set({
         key: 'npc-enfermera-urgencias', speakerName: 'Enfermera de urgencias', portraitKey: null, emotion: 'neutral', lines: [], choices: [],
-      } as DialogueState);
+      } as unknown as DialogueState);
       (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
       tick();
 
@@ -476,7 +477,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       tick();
       expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
 
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
       tick(); // el diálogo tapa la tarjeta
       tick(10_000); // el jugador lee con calma: la nota no se consume por debajo
       expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
@@ -496,7 +497,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
 
       tick(2000); // el jugador la leyó
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
       tick();
       component.closeDialogue();
       tick();
@@ -524,7 +525,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     it('una pausa descarta las notas pendientes', () => {
       startInUrgencias();
       tick();
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
       (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
       tick();
 
@@ -540,7 +541,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     const NURSE: NpcConfig = {
       key: 'enfermera-urgencias', npcType: 'colleague', displayName: 'Enfermera de urgencias', portrait: 'x', x: 560, y: 330,
       frameIndex: 0, dialogue: { lines: [{ text: 'Hola.' }] },
-    } as NpcConfig;
+    } as unknown as NpcConfig;
     /** Lo que emite el mundo para una persona del escenario (clave `npc:`). */
     const nurseMarker = (): MapObjectState => obj('npc:enfermera-urgencias', 'Enfermera de urgencias', 'PERSON', 560, 330);
     const lockedDoor = () => urgenciasObjects().find(o => o.key === 'puerta-sala-escucha')!;
@@ -627,7 +628,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.busy.set(true);
       expect(component.contextAction()).toBeNull();
       component.busy.set(false);
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState);
+      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
       expect(component.contextAction()).toBeNull();
     });
 
@@ -684,9 +685,9 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
       expect(audio['playSfx']).not.toHaveBeenCalled();
-      jest.advanceTimersByTime(2400);
+      vi.advanceTimersByTime(2400);
       expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
-      jest.advanceTimersByTime(200);
+      vi.advanceTimersByTime(200);
       expect(component.nowLine()).toMatch(/^Ahora: Recoge el material de apoyo de la sala/);
     });
 
@@ -750,7 +751,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       ['la introducción', () => component.showIntroScene.set(true)],
       ['el contexto inicial', () => component.showCaseIntro.set(true)],
       ['el aviso de reanudar', () => component.showResumePrompt.set(true)],
-      ['un diálogo abierto', () => component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as DialogueState)],
+      ['un diálogo abierto', () => component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState)],
       ['la bitácora abierta', () => component.journalOpen.set(true)],
       ['la pantalla de ayuda abierta', () => component.helpOpen.set(true)],
       ['el mundo aún sin cargar', () => component.loading.set(true)],
@@ -873,7 +874,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.dialogue.set({
         key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState);
+      } as unknown as DialogueState);
       component.executeDecision(101);
       tick(340); tick(100); tick(400);
       return component.dialogue();
@@ -1044,7 +1045,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
         key: 'd', speakerName: 'Alguien', portraitKey: null, emotion: 'neutral',
         lines: [{ order: 1, speakerName: 'Alguien', text: 'Texto.', emotion: 'neutral' }],
         choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as DialogueState);
+      } as unknown as DialogueState);
       component.executeDecision(101);
       // La compuerta blanda de la etapa avisa antes (nodos con evidencia): se decide igualmente.
       if (component.dialogue()?.key.startsWith('evidence-gate')) component.executeDecision(101);

@@ -4,8 +4,8 @@
 // métodos que estos tests nunca ejecutan (no se renderiza template).
 // WorldEditorComponent importa Konva, que se publica como ESM y jest no lo
 // transforma; su uso también vive solo en métodos.
-jest.mock('konva', () => ({ __esModule: true, default: {} }));
-jest.mock('phaser', () => ({
+vi.mock('konva', () => ({ __esModule: true, default: {} }));
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -27,6 +27,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { CaseEditorView } from '../../core/models/simulation.model';
 import { CaseEditorComponent } from './case-editor.component';
+import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'case-editor.component.ts'), 'utf-8');
 
@@ -61,23 +62,23 @@ describe('editor de casos: feedback de acciones (comportamiento)', () => {
 
   let component: CaseEditorComponent;
   let sim: {
-    caseEditor: jest.Mock;
-    publishCase: jest.Mock;
-    updateChecklist: jest.Mock;
-    createTool: jest.Mock;
-    deleteNode: jest.Mock;
+    caseEditor: Mock;
+    publishCase: Mock;
+    updateChecklist: Mock;
+    createTool: Mock;
+    deleteNode: Mock;
   };
-  let notify: { success: jest.Mock; error: jest.Mock };
+  let notify: { success: Mock; error: Mock };
 
   function setup() {
     sim = {
-      caseEditor: jest.fn(() => of(editorView)),
-      publishCase: jest.fn(() => of(editorView)),
-      updateChecklist: jest.fn(() => of(editorView)),
-      createTool: jest.fn(() => of(editorView)),
-      deleteNode: jest.fn(() => of(editorView)),
+      caseEditor: vi.fn(() => of(editorView)),
+      publishCase: vi.fn(() => of(editorView)),
+      updateChecklist: vi.fn(() => of(editorView)),
+      createTool: vi.fn(() => of(editorView)),
+      deleteNode: vi.fn(() => of(editorView)),
     };
-    notify = { success: jest.fn(), error: jest.fn() };
+    notify = { success: vi.fn(), error: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [

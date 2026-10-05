@@ -7,6 +7,7 @@ import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UsersComponent } from './users.component';
+import type { Mock } from 'vitest';
 
 /**
  * Feedback de acciones de la pantalla Usuarios.
@@ -22,14 +23,14 @@ function backendError(status: number, body: unknown) {
 
 describe('usuarios: feedback de acciones (comportamiento)', () => {
   let component: UsersComponent;
-  let service: { list: jest.Mock; create: jest.Mock; update: jest.Mock; updateStatus: jest.Mock };
-  let requests: { listPending: jest.Mock; updateStatus: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
+  let service: { list: Mock; create: Mock; update: Mock; updateStatus: Mock };
+  let requests: { listPending: Mock; updateStatus: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
 
   beforeEach(() => {
-    service = { list: jest.fn(() => of([ana])), create: jest.fn(), update: jest.fn(), updateStatus: jest.fn() };
-    requests = { listPending: jest.fn(() => of([])), updateStatus: jest.fn() };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
+    service = { list: vi.fn(() => of([ana])), create: vi.fn(), update: vi.fn(), updateStatus: vi.fn() };
+    requests = { listPending: vi.fn(() => of([])), updateStatus: vi.fn() };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
@@ -256,15 +257,15 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
 });
 
 describe('usuarios: el aviso de éxito no se borra al guardar (NotificationService real)', () => {
-  beforeEach(() => jest.useFakeTimers());
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] }));
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     TestBed.resetTestingModule();
   });
 
   it('guardar recarga el formulario con editUser y el aviso sigue visible', async () => {
-    const service = { update: jest.fn(() => of(ana)) };
-    const requests = { listPending: jest.fn(() => of([])) };
+    const service = { update: vi.fn(() => of(ana)) };
+    const requests = { listPending: vi.fn(() => of([])) };
     TestBed.configureTestingModule({
       providers: [
         { provide: UserAdminService, useValue: service },

@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 /**
@@ -22,6 +22,7 @@ import { MatIconModule } from '@angular/material/icon';
       <kbd class="safe-exit-btn__kbd" aria-hidden="true">Esc</kbd>
     </button>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: inline-flex; }
     .safe-exit-btn {

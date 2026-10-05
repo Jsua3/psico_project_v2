@@ -3,15 +3,15 @@
 # (WhiteNoise para los estáticos), así todo vive en un solo dominio sin CORS.
 
 # ---------- Stage 1: build del frontend (Angular) ----------
-FROM node:20-alpine AS frontend
+FROM node:24-alpine AS frontend
 WORKDIR /fe
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 # ---------- Stage 2: backend (Django + gunicorn) ----------
-FROM python:3.13-slim AS backend
+FROM python:3.14-slim AS backend
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DJANGO_SETTINGS_MODULE=psychosim.settings.production

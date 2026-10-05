@@ -132,7 +132,7 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
 
     it('tocar una bloqueada no emite select y explica por qué en una región viva', () => {
       mount(['PAP']);
-      const selected = jest.fn();
+      const selected = vi.fn();
       dock.select.subscribe(selected);
       card('SPIKES').click();
       fixture.detectChanges();
@@ -171,7 +171,7 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
   describe('ranuras poseídas', () => {
     it('al activarlas emiten el código de la herramienta', () => {
       mount(['PAP']);
-      const selected = jest.fn();
+      const selected = vi.fn();
       dock.select.subscribe(selected);
       card('PAP').click();
       expect(selected).toHaveBeenCalledWith('PAP');

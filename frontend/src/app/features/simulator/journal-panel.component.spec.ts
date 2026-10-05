@@ -4,6 +4,7 @@ import { join } from 'path';
 
 import { AudioDirectorService } from './audio-director.service';
 import { JournalPanelComponent } from './journal-panel.component';
+import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'journal-panel.component.ts'), 'utf-8');
 
@@ -24,13 +25,13 @@ function writeInputSignal<T>(inputSignal: () => T, value: T): void {
 
 describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004)', () => {
   let fixture: ComponentFixture<JournalPanelComponent>;
-  let playSfx: jest.Mock;
+  let playSfx: Mock;
   const host = () => fixture.nativeElement as HTMLElement;
   const safeExitButton = () =>
     host().querySelector<HTMLButtonElement>('.sheet-footer app-safe-exit-button button');
 
   beforeEach(() => {
-    playSfx = jest.fn();
+    playSfx = vi.fn();
     TestBed.configureTestingModule({
       imports: [JournalPanelComponent],
       providers: [{ provide: AudioDirectorService, useValue: { playSfx } }],
@@ -60,15 +61,15 @@ describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004
     expect(source).toMatch(/readonly safeExit = output<void>\(\);/);
     // En la bitácora Esc la cierra: el botón no promete Esc.
     expect(host().querySelector('.sheet-footer app-safe-exit-button')?.hasAttribute('data-hide-key')).toBe(true);
-    const safeExit = jest.fn();
+    const safeExit = vi.fn();
     fixture.componentInstance.safeExit.subscribe(safeExit);
     fixture.componentInstance.safeExit.emit();
     expect(safeExit).toHaveBeenCalledTimes(1);
   });
 
   it('el botón de salida no es el botón de cerrar (cada uno conserva su salida)', () => {
-    const safeExit = jest.fn();
-    const closeSheet = jest.fn();
+    const safeExit = vi.fn();
+    const closeSheet = vi.fn();
     fixture.componentInstance.safeExit.subscribe(safeExit);
     fixture.componentInstance.closeSheet.subscribe(closeSheet);
 

@@ -1,6 +1,6 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -22,6 +22,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SimulationAttemptState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
 
 /**
  * Correcciones de la revisión adversarial sobre la salida segura (REGLA-004 / ETH-02): el fundido de escena no
@@ -52,25 +53,25 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
 
 describe('SimulationPlayComponent: salida segura (correcciones de la revisión)', () => {
   let component: SimulationPlayComponent;
-  let sim: Record<string, jest.Mock>;
-  let audio: Record<string, jest.Mock>;
+  let sim: Record<string, Mock>;
+  let audio: Record<string, Mock>;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     sessionStorage.clear();
     sim = {
-      getInterventionRules: jest.fn(() => EMPTY),
-      getActiveAttempt: jest.fn(() => EMPTY),
-      safeExit: jest.fn(() => EMPTY),
-      updateWorldState: jest.fn(() => EMPTY),
-      getWorld: jest.fn(() => EMPTY),
-      getProgressMap: jest.fn(() => EMPTY),
-      chooseDecision: jest.fn(() => EMPTY),
-      startAttempt: jest.fn(() => EMPTY),
+      getInterventionRules: vi.fn(() => EMPTY),
+      getActiveAttempt: vi.fn(() => EMPTY),
+      safeExit: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => EMPTY),
+      getProgressMap: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => EMPTY),
+      startAttempt: vi.fn(() => EMPTY),
     };
     audio = {
-      init: jest.fn(), dispose: jest.fn(), stopIntroLament: jest.fn(), playIntroLament: jest.fn(), playSfx: jest.fn(),
-      setStressLevel: jest.fn(), isMusicMuted: jest.fn(() => false), isSfxMuted: jest.fn(() => false),
+      init: vi.fn(), dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
+      setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
     };
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -78,7 +79,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
-        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: '7' }) } } },
       ],
     });
@@ -87,7 +88,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     sessionStorage.clear();
     TestBed.resetTestingModule();
   });
@@ -210,7 +211,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       internals.showDoorNotice('Aún no puedes pasar.');
 
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(10_000);
 
       expect(component.roomBanner()).toBe('');
       expect(component.doorNotice()).toBe('');
@@ -252,12 +253,12 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       component.pauseFromOverlay();
       TestBed.tick();
-      jest.advanceTimersByTime(DEADLINE_MS - 1);
+      vi.advanceTimersByTime(DEADLINE_MS - 1);
 
       expect(sim['safeExit']).not.toHaveBeenCalled();
       expect(component.pausingSlow()).toBe(false);
 
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
@@ -268,8 +269,8 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.busy.set(true);
       component.pauseFromOverlay();
 
-      jest.advanceTimersByTime(DEADLINE_MS);
-      jest.advanceTimersByTime(60); // el anuncio se emite 50 ms después
+      vi.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(60); // el anuncio se emite 50 ms después
 
       expect(component.slowPauseNotice).toBe('La acción en curso está tardando. Estamos pausando el caso igualmente.');
       expect(component.a11yAnnouncement()).toBe(component.slowPauseNotice);
@@ -279,7 +280,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     it('si la petición termina mucho después, su liberación de busy no repite la pausa', () => {
       component.busy.set(true);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(DEADLINE_MS);
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
 
       component.busy.set(false); // llega tarde la respuesta colgada
@@ -292,14 +293,14 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     it('si busy se libera antes del plazo la pausa sale por la cola y el plazo ya no la repite', () => {
       component.busy.set(true);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(2_000);
+      vi.advanceTimersByTime(2_000);
       expect(sim['safeExit']).not.toHaveBeenCalled();
 
       component.busy.set(false);
       TestBed.tick();
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
 
-      jest.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60_000);
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
@@ -309,12 +310,12 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.busy.set(true);
       component.pauseFromOverlay();
 
-      jest.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(DEADLINE_MS);
 
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(false);
       expect(component.pausingSlow()).toBe(false);
-      jest.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60_000);
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
@@ -323,7 +324,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       sim['safeExit'].mockReturnValue(failing);
       component.busy.set(true);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(DEADLINE_MS);
 
       failing.error(new Error('sin red'));
 
@@ -345,7 +346,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(DEADLINE_MS);
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(component.pausingSlow()).toBe(true);
@@ -366,10 +367,10 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       }));
 
       component.executeDecision(101);
-      jest.advanceTimersByTime(340); // el fundido y luego la petición, que se cuelga
+      vi.advanceTimersByTime(340); // el fundido y luego la petición, que se cuelga
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
       component.pauseFromOverlay();
-      jest.advanceTimersByTime(DEADLINE_MS);
+      vi.advanceTimersByTime(DEADLINE_MS);
       expect(component.attempt()?.status).toBe('PAUSED');
 
       decision.next(makeAttempt({ status: 'IN_PROGRESS', accumulatedScore: 10 }));
@@ -384,7 +385,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.pauseFromOverlay();
 
       component.startNewAttempt();
-      jest.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60_000);
 
       expect(sim['safeExit']).not.toHaveBeenCalled();
       expect(component.pausing()).toBe(false);

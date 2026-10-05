@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { Component, effect, inject, input, output } from '@angular/core';
+import { Component, effect, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
@@ -73,7 +73,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
               <div class="context-block">
                 <p class="context-title">Trazabilidad</p>
                 <ol>
-                  @for (stage of timeline(); track stage) {
+                  @for (stage of timeline(); track $index) {
                     <li>{{ stage }}</li>
                   }
                 </ol>
@@ -108,6 +108,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       </footer>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: contents; }
     .journal-modal {

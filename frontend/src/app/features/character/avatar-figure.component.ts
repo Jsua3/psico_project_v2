@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarConfig, EXPRESSIONS, Expression, LEGACY_MOUTH_TO_EXPRESSION } from './avatar.model';
 import { bodyAssetName, hairVariantId } from './avatar-config.util';
@@ -89,6 +89,7 @@ export function resolveAvatarSpriteLayers(config: AvatarConfig, pose: AvatarPrev
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host {
       display: inline-block;

@@ -1,6 +1,6 @@
 // Mismo andamiaje que game-world.collision.spec.ts: Phaser toca canvas/WebGL al importarse
 // (jsdom no lo soporta). Solo se evalúa `extends Phaser.Scene`; la escena nunca arranca aquí.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -14,14 +14,15 @@ jest.mock('phaser', () => ({
 
 import { crisisVignetteState, roomEntryFlash } from './game-feel.util';
 import { DataDrivenWorldScene } from './game-world.component';
+import type { Mock } from 'vitest';
 
-interface FakeTween { stop: jest.Mock; isPlaying: () => boolean; }
+interface FakeTween { stop: Mock; isPlaying: () => boolean; }
 interface FakeVignette { scene: object; alpha: number; setAlpha(alpha: number): FakeVignette; }
-interface FakeCamera { flash: jest.Mock; shake: jest.Mock; flashEffect: { alpha: number }; }
+interface FakeCamera { flash: Mock; shake: Mock; flashEffect: { alpha: number }; }
 
 /** Superficie privada de la escena que estos casos ejercitan (la escena nunca arranca). */
 interface SceneProbe {
-  tweens: { add: jest.Mock };
+  tweens: { add: Mock };
   cameras: { main: FakeCamera | undefined };
   crisisVignette?: FakeVignette;
   pendingRoomFlash: unknown;
@@ -47,17 +48,17 @@ function crearEscena(opciones: { reduceMotion?: boolean; conVineta?: boolean } =
   const scene = new DataDrivenWorldScene({ reduceMotion } as never) as unknown as SceneProbe;
   const tweens: FakeTween[] = [];
   scene.tweens = {
-    add: jest.fn(() => {
+    add: vi.fn(() => {
       let vivo = true;
       const tween: FakeTween = {
-        stop: jest.fn(() => { vivo = false; }),
+        stop: vi.fn(() => { vivo = false; }),
         isPlaying: () => vivo,
       };
       tweens.push(tween);
       return tween;
     }),
   };
-  const camera: FakeCamera = { flash: jest.fn(), shake: jest.fn(), flashEffect: { alpha: 1 } };
+  const camera: FakeCamera = { flash: vi.fn(), shake: vi.fn(), flashEffect: { alpha: 1 } };
   scene.cameras = { main: camera };
   scene.ready = true;
   let vignette: FakeVignette | undefined;
