@@ -321,13 +321,10 @@ def attempt_state(attempt, raw_token, feedback, events=None):
 
 
 def progress_map_node(node):
-    label = node.title or "Nodo"
-    label = label.strip()
-    if len(label) > 14:
-        label = label[:13] + "…"
+    # Título completo: recortar es cosa de la vista (la lista «Trazabilidad» hace salto de línea).
     return {
         "key": node.node_key,
-        "label": label,
+        "label": (node.title or "").strip() or "Nodo",
         "start": node.start_node,
         "terminal": node.terminal_node,
     }

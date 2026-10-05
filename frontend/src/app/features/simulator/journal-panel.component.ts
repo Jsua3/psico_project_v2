@@ -224,7 +224,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     }
     .journal-context ol,
     .journal-context ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
-    .journal-context li { color: rgba(232,240,244,.66); font-size: .78rem; line-height: 1.4; }
+    .journal-context li { color: rgba(232,240,244,.66); font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
 
     .sheet-footer {
       display: flex;

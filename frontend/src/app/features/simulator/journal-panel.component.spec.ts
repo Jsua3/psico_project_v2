@@ -7,6 +7,21 @@ import { JournalPanelComponent } from './journal-panel.component';
 
 const source = readFileSync(join(__dirname, 'journal-panel.component.ts'), 'utf-8');
 
+// ts-jest no aplica la transformación JIT de Angular a los inputs con signals: se escribe el nodo
+// interno como en confirm-dialog.component.spec.ts.
+type InputSignalNodeLike<T> = {
+  applyValueToInputSignal(node: InputSignalNodeLike<T>, value: T): void;
+};
+
+function writeInputSignal<T>(inputSignal: () => T, value: T): void {
+  const carrier = inputSignal as unknown as { [key: symbol]: InputSignalNodeLike<T> };
+  const node = Object.getOwnPropertySymbols(inputSignal)
+    .map(symbol => carrier[symbol])
+    .find(candidate => typeof candidate?.applyValueToInputSignal === 'function');
+  if (!node) throw new Error('No se encontró el nodo interno del input signal');
+  node.applyValueToInputSignal(node, value);
+}
+
 describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004)', () => {
   let fixture: ComponentFixture<JournalPanelComponent>;
   let playSfx: jest.Mock;
@@ -74,5 +89,37 @@ describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004
     // El pie no se parte en dos filas con los dos botones y la nota cede ancho.
     expect(source).toMatch(/\.footer-actions \{[^}]*flex-shrink: 0;/);
     expect(source).toMatch(/\.encrypt-note \{[^}]*flex: 1 1 0; min-width: 0;/);
+  });
+});
+
+describe('JournalPanelComponent: «Trazabilidad» con los títulos completos', () => {
+  let fixture: ComponentFixture<JournalPanelComponent>;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [JournalPanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+    });
+    fixture = TestBed.createComponent(JournalPanelComponent);
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  it('lista cada etapa visitada con su título completo, sin recortes ni elipsis', () => {
+    // Antes la API los recortaba a 14 caracteres y ambos quedaban «Consultorio: …».
+    const stages = ['Consultorio: protección y marco', 'Consultorio: acción técnica y ética'];
+    writeInputSignal(fixture.componentInstance.timeline, stages);
+    fixture.detectChanges();
+
+    const items = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.journal-context ol li'))
+      .map(item => item.textContent?.trim());
+    expect(items).toEqual(stages);
+  });
+
+  it('un título largo sin espacios se parte en lugar de desbordar la columna', () => {
+    expect(source).toMatch(/\.journal-context li \{[^}]*overflow-wrap: anywhere;/);
   });
 });
