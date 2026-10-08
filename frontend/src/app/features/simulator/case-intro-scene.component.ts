@@ -46,9 +46,9 @@ const LAMP_CENTERS = [150, 234] as const;
           @for (x of lamps; track x) {
             <span class="intro-stage__pool" [style.left.px]="x - 44"></span>
           }
-          <img class="intro-stage__door" src="/assets/game/doors/door_urgencias.png" alt="" width="48" height="64">
-          <img class="intro-stage__chair" src="/assets/game/furniture/chair.png" alt="" width="27" height="46">
-          <img class="intro-stage__plant" src="/assets/game/furniture/plant.png" alt="" width="49" height="64">
+          <img class="intro-stage__door" src="/assets/game/doors/door_urgencias.png" alt="" width="54" height="59">
+          <img class="intro-stage__chair" src="/assets/game/furniture/chair.png" alt="" width="22" height="34">
+          <img class="intro-stage__plant" src="/assets/game/furniture/plant.png" alt="" width="36" height="47">
           @for (x of lamps; track x) {
             <span class="intro-stage__lamp" [style.left.px]="x - 9"><span class="intro-stage__cone"></span></span>
           }
@@ -129,9 +129,9 @@ const LAMP_CENTERS = [150, 234] as const;
       border-radius: 50%;
       background: radial-gradient(closest-side, rgba(255,236,170,.16), transparent);
     }
-    .intro-stage__door { left: 300px; top: 64px; }
-    .intro-stage__chair { left: 104px; top: 96px; }
-    .intro-stage__plant { left: 250px; top: 76px; }
+    .intro-stage__door { left: 297px; top: 69px; }
+    .intro-stage__chair { left: 106px; top: 104px; }
+    .intro-stage__plant { left: 257px; top: 93px; }
     .intro-stage__lamp {
       top: 0;
       width: 18px;
