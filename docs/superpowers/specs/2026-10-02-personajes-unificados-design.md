@@ -408,12 +408,13 @@ Las constantes compartidas (cuadro 48×72, pivote (24,68), filas abajo/izquierda
 **Mundo y lobby (Phaser).** El lienzo toma el tamaño del contenedor en píxeles físicos: tamaño CSS × `devicePixelRatio`, y `scale.zoom = 1/dpr`. La cámara usa un zoom entero:
 
 ```
-k = mayor entero ≥ 1 con (anchoFísico / k ≥ 0,8 · anchoSala) y (altoFísico / k ≥ 0,8 · altoSala)
+k = mayor entero ≥ 1 con (anchoFísico / k ≥ 0,75 · anchoSala) y (altoFísico / k ≥ 0,75 · altoSala)
 ```
 
 Ejemplos:
 
 - A 1920×1080, con un contenedor de unos 1696×954, da ×2: se ve el 88 % de la sala, que se desplaza un poco, y Valentina mide 128 px.
+- A 1920×1080 con el navegador maximizado (contenedor de unos 1894×819) da ×2: se ve el 99 % del ancho y el 78 % del alto de la sala. Con el umbral de 0,8 daba ×1 y la sala quedaba pequeña entre márgenes (enmienda del 2026-10-08, plan 3 tarea 10).
 - A 1366×768 da ×1: la sala entra entera.
 - En 4K da ×3.
 

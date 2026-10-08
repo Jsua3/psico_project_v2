@@ -1,4 +1,4 @@
-import { cameraBounds, integerZoom, physicalSize } from './pixel-scale.util';
+import { MIN_ROOM_FRACTION, cameraBounds, integerZoom, physicalSize } from './pixel-scale.util';
 
 const ROOM = { w: 960, h: 528 };
 
@@ -9,18 +9,27 @@ describe('pixel-scale.util', () => {
     ['portátil a 125 % (contenedor 1360×760 CSS)', 1360, 760, 1.25, 2],
     ['4K a dpr 2 (contenedor 1696×954 CSS)', 1696, 954, 2, 4],
     ['móvil en vertical', 390, 700, 3, 1],
+    ['1920×1080 en pantalla completa (contenedor 1894×954)', 1894, 954, 1, 2],
+    ['1920×1080 con el navegador maximizado (contenedor 1894×819)', 1894, 819, 1, 2],
+    ['1366×768 (contenedor 1340×642)', 1340, 642, 1, 1],
+    ['1440×900 (contenedor 1414×774): aún ×1', 1414, 774, 1, 1],
+    ['1536×864 a 125 % (contenedor 1510×738 CSS)', 1510.390625, 737.59375, 1.25, 2],
   ])('zoom entero: %s', (_name, cssW, cssH, dpr, expected) => {
     const size = physicalSize(cssW, cssH, dpr);
     expect(integerZoom(size.width, size.height, ROOM.w, ROOM.h)).toBe(expected);
   });
 
-  it('el zoom deja ver al menos el 80 % de la sala en los dos ejes', () => {
-    for (const [w, h] of [[1700, 950], [3392, 1908], [2560, 1300], [800, 2000]]) {
+  it('el umbral es el 75 % de la sala (decisión del usuario, plan 3 tarea 10)', () => {
+    expect(MIN_ROOM_FRACTION).toBe(0.75);
+  });
+
+  it('el zoom deja ver al menos el 75 % de la sala en los dos ejes', () => {
+    for (const [w, h] of [[1700, 950], [3392, 1908], [2560, 1300], [800, 2000], [1894, 819]]) {
       const k = integerZoom(w, h, ROOM.w, ROOM.h);
       expect(Number.isInteger(k)).toBe(true);
       if (k > 1) {
-        expect(w / k).toBeGreaterThanOrEqual(0.8 * ROOM.w);
-        expect(h / k).toBeGreaterThanOrEqual(0.8 * ROOM.h);
+        expect(w / k).toBeGreaterThanOrEqual(MIN_ROOM_FRACTION * ROOM.w);
+        expect(h / k).toBeGreaterThanOrEqual(MIN_ROOM_FRACTION * ROOM.h);
       }
     }
   });

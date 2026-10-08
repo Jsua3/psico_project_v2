@@ -5,7 +5,7 @@
  */
 
 /** Fracción mínima de la sala que debe verse con el zoom elegido. */
-export const MIN_ROOM_FRACTION = 0.8;
+export const MIN_ROOM_FRACTION = 0.75;
 
 export interface PhysicalSize {
   width: number;
@@ -27,7 +27,7 @@ export function physicalSize(cssWidth: number, cssHeight: number, devicePixelRat
   return { width: px(cssWidth), height: px(cssHeight), dpr };
 }
 
-/** k = mayor entero ≥ 1 con anchoFísico/k ≥ 0,8·anchoSala y altoFísico/k ≥ 0,8·altoSala. */
+/** k = mayor entero ≥ 1 con anchoFísico/k ≥ 0,75·anchoSala y altoFísico/k ≥ 0,75·altoSala. */
 export function integerZoom(physicalWidth: number, physicalHeight: number, roomWidth: number, roomHeight: number): number {
   if (!(roomWidth > 0) || !(roomHeight > 0)) return 1;
   const k = Math.min(
