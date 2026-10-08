@@ -61,16 +61,25 @@ describe('world-characters.util — NPC, personas, guía y figurantes', () => {
 });
 
 describe('world-characters.util — énfasis de los marcadores', () => {
-  it('un marcador de objeto crece y se aclara al acercarse o seleccionarlo', () => {
-    expect(markerEmphasis({ selected: false, near: false, kitSprite: false })).toEqual({ scale: 1, alpha: 0.88 });
-    expect(markerEmphasis({ selected: false, near: true, kitSprite: false })).toEqual({ scale: 1.08, alpha: 1 });
-    expect(markerEmphasis({ selected: true, near: true, kitSprite: false })).toEqual({ scale: 1.12, alpha: 1 });
+  const vector = { kitSprite: false, pixelSprite: false };
+
+  it('un marcador vectorial crece y se aclara al acercarse o seleccionarlo', () => {
+    expect(markerEmphasis({ selected: false, near: false, ...vector })).toEqual({ scale: 1, alpha: 0.88 });
+    expect(markerEmphasis({ selected: false, near: true, ...vector })).toEqual({ scale: 1.08, alpha: 1 });
+    expect(markerEmphasis({ selected: true, near: true, ...vector })).toEqual({ scale: 1.12, alpha: 1 });
+  });
+
+  it('un marcador con sprite de pixel art (puerta, herramienta, objeto) se aclara pero nunca se escala (spec §1.1.2)', () => {
+    const sprite = { kitSprite: false, pixelSprite: true };
+    expect(markerEmphasis({ selected: false, near: false, ...sprite })).toEqual({ scale: 1, alpha: 0.88 });
+    expect(markerEmphasis({ selected: false, near: true, ...sprite })).toEqual({ scale: 1, alpha: 1 });
+    expect(markerEmphasis({ selected: true, near: true, ...sprite })).toEqual({ scale: 1, alpha: 1 });
   });
 
   it('una persona del kit nunca se escala ni se atenúa (spec §8.2: sprites a escala 1, sin deformar)', () => {
     for (const selected of [false, true]) {
       for (const near of [false, true]) {
-        expect(markerEmphasis({ selected, near, kitSprite: true })).toEqual({ scale: 1, alpha: 1 });
+        expect(markerEmphasis({ selected, near, kitSprite: true, pixelSprite: false })).toEqual({ scale: 1, alpha: 1 });
       }
     }
   });

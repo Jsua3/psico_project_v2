@@ -117,9 +117,6 @@ interface NpcMover {
   lastPose: { direction: PlayerDirection | null; walking: boolean };
 }
 
-/** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
-const TOOL_SPRITE_SCALE = 0.62;
-
 
 export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -692,9 +689,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   focus(key: string) {
     const m = this.markers.get(key);
     if (!m || this.callbacks.reduceMotion) return;
-    // Una persona del kit no se escala: el pulso va a su anillo.
+    // Un marcador con sprite de pixel art (una persona del kit, una puerta, una herramienta) no se
+    // escala: el pulso va a su anillo.
     const bag = m as unknown as Record<string, unknown>;
-    const target = bag['__kitSprite'] === true ? bag['__pulse'] : m;
+    const target = bag['__kitSprite'] === true || bag['__pixelSprite'] === true ? bag['__pulse'] : m;
     this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
   }
 
@@ -1714,6 +1712,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     let personVisual: CharacterVisual | null = null;
     let doorSprite: Phaser.GameObjects.Image | null = null;
 
+    // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
+    let pixelSprite = false;
     if (this.assetsLoaded) {
       doorSprite = isExit ? this.buildDoorSprite(object) : null;
       if (doorSprite) {
@@ -1721,6 +1721,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
         // rompe la regla de la sala premium. Si el asset falta, caen las ramas de abajo.
         main = doorSprite;
+        pixelSprite = true;
       } else if (isExit && this.authoredRoomActive) {
         // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
         const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
@@ -1729,13 +1730,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         main = this.add.container(0, 0, [doorFrame, doorPanel, doorKnob]);
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
+        pixelSprite = true;
       } else if (object.type === 'TOOL') {
         const toolTex = resolveToolTextureKey(object.toolCode);
-        main = (toolTex && this.textures.exists(toolTex))
-          ? this.add.image(0, -6, toolTex).setScale(TOOL_SPRITE_SCALE)
-          : this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        if (toolTex && this.textures.exists(toolTex)) {
+          main = this.atWorldScale(this.add.image(0, -6, toolTex));
+          pixelSprite = true;
+        } else {
+          main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        }
       } else if (object.type === 'OBJECT' && this.loadedTexture(resolveObjectTextureKey(object.shortCode))) {
-        main = this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!).setScale(TOOL_SPRITE_SCALE);
+        main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));
+        pixelSprite = true;
       } else if (object.type === 'PERSON') {
         personVisual = this.callbacks.kit ? this.actorVisual(personCharacterRef(this.callbacks.kit, object)) : null;
         if (personVisual) {
@@ -1749,6 +1755,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         }
       } else if (this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', this.frameForType(object.type)).setScale(2);
+        pixelSprite = true;
       } else {
         main = this.buildGeomMarker(color);
       }
@@ -1769,6 +1776,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.markerData.set(object.key, object);
     const bag = marker as unknown as Record<string, unknown>;
     bag['__kitSprite'] = personVisual !== null;
+    bag['__pixelSprite'] = pixelSprite;
     bag['__pulse'] = pulse;
     if (personVisual?.recipeId === PATIENT_RECIPE_ID) {
       const icon = this.patientIcon(16);
@@ -2047,7 +2055,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       const bag = m as unknown as Record<string, unknown>;
-      const emphasis = markerEmphasis({ selected: sel, near, kitSprite: bag['__kitSprite'] === true });
+      const emphasis = markerEmphasis({ selected: sel, near, kitSprite: bag['__kitSprite'] === true, pixelSprite: bag['__pixelSprite'] === true });
       m.setScale(emphasis.scale);
       m.setAlpha(emphasis.alpha);
       const label = this.markerLabels.get(key);

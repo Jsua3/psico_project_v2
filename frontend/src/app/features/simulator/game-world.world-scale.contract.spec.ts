@@ -31,4 +31,16 @@ describe('game-world: puertas, herramientas y objetos a escala 1 (spec §13.1, d
     expect(source).toContain('doorHintY(object.y, doorSprite?.displayHeight ?? DOOR_FALLBACK_HEIGHT)');
     expect(source).not.toContain('object.y - 90');
   });
+
+  it('las herramientas y los objetos de escenario no llevan escala', () => {
+    expect(source).not.toContain('TOOL_SPRITE_SCALE');
+    expect(source).toContain('main = this.atWorldScale(this.add.image(0, -6, toolTex));');
+    expect(source).toContain('main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));');
+  });
+
+  it('un marcador con sprite de pixel art no se escala al acercarse ni al enfocarlo: el pulso va a su anillo', () => {
+    expect(source).toContain("bag['__pixelSprite'] = pixelSprite;");
+    expect(body('private refreshMarkerStates() {')).toContain("pixelSprite: bag['__pixelSprite'] === true");
+    expect(body('focus(key: string) {')).toContain("bag['__kitSprite'] === true || bag['__pixelSprite'] === true ? bag['__pulse'] : m");
+  });
 });
