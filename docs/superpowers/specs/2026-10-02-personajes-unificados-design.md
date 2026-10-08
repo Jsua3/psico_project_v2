@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-02
 - **Rama:** `feat/personajes-unificados` (worktree `.worktrees/personajes-unificados`, sale de `master` @ `51d1409`)
 - **Prueba aprobada:** `76e6171` (maniquí de complexión A y Valentina completa) y `59f4a6d` (por qué se ve distinta dentro del juego)
-- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas; plan 2 (F4-F7) ejecutado en `feat/personajes-unificados`
+- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas; plan 2 (F4-F7) y plan 3 (F8) ejecutados en `feat/personajes-unificados`
 
 ## 1. Objetivo
 
@@ -530,11 +530,11 @@ Se reescriben `lobby-avatar.util`, `editor-preview.util`, `avatar-figure` (pasa 
 | F7 | Borrado del legado, validador completo («sin legado») y e2e del lobby | aviso por `frontend/e2e/**` |
 | F8 | Recalibrar muebles y puertas a la altura nueva (unos 39 px/m) y dibujarlos a ×1 exacto | sí: capturas dentro del juego |
 
-Si un solo plan resulta demasiado largo, se parte en tres: **arte** (F1-F3), **integración** (F4-F7) y **escala del mundo** (F8). La rama no se integra en `master` hasta terminar la F8.
+Si un solo plan resulta demasiado largo, se parte en tres: **arte** (F1-F3), **integración** (F4-F7) y **escala del mundo** (F8). La rama no se integra en `master` hasta terminar la F8. La F8 es el plan 3 (`docs/superpowers/plans/2026-10-08-personajes-unificados-3-escala-del-mundo.md`); integrar la rama con `master`, que siguió avanzando, es un plan aparte.
 
 ## 13. Riesgos y preguntas abiertas
 
-1. **Escala del mundo.** A ×1 Valentina mide 64 px. Muebles y puertas están calibrados para unos 82 px (unos 46 px/m; la puerta mide 93 px) y se dibujan a escalas fraccionarias (0,9 a 1,45). Con la cámara a ×2, esos píxeles desiguales se notarán más. **Resuelto (decisión 12):** se recalibra a unos 39 px/m y se dibuja a ×1 exacto en la F8, dentro de esta rama.
+1. **Escala del mundo.** A ×1 Valentina mide 64 px. Muebles y puertas están calibrados para unos 82 px (unos 46 px/m; la puerta mide 93 px) y se dibujan a escalas fraccionarias (0,9 a 1,45). Con la cámara a ×2, esos píxeles desiguales se notarán más. **Resuelto (decisión 12):** se recalibra a unos 39 px/m y se dibuja a ×1 exacto en la F8, dentro de esta rama. **Hecho (plan 3, 2026-10-08):** la tabla `WORLD_SPRITES` fija el tamaño de cada mueble, puerta y objeto recogible; el arte se reescala de los originales archivados en `frontend/world-art/originals/`; las puertas del lobby pasan a 2,15 m (84 px).
 2. **Indicador del estado de la paciente.** Hoy es un tinte rojo, verde o azul. **Resuelto (decisión 13):** un icono de pixel art sobre la cabeza.
 3. **Cambio de identidad de la abuela.** Hoy usa el arte de una madre joven; la receta la hace mayor (moño canoso, rostro maduro). Lo mismo con roles que hoy comparten arte (trabajadora social, orientadora jurídica): pasan a tener aspecto propio.
 4. **Patinaje.** A 150 px/s, una caminata de 6 cuadros a 10 fps patina. Las alternativas (12 fps o zancada más larga) afectan a la biblia; se deja anotado y no se cambia sin decisión.

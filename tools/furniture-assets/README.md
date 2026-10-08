@@ -2,6 +2,12 @@
 
 Genera `frontend/src/assets/game/furniture/*.png` (RGBA, aspect natural, lado largo a footprint).
 
+> **Desde la F8 (2026-10) este pipeline produce los ORIGINALES**, que se archivan en
+> `frontend/world-art/originals/furniture/`. Los PNG que carga el juego salen de
+> `npm run world-art:build` (reescalado determinista al tamaño exacto de `WORLD_SPRITES`,
+> dibujados a escala 1). Ver `frontend/world-art/README.md`. `mock_rooms.py` replica el
+> `paintFurnitureSprite` de antes (escala por ancho) y ya no refleja el render.
+
 ## Pasos
 
 1. **Generar** — `z_image` (Higgsfield), elevación frontal, "ONLY the furniture, no floor,
