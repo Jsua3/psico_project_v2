@@ -1412,7 +1412,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [[380, 340], [420, 340], [380, 380], [420, 380]].forEach(([x, y]) => {
         this.add.image(x, y, 'dungeon-tiles', KenneyDungeonFrames.CHAIR).setScale(2).setDepth(7);
       });
-      this.add.image(560, 160, 'dungeon-tiles', KenneyDungeonFrames.DESK).setScale(2.2).setDepth(7);
+      this.add.image(560, 160, 'dungeon-tiles', KenneyDungeonFrames.DESK).setScale(2).setDepth(7);
       this.add.image(700, 100, 'dungeon-tiles', KenneyDungeonFrames.CABINET).setScale(2).setDepth(7);
     }
   }
@@ -1729,7 +1729,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         const doorKnob = this.add.circle(7, -8, 2.5, 0xb69cff, 1);
         main = this.add.container(0, 0, [doorFrame, doorPanel, doorKnob]);
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
-        main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
+        main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(3);
         pixelSprite = true;
       } else if (object.type === 'TOOL') {
         const toolTex = resolveToolTextureKey(object.toolCode);
