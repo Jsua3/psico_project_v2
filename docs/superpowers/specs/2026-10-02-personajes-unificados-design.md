@@ -415,6 +415,7 @@ Ejemplos:
 
 - A 1920×1080, con un contenedor de unos 1696×954, da ×2: se ve el 88 % de la sala, que se desplaza un poco, y Valentina mide 128 px.
 - A 1920×1080 con el navegador maximizado (contenedor de unos 1894×819) da ×2: se ve el 99 % del ancho y el 78 % del alto de la sala. Con el umbral de 0,8 daba ×1 y la sala quedaba pequeña entre márgenes (enmienda del 2026-10-08, plan 3 tarea 10).
+- Costo conocido del ×2 (medido el 2026-10-08): la sala llena el lienzo y el relleno de WebGL sube. En el render por software del Chromium sin GPU que usan los e2e, 1920×945 va a ~21 fps a ×2 frente a ~30 a ×1 con el mismo lienzo (1366×768 y 1600×900 no cambian de zoom y van a ~36 y ~32 fps); con GPU va a ~136 fps. Ningún viewport del CI ejercita 1920×945, y un equipo sin aceleración gráfica (máquina virtual, escritorio remoto) sí nota el ×2.
 - A 1366×768 da ×1: la sala entra entera.
 - En 4K da ×3.
 
