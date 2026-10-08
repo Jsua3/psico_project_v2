@@ -6,5 +6,8 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "files": ["src/app/features/character/kit/kit-engine.ts"]
+  "files": [
+    "src/app/features/character/kit/kit-engine.ts",
+    "src/app/features/simulator/world-scale.util.ts"
+  ]
 }
