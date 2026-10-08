@@ -76,6 +76,7 @@ import {
   extrasCharacterRef, guideCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
 import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
+import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -119,15 +120,6 @@ interface NpcMover {
 /** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
 const TOOL_SPRITE_SCALE = 0.62;
 
-/**
- * Escala de render de las puertas (asset 48×64 → 70×93 px). Anclada al personaje
- * (caja ~82 px ≈ 1.7 m ⇒ ~46 px/m): una puerta real mide ~2 m, así que debe quedar
- * por encima de la cabeza del avatar. La escala anterior (0.85) venía del tamaño
- * del marker Kenney viejo y dejaba las puertas más bajas que la gente.
- */
-const DOOR_SPRITE_SCALE = 1.45;
-/** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
-const DOOR_SPRITE_FEET_Y = 16;
 
 export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
@@ -1692,10 +1684,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const sideKey = facing ? this.loadedTexture(resolveDoorSideTextureKey(object.key)) : null;
     const key = sideKey ?? this.loadedTexture(resolveDoorTextureKey(object.key));
     if (!key) return null;
-    return this.add.image(0, DOOR_SPRITE_FEET_Y, key)
+    const image = this.add.image(0, DOOR_SPRITE_FEET_Y, key)
       .setOrigin(0.5, 1)
-      .setScale(DOOR_SPRITE_SCALE)
       .setFlipX(sideKey != null && facing === 'left');
+    return this.atWorldScale(image);
+  }
+
+  /** A escala 1; un PNG viejo en la caché del navegador (otro tamaño que la tabla) se fuerza al de la tabla. */
+  private atWorldScale<T extends Phaser.GameObjects.Image>(image: T): T {
+    const spec = worldSpriteForTexture(image.texture.key);
+    const stale = spec ? staleSpriteSize(spec, image.width, image.height) : null;
+    if (stale) image.setDisplaySize(stale.width, stale.height);
+    return image;
   }
 
   private createMarker(object: MapObjectState) {
@@ -1712,9 +1712,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     let main: Phaser.GameObjects.GameObject;
     let personVisual: CharacterVisual | null = null;
+    let doorSprite: Phaser.GameObjects.Image | null = null;
 
     if (this.assetsLoaded) {
-      const doorSprite = isExit ? this.buildDoorSprite(object) : null;
+      doorSprite = isExit ? this.buildDoorSprite(object) : null;
       if (doorSprite) {
         // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
         // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
@@ -1784,8 +1785,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const hintTx = this.add.text(0, 0, `E  ${object.label} →`, {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
-      // A -90 para librar la puerta a escala real (93 px de alto, base en y+16).
-      const hint = this.add.container(object.x, object.y - 90, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
+      // Sobre el borde alto de la puerta: su alto sale del arte, ya no hay una escala que adivinar.
+      const hintY = doorHintY(object.y, doorSprite?.displayHeight ?? DOOR_FALLBACK_HEIGHT);
+      const hint = this.add.container(object.x, hintY, [hintBg, hintTx]).setDepth(DEPTH.UI).setVisible(false);
       this.doorHints.set(object.key, hint);
     }
   }
