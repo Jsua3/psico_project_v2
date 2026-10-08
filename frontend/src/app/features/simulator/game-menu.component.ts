@@ -12,6 +12,7 @@ import { CharacterVisual, resolveCharacter } from '../character/kit/character-vi
 import { KIT_ORIGIN_X, KIT_ORIGIN_Y, ensureCharacterAnims, kitFrameIndex, kitSheetKey, playKitPose, queueCharacterSheets } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
 import { LOBBY_BLEED, LOBBY_DOOR_RANGE, LOBBY_ROOM, lobbyFacadeBand, lobbyPose, nearestLobbyDoor } from './lobby-avatar.util';
+import { LOBBY_DOOR_Y, lobbyDoorLayout } from './lobby-door-layout.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
@@ -33,7 +34,7 @@ class ClinicMenuScene extends Phaser.Scene {
   private walking = false;
   private readonly worldW: number;
   private readonly spacing = 260;
-  private readonly doorY = 320;
+  private readonly doorY = LOBBY_DOOR_Y;
   private readonly floorY = 380;
 
   constructor(
@@ -65,17 +66,18 @@ class ClinicMenuScene extends Phaser.Scene {
     this.add.rectangle(band.x, this.doorY + 6, band.width, 26, 0x223247, 0.6).setOrigin(0, 0);
 
     this.doors = [];
+    const door = lobbyDoorLayout(); // las puertas a la altura de los personajes (spec §13.1)
     this.items.forEach((item, i) => {
       const x = 220 + i * this.spacing;
       const open = item.unlocked;
       const fill = item.completed ? 0x2f7476 : open ? 0x33506f : 0x2a2e35;
 
-      // Frame, leaf, and handle
-      this.add.rectangle(x, this.doorY, 108, 152, 0x12202f).setOrigin(0.5, 1)
+      // Marco, hoja y manija
+      this.add.rectangle(x, this.doorY, door.frame.width, door.frame.height, 0x12202f).setOrigin(0.5, 1)
         .setStrokeStyle(3, open ? 0x9dc0e8 : 0x555a63);
-      const leaf = this.add.rectangle(x, this.doorY - 6, 88, 134, fill).setOrigin(0.5, 1)
+      const leaf = this.add.rectangle(x, this.doorY - door.leaf.bottomInset, door.leaf.width, door.leaf.height, fill).setOrigin(0.5, 1)
         .setStrokeStyle(2, open ? 0x6f97c4 : 0x44484f);
-      this.add.rectangle(x + 26, this.doorY - 74, 6, 12, 0xdfe8f2, open ? 0.9 : 0.4); // handle
+      this.add.rectangle(x + door.handle.dx, this.doorY + door.handle.dy, door.handle.width, door.handle.height, 0xdfe8f2, open ? 0.9 : 0.4); // manija
 
       // Available doors glow; locked doors show a lock icon
       if (open && !item.completed) {
@@ -85,15 +87,15 @@ class ClinicMenuScene extends Phaser.Scene {
         });
       }
       if (!open) {
-        this.add.text(x, this.doorY - 74, '🔒', { fontSize: '20px' }).setOrigin(0.5);
+        this.add.text(x, this.doorY + door.lockDy, '🔒', { fontSize: '14px' }).setOrigin(0.5);
       }
 
-      this.add.text(x, this.doorY - 176, item.title, {
+      this.add.text(x, this.doorY + door.titleDy, item.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: open ? '#e8f0f4' : '#7a808a',
         align: 'center', wordWrap: { width: 180 },
       }).setOrigin(0.5, 1);
       const badge = item.completed ? '✓ Resuelto' : open ? '▶ Disponible' : '🔒 Bloqueado';
-      this.add.text(x, this.doorY - 150, badge, {
+      this.add.text(x, this.doorY + door.badgeDy, badge, {
         fontFamily: 'monospace', fontSize: '12px',
         color: item.completed ? '#8cbfa6' : open ? '#9dc0e8' : '#7a808a',
       }).setOrigin(0.5, 1);
