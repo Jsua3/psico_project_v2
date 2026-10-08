@@ -21,7 +21,9 @@ unificados, §13.1).
 - `npm run world-art:laminas` — láminas de revisión: cada pieza a ×3 junto a Valentina, con el
   original al lado.
 - `npm run test:world-art` — el contrato: tamaños, alfa binario, recorte, a lo sumo 40 colores,
-  ningún PNG huérfano, inventario honesto y código sin escalas fraccionarias.
+  ningún PNG huérfano, que cada PNG sea exactamente la salida del build a partir de su original
+  (un original cambiado sin correr `world-art:build`, o una salida retocada a mano, falla),
+  inventario honesto y código sin escalas fraccionarias.
 
 ## Cambiar un tamaño
 

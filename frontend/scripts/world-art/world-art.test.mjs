@@ -1,7 +1,8 @@
 /**
  * Arte del mundo a su tamaño exacto (F8, spec §13.1): los PNG de muebles, puertas y objetos miden lo
  * que dice WORLD_SPRITES, están recortados al cuerpo opaco, tienen alfa binario y pocos colores, no
- * sobra ninguno y el inventario cuenta la verdad. Así se dibujan a escala 1 sin mezclar píxeles.
+ * sobra ninguno, son la salida del build (npm run world-art:build) y el inventario cuenta la verdad.
+ * Así se dibujan a escala 1 sin mezclar píxeles.
  */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -10,8 +11,8 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { WORLD_SPRITES } from '../../src/app/features/simulator/world-scale.util.ts';
-import { FRONTEND_ROOT, readPng, writePng } from './build.mjs';
-import { boundsOf, paletteOf } from './rescale.mjs';
+import { FRONTEND_ROOT, buildWorldArt, readPng, writePng } from './build.mjs';
+import { boundsOf, paletteOf, rescaleSprite } from './rescale.mjs';
 
 /** El arte original usa 14-26 colores por sprite; más de 40 es un reescalado que mezcló píxeles. */
 export const MAX_COLORS = 40;
@@ -41,6 +42,16 @@ export function worldArtFindings(root = FRONTEND_ROOT, sprites = WORLD_SPRITES) 
     if (!bounds || bounds.width !== image.width || bounds.height !== image.height) findings.push(`${label}: no está recortado al cuerpo opaco`);
     const colors = paletteOf(image).size;
     if (colors > MAX_COLORS) findings.push(`${label}: usa ${colors} colores (máximo ${MAX_COLORS})`);
+    const original = path.join(root, 'world-art', 'originals', spec.group, `${spec.name}.png`);
+    if (image.width === spec.width && image.height === spec.height && existsSync(original)) {
+      // La salida es lo que genera el build: si no, un original cambiado no llega al juego o un retoque a mano se pierde.
+      try {
+        const expected = rescaleSprite(readPng(original), spec.width, spec.height);
+        if (Buffer.compare(Buffer.from(expected.data), Buffer.from(image.data)) !== 0) findings.push(`${label}: no es la salida del build (npm run world-art:build)`);
+      } catch (error) {
+        findings.push(`${label}: el original no se puede reescalar (${error.message})`);
+      }
+    }
   }
   for (const group of GROUPS) {
     const dir = path.join(assets, group);
@@ -98,6 +109,38 @@ test('el detector ve un PNG de otro tamaño, con alfa parcial y sin recortar, un
     ]);
     rmSync(path.join(root, 'world-art'), { recursive: true });
     assert.ok(worldArtFindings(root, [spec]).includes('furniture/mesa.png: falta el original en world-art/originals'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('el detector acepta la salida del build y ve un PNG válido que ya no lo es (original cambiado o salida retocada)', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'world-art-al-dia-'));
+  try {
+    const spec = { group: 'furniture', name: 'mesa', width: 2, height: 2 };
+    const originals = path.join(root, 'world-art', 'originals');
+    const output = path.join(root, 'src', 'assets', 'game');
+    // original de 4×4 en dos mitades de color: su reescalado a 2×2 es determinista
+    const original = { width: 4, height: 4, data: new Uint8Array(64) };
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) original.data.set(x < 2 ? [200, 40, 40, 255] : [40, 80, 200, 255], (y * 4 + x) * 4);
+    }
+    writePng(path.join(originals, 'furniture', 'mesa.png'), original);
+    buildWorldArt({ originals, output, sprites: [spec] });
+    assert.deepEqual(worldArtFindings(root, [spec]), []);
+
+    // un retoque a mano de la salida cumple tamaño, alfa, recorte y paleta, pero el próximo build lo borraría
+    const file = path.join(output, 'furniture', 'mesa.png');
+    const retouched = readPng(file);
+    retouched.data.set([40, 80, 200, 255], 0);
+    writePng(file, retouched);
+    assert.deepEqual(worldArtFindings(root, [spec]), ['furniture/mesa.png: no es la salida del build (npm run world-art:build)']);
+
+    // un original cambiado sin volver a correr el build: el juego seguiría mostrando el arte viejo
+    buildWorldArt({ originals, output, sprites: [spec] });
+    for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) original.data.set([10, 200, 10, 255], (y * 4 + x) * 4);
+    writePng(path.join(originals, 'furniture', 'mesa.png'), original);
+    assert.deepEqual(worldArtFindings(root, [spec]), ['furniture/mesa.png: no es la salida del build (npm run world-art:build)']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
