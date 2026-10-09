@@ -5,6 +5,7 @@ import { AuthoringApi } from '../../../core/api/authoring.api';
 import { WorldCollisionZone, WorldDefinition, WorldDialogueTree, WorldObject } from '../../../core/models/simulation.model';
 import { AUTHORING_SCENE_TEMPLATES } from '../authoring-catalog.config';
 import { WorldEditorComponent } from './world-editor.component';
+import { PlaceObjectCommand, UpsertDialogueCommand } from './world-editor.store';
 
 /**
  * Caracteriza las acciones del inspector del editor de mundo (`updateZoneLabel`,
@@ -82,20 +83,31 @@ describe('WorldEditorComponent: acciones del inspector', () => {
       expect(state().collisionZones).toHaveLength(1);
     });
 
-    it('comportamiento actual: registra un comando «ResizeZone» vacío en la pila', () => {
+    it('registra un único paso en la pila', () => {
       component.updateZoneLabel('z1', 'Escritorio');
 
       expect(component.store.canUndo()).toBe(true);
+      component.store.undo();
+      expect(component.store.canUndo()).toBe(false);
     });
 
-    it('comportamiento actual: deshacer NO revierte la etiqueta (se escribió fuera de la pila)', () => {
+    it('deshacer devuelve la etiqueta anterior', () => {
       component.updateZoneLabel('z1', 'Escritorio');
 
       component.store.undo();
 
-      // El deshacer consume el comando vacío; la etiqueta se quedó cambiada.
-      expect(zoneOf('z1').label).toBe('Escritorio');
+      expect(zoneOf('z1').label).toBe('Mesa');
       expect(component.store.canUndo()).toBe(false);
+    });
+
+    it('rehacer vuelve a poner la etiqueta nueva', () => {
+      component.updateZoneLabel('z1', 'Escritorio');
+      component.store.undo();
+      expect(zoneOf('z1').label).toBe('Mesa');
+
+      component.store.redo();
+
+      expect(zoneOf('z1').label).toBe('Escritorio');
     });
   });
 
@@ -128,12 +140,34 @@ describe('WorldEditorComponent: acciones del inspector', () => {
       expect(state().collisionZones.map(z => z.key)).toEqual(['z1']);
     });
 
-    it('comportamiento actual: borrar un objeto deja huérfano su diálogo', () => {
+    it('borrar un objeto borra también su diálogo', () => {
       component.store.select('npc-1');
 
       component.deleteSelected();
 
+      expect(state().dialogues).toEqual([]);
+    });
+
+    it('deshacer repone el objeto y su diálogo en un solo paso', () => {
+      component.store.select('npc-1');
+      component.deleteSelected();
+      expect(state().dialogues).toEqual([]);
+
+      component.store.undo();
+
+      expect(state().objects.map(o => o.key)).toEqual(['npc-1']);
       expect(state().dialogues.map(d => d.mapObjectKey)).toEqual(['npc-1']);
+      expect(component.store.canUndo()).toBe(false);
+    });
+
+    it('no toca los diálogos de otros objetos', () => {
+      component.store.execute(new PlaceObjectCommand(obj('npc-2', { id: 2 })));
+      component.store.execute(new UpsertDialogueCommand('npc-2', tree('npc-2')));
+      component.store.select('npc-1');
+
+      component.deleteSelected();
+
+      expect(state().dialogues.map(d => d.mapObjectKey)).toEqual(['npc-2']);
     });
 
     it('una clave que no es ni objeto ni zona solo limpia la selección', () => {

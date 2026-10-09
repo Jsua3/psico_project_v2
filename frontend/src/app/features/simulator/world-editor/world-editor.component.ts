@@ -44,11 +44,11 @@ import {
   EditorTool,
   PlaceObjectCommand,
   MoveObjectCommand,
-  DeleteObjectCommand,
+  DeleteObjectWithDialogueCommand,
   UpdateInspectorCommand,
   PlaceCollisionZoneCommand,
   DeleteCollisionZoneCommand,
-  ResizeZoneCommand,
+  SetZoneLabelCommand,
   UpdateSpawnCommand,
   UpsertDialogueCommand,
   DeleteDialogueCommand,
@@ -994,31 +994,16 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   }
 
   updateZoneLabel(key: string, label: string): void {
-    const state = this.store.editorState();
-    if (!state) return;
-    const zone = state.collisionZones.find(z => z.key === key);
+    const zone = this.store.editorState()?.collisionZones.find(z => z.key === key);
     if (!zone) return;
-    this.store.execute(new ResizeZoneCommand(key,
-      { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
-      { x: zone.x, y: zone.y, width: zone.width, height: zone.height }
-    ));
-    // Update label directly since ResizeZoneCommand doesn't handle labels
-    const updatedState = this.store.editorState();
-    if (updatedState) {
-      this.store.editorState.set({
-        ...updatedState,
-        collisionZones: updatedState.collisionZones.map(z =>
-          z.key === key ? { ...z, label } : z
-        )
-      });
-    }
+    this.store.execute(new SetZoneLabelCommand(key, label));
   }
 
   deleteSelected(): void {
     const key = this.store.selectedKey();
     if (!key) return;
     if (this.store.selectedObject()) {
-      this.store.execute(new DeleteObjectCommand(key));
+      this.store.execute(new DeleteObjectWithDialogueCommand(key));
     } else if (this.store.selectedZone()) {
       this.store.execute(new DeleteCollisionZoneCommand(key));
     }
