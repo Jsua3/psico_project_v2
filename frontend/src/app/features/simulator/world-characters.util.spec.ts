@@ -1,5 +1,6 @@
 import { testKitBundle } from '../character/kit/testing/kit-testing';
 import {
+  DIMMED_ALPHA,
   KIT_BODY_HEIGHT,
   KIT_HINT_OFFSET_Y,
   KIT_ICON_OFFSET_Y,
@@ -82,5 +83,20 @@ describe('world-characters.util — énfasis de los marcadores', () => {
         expect(markerEmphasis({ selected, near, kitSprite: true, pixelSprite: false })).toEqual({ scale: 1, alpha: 1 });
       }
     }
+  });
+
+  it('un marcador de otra etapa (T9.9, F§7.2) se atenúa a DIMMED_ALPHA salvo cerca o seleccionado', () => {
+    expect(DIMMED_ALPHA).toBe(0.55);
+    expect(markerEmphasis({ selected: false, near: false, dimmed: true, ...vector }).alpha).toBe(DIMMED_ALPHA);
+    expect(markerEmphasis({ selected: false, near: true, dimmed: true, ...vector }).alpha).toBe(1);
+    expect(markerEmphasis({ selected: true, near: false, dimmed: true, ...vector }).alpha).toBe(1);
+    expect(markerEmphasis({ selected: false, near: false, dimmed: false, ...vector }).alpha).toBe(0.88);
+  });
+
+  it('la persona del kit de otra etapa se atenúa igual (WAY-03) pero nunca se escala', () => {
+    const person = { kitSprite: true, pixelSprite: false };
+    expect(markerEmphasis({ selected: false, near: false, dimmed: true, ...person })).toEqual({ scale: 1, alpha: DIMMED_ALPHA });
+    expect(markerEmphasis({ selected: false, near: true, dimmed: true, ...person })).toEqual({ scale: 1, alpha: 1 });
+    expect(markerEmphasis({ selected: true, near: true, dimmed: true, ...person })).toEqual({ scale: 1, alpha: 1 });
   });
 });

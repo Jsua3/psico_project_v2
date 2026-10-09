@@ -139,8 +139,6 @@ const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
-/** Transparencia de los objetos de decisión de otras etapas (F§7.2): se ven, pero no llaman la atención. */
-const DIMMED_ALPHA = 0.55;
 /** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
 const RING_COLOR = 0xcdbcff;
 const RING_HALO_COLOR = 0x0b0f1a;
@@ -2405,7 +2403,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
       const bag = m as unknown as Record<string, unknown>;
-      const emphasis = markerEmphasis({ selected: sel, near, kitSprite: bag['__kitSprite'] === true, pixelSprite: bag['__pixelSprite'] === true });
+      const emphasis = markerEmphasis({
+        selected: sel, near, kitSprite: bag['__kitSprite'] === true, pixelSprite: bag['__pixelSprite'] === true,
+        dimmed: this.dimmedKeys.has(key),
+      });
       m.setScale(emphasis.scale);
       m.setAlpha(emphasis.alpha);
       const label = this.markerLabels.get(key);

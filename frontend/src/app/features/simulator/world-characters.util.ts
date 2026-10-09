@@ -27,19 +27,25 @@ export function npcCharacterRef(npc: Pick<NpcConfig, 'recipeId'>): CharacterRef 
   return { kind: 'receta', recipeId: npc.recipeId };
 }
 
+/** Alfa de un marcador de otra etapa del proceso (T9.9 de master, F§7.2): se ve, pero no es lo que toca ahora. */
+export const DIMMED_ALPHA = 0.55;
+
 /**
- * Énfasis de un marcador según la cercanía y la selección. Una persona dibujada con el kit
- * nunca se escala ni se atenúa (spec §8.2: sprites a escala 1, nada los deforma); su señal
- * es el nombre y el anillo. Los marcadores con otro sprite de pixel art tampoco se escalan.
+ * Énfasis de un marcador según la cercanía, la selección y si es de otra etapa. Una persona dibujada con el
+ * kit nunca se escala (spec §8.2: sprites a escala 1, nada los deforma) ni se vela con el 0,88 de reposo; su
+ * señal es el nombre y el anillo. Los marcadores con otro sprite de pixel art tampoco se escalan. Lo de otra
+ * etapa se atenúa a `DIMMED_ALPHA`, también las personas (WAY-03), salvo cerca o seleccionado.
  */
 export function markerEmphasis(
-  state: { selected: boolean; near: boolean; kitSprite: boolean; pixelSprite: boolean },
+  state: { selected: boolean; near: boolean; kitSprite: boolean; pixelSprite: boolean; dimmed?: boolean },
 ): { scale: number; alpha: number } {
-  if (state.kitSprite) return { scale: 1, alpha: 1 };
+  const lit = state.selected || state.near;
+  const alpha = lit ? 1 : state.dimmed ? DIMMED_ALPHA : state.kitSprite ? 1 : 0.88;
+  if (state.kitSprite) return { scale: 1, alpha };
   // Un marcador con sprite de pixel art (puerta, herramienta, objeto) se aclara pero no se escala:
   // a ×1,08 sus píxeles saldrían desiguales (spec §1.1.2).
   const scale = state.pixelSprite ? 1 : state.selected ? 1.12 : state.near ? 1.08 : 1;
-  return { scale, alpha: state.selected || state.near ? 1 : 0.88 };
+  return { scale, alpha };
 }
 
 /** Figurantes de los mapas legados y respaldo de todo actor sin receta (spec §7.2). */
