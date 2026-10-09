@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-02
 - **Rama:** `feat/personajes-unificados` (worktree `.worktrees/personajes-unificados`, sale de `master` @ `51d1409`)
 - **Prueba aprobada:** `76e6171` (maniquí de complexión A y Valentina completa) y `59f4a6d` (por qué se ve distinta dentro del juego)
-- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas; plan 2 (F4-F7) y plan 3 (F8) ejecutados en `feat/personajes-unificados`
+- **Estado:** aprobado por el usuario el 2026-10-03, con las preguntas de §13 resueltas; plan 2 (F4-F7) y plan 3 (F8) ejecutados en `feat/personajes-unificados`; plan 4 (integración con master) ejecutado en `integracion/personajes-unificados-master` (decisiones 20 y 21)
 
 ## 1. Objetivo
 
@@ -13,7 +13,7 @@ Todos los personajes del juego —los 12 jugables, los NPC de los casos, el guí
 
 1. En cualquier pantalla (mundo, lobby, editor de personaje, intro del caso, diálogo, resultado del intento, editor de mundo) cada personaje se dibuja con hojas o retratos del kit. El código y los assets ya no contienen `characters/cast`, `characters/modular`, `characters/modular-legacy`, `characters/portraits`, las hojas `characters/v1/<id>/base` ni los cuadros de personaje de Kenney.
 2. En pantalla, cada píxel de un sprite mide un número entero de píxeles físicos (teniendo en cuenta `devicePixelRatio`).
-3. Ninguna luz ni tinte en tiempo de ejecución altera los píxeles de un personaje, con una sola excepción documentada (§8.3).
+3. Ninguna luz ni tinte en tiempo de ejecución altera los píxeles de un personaje, con dos excepciones documentadas: la viñeta de crisis y el atenuado de lo que es de otra etapa (§8.3, decisión 20; enmienda del 2026-10-08, plan 4).
 4. El validador corre en CI y falla si se rompe cualquiera de los puntos anteriores (§6).
 
 ## 2. Decisiones tomadas
@@ -34,7 +34,7 @@ No se reabren; el spec las desarrolla.
 12. *(2026-10-03)* Muebles y puertas se recalibran a la altura nueva **en esta rama** (F8), para que `master` nunca tenga personajes y muebles a escalas distintas.
 13. *(2026-10-03)* El tinte del estado clínico de la paciente se reemplaza por un **icono de pixel art sobre la cabeza**; el sprite no se toca.
 14. *(2026-10-03)* Los peinados marcados como `volumen` (afro, moño alto) pueden llegar a **25 px** de cabeza con pelo; en ellos el validador mide además el cráneo (etiqueta `H`, 17 px con contorno).
-15. *(2026-10-03, PARADA 1)* Los retratos son **tiernos y de poco detalle, a 32×32**, y se muestran a ×3 (caja de 96 px) o ×6 (192 px): cabeza grande y redonda, ojos de 2×3 con un píxel de brillo y 6 px entre ellos, cejas de 2 px, rubor, sonrisa pequeña y sin nariz. Sustituye al retrato de 96×96 de la prueba.
+15. *(2026-10-03, PARADA 1)* Los retratos son **tiernos y de poco detalle, a 32×32**, y se muestran a ×3 (caja de 96 px) o ×6 (192 px): cabeza grande y redonda, ojos de 2×3 con un píxel de brillo y 6 px entre ellos, cejas de 2 px, rubor, sonrisa pequeña y sin nariz. Sustituye al retrato de 96×96 de la prueba. *(Enmienda del 2026-10-08, plan 4: ×2 con la altura limitada; ver decisión 21.)*
 16. *(2026-10-03)* Los 12 jugables y el avatar personalizado llevan el **uniforme de Psicología de la Universidad Alexander von Humboldt**:
     - casaca azul acero de cuello mao con tapeta, manga corta y dos bolsillos bajos;
     - bordado en el pecho y la manga izquierdos, como una marca de 2-3 px, sin texto ni logo literal;
@@ -45,6 +45,8 @@ No se reabren; el spec las desarrolla.
 17. *(2026-10-03)* La **bata es opcional y la elige el jugador** (un interruptor en el editor o el lobby; plan 2). De cada jugable el kit genera la versión sin bata y la versión con bata (`<id>/bata/…`). La variante se define una sola vez en el catálogo (`playableVariants`).
 18. *(2026-10-03)* El editor de avatar ofrece dos conjuntos, «uniforme» y «uniforme con bata», sin elección de color.
 19. *(2026-10-03)* `palette.v2.json` suma el azul acero del uniforme, tomado de la foto: `#8293ab`, `#647690`, `#4d5b6f`, `#36404f` (luz, base, sombra, profunda).
+20. *(2026-10-08, plan 4, PARADA aprobada por el usuario)* Lo que pertenece a otra etapa del proceso se **atenúa** (`DIMMED_ALPHA = 0,55`): marcadores de objetos, herramientas y puertas y también las **personas del kit** (informe de jugabilidad de master, WAY-03 / T9.9: «se ven, pero no llaman la atención»). Es la **segunda excepción documentada** al criterio 3 de §1.1 (la primera es la viñeta de crisis, §8.3): cambia el alfa, nunca el color, el tamaño ni la forma; una persona cercana o seleccionada vuelve a alfa 1 y una persona del kit nunca se escala ni se vela con el 0,88 de reposo.
+21. *(2026-10-08, plan 4, PARADA aprobada por el usuario)* En pantallas de poca altura (`max-height: 520px`, p. ej. móvil horizontal 844×390) el retrato del panel lateral del diálogo se muestra a **×2 (64 px)** en vez de ×3: ×3 no cabe junto a las opciones y el `clamp()` de master lo dejaba a fracciones. Sigue siendo una escala entera (§1.1 criterio 2).
 
 ## 3. Lo que hay hoy (medido)
 
@@ -399,7 +401,7 @@ Las constantes compartidas (cuadro 48×72, pivote (24,68), filas abajo/izquierda
 | Lobby | Las mismas hojas del kit y el mismo zoom entero que el mundo (§8.3). |
 | Editor de personaje | Vista previa del avatar compuesto en el navegador a ×4: las 4 vistas con reposo y caminata animados. Opciones del §4.7. Tarjetas del elenco con el cuadro 0 a ×2. |
 | Intro del caso | Hojas del kit (caminata a la derecha y reposo de frente) a la escala entera que ya usa el escenario. |
-| Diálogo | Retrato de la receta del hablante a ×3 (96 px) o ×6 (192 px) según el diseño, sin `object-fit` que lo encoja. |
+| Diálogo | Retrato de la receta del hablante a ×3 (96 px) o ×6 (192 px) según el diseño (en el panel lateral con `max-height: 520px`, ×2: 64 px; decisión 21), sin `object-fit` que lo encoja. |
 | Resultado del intento | Retrato neutral del jugador a ×3, 96 px (hoy 64). |
 | Editor de mundo | Cuadro 0 de frente y de perfil a ×1 (48×72). Los campos del NPC pasan a ser «plantilla = receta» u opciones del kit. |
 
@@ -425,7 +427,9 @@ La cámara sigue a la jugadora con `roundPixels` y se limita a la sala; si la vi
 
 **Nada deforma los píxeles.** Se retira `character-motion.util`: la respiración y el bob ya vienen en las hojas. Se quitan todos los tintes de actores. El tinte del estado clínico de la paciente se reemplaza por un icono de pixel art sobre la cabeza, con colores de la paleta y a la misma escala entera (decisión 13).
 
-**Retratos y vistas CSS.** Los sprites, siempre a ×1, ×2 o ×4; los retratos (32×32), a ×3 o ×6. Todo con `image-rendering: pixelated` y una caja del tamaño exacto.
+**Atenuado de otras etapas (enmienda del 2026-10-08, plan 4; decisión 20).** `markerEmphasis` baja a `DIMMED_ALPHA = 0,55` el alfa de todo marcador de una decisión de otra etapa (`dimmedKeys`), también las personas del kit. No cambia el color ni la forma ni escala; una persona cercana o seleccionada vuelve a alfa 1, y fuera de eso una persona del kit no se vela con el 0,88 de reposo de los demás marcadores. Es la segunda excepción de §1.1 criterio 3.
+
+**Retratos y vistas CSS.** Los sprites, siempre a ×1, ×2 o ×4; los retratos (32×32), a ×3 o ×6 (×2 en el panel lateral del diálogo cuando la altura es de 520 px o menos: decisión 21). Todo con `image-rendering: pixelated` y una caja del tamaño exacto.
 
 ### 8.4 Pruebas e2e (aviso)
 
