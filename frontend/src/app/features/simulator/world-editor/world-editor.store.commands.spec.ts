@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
-import { SimulationService } from '../../../core/api/simulation.service';
+import { AuthoringApi } from '../../../core/api/authoring.api';
 import {
   SceneMapDefinition,
   WorldCollisionZone,
@@ -199,7 +199,7 @@ describe('WorldEditorStore', () => {
       validateWorld: vi.fn(() => of({ errors: ['e'], warnings: [], canPublish: false })),
     };
     TestBed.configureTestingModule({
-      providers: [WorldEditorStore, { provide: SimulationService, useValue: sim }],
+      providers: [WorldEditorStore, { provide: AuthoringApi, useValue: sim }],
     });
     store = TestBed.inject(WorldEditorStore);
   });

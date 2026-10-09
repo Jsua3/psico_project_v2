@@ -4,7 +4,26 @@ import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
+import { AuthoringApi } from './authoring.api';
+import { InstructorApi } from './instructor.api';
 import { SimulationService } from './simulation.service';
+
+/** Las tres APIs por rol vistas como una sola: el contrato HTTP no distingue quién implementa cada método. */
+type Public<T> = Pick<T, keyof T>; // sin los miembros privados (`http`), que chocarían en la intersección
+type Api = Public<SimulationService> & Public<AuthoringApi> & Public<InstructorApi>;
+const ROLE_CLASSES = [SimulationService, AuthoringApi, InstructorApi] as const;
+const publicMethodsOf = (cls: { prototype: object }) =>
+  Object.getOwnPropertyNames(cls.prototype).filter(name => name !== 'constructor' && name !== 'attemptOptions');
+
+function mergeApis(player: SimulationService, authoring: AuthoringApi, instructor: InstructorApi): Api {
+  const merged: Record<string, unknown> = {};
+  for (const [cls, instance] of [[SimulationService, player], [AuthoringApi, authoring], [InstructorApi, instructor]] as const) {
+    for (const name of publicMethodsOf(cls)) {
+      merged[name] = (instance as unknown as Record<string, (...a: unknown[]) => unknown>)[name].bind(instance);
+    }
+  }
+  return merged as unknown as Api;
+}
 
 /**
  * Contrato HTTP de `SimulationService`: para CADA método público, verbo, URL (con parámetros),
@@ -22,7 +41,7 @@ const body = (label: string) => ({ label }) as never;
 interface Contract {
   /** Nombre del método de `SimulationService` que se está caracterizando. */
   method: string;
-  call: (s: SimulationService) => Observable<unknown>;
+  call: (s: Api) => Observable<unknown>;
   verb: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   /** URL con parámetros de consulta, si los hay. */
@@ -110,14 +129,14 @@ const CONTRACTS: Contract[] = [
 ];
 
 describe('SimulationService contrato HTTP', () => {
-  let service: SimulationService;
+  let service: Api;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SimulationService, provideHttpClient(withXhr()), provideHttpClientTesting()],
+      providers: [SimulationService, AuthoringApi, InstructorApi, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
-    service = TestBed.inject(SimulationService);
+    service = mergeApis(TestBed.inject(SimulationService), TestBed.inject(AuthoringApi), TestBed.inject(InstructorApi));
     httpMock = TestBed.inject(HttpTestingController);
   });
 
@@ -236,9 +255,9 @@ describe('SimulationService contrato HTTP', () => {
 
   describe('editor de mundo con nodeId', () => {
     it.each([
-      ['worldEditor', (s: SimulationService) => s.worldEditor(9, 4), 'GET', `${A}/9/world-editor`],
-      ['saveWorld', (s: SimulationService) => s.saveWorld(9, body('mundo'), 4), 'PUT', `${A}/9/world`],
-      ['worldPreview', (s: SimulationService) => s.worldPreview(9, 4), 'GET', `${A}/9/world-preview`],
+      ['worldEditor', (s: Api) => s.worldEditor(9, 4), 'GET', `${A}/9/world-editor`],
+      ['saveWorld', (s: Api) => s.saveWorld(9, body('mundo'), 4), 'PUT', `${A}/9/world`],
+      ['worldPreview', (s: Api) => s.worldPreview(9, 4), 'GET', `${A}/9/world-preview`],
     ])('%s agrega nodeId como parámetro de consulta', (_n, call, verb, url) => {
       call(service).subscribe();
       const req = httpMock.expectOne(r => r.url === url);
@@ -256,9 +275,8 @@ describe('SimulationService contrato HTTP', () => {
   });
 
   // ── cobertura completa ─────────────────────────────────────────────────────
-  it('todo método público de SimulationService está en el contrato', () => {
-    const publicMethods = Object.getOwnPropertyNames(SimulationService.prototype)
-      .filter(name => name !== 'constructor' && name !== 'attemptOptions');
+  it('todo método público de las APIs por rol está en el contrato', () => {
+    const publicMethods = ROLE_CLASSES.flatMap(publicMethodsOf);
     const documented = new Set([
       ...CONTRACTS.map(c => c.method),
       'getActiveAttempt', 'studentReport', 'getScenarioConfig', 'getInterventionRules',
@@ -267,5 +285,19 @@ describe('SimulationService contrato HTTP', () => {
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
     expect(publicMethods).toHaveLength(50);
+  });
+
+  it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
+    const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
+    expect([player.length, authoring.length, instructor.length]).toEqual([21, 25, 4]);
+    expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'saveRubric']);
+  });
+
+  it('el jugador no ve métodos de autoría ni de instructor', () => {
+    const player = publicMethodsOf(SimulationService);
+    for (const name of [...publicMethodsOf(AuthoringApi), ...publicMethodsOf(InstructorApi)]) {
+      expect(player).not.toContain(name);
+    }
   });
 });

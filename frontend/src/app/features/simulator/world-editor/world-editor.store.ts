@@ -13,7 +13,7 @@
  */
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Subject, debounceTime, switchMap, catchError, of, EMPTY } from 'rxjs';
-import { SimulationService } from '../../../core/api/simulation.service';
+import { AuthoringApi } from '../../../core/api/authoring.api';
 import {
   WorldDefinition,
   WorldObject,
@@ -289,7 +289,7 @@ export type EditorTool = 'select' | 'place-object' | 'place-collision' | 'place-
 
 @Injectable()
 export class WorldEditorStore {
-  private readonly simulationService = inject(SimulationService);
+  private readonly authoringApi = inject(AuthoringApi);
 
   // ─── Source of truth ───────────────────────────────────────────────────
   readonly definition = signal<WorldDefinition | null>(null);
@@ -380,7 +380,7 @@ export class WorldEditorStore {
     this.conflictDetected.set(false);
     this.resetCommandStack();
 
-    this.simulationService.worldEditor(caseVersionId, nodeId).subscribe({
+    this.authoringApi.worldEditor(caseVersionId, nodeId).subscribe({
       next: def => {
         this.definition.set(def);
         const objKeyById = new Map(def.objects.map(o => [o.id, o.key]));
@@ -480,7 +480,7 @@ export class WorldEditorStore {
   // ─── Validate ─────────────────────────────────────────────────────────
 
   validate(): void {
-    this.simulationService.validateWorld(this.caseVersionId).subscribe({
+    this.authoringApi.validateWorld(this.caseVersionId).subscribe({
       next: vs => this.validationState.set(vs),
       error: () => this.error.set('No se pudo ejecutar la validacion.')
     });
@@ -523,7 +523,7 @@ export class WorldEditorStore {
 
     this.saving.set(true);
     const body = buildWorldSaveRequest(def, state);
-    return this.simulationService.saveWorld(this.caseVersionId, body, this.nodeId);
+    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId);
   }
 
   private resetCommandStack(): void {

@@ -4,7 +4,7 @@ import { Component, OnDestroy, OnInit, inject, signal, ChangeDetectionStrategy }
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { SimulationService } from '../../core/api/simulation.service';
+import { InstructorApi } from '../../core/api/instructor.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptTrace, AttemptTimelineEntry, RecentAttempt, ReflectionTrace, RubricCriterionView, RubricEvaluationView, RubricSummary, TraceEvent } from '../../core/models/simulation.model';
 import { RECONSIDERED_LABEL, RECONSIDERED_TEACHER_HINT, isRetryEventType } from './reconsidered.util';
@@ -1264,7 +1264,7 @@ interface FeedbackPanelView {
   `]
 })
 export class InstructorTraceComponent implements OnInit, OnDestroy {
-  private readonly simulationService = inject(SimulationService);
+  private readonly instructorApi = inject(InstructorApi);
   private readonly authService = inject(AuthService);
 
   readonly attempts = signal<RecentAttempt[]>([]);
@@ -1302,7 +1302,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
     this.selectedAttemptId.set(attempt.attemptId);
     this.feedbackPanel.set(null);
 
-    this.simulationService.attemptTrace(attempt.attemptId).subscribe({
+    this.instructorApi.attemptTrace(attempt.attemptId).subscribe({
       next: trace => {
         this.trace.set(this.normalizeTrace(trace));
         this.loadRubric(attempt.attemptId);
@@ -1337,7 +1337,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
     this.rubricMessage.set('');
     this.rubricMessageIsError.set(false);
 
-    this.simulationService.saveRubric(trace.attemptId, rubric.rubricId, this.rubricComment, scores).subscribe({
+    this.instructorApi.saveRubric(trace.attemptId, rubric.rubricId, this.rubricComment, scores).subscribe({
       next: saved => {
         this.rubric.set(saved);
         this.seedRubricForm(saved);
@@ -1780,7 +1780,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   private loadAttempts() {
     this.loading.set(true);
     this.error.set('');
-    this.simulationService.recentAttempts().subscribe({
+    this.instructorApi.recentAttempts().subscribe({
       next: attempts => {
         attempts = attempts ?? [];
         this.attempts.set(attempts);
@@ -1808,7 +1808,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   private loadRubric(attemptId: string) {
-    this.simulationService.rubric(attemptId).subscribe({
+    this.instructorApi.rubric(attemptId).subscribe({
       next: rubric => {
         rubric = this.normalizeRubric(rubric);
         this.rubric.set(rubric);
@@ -1833,7 +1833,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   private refreshTrace(attemptId: string) {
-    this.simulationService.attemptTrace(attemptId).subscribe({
+    this.instructorApi.attemptTrace(attemptId).subscribe({
       next: trace => this.trace.set(this.normalizeTrace(trace)),
       error: () => undefined
     });

@@ -8,6 +8,7 @@ import { Observable, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { GrupoService, Grupo } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
+import { InstructorApi } from '../../core/api/instructor.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -82,6 +83,7 @@ export class DashboardComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly reporteService = inject(ReporteService);
   private readonly simulationService = inject(SimulationService);
+  private readonly instructorApi = inject(InstructorApi);
   private readonly userAdminService = inject(UserAdminService);
   private readonly grupoService = inject(GrupoService);
 
@@ -567,7 +569,7 @@ export class DashboardComponent implements OnInit {
       dashboard: this.reporteService.getDashboard().pipe(catchError(() => this.sourceFailed<Dashboard | null>('dashboard', null))),
       users: this.userAdminService.list().pipe(catchError(() => this.sourceFailed('users', [] as AdminUser[]))),
       cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[]))),
-      recent: this.simulationService.recentAttempts().pipe(catchError(() => this.sourceFailed('recent', [] as RecentAttempt[])))
+      recent: this.instructorApi.recentAttempts().pipe(catchError(() => this.sourceFailed('recent', [] as RecentAttempt[])))
     }).subscribe({
       next: ({ dashboard, users, cases, recent }) => {
         this.dashboard.set(dashboard);

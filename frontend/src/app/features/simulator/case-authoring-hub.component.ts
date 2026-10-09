@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { SimulationService } from '../../core/api/simulation.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 
 @Component({
@@ -234,7 +234,7 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
   `],
 })
 export class CaseAuthoringHubComponent implements OnInit {
-  private readonly simulationService = inject(SimulationService);
+  private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   readonly cases = signal<SimulationCaseSummary[]>([]);
@@ -262,7 +262,7 @@ export class CaseAuthoringHubComponent implements OnInit {
     const value = this.newCaseForm.getRawValue();
     this.creatingCase.set(true);
     this.error.set('');
-    this.simulationService.createCase({
+    this.authoringApi.createCase({
       title: value.title ?? '',
       code: value.code || null,
       description: value.description || null,
@@ -281,7 +281,7 @@ export class CaseAuthoringHubComponent implements OnInit {
   private loadCases(): void {
     this.loading.set(true);
     this.error.set('');
-    this.simulationService.listAuthoringCases().subscribe({
+    this.authoringApi.listAuthoringCases().subscribe({
       next: cases => {
         this.cases.set(cases);
         this.loading.set(false);

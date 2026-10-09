@@ -7,7 +7,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Observable } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error.util';
-import { SimulationService } from '../../core/api/simulation.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   CaseEditorView,
@@ -753,7 +753,7 @@ type EditorPanel =
 })
 export class CaseEditorComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly simulationService = inject(SimulationService);
+  private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
 
@@ -918,8 +918,8 @@ export class CaseEditorComponent implements OnInit {
       positionX: v.positionX, positionY: v.positionY,
     };
     const call = p?.kind === 'node-edit'
-      ? this.simulationService.updateNode(caseVersionId, (p as { node: NodeEditorState }).node.id, body)
-      : this.simulationService.createNode(caseVersionId, body);
+      ? this.authoringApi.updateNode(caseVersionId, (p as { node: NodeEditorState }).node.id, body)
+      : this.authoringApi.createNode(caseVersionId, body);
     this.runAction(call, 'Nodo guardado.', 'No fue posible guardar el nodo.');
   }
 
@@ -935,8 +935,8 @@ export class CaseEditorComponent implements OnInit {
       prohibitedPenalty: v.prohibitedPenalty, immediateFeedback: v.immediateFeedback || '',
     };
     const call = p?.kind === 'decision-edit'
-      ? this.simulationService.updateDecision(caseVersionId, (p as { edge: DecisionEdgeState }).edge.id, body)
-      : this.simulationService.createDecision(caseVersionId, body);
+      ? this.authoringApi.updateDecision(caseVersionId, (p as { edge: DecisionEdgeState }).edge.id, body)
+      : this.authoringApi.createDecision(caseVersionId, body);
     this.runAction(call, 'Decisión guardada.', 'No fue posible guardar la decisión.');
   }
 
@@ -950,8 +950,8 @@ export class CaseEditorComponent implements OnInit {
       spawnX: v.spawnX, spawnY: v.spawnY,
     };
     const call = p?.kind === 'map-edit'
-      ? this.simulationService.updateMap(caseVersionId, (p as { map: MapEditorState }).map.id, body)
-      : this.simulationService.createMap(caseVersionId, body);
+      ? this.authoringApi.updateMap(caseVersionId, (p as { map: MapEditorState }).map.id, body)
+      : this.authoringApi.createMap(caseVersionId, body);
     this.runAction(call, 'Mapa guardado.', 'No fue posible guardar el mapa.');
   }
 
@@ -969,8 +969,8 @@ export class CaseEditorComponent implements OnInit {
       toolCode: v.toolCode || null,
     };
     const call = p?.kind === 'object-edit'
-      ? this.simulationService.updateObject(caseVersionId, (p as { obj: MapObjectEditorState }).obj.id, body)
-      : this.simulationService.createObject(caseVersionId, (p as { mapId: number }).mapId ?? v._mapId, body);
+      ? this.authoringApi.updateObject(caseVersionId, (p as { obj: MapObjectEditorState }).obj.id, body)
+      : this.authoringApi.createObject(caseVersionId, (p as { mapId: number }).mapId ?? v._mapId, body);
     this.runAction(call, 'Objeto guardado.', 'No fue posible guardar el objeto.');
   }
 
@@ -980,15 +980,15 @@ export class CaseEditorComponent implements OnInit {
     const v = this.toolForm.value;
     const body = { toolCode: v.toolCode, label: v.label, icon: v.icon, category: v.category, description: v.description };
     const call = p?.kind === 'tool-edit'
-      ? this.simulationService.updateTool(caseVersionId, (p as { tool: ClinicalToolEditorState }).tool.id, body)
-      : this.simulationService.createTool(caseVersionId, body);
+      ? this.authoringApi.updateTool(caseVersionId, (p as { tool: ClinicalToolEditorState }).tool.id, body)
+      : this.authoringApi.createTool(caseVersionId, body);
     this.runAction(call, 'Herramienta guardada.', 'No fue posible guardar la herramienta.');
   }
 
   saveChecklist(caseVersionId: number) {
     if (!this.checklistForm || this.busy()) return;
     this.runAction(
-      this.simulationService.updateChecklist(caseVersionId, this.checklistForm.value),
+      this.authoringApi.updateChecklist(caseVersionId, this.checklistForm.value),
       'Lista de verificación guardada.',
       'No fue posible guardar la lista de verificación.',
     );
@@ -1012,7 +1012,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar nodo',
       `¿Eliminar el nodo "${node.title}"? Esta acción eliminará también sus decisiones, mapa y objetos.`,
       () => {
-        this.runAction(this.simulationService.deleteNode(caseVersionId, node.id), 'Nodo eliminado.', 'No fue posible eliminar el nodo.');
+        this.runAction(this.authoringApi.deleteNode(caseVersionId, node.id), 'Nodo eliminado.', 'No fue posible eliminar el nodo.');
       }
     );
   }
@@ -1022,7 +1022,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar mapa',
       `¿Eliminar el mapa "${map.title}"? Esta acción eliminará también sus objetos y colisiones.`,
       () => {
-        this.runAction(this.simulationService.deleteMap(caseVersionId, map.id), 'Mapa eliminado.', 'No fue posible eliminar el mapa.');
+        this.runAction(this.authoringApi.deleteMap(caseVersionId, map.id), 'Mapa eliminado.', 'No fue posible eliminar el mapa.');
       }
     );
   }
@@ -1032,7 +1032,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar objeto',
       `¿Eliminar el objeto "${obj.label}"?`,
       () => {
-        this.runAction(this.simulationService.deleteObject(caseVersionId, obj.id), 'Objeto eliminado.', 'No fue posible eliminar el objeto.');
+        this.runAction(this.authoringApi.deleteObject(caseVersionId, obj.id), 'Objeto eliminado.', 'No fue posible eliminar el objeto.');
       }
     );
   }
@@ -1042,7 +1042,7 @@ export class CaseEditorComponent implements OnInit {
       'Eliminar herramienta',
       `¿Eliminar la herramienta "${tool.label}"?`,
       () => {
-        this.runAction(this.simulationService.deleteTool(caseVersionId, tool.id), 'Herramienta eliminada.', 'No fue posible eliminar la herramienta.');
+        this.runAction(this.authoringApi.deleteTool(caseVersionId, tool.id), 'Herramienta eliminada.', 'No fue posible eliminar la herramienta.');
       }
     );
   }
@@ -1059,11 +1059,11 @@ export class CaseEditorComponent implements OnInit {
   }
 
   publish(caseVersionId: number) {
-    this.runAction(this.simulationService.publishCase(caseVersionId), 'Caso publicado.', 'No fue posible publicar el caso.');
+    this.runAction(this.authoringApi.publishCase(caseVersionId), 'Caso publicado.', 'No fue posible publicar el caso.');
   }
 
   clone(caseVersionId: number) {
-    this.runAction(this.simulationService.cloneCaseVersion(caseVersionId), 'Se creó una nueva versión del caso.', 'No fue posible clonar la versión.');
+    this.runAction(this.authoringApi.cloneCaseVersion(caseVersionId), 'Se creó una nueva versión del caso.', 'No fue posible clonar la versión.');
   }
 
   // ─── Preview helpers (Fase 5) ────────────────────────────────────────────────
@@ -1077,7 +1077,7 @@ export class CaseEditorComponent implements OnInit {
 
   private load() {
     const caseVersionId = Number(this.route.snapshot.paramMap.get('caseVersionId'));
-    this.simulationService.caseEditor(caseVersionId).subscribe({
+    this.authoringApi.caseEditor(caseVersionId).subscribe({
       next: model => {
         this.editor.set(model);
         this.initChecklistForm();
