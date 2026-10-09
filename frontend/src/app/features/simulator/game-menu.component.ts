@@ -221,7 +221,7 @@ class ClinicMenuScene extends Phaser.Scene {
       <!-- GAME-09: además de las teclas de Phaser, el host enfocable maneja
            E/Enter/Espacio a nivel DOM — ruta determinista para teclado y
            lectores; la guardia entering() garantiza UNA sola navegación. -->
-      <p class="lobby-help" aria-hidden="true">← → / A D  mover · E entrar</p>
+      @if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }
       <div class="lobby-sign" aria-hidden="true">CLÍNICA · SIEP</div>
       <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()"
            (keydown.e)="enterFocused($event)" (keydown.enter)="enterFocused($event)"
@@ -333,6 +333,7 @@ export class GameMenuComponent implements OnDestroy {
   readonly entering = signal<string>('');
   /** Sin teclado: se quitan los textos que prometen teclas (la lectura es puntual, el lobby no cambia de puntero). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  readonly keyboardHint = computed(() => lobbyKeyboardHint(this.coarsePointer()));
   readonly helpOpen = signal(false);
   readonly helpModality = computed<HelpModality>(() => this.coarsePointer() ? 'touch' : 'keyboard');
   /** Misma bandera que el juego: la promesa de «Salida segura» solo se escribe cuando es cierta en todos los estados. */

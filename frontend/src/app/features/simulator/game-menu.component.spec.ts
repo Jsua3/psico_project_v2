@@ -176,9 +176,19 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       expect(lobbyKeyboardHint(true)).toBeNull();
     });
 
-    it('la escena de Phaser solo pinta ese texto si lobbyKeyboardHint lo devuelve', () => {
-      expect(source).toMatch(/const keyboardHint = lobbyKeyboardHint\(matchesMedia\(COARSE_POINTER_QUERY\)\);\s*if \(keyboardHint\) \{/);
+    it('la pista del lobby es DOM (no texto de Phaser) y solo sale si lobbyKeyboardHint la devuelve', () => {
+      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\)\)\);/);
+      expect(source).toContain('@if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }');
       expect(source).not.toMatch(/add\.text\(12, 12, '← →/);
+    });
+
+    it('con puntero fino el lobby pinta el recordatorio de teclado y con puntero grueso no pinta nada', () => {
+      for (const [coarse, expected] of [[true, null], [false, lobbyKeyboardHint(false)]] as const) {
+        const { fixture, root } = mount(coarse);
+        fixture.detectChanges();
+        expect(root.querySelector('.lobby-help')?.textContent?.trim() ?? null).toBe(expected);
+        TestBed.resetTestingModule();
+      }
     });
 
     it('el botón de entrada lleva «(E)» solo con puntero fino', () => {
