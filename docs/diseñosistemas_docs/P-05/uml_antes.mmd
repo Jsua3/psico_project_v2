@@ -1,0 +1,25 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        50 métodos públicos
+        jugador (21)
+        instructor (4)
+        autoría y editor de mundo (25)
+    }
+    class SimulationPlay
+    class SimulationCatalog
+    class Dashboard
+    class InstructorTrace
+    class CaseEditor
+    class CaseAuthoringHub
+    class WorldEditorStore
+    class WorldPreview
+    SimulationPlay ..> SimulationService
+    SimulationCatalog ..> SimulationService
+    Dashboard ..> SimulationService
+    InstructorTrace ..> SimulationService
+    CaseEditor ..> SimulationService
+    CaseAuthoringHub ..> SimulationService
+    WorldEditorStore ..> SimulationService
+    WorldPreview ..> SimulationService
+    note for SimulationService "Todos dependen del servicio completo:<br/>el editor de casos ve los métodos de jugar<br/>y el jugador ve los de autoría"
