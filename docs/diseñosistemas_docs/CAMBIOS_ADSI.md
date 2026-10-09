@@ -62,4 +62,4 @@ Las 265 pruebas de caracterización siguen válidas sin modificarse. El análisi
 
 ## Fase 1 — Cambios (pendiente)
 
-_Cada cambio se registra aquí con: patrón o antipatrón, archivos, motivo, riesgo, commit y capturas antes/después._
+_Cada cambio se registra aquí con: patrón o antipatrón, archivos, motivo, riesgo, commit y capturas antes/después. El «antes» es `adsi-baseline-2` (`dd4eb89`)._
