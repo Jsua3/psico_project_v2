@@ -120,3 +120,32 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 **Evidencia.** `docs/diseñosistemas_docs/P-04/`: `antes_build_completion_report.png`, `despues_builder_pasos.png`, `despues_builder_build_y_director.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Builder (patrones creacionales, sesión del 6 de octubre); responsabilidad única y abierto/cerrado (SOLID, 17 y 19 de noviembre). Aplica también al antipatrón «función larga» del bloque de antipatrones.
+
+### P-08a · Chain of Responsibility — validación de puertas
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p08a-door-chain` · `5a97362` (parte de `adsi/p04-report-builder`: PR después de P-04) |
+| **Patrón** | Chain of Responsibility (comportamiento) |
+| **Archivos** | `services/door_chain.py` (nuevo), `services/world_service.py`, `tests/test_door_chain.py` (nuevo) |
+| **Riesgo** | Bajo-medio: el orden de las reglas es el contrato; 24 pruebas lo fijan sin modificarse |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `world_service._validate_door` revisaba siete reglas en secuencia dentro de una sola función de 34 líneas: que la puerta exista, que conduzca al destino, que el jugador esté cerca y las cuatro condiciones `requires*` (inspeccionados, herramientas, nodos y NPCs). Agregar una condición obligaba a editar esa función, y no se podía probar una regla sin armar un intento, un mapa y una puerta en la base de datos.
+
+**Solución (después).**
+
+- **Chain of Responsibility:** cada regla es un eslabón (`DoorRule`) con `check(ctx)`, que lanza su error si no se cumple, y `handle(ctx)`, que revisa y pasa al siguiente. La primera que falla corta la cadena. Siete eslabones: `DoorExistsRule`, `DoorTargetRule`, `DoorNearbyRule`, `RequiresInspectedRule`, `RequiresToolsRule`, `RequiresNodesRule` y `RequiresNpcsRule`.
+- `DoorContext` lleva la petición y lo que los eslabones van resolviendo (la puerta y su metadata) y calcula el mensaje de bloqueo.
+- `build_door_chain` fija el orden contractual. `world_service._validate_door` conserva nombre y firma: arma el contexto, recorre la cadena y devuelve la metadata.
+- La regla de cercanía se **inyecta** como función para que `door_chain` no importe `world_service` (evita la dependencia circular y deja probar el eslabón solo).
+
+**Decisión de diseño.** En el Chain clásico un solo manejador atiende la petición; aquí es la variante de **validación en cadena**: todos los eslabones se ejecutan en orden y el primero que rechaza detiene el recorrido. Es la forma que describe la guía del patrón para filtros y validaciones.
+
+**Lo que no cambió** (fijado por las pruebas): el orden (existe → destino → cercanía → inspeccionados → herramientas → nodos → NPCs), los mensajes, el mensaje de bloqueo por defecto o el personalizado de la puerta, que una condición vacía no bloquea y que solo se lanza un error por llamada. `requiresNpcs` sigue leyendo `flags.viewedNpcKeys`.
+
+**Pruebas.** Backend +17 (`test_door_chain.py`, sin base de datos): orden de la cadena, eslabones espía (recorrido y corte), cada regla por separado y una regla nueva añadida sin tocar las demás. Total 408 → 425 sobre `adsi/integracion` (459 junto con P-01 y P-04). Seis mutaciones (cercanía antes que destino, cadena sin `RequiresNodes`, NPCs invertido, nodos invertido, la cadena no avanza, `_validate_door` sin metadata) hacen fallar entre 2 y 21 pruebas; al restaurar vuelve el verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-08a/`: `antes_validate_door.png`, `despues_validate_door.png`, `despues_eslabon_base.png`, `despues_eslabones_y_cadena.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`). En este mismo lote se corrigió el salto de línea de las notas de los UML de P-01 y P-04.
+
+**Relación con la materia.** Chain of Responsibility (patrones de comportamiento, sesión del 15 de octubre); abierto/cerrado y responsabilidad única (SOLID, 17 y 19 de noviembre). Aplica también al antipatrón «función larga» y a las «condicionales en cascada».
