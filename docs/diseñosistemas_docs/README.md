@@ -9,7 +9,7 @@ Equipo: Juan José Sua, Emerson Ángel Gómez, Santiago Leyton, Esteban Bonilla.
 | `FASE0_EVALUACION.md` | Evaluación contra el código real, catálogo v2 de patrones, estado y qué sigue (§8–§9: actualización del 9 oct) |
 | `PLAN_APLICACION_PATRONES_SIEP.md` | Plan v1 (parcialmente superado por `FASE0_EVALUACION.md`) |
 | `PROMPT_MAESTRO_ADSI_SIEP.md` | Contexto completo para abrir una sesión nueva de trabajo con Claude |
-| `P-NN/` | Evidencia de cada cambio: `antes_*.png`, `despues_*.png`, `uml_antes.*`, `uml_despues.*` (`.mmd` = fuente Mermaid) |
+| `P-NN/`, `A-NN/` | Evidencia de cada cambio (`P-` patrones, `A-` antipatrones y limpieza): `antes_*.png`, `despues_*.png`, `uml_antes.*`, `uml_despues.*` (`.mmd` = fuente Mermaid) |
 | `tools/codeshot.py` | Genera la captura PNG de un fragmento con sus números de línea reales |
 
 ## Convenciones

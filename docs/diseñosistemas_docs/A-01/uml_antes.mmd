@@ -1,0 +1,32 @@
+classDiagram
+    direction LR
+    class jsonutils {
+        <<shared>>
+        +read_string_list(raw)
+        +read_map(raw)
+        +write_map(value)
+        +coerce_int(value, default)
+    }
+    class game_dtos {
+        +read_string_list(raw)
+    }
+    class instructor_service {
+        -_read_map(raw)
+    }
+    class game_views {
+        -_int(value, default)
+    }
+    class case_effects {
+        -_clamp(value, lo, hi)
+    }
+    class decision_effects {
+        -_clamp(value, lo, hi)
+    }
+    class world_service {
+        -_clamp(value, low, high)
+    }
+    game_dtos ..> jsonutils : copia idéntica de read_string_list
+    instructor_service ..> jsonutils : copia idéntica de read_map
+    game_views ..> jsonutils : copia idéntica de coerce_int
+    note for game_views "_int no tiene ningún uso"
+    note for case_effects "tres copias de la misma<br/>función max(lo, min(hi, v))"

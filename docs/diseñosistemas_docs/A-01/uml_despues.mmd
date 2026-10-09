@@ -1,0 +1,23 @@
+classDiagram
+    direction LR
+    class jsonutils {
+        <<shared>>
+        +read_string_list(raw)
+        +read_map(raw)
+        +write_map(value)
+        +coerce_int(value, default)
+        +clamp(value, lo, hi)
+    }
+    class game_dtos
+    class instructor_service
+    class case_effects
+    class decision_effects
+    class world_service
+    class game_views
+    game_dtos ..> jsonutils : read_string_list
+    instructor_service ..> jsonutils : read_map
+    case_effects ..> jsonutils : clamp, read_map, write_map
+    decision_effects ..> jsonutils : clamp
+    world_service ..> jsonutils : clamp, coerce_int,<br/>read_map, read_string_list, write_map
+    note for game_views "_int se borra: no tenía ningún uso"
+    note for jsonutils "una sola definición de cada ayudante;<br/>los módulos importan con el mismo alias de siempre"

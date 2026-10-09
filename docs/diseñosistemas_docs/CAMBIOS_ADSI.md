@@ -338,3 +338,47 @@ Consecuencias para este cambio: el estado local del editor queda coherente (obje
 **Evidencia.** `docs/diseñosistemas_docs/P-07/`: `antes_update_zone_label.png`, `antes_delete_selected.png`, `antes_pila_sin_tope.png`, `despues_component.png`, `despues_set_zone_label.png`, `despues_macro.png`, `despues_tope.png`, `despues_tope_constante.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`). Estas capturas se generaron en Windows: `tools/codeshot.py` se volvió portable (usa Consolas cuando no hay DejaVu).
 
 **Relación con la materia.** Command (patrones de comportamiento, Unidad 3) y Composite (estructurales, Unidad 2): `MacroCommand` es el ejemplo clásico de Command compuesto de GoF; responsabilidad única y abierto/cerrado (SOLID): un comando nuevo no obliga a tocar el store. El salto de `updateZoneLabel` al patrón que el propio editor define entra al informe de antipatrones (Fase 0, §3.4).
+
+
+### A-01 · Código duplicado (Cut & Paste) — ayudantes JSON y de acotación del backend
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a01-duplicados` · `09beb04` (parte de `adsi/p07-editor-commands`: PR después de P-07) |
+| **Antipatrón** | Código duplicado («Cut & Paste»); no es un patrón de diseño |
+| **Archivos** | `shared/jsonutils.py`; `serializers/game_dtos.py`, `services/instructor_service.py`, `views/game_views.py`, `services/case_effects.py`, `services/decision_effects.py`, `services/world_service.py`; `shared/tests/test_jsonutils.py` y `tests/test_shared_helper_call_sites.py` (nuevos) |
+| **Riesgo** | Bajo: las seis copias eran idénticas (comprobado antes de tocar nada) |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `shared/jsonutils.py` ya existía con `read_string_list`, `read_map`, `write_map` y `coerce_int` (resultado de una deduplicación anterior entre `world_service` y `authoring_service`), pero seis copias quedaron fuera:
+
+| Copia | Dónde | Equivalente compartido |
+|---|---|---|
+| `read_string_list` | `game_dtos.py` | `jsonutils.read_string_list` |
+| `_read_map` | `instructor_service.py` | `jsonutils.read_map` |
+| `_int` | `game_views.py` (sin ningún uso) | `jsonutils.coerce_int` |
+| `_clamp` ×3 | `case_effects.py`, `decision_effects.py`, `world_service.py` | no existía |
+
+El riesgo real de la duplicación: una corrección del parseo tolerante de JSON o de la acotación en un sitio no llegaba a los demás.
+
+**Solución (después).**
+
+- `clamp(value, lo=0, hi=100)` entra a `jsonutils` y reemplaza las tres `_clamp`.
+- Cada módulo importa con el mismo alias que tenía (`clamp as _clamp`, `read_map as _read_map`), igual que ya hacían `world_service` y `authoring_service` con `coerce_int as _int`: **los sitios de llamada no cambian**.
+- `game_dtos` importa `read_string_list`; `instructor_service` importa `read_map`; `game_views._int` se borra (nadie la usaba). Los `import json` que quedaron sin uso se quitan.
+
+**Lo que no se tocó, a propósito.** `_save_event` (no es una copia idéntica: la de `world_service` fija `node=current_node` y omite decisión y deltas) y la lógica de IP del cliente (difiere en `.strip()` y en el rol por defecto): sin prueba previa que fije su comportamiento no se unifican. Tampoco `world_service._append_unique` ni `authoring_service._write_string_list`: tienen otra semántica, no son copias.
+
+**Pruebas.** Backend 470 → **546** (+60 de los ayudantes compartidos, +16 de los puntos de uso), `manage.py check` limpio.
+
+- *Equivalencia previa (no se commitea):* antes de tocar el código, una prueba temporal comparó cada copia con su equivalente compartido en **113 casos** (entradas nulas, vacías, JSON de otro tipo, bytes, valores no convertibles, límites invertidos) y comparó también el tipo de la excepción (p. ej. `float('inf')` lanza `OverflowError` en las dos versiones). Todas iguales.
+- *`shared/tests/test_jsonutils.py` (60, sin base de datos):* fija el contrato de los cinco ayudantes, incluido `clamp` (límites, valores por defecto, intervalo invertido).
+- *Mutaciones (regla 4), primera pasada, 12:* cinco detectadas (límites invertidos, sin límite superior, límite por defecto de 10, `read_string_list` sin validar el tipo, `coerce_int` ignorando el valor por defecto), una terminó en un error de ejecución que no se reprodujo (`read_map` aceptando listas: al repetirla, detectada) y **seis sobrevivieron**: quitar la acotación de `decision_effects`, del estrés de `world_service`, de la entrada de las puertas y de las métricas del caso, y dejar de leer `supportResources` y la evidencia de la rúbrica **no rompía ninguna prueba de las 530**. Es una laguna de pruebas anterior a este cambio (los ayudantes estaban cubiertos solo de forma indirecta), no un código redundante.
+- *`tests/test_shared_helper_call_sites.py` (16):* la respuesta a esos supervivientes. Cubre `decision_effects.apply` (por arriba, por abajo y dentro del rango), las métricas de `apply_case_effects`, la entrada de las puertas (`_door_entry`, incluido el 960×540 por defecto), `node_state`, `_score_view` y el estrés al usar una herramienta (99 + 3 → 100 y 2 − 5 → 0, por el flujo HTTP real). **También pasan contra el código original** de la rama padre, así que caracterizan el comportamiento previo y no el nuevo.
+- *Segunda pasada:* las seis supervivientes y tres variantes nuevas (acotar solo por arriba en dos sitios y cambiar el 960 por 1000) quedan todas detectadas.
+
+**Hallazgos menores, sin tocar.** Imports sin uso que ya existían: `CriterionScore` y `Rubric` en `instructor_service.py` y `_int` en `world_service.py` (resto de la deduplicación anterior).
+
+**Evidencia.** `docs/diseñosistemas_docs/A-01/`: `antes_game_dtos_read_string_list.png`, `antes_instructor_read_map.png`, `antes_game_views_int.png`, `antes_clamp_tres_copias.png`, `despues_jsonutils.png`, `despues_importaciones.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Cut & Paste» / código duplicado (Unidad 4) y principio DRY; la mutación de este cambio es un ejemplo concreto de por qué un refactor «seguro» sin pruebas en los puntos de uso no tiene red de seguridad.
