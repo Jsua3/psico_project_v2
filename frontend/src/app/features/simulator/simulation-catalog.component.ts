@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -50,7 +50,7 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
             <p>{{ item.description }}</p>
             <div class="case-meta">
               <span><mat-icon>route</mat-icon>{{ item.nodeCount }} escenas</span>
-              <span><mat-icon>verified</mat-icon>{{ item.status }}</span>
+              <span><mat-icon>verified</mat-icon>{{ statusLabel(item.status) }}</span>
             </div>
             @if (canPlay()) {
               <button class="psy-button psy-button--primary" type="button" (click)="start(item)">
@@ -73,7 +73,7 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
           <mat-icon>inventory_2</mat-icon>
           <span>
             <strong>No tienes simulaciones asignadas en este momento.</strong>
-            Cuando tu docente asigne un caso, aparecera aqui para iniciar el entrenamiento.
+            Cuando tu docente asigne un caso, aparecerá aquí para iniciar el entrenamiento.
           </span>
         </div>
       }
@@ -93,7 +93,7 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
           @if (!historyLoading() && !history().length) {
             <div class="state-card">
               <mat-icon>history</mat-icon>
-              <span>Aun no tienes intentos registrados. Cuando inicies una simulacion, aparecera aqui.</span>
+              <span>Aún no tienes intentos registrados. Cuando inicies una simulación, aparecerá aquí.</span>
             </div>
           }
 
@@ -108,7 +108,7 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
                   <span>{{ statusLabel(attempt.status) }}</span>
                   <span>{{ attempt.accumulatedScore }} pts</span>
                   <span>{{ attempt.adequateDecisions }} adecuadas</span>
-                  <span>{{ attempt.prohibitedDecisions }} alertas eticas</span>
+                  <span>{{ attempt.prohibitedDecisions }} alertas éticas</span>
                   <span>{{ formatDuration(historyDurationSeconds(attempt)) }}</span>
                 </div>
                 <div class="history-actions">
@@ -136,17 +136,17 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
             <div>
               <p class="psy-eyebrow">Reporte final</p>
               <h3 id="student-report-title">{{ report.caseTitle }}</h3>
-              <p>Resumen formativo. La trazabilidad queda disponible para revision docente; no equivale a diagnostico automatico.</p>
+              <p>Resumen formativo. La trazabilidad queda disponible para revisión docente; no equivale a diagnóstico automático.</p>
             </div>
             <button class="psy-button psy-button--ghost" type="button" (click)="selectedReport.set(null)">Cerrar</button>
           </div>
           <div class="report-grid">
             <span><strong>Estado</strong>{{ statusLabel(report.status) }}</span>
             <span><strong>Puntaje</strong>{{ report.finalScore }}</span>
-            <span><strong>Estres final</strong>{{ report.finalStress }}%</span>
+            <span><strong>Estrés final</strong>{{ report.finalStress }}%</span>
             <span><strong>Tiempo total</strong>{{ formatDuration(report.totalDurationSeconds) }}</span>
             <span><strong>Adecuadas</strong>{{ report.adequateDecisions }}</span>
-            <span><strong>Riesgosas/criticas</strong>{{ report.riskyDecisions + report.inadequateDecisions + report.prohibitedDecisions }}</span>
+            <span><strong>Riesgosas/críticas</strong>{{ report.riskyDecisions + report.inadequateDecisions + report.prohibitedDecisions }}</span>
             <span><strong>Reflexiones</strong>{{ report.reflectionsCount }}</span>
           </div>
           @if (report.phaseDurations.length) {
@@ -164,12 +164,13 @@ import { historyDurationSeconds } from './attempt-history-duration.util';
               }
             </ul>
           } @else {
-            <p class="timeline-empty">Recomendaciones pendientes de retroalimentacion docente.</p>
+            <p class="timeline-empty">Recomendaciones pendientes de retroalimentación docente.</p>
           }
         </section>
       }
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .sim-catalog {
       display: grid;
@@ -458,8 +459,13 @@ export class SimulationCatalogComponent implements OnInit {
     });
   }
 
+  /** Etiqueta en español de un estado: el de un intento (historial) o el de una versión de caso. */
   statusLabel(status: string) {
     switch (status) {
+      case 'PUBLISHED': return 'Publicado';
+      case 'DRAFT': return 'Borrador';
+      case 'IN_REVIEW': return 'En revisión';
+      case 'ARCHIVED': return 'Archivado';
       case 'COMPLETED': return 'Finalizado';
       case 'PAUSED': return 'En pausa (reanudable)';
       case 'SAFE_EXITED': return 'Cerrado con salida segura';

@@ -1,7 +1,7 @@
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta.
 // Solo se evalúa `extends Phaser.Scene` al cargar el módulo; el resto vive en
 // métodos que estos tests nunca ejecutan (no se renderiza template).
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -21,6 +21,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
 
 /**
  * ETH-01 — puerta de consentimiento a nivel de bootstrap.
@@ -57,57 +58,58 @@ function consentKey(attempt: SimulationAttemptState): string {
 describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => {
   let component: SimulationPlayComponent;
   let sim: {
-    getInterventionRules: jest.Mock;
-    getActiveAttempt: jest.Mock;
-    startAttempt: jest.Mock;
-    getProgressMap: jest.Mock;
-    getWorld: jest.Mock;
-    getScenarioConfig: jest.Mock;
-    safeExit: jest.Mock;
-    enterRoom: jest.Mock;
-    recordNpcInteraction: jest.Mock;
-    updateWorldState: jest.Mock;
+    getInterventionRules: Mock;
+    getActiveAttempt: Mock;
+    startAttempt: Mock;
+    getProgressMap: Mock;
+    getWorld: Mock;
+    getScenarioConfig: Mock;
+    safeExit: Mock;
+    enterRoom: Mock;
+    recordNpcInteraction: Mock;
+    updateWorldState: Mock;
+    resumeAttempt: Mock;
   };
   let audio: {
-    init: jest.Mock;
-    setStressLevel: jest.Mock;
-    isMusicMuted: jest.Mock;
-    isSfxMuted: jest.Mock;
-    dispose: jest.Mock;
-    stopIntroLament: jest.Mock;
-    playIntroLament: jest.Mock;
-    playSfx: jest.Mock;
-    toggleMusicMuted: jest.Mock;
+    init: Mock;
+    setStressLevel: Mock;
+    isMusicMuted: Mock;
+    isSfxMuted: Mock;
+    dispose: Mock;
+    stopIntroLament: Mock;
+    playIntroLament: Mock;
+    playSfx: Mock;
+    toggleMusicMuted: Mock;
   };
-  let router: { navigate: jest.Mock };
+  let router: { navigate: Mock };
 
   function setup(activeAttempt: SimulationAttemptState | null) {
     sessionStorage.clear();
     sim = {
-      getInterventionRules: jest.fn(() => throwError(() => new Error('sin reglas'))),
-      getActiveAttempt: jest.fn(() => of(activeAttempt)),
-      startAttempt: jest.fn(() => of(makeAttempt())),
-      getProgressMap: jest.fn(() => EMPTY),
-      getWorld: jest.fn(() => EMPTY),
-      getScenarioConfig: jest.fn(() => EMPTY),
-      safeExit: jest.fn(() => EMPTY),
-      enterRoom: jest.fn(() => EMPTY),
-      recordNpcInteraction: jest.fn(() => EMPTY),
-      updateWorldState: jest.fn(() => EMPTY),
-      resumeAttempt: jest.fn(() => of(makeAttempt())),
+      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
+      getActiveAttempt: vi.fn(() => of(activeAttempt)),
+      startAttempt: vi.fn(() => of(makeAttempt())),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => EMPTY),
+      getScenarioConfig: vi.fn(() => EMPTY),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      resumeAttempt: vi.fn(() => of(makeAttempt())),
     };
     audio = {
-      init: jest.fn(),
-      setStressLevel: jest.fn(),
-      isMusicMuted: jest.fn(() => false),
-      isSfxMuted: jest.fn(() => false),
-      dispose: jest.fn(),
-      stopIntroLament: jest.fn(),
-      playIntroLament: jest.fn(),
-      playSfx: jest.fn(),
-      toggleMusicMuted: jest.fn(() => false),
+      init: vi.fn(),
+      setStressLevel: vi.fn(),
+      isMusicMuted: vi.fn(() => false),
+      isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(),
+      stopIntroLament: vi.fn(),
+      playIntroLament: vi.fn(),
+      playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false),
     };
-    router = { navigate: jest.fn() };
+    router = { navigate: vi.fn() };
 
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -235,7 +237,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     const previous = makeAttempt();
     setup(previous);
     sessionStorage.setItem(consentKey(previous), 'given');
-    sim.startAttempt = jest.fn(() => of(makeAttempt({ attemptId: 'attempt-2', attemptToken: 'token-2' })));
+    sim.startAttempt = vi.fn(() => of(makeAttempt({ attemptId: 'attempt-2', attemptToken: 'token-2' })));
 
     component.ngOnInit();
     component.startNewAttempt();
@@ -252,7 +254,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(component.inputBlocked()).toBe(true);
 
     component.showContentWarning.set(false);
-    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
     expect(component.inputBlocked()).toBe(true);
 
     component.dialogue.set(null);
@@ -262,9 +264,9 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
   it('no abre una interacción cercana con E mientras un overlay bloquea el mundo', () => {
     setup(makeAttempt());
-    component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as MapObjectState);
-    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
-    const open = jest.spyOn(component, 'openInteraction');
+    component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
+    const open = vi.spyOn(component, 'openInteraction');
 
     component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
 
@@ -273,7 +275,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
   it('no cancela Enter sobre un botón nativo cuando un diálogo bloquea el mundo', () => {
     setup(makeAttempt());
-    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
     const button = document.createElement('button');
     const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
     Object.defineProperty(event, 'target', { value: button });
@@ -313,21 +315,21 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       return event;
     }
 
-    beforeEach(() => jest.useFakeTimers());
-    afterEach(() => jest.useRealTimers());
+    beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] }));
+    afterEach(() => vi.useRealTimers());
 
     it('si Phaser cancela Enter o Espacio en window, el botón de la tarjeta se activa a mano', () => {
       setup(makeAttempt());
       component.showIntroScene.set(true);
       const button = document.createElement('button');
-      const click = jest.spyOn(button, 'click');
+      const click = vi.spyOn(button, 'click');
 
       for (const key of ['Enter', ' ']) {
         const event = keydownOn(button, key);
         component.handleGlobalInteraction(event);
         expect(event.defaultPrevented).toBe(false); // el manejador no cancela: lo hace Phaser después
         event.preventDefault(); // Phaser captura estas teclas y cancela la activación nativa
-        jest.runAllTimers();
+        vi.runAllTimers();
       }
 
       expect(click).toHaveBeenCalledTimes(2);
@@ -338,10 +340,10 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       setup(makeAttempt());
       component.showCaseIntro.set(true);
       const button = document.createElement('button');
-      const click = jest.spyOn(button, 'click');
+      const click = vi.spyOn(button, 'click');
 
       component.handleGlobalInteraction(keydownOn(button, 'Enter'));
-      jest.runAllTimers();
+      vi.runAllTimers();
 
       expect(click).not.toHaveBeenCalled();
     });
@@ -350,12 +352,12 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       setup(makeAttempt());
       component.showIntroScene.set(true);
       const button = document.createElement('button');
-      const click = jest.spyOn(button, 'click');
+      const click = vi.spyOn(button, 'click');
 
       const event = keydownOn(button, ' ', { repeat: true });
       component.handleGlobalInteraction(event);
       event.preventDefault();
-      jest.runAllTimers();
+      vi.runAllTimers();
 
       expect(click).not.toHaveBeenCalled();
     });
@@ -374,7 +376,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   });
 
   it('no autocierra un feedback de herramienta antes de que el usuario lea sus líneas', () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     try {
       setup(makeAttempt());
       const subject = component as unknown as {
@@ -392,20 +394,20 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         feedbackMessage: 'Una explicación clínica extensa que debe avanzar manualmente.',
         stressDelta: -5,
       });
-      jest.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(5_000);
 
       expect(component.dialogue()?.lines).toHaveLength(2);
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
   it('no acredita NPC ni permite salida segura desde controles de fondo bloqueados', () => {
     setup(makeAttempt());
     component.attempt.set(makeAttempt());
-    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
 
-    component.openNpcDialogue({ key: 'enfermera-urgencias', dialogue: { lines: [] } } as NpcConfig);
+    component.openNpcDialogue({ key: 'enfermera-urgencias', dialogue: { lines: [] } } as unknown as NpcConfig);
     component.safeExit();
 
     expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
@@ -421,14 +423,14 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       key: 'enfermera-urgencias',
       displayName: 'Enfermera',
       dialogue: { lines: [{ text: 'Acércate.' }] },
-    } as NpcConfig;
+    } as unknown as NpcConfig;
 
     component.openNpcDialogue(npc);
 
     expect((component as any).viewedNpcKeys().has(npc.key)).toBe(false);
     expect(component.dialogue()).toBeNull();
 
-    response$.next({ flags: { viewedNpcKeys: [npc.key] } } as SimulationWorldState);
+    response$.next({ flags: { viewedNpcKeys: [npc.key] } } as unknown as SimulationWorldState);
 
     expect((component as any).viewedNpcKeys().has(npc.key)).toBe(true);
     expect(component.dialogue()?.key).toBe(`npc-${npc.key}`);
@@ -441,7 +443,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       map: { key: 'hospital-urgencias' },
       player: { x: 250, y: 430 },
       flags: {},
-    } as SimulationWorldState;
+    } as unknown as SimulationWorldState;
     component.world.set(world);
     (component as any).lastPosition = { x: 560, y: 380 };
     const sync$ = new Subject<SimulationWorldState>();
@@ -451,7 +453,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       key: 'enfermera-urgencias',
       displayName: 'Enfermera',
       dialogue: { lines: [{ text: 'Acércate.' }] },
-    } as NpcConfig;
+    } as unknown as NpcConfig;
 
     component.openNpcDialogue(npc);
 
@@ -474,7 +476,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       map: { key: 'hospital-sala-escucha' },
       player: { x: 320, y: 440 },
       flags: {},
-    } as SimulationWorldState;
+    } as unknown as SimulationWorldState;
     component.world.set(world);
     (component as any).lastPosition = { x: 612, y: 444 };
     const sync$ = new Subject<SimulationWorldState>();
@@ -500,12 +502,12 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       map: { key: 'hospital-urgencias' },
       player: { x: 250, y: 430 },
       flags: {},
-    } as SimulationWorldState;
+    } as unknown as SimulationWorldState;
     const npc = {
       key: 'enfermera-urgencias',
       displayName: 'Enfermera',
       dialogue: { lines: [{ text: 'Acércate.' }] },
-    } as NpcConfig;
+    } as unknown as NpcConfig;
 
     beforeEach(() => {
       setup(makeAttempt());
@@ -517,7 +519,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     it('persiste la posición de la escena, no la última que llegó a Angular (hasta 125 ms atrás)', () => {
       (component as any).lastPosition = { x: 560, y: 380 };
-      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+      (component as any).gameWorld = { playerPosition: vi.fn(() => ({ x: 579, y: 384 })) };
 
       component.openNpcDialogue(npc);
 
@@ -541,7 +543,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     it('si la escena aún no tiene jugador (null) usa lastPosition', () => {
       (component as any).lastPosition = { x: 560, y: 380 };
-      (component as any).gameWorld = { playerPosition: jest.fn(() => null) };
+      (component as any).gameWorld = { playerPosition: vi.fn(() => null) };
 
       component.openNpcDialogue(npc);
 
@@ -553,7 +555,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     it('si la posición viva ya está sincronizada no repite la persistencia', () => {
       (component as any).lastPosition = { x: 560, y: 380 };
       (component as any).lastSyncedPosition = { x: 579, y: 384 };
-      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 579, y: 384 })) };
+      (component as any).gameWorld = { playerPosition: vi.fn(() => ({ x: 579, y: 384 })) };
 
       component.openNpcDialogue(npc);
 
@@ -563,7 +565,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     it('también aplica antes de pausar con salida segura', () => {
       (component as any).lastPosition = { x: 612, y: 444 };
-      (component as any).gameWorld = { playerPosition: jest.fn(() => ({ x: 640, y: 450 })) };
+      (component as any).gameWorld = { playerPosition: vi.fn(() => ({ x: 640, y: 450 })) };
       sim.safeExit.mockReturnValue(EMPTY);
 
       component.safeExit();
@@ -590,7 +592,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       map: { key: 'hospital-sala-escucha' },
       player: { x: 160, y: 452 },
       flags: {},
-    } as SimulationWorldState;
+    } as unknown as SimulationWorldState;
     const config$ = new Subject<typeof nextConfig>();
     component.scenarioConfig.set(previousConfig as any);
     sim.getScenarioConfig.mockReturnValue(config$);
@@ -607,7 +609,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   });
 
   it('bloquea la puerta de retorno hasta alejarse del punto de entrada', () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     try {
       setup(makeAttempt({ currentNode: { key: 'hospital-urgencias', title: 'Urgencias' } }));
       component.attempt.set(makeAttempt());
@@ -617,16 +619,16 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         x: 122,
         y: 460,
         metadata: { targetNodeKey: 'hospital-urgencias', entryX: 786, entryY: 440 },
-      } as MapObjectState;
+      } as unknown as MapObjectState;
       component.world.set({
         map: { key: 'hospital-sala-escucha' },
         player: { x: 160, y: 447 },
         objects: [returnDoor],
         flags: {},
-      } as SimulationWorldState);
+      } as unknown as SimulationWorldState);
 
       component.openInteraction(returnDoor);
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(sim.enterRoom).not.toHaveBeenCalled();
       expect(component.doorNotice()).toMatch(/aléjate|avanza|pasos/i);
@@ -635,13 +637,13 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       component.rememberPosition(145, 455);
       (component as any).lastSyncedPosition = { x: 145, y: 455 };
       component.openInteraction(returnDoor);
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
 
       expect(sim.enterRoom).toHaveBeenCalledWith(
         'attempt-1', 'token-1', 'hospital-urgencias', 'puerta-urgencias',
       );
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
@@ -658,7 +660,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     (component as any).applyLoadedWorld({
       map: { key: 'hospital-urgencias' },
       flags: {},
-    } as SimulationWorldState);
+    } as unknown as SimulationWorldState);
 
     expect(component.patientState()).toEqual(patient);
   });
@@ -666,12 +668,406 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   it('expone un control de interacción únicamente para el objeto cercano sin overlay', () => {
     setup(makeAttempt());
     component.attempt.set(makeAttempt());
-    const nearby = { key: 'familia-crisis', type: 'PERSON' } as MapObjectState;
+    const nearby = { key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState;
     component.nearbyInteraction.set(nearby);
 
     expect(component.contextualInteraction()).toBe(nearby);
 
-    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as DialogueState);
+    component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
     expect(component.contextualInteraction()).toBeNull();
+  });
+
+  /**
+   * REGLA-004 / ETH-02 (F§7.8): la salida segura debe poder alcanzarse desde cada superposición.
+   * `safeExit()` no se toca (arriba sigue fijado que no actúa con un overlay abierto); el camino
+   * de las superposiciones es `pauseFromOverlay()`, que comparte con él `pauseCurrentAttempt()`.
+   */
+  describe('salida segura desde las superposiciones (pauseFromOverlay)', () => {
+    const optionsDialogue = {
+      key: 'dialogue-opciones',
+      lines: [{ order: 1, speakerName: 'Familia', text: 'Ayúdanos.', emotion: 'concerned' }],
+      choices: [{ key: 'opt-1', text: 'Opción', decisionOptionId: 11, requiredToolCode: null, effect: {} }],
+    } as unknown as DialogueState;
+
+    function escapeOn(target?: HTMLElement): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      if (target) Object.defineProperty(event, 'target', { value: target });
+      return event;
+    }
+
+    beforeEach(() => {
+      setup(makeAttempt());
+      component.attempt.set(makeAttempt());
+    });
+
+    it('con un diálogo con opciones abierto pausa y llama UNA sola vez a sim.safeExit', () => {
+      component.dialogue.set(optionsDialogue);
+
+      component.pauseFromOverlay();
+      component.pauseFromOverlay(); // segundo toque mientras la pausa sigue en curso
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      expect(sim.safeExit).toHaveBeenCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
+      expect(audio.playSfx).toHaveBeenCalledWith('ui_cancel');
+    });
+
+    it('pausar desde la introducción limpia las superposiciones y detiene el tema', () => {
+      component.showIntroScene.set(true);
+      component.journalOpen.set(true);
+      component.dialogue.set(optionsDialogue);
+      component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.showIntroScene()).toBe(false);
+      expect(component.showCaseIntro()).toBe(false);
+      expect(component.journalOpen()).toBe(false);
+      expect(component.helpOpen()).toBe(false);
+      expect(component.dialogue()).toBeNull();
+      expect(component.selectedInteraction()).toBeNull();
+      expect(audio.stopIntroLament).toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('pausar desde el contexto inicial limpia la tarjeta', () => {
+      component.showCaseIntro.set(true);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect(component.showCaseIntro()).toBe(false);
+      expect(component.attempt()?.status).toBe('PAUSED');
+    });
+
+    it('descarta la evidencia y la restricción pendientes al pausar', () => {
+      (component as any).pendingEvidenceDecisionId = 11;
+      (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
+      (component as any).pendingRestrictedInteraction.set({ key: 'objeto-riesgoso' } as unknown as MapObjectState);
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+
+      component.pauseFromOverlay();
+
+      expect((component as any).pendingEvidenceDecisionId).toBeNull();
+      expect((component as any).pendingEvidenceMissing).toEqual([]);
+      expect((component as any).pendingRestrictedInteraction()).toBeNull();
+    });
+
+    it('sincroniza la posición pendiente antes de pausar y pausa una sola vez', () => {
+      component.world.set({ map: { key: 'hospital-urgencias' }, flags: {} } as unknown as SimulationWorldState);
+      (component as any).lastPosition = { x: 612, y: 444 };
+      const sync$ = new Subject<SimulationWorldState>();
+      sim.updateWorldState.mockReturnValue(sync$);
+      component.showCaseIntro.set(true);
+
+      component.pauseFromOverlay();
+      component.pauseFromOverlay();
+
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.updateWorldState).toHaveBeenCalledWith('attempt-1', 'token-1', 612, 444, 'hospital-urgencias');
+      expect(sim.safeExit).not.toHaveBeenCalled();
+
+      sync$.next(component.world()!);
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el servidor falla la superposición sigue ahí y se puede reintentar', () => {
+      component.showIntroScene.set(true);
+      sim.safeExit.mockReturnValueOnce(throwError(() => new Error('sin red')));
+
+      component.pauseFromOverlay();
+
+      expect(component.showIntroScene()).toBe(true);
+      expect(component.attempt()?.status).toBe('IN_PROGRESS');
+      expect(component.busy()).toBe(false);
+      expect(component.pausing()).toBe(false);
+      expect(component.actionError()).toMatch(/salida segura/i);
+
+      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).toHaveBeenCalledTimes(2);
+      expect(component.showIntroScene()).toBe(false);
+    });
+
+    it('no actúa bajo el aviso de contenido (ETH-01) ni bajo el aviso de reanudar', () => {
+      component.showContentWarning.set(true);
+      component.pauseFromOverlay();
+      component.showContentWarning.set(false);
+
+      component.showResumePrompt.set(true);
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).not.toHaveBeenCalled();
+      expect(component.pausing()).toBe(false);
+    });
+
+    it('no actúa sin un intento en progreso', () => {
+      component.attempt.set(makeAttempt({ status: 'PAUSED' }));
+      component.pauseFromOverlay();
+      component.attempt.set(null);
+      component.pauseFromOverlay();
+
+      expect(sim.safeExit).not.toHaveBeenCalled();
+    });
+
+    describe('con una petición en curso (H-04)', () => {
+      it('encola la pausa, la anuncia y la ejecuta al soltarse busy', () => {
+        component.busy.set(true);
+
+        component.pauseFromOverlay();
+
+        expect(component.pausing()).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+
+        TestBed.tick();
+        expect(sim.safeExit).not.toHaveBeenCalled(); // busy sigue activo
+
+        component.busy.set(false);
+        TestBed.tick();
+
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('varios toques mientras espera no producen más de una pausa', () => {
+        component.busy.set(true);
+
+        component.pauseFromOverlay();
+        component.pauseFromOverlay();
+        component.pauseFromOverlay();
+        component.busy.set(false);
+        TestBed.tick();
+        TestBed.tick();
+
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('si el intento terminó mientras tanto, la pausa en cola se descarta sin llamar al servidor', () => {
+        component.busy.set(true);
+        component.pauseFromOverlay();
+
+        component.attempt.set(makeAttempt({ status: 'COMPLETED' }));
+        component.busy.set(false);
+        TestBed.tick();
+
+        expect(sim.safeExit).not.toHaveBeenCalled();
+        expect(component.pausing()).toBe(false);
+      });
+    });
+
+    describe('Esc', () => {
+      it('en la introducción animada pausa aunque el foco esté en un botón', () => {
+        component.showIntroScene.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('en el contexto inicial pausa aunque el foco esté en un botón', () => {
+        component.showCaseIntro.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('si otro manejador ya consumió Esc no se pausa por segunda vez', () => {
+        component.showIntroScene.set(true);
+        const event = escapeOn();
+        event.preventDefault();
+
+        component.handleGlobalInteraction(event);
+
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+
+      it('bajo el aviso de contenido sigue sin pausar', () => {
+        component.showContentWarning.set(true);
+        const event = escapeOn(document.createElement('button'));
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+
+      it('con el mundo activo cierra primero la ayuda, luego la bitácora, luego el diálogo y al final pausa', () => {
+        component.helpOpen.set(true);
+        component.journalOpen.set(true);
+        component.dialogue.set(optionsDialogue);
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.helpOpen()).toBe(false);
+        expect(component.journalOpen()).toBe(true);
+        expect(component.dialogue()).not.toBeNull();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.journalOpen()).toBe(false);
+        expect(component.dialogue()).not.toBeNull();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(component.dialogue()).toBeNull();
+        expect(sim.safeExit).not.toHaveBeenCalled();
+
+        component.handleGlobalInteraction(escapeOn());
+        expect(sim.safeExit).toHaveBeenCalledTimes(1);
+      });
+
+      it('con una petición en curso encola la pausa en vez de ignorar la tecla', () => {
+        component.busy.set(true);
+        const event = escapeOn();
+
+        component.handleGlobalInteraction(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(component.pausing()).toBe(true);
+        expect(sim.safeExit).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('al reanudar', () => {
+      const world = { map: { key: 'hospital-urgencias' }, flags: {} } as unknown as SimulationWorldState;
+
+      function pauseThenResume(): void {
+        sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+        // El mundo se recarga al pausar (suelta busy); la sala no cambia.
+        sim.getWorld.mockReturnValue(of(component.world()));
+        sim.getScenarioConfig.mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+        component.pauseFromOverlay();
+        expect(component.attempt()?.status).toBe('PAUSED');
+        component.resumeCurrentAttempt();
+      }
+
+      beforeEach(() => {
+        component.world.set(world);
+        sessionStorage.setItem(consentKey(makeAttempt()), 'given');
+      });
+
+      it('la introducción sin leer reaparece (no queda la pausa tapada por la tarjeta)', () => {
+        component.showIntroScene.set(true);
+        component.reduceMotion.set(false);
+
+        pauseThenResume();
+
+        expect(component.attempt()?.status).toBe('IN_PROGRESS');
+        expect(component.showIntroScene()).toBe(true);
+        expect(audio.playIntroLament).toHaveBeenCalled();
+      });
+
+      it('con movimiento reducido reaparece directamente el contexto inicial', () => {
+        component.showCaseIntro.set(true);
+        component.reduceMotion.set(true);
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(true);
+      });
+
+      it('un diálogo que llegó tarde durante la pausa no reaparece al reanudar', () => {
+        sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
+        sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+        sim.getWorld.mockReturnValue(of(component.world()));
+        sim.getScenarioConfig.mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+        component.pauseFromOverlay();
+        // La supervisión de una decisión se abre 400 ms después y puede caer ya con el intento en pausa.
+        component.dialogue.set(optionsDialogue);
+
+        component.resumeCurrentAttempt();
+
+        expect(component.dialogue()).toBeNull();
+      });
+
+      it('una introducción ya leída no reaparece', () => {
+        sessionStorage.setItem(`siep_case_intro_${CASE_VERSION_ID}_attempt-1`, 'read');
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(false);
+      });
+
+      it('en otra sala del caso no reabre la introducción', () => {
+        component.world.set({ map: { key: 'hospital-sala-escucha' }, flags: {} } as unknown as SimulationWorldState);
+
+        pauseThenResume();
+
+        expect(component.showIntroScene()).toBe(false);
+        expect(component.showCaseIntro()).toBe(false);
+      });
+
+      describe('con el mundo recargándose tras la pausa', () => {
+        const scenario = { scenarioKey: 'x', startRoomKey: 'x', rooms: [] };
+
+        it('«Reanudar» pulsado antes de que termine la recarga no se pierde: sale al terminar', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+          expect(component.attempt()?.status).toBe('PAUSED');
+          expect(component.busy()).toBe(true);
+
+          component.resumeCurrentAttempt();
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+
+          worldReload.next(world);
+
+          expect(sim.resumeAttempt).toHaveBeenCalledTimes(1);
+          expect(component.attempt()?.status).toBe('IN_PROGRESS');
+          expect(component.busy()).toBe(false);
+        });
+
+        it('varios toques durante la recarga producen una sola reanudación', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+
+          component.resumeCurrentAttempt();
+          component.resumeCurrentAttempt();
+          component.resumeCurrentAttempt();
+          worldReload.next(world);
+
+          expect(sim.resumeAttempt).toHaveBeenCalledTimes(1);
+        });
+
+        it('si la recarga falla, el toque encolado se descarta y no reanuda por sorpresa', () => {
+          const worldReload = new Subject<SimulationWorldState>();
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(worldReload);
+          component.pauseFromOverlay();
+          component.resumeCurrentAttempt();
+
+          worldReload.error(new Error('sin red'));
+
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+          expect(component.attempt()?.status).toBe('PAUSED');
+          expect(component.busy()).toBe(false);
+        });
+
+        it('sin recarga pendiente, un toque con una petición en curso sigue sin encolarse', () => {
+          sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
+          sim.getWorld.mockReturnValue(of(component.world()));
+          sim.getScenarioConfig.mockReturnValue(of(scenario));
+          component.pauseFromOverlay();
+          expect(component.busy()).toBe(false);
+
+          component.busy.set(true);
+          component.resumeCurrentAttempt();
+          component.busy.set(false);
+
+          expect(sim.resumeAttempt).not.toHaveBeenCalled();
+        });
+      });
+    });
   });
 });

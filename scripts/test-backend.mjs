@@ -95,7 +95,7 @@ async function main() {
 
   assertSafeTestTarget(runtime);
   if (!existsSync(venvPython())) {
-    throw new Error('No existe backend_django/.venv. Ejecuta primero: npm run up (o crea el venv con Python 3.12/3.13).');
+    throw new Error('No existe backend_django/.venv. Ejecuta primero: npm run up (o crea el venv con Python 3.12-3.14).');
   }
 
   console.log(`[siep:test-backend] BD desechable ${PROJECT} en 127.0.0.1:${runtime.database.port}...`);

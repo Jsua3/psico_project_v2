@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -33,6 +35,11 @@ def cl(user):
 
 def attempt_headers(token):
     return {"HTTP_X_SIEP_ATTEMPT_TOKEN": token}
+
+
+def classification_of(option):
+    """El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id."""
+    return DecisionOption.objects.get(pk=option["id"]).classification
 
 
 def assign_case_to_student(estudiante, case_version_id, codigo="SIM-G"):
@@ -86,7 +93,7 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
     ).data["data"]
     option_id = next(
         option["id"] for option in attempt["currentNode"]["options"]
-        if option["classification"] == "ADEQUATE"
+        if classification_of(option) == "ADEQUATE"
     )
 
     response = c.post(
@@ -107,6 +114,13 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
     assert "override de evidencia" in event.detail.lower()
     assert "Hablar con la familia" in event.detail
     assert "Usar PAP" in event.detail
+
+    # T11.2: las etiquetas internas quedan solo en el evento; el jugador no las lee.
+    message = response.data["data"]["feedback"]["message"]
+    assert "override" not in message.lower()
+    assert "Usar PAP" not in message
+    assert "Hablar con la familia" not in message
+    assert message and message in event.detail
 
 
 def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case_version_id):
@@ -139,7 +153,7 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
             break
         options = state["currentNode"]["options"]
         assert options, "non-terminal node must offer decisions"
-        option = next((o for o in options if o["classification"] == "ADEQUATE"), options[0])
+        option = next((o for o in options if classification_of(o) == "ADEQUATE"), options[0])
         resp = c.post(
             f"/api/simulation/attempts/{attempt_id}/decisions",
             {"attemptToken": token, "decisionOptionId": option["id"]},
@@ -371,7 +385,7 @@ def test_completion_report_includes_timeline(estudiante, case_version_id):
                      {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
     attempt_id, token = attempt["attemptId"], attempt["attemptToken"]
     option_id = next(
-        o for o in attempt["currentNode"]["options"] if o["classification"] == "ADEQUATE"
+        o for o in attempt["currentNode"]["options"] if classification_of(o) == "ADEQUATE"
     )["id"]
     c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
            {"attemptToken": token, "decisionOptionId": option_id}, format="json")
@@ -403,7 +417,7 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
                      {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
     attempt_id, token = attempt["attemptId"], attempt["attemptToken"]
     option_id = next(
-        o for o in attempt["currentNode"]["options"] if o["classification"] == "ADEQUATE"
+        o for o in attempt["currentNode"]["options"] if classification_of(o) == "ADEQUATE"
     )["id"]
     c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
            {"attemptToken": token, "decisionOptionId": option_id}, format="json")
@@ -449,13 +463,17 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     assert unfinished["status"] == "IN_PROGRESS"
     assert unfinished["activeDurationSeconds"] is None
 
-    # La consulta de marcas de tiempo es la única que lee event_type de attempt_events.
+    # La consulta de marcas de tiempo es la única que LEE event_type de attempt_events
+    # (la de conteos de decisiones lo usa solo para filtrar, no lo selecciona).
     marks_sql = [
-        q["sql"] for q in queries.captured_queries if '"attempt_events"."event_type"' in q["sql"]
+        q["sql"] for q in queries.captured_queries
+        if '"attempt_events"."event_type"' in q["sql"].split(" FROM ")[0]
     ]
     assert len(marks_sql) == 1, "una sola consulta de eventos para el tiempo activo"
-    assert closed["attemptId"] in marks_sql[0]
-    assert running["attemptId"] not in marks_sql[0], "no se cargan eventos del intento en curso"
+    # Según el driver (psycopg 3) el UUID viaja sin guiones dentro del SQL literal.
+    sql_text = marks_sql[0].replace("-", "")
+    assert closed["attemptId"].replace("-", "") in sql_text
+    assert running["attemptId"].replace("-", "") not in sql_text, "no se cargan eventos del intento en curso"
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):
@@ -484,3 +502,208 @@ def test_student_report_denies_other_students(estudiante, case_version_id):
     )
     resp = cl(other).get(f"/api/simulation/attempts/{attempt['attemptId']}/student-report")
     assert resp.status_code == 403
+
+
+# ─── T11.5: el JSON del nodo no revela la clasificación (límite 1) ───────────
+def test_node_options_only_expose_id_and_text(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-NODEJSON")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+
+    options = start["currentNode"]["options"]
+    assert len(options) >= 2
+    for option in options:
+        assert set(option) == {"id", "text"}
+    node_json = json.dumps(start["currentNode"])
+    assert "classification" not in node_json
+    assert "prohibitedConduct" not in node_json
+
+    # El estado que devuelve cualquier otro endpoint del jugador tampoco la trae.
+    again = c.get(
+        f"/api/simulation/attempts/{start['attemptId']}", **attempt_headers(start["attemptToken"])
+    ).data["data"]
+    assert all(set(o) == {"id", "text"} for o in again["currentNode"]["options"])
+
+    # Tras elegir, el feedback sí conserva la clasificación (el intento ya decidió).
+    option = next(o for o in options if classification_of(o) == "ADEQUATE")
+    feedback = c.post(
+        f"/api/simulation/attempts/{start['attemptId']}/decisions",
+        {"attemptToken": start["attemptToken"], "decisionOptionId": option["id"]},
+        format="json",
+    ).data["data"]["feedback"]
+    assert feedback["classification"] == "ADEQUATE"
+    assert feedback["prohibitedConduct"] is False
+
+
+# ─── T11.1: los reintentos no cuentan como decisiones ────────────────────────
+def _world(c, attempt_id, token):
+    return c.get(f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token))
+
+
+def _decide(c, attempt_id, token, case_version_id, option_key):
+    option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
+    resp = c.post(
+        f"/api/simulation/attempts/{attempt_id}/decisions",
+        {"attemptToken": token, "decisionOptionId": option.id},
+        format="json",
+    )
+    assert resp.status_code == 200, f"{option_key}: {resp.data}"
+    return resp.data["data"]
+
+
+def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_version_id):
+    """DLG-07: dos primeras respuestas críticas (que el juego NO aplica) más seis
+    decisiones correctas dan el Final 1 y ninguna crítica registrada."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-RETRYEND")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200  # materializa el estado del caso
+
+    state = None
+    for key in (
+        "h1-interrogar-victima", "h1-pap-contencion",
+        "h2-459-1257", "h3-integral-psicosocial",
+        "c1-mediacion-perdon", "c1-riesgo-proteccion-derechos",
+        "c2-2126-1098-1257", "c3-integral-derechos",
+    ):
+        state = _decide(c, attempt_id, token, case_version_id, key)
+
+    assert state["status"] == "COMPLETED"
+    report = state["completionReport"]
+    ending = report["ending"]
+    assert ending["key"] == "integral"
+    assert ending["severityCounts"]["critical"] == 0
+    assert ending["severityCounts"]["recommended"] == 6
+
+    # El reporte cuenta solo lo registrado y muestra los reintentos aparte.
+    assert report["adequateDecisions"] == 6
+    assert report["riskyDecisions"] == 0
+    assert report["inadequateDecisions"] == 0
+    assert report["prohibitedDecisions"] == 0
+    assert report["retries"] == 2
+    retry_events = [t for t in report["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
+    assert len(retry_events) == 2  # la trazabilidad conserva el reintento
+
+
+def test_report_recommends_reviewing_a_reconsidered_answer_without_counting_it(estudiante, case_version_id):
+    """L-03: una primera respuesta prohibida que el juego no aplicó queda en la recomendación del cierre
+    (el estudiante ve que reconsideró algo), sin contarla como decisión ni bajar el desempeño."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-RETRYREC")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+
+    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # prohibida: reintento
+    _decide(c, attempt_id, token, case_version_id, "h1-pap-contencion")      # la adecuada se registra
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 1
+    assert report["prohibitedRetries"] == 1
+    assert "Reconsideraste 1 respuesta antes de decidir; revísala con tu docente." in report["recommendations"]
+    # No son decisiones: los contadores y el final no cambian.
+    assert report["prohibitedDecisions"] == 0
+    assert report["inadequateDecisions"] == 0
+    assert report["adequateDecisions"] == 1
+
+
+def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(estudiante, case_version_id):
+    """Con varias reconsideraciones la recomendación va en plural y el cierre genérico («Consolida el
+    aprendizaje…») ya no es la única huella: el estudiante ve que reconsideró respuestas."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-RETRYPLURAL")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+
+    bad_keys = ("h1-interrogar-victima", "c1-mediacion-perdon")
+    state = None
+    for key in (
+        "h1-interrogar-victima", "h1-pap-contencion",
+        "h2-459-1257", "h3-integral-psicosocial",
+        "c1-mediacion-perdon", "c1-riesgo-proteccion-derechos",
+        "c2-2126-1098-1257", "c3-integral-derechos",
+    ):
+        state = _decide(c, attempt_id, token, case_version_id, key)
+
+    assert state["status"] == "COMPLETED"
+    report = state["completionReport"]
+    assert report["retries"] == 2
+    expected_prohibited = sum(
+        1 for key in bad_keys
+        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).prohibited_conduct
+    )
+    assert report["prohibitedRetries"] == expected_prohibited
+    assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
+    assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
+    assert report["ending"]["key"] == "integral"
+
+
+def test_report_without_retries_has_no_reconsideration_recommendation(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-NORETRYREC")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 0
+    assert report["prohibitedRetries"] == 0
+    assert not any("Reconsideraste" in text for text in report["recommendations"])
+
+
+def test_report_reports_zero_retries_when_none_happened(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-NORETRY")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 0
+
+
+def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_version_id):
+    """La regla de reintento no cambia: la 2.ª respuesta mala sí queda registrada y cuenta."""
+    assign_case_to_student(estudiante, case_version_id, "SIM-2NDCOUNTS")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+
+    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # reintento
+    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # registrada
+    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
+           {"attemptToken": token, "reason": "test"}, format="json")
+
+    report = c.get(
+        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
+    ).data["data"]
+    assert report["retries"] == 1
+    assert report["prohibitedDecisions"] == 1
+    assert report["inadequateDecisions"] == 1
+
+
+def test_attempt_history_does_not_count_retries(estudiante, case_version_id):
+    assign_case_to_student(estudiante, case_version_id, "SIM-HISTRETRY")
+    c = cl(estudiante)
+    start = c.post("/api/simulation/attempts",
+                   {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+    attempt_id, token = start["attemptId"], start["attemptToken"]
+    assert _world(c, attempt_id, token).status_code == 200
+    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # solo reintento
+
+    history = c.get("/api/simulation/attempts/history").data["data"]
+    mine = next(h for h in history if h["attemptId"] == attempt_id)
+    assert mine["prohibitedDecisions"] == 0
+    assert mine["inadequateDecisions"] == 0
+    assert mine["adequateDecisions"] == 0

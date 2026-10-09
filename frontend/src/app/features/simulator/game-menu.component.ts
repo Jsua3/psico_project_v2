@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnDestroy, ViewChild, inject, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, ViewChild, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -16,10 +16,19 @@ import { LOBBY_DOOR_Y, lobbyDoorLayout } from './lobby-door-layout.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
+import { GameHelpComponent } from './game-help.component';
+import { HelpModality } from './game-help.content';
+import { SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 
 interface MenuCallbacks {
   onEnter: (caseVersionId: number) => void;
   onFocus: (item: CatalogItem | null) => void;
+}
+
+/** Recordatorio de teclas que Phaser pinta en una esquina del lobby; sin teclado (puntero grueso) no se pinta. */
+export function lobbyKeyboardHint(coarsePointer: boolean): string | null {
+  return coarsePointer ? null : '← → / A D  mover · E entrar';
 }
 
 class ClinicMenuScene extends Phaser.Scene {
@@ -202,7 +211,7 @@ class ClinicMenuScene extends Phaser.Scene {
 @Component({
   selector: 'app-game-menu',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatProgressBarModule],
+  imports: [CommonModule, MatIconModule, MatProgressBarModule, GameHelpComponent],
   template: `
     <div class="menu-root">
       @if (loading()) { <mat-progress-bar mode="indeterminate" aria-label="Cargando casos" /> }
@@ -217,7 +226,21 @@ class ClinicMenuScene extends Phaser.Scene {
       <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()"
            (keydown.e)="enterFocused($event)" (keydown.enter)="enterFocused($event)"
            (keydown.space)="enterFocused($event)"
-           aria-label="Menú de casos. Flechas o A/D para moverte, toca el suelo para caminar, E para entrar a una puerta disponible."></div>
+           [attr.aria-label]="hostLabel()"></div>
+
+      <button #helpTrigger type="button" class="menu-help-btn" (click)="toggleHelp()"
+              [attr.aria-expanded]="helpOpen()" [attr.aria-controls]="helpOpen() ? 'lobby-help' : null">
+        <mat-icon aria-hidden="true">help_outline</mat-icon>
+        <span>Cómo se juega</span>
+      </button>
+
+      <!-- La misma pantalla «Cómo se juega» del juego (una sola fuente del texto, F§5.8). Esc y «Cerrar ayuda» la cierran. -->
+      @if (helpOpen()) {
+        <div class="menu-help-layer" (keydown.escape)="closeHelp()" (click)="onHelpBackdrop($event)">
+          <app-game-help view="screen" [modality]="helpModality()" [safeExitPromise]="safeExitPromise"
+                         (closed)="closeHelp()" />
+        </div>
+      }
 
       @if (focused(); as f) {
         <div class="case-banner" [class.case-banner--locked]="!f.unlocked" aria-live="polite">
@@ -227,7 +250,7 @@ class ClinicMenuScene extends Phaser.Scene {
                misma navegación única que la tecla E. -->
           <button class="banner-enter psy-button psy-button--primary" type="button"
             [disabled]="!f.unlocked || !!entering()" (click)="enter(f.caseVersionId)">
-            {{ f.unlocked ? 'Entrar al caso (E)' : 'Bloqueado' }}
+            {{ f.unlocked ? (coarsePointer() ? 'Entrar al caso' : 'Entrar al caso (E)') : 'Bloqueado' }}
           </button>
         </div>
       }
@@ -237,6 +260,7 @@ class ClinicMenuScene extends Phaser.Scene {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .menu-root { position: fixed; inset: 0; overflow: hidden; background: #0a0f14; }
@@ -256,6 +280,22 @@ class ClinicMenuScene extends Phaser.Scene {
     }
     .case-banner strong { font-size: 1.05rem; color: #9dc0e8; }
     .case-banner span { font-size: .82rem; color: rgba(232,240,244,.72); }
+    .menu-help-btn {
+      position: absolute; top: 12px; right: 12px; z-index: 25;
+      display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+      border: 1px solid rgba(157,192,232,.45); border-radius: 12px;
+      background: rgba(8,12,18,.86); color: #e8f0f4; font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer;
+    }
+    .menu-help-btn:hover { border-color: rgba(157,192,232,.85); background: rgba(33,52,76,.9); }
+    .menu-help-btn:focus-visible { outline: 2px solid rgba(157,192,232,.9); outline-offset: 2px; }
+    .menu-help-btn mat-icon { font-size: 20px; width: 20px; height: 20px; color: #9dc0e8; }
+    /* Capa que cubre el lobby mientras la ayuda está abierta: el foco queda dentro (la pantalla lo atrapa) y el
+       escenario de Phaser no recibe toques por debajo. */
+    .menu-help-layer {
+      position: absolute; inset: 0; z-index: 30; display: grid; place-items: center;
+      padding: 8px 12px; background: rgba(5,8,12,.78);
+    }
+    .menu-help-layer app-game-help { width: min(640px, 100%); }
     .banner-enter { margin-top: 6px; min-height: 44px; }
     .banner-enter:disabled { opacity: .55; cursor: not-allowed; }
     .banner-enter:focus-visible { outline: 2px solid rgba(157,192,232,.85); outline-offset: 2px; }
@@ -291,6 +331,15 @@ export class GameMenuComponent implements OnDestroy {
   readonly catalog = signal<CatalogItem[]>([]);
   readonly focused = signal<CatalogItem | null>(null);
   readonly entering = signal<string>('');
+  /** Sin teclado: se quitan los textos que prometen teclas (la lectura es puntual, el lobby no cambia de puntero). */
+  readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  readonly helpOpen = signal(false);
+  readonly helpModality = computed<HelpModality>(() => this.coarsePointer() ? 'touch' : 'keyboard');
+  /** Misma bandera que el juego: la promesa de «Salida segura» solo se escribe cuando es cierta en todos los estados. */
+  protected readonly safeExitPromise = SAFE_EXIT_ALWAYS_REACHABLE;
+  readonly hostLabel = computed(() => this.coarsePointer()
+    ? 'Menú de casos. Toca el suelo para caminar hasta una puerta disponible y usa el botón «Entrar al caso».'
+    : 'Menú de casos. Flechas o A/D para moverte, toca el suelo para caminar, E para entrar a una puerta disponible.');
 
   private game?: Phaser.Game;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
@@ -298,8 +347,15 @@ export class GameMenuComponent implements OnDestroy {
   private detachHostWatch?: () => void;
   private booting = false;
   private destroyed = false;
-  private enterTimer?: ReturnType<typeof window.setTimeout>;
+  // number explícito (no ReturnType<typeof window.setTimeout>): con @types/node en el
+  // programa de tipos de los specs, ese ReturnType resuelve a NodeJS.Timeout aunque la
+  // llamada real a window.setTimeout en el navegador siga devolviendo number.
+  private enterTimer?: number;
   private host?: ElementRef<HTMLDivElement>;
+  private helpTrigger?: ElementRef<HTMLButtonElement>;
+
+  @ViewChild('helpTrigger')
+  set helpTriggerRef(value: ElementRef<HTMLButtonElement> | undefined) { this.helpTrigger = value; }
 
   @ViewChild('host')
   set hostRef(value: ElementRef<HTMLDivElement> | undefined) {
@@ -356,6 +412,23 @@ export class GameMenuComponent implements OnDestroy {
     this.host?.nativeElement.focus({ preventScroll: true });
   }
 
+  /** «Cómo se juega»: pantalla de ayuda sobre el lobby. Al abrir, el foco entra en ella; al cerrar, vuelve al botón. */
+  toggleHelp() {
+    if (this.helpOpen()) { this.closeHelp(); return; }
+    this.helpOpen.set(true);
+  }
+
+  /** Un toque fuera de la pantalla de ayuda (sobre la capa) también la cierra. */
+  onHelpBackdrop(event: Event) {
+    if (event.target === event.currentTarget) this.closeHelp();
+  }
+
+  closeHelp() {
+    if (!this.helpOpen()) return;
+    this.helpOpen.set(false);
+    this.helpTrigger?.nativeElement.focus();
+  }
+
   /** Entrada por teclado a la puerta enfocada (E/Enter/Espacio sobre el host). */
   enterFocused(event: Event) {
     const f = this.focused();
@@ -366,7 +439,8 @@ export class GameMenuComponent implements OnDestroy {
   }
 
   enter(caseVersionId: number) {
-    if (this.entering()) return;
+    // Con la ayuda abierta, la E del juego (Phaser la sigue leyendo) no debe llevar al caso a quien está leyendo.
+    if (this.entering() || this.helpOpen()) return;
     const item = this.catalog().find(c => c.caseVersionId === caseVersionId);
     if (item && !item.unlocked) return;
     this.entering.set(item?.title ?? 'Caso');

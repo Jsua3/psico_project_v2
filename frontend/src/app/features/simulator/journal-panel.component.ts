@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { Component, effect, inject, input, output } from '@angular/core';
+import { Component, effect, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -14,7 +15,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 @Component({
   selector: 'app-journal-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, FormsModule, MatIconModule],
+  imports: [A11yModule, CommonModule, FormsModule, MatIconModule, SafeExitButtonComponent],
   template: `
     <div class="journal-modal"
       [cdkTrapFocus]="open()"
@@ -72,7 +73,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
               <div class="context-block">
                 <p class="context-title">Trazabilidad</p>
                 <ol>
-                  @for (stage of timeline(); track stage) {
+                  @for (stage of timeline(); track $index) {
                     <li>{{ stage }}</li>
                   }
                 </ol>
@@ -97,12 +98,17 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
           <mat-icon aria-hidden="true">lock</mat-icon>
           Las bitácoras se cifran con AES-GCM antes de guardarse.
         </p>
-        <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
-          Continuar simulación
-        </button>
+        <div class="footer-actions">
+          <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->
+          <app-safe-exit-button data-hide-key (pause)="safeExit.emit()" />
+          <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
+            Continuar simulación
+          </button>
+        </div>
       </footer>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: contents; }
     .journal-modal {
@@ -219,7 +225,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     }
     .journal-context ol,
     .journal-context ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
-    .journal-context li { color: rgba(232,240,244,.66); font-size: .78rem; line-height: 1.4; }
+    .journal-context li { color: rgba(232,240,244,.66); font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
 
     .sheet-footer {
       display: flex;
@@ -230,14 +236,22 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       padding-top: 12px;
     }
     .encrypt-note {
-      display: flex; gap: 8px; align-items: center;
+      display: flex; gap: 8px; align-items: center; flex: 1 1 0; min-width: 0;
       margin: 0; font-size: .7rem;
       color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    .footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
     .continue-btn { flex-shrink: 0; }
 
+    /* Pantallas bajas (844x390): las columnas se desplazan por dentro y el pie, con la salida segura, queda siempre a la vista. */
+    @media (max-height: 520px) {
+      .journal-modal { padding: 12px 16px; gap: 8px; max-height: 94vh; }
+      .journal-columns { overflow-y: auto; }
+    }
     @media (max-width: 700px) {
+      .sheet-footer { flex-wrap: wrap; }
+      .footer-actions { flex-wrap: wrap; width: 100%; }
       .journal-modal { padding: 14px; max-height: 92vh; }
       .journal-columns { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
       .journal-context { order: 2; }
@@ -263,6 +277,8 @@ export class JournalPanelComponent {
   ]);
   readonly save = output<string>();
   readonly closeSheet = output<void>();
+  /** Pausa reanudable pedida desde la bitácora (REGLA-004); el anfitrión llama a la salida segura real. */
+  readonly safeExit = output<void>();
 
   text = '';
   private readonly audio = inject(AudioDirectorService);

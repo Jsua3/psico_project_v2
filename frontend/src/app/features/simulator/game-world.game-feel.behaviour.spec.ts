@@ -1,6 +1,6 @@
 // Mismo andamiaje que game-world.collision.spec.ts: Phaser toca canvas/WebGL al importarse
 // (jsdom no lo soporta). Solo se evalúa `extends Phaser.Scene`; la escena nunca arranca aquí.
-jest.mock('phaser', () => ({
+vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
@@ -14,14 +14,15 @@ jest.mock('phaser', () => ({
 
 import { crisisVignetteState, roomEntryFlash } from './game-feel.util';
 import { DataDrivenWorldScene } from './game-world.component';
+import type { Mock } from 'vitest';
 
-interface FakeTween { stop: jest.Mock; isPlaying: () => boolean; }
+interface FakeTween { stop: Mock; isPlaying: () => boolean; }
 interface FakeVignette { scene: object; alpha: number; setAlpha(alpha: number): FakeVignette; }
-interface FakeCamera { flash: jest.Mock; shake: jest.Mock; flashEffect: { alpha: number }; }
+interface FakeCamera { flash: Mock; shake: Mock; flashEffect: { alpha: number }; }
 
 /** Superficie privada de la escena que estos casos ejercitan (la escena nunca arranca). */
 interface SceneProbe {
-  tweens: { add: jest.Mock };
+  tweens: { add: Mock };
   cameras: { main: FakeCamera | undefined };
   crisisVignette?: FakeVignette;
   pendingRoomFlash: unknown;
@@ -47,17 +48,17 @@ function crearEscena(opciones: { reduceMotion?: boolean; conVineta?: boolean } =
   const scene = new DataDrivenWorldScene({ reduceMotion } as never) as unknown as SceneProbe;
   const tweens: FakeTween[] = [];
   scene.tweens = {
-    add: jest.fn(() => {
+    add: vi.fn(() => {
       let vivo = true;
       const tween: FakeTween = {
-        stop: jest.fn(() => { vivo = false; }),
+        stop: vi.fn(() => { vivo = false; }),
         isPlaying: () => vivo,
       };
       tweens.push(tween);
       return tween;
     }),
   };
-  const camera: FakeCamera = { flash: jest.fn(), shake: jest.fn(), flashEffect: { alpha: 1 } };
+  const camera: FakeCamera = { flash: vi.fn(), shake: vi.fn(), flashEffect: { alpha: 1 } };
   scene.cameras = { main: camera };
   scene.ready = true;
   let vignette: FakeVignette | undefined;
@@ -104,7 +105,7 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.setReduceMotion(true);
 
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(0.7);
+      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
     });
 
@@ -114,11 +115,23 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.setStressLevel(92);
       scene.setMotionPaused(true);
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(0.7);
+      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
 
       scene.setMotionPaused(false);
       expect(scene.tweens.add).toHaveBeenCalledTimes(2);
       expect(tweens[1].isPlaying()).toBe(true);
+    });
+
+    it('al reanudar tras una pausa el pulso arranca donde quedó la viñeta fija: sin escalón', () => {
+      const { scene, vignette } = crearEscena();
+
+      scene.setStressLevel(92);
+      scene.setMotionPaused(true);
+      const fija = vignette!.alpha;
+      scene.setMotionPaused(false);
+
+      const pulso = scene.tweens.add.mock.calls[1][0] as { alpha: { from: number } };
+      expect(pulso.alpha.from).toBe(fija);
     });
 
     it('sin estrés no hay pulso y un valor roto no dibuja ni lanza', () => {
@@ -172,7 +185,8 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.playRevealEffects(feedback);
       expect(camera.flash).toHaveBeenCalledTimes(1);
       expect(camera.flash).toHaveBeenCalledWith(120, 214, 222, 236);
-      expect(camera.flashEffect.alpha).toBe(0.45);
+      expect(camera.flashEffect.alpha).toBe(roomEntryFlash('a', 'b', false)!.peakAlpha);
+      expect(camera.flashEffect.alpha).toBeLessThanOrEqual(0.25);
       expect(camera.shake).not.toHaveBeenCalled();
 
       scene.playPendingRoomFlash();

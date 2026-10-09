@@ -115,6 +115,12 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+# Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
+# del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
+# un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.
+AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 AI_ASSISTANT_PROVIDER = os.environ.get("AI_ASSISTANT_PROVIDER", "openai").strip()
 AI_ASSISTANT_API_KEY = os.environ.get("AI_ASSISTANT_API_KEY", "").strip()
 AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
@@ -127,10 +133,17 @@ ACCESS_REQUEST_NOTIFY_EMAILS = [
     ).split(",")
     if email.strip()
 ]
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",
-)
+# Django 6.1: MAILERS reemplaza a EMAIL_BACKEND/EMAIL_HOST/... (deprecados, se
+# retiran en Django 7.0). Por defecto el correo sale por consola; en producción
+# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y, si hace falta, sus OPTIONS.
+MAILERS = {
+    "default": {
+        "BACKEND": os.environ.get(
+            "EMAIL_BACKEND",
+            "django.core.mail.backends.console.EmailBackend",
+        ),
+    },
+}
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "siep@psychosim.edu.co")
 
 SPECTACULAR_SETTINGS = {

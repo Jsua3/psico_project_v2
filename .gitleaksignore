@@ -1,0 +1,11 @@
+# Hallazgos de gitleaks YA REVISADOS (huella = commit:archivo:regla:línea). Una huella silencia solo
+# ese hallazgo en ese commit: no ensancha ninguna regla ni cubre commits futuros.
+
+# Captura de métricas de una sesión LOCAL del 2026-06-08 (http://localhost:4200): el attemptToken de
+# un intento desechable de la base de desarrollo de entonces. No es una credencial de ningún sistema
+# vivo y el archivo ya no existe en el árbol (solo en el historial).
+25d7d2b185f70cc1a8e668496d5b3a1f27137cfc:docs/audit-game-current/runtime-metrics.json:generic-api-key:524
+25d7d2b185f70cc1a8e668496d5b3a1f27137cfc:docs/audit-game-current/runtime-metrics.json:generic-api-key:529
+
+# «"key": "npc_orientadora_01»: clave de un NPC en un documento de prompt (ya eliminado del árbol).
+355e4b216a8ea1209780a9c687d7a5e3e14b2616:docs/PROMPT_SIEP_2_5D_PIXEL_ART_COMPLETO.md:generic-api-key:1686

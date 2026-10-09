@@ -24,7 +24,8 @@ import {
   input,
   effect,
   signal,
-  HostListener
+  HostListener,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -217,7 +218,7 @@ const OBJECT_COLORS: Record<string, string> = {
               <h4>Sala</h4>
               @if (store.rooms().length > 1) {
                 <label><span>Sala actual</span>
-                  <select [ngModel]="store.definition()?.nodeId" (ngModelChange)="switchRoom($event)">
+                  <select [ngModel]="$safeNavigationMigration(store.definition()?.nodeId)" (ngModelChange)="switchRoom($event)">
                     @for (r of store.rooms(); track r.nodeId) {
                       <option [ngValue]="r.nodeId">{{ r.nodeKey }} — {{ r.title }}</option>
                     }
@@ -517,6 +518,7 @@ const OBJECT_COLORS: Record<string, string> = {
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .we-root { display: grid; gap: 12px; }
 

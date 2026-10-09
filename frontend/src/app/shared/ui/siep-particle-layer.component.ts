@@ -7,6 +7,7 @@ import {
   OnDestroy,
   ViewChild,
   inject,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { Particle, frameScale, stepParticles } from './particle-field.util';
 
@@ -16,6 +17,7 @@ type ParticleDensity = 'low' | 'medium' | 'high';
   selector: 'app-siep-particle-layer',
   standalone: true,
   template: `<canvas #canvas class="siep-particle-layer__canvas" aria-hidden="true"></canvas>`,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host {
       position: absolute;

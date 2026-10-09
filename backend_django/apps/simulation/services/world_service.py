@@ -55,6 +55,11 @@ POSITION_BASE_ALLOWANCE_PX = 240
 POSITION_BUDGET_MAX_SECONDS = 30
 #: Distancia máxima (al rectángulo del objeto) para interactuar/usar puertas.
 INTERACTION_RANGE_PX = 120
+#: Holgura sobre el `interactionRadius` sembrado de un NPC ambiental: el cliente
+#: sincroniza la posición por muestras y puede llegar unos píxeles fuera del
+#: radio con el que ya vio el aviso de interacción. Evita rechazos legítimos sin
+#: re-sembrar los mapas (el radio sembrado es 60 px).
+NPC_RANGE_TOLERANCE_PX = 16
 #: Claves canónicas de NPC: slug en minúsculas.
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 PLAYER_HITBOX_WIDTH = 22
@@ -308,7 +313,7 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
         f"Herramienta usada: {tool_code}"
         + (f" sobre {target_key}" if target_key is not None else "")
         + f" — {'pertinente' if pertinent else 'no pertinente'}"
-        + f" (estres {sign}{stress_delta}%)"
+        + f" (estrés {sign}{stress_delta}%)"
     )
     _save_event(attempt, "TOOL_USED", detail)
 
@@ -335,7 +340,8 @@ def _require_nearby_ambient_npc(world_state, npc_key):
             radius = _require_finite_int(npc.get("interactionRadius"), "radio del NPC")
             if radius <= 0:
                 raise ValidationError("El radio de interacción del NPC debe ser positivo")
-            if math.hypot(world_state.player_x - x, world_state.player_y - y) > radius:
+            distance = math.hypot(world_state.player_x - x, world_state.player_y - y)
+            if distance > radius + NPC_RANGE_TOLERANCE_PX:
                 raise ValidationError("Estás demasiado lejos del NPC para interactuar")
             return
 
@@ -537,12 +543,12 @@ def _generate_tool_feedback(tool, target_key, pertinent):
         return (
             f"Has aplicado {tool.label} de forma pertinente"
             + (" en el contexto adecuado" if target_key is not None else "")
-            + ". Esto contribuye a una intervencion profesional y etica."
+            + ". Esto contribuye a una intervención profesional y ética."
         )
     return (
-        f"Has utilizado {tool.label}, pero este no es el contexto mas apropiado "
-        "para esta herramienta. Considera revisar que herramienta se ajusta mejor "
-        "a la situacion actual."
+        f"Has utilizado {tool.label}, pero este no es el contexto más apropiado "
+        "para esta herramienta. Considera revisar qué herramienta se ajusta mejor "
+        "a la situación actual."
     )
 
 

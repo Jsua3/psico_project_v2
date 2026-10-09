@@ -46,7 +46,8 @@ export function dialogueKeyAction(
   choiceCount: number,
   repeated: boolean,
 ): DialogueKeyAction {
-  if (key === 'Escape') return 'close';
+  // Un Esc mantenido cierra una sola vez: los eventos repetidos no cierran el diálogo siguiente ni encadenan la pausa.
+  if (key === 'Escape') return repeated ? 'none' : 'close';
   if (repeated) return 'none';
 
   if (key === 'Enter' || key === ' ') {

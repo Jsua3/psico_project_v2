@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Route, Router, TitleStrategy, provideRouter } from '@angular/router';
@@ -6,7 +6,8 @@ import { Route, Router, TitleStrategy, provideRouter } from '@angular/router';
 import { routes } from '../../app.routes';
 import { SIEP_DEFAULT_TITLE, SiepTitleStrategy } from './siep-title.strategy';
 
-@Component({ standalone: true, template: '' })
+@Component({ standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '' })
 class BlankComponent {}
 
 describe('SiepTitleStrategy', () => {

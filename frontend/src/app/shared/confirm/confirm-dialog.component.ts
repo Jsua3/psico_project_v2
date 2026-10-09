@@ -1,5 +1,5 @@
 import { A11yModule } from '@angular/cdk/a11y';
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 let nextConfirmDialogId = 0;
@@ -49,6 +49,7 @@ let nextConfirmDialogId = 0;
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .confirm-backdrop {
       position: fixed;

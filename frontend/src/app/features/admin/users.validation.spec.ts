@@ -6,6 +6,7 @@ import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UsersComponent } from './users.component';
+import type { Mock } from 'vitest';
 
 /**
  * Validar al enviar en el formulario de Usuarios.
@@ -27,8 +28,8 @@ const solicitud = {
 describe('usuarios: validar al enviar (comportamiento)', () => {
   let component: UsersComponent;
   let host: HTMLElement;
-  let service: { list: jest.Mock; create: jest.Mock; update: jest.Mock; updateStatus: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
+  let service: { list: Mock; create: Mock; update: Mock; updateStatus: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
 
   /** Rellena los campos obligatorios distintos de la contraseña. */
   const fillRequired = () => component.form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test' });
@@ -37,13 +38,13 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
   beforeEach(() => {
     host = document.createElement('div');
     document.body.appendChild(host);
-    service = { list: jest.fn(() => of([ana])), create: jest.fn(), update: jest.fn(), updateStatus: jest.fn() };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
+    service = { list: vi.fn(() => of([ana])), create: vi.fn(), update: vi.fn(), updateStatus: vi.fn() };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: UserAdminService, useValue: service },
-        { provide: AccessRequestAdminService, useValue: { listPending: jest.fn(() => of([])), updateStatus: jest.fn() } },
+        { provide: AccessRequestAdminService, useValue: { listPending: vi.fn(() => of([])), updateStatus: vi.fn() } },
         { provide: NotificationService, useValue: notify },
         { provide: ElementRef, useValue: new ElementRef(host) },
       ],

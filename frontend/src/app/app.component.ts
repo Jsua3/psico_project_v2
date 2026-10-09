@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
@@ -8,6 +8,7 @@ import { NotificationHostComponent } from './shared/notifications/notification-h
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, NotificationHostComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <a class="psy-skip-link" href="#main-content" (click)="skipTo($event, 'main-content')">Saltar al contenido principal</a>
     @if (isGameRoute()) {

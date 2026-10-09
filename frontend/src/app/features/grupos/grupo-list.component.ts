@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, OnInit, signal, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -360,6 +360,7 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
       (confirm)="runPendingConfirm()"
     />
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
     .page-kicker { margin: 0 0 4px; color: var(--psy-blue-deep); font-size: .78rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }

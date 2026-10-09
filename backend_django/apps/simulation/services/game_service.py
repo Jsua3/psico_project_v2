@@ -244,9 +244,12 @@ def list_attempt_history(actor):
         aid: {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
         for aid in attempt_ids
     }
+    # Solo decisiones registradas: los reintentos no puntúan (misma regla que el reporte).
     decision_events = (
         AttemptEvent.objects.filter(
-            attempt_id__in=attempt_ids, decision_option__isnull=False
+            attempt_id__in=attempt_ids,
+            event_type__in=case_effects.REGISTERED_DECISION_EVENT_TYPES,
+            decision_option__isnull=False,
         )
         .values(
             "attempt_id",
@@ -356,7 +359,7 @@ def choose_decision(
         prior_retries = AttemptEvent.objects.filter(
             attempt_id=attempt.id,
             node_id=attempt.current_node_id,
-            event_type__in=["DECISION_RETRY_REQUIRED", "PROHIBITED_DECISION_RETRY_REQUIRED"],
+            event_type__in=case_effects.RETRY_EVENT_TYPES,
         ).count()
         if prior_retries == 0:
             message = (
@@ -381,13 +384,16 @@ def choose_decision(
     event_type = "PROHIBITED_DECISION_SELECTED" if decision.prohibited_conduct else "DECISION_SELECTED"
 
     message = decision_effects.format_feedback(decision, effects)
+    # Las etiquetas del override son trazabilidad para el docente: se guardan
+    # solo en el evento; el mensaje que ve el jugador no las lleva.
+    event_detail = message
     if evidence_override:
         labels = _override_evidence_labels(missing_evidence)
         if labels:
-            message = f"{message} | Override de evidencia: {', '.join(labels)}"
+            event_detail = f"{message} | Override de evidencia: {', '.join(labels)}"
     attempt.current_node = decision.target_node
 
-    _save_event(attempt, event_type, decision.source_node, decision, effects.score_delta, effects.stress_delta, message)
+    _save_event(attempt, event_type, decision.source_node, decision, effects.score_delta, effects.stress_delta, event_detail)
     _save_event(attempt, "NODE_ENTERED", decision.target_node, None, 0, 0, "Nodo visitado")
 
     if decision.target_node.terminal_node:

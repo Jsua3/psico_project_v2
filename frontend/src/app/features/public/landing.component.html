@@ -69,7 +69,7 @@
         <aside class="landing-preview-pixel" aria-label="Vista previa del simulador">
           <div class="landing-preview-pixel__head">
             <span class="landing-preview-pixel__badge">Caso activo</span>
-            <h2>Violencia intrafamiliar</h2>
+            <h2>Violencia basada en género</h2>
           </div>
 
           <div class="landing-preview-pixel__body">
@@ -116,17 +116,21 @@
           <h2 class="landing-section__title">
             Casos de <span class="landing-accent landing-accent--dark">entrenamiento</span>
           </h2>
-          <a class="landing-link" href="#casos">Ver todos los casos <mat-icon>arrow_forward</mat-icon></a>
+          <a class="landing-link" routerLink="/login">Ingresa para ver los casos disponibles <mat-icon>arrow_forward</mat-icon></a>
         </div>
         <div class="landing-grid landing-grid--3">
           @for (trainingCase of trainingCases; track trainingCase.title) {
-            <article class="landing-case-card">
+            <article class="landing-case-card" [class.landing-case-card--soon]="!trainingCase.available">
               <span class="landing-case-card__icon" [style.background]="trainingCase.accent + '18'" [style.color]="trainingCase.accent">
                 <mat-icon>{{ trainingCase.icon }}</mat-icon>
               </span>
               <h3>{{ trainingCase.title }}</h3>
               <p>{{ trainingCase.text }}</p>
-              <span class="landing-chip" [style.--chip-color]="trainingCase.accent">{{ trainingCase.tag }}</span>
+              <span
+                class="landing-chip"
+                [class.landing-chip--soon]="!trainingCase.available"
+                [style.--chip-color]="trainingCase.accent"
+              >{{ trainingCase.tag }}</span>
             </article>
           }
         </div>

@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
 from .models import AccessRequest, AccessRequestStatus, UserRole
@@ -93,6 +94,9 @@ def generate_access_token(user):
     """Access token with the same claims Spring's JwtService emits:
     sub=email, userId=id, role=role (plus simplejwt's exp/iat/jti)."""
     token = AccessToken.for_user(user)  # sets the USER_ID_CLAIM ("userId")
+    # simplejwt >= 5.5 serializa el id como texto; Spring lo emitía numérico y el
+    # frontend lo tipa como number: se conserva el contrato original.
+    token[api_settings.USER_ID_CLAIM] = user.id
     token["role"] = user.role
     token["sub"] = user.email
     return str(token)
@@ -104,6 +108,7 @@ class PsychoSimTokenObtainSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
+        token[api_settings.USER_ID_CLAIM] = user.id
         token["role"] = user.role
         token["sub"] = user.email
         return token

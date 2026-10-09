@@ -618,16 +618,19 @@ function paintLighting(scene: Phaser.Scene, options: SceneRendererOptions): void
   pool(238, 366, 260, 116, 0.045);
 
   // Haz frío desde la ventana hacia el piso (Vector2Like — sin Phaser runtime).
+  // fillPoints solo lee .x/.y de cada punto (ver Graphics.js); el tipo de Phaser 4 exige
+  // Vector2[] en vez del Vector2Like[] más laxo de antes, pero en runtime un objeto plano
+  // sigue sirviendo igual — de ahí el cast, sin instanciar Phaser.Math.Vector2 de verdad.
   g.fillStyle(PAL.coolLight, 0.045);
   g.fillPoints([
     { x: 126, y: 158 }, { x: 216, y: 158 },
     { x: 264, y: 330 }, { x: 86, y: 330 },
-  ], true);
+  ] as unknown as Phaser.Math.Vector2[], true);
   g.fillStyle(PAL.coolLight, 0.035);
   g.fillPoints([
     { x: 146, y: 158 }, { x: 196, y: 158 },
     { x: 224, y: 312 }, { x: 120, y: 312 },
-  ], true);
+  ] as unknown as Phaser.Math.Vector2[], true);
 
   // Motas de polvo lentas en la luz (solo sin reduce-motion).
   if (!options.reduceMotion) {

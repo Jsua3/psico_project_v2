@@ -1,7 +1,12 @@
-# Recorridos completos del caso (@full-case, 4 viewports). Fuera del CI de los
-# PR: en el runner sin GPU cada recorrido tarda ~3-4x más que en local y el
-# job completo ronda los 30-45 min. Corre cada noche sobre master y a mano
-# (Actions → "E2E recorridos completos" → Run workflow, eligiendo la rama).
+# Recorridos completos del caso (@full-case, 4 viewports) y pruebas de
+# orientación (@orientation: primer minuto, etapa 1 guiada y salida segura en
+# cada estado, en escritorio 1366 y móvil horizontal 844x390). Fuera del CI de
+# los PR: en el runner sin GPU cada recorrido tarda ~3-4x más que en local. Los
+# dos grupos corren en jobs paralelos (cada uno en su runner, con su propia BD)
+# cada noche sobre master y a mano (Actions → "E2E recorridos completos" → Run
+# workflow, eligiendo la rama). Propuesta pendiente de decisión (pregunta 10 del
+# backlog): correr también el recorrido de escritorio-1366 en los PR que tocan el
+# simulador; hay un borrador inactivo en docs/superpowers/plans/e2e-full-case-pr.yml.draft.
 name: E2E recorridos completos
 
 on:
@@ -18,7 +23,7 @@ concurrency:
 
 env:
   NODE_VERSION: '24'
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.14'
 
 jobs:
   full-case:
@@ -58,6 +63,44 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-full-case-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  orientation:
+    name: E2E orientación (escritorio y móvil horizontal)
+    runs-on: ubuntu-latest
+    # 8 pruebas (4 escritorio, 4 móvil) de 4-6 min en local; con E2E_TIME_SCALE=4
+    # el límite de cada una es de 16-24 min y el job entero no pasa de 90 min.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend_django/requirements.txt
+      - name: Crear venv del backend
+        run: |
+          python -m venv backend_django/.venv
+          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+      - run: npm ci --prefix frontend
+      - name: Instalar Chromium de Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --grep @orientation --reporter=list
+        env:
+          E2E_TIME_SCALE: '4'
+      - name: Subir artefactos de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-orientation-results
           path: frontend/test-results/
           retention-days: 7
           if-no-files-found: ignore

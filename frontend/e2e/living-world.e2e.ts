@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { nearbyAction } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -101,7 +102,7 @@ test('real dialogue advances one intervention at a time and retains keyboard foc
   await login(page);
   await enterPlayableCase(page);
 
-  const familyAction = page.getByRole('button', { name: /interactuar:.*familia en crisis/i });
+  const familyAction = nearbyAction(page, /familia en crisis/i);
   await page.locator('app-game-world canvas').click();
   await page.keyboard.down('ArrowLeft');
   try {
@@ -142,7 +143,9 @@ test('real dialogue advances one intervention at a time and retains keyboard foc
   await page.keyboard.press('Space');
   await expect(dialogue).toContainText(third);
   await expect(dialogue).not.toContainText(second);
-  await expect(dialogue.getByRole('button', { name: /aplicar pap a la familia en crisis/i })).toBeFocused();
+  // T4.3: al aparecer las opciones el foco cae en el GRUPO, no en una opción,
+  // para que un Enter o un Espacio de la línea anterior no decida por accidente.
+  await expect(dialogue.getByRole('group', { name: /opciones de intervención/i })).toBeFocused();
 
   await page.keyboard.press('Escape');
   await expect(dialogue).toBeHidden();

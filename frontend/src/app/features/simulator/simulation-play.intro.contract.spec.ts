@@ -46,3 +46,59 @@ describe('simulation-play: introducción', () => {
     expect(source).not.toContain('.case-intro-card__actions span {');
   });
 });
+
+describe('simulation-play: salida segura alcanzable desde cada superposición (REGLA-004)', () => {
+  const introScene = source.slice(source.indexOf('id="intro-scene-title"'), source.indexOf('id="case-intro-title"'));
+  const caseIntro = source.slice(source.indexOf('id="case-intro-title"'), source.indexOf('<header class="top-bar"'));
+
+  it('las dos tarjetas de la introducción ofrecen «Salida segura» a la izquierda de «Continuar»', () => {
+    const intoPause = /<app-safe-exit-button \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFrom(IntroScene|CaseIntro)\(\)">/;
+    expect(introScene).toMatch(intoPause);
+    expect(caseIntro).toMatch(intoPause);
+  });
+
+  it('el foco inicial de las tarjetas sigue en «Continuar», no en la salida', () => {
+    expect(introScene.match(/cdkFocusInitial/g)).toHaveLength(1);
+    expect(caseIntro.match(/cdkFocusInitial/g)).toHaveLength(1);
+  });
+
+  it('los dos paneles de diálogo y la bitácora conectan su salida segura al método nuevo', () => {
+    const panels = source.match(/<app-dialogue-panel[^>]*?\/>/g) ?? [];
+    expect(panels).toHaveLength(2);
+    for (const panel of panels) expect(panel).toContain('(safeExit)="pauseFromOverlay()"');
+    expect(source).toMatch(/<app-journal-panel[^>]*\(safeExit\)="pauseFromOverlay\(\)"/);
+  });
+
+  it('los dos paneles de diálogo reciben el token que libera la opción elegida tras un fallo', () => {
+    const panels = source.match(/<app-dialogue-panel[^>]*?\/>/g) ?? [];
+    expect(panels).toHaveLength(2);
+    for (const panel of panels) expect(panel).toContain('[releaseToken]="dialogueReleaseToken()"');
+  });
+
+  it('el botón del pie acepta el toque con una petición en curso y su nombre no dice «(Escape)»', () => {
+    const footerButton = source.match(/<button class="safe-exit"[\s\S]*?<\/button>/)?.[0] ?? '';
+    expect(footerButton).toContain('(click)="pauseFromOverlay()"');
+    expect(footerButton).not.toContain('[disabled]');
+    expect(footerButton).toContain("'Pausando…'");
+    expect(source).not.toContain('Salida segura (Escape)');
+  });
+
+  it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
+    const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
+    expect(notice).toContain('class="pausing-notice"');
+    expect(notice).toContain('Pausando el caso…');
+    // El acuse es estático: sin temporizadores ni animación (nada esencial se cierra solo).
+    expect(source).not.toMatch(/\.pausing-notice\s*\{[^}]*animation/);
+  });
+
+  it('el aviso de contenido no promete una salida que el estudiante no tiene a mano', () => {
+    expect(source).toContain('con el botón «Salida segura»');
+    expect(source).not.toContain('Durante el caso tendrás disponible la salida segura');
+  });
+
+  it('el aviso de contenido sigue tragándose Esc (ETH-01): su rama no llama a pauseFromOverlay', () => {
+    const branch = source.match(/if \(this\.showContentWarning\(\)\) \{[\s\S]*?\n    \}\n/)?.[0] ?? '';
+    expect(branch).toContain("event.key === 'Escape'");
+    expect(branch).not.toContain('pauseFromOverlay');
+  });
+});

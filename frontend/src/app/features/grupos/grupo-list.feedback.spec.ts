@@ -8,6 +8,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { GrupoListComponent } from './grupo-list.component';
+import type { Mock, MockInstance } from 'vitest';
 
 /**
  * Feedback de acciones de la pantalla Grupos.
@@ -29,29 +30,29 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   let grupos: Record<
     | 'listar' | 'crear' | 'actualizar' | 'eliminar' | 'quitarEstudiante' | 'agregarEstudiante'
     | 'asignarCaso' | 'quitarCaso' | 'importSpec' | 'listarEstudiantes' | 'listarCasos',
-    jest.Mock
+    Mock
   >;
-  let simulation: { listCases: jest.Mock };
-  let notify: { success: jest.Mock; error: jest.Mock; warning: jest.Mock; info: jest.Mock };
-  let confirmSpy: jest.SpyInstance;
+  let simulation: { listCases: Mock };
+  let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
+  let confirmSpy: MockInstance;
 
   beforeEach(() => {
     grupos = {
-      listar: jest.fn(() => of([grupoA, grupoB])),
-      crear: jest.fn(),
-      actualizar: jest.fn(),
-      eliminar: jest.fn(),
-      quitarEstudiante: jest.fn(),
-      agregarEstudiante: jest.fn(),
-      asignarCaso: jest.fn(),
-      quitarCaso: jest.fn(),
-      importSpec: jest.fn(),
-      listarEstudiantes: jest.fn(() => of([marta])),
-      listarCasos: jest.fn(() => of([])),
+      listar: vi.fn(() => of([grupoA, grupoB])),
+      crear: vi.fn(),
+      actualizar: vi.fn(),
+      eliminar: vi.fn(),
+      quitarEstudiante: vi.fn(),
+      agregarEstudiante: vi.fn(),
+      asignarCaso: vi.fn(),
+      quitarCaso: vi.fn(),
+      importSpec: vi.fn(),
+      listarEstudiantes: vi.fn(() => of([marta])),
+      listarCasos: vi.fn(() => of([])),
     };
-    simulation = { listCases: jest.fn(() => of([caso])) };
-    notify = { success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() };
-    confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    simulation = { listCases: vi.fn(() => of([caso])) };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     TestBed.configureTestingModule({
       providers: [
@@ -266,13 +267,13 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   });
 
   describe('copiar código', () => {
-    function stubClipboard(writeText: jest.Mock) {
+    function stubClipboard(writeText: Mock) {
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     }
     const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
     it('si se copia avisa el éxito', async () => {
-      const writeText = jest.fn(() => Promise.resolve());
+      const writeText = vi.fn(() => Promise.resolve());
       stubClipboard(writeText);
 
       component.copiarCodigo(grupoA);
@@ -285,7 +286,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
     });
 
     it('si el portapapeles rechaza informa el código con un aviso', async () => {
-      stubClipboard(jest.fn(() => Promise.reject(new Error('denegado'))));
+      stubClipboard(vi.fn(() => Promise.reject(new Error('denegado'))));
 
       component.copiarCodigo(grupoA);
       await flush();

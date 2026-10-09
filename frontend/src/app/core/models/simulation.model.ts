@@ -101,6 +101,10 @@ export interface AttemptCompletionReport {
   timeline?: AttemptTimelineEntry[];
   /** Efecto mariposa: final canónico del caso (solo intentos COMPLETED). */
   ending?: AttemptEnding | null;
+  /** Veces que una primera respuesta riesgosa no se aplicó (reintentos); no cuentan como decisiones registradas. */
+  retries?: number;
+  /** De esos reintentos, los que eran conducta prohibida (el docente los distingue en su traza). */
+  prohibitedRetries?: number;
 }
 
 export interface AttemptEnding {
@@ -135,11 +139,10 @@ export interface SimulationNodeState {
   options: SimulationDecisionOption[];
 }
 
+/** Solo `id` y `text`: el servidor no manda la clasificación de una opción antes de elegirla (evaluación formativa). */
 export interface SimulationDecisionOption {
   id: number;
   text: string;
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
-  prohibitedConduct: boolean;
 }
 
 export interface SimulationFeedback {
@@ -240,6 +243,10 @@ export interface DialogueState {
   emotion: string;
   lines: DialogueLineState[];
   choices: DialogueChoiceState[];
+  /** UI: aviso único sobre las opciones (p. ej. lo que falta antes de decidir). Solo presentación. */
+  notice?: string | null;
+  /** UI: la conversación corresponde a otro momento del caso; se muestra como informativa, sin decisiones. */
+  stale?: boolean;
 }
 
 export interface DialogueLineState {
@@ -255,12 +262,10 @@ export interface DialogueChoiceState {
   decisionOptionId: number | null;
   requiredToolCode: string | null;
   effect: Record<string, unknown>;
-  /** UI hint: highlight choice as clinically recommended (optional, backend may omit) */
-  isRecommended?: boolean;
-  /** UI hint: highlight choice as clinically prohibited (optional, backend may omit) */
-  isProhibited?: boolean;
   /** UI: la decisión se tomaría con información incompleta (gating frontend, Fase 9). */
   evidenceWarning?: string;
+  /** UI: la opción exige una herramienta que el jugador aún no tiene; no se puede activar. */
+  toolMissing?: boolean;
 }
 
 export interface InteractionResult {
@@ -300,6 +305,9 @@ export interface AttemptTrace {
   riskyDecisions: number;
   inadequateDecisions: number;
   prohibitedDecisions: number;
+  /** Primeras respuestas que el juego no aplicó (reintento): no entran en los contadores de decisiones (T11.1, L-02). */
+  retries?: number;
+  prohibitedRetries?: number;
   safeExitUsed: boolean;
   timeline: AttemptTimelineEntry[];
   visitedNodeTitles: string[];

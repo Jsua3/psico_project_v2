@@ -12,7 +12,7 @@
  * with the existing GameWorldComponent contract.
  */
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, ViewChild, inject, input, signal, effect } from '@angular/core';
+import { Component, OnInit, ViewChild, inject, input, signal, effect, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -128,6 +128,7 @@ interface EphemeralScore {
               [dialogue]="dialogue()"
               [interaction]="selectedInteraction()"
               (close)="closeDialogue()"
+              (safeExit)="closeDialogue()"
               (execute)="simulateDecision($event)"
               (useTool)="simulateToolUse($event)" />
 
@@ -189,6 +190,7 @@ interface EphemeralScore {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .preview-root { display: grid; gap: 14px; }
 

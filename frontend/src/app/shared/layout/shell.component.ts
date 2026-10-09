@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -153,6 +153,7 @@ interface NavItem {
       </mat-sidenav-content>
     </mat-sidenav-container>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .portal-shell {
       min-height: 100vh;
@@ -701,7 +702,9 @@ export class ShellComponent implements OnDestroy {
     if (role === 'PROFESOR') {
       return { label: 'Revisar intentos', route: '/portal/docente/trazabilidad', icon: 'timeline' };
     }
-    return { label: 'Continuar simulación', route: '/portal/simulador', icon: 'play_arrow' };
+    // El menú no sabe si hay un intento activo (eso lo muestra el tablero), así que no promete
+    // «continuar»: lleva al simulador, donde se elige el caso o se retoma el intento.
+    return { label: 'Ir al simulador', route: '/portal/simulador', icon: 'play_arrow' };
   });
 
   private readonly routerSub: Subscription;

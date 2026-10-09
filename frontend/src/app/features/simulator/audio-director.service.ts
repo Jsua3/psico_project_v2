@@ -1,12 +1,14 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { Howl, Howler } from 'howler';
 import { FADE_TICK_MS, fadeStep } from './audio-fade.util';
+import { STRESS_TIER_FLOORS, stressTier } from './stress-tier.util';
 
 export type MusicLayer = 'ambient' | 'tension' | 'resolution' | 'crisis';
 export type SoundEffect =
   | 'footstep_tile'
   | 'footstep_wood'
   | 'door_open'
+  | 'item_pickup'
   | 'ui_select'
   | 'ui_confirm'
   | 'ui_cancel'
@@ -21,17 +23,33 @@ interface StemTrack {
   targetVolume: number;
 }
 
-/** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
- *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la pista. */
-const HTML5_VOLUME_WORKS = (() => {
+/**
+ * Con una sola capa de música cargada (hoy solo `ambient`), bajarla o apagarla por el estrés deja el
+ * caso sin música justo en los momentos más tensos: las otras capas no existen para tomar el relevo.
+ * Mientras sea la única, no baja de esta fracción de su volumen.
+ */
+const SINGLE_STEM_AMBIENT_FLOOR = 0.6;
+
+/** Ganancia de efectos concretos respecto al volumen base de los SFX (recoger es un detalle, no un aviso). */
+const SFX_GAIN: Partial<Record<SoundEffect, number>> = { item_pickup: 0.7 };
+
+/**
+ * Expuesta para pruebas: antes el test recargaba todo el módulo (reload dinámico) para forzar
+ * esta detección con otro `Audio`. Vitest trata cualquier `import()` dinámico en un archivo con
+ * `vi.mock()` como si fuera una llamada de mock fuera del alcance de nivel superior y rechaza el
+ * archivo entero ("was defined outside of the module's top level scope"), así que la detección
+ * se extrae a una función exportada que el test llama directamente con el `Audio` que simula.
+ */
+export function detectHtml5VolumeWorks(AudioCtor: typeof Audio): boolean {
   try {
-    const probe = new Audio();
+    const probe = new AudioCtor();
     probe.volume = 0.5;
     return probe.volume === 0.5;
   } catch {
     return false;
   }
-})();
+}
+
 
 @Injectable({ providedIn: 'root' })
 export class AudioDirectorService {
@@ -48,6 +66,11 @@ export class AudioDirectorService {
   private fadeInterval?: number;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private initialized = false;
+  /** iOS/iPadOS ignoran HTMLMediaElement.volume (siempre 1): allí se conserva Web Audio,
+   *  que sí permite volumen, fundido y un bucle sin hueco. En el resto, HTML5 transmite la
+   *  pista. Por instancia (no constante de módulo) para que los dobles de `Audio` en pruebas,
+   *  fijados antes de crear el servicio, se detecten igual que `reducedMotion` arriba. */
+  private readonly html5Works = detectHtml5VolumeWorks(window.Audio);
 
   init(): void {
     if (this.initialized) return;
@@ -68,7 +91,7 @@ export class AudioDirectorService {
         preload: true,
         // Pista de ~150 s. Con HTML5 se transmite; Web Audio la decodificaría entera (~50 MB de PCM).
         // Solo donde el navegador respeta el volumen del elemento; en iOS/iPadOS se queda en Web Audio.
-        html5: HTML5_VOLUME_WORKS,
+        html5: this.html5Works,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] No se pudo cargar ${src}:`, err),
       });
       this.stems.set(layer, { howl, volume: 0, targetVolume: 0 });
@@ -80,6 +103,7 @@ export class AudioDirectorService {
       footstep_tile:    'assets/game/audio/footstep_concrete_000.ogg',
       footstep_wood:    'assets/game/audio/footstep_concrete_001.ogg',
       door_open:        `${base}/switch3.ogg`,
+      item_pickup:      `${base}/rollover5.ogg`,
       ui_select:        `${base}/rollover1.ogg`,
       ui_confirm:       `${base}/click1.ogg`,
       ui_cancel:        `${base}/mouserelease1.ogg`,
@@ -92,7 +116,7 @@ export class AudioDirectorService {
     for (const [key, src] of Object.entries(sfxFiles) as [SoundEffect, string][]) {
       this.sfx.set(key, new Howl({
         src: [src],
-        volume: this.sfxVolume,
+        volume: this.sfxVolume * (SFX_GAIN[key] ?? 1),
         mute: this.sfxMuted,
         preload: true,
         onloaderror: (_: number, err: unknown) => console.warn(`[AudioDirector] SFX error ${src}:`, err),
@@ -114,7 +138,7 @@ export class AudioDirectorService {
         loop: true,
         volume: this.musicVolume,
         preload: true,
-        html5: HTML5_VOLUME_WORKS,
+        html5: this.html5Works,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
     }
@@ -129,27 +153,34 @@ export class AudioDirectorService {
   setStressLevel(stress: number): void {
     if (!this.initialized || this.stems.size === 0) return;
 
-    if (stress <= 30) {
-      this.setTargetVolume('ambient', 1.0);
-      this.setTargetVolume('tension', 0);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else if (stress <= 60) {
-      const t = (stress - 30) / 30;
-      this.setTargetVolume('ambient', 1.0 - t * 0.5);
-      this.setTargetVolume('tension', t);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else if (stress <= 85) {
-      this.setTargetVolume('ambient', 0.2);
-      this.setTargetVolume('tension', 1.0);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 0);
-    } else {
-      this.setTargetVolume('ambient', 0);
-      this.setTargetVolume('tension', 0.3);
-      this.setTargetVolume('resolution', 0);
-      this.setTargetVolume('crisis', 1.0);
+    // Los tramos salen de stress-tier.util (umbrales únicos); aquí solo se decide qué capa suena en cada uno.
+    switch (stressTier(stress)) {
+      case 'calm':
+        this.setAmbientTarget(1.0);
+        this.setTargetVolume('tension', 0);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      case 'moderate': {
+        const t = (stress - STRESS_TIER_FLOORS.moderate) / (STRESS_TIER_FLOORS.high - STRESS_TIER_FLOORS.moderate);
+        this.setAmbientTarget(1.0 - t * 0.5);
+        this.setTargetVolume('tension', t);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      }
+      case 'high':
+        this.setAmbientTarget(0.2);
+        this.setTargetVolume('tension', 1.0);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 0);
+        break;
+      case 'critical':
+        this.setAmbientTarget(0);
+        this.setTargetVolume('tension', 0.3);
+        this.setTargetVolume('resolution', 0);
+        this.setTargetVolume('crisis', 1.0);
+        break;
     }
 
     this.stems.forEach(stem => {
@@ -161,7 +192,7 @@ export class AudioDirectorService {
     if (!this.initialized || this.stems.size === 0) return;
     const res = this.stems.get('resolution');
     if (res?.howl.playing()) return; // evita restart en llamadas múltiples
-    this.setTargetVolume('ambient', 0.3);
+    this.setAmbientTarget(0.3);
     this.setTargetVolume('tension', 0);
     this.setTargetVolume('resolution', 1.0);
     this.setTargetVolume('crisis', 0);
@@ -243,6 +274,11 @@ export class AudioDirectorService {
     this.stems.clear();
     this.sfx.clear();
     this.initialized = false;
+  }
+
+  /** Volumen pedido a `ambient`, con el piso de {@link SINGLE_STEM_AMBIENT_FLOOR} mientras sea la única capa. */
+  private setAmbientTarget(wanted: number): void {
+    this.setTargetVolume('ambient', this.stems.size === 1 ? Math.max(wanted, SINGLE_STEM_AMBIENT_FLOOR) : wanted);
   }
 
   private setTargetVolume(layer: MusicLayer, vol: number): void {

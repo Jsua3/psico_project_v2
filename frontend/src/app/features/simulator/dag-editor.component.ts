@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnChanges, SimpleChanges, computed, input, output, signal } from '@angular/core';
+import { Component, OnChanges, SimpleChanges, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { DecisionEdgeState, NodeEditorState, WorldValidationIssue } from '../../core/models/simulation.model';
 
@@ -179,6 +179,7 @@ const PAD = 56;
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .dag-shell { display: grid; gap: 16px; }
 

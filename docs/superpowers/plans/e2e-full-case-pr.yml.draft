@@ -1,0 +1,64 @@
+# Recorrido completo del caso en escritorio 1366x768 (@full-case) en los PR que
+# tocan el simulador. Antes un cambio que rompía el recorrido solo se veía a las
+# 02:00 del día siguiente (e2e-full-case.yml, nocturno); aquí se ve en el propio PR.
+# Un solo viewport: el runner sin GPU tarda ~3-4x más que en local (≈ 4 min en local,
+# ≈ 15 min aquí) y los cuatro viewports siguen siendo cosa del flujo nocturno.
+name: E2E caso completo (PR del simulador)
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/app/features/simulator/**'
+      - 'frontend/e2e/**'
+      - '.github/workflows/e2e-full-case-pr.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-full-case-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  e2e-full-case:
+    name: E2E full-case (escritorio-1366)
+    runs-on: ubuntu-latest
+    # El recorrido tiene un límite de 20 min con E2E_TIME_SCALE=4 (300 s x 4); el resto
+    # es preparar la BD de prueba, Angular y Chromium.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend_django/requirements.txt
+      - name: Crear venv del backend
+        run: |
+          python -m venv backend_django/.venv
+          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+      - run: npm ci --prefix frontend
+      - name: Instalar Chromium de Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      # El título de la prueba incluye «full-case-desktop-1366» (describe) y @full-case.
+      - run: npm run test:e2e -- --grep "full-case-desktop-1366" --reporter=list
+        env:
+          E2E_TIME_SCALE: '4'
+      - name: Subir artefactos de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-full-case-pr-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

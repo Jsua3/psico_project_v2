@@ -10,7 +10,7 @@
 # DSN antes de sembrar o ejecutar nada).
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     labels:
       io.siep.checkout: ${SIEP_TEST_CHECKOUT_ID:?SIEP_TEST_CHECKOUT_ID is required}
     environment:
@@ -20,7 +20,7 @@ services:
     ports:
       - "127.0.0.1:${SIEP_TEST_DB_PORT:?SIEP_TEST_DB_PORT is required}:5432"
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

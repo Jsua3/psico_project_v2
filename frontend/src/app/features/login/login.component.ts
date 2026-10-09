@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { AfterViewInit, Component, ElementRef, computed, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, computed, inject, isDevMode, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -37,6 +37,7 @@ declare const google: any;
 
   templateUrl: './login.component.html',
 
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './login.component.scss',
 
 })

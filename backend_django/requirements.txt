@@ -1,19 +1,19 @@
 # backend_django/requirements.txt
-# Pins ajustados para Python 3.13 (wheels disponibles)
-Django==5.1.8
-djangorestframework==3.15.2
-djangorestframework-simplejwt==5.3.1
-django-cors-headers==4.4.0
-psycopg2-binary==2.9.10
-cryptography==43.0.3
-drf-spectacular==0.27.2
-bcrypt==4.2.0
-google-auth==2.40.3
-# Producción / despliegue (Railway)
-gunicorn==23.0.0
-whitenoise==6.7.0
-dj-database-url==2.2.0
+# Pins ajustados para Python 3.13 (wheels disponibles). Revisados el 2026-10-04.
+Django==6.1.1
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+psycopg[binary]==3.3.6
+cryptography==50.0.2
+drf-spectacular==0.30.0
+bcrypt==5.0.0
+google-auth==2.59.1
+# Producción / despliegue
+gunicorn==26.2.0
+whitenoise==6.12.0
+dj-database-url==3.1.2
 # Dev/test
-pytest==8.3.3
-pytest-django==4.8.0
-factory-boy==3.3.1
+pytest==9.1.1
+pytest-django==4.14.0
+factory-boy==3.3.3

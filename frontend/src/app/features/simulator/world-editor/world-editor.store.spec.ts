@@ -20,7 +20,7 @@ function emptyDef(): WorldDefinition {
       id: 1, key: 'm', title: 'M', width: 960, height: 540, theme: 't',
       spawnX: 0, spawnY: 0, ambient: {},
     },
-    objects: [], collisionZones: [],
+    objects: [], collisionZones: [], rooms: [],
     dialogues: [tree('old', 'npc-1')],
     clinicalTools: [],
     safeExit: { configured: false, exitObjectKey: null, supportResources: [] },

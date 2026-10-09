@@ -2,6 +2,7 @@ import {
   attachScrollKeyGuard,
   isActivatableTarget,
   isTextEntryTarget,
+  OutsideAngularRunner,
   resolveInteractPress,
   shouldBlockScrollKey,
 } from './keyboard-focus.util';
@@ -165,7 +166,12 @@ describe('keyboard-focus.util', () => {
   });
 
   describe('attachScrollKeyGuard', () => {
-    const zone = { runOutsideAngular: jest.fn(<T>(fn: () => T) => fn()) };
+    // `zone` se crea de nuevo en cada beforeEach, no una vez a nivel de describe: un vi.fn()
+    // construido en la recolección del describe y luego invocado (vía attachScrollKeyGuard)
+    // dentro de un it() rompe en runtime ("... is not a function") bajo el runner de Vitest
+    // de @angular/build con zone.js. Recreándolo en beforeEach queda en el mismo contexto de
+    // ejecución que el it() y funciona igual que el jest.fn() compartido de antes.
+    let zone: { runOutsideAngular: ReturnType<typeof vi.fn> };
 
     function pressOnBody(key: string): KeyboardEvent {
       const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
@@ -173,10 +179,12 @@ describe('keyboard-focus.util', () => {
       return event;
     }
 
-    beforeEach(() => zone.runOutsideAngular.mockClear());
+    beforeEach(() => {
+      zone = { runOutsideAngular: vi.fn((callback: () => unknown) => callback()) };
+    });
 
     it('registra el oyente fuera de la zona y cancela flechas y Espacio', () => {
-      const detach = attachScrollKeyGuard(zone);
+      const detach = attachScrollKeyGuard(zone as unknown as OutsideAngularRunner);
       expect(zone.runOutsideAngular).toHaveBeenCalledTimes(1);
       expect(pressOnBody('ArrowDown').defaultPrevented).toBe(true);
       expect(pressOnBody(' ').defaultPrevented).toBe(true);
@@ -185,7 +193,7 @@ describe('keyboard-focus.util', () => {
     });
 
     it('no cancela lo que un campo de texto o un botón necesitan', () => {
-      const detach = attachScrollKeyGuard(zone);
+      const detach = attachScrollKeyGuard(zone as unknown as OutsideAngularRunner);
       for (const tag of ['textarea', 'button']) {
         const target = document.createElement(tag);
         document.body.appendChild(target);
@@ -198,7 +206,7 @@ describe('keyboard-focus.util', () => {
     });
 
     it('al retirarlo deja de cancelar', () => {
-      const detach = attachScrollKeyGuard(zone);
+      const detach = attachScrollKeyGuard(zone as unknown as OutsideAngularRunner);
       detach();
       expect(pressOnBody('ArrowUp').defaultPrevented).toBe(false);
     });
@@ -208,7 +216,7 @@ describe('keyboard-focus.util', () => {
       const seen: boolean[] = [];
       const phaserLike = (event: KeyboardEvent) => seen.push(event.defaultPrevented);
       window.addEventListener('keydown', phaserLike);
-      const detach = attachScrollKeyGuard(zone);
+      const detach = attachScrollKeyGuard(zone as unknown as OutsideAngularRunner);
       pressOnBody('ArrowLeft');
       detach();
       window.removeEventListener('keydown', phaserLike);
