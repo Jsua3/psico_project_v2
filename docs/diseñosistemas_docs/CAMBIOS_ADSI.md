@@ -179,3 +179,33 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 **Evidencia.** `docs/diseñosistemas_docs/P-09/`: `antes_get_progress_map.png`, `despues_get_progress_map.png`, `despues_node_iterator.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Iterator (patrones de comportamiento, Unidad 3); responsabilidad única (SOLID) y el antipatrón «función larga».
+
+
+### P-08b · Chain of Responsibility — errores HTTP del interceptor JWT
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p08b-http-error-chain` · `a78ac70` (parte de `adsi/p09-progress-iterator`: PR después de P-09) |
+| **Patrón** | Chain of Responsibility (comportamiento) |
+| **Archivos** | `core/auth/http-error-chain.ts` (nuevo), `core/auth/jwt.interceptor.ts`, `core/auth/http-error-chain.spec.ts` (nuevo) |
+| **Riesgo** | Bajo: las 23 pruebas de `jwt.interceptor.spec.ts` (Fase 0) se mantienen sin modificar |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `jwtInterceptor` agregaba la cabecera `Authorization` y, dentro de `catchError`, decidía qué hacer con el error mediante una cascada de seis `if`: error que no es HTTP, error del login, 401, 403 sobre `/api/auth/me`, 403 y status 0. El bloque que cierra la sesión y lleva al login estaba escrito dos veces (401 y 403 en `/me`). Para agregar o reordenar una regla había que editar el interior de la función, y el orden importa: por ejemplo, un 401 del login no debe cerrar la sesión.
+
+**Solución (después).**
+
+- **Chain of Responsibility:** `HttpErrorHandler` es el eslabón base (`setNext`, `handle`, y los métodos que cada eslabón define: `canHandle` y `apply`). Si el eslabón reconoce el error, lo atiende y la cadena se corta; si no, lo pasa al siguiente. Seis eslabones: `NonHttpErrorHandler`, `LoginErrorHandler`, `UnauthorizedHandler`, `InactiveUserHandler`, `ForbiddenHandler` y `NoConnectionHandler`.
+- `HttpErrorContext` entrega a cada eslabón lo que necesita (error, URL, sesión, router, avisos) sin que dependan de `inject()`, así que se prueban con objetos simples y sin `TestBed`.
+- `expireSession(ctx)` reúne la lógica de «sesión inválida» que estaba duplicada.
+- `buildHttpErrorChain` enlaza los eslabones en el orden contractual. `jwtInterceptor` conserva nombre, firma y registro en `app.config.ts`: agrega la cabecera, deja pasar la petición y, ante un error, ejecuta la cadena y lo vuelve a lanzar.
+
+**Decisión de diseño.** El interceptor no se partió en dos interceptores de Angular (cabecera y errores) porque la cabecera es una sola condición y partirlo habría obligado a modificar las pruebas de Fase 0. El valor del patrón está en la cascada de errores, que es donde había orden implícito y código repetido. Aquí la cadena es la clásica: un solo eslabón atiende cada error, a diferencia de P-08a, donde todos los eslabones se ejecutan y el primero que rechaza corta.
+
+**Lo que no cambió** (fijado por las pruebas): los tres mensajes, que el login nunca cierra sesión ni avisa, que un 401 siempre limpia la sesión pero solo avisa y navega si no se está ya en `/login`, que el 403 en `/api/auth/me` se trata como sesión inválida, que el status 0 y los errores que no son HTTP avisan de conexión y conservan la sesión, y que los demás errores pasan sin efectos. El error siempre se vuelve a lanzar, porque los componentes lo siguen necesitando (`HANDLED_BY_INTERCEPTOR`).
+
+**Pruebas.** Frontend +24 (`http-error-chain.spec.ts`): orden de la cadena, cada eslabón con su caso feliz y de borde, que el primero que reconoce el error corta (por ejemplo el login con 0/401/403/500), y que un eslabón nuevo se agrega o se antepone sin tocar los demás. Total 2094 → 2118 (167 archivos de prueba), ejecutadas en tu equipo con Vitest, y `tsc` sobre la app sin errores. Ocho mutaciones, todas detectadas: la cadena no se corta (11 fallos), login después del 401 (3), 403 en `/me` después del 403 genérico (6), eslabón no-HTTP al final (2), cerrar sesión siempre navega (4), `expireSession` sin limpiar la sesión (10), la cadena no enlaza (16) y el 403 de `/me` sin mirar la URL (2). Al restaurar vuelve el verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-08b/`: `antes_jwt_interceptor.png`, `despues_jwt_interceptor.png`, `despues_eslabon_base.png`, `despues_eslabones.png`, `despues_cadena.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Chain of Responsibility (patrones de comportamiento, sesión del 15 de octubre); abierto/cerrado y responsabilidad única (SOLID). Aplica también a los antipatrones «función larga», «condicionales en cascada» y «código duplicado».
