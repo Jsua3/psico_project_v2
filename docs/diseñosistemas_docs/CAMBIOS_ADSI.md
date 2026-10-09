@@ -244,3 +244,34 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 **Evidencia.** `docs/diseñosistemas_docs/P-05/`: `antes_simulation_service.png`, `despues_simulation_service.png`, `despues_authoring_api.png`, `despues_instructor_api.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Interface Segregation y Responsabilidad Única (SOLID, 17 y 19 de noviembre); antipatrón «clase Dios / objeto Dios».
+
+
+### P-06 · Proxy (caché) — lista de casos publicados
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p06-cache-proxy` · `f8af374` (parte de `adsi/p05-api-segregation`: PR después de P-05) |
+| **Patrón** | Proxy de caché (estructural) |
+| **Archivos** | `core/api/cached-simulation.service.ts`, `core/api/case-list-cache.ts`, `core/api/cached-simulation.service.spec.ts` (nuevos); `core/api/authoring.api.ts`, `app.config.ts` |
+| **Riesgo** | Medio-bajo: es el único cambio de la Fase 1 que altera el comportamiento a propósito (ver abajo) |
+| **Cambio de comportamiento** | **Sí, acotado:** la lista puede tener hasta 30 s de antigüedad |
+
+**Problema (antes).** Cinco pantallas piden la lista de casos publicados (`listCases`): el catálogo, el dashboard (en dos flujos), grupos, reporte de grupo y rúbricas. Cada visita dispara una consulta nueva al backend, que arma la respuesta contando los nodos de cada caso con una consulta por caso (`list_published_cases`). Navegar entre estas pantallas repite el mismo trabajo y los mismos datos.
+
+**Solución (después).**
+
+- **Proxy:** `CachedSimulationService` hereda de `SimulationService`, así que es un `SimulationService` más. Solo sobrescribe `listCases`, que pasa primero por la memoria; si no hay copia vigente, llama al método real con `super.listCases()`. Todos los demás métodos se delegan sin cambios.
+- `CaseListCache` guarda **una** entrada: la lista del usuario actual. Comparte la petición en curso entre quienes la piden a la vez, no guarda errores y entrega a cada quien una copia de la lista.
+- La **clave** es usuario + rol, porque la lista depende de ellos (un estudiante solo ve los casos que le asignaron). Otro usuario, otro rol o sin sesión nunca reciben la lista del anterior.
+- `app.config.ts` registra `{ provide: SimulationService, useExisting: CachedSimulationService }`: **ningún componente cambia**.
+- `AuthoringApi.publishCase` invalida la lista cuando la publicación tiene éxito, porque agrega un caso a los publicados.
+
+**Decisión de diseño y compromiso.** Se eligió una vigencia corta (30 s) porque a un estudiante se le pueden asignar casos desde otra sesión; con esa vigencia una asignación nueva aparece sola en medio minuto o al volver a entrar. No se invalida al crear o clonar una versión (son borradores) ni al editar nodos (las versiones publicadas no cambian). La lista de autoría (`listAuthoringCases`) no se guarda. Declarado así porque este patrón cambia lo que ve el usuario en un caso límite: es la ventaja del caché y también su costo.
+
+**Lo que no cambió:** la URL, el verbo y el desenvolver de `{ data }` de `listCases` (los fija el contrato de 50 métodos), los demás métodos del servicio y los componentes.
+
+**Pruebas.** Frontend 2129 → 2149 (+20 en `cached-simulation.service.spec.ts`; 169 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y pruebas sin errores y `ng build` correcto. Cubren: es un `SimulationService`, la segunda llamada no va al backend, las simultáneas comparten una petición, el límite exacto de la vigencia (justo antes y al vencer), usuario/rol/sin sesión, errores no guardados y propagados, copias independientes, invalidación manual, publicar (con éxito invalida, con error conserva; crear y clonar no invalidan), que `getCatalog` y `startAttempt` no se guardan y que `app.config` registra el proxy. Doce mutaciones: once detectadas desde el principio (sin vigencia, sin clave de usuario, sin compartir la petición, sin copia, publicar sin invalidar, invalidar vacío, proxy sin caché, clave sin rol, límite inclusivo, sin proveedor en `app.config`, clonar invalidando). La que sobrevivió fue «guardar errores»: mostró que la limpieza explícita del error era **redundante**, porque `shareReplay` ya reinicia solo cuando la petición falla. Se eliminó ese código y se comprobó que una variante que sí guarda el error (`share` con `resetOnError: false`) hace fallar la prueba.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-06/`: `antes_list_cases.png`, `antes_dashboard_llamada.png`, `despues_proxy.png`, `despues_cache.png`, `despues_app_config.png`, `despues_publicar_invalida.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Proxy (patrones estructurales, Unidad 2); principio de sustitución de Liskov (el proxy se puede usar donde se espera `SimulationService`) y abierto/cerrado (se agrega caché sin modificar el servicio real).

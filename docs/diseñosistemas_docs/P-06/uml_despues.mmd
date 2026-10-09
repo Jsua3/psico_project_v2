@@ -1,0 +1,42 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        +listCases()
+        +getCatalog()
+        +startAttempt()
+        ...
+    }
+    class CachedSimulationService {
+        <<proxy>>
+        +listCases()
+    }
+    class CaseListCache {
+        -entry
+        +get(key, load)
+        +invalidate()
+    }
+    class AuthoringApi {
+        +publishCase(id)
+    }
+    class AuthService {
+        +currentUser
+    }
+    class HttpClient
+    class SimulationCatalog
+    class Dashboard
+    class GrupoList
+    class ReporteGrupo
+    class Rubrics
+    SimulationService <|-- CachedSimulationService
+    CachedSimulationService ..> CaseListCache : consulta primero
+    CachedSimulationService ..> AuthService : clave = usuario + rol
+    CachedSimulationService ..> SimulationService : super.listCases() si no hay copia vigente
+    AuthoringApi ..> CaseListCache : publicar invalida
+    SimulationService ..> HttpClient
+    SimulationCatalog ..> SimulationService
+    Dashboard ..> SimulationService
+    GrupoList ..> SimulationService
+    ReporteGrupo ..> SimulationService
+    Rubrics ..> SimulationService
+    note for CachedSimulationService "app.config registra el proxy con<br/>provide: SimulationService, useExisting: CachedSimulationService<br/>los componentes no cambian"
+    note for CaseListCache "una entrada, 30 s de vigencia,<br/>comparte la petición en curso,<br/>no guarda errores, entrega copias"
