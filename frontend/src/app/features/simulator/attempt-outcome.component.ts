@@ -290,6 +290,7 @@ export class AttemptOutcomeComponent {
   });
 
   constructor() {
+    this.kit.load().catch(() => undefined);
     // Al entrar en pausa el foco va a «Reanudar este intento» (cdkFocusInitial): lo primero es poder volver.
     effect(() => {
       if (this.status() !== 'PAUSED') return;

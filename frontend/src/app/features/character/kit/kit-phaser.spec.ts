@@ -17,13 +17,13 @@ function fakeScene() {
   const raw = {
     textures: {
       exists: (key: string) => textures.has(key),
-      addSpriteSheet: jest.fn((key: string) => { textures.add(key); }),
-      addCanvas: jest.fn((key: string) => { textures.add(key); }),
+      addSpriteSheet: vi.fn((key: string) => { textures.add(key); }),
+      addCanvas: vi.fn((key: string) => { textures.add(key); }),
     },
-    load: { spritesheet: jest.fn((key: string) => { textures.add(key); }) },
+    load: { spritesheet: vi.fn((key: string) => { textures.add(key); }) },
     anims: {
       exists: (key: string) => anims.has(key),
-      create: jest.fn((config: AnimConfig) => { anims.set(config.key, config); }),
+      create: vi.fn((config: AnimConfig) => { anims.set(config.key, config); }),
       generateFrameNumbers: (_key: string, range: { start: number; end: number }) => range,
     },
   };
@@ -82,7 +82,7 @@ describe('kit-phaser', () => {
   });
 
   it('la pose: caminata o reposo de la vista; con movimiento reducido, cuadro fijo', () => {
-    const sprite = { play: jest.fn(), setTexture: jest.fn(), anims: { stop: jest.fn() } };
+    const sprite = { play: vi.fn(), setTexture: vi.fn(), anims: { stop: vi.fn() } };
     playKitPose(sprite as never, valentina, 'left', true, false);
     expect(sprite.play).toHaveBeenLastCalledWith('kit-valentina-walk-left', true);
     playKitPose(sprite as never, valentina, 'down', false, false);

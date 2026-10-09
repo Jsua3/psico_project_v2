@@ -5,7 +5,7 @@ import { join } from 'path';
 import { provideRouter } from '@angular/router';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { AttemptCompletionReport } from '../../core/models/simulation.model';
-import { AvatarFigureComponent } from '../character/avatar-figure.component';
+import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
@@ -64,6 +64,22 @@ describe('AttemptOutcomeComponent', () => {
     const visual = component.playerVisual();
     expect(visual?.recipeId).toBe('valentina');
     expect(visual?.portraits.neutral).toEqual({ kind: 'url', url: '/assets/characters/kit/valentina/portrait-neutral.png' });
+  });
+
+  it('al crearse pide el kit: sin él el jugador del encabezado no se dibuja', () => {
+    TestBed.resetTestingModule();
+    const kit = fakeKitService();
+    const load = vi.spyOn(kit, 'load');
+    TestBed.configureTestingModule({
+      imports: [AttemptOutcomeComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: kit },
+      ],
+    });
+    TestBed.createComponent(AttemptOutcomeComponent);
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it('la pausa habla de reanudar y el cierre terminal no finge pausa (ETH-02 A)', () => {
@@ -132,12 +148,13 @@ function writeInputSignal<T>(inputSignal: () => T, value: T): void {
 
 const source = readFileSync(join(__dirname, 'attempt-outcome.component.ts'), 'utf-8');
 
-/** El avatar real exige entradas `input.required` que ts-jest no registra: se sustituye por un doble. */
-@Component({ selector: 'app-avatar-figure', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+/** La figura real exige entradas `input.required` que el TestBed no registra: se sustituye por un doble. */
+@Component({ selector: 'app-kit-figure', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
  template: '' })
-class AvatarFigureStubComponent {
-  @Input() config: unknown;
-  @Input() portrait = false;
+class KitFigureStubComponent {
+  @Input() visual: unknown;
+  @Input() portrait: unknown;
+  @Input() scale: unknown;
 }
 
 describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () => {
@@ -149,11 +166,15 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
   function render(status: 'PAUSED' | 'COMPLETED' | 'SAFE_EXITED' | 'REPLACED' | 'IN_PROGRESS', options: { report?: AttemptCompletionReport | null; resources?: string[] } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
-      providers: [provideRouter([]), { provide: AvatarStore, useFactory: () => new AvatarStore() }],
+      providers: [
+        provideRouter([]),
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     });
     TestBed.overrideComponent(AttemptOutcomeComponent, {
-      remove: { imports: [AvatarFigureComponent] },
-      add: { imports: [AvatarFigureStubComponent] },
+      remove: { imports: [KitFigureComponent] },
+      add: { imports: [KitFigureStubComponent] },
     });
     fixture = TestBed.createComponent(AttemptOutcomeComponent);
     component = fixture.componentInstance;

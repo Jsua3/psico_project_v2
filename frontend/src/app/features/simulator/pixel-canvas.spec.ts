@@ -1,4 +1,4 @@
-jest.mock('phaser', () => ({ __esModule: true, default: { Scale: { NONE: 0 } } }));
+vi.mock('phaser', () => ({ __esModule: true, default: { Scale: { NONE: 0 } } }));
 
 import type Phaser from 'phaser';
 
@@ -11,8 +11,8 @@ function host(width: number, height: number): HTMLElement {
 function fakeGame(width: number, height: number, zoom: number) {
   const scale = {
     width, height, zoom,
-    resize: jest.fn((w: number, h: number) => { scale.width = w; scale.height = h; }),
-    setZoom: jest.fn((z: number) => { scale.zoom = z; }),
+    resize: vi.fn((w: number, h: number) => { scale.width = w; scale.height = h; }),
+    setZoom: vi.fn((z: number) => { scale.zoom = z; }),
   };
   return { game: { scale } as unknown as Phaser.Game, scale };
 }
