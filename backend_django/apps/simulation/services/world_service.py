@@ -23,7 +23,7 @@ from ..models import (
     MapObject,
     SceneMap,
 )
-from . import game_service
+from . import door_chain, game_service
 from shared.jsonutils import (
     coerce_int as _int,
     read_map as _read_map,
@@ -434,36 +434,17 @@ def _validate_door(attempt, state, door_key, target_node_key):
     """La puerta debe existir en el mapa ACTUAL, estar al alcance del jugador,
     apuntar al destino solicitado y tener TODAS sus condiciones verificables
     cumplidas (requiresInspected, requiresTools, requiresNodes y requiresNpcs
-    — los NPCs vistos sí se persisten en flags.viewedNpcKeys)."""
-    door = MapObject.objects.filter(
-        scene_map_id=state.scene_map_id, object_key=door_key, object_type="EXIT"
-    ).first()
-    if not door:
-        raise NotFound(f"La puerta no existe en la sala actual: {door_key}")
-    meta = _read_map(door.metadata_json)
-    if meta.get("targetNodeKey") != target_node_key:
-        raise ValidationError("La puerta no conduce a la sala solicitada")
-    _require_nearby(state, door, "la puerta")
+    — los NPCs vistos sí se persisten en flags.viewedNpcKeys).
 
-    locked_message = meta.get("lockedMessage") or "La puerta está bloqueada."
-    inspected = set(_read_string_list(state.inspected_object_keys_json))
-    for required in meta.get("requiresInspected") or []:
-        if required not in inspected:
-            raise ValidationError(locked_message)
-    inventory = set(_read_string_list(state.inventory_json))
-    for required in meta.get("requiresTools") or []:
-        if required not in inventory:
-            raise ValidationError(locked_message)
-    required_nodes = meta.get("requiresNodes") or []
-    if required_nodes and attempt.current_node.node_key not in required_nodes:
-        raise ValidationError(locked_message)
-    flags = _read_map(state.flags_json)
-    viewed_npcs = flags.get("viewedNpcKeys")
-    viewed_npcs = set(viewed_npcs) if isinstance(viewed_npcs, list) else set()
-    for required in meta.get("requiresNpcs") or []:
-        if required not in viewed_npcs:
-            raise ValidationError(locked_message)
-    return meta
+    Las reglas son una cadena de responsabilidad (ver ``door_chain``); aquí solo
+    se arma el contexto y se la recorre."""
+    ctx = door_chain.DoorContext(attempt, state, door_key, target_node_key)
+    _DOOR_CHAIN.handle(ctx)
+    return ctx.meta
+
+
+# La cercanía se inyecta por función para que la cadena no importe este módulo.
+_DOOR_CHAIN = door_chain.build_door_chain(lambda state, door, what: _require_nearby(state, door, what))
 
 
 def _door_entry(meta, target):
