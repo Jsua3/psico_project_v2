@@ -48,6 +48,18 @@ Los puntos 1–4 entran al informe de antipatrones y 3–4 se corrigen dentro de
 
 Ver `FASE0_EVALUACION.md` (catálogo v2): P-02, P-14 y el Chain sobre filas de importación se descartan; P-03, P-05, P-07, P-09, P-11 y P-13 cambian de forma.
 
+## Actualización del 9 oct 2026 — `master` avanza a `dd4eb89`
+
+`master` incorporó 78 commits desde la línea base (personajes unificados y escala del mundo; backend sin cambios). Se trae a `adsi/integracion` con un *merge* y se crea el tag `adsi-baseline-2` (= `dd4eb89`) como «antes» de los cambios que toquen archivos modificados por esa tanda.
+
+| Suite | Resultado sobre `master` + pruebas ADSI |
+|---|---|
+| Backend `pytest` | 408 pasan |
+| Frontend `ng test` | 2094 pasan en 167 archivos |
+| `test:visual-assets`, `test:kit`, `kit:check`, `test:world-art`, `ng build` | OK |
+
+Las 265 pruebas de caracterización siguen válidas sin modificarse. El análisis completo de qué cambia en el catálogo (P-10, A-02, A-03 y el candidato verificado de Template Method en `case-pdf-rooms.renderer.ts`) está en `FASE0_EVALUACION.md` §8.
+
 ## Fase 1 — Cambios (pendiente)
 
 _Cada cambio se registra aquí con: patrón o antipatrón, archivos, motivo, riesgo, commit y capturas antes/después._
