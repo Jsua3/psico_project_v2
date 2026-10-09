@@ -515,7 +515,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .strip-body { padding: 8px 14px 10px; gap: 8px; }
       .dialogue-text { font-size: .86rem; line-height: 1.45; }
       .dialogue-strip--side .portrait { padding: 6px 12px; }
-      .dialogue-strip--side .portrait-img { height: clamp(48px, 12vh, 64px); }
+      .dialogue-strip--side .portrait-img { width: 64px; height: 64px; }
       .dialogue-strip--side .strip-body { padding: 8px 12px 12px; gap: 8px; }
       .dialogue-strip--side .choice-btn { min-height: 44px; padding: 6px 10px; gap: 8px; }
       .dialogue-strip--side .choice-btn__icon { display: none; }

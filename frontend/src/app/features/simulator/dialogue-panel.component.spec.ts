@@ -780,7 +780,10 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -811,7 +814,7 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
 
   it('la Abuela con emoción positive no recibe el retrato sonriente', () => {
     render('Abuela de la niña', 'positive');
-    expect(host().querySelector('.portrait-img')?.getAttribute('src')).toBe('/assets/characters/portraits/madre-vbg_neutral.png');
+    expect(host().querySelector('.portrait-img')?.getAttribute('src')).toBe('/assets/characters/kit/abuela-familia/portrait-neutral.png');
   });
 
   it('una voz de sistema conserva la señal de emoción (chip y etiqueta con su color)', () => {
@@ -1012,8 +1015,10 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
-  it('el retrato lateral mide clamp(96px, 18vh, 150px) y el panel lateral es lo único que se desplaza', () => {
-    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{\s*width: auto;\s*max-width: 100%;\s*height: clamp\(96px, 18vh, 150px\);/);
+  it('el retrato lateral mide 96 px (×3) y 64 px (×2) en pantallas bajas, y el panel lateral es lo único que se desplaza', () => {
+    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{ width: 96px; height: 96px; \}/);
+    expect(source).toMatch(/@media \(max-height: 520px\) \{[\s\S]*?\.dialogue-strip--side \.portrait-img \{ width: 64px; height: 64px; \}/);
+    expect(source).not.toContain('clamp(48px, 12vh, 64px)');
     expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
     // Ya no se ancla al fondo en cada ciclo de detección.
     expect(source).not.toMatch(/el\.scrollTop = el\.scrollHeight;\s*\}\s*\}\s*ngOnDestroy/);
