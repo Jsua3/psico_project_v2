@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { NPC_AVATAR_PRESETS } from './npc-avatar-presets';
+import { testKitBundle } from '../character/kit/testing/kit-testing';
 import { collidesInAuthoredRoom } from './authored-clinical-room.util';
 import { NpcConfig, RoomConfig, ScenarioConfig } from '../../core/models/simulation.model';
 
@@ -24,14 +24,12 @@ function allNpcs(): Array<{ file: string; room: RoomConfig; npc: NpcConfig }> {
 }
 
 describe('scenario-npc-configs (assets JSON del caso competitivo)', () => {
-  it('todo avatarPresetKey referencia un preset real', () => {
+  it('cada NPC nombra una receta del kit (spec §8.1)', () => {
+    const recipes = testKitBundle().recipes;
     for (const { file, npc } of allNpcs()) {
-      if (npc.avatarPresetKey !== undefined) {
-        expect(Object.keys(NPC_AVATAR_PRESETS)).toContain(npc.avatarPresetKey);
-      }
-      expect(typeof npc.frameIndex).toBe('number');  // fallback legacy conservado
+      expect(`${file}:${npc.key}:${recipes[npc.recipeId] ? 'ok' : npc.recipeId}`).toBe(`${file}:${npc.key}:ok`);
+      expect('avatarPresetKey' in npc || 'frameIndex' in npc).toBe(false);
       expect(npc.dialogue.lines.length).toBeGreaterThan(0);
-      expect(`${file}:${npc.key}`).toBeTruthy();
     }
   });
 
@@ -64,7 +62,7 @@ describe('scenario-npc-configs (assets JSON del caso competitivo)', () => {
 
   it('el caso principal tiene ≥4 NPCs modulares y ≥3 behaviors distintos', () => {
     const urgencias = loadScenario('urgencias-crisis').rooms[0].npcs;
-    const modular = urgencias.filter(n => n.avatarPresetKey);
+    const modular = urgencias.filter(n => n.recipeId);
     expect(modular.length).toBeGreaterThanOrEqual(4);
     const behaviors = new Set(modular.map(n => n.motion?.behavior).filter(Boolean));
     expect(behaviors.size).toBeGreaterThanOrEqual(3);

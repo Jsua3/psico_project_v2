@@ -21,32 +21,80 @@ import type { Mock } from 'vitest';
 const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
 
 /**
- * T0.3: `ScaleManager.refresh()` termina llamando a `getParentBounds()`, de modo que un `refresh()` a secas
- * deja `parentSize` al día pero el canvas con el tamaño viejo, y `step()` ya no ve cambio (medido: tras cerrar
- * un diálogo el canvas quedaba 17 % más pequeño). Hay que leer el contenedor ANTES de reencajar.
+ * T0.3: tras cerrar un diálogo el canvas quedaba 17 % más pequeño porque se reencajaba con el tamaño viejo del
+ * contenedor. Con el lienzo en píxeles físicos (spec §8.3) `fitGameToHost` mide el contenedor en cada llamada
+ * antes de reencajar, y `watchHostSize` (ResizeObserver + resize de la ventana) lo llama solo.
  */
 describe('game-world: escala del canvas (T5.4)', () => {
-  function componentWith(scale: unknown): GameWorldComponent {
-    const component = Object.create(GameWorldComponent.prototype) as { phaserGame?: unknown };
-    component.phaserGame = scale === undefined ? undefined : { scale };
+  /** Un contenedor cuyo tamaño CSS se puede cambiar y el lienzo de Phaser que lo refleja. */
+  function canvasAndHost(width: number, height: number) {
+    const rect = { width, height };
+    const host = { getBoundingClientRect: () => rect } as unknown as HTMLElement;
+    const scale = {
+      width, height, zoom: 1,
+      resize: vi.fn((w: number, h: number) => { scale.width = w; scale.height = h; }),
+      setZoom: vi.fn((z: number) => { scale.zoom = z; }),
+    };
+    return { rect, host, scale };
+  }
+
+  function componentWith(game: unknown, host?: HTMLElement): GameWorldComponent {
+    const component = Object.create(GameWorldComponent.prototype) as { phaserGame?: unknown; gameHost?: unknown };
+    component.phaserGame = game;
+    component.gameHost = host ? { nativeElement: host } : undefined;
     return component as unknown as GameWorldComponent;
   }
 
-  it('refreshScale lee el contenedor y luego reencaja, en ese orden', () => {
-    const calls: string[] = [];
-    const scale = { getParentBounds: vi.fn(() => { calls.push('getParentBounds'); return true; }), refresh: vi.fn(() => { calls.push('refresh'); }) };
-    componentWith(scale).refreshScale();
-    expect(calls).toEqual(['getParentBounds', 'refresh']);
+  it('refreshScale vuelve a medir el contenedor y reencaja el lienzo a su tamaño nuevo', () => {
+    const { rect, host, scale } = canvasAndHost(800, 450);
+    const component = componentWith({ scale }, host);
+    component.refreshScale();
+    expect(scale.resize).not.toHaveBeenCalled();
+    rect.width = 640;
+    rect.height = 360;
+    component.refreshScale();
+    expect(scale.resize).toHaveBeenCalledWith(640, 360);
+    expect(scale.width).toBe(640);
   });
 
-  it('refreshScale no falla antes de que Phaser exista', () => {
+  it('refreshScale no falla antes de que Phaser exista ni sin contenedor', () => {
     expect(() => componentWith(undefined).refreshScale()).not.toThrow();
+    expect(() => componentWith({ scale: {} }).refreshScale()).not.toThrow();
   });
 
-  it('el ResizeObserver del contenedor usa refreshScale y no un refresh() a secas', () => {
-    expect(source).toMatch(/new ResizeObserver\(\(\) => this\.refreshScale\(\)\)/);
-    expect(source.match(/scale\??\.refresh\(\)/g) ?? []).toHaveLength(1);
-    expect(source).toMatch(/refreshScale\(\): void \{\s*const scale = this\.phaserGame\?\.scale;\s*if \(!scale\) return;\s*scale\.getParentBounds\(\);\s*scale\.refresh\(\);\s*\}/);
+  it('el contenedor se sigue con watchHostSize y refreshScale reencaja con fitGameToHost, sin Scale.FIT', () => {
+    expect(source).toMatch(/this\.detachHostWatch = watchHostSize\(this\.phaserGame, this\.gameHost!\.nativeElement\);/);
+    expect(source).toMatch(/refreshScale\(\): void \{\s*const host = this\.gameHost\?\.nativeElement;\s*if \(this\.phaserGame && host\) fitGameToHost\(this\.phaserGame, host\);\s*\}/);
+    expect(source).not.toMatch(/scale\??\.refresh\(\)/);
+    expect(source).not.toContain('Phaser.Scale.FIT');
+  });
+
+  it('ngOnDestroy suelta el observador del contenedor antes de destruir Phaser, y una sola vez', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const component = componentWith({ destroy }) as unknown as { detachHostWatch?: () => void; ngOnDestroy(): void };
+    component.detachHostWatch = detach;
+    component.ngOnDestroy();
+    expect(order).toEqual(['detach', 'destroy']);
+    component.ngOnDestroy();
+    expect(detach).toHaveBeenCalledTimes(1);
+  });
+
+  it('retryLoad suelta el observador del contenedor antes de reiniciar Phaser', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const state = () => ({ set: vi.fn() });
+    const component = componentWith({ destroy }) as unknown as Record<string, unknown> & { retryLoad(): void };
+    Object.assign(component, {
+      detachHostWatch: detach,
+      renderReady: state(), renderedMapKey: state(), renderedScenarioKey: state(),
+      assetsReady: state(), loadPercent: state(), criticalLoadFailed: state(),
+      boot: vi.fn(() => { order.push('boot'); }),
+    });
+    component.retryLoad();
+    expect(order).toEqual(['detach', 'destroy', 'boot']);
   });
 });
 

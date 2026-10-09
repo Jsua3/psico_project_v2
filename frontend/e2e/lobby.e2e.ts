@@ -23,11 +23,13 @@ async function login(page: Page) {
   await page.waitForURL(/\/portal\//);
 }
 
-test('el lobby carga la hoja del elenco (no el placeholder) y sin errores', async ({ page }) => {
-  const castRequests: string[] = [];
+test('el lobby carga las hojas del kit del personaje elegido, sin errores', async ({ page }) => {
+  const kitRequests: string[] = [];
+  const legacyRequests: string[] = [];
   const consoleErrors: string[] = [];
   page.on('request', request => {
-    if (/assets\/characters\/(cast|modular)\//.test(request.url())) castRequests.push(request.url());
+    if (/assets\/characters\/kit\//.test(request.url())) kitRequests.push(request.url());
+    if (/assets\/characters\/(cast|modular|portraits|v1)\//.test(request.url())) legacyRequests.push(request.url());
   });
   page.on('pageerror', error => consoleErrors.push(String(error)));
   page.on('console', message => {
@@ -35,35 +37,33 @@ test('el lobby carga la hoja del elenco (no el placeholder) y sin errores', asyn
   });
 
   await login(page);
-  // castId elegido en el editor: el lobby debe mostrar la MISMA identidad.
+  // Personaje elegido en el editor (formato 2): el lobby muestra la MISMA identidad.
   await page.evaluate(() => {
-    const raw = localStorage.getItem('psychosim_avatar');
-    const config = raw ? JSON.parse(raw) : {};
-    localStorage.setItem('psychosim_avatar', JSON.stringify({ ...config, castId: 'david' }));
+    localStorage.setItem('psychosim_avatar', JSON.stringify({ schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: false }));
   });
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
 
-  await expect.poll(() => castRequests.length, { timeout: scaled(10_000) }).toBeGreaterThan(0);
-  expect(castRequests.some(url => url.includes('/cast/david.png'))).toBe(true);
+  await expect.poll(() => kitRequests.some(url => url.includes('/kit/david/idle.png')), { timeout: scaled(10_000) }).toBe(true);
+  expect(legacyRequests).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
 
-test('castId inválido cae al modular sin errores de consola', async ({ page }) => {
-  const modularRequests: string[] = [];
+test('un avatar inválido resuelve a la receta por defecto, sin errores de consola', async ({ page }) => {
+  const kitRequests: string[] = [];
   const consoleErrors: string[] = [];
   page.on('request', request => {
-    if (/assets\/characters\/modular\//.test(request.url())) modularRequests.push(request.url());
+    if (/assets\/characters\/kit\//.test(request.url())) kitRequests.push(request.url());
   });
   page.on('pageerror', error => consoleErrors.push(String(error)));
 
   await login(page);
   await page.evaluate(() => {
-    localStorage.setItem('psychosim_avatar', JSON.stringify({ castId: 'no-existe' }));
+    localStorage.setItem('psychosim_avatar', JSON.stringify({ schemaVersion: 2, mode: 'elenco', recipeId: 'no-existe' }));
   });
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
-  await expect.poll(() => modularRequests.length, { timeout: scaled(10_000) }).toBeGreaterThan(0);
+  await expect.poll(() => kitRequests.some(url => url.includes('/kit/valentina/idle.png')), { timeout: scaled(10_000) }).toBe(true);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -80,10 +80,10 @@ test('la tecla E con el canvas enfocado entra al caso', async ({ page }) => {
   await login(page);
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
-  // El foco inicial es programático; un click lo recupera si se perdió.
-  // Se clickea SOBRE el jugador (spawn x=220 junto a la primera puerta): un
-  // click en otro punto del suelo lo haría caminar hacia allá (tap-to-walk).
-  await page.locator('.phaser-host').click({ position: { x: 293, y: 509 } });
+  // El foco inicial es programático; si se perdió, se recupera sin hacer clic en el suelo
+  // (un clic camina hacia ese punto y, con el zoom entero, la posición del jugador en
+  // pantalla depende de la pantalla).
+  await page.locator('.phaser-host').focus();
   await page.keyboard.press('e');
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(10_000) });
 });

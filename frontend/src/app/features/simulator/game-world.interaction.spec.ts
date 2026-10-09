@@ -75,7 +75,7 @@ const objectState = (key: string, type: MapObjectState['type'], x: number, y: nu
 });
 
 const npcConfig = (key: string, displayName: string, x: number, y: number): NpcConfig => ({
-  key, displayName, x, y, npcType: 'colleague', portrait: '', frameIndex: 0, dialogue: { lines: [{ text: 'hola' }] },
+  key, displayName, x, y, npcType: 'colleague', portrait: '', recipeId: 'psicologa-hospitalaria', dialogue: { lines: [{ text: 'hola' }] },
 });
 
 interface Harness {

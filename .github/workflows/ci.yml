@@ -111,7 +111,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --prefix frontend
       - run: npm run test:frontend
-      - run: npm run test:character-assets --prefix frontend
+      - run: npm run test:visual-assets --prefix frontend
+      - run: npm run test:kit --prefix frontend
+      - run: npm run kit:check --prefix frontend
+      - run: npm run test:world-art --prefix frontend
       - run: npm run build:frontend
 
   e2e:

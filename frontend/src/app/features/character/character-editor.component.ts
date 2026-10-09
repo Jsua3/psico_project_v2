@@ -1,30 +1,29 @@
-import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AvatarFigureComponent } from './avatar-figure.component';
-import { AvatarStore } from './avatar.store';
-import {
-  AvatarConfig,
-  ClothingColor,
-  HairColor,
-  HairStyle,
-  Uniform,
-  CLOTHING_COLORS,
-  GENDER_OPTIONS,
-  HAIR_COLORS,
-  HAIR_STYLES,
-  MOUTHS,
-  UNIFORMS,
-} from './avatar.model';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { PLAYABLE_CAST, castAssetPath } from '../simulator/baked-cast.util';
-import { editorPreview, sheetFrameStyle } from './editor-preview.util';
+import { AvatarStore } from './avatar.store';
+import { avatarSummary, chooseElenco, choosePersonalizado, toggleAccessory, withBata, withCustom } from './character-editor.util';
+import {
+  ACCESSORIES,
+  AVATAR_LABELS,
+  AccessoryId,
+  AvatarPersonalizado,
+  COMPLEXIONS,
+  HAIRS,
+  HAIR_COLORS,
+  PLAYABLE_IDS,
+  PlayableId,
+  SKINS,
+} from './kit/avatar-v2';
+import { BATA_VARIANT, resolveCharacter } from './kit/character-visual.resolver';
+import { KitFigureComponent } from './kit/kit-figure.component';
+import { KitService } from './kit/kit.service';
 
 @Component({
   selector: 'app-character-editor',
   standalone: true,
-  imports: [CommonModule, RouterLink, AvatarFigureComponent],
+  imports: [RouterLink, KitFigureComponent],
   template: `
     <div class="ce-container" id="main-content" tabindex="-1">
       <header class="ce-header glass">
@@ -40,127 +39,116 @@ import { editorPreview, sheetFrameStyle } from './editor-preview.util';
         </div>
       </header>
 
-      <div class="ce-grid">
-        <section class="ce-panel glass" aria-label="Apariencia">
-          <p class="ce-section">Personaje</p>
-          <div class="ce-cast" role="radiogroup" aria-label="Personaje del elenco">
-            @for (m of playableCast; track m.id) {
-              <button type="button" class="ce-cast-card" [class.sel]="avatar().castId === m.id"
-                role="radio" [attr.aria-checked]="avatar().castId === m.id"
-                (click)="selectCast(m.id)">
-                <span class="ce-cast-thumb" [style.background-image]="castThumb(m.id)"></span>
-                <span>{{ m.label }}</span>
-              </button>
-            }
-            <button type="button" class="ce-cast-card" [class.sel]="!avatar().castId"
-              role="radio" [attr.aria-checked]="!avatar().castId"
-              (click)="selectCast(null)">
-              <span class="ce-cast-thumb ce-cast-thumb--classic">✎</span>
-              <span>Clásico</span>
-            </button>
-          </div>
-          @if (avatar().castId) {
-            <p class="ce-hint">Con un personaje del elenco, las opciones de abajo solo aplican al modo clásico.</p>
+      @if (!bundle()) {
+        <section class="ce-loading glass" role="status">
+          @if (loadError()) {
+            <span>No pudimos cargar los personajes.</span>
+            <button type="button" class="ce-btn" (click)="loadKit()">Reintentar</button>
+          } @else {
+            <span>Cargando personajes…</span>
           }
+        </section>
+      } @else {
+        <div class="ce-grid">
+          <section class="ce-panel glass" aria-label="Personaje">
+            <p class="ce-section">Elenco</p>
+            <div class="ce-cast" role="radiogroup" aria-label="Personaje del elenco">
+              @for (member of cast(); track member.id) {
+                <button type="button" class="ce-cast-card" [class.sel]="isElenco(member.id)"
+                  role="radio" [attr.aria-checked]="isElenco(member.id)" (click)="selectElenco(member.id)">
+                  <app-kit-figure [visual]="member.visual" [scale]="2" />
+                  <span>{{ member.label }}</span>
+                </button>
+              }
+              <button type="button" class="ce-cast-card" [class.sel]="!!custom()"
+                role="radio" [attr.aria-checked]="!!custom()" (click)="selectPersonalizado()">
+                <app-kit-figure [visual]="customVisual()" [scale]="2" />
+                <span>Personalizado</span>
+              </button>
+            </div>
 
-          <p class="ce-section">Cuerpo</p>
-          <div class="ce-opts" role="radiogroup" aria-label="Género">
-            @for (o of genderOptions; track o.id) {
-              <button type="button" class="ce-opt" [class.sel]="avatar().gender === o.id"
-                role="radio" [attr.aria-checked]="avatar().gender === o.id"
-                (click)="store.update({ gender: o.id })">{{ o.label }}</button>
+            @if (custom(); as c) {
+              <p class="ce-section">Complexión</p>
+              <div class="ce-opts" role="radiogroup" aria-label="Complexión">
+                @for (id of complexions; track id) {
+                  <button type="button" class="ce-opt" [class.sel]="c.complexion === id" role="radio"
+                    [attr.aria-checked]="c.complexion === id" (click)="setCustom({ complexion: id })">{{ labels.complexion[id] }}</button>
+                }
+              </div>
+              <p class="ce-section">Piel</p>
+              <div class="ce-swatches" role="radiogroup" aria-label="Tono de piel">
+                @for (id of skins; track id; let i = $index) {
+                  <button type="button" class="ce-swatch" [class.sel]="c.skin === id" [style.background]="swatch(id)"
+                    [title]="'Tono ' + (i + 1)" [attr.aria-label]="'Tono ' + (i + 1)" role="radio"
+                    [attr.aria-checked]="c.skin === id" (click)="setCustom({ skin: id })"></button>
+                }
+              </div>
+              <p class="ce-section">Peinado</p>
+              <div class="ce-opts" role="radiogroup" aria-label="Peinado">
+                @for (id of hairs; track id) {
+                  <button type="button" class="ce-opt" [class.sel]="c.hair === id" role="radio"
+                    [attr.aria-checked]="c.hair === id" (click)="setCustom({ hair: id })">{{ labels.hair[id] }}</button>
+                }
+              </div>
+              <p class="ce-section">Color de pelo</p>
+              <div class="ce-swatches" role="radiogroup" aria-label="Color de pelo">
+                @for (id of hairColors; track id) {
+                  <button type="button" class="ce-swatch" [class.sel]="c.hairColor === id" [style.background]="swatch(id)"
+                    [title]="labels.hairColor[id]" [attr.aria-label]="labels.hairColor[id]" role="radio"
+                    [attr.aria-checked]="c.hairColor === id" (click)="setCustom({ hairColor: id })"></button>
+                }
+              </div>
+              <p class="ce-section">Accesorios</p>
+              <div class="ce-opts">
+                @for (id of accessories; track id) {
+                  <label class="ce-check">
+                    <input type="checkbox" [checked]="c.accessories.includes(id)" (change)="toggleAccessory(id)" />
+                    <span>{{ labels.accessory[id] }}</span>
+                  </label>
+                }
+              </div>
             }
-          </div>
+          </section>
 
-          <p class="ce-section">Ropa</p>
-          <div class="ce-swatches" role="radiogroup" aria-label="Color de ropa">
-            @for (o of clothingColors; track o.id) {
-              <button type="button" class="ce-swatch" [class.sel]="avatar().clothingColor === o.id"
-                [style.background]="o.value"
-                [title]="o.label"
-                role="radio" [attr.aria-checked]="avatar().clothingColor === o.id"
-                (click)="setClothingColor(o.id)"></button>
-            }
-          </div>
-
-          <p class="ce-section">Cabello</p>
-          <div class="ce-opts" role="radiogroup" aria-label="Forma de cabello">
-            @for (o of hairStyles; track o.id) {
-              <button type="button" class="ce-opt" [class.sel]="avatar().hairStyle === o.id"
-                role="radio" [attr.aria-checked]="avatar().hairStyle === o.id"
-                (click)="setHairStyle(o.id)">{{ o.label }}</button>
-            }
-          </div>
-
-          @if (avatar().hairStyle !== 'ninguno') {
-            <div class="ce-swatches" role="radiogroup" aria-label="Color de cabello">
-              @for (o of hairColors; track o.id) {
-                <button type="button" class="ce-swatch" [class.sel]="avatar().hairColor === o.id"
-                  [style.background]="o.value"
-                  [title]="o.label"
-                  role="radio" [attr.aria-checked]="avatar().hairColor === o.id"
-                  (click)="setHairColor(o.id)"></button>
+          <section class="ce-stage glass" aria-label="Vista previa del avatar">
+            <div class="ce-halo"></div>
+            <div class="ce-views">
+              @for (view of views; track view.id) {
+                <figure class="ce-view">
+                  <app-kit-figure [visual]="visual()" [view]="view.id" [sheet]="motion()" [scale]="4" [animated]="true" />
+                  <figcaption>{{ view.label }}</figcaption>
+                </figure>
               }
             </div>
-          }
+            <div class="ce-pose" role="radiogroup" aria-label="Animación">
+              <button type="button" class="ce-opt" [class.sel]="motion() === 'idle'" role="radio"
+                [attr.aria-checked]="motion() === 'idle'" (click)="motion.set('idle')">Reposo</button>
+              <button type="button" class="ce-opt" [class.sel]="motion() === 'walk'" role="radio"
+                [attr.aria-checked]="motion() === 'walk'" (click)="motion.set('walk')">Caminata</button>
+            </div>
+            <p class="sr-only">{{ summary() }}</p>
+          </section>
 
-          <p class="ce-section">Expresión</p>
-          <div class="ce-opts" role="radiogroup" aria-label="Expresión">
-            @for (o of mouths; track o.id) {
-              <button type="button" class="ce-opt" [class.sel]="avatar().mouth === o.id"
-                role="radio" [attr.aria-checked]="avatar().mouth === o.id"
-                (click)="store.update({ mouth: o.id })">{{ o.label }}</button>
-            }
-          </div>
-        </section>
-
-        <section class="ce-stage glass" aria-label="Vista previa del avatar">
-          <div class="ce-halo"></div>
-          @if (previewStyle(); as frame) {
-            <span class="ce-sheet" role="img" [attr.aria-label]="'Vista previa de ' + castLabel()" [ngStyle]="frame"></span>
-          } @else {
-            <app-avatar-figure class="ce-figure" [config]="avatar()" [pose]="pose()" [flipX]="flipX()" />
-          }
-          <div class="ce-pose" role="radiogroup" aria-label="Pose">
-            <button type="button" class="ce-opt" [class.sel]="view() === 'front'"
-              role="radio" [attr.aria-checked]="view() === 'front'" (click)="view.set('front')">Frontal</button>
-            <button type="button" class="ce-opt" [class.sel]="view() === 'left'"
-              role="radio" [attr.aria-checked]="view() === 'left'" (click)="view.set('left')">Lateral izq.</button>
-            <button type="button" class="ce-opt" [class.sel]="view() === 'right'"
-              role="radio" [attr.aria-checked]="view() === 'right'" (click)="view.set('right')">Lateral der.</button>
-          </div>
-          <p class="sr-only">{{ avatarSummary() }}</p>
-        </section>
-
-        <section class="ce-panel glass" aria-label="Resumen">
-          <p class="ce-section">Uniforme</p>
-          <div class="ce-uniforms" role="radiogroup" aria-label="Uniforme">
-            @for (u of uniforms; track u.id) {
-              <button type="button" class="ce-uniform" [class.sel]="avatar().uniform === u.id"
-                role="radio" [attr.aria-checked]="avatar().uniform === u.id"
-                [disabled]="u.id === 'con-bata'"
-                (click)="store.update({ uniform: u.id })">
-                <app-avatar-figure class="ce-uniform-fig" [config]="withUniform(u.id)" />
-                <span>{{ u.label }}</span>
-                @if (u.id === 'con-bata') { <small class="ce-soon">Próximamente</small> }
-              </button>
-            }
-          </div>
-
-          <p class="ce-section">Resumen</p>
-          <ul class="ce-summary">
-            <li><span>Rol</span><strong>{{ roleLabel() }}</strong></li>
-            @if (avatar().castId && castLabel()) {
-              <li><span>Personaje</span><strong>{{ castLabel() }}</strong></li>
-            } @else {
-              <li><span>Género</span><strong>{{ labelOf(genderOptions, avatar().gender) }}</strong></li>
-              <li><span>Ropa</span><strong>{{ labelOf(clothingColors, avatar().clothingColor) }}</strong></li>
-              <li><span>Cabello</span><strong>{{ labelOf(hairStyles, avatar().hairStyle) }} {{ hairColorLabel() }}</strong></li>
-              <li><span>Expresión</span><strong>{{ labelOf(mouths, avatar().mouth) }}</strong></li>
-            }
-          </ul>
-        </section>
-      </div>
+          <section class="ce-panel glass" aria-label="Uniforme y resumen">
+            <p class="ce-section">Uniforme de Psicología</p>
+            <div class="ce-uniforms" role="radiogroup" aria-label="Bata">
+              @for (option of bataOptions(); track option.bata) {
+                <button type="button" class="ce-uniform" [class.sel]="avatar().bata === option.bata" role="radio"
+                  [attr.aria-checked]="avatar().bata === option.bata" (click)="setBata(option.bata)">
+                  <app-kit-figure [visual]="option.visual" [scale]="2" />
+                  <span>{{ option.label }}</span>
+                </button>
+              }
+            </div>
+            <p class="ce-section">Resumen</p>
+            <ul class="ce-summary">
+              <li><span>Rol</span><strong>{{ roleLabel() }}</strong></li>
+              <li><span>Personaje</span><strong>{{ characterLabel() }}</strong></li>
+              <li><span>Bata</span><strong>{{ avatar().bata ? 'Con bata' : 'Sin bata' }}</strong></li>
+            </ul>
+          </section>
+        </div>
+      }
 
       <footer class="ce-footer glass">
         <button type="button" class="ce-btn ce-btn--ghost" (click)="restablecer()">Restablecer</button>
@@ -190,34 +178,30 @@ import { editorPreview, sheetFrameStyle } from './editor-preview.util';
     .ce-id { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .ce-chip { padding: 6px 12px; border-radius: 999px; background: rgba(124,77,255,.16); border: 1px solid rgba(124,77,255,.4); color: #d6c6ff; font-size: .76rem; font-weight: 800; }
     .ce-chip--soft { background: var(--surface-2); border-color: var(--border); color: var(--ink-soft); }
+    .ce-loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 240px; padding: 24px; color: var(--ink-soft); }
     .ce-grid { display: grid; grid-template-columns: 310px minmax(0,1fr) 300px; gap: 14px; align-items: start; }
     .ce-panel { padding: 16px; display: grid; gap: 12px; max-height: calc(100vh - 230px); overflow-y: auto; }
     .ce-section { margin: 4px 0 0; color: var(--pl); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
     .ce-opts { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ce-cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+    .ce-cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
     .ce-cast-card { display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .74rem; font-weight: 800; cursor: pointer; transition: all .15s; }
     .ce-cast-card:hover { border-color: rgba(182,156,255,.5); color: var(--ink); }
     .ce-cast-card.sel { border-color: var(--pl); background: rgba(124,77,255,.18); color: #e7ddff; }
-    .ce-cast-thumb { width: 52px; height: 78px; border-radius: 8px; background-color: rgba(18,24,42,.8); background-size: 300% 300%; background-position: 0% 0%; image-rendering: pixelated; }
-    .ce-cast-thumb--classic { display: grid; place-items: center; font-size: 1.5rem; color: var(--pl); }
-    .ce-hint { margin: 0; color: var(--ink-soft); font-size: .74rem; }
     .ce-opt { padding: 6px 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 700; cursor: pointer; transition: all .15s; }
     .ce-opt:hover { border-color: rgba(182,156,255,.5); color: var(--ink); }
     .ce-opt.sel { background: rgba(124,77,255,.2); border-color: var(--pl); color: #e7ddff; }
+    .ce-check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 700; cursor: pointer; }
     .ce-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
     .ce-swatch { width: 31px; height: 31px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
     .ce-swatch.sel { border-color: var(--pl); box-shadow: 0 0 0 3px rgba(124,77,255,.3); transform: scale(1.08); }
     .ce-stage { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; min-height: 420px; overflow: hidden; }
     .ce-halo { position: absolute; bottom: 70px; width: 220px; height: 60px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(124,77,255,.45), transparent 70%); filter: blur(6px); }
-    .ce-figure { position: relative; width: 220px; height: 330px; }
-    .ce-sheet { position: relative; display: block; flex: none; background-repeat: no-repeat; image-rendering: pixelated; }
+    .ce-views { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+    .ce-view { margin: 0; display: grid; justify-items: center; gap: 6px; color: var(--ink-soft); font-size: .76rem; font-weight: 800; }
     .ce-pose { display: flex; gap: 8px; z-index: 1; }
     .ce-uniforms { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .ce-uniform { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); font-size: .78rem; font-weight: 800; cursor: pointer; transition: all .15s; }
     .ce-uniform.sel { border-color: var(--pl); background: rgba(124,77,255,.16); color: #e7ddff; }
-    .ce-uniform:disabled { opacity: .45; cursor: not-allowed; }
-    .ce-uniform-fig { width: 64px; height: 96px; }
-    .ce-soon { color: var(--pl); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
     .ce-summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
     .ce-summary li { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; }
     .ce-summary span { color: var(--ink-soft); }
@@ -235,74 +219,123 @@ import { editorPreview, sheetFrameStyle } from './editor-preview.util';
 })
 export class CharacterEditorComponent {
   readonly store = inject(AvatarStore);
+  private readonly kit = inject(KitService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
 
   readonly avatar = this.store.avatar;
-  readonly view = signal<'front' | 'left' | 'right'>('front');
-  readonly pose = computed<'front' | 'side'>(() => this.view() === 'front' ? 'front' : 'side');
-  readonly flipX = computed(() => this.view() === 'left');
-  readonly preview = computed(() => editorPreview(this.avatar(), this.view()));
-  readonly previewStyle = computed(() => {
-    const preview = this.preview();
-    return preview.kind === 'sheet' ? sheetFrameStyle(preview) : null;
-  });
-  readonly castLabel = computed(() =>
-    this.playableCast.find(member => member.id === this.avatar().castId)?.label ?? '');
+  readonly bundle = this.kit.bundle;
+  readonly loadError = signal(false);
+  readonly motion = signal<'idle' | 'walk'>('idle');
+  /** Último personalizado visto, para volver a él después de probar el elenco. */
+  private readonly lastCustom = signal<AvatarPersonalizado | null>(null);
 
-  readonly genderOptions = GENDER_OPTIONS;
-  readonly clothingColors = CLOTHING_COLORS;
-  readonly hairStyles = HAIR_STYLES;
+  readonly complexions = COMPLEXIONS;
+  readonly skins = SKINS;
+  readonly hairs = HAIRS;
   readonly hairColors = HAIR_COLORS;
-  readonly mouths = MOUTHS;
-  readonly uniforms = UNIFORMS;
-  readonly playableCast = PLAYABLE_CAST;
+  readonly accessories = ACCESSORIES;
+  readonly labels = AVATAR_LABELS;
+  readonly views = [
+    { id: 'down', label: 'Frente' }, { id: 'left', label: 'Izquierda' },
+    { id: 'right', label: 'Derecha' }, { id: 'up', label: 'Espalda' },
+  ] as const;
 
-  /** Miniatura del elenco: frame 0 (idle de frente) de su hoja 3×3. */
-  castThumb(id: string): string {
-    return `url('${castAssetPath(id)}')`;
-  }
+  readonly custom = computed(() => {
+    const avatar = this.avatar();
+    return avatar.mode === 'personalizado' ? avatar : null;
+  });
 
-  selectCast(id: string | null): void {
-    this.store.update({ castId: id ?? undefined });
-  }
+  readonly visual = computed(() => {
+    const bundle = this.bundle();
+    return bundle ? resolveCharacter(bundle, { kind: 'jugador', avatar: this.avatar() }) : null;
+  });
+
+  /** Tarjetas del elenco, con o sin bata según el interruptor (cuadro 0 a ×2, spec §8.2). */
+  readonly cast = computed(() => {
+    const bundle = this.bundle();
+    if (!bundle) return [];
+    const variant = this.avatar().bata ? BATA_VARIANT : null;
+    return PLAYABLE_IDS.map(id => ({
+      id,
+      label: bundle.recipes[id]?.displayName ?? id,
+      visual: resolveCharacter(bundle, { kind: 'receta', recipeId: id, variant }),
+    }));
+  });
+
+  readonly customVisual = computed(() => {
+    const bundle = this.bundle();
+    return bundle ? resolveCharacter(bundle, { kind: 'jugador', avatar: choosePersonalizado(this.avatar(), this.lastCustom()) }) : null;
+  });
+
+  readonly bataOptions = computed(() => {
+    const bundle = this.bundle();
+    return [false, true].map(bata => ({
+      bata,
+      label: bata ? 'Con bata' : 'Sin bata',
+      visual: bundle ? resolveCharacter(bundle, { kind: 'jugador', avatar: withBata(this.avatar(), bata) }) : null,
+    }));
+  });
 
   readonly roleLabel = computed(() => {
-    const r = this.auth.currentUser()?.role;
-    return r === 'PROFESOR' ? 'Docente' : r === 'ADMIN' ? 'Administrador' : 'Estudiante';
+    const role = this.auth.currentUser()?.role;
+    return role === 'PROFESOR' ? 'Docente' : role === 'ADMIN' ? 'Administrador' : 'Estudiante';
   });
 
-  readonly uniformLabel = computed(() =>
-    this.uniforms.find(u => u.id === this.avatar().uniform)?.label ?? '');
-
-  readonly hairColorLabel = computed(() =>
-    this.avatar().hairStyle === 'ninguno' ? '' : this.labelOf(this.hairColors, this.avatar().hairColor).toLowerCase());
-
-  readonly avatarSummary = computed(() => {
-    const cast = this.castLabel();
-    if (cast) return `Personaje del elenco: ${cast}.`;
-    return `Avatar ${this.labelOf(this.genderOptions, this.avatar().gender)}, ropa ${this.labelOf(this.clothingColors, this.avatar().clothingColor)}, cabello ${this.labelOf(this.hairStyles, this.avatar().hairStyle)} ${this.hairColorLabel()}, expresión ${this.labelOf(this.mouths, this.avatar().mouth)}.`;
+  readonly characterLabel = computed(() => {
+    const avatar = this.avatar();
+    return avatar.mode === 'elenco' ? this.recipeLabel(avatar.recipeId) : 'Personalizado';
   });
 
-  setHairStyle(id: string): void {
-    this.store.update({ hairStyle: id as HairStyle });
+  readonly summary = computed(() => avatarSummary(this.avatar(), id => this.recipeLabel(id)));
+
+  constructor() {
+    this.loadKit();
   }
 
-  setHairColor(id: string): void {
-    this.store.update({ hairColor: id as HairColor });
+  loadKit(): void {
+    this.loadError.set(false);
+    this.kit.load().catch(() => this.loadError.set(true));
   }
 
-  setClothingColor(id: string): void {
-    this.store.update({ clothingColor: id as ClothingColor });
+  isElenco(id: string): boolean {
+    const avatar = this.avatar();
+    return avatar.mode === 'elenco' && avatar.recipeId === id;
   }
 
-  withUniform(u: Uniform): AvatarConfig {
-    return { ...this.avatar(), uniform: u };
+  selectElenco(id: PlayableId): void {
+    const custom = this.custom();
+    if (custom) this.lastCustom.set(custom);
+    this.store.set(chooseElenco(this.avatar(), id));
   }
 
-  labelOf(list: readonly { id: string; label: string }[], id: string): string {
-    return list.find(o => o.id === id)?.label ?? id;
+  selectPersonalizado(): void {
+    this.store.set(choosePersonalizado(this.avatar(), this.lastCustom()));
+  }
+
+  setCustom(patch: Partial<AvatarPersonalizado>): void {
+    const custom = this.custom();
+    if (custom) this.store.set(withCustom(custom, patch));
+  }
+
+  toggleAccessory(id: AccessoryId): void {
+    const custom = this.custom();
+    if (custom) this.store.set(toggleAccessory(custom, id));
+  }
+
+  setBata(bata: boolean): void {
+    this.store.set(withBata(this.avatar(), bata));
+  }
+
+  /** Color base de la rampa (piel o pelo) para la muestra. */
+  swatch(rampId: string): string {
+    const ramp = this.bundle()?.ramps[rampId];
+    return ramp ? ramp[1] : 'transparent';
+  }
+
+  private recipeLabel(id: string): string {
+    return this.bundle()?.recipes[id]?.displayName ?? id;
   }
 
   guardar(): void {

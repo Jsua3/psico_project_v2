@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
+import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
 import {
@@ -58,7 +59,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         <div class="strip-main">
         <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
           @if (portraitSrc(d); as src) {
-            <img class="portrait-img" [src]="src" alt="" (error)="onPortraitError(src)" />
+            <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
           } @else {
             <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
               <circle cx="24" cy="18" r="9" fill="currentColor"/>
@@ -232,7 +233,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .portrait {
       position: relative;
       flex-shrink: 0;
-      width: 88px;
+      width: 112px;
       min-height: 180px;
       display: grid;
       place-items: center;
@@ -243,10 +244,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       color: #B69CFF;
     }
     .portrait-img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: bottom center;
+      width: 96px;
+      height: 96px;
       image-rendering: pixelated;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,.35));
     }
@@ -496,12 +495,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       border-bottom: 1px solid rgba(182,156,255,.18);
     }
     .dialogue-strip--side .portrait-svg { width: 30px; height: 30px; }
-    /* El retrato lateral ya no ocupa ~350 px: deja sitio a las opciones (TOUCH-01). */
-    .dialogue-strip--side .portrait-img {
-      width: auto;
-      max-width: 100%;
-      height: clamp(96px, 18vh, 150px);
-    }
+    .dialogue-strip--side .portrait-img { width: 96px; height: 96px; }
     .dialogue-strip--side .emotion-chip { position: static; }
     .dialogue-strip--side .strip-body {
       padding: 12px 16px 16px;
@@ -521,14 +515,14 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .strip-body { padding: 8px 14px 10px; gap: 8px; }
       .dialogue-text { font-size: .86rem; line-height: 1.45; }
       .dialogue-strip--side .portrait { padding: 6px 12px; }
-      .dialogue-strip--side .portrait-img { height: clamp(48px, 12vh, 64px); }
+      .dialogue-strip--side .portrait-img { width: 64px; height: 64px; }
       .dialogue-strip--side .strip-body { padding: 8px 12px 12px; gap: 8px; }
       .dialogue-strip--side .choice-btn { min-height: 44px; padding: 6px 10px; gap: 8px; }
       .dialogue-strip--side .choice-btn__icon { display: none; }
       .dialogue-strip--side .choice-btn { grid-template-columns: auto minmax(0, 1fr); }
     }
     @media (max-width: 560px) {
-      .portrait { width: 60px; min-height: 180px; }
+      .portrait { width: 104px; min-height: 180px; }
       .dialogue-strip--side .portrait { width: 100%; min-height: 0; }
       .strip-body { padding: 12px 14px; }
     }
@@ -584,10 +578,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private settled = false;
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
+  private readonly kit = inject(KitService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
   constructor() {
+    this.kit.load().catch(() => undefined);
     effect(() => {
       const d = this.dialogue();
       this.stopTypewriter();
@@ -615,20 +611,21 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   /**
-   * Ruta del retrato pixel-art para la línea actual, o `null` si no hay retrato
-   * (o si la imagen falló al cargar) → el panel muestra la silueta SVG.
+   * Retrato pixel-art de la línea actual (spec §8.2), o `null` si no hay retrato (voz sin
+   * cuerpo, kit sin cargar o imagen fallida) → el panel muestra la silueta SVG.
    */
   portraitSrc(d: DialogueState): string | null {
     const line = this.activeLine();
     const lineSpeaker = line?.speakerName?.trim() || null;
     const treeSpeaker = d.speakerName?.trim() || null;
-    const speakerName = lineSpeaker || treeSpeaker;
-    const portraitKey = !lineSpeaker || lineSpeaker === treeSpeaker ? d.portraitKey : null;
-    const asset = resolvePortraitAsset(
-      portraitKey,
-      line?.emotion?.trim() || d.emotion?.trim() || 'neutral',
-      speakerName,
-    );
+    // La receta y la clave del árbol valen para sus propias líneas, no para las de otro hablante.
+    const sameSpeaker = !lineSpeaker || lineSpeaker === treeSpeaker;
+    const asset = resolvePortraitAsset(this.kit.bundle(), {
+      recipeId: sameSpeaker ? d.recipeId ?? null : null,
+      portraitKey: sameSpeaker ? d.portraitKey : null,
+      speakerName: lineSpeaker || treeSpeaker,
+      emotion: line?.emotion?.trim() || d.emotion?.trim() || 'neutral',
+    });
     return asset && this.failedPortrait() !== asset ? asset : null;
   }
 

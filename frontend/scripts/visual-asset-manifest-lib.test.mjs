@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import {
-  existsSync, mkdtempSync, mkdirSync, readFileSync, renameSync,
+  mkdtempSync, mkdirSync, readFileSync, renameSync,
   rmSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,13 +13,13 @@ import { PNG } from 'pngjs';
 import {
   REQUIRED_PREMIUM_MAP_KEYS,
   REQUIRED_VISUAL_CATEGORIES,
+  assertDerivedArtifact,
   buildPremiumVisualManifest,
   inspectPremiumMapSelection,
   inspectTiledMap,
   inspectVisualPng,
   parsePremiumVisualCliArgs,
 } from './visual-asset-manifest-lib.mjs';
-import { renderPremiumContactSheets } from './render-premium-contact-sheets.mjs';
 
 const MAP_BINDINGS = {
   'hospital-urgencias': 'hospital-urgencias',
@@ -119,7 +118,7 @@ const EXPECTED_MAP_TRIPLES = {
 };
 
 const productionInventoryPath = new URL('../src/assets/visual/v1/inventory.v1.json', import.meta.url);
-const productionPalettePath = new URL('../src/assets/characters/v1/palette.v1.json', import.meta.url);
+const productionPalettePath = new URL('../src/assets/visual/v1/palette.v1.json', import.meta.url);
 const productionAssetsRoot = path.resolve(path.dirname(fileURLToPath(productionInventoryPath)), '..', '..', '..');
 
 const roots = new Set();
@@ -848,246 +847,16 @@ test('parses strict mutually exclusive visual validator modes and required value
   }
 });
 
-function testCanonicalize(value) {
-  if (Array.isArray(value)) return value.map(testCanonicalize);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, testCanonicalize(value[key])]));
+test('assertDerivedArtifact exige que el artefacto derivado exista y coincida byte a byte', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'derivado-'));
+  try {
+    const file = path.join(root, 'manifest.json');
+    assert.throws(() => assertDerivedArtifact(file, '{}', 'manifiesto'), /manifiesto: derived artifact missing/);
+    writeFileSync(file, '{}');
+    assert.doesNotThrow(() => assertDerivedArtifact(file, '{}', 'manifiesto'));
+    assert.doesNotThrow(() => assertDerivedArtifact(file, Buffer.from('{}'), 'manifiesto'));
+    assert.throws(() => assertDerivedArtifact(file, '{ }', 'manifiesto'), /manifiesto: derived artifact drift/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
-  return value;
-}
-
-function testCanonicalHash(value) {
-  return createHash('sha256').update(JSON.stringify(testCanonicalize(value))).digest('hex');
-}
-
-function testBytesHash(bytes) {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
-function contactDirections(columns, rowOffset = 0) {
-  return Object.fromEntries(['down', 'left', 'right', 'up'].map((direction, row) => [
-    direction,
-    [(row + rowOffset) * columns],
-  ]));
-}
-
-const CONTACT_COLORS = ['#15131d', '#433878', '#ffffff'];
-
-function writeContactVariant(assetsRoot, relativeRoot, colorOffset) {
-  const sheetShapes = {
-    idle: [4, 4], walk: [6, 4], talk: [4, 4], interact: [4, 4], turn: [3, 4], react: [4, 16],
-  };
-  const sheets = {};
-  for (const [index, [sheetId, [columns, rows]]] of Object.entries(sheetShapes).entries()) {
-    const src = `${relativeRoot}/${sheetId}.png`;
-    const bytes = makePng(columns * 2, rows * 2, CONTACT_COLORS[(colorOffset + index) % CONTACT_COLORS.length]);
-    writePng(path.join(assetsRoot, src), bytes);
-    sheets[sheetId] = {
-      id: sheetId, src: `/assets/${src}`, width: columns * 2, height: rows * 2,
-      frameWidth: 2, frameHeight: 2, columns, rows, sha256: testBytesHash(bytes),
-    };
-  }
-  const portraitSrc = `${relativeRoot}/portrait.png`;
-  const portraitBytes = makePng(8, 16, CONTACT_COLORS[(colorOffset + 7) % CONTACT_COLORS.length]);
-  writePng(path.join(assetsRoot, portraitSrc), portraitBytes);
-  const portraitSheet = {
-    id: 'portrait', src: `/assets/${portraitSrc}`, width: 8, height: 16,
-    frameWidth: 2, frameHeight: 2, columns: 4, rows: 8, sha256: testBytesHash(portraitBytes),
-  };
-  const variantBody = {
-    variantId: 'base',
-    sheets,
-    animations: {
-      idle: { id: 'idle', sheetId: 'idle', directions: contactDirections(4) },
-      walk: { id: 'walk', sheetId: 'walk', directions: contactDirections(6) },
-      talk: { id: 'talk', sheetId: 'talk', directions: contactDirections(4) },
-      interact: { id: 'interact', sheetId: 'interact', directions: contactDirections(4) },
-      turn: { id: 'turn', sheetId: 'turn', directions: contactDirections(3) },
-      reactRelief: { id: 'reactRelief', sheetId: 'react', directions: contactDirections(4, 0) },
-      reactSteady: { id: 'reactSteady', sheetId: 'react', directions: contactDirections(4, 4) },
-      reactTension: { id: 'reactTension', sheetId: 'react', directions: contactDirections(4, 8) },
-      reactRupture: { id: 'reactRupture', sheetId: 'react', directions: contactDirections(4, 12) },
-    },
-    portrait: {
-      sheet: portraitSheet,
-      states: Object.fromEntries([
-        'neutral', 'focused', 'concerned', 'relieved', 'relief', 'steady', 'tension', 'rupture',
-      ].map((state, row) => [state, [row * 4]])),
-    },
-  };
-  return { ...variantBody, contentHash: testCanonicalHash(variantBody) };
-}
-
-function createContactFixture() {
-  const root = mkdtempSync(path.join(tmpdir(), 'siep-contact-sheets-'));
-  roots.add(root);
-  const assetsRoot = path.join(root, 'assets');
-  const outputRoot = path.join(root, 'contact-sheets');
-  const characterManifestPath = path.join(root, 'character-manifest.json');
-  const visualManifestPath = path.join(root, 'visual-manifest.json');
-  const characterVariant = writeContactVariant(assetsRoot, 'characters/v1/valentina/base', 0);
-  const actorVariant = writeContactVariant(assetsRoot, 'characters/v1/actors/cuidadora/base', 3);
-  const characterBody = {
-    schemaVersion: 1,
-    identities: [{ characterId: 'valentina', variants: [characterVariant] }],
-    actorVisuals: [{ visualId: 'cuidadora', variant: actorVariant }],
-    actorMappings: {
-      'familia-crisis': 'cuidadora',
-      'familia-duelo': 'cuidadora',
-    },
-  };
-  const characterManifest = { ...characterBody, manifestHash: testCanonicalHash(characterBody) };
-  writeFileSync(characterManifestPath, JSON.stringify(characterManifest));
-
-  const visualSpecs = [
-    ['chair', 'furniture', 'game/furniture/chair.png'],
-    ['dialogue-frame', 'hud-frame', 'game/ui/premium-v1/dialogue-frame.png'],
-    ['icon-objective', 'hud-icon', 'game/ui/premium-v1/icon-objective.png'],
-  ];
-  const assets = visualSpecs.map(([assetId, category, src], index) => {
-    const bytes = makePng(8, 8, CONTACT_COLORS[(index + 1) % CONTACT_COLORS.length]);
-    writePng(path.join(assetsRoot, src), bytes);
-    return { assetId, category, src, sha256: testBytesHash(bytes) };
-  });
-  assets.push({
-    assetId: 'person-cuidadora',
-    category: 'person',
-    src: actorVariant.sheets.idle.src.slice('/assets/'.length),
-    sha256: actorVariant.sheets.idle.sha256,
-    bindings: ['person:familia-duelo', 'person:familia-crisis'],
-  });
-  const visualBody = { schemaVersion: 1, assets };
-  const visualManifest = { ...visualBody, manifestHash: testCanonicalHash(visualBody) };
-  writeFileSync(visualManifestPath, JSON.stringify(visualManifest));
-  return {
-    root, assetsRoot, outputRoot, characterManifestPath, visualManifestPath,
-    characterManifest, visualManifest,
-  };
-}
-
-function rewriteValidatedManifest(filePath, mutate) {
-  const manifest = JSON.parse(readFileSync(filePath, 'utf8'));
-  mutate(manifest);
-  const body = { ...manifest };
-  delete body.manifestHash;
-  manifest.manifestHash = testCanonicalHash(body);
-  writeFileSync(filePath, JSON.stringify(manifest));
-}
-
-test('renders exact four deterministic contact sheets with complete representative 1x and 2x coverage', () => {
-  const fixture = createContactFixture();
-  const first = renderPremiumContactSheets(fixture);
-  const bytes = Object.fromEntries(Object.entries(first.outputs).map(([name, output]) => [name, readFileSync(output.path)]));
-  const second = renderPremiumContactSheets(fixture);
-
-  assert.deepEqual(Object.keys(first.outputs), ['characters.png', 'npc.png', 'world-assets.png', 'hud-assets.png']);
-  for (const [name, output] of Object.entries(second.outputs)) {
-    assert.equal(existsSync(output.path), true);
-    assert.deepEqual(readFileSync(output.path), bytes[name]);
-    for (const cell of output.cells) {
-      assert.deepEqual(cell.scales, [1, 2]);
-      assert.equal(cell.displayWidth, cell.sourceWidth * 3 + 4);
-      assert.equal(cell.displayHeight, cell.sourceHeight * 2);
-      assert.match(cell.label, /^[a-z0-9_-]+ [a-f0-9]{12}$/);
-      assert.match(cell.sourceSha256, /^[a-f0-9]{64}$/);
-    }
-  }
-
-  const expectedSamples = [
-    'idle-down', 'idle-left', 'idle-right', 'idle-up',
-    'walk-down', 'talk-down', 'interact-down', 'turn-down',
-    'react-relief', 'react-steady', 'react-tension', 'react-rupture',
-    'portrait-neutral', 'portrait-focused', 'portrait-concerned', 'portrait-relieved',
-    'portrait-relief', 'portrait-steady', 'portrait-tension', 'portrait-rupture',
-  ];
-  assert.deepEqual(first.outputs['characters.png'].cells.map(({ sampleId }) => sampleId), expectedSamples);
-  assert.deepEqual(first.outputs['npc.png'].cells.map(({ sampleId }) => sampleId), expectedSamples);
-  assert.deepEqual(first.outputs['world-assets.png'].cells.map(({ assetId }) => assetId), ['chair']);
-  assert.deepEqual(first.outputs['hud-assets.png'].cells.map(({ assetId }) => assetId), ['dialogue-frame', 'icon-objective']);
-});
-
-test('contact sheets fail closed on missing, extra, src, hash, or binding person-to-actor drift', () => {
-  const cases = [
-    ['missing person', (manifest) => {
-      manifest.assets = manifest.assets.filter(({ assetId }) => assetId !== 'person-cuidadora');
-    }, /person-cuidadora.*(?:missing|absent)|(?:missing|absent).*person-cuidadora/i],
-    ['extra person', (manifest) => {
-      manifest.assets.push({
-        assetId: 'person-inventado', category: 'person', src: 'missing/person.png',
-        sha256: 'a'.repeat(64), bindings: ['person:actor-inventado'],
-      });
-    }, /person-inventado.*(?:extra|unknown|actor)|(?:extra|unknown).*person-inventado/i],
-    ['src mismatch', (manifest) => {
-      const person = manifest.assets.find(({ assetId }) => assetId === 'person-cuidadora');
-      person.src = 'missing/person.png';
-      person.sha256 = 'b'.repeat(64);
-    }, /person-cuidadora.*(?:src|idle)|(?:src|idle).*person-cuidadora/i],
-    ['hash mismatch', (manifest) => {
-      manifest.assets.find(({ assetId }) => assetId === 'person-cuidadora').sha256 = 'c'.repeat(64);
-    }, /person-cuidadora.*sha256.*(?:drift|mismatch)|sha256.*person-cuidadora/i],
-    ['binding mismatch', (manifest) => {
-      manifest.assets.find(({ assetId }) => assetId === 'person-cuidadora').bindings = ['person:familia-duelo'];
-    }, /person-cuidadora.*bindings.*(?:drift|mismatch)|bindings.*person-cuidadora/i],
-  ];
-  for (const [name, mutate, expected] of cases) {
-    const fixture = createContactFixture();
-    rewriteValidatedManifest(fixture.visualManifestPath, mutate);
-    assert.throws(() => renderPremiumContactSheets(fixture), expected, name);
-    assert.equal(existsSync(fixture.outputRoot), false, `${name} must not write output`);
-  }
-});
-
-test('contact sheets reject fake manifest, variant, and asset hashes before writing any output', () => {
-  const fakeManifest = createContactFixture();
-  const parsed = JSON.parse(readFileSync(fakeManifest.characterManifestPath, 'utf8'));
-  parsed.manifestHash = 'f'.repeat(64);
-  writeFileSync(fakeManifest.characterManifestPath, JSON.stringify(parsed));
-  assert.throws(() => renderPremiumContactSheets(fakeManifest), /character manifest.*manifestHash.*(?:drift|mismatch)|manifestHash.*character/i);
-  assert.equal(existsSync(fakeManifest.outputRoot), false);
-
-  const fakeVariant = createContactFixture();
-  rewriteValidatedManifest(fakeVariant.characterManifestPath, (manifest) => {
-    manifest.identities[0].variants[0].contentHash = 'e'.repeat(64);
-  });
-  assert.throws(() => renderPremiumContactSheets(fakeVariant), /valentina.*contentHash.*(?:drift|mismatch)|contentHash.*valentina/i);
-  assert.equal(existsSync(fakeVariant.outputRoot), false);
-
-  const staleAsset = createContactFixture();
-  const hud = staleAsset.visualManifest.assets.find(({ assetId }) => assetId === 'icon-objective');
-  writePng(path.join(staleAsset.assetsRoot, hud.src), makePng(8, 8, '#ffffff'));
-  assert.throws(() => renderPremiumContactSheets(staleAsset), /icon-objective.*sha256.*(?:drift|mismatch)|sha256.*icon-objective/i);
-  assert.equal(existsSync(staleAsset.outputRoot), false);
-});
-
-test('contact sheets reject assetsRoot and asset-path junctions, internal or external', () => {
-  const linkedRoot = createContactFixture();
-  const realAssets = path.join(linkedRoot.root, 'real-assets');
-  renameSync(linkedRoot.assetsRoot, realAssets);
-  symlinkSync(realAssets, linkedRoot.assetsRoot, process.platform === 'win32' ? 'junction' : 'dir');
-  assert.throws(() => renderPremiumContactSheets(linkedRoot), /assetsRoot.*(?:symlink|junction|reparse)|(?:symlink|junction|reparse).*assetsRoot/i);
-
-  for (const location of ['internal', 'external']) {
-    const linkedAsset = createContactFixture();
-    const entry = linkedAsset.visualManifest.assets.find(({ assetId }) => assetId === 'chair');
-    const assetPath = path.join(linkedAsset.assetsRoot, entry.src);
-    const target = location === 'internal'
-      ? path.join(linkedAsset.assetsRoot, 'linked-chair-target')
-      : path.join(linkedAsset.root, 'linked-chair-target');
-    unlinkSync(assetPath);
-    mkdirSync(target, { recursive: true });
-    symlinkSync(target, assetPath, process.platform === 'win32' ? 'junction' : 'dir');
-    assert.throws(() => renderPremiumContactSheets(linkedAsset), /chair.*(?:symlink|junction|reparse)|(?:symlink|junction|reparse).*chair/i);
-    assert.equal(existsSync(linkedAsset.outputRoot), false);
-  }
-});
-
-test('contact sheet renderer fails clearly when a validated manifest is absent', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'siep-contact-sheets-missing-'));
-  roots.add(root);
-  assert.throws(() => renderPremiumContactSheets({
-    assetsRoot: root,
-    characterManifestPath: path.join(root, 'missing-character.json'),
-    visualManifestPath: path.join(root, 'missing-visual.json'),
-    outputRoot: path.join(root, 'out'),
-  }), /character manifest.*missing|missing-character/i);
 });

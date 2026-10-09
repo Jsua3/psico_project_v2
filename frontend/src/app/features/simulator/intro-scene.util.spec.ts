@@ -1,47 +1,31 @@
-import { defaultAvatar } from '../character/avatar-config.util';
-import { avatarLayerSpecs } from './phaser-avatar-renderer';
+import { resolveCharacter } from '../character/kit/character-visual.resolver';
+import { testKitBundle } from '../character/kit/testing/kit-testing';
 import { frameAt, introActor, stageLayout } from './intro-scene.util';
 
-describe('introActor', () => {
-  it('un personaje v1 camina con su fila derecha y reposa de frente, en pixel art', () => {
-    const actor = introActor(defaultAvatar()); // valentina (v1)
-    expect(actor.pixelated).toBe(true);
-    expect(actor.walk.layers).toEqual(['/assets/characters/v1/valentina/base/walk.png']);
-    expect([actor.walk.sheetWidth, actor.walk.sheetHeight]).toEqual([288, 288]);
-    expect(actor.walk.frames.map(f => f.x)).toEqual([0, 48, 96, 144, 192, 240]);
-    expect(new Set(actor.walk.frames.map(f => f.y))).toEqual(new Set([144]));
-    expect(actor.walk.fps).toBe(10);
-    expect(actor.idle.layers).toEqual(['/assets/characters/v1/valentina/base/idle.png']);
-    expect([actor.idle.sheetWidth, actor.idle.sheetHeight]).toEqual([192, 288]);
-    expect(actor.idle.frames).toEqual([{ x: 0, y: 0 }, { x: 48, y: 0 }, { x: 96, y: 0 }, { x: 144, y: 0 }]);
-    expect(actor.idle.fps).toBe(4);
+describe('introActor (kit)', () => {
+  const bundle = testKitBundle();
+
+  it('entra caminando hacia la derecha (6 cuadros a 10 fps) y reposa de frente (4 a 4 fps)', () => {
+    const actor = introActor(resolveCharacter(bundle, { kind: 'receta', recipeId: 'valentina' }));
+    expect(actor.walk).toEqual({
+      source: { kind: 'url', url: '/assets/characters/kit/valentina/walk.png' },
+      sheetWidth: 288, sheetHeight: 288, fps: 10,
+      frames: [0, 48, 96, 144, 192, 240].map(x => ({ x, y: 144 })),
+    });
+    expect(actor.idle).toEqual({
+      source: { kind: 'url', url: '/assets/characters/kit/valentina/idle.png' },
+      sheetWidth: 192, sheetHeight: 288, fps: 4,
+      frames: [0, 48, 96, 144].map(x => ({ x, y: 0 })),
+    });
   });
 
-  it('un personaje del elenco horneado usa su hoja 3×3 reducida al cuadro de 48×72', () => {
-    const actor = introActor({ ...defaultAvatar(), castId: 'paula' });
-    expect(actor.pixelated).toBe(false);
-    expect(actor.walk.layers).toEqual(['/assets/characters/cast/paula.png']);
-    expect([actor.walk.sheetWidth, actor.walk.sheetHeight]).toEqual([144, 216]);
-    // Ciclo de caminata lateral [4, 3, 5, 3] de la hoja 3×3.
-    expect(actor.walk.frames).toEqual([{ x: 48, y: 72 }, { x: 0, y: 72 }, { x: 96, y: 72 }, { x: 0, y: 72 }]);
-    expect(actor.walk.fps).toBe(8);
-    expect(actor.idle.frames).toEqual([{ x: 0, y: 0 }]);
-  });
-
-  it('el avatar modular apila sus capas en el orden de cada fila', () => {
-    const config = { ...defaultAvatar(), castId: undefined };
-    const kindOf = (path: string) => avatarLayerSpecs(config).find(spec => spec.assetPath === path)?.kind;
-    const actor = introActor(config);
-    expect(actor.pixelated).toBe(false);
-    expect(actor.walk.layers.length).toBeGreaterThan(1);
-    // De perfil el rostro va sobre el flequillo; de frente, el flequillo sobre el rostro.
-    const walkKinds = actor.walk.layers.map(kindOf);
-    const idleKinds = actor.idle.layers.map(kindOf);
-    expect(walkKinds.indexOf('face')).toBeGreaterThan(walkKinds.indexOf('body'));
-    if (walkKinds.includes('hairFront')) {
-      expect(walkKinds.indexOf('face')).toBeGreaterThan(walkKinds.indexOf('hairFront'));
-      expect(idleKinds.indexOf('hairFront')).toBeGreaterThan(idleKinds.indexOf('face'));
-    }
+  it('el avatar personalizado entra con sus hojas compuestas', () => {
+    const actor = introActor(resolveCharacter(bundle, {
+      kind: 'jugador',
+      avatar: { schemaVersion: 2, mode: 'personalizado', complexion: 'a', skin: 'piel-3', hair: 'trenza', hairColor: 'negro', accessories: ['gafete'], bata: true },
+    }));
+    expect(actor.walk.source.kind).toBe('rgba');
+    expect(actor.idle.source.kind).toBe('rgba');
   });
 });
 

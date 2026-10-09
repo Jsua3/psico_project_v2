@@ -17,4 +17,8 @@ regexes = [
   '''^cambia-esto[a-z0-9-]*$''',
   # Secreto de DESARROLLO del lanzador local (iniciar_siep.ps1); producción exige uno propio.
   '''^psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256$''',
+  # Nombre de la entrada de localStorage con la copia del avatar v1 (AVATAR_V1_BACKUP_KEY en
+  # avatar.store.ts y las mismas líneas del plan 2 de personajes unificados): es el nombre de una
+  # clave del navegador, no una credencial; la regla salta solo porque la constante termina en _KEY.
+  '''^psychosim_avatar_v1$''',
 ]

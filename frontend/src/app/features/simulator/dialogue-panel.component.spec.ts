@@ -3,6 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { DialogueState } from '../../core/models/simulation.model';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { blend, contrastRatio } from '../../../styles/contrast.util';
 import { AudioDirectorService } from './audio-director.service';
 import { DialoguePanelComponent } from './dialogue-panel.component';
@@ -89,7 +91,10 @@ describe('DialoguePanelComponent - integración renderizada', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -187,7 +192,50 @@ describe('DialoguePanelComponent - integración renderizada', () => {
 
     expect(fixture.nativeElement.querySelector('.speaker-name')?.textContent).toContain('Consultante');
     expect(fixture.nativeElement.querySelector('.portrait-img')?.getAttribute('src'))
-      .toBe('/assets/characters/portraits/paciente-vbg_neutral.png');
+      .toBe('/assets/characters/kit/sobreviviente/portrait-neutral.png');
+  });
+
+  const portraitSrc = () => fixture.nativeElement.querySelector('.portrait-img')?.getAttribute('src') ?? null;
+
+  it('el NPC de escenario muestra el retrato de su receta aunque se llame como una voz sin cuerpo', () => {
+    render({
+      key: 'npc-supervisor-cierre',
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      recipeId: 'supervisor-clinico',
+      emotion: 'neutral',
+      lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Buen cierre.', emotion: 'positive' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBe('/assets/characters/kit/supervisor-clinico/portrait-alegre.png');
+  });
+
+  it('una voz sin cuerpo no tiene retrato: queda la silueta', () => {
+    render({
+      ...MULTI_LINE_DIALOGUE,
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Revisa el protocolo.', emotion: 'danger' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBeNull();
+    expect(fixture.nativeElement.querySelector('.portrait-svg')).not.toBeNull();
+  });
+
+  it('la receta del árbol no vale para la línea de otro hablante', () => {
+    render({
+      key: 'npc-supervisor-cierre',
+      speakerName: 'Supervisión clínica',
+      portraitKey: null,
+      recipeId: 'supervisor-clinico',
+      emotion: 'neutral',
+      lines: [{ order: 1, speakerName: 'Abuela de la niña', text: 'Gracias por venir.', emotion: 'neutral' }],
+      choices: [],
+    });
+
+    expect(portraitSrc()).toBe('/assets/characters/kit/abuela-familia/portrait-neutral.png');
   });
 });
 
@@ -732,7 +780,10 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -763,7 +814,7 @@ describe('DialoguePanelComponent - emociones y retrato (T4.6)', () => {
 
   it('la Abuela con emoción positive no recibe el retrato sonriente', () => {
     render('Abuela de la niña', 'positive');
-    expect(host().querySelector('.portrait-img')?.getAttribute('src')).toBe('/assets/characters/portraits/madre-vbg_neutral.png');
+    expect(host().querySelector('.portrait-img')?.getAttribute('src')).toBe('/assets/characters/kit/abuela-familia/portrait-neutral.png');
   });
 
   it('una voz de sistema conserva la señal de emoción (chip y etiqueta con su color)', () => {
@@ -844,6 +895,22 @@ describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', (
     expect(() => option.dispatchEvent(new FocusEvent('focus'))).not.toThrow();
   });
 });
+
+/** Cuerpos de todos los bloques `@media <consulta> { … }` de un CSS: cuenta llaves, así que una regla solo cuenta dentro del suyo. */
+function mediaBlocks(css: string, query: string): string[] {
+  const head = `@media ${query} {`;
+  const blocks: string[] = [];
+  for (let from = css.indexOf(head); from >= 0; from = css.indexOf(head, from + head.length)) {
+    let depth = 1;
+    let end = from + head.length;
+    for (; end < css.length && depth > 0; end += 1) {
+      if (css[end] === '{') depth += 1;
+      else if (css[end] === '}') depth -= 1;
+    }
+    blocks.push(css.slice(from + head.length, end - 1));
+  }
+  return blocks;
+}
 
 describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
@@ -964,8 +1031,12 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
-  it('el retrato lateral mide clamp(96px, 18vh, 150px) y el panel lateral es lo único que se desplaza', () => {
-    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{\s*width: auto;\s*max-width: 100%;\s*height: clamp\(96px, 18vh, 150px\);/);
+  it('el retrato lateral mide 96 px (×3) y 64 px (×2) en pantallas bajas, y el panel lateral es lo único que se desplaza', () => {
+    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{ width: 96px; height: 96px; \}/);
+    const compact = mediaBlocks(source, '(max-height: 520px)');
+    expect(compact.length).toBeGreaterThan(0);
+    expect(compact.some(block => block.includes('.dialogue-strip--side .portrait-img { width: 64px; height: 64px; }'))).toBe(true);
+    expect(source).not.toContain('clamp(48px, 12vh, 64px)');
     expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
     // Ya no se ancla al fondo en cada ciclo de detección.
     expect(source).not.toMatch(/el\.scrollTop = el\.scrollHeight;\s*\}\s*\}\s*ngOnDestroy/);

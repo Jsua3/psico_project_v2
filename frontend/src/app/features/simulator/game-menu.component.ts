@@ -7,30 +7,19 @@ import Phaser from 'phaser';
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
-import {
-  LOBBY_ANIM_KEYS,
-  LOBBY_AVATAR_SCALE,
-  LOBBY_DOOR_RANGE,
-  LOBBY_FEET_ORIGIN_Y,
-  LOBBY_MODULAR_TEXTURE_KEY,
-  LobbyAvatarPlan,
-  lobbyAvatarPlan,
-  lobbyPose,
-  lobbyTextureChain,
-  nearestLobbyDoor,
-} from './lobby-avatar.util';
+import { toAvatarV2 } from '../character/kit/avatar-v2';
+import { CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
+import { KIT_ORIGIN_X, KIT_ORIGIN_Y, ensureCharacterAnims, kitFrameIndex, kitSheetKey, playKitPose, queueCharacterSheets } from '../character/kit/kit-phaser';
+import { KitService } from '../character/kit/kit.service';
+import { LOBBY_BLEED, LOBBY_DOOR_RANGE, LOBBY_ROOM, lobbyFacadeBand, lobbyPose, nearestLobbyDoor } from './lobby-avatar.util';
+import { LOBBY_DOOR_Y, lobbyDoorLayout } from './lobby-door-layout.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { cameraBounds, integerZoom } from './pixel-scale.util';
+import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { GameHelpComponent } from './game-help.component';
 import { HelpModality } from './game-help.content';
 import { SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
-import {
-  AVATAR_FRAME_HEIGHT,
-  AVATAR_FRAME_WIDTH,
-  AVATAR_IDLE_FRAMES,
-  composeAvatarTextureAs,
-  createAvatarAnimationsFor,
-} from './phaser-avatar-renderer';
 
 interface MenuCallbacks {
   onEnter: (caseVersionId: number) => void;
@@ -50,14 +39,16 @@ class ClinicMenuScene extends Phaser.Scene {
   private doors: { item: CatalogItem; x: number }[] = [];
   private nearestId: number | null = null;
   private pointerTargetX: number | null = null;
+  private view: 'left' | 'right' = 'right';
+  private walking = false;
   private readonly worldW: number;
   private readonly spacing = 260;
-  private readonly doorY = 320;
+  private readonly doorY = LOBBY_DOOR_Y;
   private readonly floorY = 380;
 
   constructor(
     private readonly items: CatalogItem[],
-    private readonly avatarPlan: LobbyAvatarPlan,
+    private readonly visual: CharacterVisual | null,
     private readonly reduceMotion: boolean,
     private readonly cb: MenuCallbacks,
   ) {
@@ -66,65 +57,36 @@ class ClinicMenuScene extends Phaser.Scene {
   }
 
   preload() {
-    // CAST-01: hoja horneada del castId elegido; las capas modulares se
-    // precargan siempre como fallback (asset ausente → composición modular).
-    if (this.avatarPlan.kind === 'cast') {
-      this.load.spritesheet(this.avatarPlan.textureKey, this.avatarPlan.assetPath, {
-        frameWidth: AVATAR_FRAME_WIDTH,
-        frameHeight: AVATAR_FRAME_HEIGHT,
-      });
-    }
-    for (const spec of this.avatarPlan.modularSpecs) {
-      this.load.image(spec.textureKey, spec.assetPath);
-    }
-  }
-
-  /** Primera textura disponible de la cadena horneado → modular, o null. */
-  private resolvePlayerTextureKey(): string | null {
-    for (const key of lobbyTextureChain(this.avatarPlan)) {
-      if (key === LOBBY_MODULAR_TEXTURE_KEY) {
-        if (composeAvatarTextureAs(this, LOBBY_MODULAR_TEXTURE_KEY, this.avatarPlan.modularSpecs)) {
-          return key;
-        }
-        continue;
-      }
-      if (this.textures.exists(key)) return key;
-    }
-    return null;
+    // La hoja del kit del jugador: PNG publicado o avatar compuesto en el navegador.
+    if (this.visual) queueCharacterSheets(this, this.visual);
   }
 
   create() {
-    const W = this.worldW, H = 540;
-    this.cameras.main.setBounds(0, 0, W, H);
+    const W = this.worldW, H = LOBBY_ROOM.height;
     // ── Layered clinic façade ────────────────────────────────────────────────
-    this.add.rectangle(0, 0, W, H, 0x0e141a).setOrigin(0, 0);                  // sky/base
-    this.add.rectangle(0, 96, W, 168, 0x1c2a3a).setOrigin(0, 0);               // building band
-    this.add.rectangle(0, 96, W, 6, 0x2f4763).setOrigin(0, 0);                 // cornice
-    this.add.rectangle(0, this.floorY, W, H - this.floorY, 0x1b2733).setOrigin(0, 0); // floor
-    this.add.rectangle(0, this.floorY, W, 4, 0x2f4763).setOrigin(0, 0);        // floor edge
+    // El cielo es el color de fondo del juego. Las franjas sangran más allá de la sala: con
+    // zoom ×1 la vista es mayor que 960×540 y no debe verse el borde de la fachada.
+    const band = lobbyFacadeBand(W);
+    this.add.rectangle(band.x, 96, band.width, 168, 0x1c2a3a).setOrigin(0, 0);               // building band
+    this.add.rectangle(band.x, 96, band.width, 6, 0x2f4763).setOrigin(0, 0);                 // cornice
+    this.add.rectangle(band.x, this.floorY, band.width, H - this.floorY + LOBBY_BLEED, 0x1b2733).setOrigin(0, 0); // floor
+    this.add.rectangle(band.x, this.floorY, band.width, 4, 0x2f4763).setOrigin(0, 0);        // floor edge
     // Entrance mat in front of the doors
-    this.add.rectangle(0, this.doorY + 6, W, 26, 0x223247, 0.6).setOrigin(0, 0);
-
-    // Backlit clinic sign — pinned top-left header (screen space), above the
-    // building band, so it never collides with door titles inside the band.
-    const sign = this.add.rectangle(24, 36, 232, 36, 0x12202f, 0.92).setOrigin(0, 0)
-      .setScrollFactor(0).setStrokeStyle(2, 0x4f7cac, 0.5);
-    this.add.text(sign.x + 14, 54, 'CLÍNICA · SIEP', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#9dc0e8',
-    }).setOrigin(0, 0.5).setScrollFactor(0);
+    this.add.rectangle(band.x, this.doorY + 6, band.width, 26, 0x223247, 0.6).setOrigin(0, 0);
 
     this.doors = [];
+    const door = lobbyDoorLayout(); // las puertas a la altura de los personajes (spec §13.1)
     this.items.forEach((item, i) => {
       const x = 220 + i * this.spacing;
       const open = item.unlocked;
       const fill = item.completed ? 0x2f7476 : open ? 0x33506f : 0x2a2e35;
 
-      // Frame, leaf, and handle
-      this.add.rectangle(x, this.doorY, 108, 152, 0x12202f).setOrigin(0.5, 1)
+      // Marco, hoja y manija
+      this.add.rectangle(x, this.doorY, door.frame.width, door.frame.height, 0x12202f).setOrigin(0.5, 1)
         .setStrokeStyle(3, open ? 0x9dc0e8 : 0x555a63);
-      const leaf = this.add.rectangle(x, this.doorY - 6, 88, 134, fill).setOrigin(0.5, 1)
+      const leaf = this.add.rectangle(x, this.doorY - door.leaf.bottomInset, door.leaf.width, door.leaf.height, fill).setOrigin(0.5, 1)
         .setStrokeStyle(2, open ? 0x6f97c4 : 0x44484f);
-      this.add.rectangle(x + 26, this.doorY - 74, 6, 12, 0xdfe8f2, open ? 0.9 : 0.4); // handle
+      this.add.rectangle(x + door.handle.dx, this.doorY + door.handle.dy, door.handle.width, door.handle.height, 0xdfe8f2, open ? 0.9 : 0.4); // manija
 
       // Available doors glow; locked doors show a lock icon
       if (open && !item.completed) {
@@ -134,41 +96,39 @@ class ClinicMenuScene extends Phaser.Scene {
         });
       }
       if (!open) {
-        this.add.text(x, this.doorY - 74, '🔒', { fontSize: '20px' }).setOrigin(0.5);
+        this.add.text(x, this.doorY + door.lockDy, '🔒', { fontSize: '14px' }).setOrigin(0.5);
       }
 
-      this.add.text(x, this.doorY - 176, item.title, {
+      this.add.text(x, this.doorY + door.titleDy, item.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: open ? '#e8f0f4' : '#7a808a',
         align: 'center', wordWrap: { width: 180 },
       }).setOrigin(0.5, 1);
       const badge = item.completed ? '✓ Resuelto' : open ? '▶ Disponible' : '🔒 Bloqueado';
-      this.add.text(x, this.doorY - 150, badge, {
+      this.add.text(x, this.doorY + door.badgeDy, badge, {
         fontFamily: 'monospace', fontSize: '12px',
         color: item.completed ? '#8cbfa6' : open ? '#9dc0e8' : '#7a808a',
       }).setOrigin(0.5, 1);
       this.doors.push({ item, x });
     });
 
-    // CAST-01: la identidad del editor llega al lobby — hoja horneada o
-    // composición modular; el placeholder geométrico queda como último
-    // recurso si ninguna textura pudo cargar.
-    const shadow = this.add.ellipse(0, 3, 30, 8, 0x000000, 0.25);
+    // La identidad del editor llega al lobby con las hojas del kit; el marcador
+    // geométrico queda como último recurso si la hoja no cargó.
+    const shadow = this.add.ellipse(0, 0, 24, 7, 0x000000, 0.25);
     const parts: Phaser.GameObjects.GameObject[] = [shadow];
-    const textureKey = this.resolvePlayerTextureKey();
-    if (textureKey) {
-      createAvatarAnimationsFor(this, textureKey, LOBBY_ANIM_KEYS);
-      this.playerSprite = this.add.sprite(0, 0, textureKey, AVATAR_IDLE_FRAMES.side)
-        .setOrigin(0.5, LOBBY_FEET_ORIGIN_Y)
-        .setScale(LOBBY_AVATAR_SCALE);
+    if (this.visual && ensureCharacterAnims(this, this.visual)) {
+      this.playerSprite = this.add.sprite(0, 0, kitSheetKey(this.visual, 'idle'), kitFrameIndex('idle', 'right'))
+        .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
+      playKitPose(this.playerSprite, this.visual, 'right', false, this.reduceMotion);
       parts.push(this.playerSprite);
     } else {
       const body = this.add.rectangle(0, -17, 22, 34, 0x8a6cff).setStrokeStyle(2, 0xffffff);
-      const coat = this.add.rectangle(0, -13, 22, 16, 0xb9a8ff, 0.9);   // lab-coat hem
+      const coat = this.add.rectangle(0, -13, 22, 16, 0xb9a8ff, 0.9);   // bajo de la bata
       const head = this.add.circle(0, -41, 9, 0xf2c9a0).setStrokeStyle(2, 0xffffff, 0.85);
       parts.push(body, coat, head);
     }
     this.player = this.add.container(220, this.floorY + 2, parts);
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.applyCamera();
+    this.scale.on('resize', () => this.applyCamera());
 
     // Phaser solo LEE las teclas: sin captura el navegador conserva Enter/Espacio en el botón
     // «Entrar al caso». `createCursorKeys` captura flechas, Espacio y Shift por su cuenta (de ahí
@@ -182,12 +142,18 @@ class ClinicMenuScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.pointerTargetX = pointer.worldX;
     });
+  }
 
-    const keyboardHint = lobbyKeyboardHint(matchesMedia(COARSE_POINTER_QUERY));
-    if (keyboardHint) {
-      this.add.text(12, 12, keyboardHint, {
-        fontFamily: 'monospace', fontSize: '13px', color: 'rgba(232,240,244,0.5)',
-      }).setScrollFactor(0);
+  /** Zoom entero (spec §8.3) con la fachada de 960×540 como sala; sigue al jugador en horizontal. */
+  private applyCamera(): void {
+    const cam = this.cameras.main;
+    const k = integerZoom(cam.width, cam.height, LOBBY_ROOM.width, LOBBY_ROOM.height);
+    cam.setZoom(k);
+    const bounds = cameraBounds(this.worldW, LOBBY_ROOM.height, cam.width / k, cam.height / k);
+    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    if (this.player) {
+      cam.startFollow(this.player, true, 0.1, 0.1);
+      cam.centerOn(this.player.x, this.player.y);
     }
   }
 
@@ -212,16 +178,13 @@ class ClinicMenuScene extends Phaser.Scene {
     }
     this.player.setPosition(Phaser.Math.Clamp(this.player.x + vx, 40, this.worldW - 40), this.player.y);
 
-    const pose = lobbyPose(vx, this.reduceMotion);
-    if (this.playerSprite) {
-      if (pose.flipX !== null) this.playerSprite.setFlipX(pose.flipX);
-      if (pose.walking) {
-        this.playerSprite.anims.play(LOBBY_ANIM_KEYS.side, true);
-      } else {
-        this.playerSprite.anims.stop();
-        this.playerSprite.setFrame(pose.idleFrame);
-      }
+    const pose = lobbyPose(vx);
+    const view = pose.view ?? this.view;
+    if (this.playerSprite && this.visual && (view !== this.view || pose.walking !== this.walking)) {
+      playKitPose(this.playerSprite, this.visual, view, pose.walking, this.reduceMotion);
     }
+    this.view = view;
+    this.walking = pose.walking;
 
     const near = nearestLobbyDoor(this.doors, this.player.x, LOBBY_DOOR_RANGE);
     const nextId = near ? near.item.caseVersionId : null;
@@ -258,6 +221,8 @@ class ClinicMenuScene extends Phaser.Scene {
       <!-- GAME-09: además de las teclas de Phaser, el host enfocable maneja
            E/Enter/Espacio a nivel DOM — ruta determinista para teclado y
            lectores; la guardia entering() garantiza UNA sola navegación. -->
+      @if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }
+      <div class="lobby-sign" aria-hidden="true">CLÍNICA · SIEP</div>
       <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()"
            (keydown.e)="enterFocused($event)" (keydown.enter)="enterFocused($event)"
            (keydown.space)="enterFocused($event)"
@@ -301,7 +266,9 @@ class ClinicMenuScene extends Phaser.Scene {
     .menu-root { position: fixed; inset: 0; overflow: hidden; background: #0a0f14; }
     .phaser-host { position: absolute; inset: 0; }
     .phaser-host:focus-visible { outline: 3px solid rgba(157,192,232,.75); outline-offset: -3px; }
-    :host ::ng-deep .phaser-host canvas { display: block; width: 100% !important; height: 100% !important; }
+    :host ::ng-deep .phaser-host canvas { display: block; }
+    .lobby-help { position: absolute; top: 8px; left: 12px; z-index: 10; margin: 0; color: rgba(232,240,244,.5); font: 13px/1.2 monospace; pointer-events: none; }
+    .lobby-sign { position: absolute; top: 36px; left: 24px; z-index: 10; padding: 8px 14px; border-radius: 4px; background: rgba(18,32,47,.92); border: 2px solid rgba(79,124,172,.5); color: #9dc0e8; font: 20px/1 monospace; pointer-events: none; }
     .menu-error {
       position: absolute; inset: 0; z-index: 30; display: flex; gap: 12px;
       align-items: center; justify-content: center; color: #e8f0f4; background: rgba(8,12,18,.9);
@@ -357,6 +324,7 @@ export class GameMenuComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly zone = inject(NgZone);
   private readonly avatarStore = inject(AvatarStore);
+  private readonly kit = inject(KitService);
 
   readonly loading = signal(true);
   readonly error = signal('');
@@ -365,6 +333,7 @@ export class GameMenuComponent implements OnDestroy {
   readonly entering = signal<string>('');
   /** Sin teclado: se quitan los textos que prometen teclas (la lectura es puntual, el lobby no cambia de puntero). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  readonly keyboardHint = computed(() => lobbyKeyboardHint(this.coarsePointer()));
   readonly helpOpen = signal(false);
   readonly helpModality = computed<HelpModality>(() => this.coarsePointer() ? 'touch' : 'keyboard');
   /** Misma bandera que el juego: la promesa de «Salida segura» solo se escribe cuando es cierta en todos los estados. */
@@ -376,6 +345,9 @@ export class GameMenuComponent implements OnDestroy {
   private game?: Phaser.Game;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
+  private detachHostWatch?: () => void;
+  private booting = false;
+  private destroyed = false;
   // number explícito (no ReturnType<typeof window.setTimeout>): con @types/node en el
   // programa de tipos de los specs, ese ReturnType resuelve a NodeJS.Timeout aunque la
   // llamada real a window.setTimeout en el navegador siga devolviendo number.
@@ -400,32 +372,41 @@ export class GameMenuComponent implements OnDestroy {
   }
 
   private boot(items: CatalogItem[]) {
-    if (!this.host || this.game) return;
-    // Identidad del jugador: mismo parser/almacén que editor, mundo y outcome.
+    if (!this.host || this.game || this.booting) return;
+    this.booting = true;
+    // Identidad del jugador: mismo almacén que editor, mundo y resultado; el visual sale del kit.
     this.avatarStore.loadSaved();
-    const plan = lobbyAvatarPlan(this.avatarStore.avatar());
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    this.zone.runOutsideAngular(() => {
-      const scene = new ClinicMenuScene(items, plan, reduceMotion, {
-        onEnter: id => this.zone.run(() => this.enter(id)),
-        onFocus: item => this.zone.run(() => this.focused.set(item)),
+    const avatar = toAvatarV2(this.avatarStore.avatar());
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+    // Sin kit, o con uno que no se puede resolver, el lobby arranca igual con el marcador geométrico.
+    this.kit.load()
+      .then(bundle => resolveCharacter(bundle, { kind: 'jugador', avatar }))
+      .catch(() => null)
+      .then(visual => {
+        this.booting = false;
+        if (this.destroyed || !this.host || this.game) return;
+        this.zone.runOutsideAngular(() => {
+          const scene = new ClinicMenuScene(items, visual, reduceMotion, {
+            onEnter: id => this.zone.run(() => this.enter(id)),
+            onFocus: item => this.zone.run(() => this.focused.set(item)),
+          });
+          this.game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: this.host!.nativeElement,
+            backgroundColor: '#0e141a',
+            pixelArt: true,
+            roundPixels: true,
+            scale: pixelScaleConfig(this.host!.nativeElement),
+            scene,
+          });
+          this.detachHostWatch = watchHostSize(this.game, this.host!.nativeElement);
+          // Sin la captura de Phaser, flechas y Espacio desplazarían la página. Se arma DESPUÉS de
+          // crear el juego: Phaser descarta los `keydown` ya cancelados.
+          this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
+        });
+        // Foco inicial explícito: los controles de teclado quedan activos sin un click previo (GAME-09).
+        window.setTimeout(() => this.focusCanvas(), 0);
       });
-      this.game = new Phaser.Game({
-        type: Phaser.AUTO,
-        parent: this.host!.nativeElement,
-        width: 960, height: 540,
-        backgroundColor: '#0e141a',
-        pixelArt: true,
-        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
-        scene,
-      });
-      // Sin la captura de Phaser, flechas y Espacio desplazarían la página. Se arma DESPUÉS de
-      // crear el juego: Phaser descarta los `keydown` ya cancelados.
-      this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
-    });
-    // Foco inicial explícito: los controles de teclado quedan activos sin un
-    // click previo (GAME-09); click/tap sobre el canvas lo recupera.
-    window.setTimeout(() => this.focusCanvas(), 0);
   }
 
   focusCanvas() {
@@ -468,8 +449,11 @@ export class GameMenuComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.destroyed = true;
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
+    this.detachHostWatch?.();
+    this.detachHostWatch = undefined;
     this.game?.destroy(true);
     if (this.enterTimer) clearTimeout(this.enterTimer);
   }
