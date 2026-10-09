@@ -60,6 +60,36 @@ Ver `FASE0_EVALUACION.md` (catálogo v2): P-02, P-14 y el Chain sobre filas de i
 
 Las 265 pruebas de caracterización siguen válidas sin modificarse. El análisis completo de qué cambia en el catálogo (P-10, A-02, A-03 y el candidato verificado de Template Method en `case-pdf-rooms.renderer.ts`) está en `FASE0_EVALUACION.md` §8.
 
-## Fase 1 — Cambios (pendiente)
+## Fase 1 — Cambios
 
-_Cada cambio se registra aquí con: patrón o antipatrón, archivos, motivo, riesgo, commit y capturas antes/después. El «antes» es `adsi-baseline-2` (`dd4eb89`)._
+_Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, commit y capturas antes/después. El «antes» es `adsi-baseline-2` (`dd4eb89`)._
+
+### P-01 · Strategy + Adapter + Factory Method — proveedores del asistente de IA
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p01-ai-strategy` · `7a613e4` |
+| **Patrones** | Strategy (comportamiento), Adapter (estructural), Factory Method (creacional) |
+| **Archivos** | `services/ai_providers.py` (nuevo), `views/ai_assistant.py`, `tests/test_ai_assistant.py` (fixture), `tests/test_ai_providers_strategy.py` (nuevo) |
+| **Riesgo** | Bajo: 39 pruebas de caracterización en la frontera HTTP pasan sin modificarse |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `AIAssistantView._call_llm` elegía el proveedor con un `if provider == "anthropic"`, y la misma vista armaba el cuerpo de cada API (`_call_openai`, `_call_anthropic`) y hacía el POST (`_post_json`). Agregar un proveedor obligaba a editar la vista, y probar la vista exigía conocer los detalles de cada API.
+
+**Solución (después).**
+
+- **Strategy:** `AIProvider` define `complete(system, question) -> str`. La vista solo conoce esa interfaz.
+- **Adapter:** `OpenAIProvider` y `AnthropicProvider` traducen esa interfaz única a la URL, las cabeceras, el cuerpo y la forma de la respuesta de cada API externa.
+- **Factory Method:** `AIAssistantView.create_provider()` lee la configuración y devuelve el proveedor concreto consultando el registro `PROVIDERS`. Una subclase o una prueba puede sobreescribirlo (la prueba de la vista usa un proveedor falso, sin red).
+- `post_json` queda como transporte común y `NotConfigured` se mueve al módulo de proveedores (la vista lo sigue importando).
+
+**Decisión de diseño.** Strategy y Adapter coinciden en las mismas clases: cada proveedor es a la vez una estrategia intercambiable y el adaptador de una API ajena. Se dejó así (en vez de separar «estrategia» y «adaptador» en dos capas) porque una capa más no aportaba nada con solo dos proveedores.
+
+**Lo que no cambió** (fijado por las pruebas): URL, cabeceras, cuerpo, `max_tokens` 512, tiempo de espera 20 s, recorte de espacios en la respuesta, que un nombre de proveedor desconocido siga cayendo en OpenAI, la auditoría y la respuesta genérica ante errores.
+
+**Pruebas.** Backend 408 → **426** (18 nuevas en `test_ai_providers_strategy.py`: elección por nombre, método de fábrica, registro de un proveedor nuevo sin tocar la vista, ambos adaptadores y proveedor falso en la vista). Cuatro mutaciones del código (siempre OpenAI, versión de Anthropic, `max_tokens`, argumentos invertidos) hacen fallar entre 2 y 8 pruebas; al restaurar vuelve el verde. Ajuste de una prueba existente: la fixture `sin_proveedor` ahora intercepta `ai_providers.post_json` porque `_post_json` ya no es un método de la vista (misma intención: prohibir la red).
+
+**Evidencia.** `docs/diseñosistemas_docs/P-01/`: `antes_ai_assistant.png`, `despues_vista.png`, `despues_ai_providers.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Strategy, Adapter y Factory Method (patrones de comportamiento, estructurales y creacionales vistos el 6, 8 y 26 de octubre); principios abierto/cerrado y de inversión de dependencias (SOLID, sesión del 17/19 de noviembre).
+
