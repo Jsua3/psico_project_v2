@@ -1,3 +1,53 @@
+# Política de fin de línea de SIEP
+#
+# Por qué existe: en Windows con `core.autocrlf=true` el árbol de trabajo se
+# materializa en CRLF mientras el índice (y CI en Linux) está en LF. Las pruebas
+# de contrato del frontend leen fuentes `.ts/.scss/.html` con `readFileSync` y
+# buscan cadenas con `\n` literal, así que fallaban solo en local. Aquí el fin
+# de línea queda fijado por el repositorio y no por la configuración de cada
+# desarrollador: `eol` en este archivo prevalece sobre `core.autocrlf`.
+#
+# Si ya tienes un checkout en CRLF, mira «Fin de línea (CRLF vs LF)» en el README.
+
+# Por defecto: git detecta el texto por contenido, lo guarda en LF y lo deja en
+# LF también en el árbol de trabajo (Windows, Linux y macOS por igual).
+* text=auto eol=lf
+
+# Scripts de Windows: deben conservar CRLF en el árbol de trabajo (los `.cmd`
+# con LF pueden fallar en `goto :etiqueta` y `call :subrutina`). El índice sigue
+# en LF; solo cambia lo que se escribe en disco.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Scripts de shell: LF siempre (con CRLF el intérprete falla con `\r`).
+*.sh text eol=lf
+
+# Binarios: ni conversión de fin de línea, ni diff de texto, ni fusión de texto.
+# `text=auto` ya los detectaría por contenido; se listan para que un archivo
+# nuevo (p. ej. un PNG de pixel art) jamás se «normalice» por error.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ogg binary
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.webm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
 # Salida del kit de personajes: bytes exactos (kit:check compara kit.json y manifest.json
 # byte a byte; sin conversión de finales de línea en checkouts con core.autocrlf).
+# Va AL FINAL a propósito: con varias coincidencias gana la última, y esta regla tiene que
+# anular el `* text=auto eol=lf` de arriba (puesta antes, el `*` la dejaría sin efecto).
 frontend/src/assets/characters/kit/** -text
