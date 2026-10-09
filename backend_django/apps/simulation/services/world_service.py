@@ -25,6 +25,7 @@ from ..models import (
 )
 from . import door_chain, game_service
 from shared.jsonutils import (
+    clamp as _clamp,
     coerce_int as _int,
     read_map as _read_map,
     read_string_list as _read_string_list,
@@ -38,10 +39,6 @@ def _append_unique(raw_json, value):
     if value not in items:
         items.append(value)
     return json.dumps(items)
-
-
-def _clamp(value, low, high):
-    return max(low, min(high, value))
 
 
 # ─── autoridad del servidor (GAME-01) ────────────────────────────────────────

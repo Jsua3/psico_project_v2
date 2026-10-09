@@ -1,6 +1,8 @@
 """Shared JSON / coercion helpers.
 
-Deduplicated from world_service.py and authoring_service.py (idénticas en ambas).
+Deduplicated from world_service.py and authoring_service.py (idénticas en ambas),
+y después de game_dtos.py, instructor_service.py y game_views.py (lectores) y de
+case_effects.py, decision_effects.py y world_service.py (`clamp`, copiada tres veces).
 Las columnas JSON del esquema viven como TEXT, así que se leen/escriben con estas.
 """
 import json
@@ -40,3 +42,8 @@ def coerce_int(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def clamp(value, lo=0, hi=100):
+    """Acota `value` al intervalo [lo, hi]; por defecto 0..100, como las métricas del intento."""
+    return max(lo, min(hi, value))

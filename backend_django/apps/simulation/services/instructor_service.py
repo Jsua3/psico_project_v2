@@ -4,12 +4,11 @@ Instructor review of student attempts: recent list, full trace (timeline +
 DECRYPTED reflections for authorized review + rubric summaries, with anonymized
 student alias), and rubric evaluation read/save.
 """
-import json
-
 from django.db import connection, transaction
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.simulation.serializers import game_dtos as dto
+from shared.jsonutils import read_map as _read_map
 
 from ..models import (
     AttemptEvent,
@@ -30,16 +29,6 @@ def _dt(value):
 
 def _anonymize(attempt):
     return f"Estudiante-{attempt.student_id if attempt.student_id is not None else 0}"
-
-
-def _read_map(raw):
-    if not raw or not str(raw).strip():
-        return {}
-    try:
-        value = json.loads(raw)
-        return value if isinstance(value, dict) else {}
-    except (ValueError, TypeError):
-        return {}
 
 
 def _student_ids_for_instructor(instructor):
