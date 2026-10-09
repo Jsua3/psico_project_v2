@@ -1,0 +1,26 @@
+classDiagram
+    direction LR
+    class Iterator {
+        <<protocolo de Python>>
+        +#95;#95;iter#95;#95;() Iterator
+        +#95;#95;next#95;#95;() Node
+    }
+    class BreadthFirstNodeIterator {
+        -_frontier : deque
+        -_visited : set
+        -_adjacency : dict
+        -_leftovers
+        +#95;#95;init#95;#95;(nodes, edges)
+        +#95;#95;iter#95;#95;()
+        +#95;#95;next#95;#95;()
+        -_next_reachable()
+    }
+    class game_service {
+        <<módulo>>
+        +get_progress_map(attempt_id, attempt_token, actor)
+    }
+    class SimulationNode
+    Iterator <|.. BreadthFirstNodeIterator
+    game_service ..> BreadthFirstNodeIterator : crea y recorre con for
+    BreadthFirstNodeIterator o-- SimulationNode : nodos
+    note for BreadthFirstNodeIterator "1) alcanzables por niveles desde el inicio<br/>2) luego los inalcanzables por id<br/>no toca la BD: recibe nodos y aristas"

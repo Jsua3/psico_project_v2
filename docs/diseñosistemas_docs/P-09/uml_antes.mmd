@@ -1,0 +1,13 @@
+classDiagram
+    direction LR
+    class game_service {
+        <<módulo>>
+        +get_progress_map(attempt_id, attempt_token, actor)
+    }
+    class SimulationNode
+    class DecisionOption
+    class AttemptEvent
+    game_service ..> SimulationNode : consulta
+    game_service ..> DecisionOption : consulta
+    game_service ..> AttemptEvent : consulta
+    note for game_service "get_progress_map hace todo en una función:<br/>consulta, cola + visitados del BFS (pop(0)),<br/>nodos huérfanos al final y armado de la respuesta"
