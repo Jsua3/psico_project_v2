@@ -204,7 +204,7 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 
 **Lo que no cambió** (fijado por las pruebas): los tres mensajes, que el login nunca cierra sesión ni avisa, que un 401 siempre limpia la sesión pero solo avisa y navega si no se está ya en `/login`, que el 403 en `/api/auth/me` se trata como sesión inválida, que el status 0 y los errores que no son HTTP avisan de conexión y conservan la sesión, y que los demás errores pasan sin efectos. El error siempre se vuelve a lanzar, porque los componentes lo siguen necesitando (`HANDLED_BY_INTERCEPTOR`).
 
-**Pruebas.** Frontend +24 (`http-error-chain.spec.ts`): orden de la cadena, cada eslabón con su caso feliz y de borde, que el primero que reconoce el error corta (por ejemplo el login con 0/401/403/500), y que un eslabón nuevo se agrega o se antepone sin tocar los demás. Total 2094 → 2118 (167 archivos de prueba), ejecutadas en tu equipo con Vitest, y `tsc` sobre la app sin errores. Ocho mutaciones, todas detectadas: la cadena no se corta (11 fallos), login después del 401 (3), 403 en `/me` después del 403 genérico (6), eslabón no-HTTP al final (2), cerrar sesión siempre navega (4), `expireSession` sin limpiar la sesión (10), la cadena no enlaza (16) y el 403 de `/me` sin mirar la URL (2). Al restaurar vuelve el verde.
+**Pruebas.** Frontend +24 (`http-error-chain.spec.ts`): orden de la cadena, cada eslabón con su caso feliz y de borde, que el primero que reconoce el error corta (por ejemplo el login con 0/401/403/500), y que un eslabón nuevo se agrega o se antepone sin tocar los demás. Total 2094 → 2118 (168 archivos de prueba), ejecutadas en tu equipo con Vitest, y `tsc` sobre la app sin errores. Ocho mutaciones, todas detectadas: la cadena no se corta (11 fallos), login después del 401 (3), 403 en `/me` después del 403 genérico (6), eslabón no-HTTP al final (2), cerrar sesión siempre navega (4), `expireSession` sin limpiar la sesión (10), la cadena no enlaza (16) y el 403 de `/me` sin mirar la URL (2). Al restaurar vuelve el verde.
 
 **Evidencia.** `docs/diseñosistemas_docs/P-08b/`: `antes_jwt_interceptor.png`, `despues_jwt_interceptor.png`, `despues_eslabon_base.png`, `despues_eslabones.png`, `despues_cadena.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
@@ -235,7 +235,7 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 
 **Lo que no cambió** (fijado por el contrato HTTP de Fase 0): para los 50 métodos, el verbo, la URL con sus parámetros (`nodeId` incluido, también cuando vale 0), el cuerpo, que el token de intento viaje solo en cabecera y que se desenvuelva `{ data }`; `studentReport` sigue completando `phaseDurations` con `[]`.
 
-**Pruebas.** Frontend 2094 → 2129 (+9 de fronteras, +2 del contrato; 167 → 168 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y de pruebas sin errores y `ng build` correcto.
+**Pruebas.** Frontend 2094 → 2129 (+9 de fronteras, +2 del contrato; 168 → 169 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y de pruebas sin errores y `ng build` correcto.
 - *Contrato de 50 métodos:* el `it.each` y las pruebas con comportamiento propio **no cambiaron en lo que verifican**; solo se ajustó cómo obtiene el servicio (une las tres APIs en un objeto). La prueba final ahora comprueba que cada método vive en una sola API y que el reparto es 21 / 25 / 4.
 - *Nuevo `api-boundaries.contract.spec.ts`:* fija qué archivos pueden inyectar `AuthoringApi` e `InstructorApi`, que los consumidores migrados no dependen del servicio del jugador, que este no importa las otras dos y que el sobre `ApiResponse` no se vuelve a duplicar.
 - *Pruebas ajustadas:* `case-editor.feedback`, `world-editor.store.commands` y `world-editor.component.actions` cambian solo el token del proveedor (`SimulationService` → `AuthoringApi`); `dashboard.component.spec` añade el mismo simulacro como `InstructorApi`. Ninguna aserción se tocó.
@@ -270,8 +270,71 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 
 **Lo que no cambió:** la URL, el verbo y el desenvolver de `{ data }` de `listCases` (los fija el contrato de 50 métodos), los demás métodos del servicio y los componentes.
 
-**Pruebas.** Frontend 2129 → 2149 (+20 en `cached-simulation.service.spec.ts`; 169 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y pruebas sin errores y `ng build` correcto. Cubren: es un `SimulationService`, la segunda llamada no va al backend, las simultáneas comparten una petición, el límite exacto de la vigencia (justo antes y al vencer), usuario/rol/sin sesión, errores no guardados y propagados, copias independientes, invalidación manual, publicar (con éxito invalida, con error conserva; crear y clonar no invalidan), que `getCatalog` y `startAttempt` no se guardan y que `app.config` registra el proxy. Doce mutaciones: once detectadas desde el principio (sin vigencia, sin clave de usuario, sin compartir la petición, sin copia, publicar sin invalidar, invalidar vacío, proxy sin caché, clave sin rol, límite inclusivo, sin proveedor en `app.config`, clonar invalidando). La que sobrevivió fue «guardar errores»: mostró que la limpieza explícita del error era **redundante**, porque `shareReplay` ya reinicia solo cuando la petición falla. Se eliminó ese código y se comprobó que una variante que sí guarda el error (`share` con `resetOnError: false`) hace fallar la prueba.
+**Pruebas.** Frontend 2129 → 2149 (+20 en `cached-simulation.service.spec.ts`; 170 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y pruebas sin errores y `ng build` correcto. Cubren: es un `SimulationService`, la segunda llamada no va al backend, las simultáneas comparten una petición, el límite exacto de la vigencia (justo antes y al vencer), usuario/rol/sin sesión, errores no guardados y propagados, copias independientes, invalidación manual, publicar (con éxito invalida, con error conserva; crear y clonar no invalidan), que `getCatalog` y `startAttempt` no se guardan y que `app.config` registra el proxy. Doce mutaciones: once detectadas desde el principio (sin vigencia, sin clave de usuario, sin compartir la petición, sin copia, publicar sin invalidar, invalidar vacío, proxy sin caché, clave sin rol, límite inclusivo, sin proveedor en `app.config`, clonar invalidando). La que sobrevivió fue «guardar errores»: mostró que la limpieza explícita del error era **redundante**, porque `shareReplay` ya reinicia solo cuando la petición falla. Se eliminó ese código y se comprobó que una variante que sí guarda el error (`share` con `resetOnError: false`) hace fallar la prueba.
 
 **Evidencia.** `docs/diseñosistemas_docs/P-06/`: `antes_list_cases.png`, `antes_dashboard_llamada.png`, `despues_proxy.png`, `despues_cache.png`, `despues_app_config.png`, `despues_publicar_invalida.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Proxy (patrones estructurales, Unidad 2); principio de sustitución de Liskov (el proxy se puede usar donde se espera `SimulationService`) y abierto/cerrado (se agrega caché sin modificar el servicio real).
+
+
+### P-07 · Command + Composite — comandos del editor de mundo
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p07-editor-commands` · `085a08a` (parte de `adsi/p06-cache-proxy`: PR después de P-06) |
+| **Patrones** | Command (comportamiento) y Composite (estructural) |
+| **Archivos** | `world-editor/world-editor.store.ts`, `world-editor/world-editor.component.ts`, `world-editor/world-editor.macro-command.spec.ts` (nuevo); 4 pruebas reescritas en `world-editor.component.actions.spec.ts` y `world-editor.store.commands.spec.ts` |
+| **Riesgo** | Medio-bajo: altera comportamiento a propósito en tres puntos acotados del editor; ver el hallazgo de persistencia más abajo |
+| **Cambio de comportamiento** | **Sí, acotado:** (1) la etiqueta de una zona se puede deshacer; (2) borrar un objeto borra también su diálogo, en un solo paso; (3) el historial de deshacer recuerda como máximo 100 pasos |
+
+**Problema (antes).** El editor ya define el patrón Command (12 comandos con `execute`/`undo` y una pila en el store), pero dos acciones del inspector lo rompían y la pila no tenía límite:
+
+- `updateZoneLabel` ejecutaba un `ResizeZoneCommand` «vacío» (mismo origen y destino) y después escribía la etiqueta con `editorState.set(...)`, fuera de la pila. Resultado: la etiqueta no se podía deshacer (Ctrl+Z consumía el paso vacío y la etiqueta se quedaba) y cada pulsación de tecla apilaba un paso inútil.
+- `deleteSelected` ejecutaba solo `DeleteObjectCommand`: el diálogo del objeto seguía en el estado, sin dueño e inalcanzable desde la interfaz.
+- Las pilas de deshacer y rehacer crecían sin límite durante toda la sesión de edición.
+
+**Solución (después).**
+
+- **Command:** `SetZoneLabelCommand(key, label)` cambia solo la etiqueta de una zona y recuerda la anterior para deshacer. `updateZoneLabel` hace ahora una sola cosa: `store.execute(new SetZoneLabelCommand(...))`.
+- **Composite:** `MacroCommand` es a la vez un `EditorCommand` y un contenedor de `EditorCommand`: ejecuta a sus hijos en orden, los deshace en orden inverso y puede contener otros macros. Para el store es un comando más y cuenta como **un** paso del historial.
+- `DeleteObjectWithDialogueCommand` es el macro concreto «borrar objeto + su diálogo»: compone los dos comandos que ya existían (`DeleteObjectCommand` y `DeleteDialogueCommand`). `deleteSelected` lo usa para los objetos.
+- **Tope:** `MAX_UNDO_STEPS = 100`; `execute` descarta el paso más antiguo al pasarse. Rehacer solo contiene pasos que salieron de la pila de deshacer, así que un único tope en `execute` acota las dos pilas.
+
+**Decisión de diseño y compromiso.**
+
+- *Por qué el Composite aporta aquí:* sin él, «borrar objeto + diálogo» serían dos pasos del historial (un Ctrl+Z dejaría el objeto sin diálogo o al revés) o un tercer comando que duplicaría la lógica de los dos que ya existen. `applyScenePreset` ya era un único comando y no necesita macro.
+- *Pulsaciones:* cada pulsación sigue siendo un paso, igual que en el resto de campos del inspector (`UpdateInspectorCommand`), así que deshacer revierte de a un carácter. Agrupar pulsaciones consecutivas es una mejora posible y queda fuera de este cambio.
+- *Compromiso del tope:* tras más de 100 cambios seguidos ya no se puede deshacer hasta el primero. El 100 es una elección razonable, no medida; está en una constante.
+
+**Hallazgo nuevo (verificado, sin corregir): el guardado del mundo no persiste los borrados de objetos ni las zonas de colisión.** `PUT /world` (`authoring_service.save_world`) hace *upsert* de los objetos recibidos pero no borra los ausentes, ignora por completo `collisionZones` y solo borra los diálogos ausentes. Se comprobó con una prueba temporal contra PostgreSQL (no se commitea):
+
+| Escenario | Resultado |
+|---|---|
+| `PUT` sin uno de los objetos | El objeto sigue en la base (4 antes, 4 después) |
+| `PUT` con una zona menos y etiquetas nuevas | Devuelve las 8 zonas con sus etiquetas originales |
+| Borrar objeto **y** diálogo y guardar | El objeto **reaparece sin su diálogo** |
+
+Consecuencias para este cambio: el estado local del editor queda coherente (objetivo de P-07) y `SetZoneLabelCommand` corrige el deshacer, pero las zonas no se guardan de ninguna forma hoy. Con el macro, al recargar vuelve el objeto sin diálogo; antes de P-07 volvían los dos. Corregirlo exige un cambio de backend aparte (propuesto como A-05: que `save_world` borre los objetos ausentes y persista las zonas, con pruebas previas; es un cambio de comportamiento que toca claves foráneas). **Decisión del equipo antes de fusionar P-07.**
+
+**Lo que no cambió** (fijado por las pruebas de Fase 0): los 12 comandos simples (ejecutan sin mutar el estado, ejecutar y deshacer devuelve el mismo contenido, tipo), el orden de la pila y que una acción nueva descarte lo que se podía rehacer, el autoguardado de 1500 ms con sus errores, `applyScenePreset`, `addTemplate`, `updateObjectField` y `deleteSelectedZone`. Siguen sin corregirse los hallazgos 1, 2 y 5 de Fase 0 (el autoguardado muere tras un error, el guardado pendiente bajo otro nodo y que deshacer un borrado repone el elemento al final de la lista).
+
+**Pruebas.** Frontend 2149 → **2184** (+35; 170 → 171 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y de pruebas sin errores y `ng build` correcto.
+
+- *Nuevas, `world-editor.macro-command.spec.ts` (32):* `SetZoneLabelCommand` (7), `MacroCommand` (9: orden, estado que recibe cada hijo, macros anidados, vacío, que deshacer no invierta la lista en el sitio), `DeleteObjectWithDialogueCommand` (7), integración con el store (3, incluido que un macro que falla a la mitad no cambia el estado ni apila nada), etiqueta de zona (1) y tope (5, con sus límites).
+- *Reescritas (4):* son las cuatro pruebas que Fase 0 marcó como «comportamiento actual» y que fijaban justo los defectos corregidos. Es el único cambio a pruebas existentes; ninguna otra aserción se tocó.
+
+| Antes (fijaba el defecto) | Ahora |
+|---|---|
+| `registra un comando «ResizeZone» vacío en la pila` | `registra un único paso en la pila` (un deshacer lo agota) |
+| `deshacer NO revierte la etiqueta` → `toBe('Escritorio')` | `deshacer devuelve la etiqueta anterior` → `toBe('Mesa')` |
+| `borrar un objeto deja huérfano su diálogo` → `['npc-1']` | `borrar un objeto borra también su diálogo` → `[]` |
+| `la pila no tiene tope` → 300 cambios y 300 deshacer vuelven a (0, 0) | `la pila tiene tope` → se queda en (300 − `MAX_UNDO_STEPS`) |
+
+- *RED real:* con esqueletos sin comportamiento fallaban 20 pruebas por la razón esperada. Otras ocho pasaban sin discriminar nada (un deshacer sobre una identidad es siempre verde); se reforzaron comprobando el estado intermedio.
+- *Mutaciones, 16 de 16 detectadas:* deshacer en orden directo (4 fallos), ejecutar en orden inverso (6), el macro omite el último hijo (16), deshacer invierte la lista en el sitio (1), el macro no borra el diálogo (8), no borra el objeto (8), `SetZoneLabel` con deshacer vacío (6), etiqueta en todas las zonas (4), sin recordar la etiqueta anterior (5), tope con error de uno (4), sin tope (3), el tope descarta el paso más reciente (3), tope absurdo de 1 (2), el componente vuelve a escribir la etiqueta sin comando (2), `updateZoneLabel` sin la guarda de zona inexistente (1) y `deleteSelected` sin el macro (4). Dos lecciones: el orden de deshacer del macro de borrado no es observable (sus hijos son independientes), por eso se verifica con dos movimientos que sí dependen del orden; y la mutación «invierte la lista en el sitio» solo la atrapa la prueba de ejecutar-deshacer-ejecutar.
+
+**Otros hallazgos.** `ResizeZoneCommand` queda sin ningún llamador de producción (solo lo usaba el paso vacío de la etiqueta): el editor no tiene hoy ninguna acción que redimensione una zona; es candidato a A-02 si el equipo no planea ese redimensionado. El catálogo de Fase 0 hablaba de 13 comandos; el store tenía 12 (ahora son 15 con `SetZoneLabelCommand`, `MacroCommand` y `DeleteObjectWithDialogueCommand`). Se corrigieron en este mismo documento los conteos de archivos de prueba de P-08b (168), P-05 (169) y P-06 (170): estaban desfasados en uno, los totales de pruebas eran correctos.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-07/`: `antes_update_zone_label.png`, `antes_delete_selected.png`, `antes_pila_sin_tope.png`, `despues_component.png`, `despues_set_zone_label.png`, `despues_macro.png`, `despues_tope.png`, `despues_tope_constante.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`). Estas capturas se generaron en Windows: `tools/codeshot.py` se volvió portable (usa Consolas cuando no hay DejaVu).
+
+**Relación con la materia.** Command (patrones de comportamiento, Unidad 3) y Composite (estructurales, Unidad 2): `MacroCommand` es el ejemplo clásico de Command compuesto de GoF; responsabilidad única y abierto/cerrado (SOLID): un comando nuevo no obliga a tocar el store. El salto de `updateZoneLabel` al patrón que el propio editor define entra al informe de antipatrones (Fase 0, §3.4).
