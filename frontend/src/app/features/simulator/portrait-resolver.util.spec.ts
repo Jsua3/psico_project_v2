@@ -2,7 +2,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { testKitBundle } from '../character/kit/testing/kit-testing';
-import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
+import { isSystemVoice, resolvePortraitAsset, type DialoguePortraitKeys } from './portrait-resolver.util';
 
 const bundle = testKitBundle();
 const png = (path: string) => `/assets/characters/kit/${path}.png`;
@@ -26,16 +26,40 @@ describe('resolvePortraitAsset (kit)', () => {
 });
 
 describe('resolvePortraitAsset: solo retratos que existen y sin sonrisa en el duelo (T4.6, F§7.11)', () => {
-  const GRIEVING = ['Abuela de la niña', 'Sobreviviente (22 años)'];
+  /**
+   * Las personas en duelo del caso y cada ruta por la que el juego llega a su retrato: el nombre del hablante, la clave
+   * del NPC o del retrato del diálogo y la receta. Son la Abuela, la Sobreviviente y los tres familiares de los
+   * escenarios de Urgencias y Comisaría («Madre de la consultante», «Madre de la sobreviviente», «Familiar de la
+   * víctima»), que comparten la receta `madre-acompanante`.
+   */
+  const GRIEVING: ReadonlyArray<{ recipe: string; keys: DialoguePortraitKeys }> = [
+    { recipe: 'abuela-familia', keys: { speakerName: 'Abuela de la niña' } },
+    { recipe: 'abuela-familia', keys: { portraitKey: 'familia-crisis' } },
+    { recipe: 'abuela-familia', keys: { portraitKey: 'familia-duelo' } },
+    { recipe: 'abuela-familia', keys: { recipeId: 'abuela-familia' } },
+    { recipe: 'sobreviviente', keys: { speakerName: 'Sobreviviente (22 años)' } },
+    { recipe: 'sobreviviente', keys: { speakerName: 'Consultante' } },
+    { recipe: 'sobreviviente', keys: { portraitKey: 'escucha-segura' } },
+    { recipe: 'sobreviviente', keys: { portraitKey: 'sobreviviente-consulta' } },
+    { recipe: 'sobreviviente', keys: { portraitKey: 'sobreviviente-espera' } },
+    { recipe: 'sobreviviente', keys: { recipeId: 'sobreviviente' } },
+    { recipe: 'madre-acompanante', keys: { portraitKey: 'madre-acompanante' } },
+    { recipe: 'madre-acompanante', keys: { recipeId: 'madre-acompanante' } },
+  ];
   const EMOTIONS = [
     'neutral', 'vulnerable', 'concerned', 'danger', 'positive', 'anxious', 'negative',
     'sad', 'relieved', 'calm', 'worried', 'receptive', 'closed', 'happy', 'alerta', '', 'algo-raro', null, undefined,
   ];
 
   it('todo retrato devuelto existe en frontend/src/assets/characters/kit/', () => {
-    for (const speakerName of [...GRIEVING, 'Psicóloga hospitalaria', 'Funcionaria de recepción']) {
+    const people: DialoguePortraitKeys[] = [
+      ...GRIEVING.map(route => route.keys),
+      { speakerName: 'Psicóloga hospitalaria' },
+      { speakerName: 'Funcionaria de recepción' },
+    ];
+    for (const keys of people) {
       for (const emotion of EMOTIONS) {
-        const asset = resolvePortraitAsset(bundle, { speakerName, emotion });
+        const asset = resolvePortraitAsset(bundle, { ...keys, emotion });
         expect(asset).not.toBeNull();
         expect(existsSync(join(KIT_DIR, asset!.replace('/assets/characters/kit/', '')))).toBe(true);
       }
@@ -53,16 +77,17 @@ describe('resolvePortraitAsset: solo retratos que existen y sin sonrisa en el du
     }
   });
 
-  it('positive y happy nunca sonríen a la Abuela ni a la Sobreviviente (sin sonrisa en el duelo)', () => {
-    for (const speakerName of GRIEVING) {
+  it('positive y happy nunca sonríen a la familia ni a la Sobreviviente, por ninguna de las rutas que llevan a ellas (sin sonrisa en el duelo)', () => {
+    for (const { recipe, keys } of GRIEVING) {
       for (const emotion of EMOTIONS) {
-        expect(resolvePortraitAsset(bundle, { speakerName, emotion })).not.toMatch(/portrait-alegre/);
+        expect(resolvePortraitAsset(bundle, { ...keys, emotion }), `${JSON.stringify(keys)} con «${emotion}»`)
+          .not.toMatch(/portrait-alegre/);
+      }
+      for (const emotion of ['positive', 'happy']) {
+        expect(resolvePortraitAsset(bundle, { ...keys, emotion }), `${JSON.stringify(keys)} con «${emotion}»`)
+          .toBe(png(`${recipe}/portrait-neutral`));
       }
     }
-    expect(resolvePortraitAsset(bundle, { speakerName: 'Abuela de la niña', emotion: 'positive' }))
-      .toBe(png('abuela-familia/portrait-neutral'));
-    expect(resolvePortraitAsset(bundle, { speakerName: 'Sobreviviente (22 años)', emotion: 'happy' }))
-      .toBe(png('sobreviviente/portrait-neutral'));
   });
 
   it('la sonrisa de la Psicóloga hospitalaria (positive → alegre) se conserva', () => {

@@ -12,8 +12,12 @@ import {
 import type { KitBundle } from '../character/kit/kit-engine';
 import { sheetSourceUrl } from '../character/kit/kit-raster';
 
-/** Recetas que no sonríen en este caso (límite de producto del informe de jugabilidad: sin sonrisa en el duelo). */
-const NO_SMILE_RECIPES: ReadonlySet<string> = new Set(['abuela-familia', 'sobreviviente']);
+/**
+ * Recetas que no sonríen en este caso (límite de producto del informe de jugabilidad: sin sonrisa en el duelo): la
+ * Abuela, la Sobreviviente y los familiares de los escenarios de Urgencias y Comisaría, que comparten `madre-acompanante`
+ * (también la plantilla genérica `mujer-adulta`, que resuelve a esa receta).
+ */
+const NO_SMILE_RECIPES: ReadonlySet<string> = new Set(['abuela-familia', 'sobreviviente', 'madre-acompanante']);
 
 export interface DialoguePortraitKeys {
   recipeId?: string | null;
