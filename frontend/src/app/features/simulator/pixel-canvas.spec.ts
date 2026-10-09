@@ -2,7 +2,7 @@ vi.mock('phaser', () => ({ __esModule: true, default: { Scale: { NONE: 0 } } }))
 
 import type Phaser from 'phaser';
 
-import { fitGameToHost, pixelScaleConfig } from './pixel-canvas';
+import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 
 function host(width: number, height: number): HTMLElement {
   return { getBoundingClientRect: () => ({ width, height }) } as unknown as HTMLElement;
@@ -22,7 +22,10 @@ function setDpr(value: number): void {
 }
 
 describe('pixel-canvas', () => {
-  afterEach(() => setDpr(1));
+  afterEach(() => {
+    setDpr(1);
+    vi.unstubAllGlobals();
+  });
 
   it('la config pide el lienzo en píxeles físicos con el CSS al tamaño del contenedor', () => {
     setDpr(1.5);
@@ -40,5 +43,37 @@ describe('pixel-canvas', () => {
     expect(fitGameToHost(game, host(1000, 500))).toBe(true);
     expect(scale.resize).toHaveBeenLastCalledWith(2000, 1000);
     expect(scale.setZoom).toHaveBeenLastCalledWith(0.5);
+  });
+
+  it('watchHostSize reencaja al cambiar el contenedor o la ventana y deja de observar al soltarlo', () => {
+    setDpr(1);
+    const refits: Array<() => void> = [];
+    const observeSpy = vi.fn();
+    const disconnectSpy = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      observe = observeSpy;
+      disconnect = disconnectSpy;
+      constructor(callback: () => void) { refits.push(callback); }
+    });
+    const size = { width: 800, height: 450 };
+    const el = { getBoundingClientRect: () => size } as unknown as HTMLElement;
+    const { game, scale } = fakeGame(800, 450, 1);
+
+    const stop = watchHostSize(game, el);
+    expect(observeSpy).toHaveBeenCalledWith(el);
+
+    size.width = 1000; // se abre o se cierra un panel: cambia el contenedor
+    refits[0]();
+    expect(scale.resize).toHaveBeenLastCalledWith(1000, 450);
+
+    size.height = 500; // cambia la ventana o el zoom del navegador
+    window.dispatchEvent(new Event('resize'));
+    expect(scale.resize).toHaveBeenLastCalledWith(1000, 500);
+
+    stop();
+    expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    size.width = 1200;
+    window.dispatchEvent(new Event('resize'));
+    expect(scale.resize).toHaveBeenCalledTimes(2); // soltado: ya no reencaja
   });
 });

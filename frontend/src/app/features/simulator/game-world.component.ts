@@ -68,7 +68,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
-import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
+import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
@@ -2764,10 +2764,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
    * `refresh()` usa el tamaño en caché del contenedor, así que antes hay que leerlo (T0.3).
    */
   refreshScale(): void {
-    const scale = this.phaserGame?.scale;
-    if (!scale) return;
-    scale.getParentBounds();
-    scale.refresh();
+    const host = this.gameHost?.nativeElement;
+    if (this.phaserGame && host) fitGameToHost(this.phaserGame, host);
   }
 
   ngOnDestroy() {
