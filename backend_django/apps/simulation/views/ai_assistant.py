@@ -8,10 +8,7 @@ It is OFF by default (settings.AI_ASSISTANT_ENABLED): it would send the question
 and the case context to an external provider. Errors go through the project's
 exception handler, so they use the usual ``{success: false, message}`` envelope.
 """
-import json
 import logging
-import urllib.error
-import urllib.request
 import uuid
 
 from django.conf import settings
@@ -22,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.simulation.services import audit_service
+from apps.simulation.services.ai_providers import DEFAULT_PROVIDER, AIProvider, NotConfigured, provider_class
 
 logger = logging.getLogger(__name__)
 
@@ -103,62 +101,21 @@ class AIAssistantView(APIView):
             "Si falta informacion, sugiere que el estudiante hable con NPCs o use herramientas del caso."
         )
 
-    def _call_llm(self, question: str, context: str) -> str:
-        provider = getattr(settings, "AI_ASSISTANT_PROVIDER", "openai").lower()
+    def create_provider(self) -> AIProvider:
+        """Método de fábrica (Factory Method): decide qué proveedor concreto se usa.
+
+        Lee la configuración y devuelve un ``AIProvider``. Una subclase (o una
+        prueba) puede sobreescribirlo para usar otro proveedor sin red.
+        """
+        name = getattr(settings, "AI_ASSISTANT_PROVIDER", DEFAULT_PROVIDER)
         api_key = getattr(settings, "AI_ASSISTANT_API_KEY", "").strip()
         model = getattr(settings, "AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
         if not api_key:
             raise NotConfigured()
+        return provider_class(name)(api_key, model)
 
-        if provider == "anthropic":
-            return self._call_anthropic(api_key, model, context, question)
-        return self._call_openai(api_key, model, context, question)
-
-    def _call_openai(self, api_key: str, model: str, context: str, question: str) -> str:
-        payload = {
-            "model": model,
-            "max_tokens": 512,
-            "messages": [
-                {"role": "system", "content": context},
-                {"role": "user", "content": question},
-            ],
-        }
-        data = self._post_json("https://api.openai.com/v1/chat/completions", payload, {
-            "Authorization": f"Bearer {api_key}",
-        })
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
-
-    def _call_anthropic(self, api_key: str, model: str, context: str, question: str) -> str:
-        payload = {
-            "model": model,
-            "max_tokens": 512,
-            "system": context,
-            "messages": [{"role": "user", "content": question}],
-        }
-        data = self._post_json("https://api.anthropic.com/v1/messages", payload, {
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        })
-        content = data.get("content") or []
-        return (content[0].get("text", "") if content else "").strip()
-
-    @staticmethod
-    def _post_json(url: str, payload: dict, headers: dict) -> dict:
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                **headers,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"provider returned {exc.code}: {body[:300]}") from exc
+    def _call_llm(self, question: str, context: str) -> str:
+        return self.create_provider().complete(context, question)
 
     def _write_audit(self, request, attempt_id, question, node_id, decision_taken, response_text):
         try:
@@ -186,6 +143,3 @@ class AIAssistantView(APIView):
         except Exception as exc:  # pragma: no cover - audit never blocks UX
             logger.warning("AIAssistant audit failed: %s", exc)
 
-
-class NotConfigured(Exception):
-    pass
