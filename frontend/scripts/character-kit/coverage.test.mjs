@@ -48,6 +48,15 @@ test('una clave nueva sin receta se detecta', () => {
   ]);
 });
 
+test('el catálogo proyecta a un retrato las emociones que master ya aliaba (F§7.11) y las de consecuencias futuras, y el chequeo las exige', () => {
+  const bundle = buildBundle();
+  for (const emotion of ['anxious', 'worried', 'negative', 'sad', 'relieved', 'calm', 'receptive', 'closed']) {
+    assert.ok(bundle.catalog.emotionToPortrait[emotion], `falta la emoción ${emotion}`);
+  }
+  delete bundle.catalog.emotionToPortrait.anxious;
+  assert.deepEqual(checkCatalogRecipes(bundle), ['catálogo: la emoción anxious no proyecta a un estado de retrato']);
+});
+
 test('todo lo que el catálogo nombra existe', () => {
   assert.deepEqual(checkCatalogRecipes(buildBundle()), []);
   const bundle = buildBundle();

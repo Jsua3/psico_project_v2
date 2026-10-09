@@ -53,7 +53,15 @@
     "neutral": "neutral",
     "vulnerable": "preocupada",
     "concerned": "preocupada",
+    "anxious": "preocupada",
+    "worried": "preocupada",
     "danger": "triste",
+    "negative": "triste",
+    "sad": "triste",
+    "relieved": "neutral",
+    "calm": "neutral",
+    "receptive": "neutral",
+    "closed": "neutral",
     "positive": "alegre"
   },
   "editor": {

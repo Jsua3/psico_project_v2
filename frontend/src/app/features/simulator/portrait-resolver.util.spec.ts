@@ -41,6 +41,34 @@ describe('resolvePortraitAsset: solo retratos que existen y sin sonrisa en el du
       }
     }
   });
+
+  it('alias de F§7.11 y emociones de consecuencias futuras: anxious y worried → preocupada, negative y sad → triste, el resto → neutral', () => {
+    const faces = (emotion: string) => resolvePortraitAsset(bundle, { speakerName: 'Psicóloga hospitalaria', emotion });
+    expect(faces('anxious')).toBe(png('psicologa-hospitalaria/portrait-preocupada'));
+    expect(faces('worried')).toBe(png('psicologa-hospitalaria/portrait-preocupada'));
+    expect(faces('negative')).toBe(png('psicologa-hospitalaria/portrait-triste'));
+    expect(faces('sad')).toBe(png('psicologa-hospitalaria/portrait-triste'));
+    for (const calm of ['relieved', 'calm', 'receptive', 'closed']) {
+      expect(faces(calm)).toBe(png('psicologa-hospitalaria/portrait-neutral'));
+    }
+  });
+
+  it('positive y happy nunca sonríen a la Abuela ni a la Sobreviviente (sin sonrisa en el duelo)', () => {
+    for (const speakerName of GRIEVING) {
+      for (const emotion of EMOTIONS) {
+        expect(resolvePortraitAsset(bundle, { speakerName, emotion })).not.toMatch(/portrait-alegre/);
+      }
+    }
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Abuela de la niña', emotion: 'positive' }))
+      .toBe(png('abuela-familia/portrait-neutral'));
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Sobreviviente (22 años)', emotion: 'happy' }))
+      .toBe(png('sobreviviente/portrait-neutral'));
+  });
+
+  it('la sonrisa de la Psicóloga hospitalaria (positive → alegre) se conserva', () => {
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Psicóloga hospitalaria', emotion: 'positive' }))
+      .toBe(png('psicologa-hospitalaria/portrait-alegre'));
+  });
 });
 
 describe('isSystemVoice: solo las voces del sistema conservan la señal de emoción (T4.6)', () => {

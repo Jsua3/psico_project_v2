@@ -10,7 +10,7 @@ import { PORTRAIT_STATES } from '../../src/app/features/character/kit/kit-engine
 import { FRONTEND_ROOT } from './bundle.mjs';
 
 export const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
-const EMOTIONS = ['neutral', 'vulnerable', 'concerned', 'danger', 'positive'];
+const EMOTIONS = ['neutral', 'vulnerable', 'concerned', 'anxious', 'worried', 'danger', 'negative', 'sad', 'relieved', 'calm', 'receptive', 'closed', 'positive'];
 const MAPS = Object.freeze([
   ['actors', 'el actor'],
   ['guides', 'el guía'],

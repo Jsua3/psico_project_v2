@@ -12,6 +12,9 @@ import {
 import type { KitBundle } from '../character/kit/kit-engine';
 import { sheetSourceUrl } from '../character/kit/kit-raster';
 
+/** Recetas que no sonríen en este caso (límite de producto del informe de jugabilidad: sin sonrisa en el duelo). */
+const NO_SMILE_RECIPES: ReadonlySet<string> = new Set(['abuela-familia', 'sobreviviente']);
+
 export interface DialoguePortraitKeys {
   recipeId?: string | null;
   portraitKey?: string | null;
@@ -24,7 +27,8 @@ export function resolvePortraitAsset(bundle: KitBundle | null, keys: DialoguePor
   const recipeId = resolveRecipeId(bundle, { recipeId: keys.recipeId, actor: keys.portraitKey, speaker: keys.speakerName });
   if (!recipeId) return null;
   const visual = resolveCharacter(bundle, { kind: 'receta', recipeId });
-  const source = visualPortrait(visual, portraitStateFor(bundle, keys.emotion));
+  const state = portraitStateFor(bundle, keys.emotion);
+  const source = visualPortrait(visual, state === 'alegre' && NO_SMILE_RECIPES.has(recipeId) ? 'neutral' : state);
   return source ? sheetSourceUrl(source) : null;
 }
 
