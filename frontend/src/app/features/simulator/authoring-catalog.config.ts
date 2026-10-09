@@ -1,5 +1,3 @@
-import { AvatarConfig, HAIR_VARIANTS } from '../character/avatar.model';
-import { defaultAvatar, hairVariantPatch } from '../character/avatar-config.util';
 import { SceneMapDefinition, WorldObject, WorldObjectType } from '../../core/models/simulation.model';
 import { backgroundImage, cameraZoom, setBackgroundImage, setCameraZoom } from './world-editor/room-edit.util';
 
@@ -23,13 +21,6 @@ export interface AuthoringObjectTemplate {
   width: number;
   height: number;
   metadata?: Record<string, unknown>;
-}
-
-export interface AuthoringNpcTemplate {
-  id: string;
-  label: string;
-  gender: 'female' | 'male';
-  avatar: AvatarConfig;
 }
 
 export const AUTHORING_SCENE_TEMPLATES: AuthoringSceneTemplate[] = [
@@ -75,7 +66,8 @@ export const AUTHORING_OBJECT_TEMPLATES: AuthoringObjectTemplate[] = [
     interactionText: '',
     width: 48,
     height: 64,
-    metadata: { gender: 'female', avatar: { ...defaultAvatar(), gender: 'female', clothingColor: 'purple', ...hairVariantPatch('long_brown'), mouth: 'worried' } },
+    // Nace con una receta del kit; el docente la cambia o la personaliza en el inspector (spec §9.2).
+    metadata: { recipeId: 'madre-acompanante' },
   },
   {
     id: 'question',
@@ -127,35 +119,6 @@ export const AUTHORING_OBJECT_TEMPLATES: AuthoringObjectTemplate[] = [
     height: 44,
   },
 ];
-
-export const AUTHORING_NPC_TEMPLATES: AuthoringNpcTemplate[] = [
-  {
-    id: 'mujer-adulta',
-    label: 'Mujer adulta',
-    gender: 'female',
-    avatar: { ...defaultAvatar(), gender: 'female', clothingColor: 'burgundy', ...hairVariantPatch('long_brown'), mouth: 'worried', eyes: 'amables', brows: 'suaves' },
-  },
-  {
-    id: 'hombre-adulto',
-    label: 'Hombre adulto',
-    gender: 'male',
-    avatar: { ...defaultAvatar(), gender: 'male', clothingColor: 'blue', ...hairVariantPatch('short_black'), mouth: 'neutral', eyes: 'atentos', brows: 'rectas', skinTone: 'media' },
-  },
-  {
-    id: 'adolescente',
-    label: 'Adolescente',
-    gender: 'female',
-    avatar: { ...defaultAvatar(), gender: 'female', clothingColor: 'green', ...hairVariantPatch('medium_red'), mouth: 'worried', eyes: 'neutros', brows: 'suaves', skinTone: 'clara' },
-  },
-  {
-    id: 'profesional',
-    label: 'Profesional',
-    gender: 'female',
-    avatar: { ...defaultAvatar(), gender: 'female', clothingColor: 'gray', ...hairVariantPatch('tied_brown'), mouth: 'neutral', eyes: 'atentos', brows: 'rectas', skinTone: 'morena' },
-  },
-];
-
-export const AUTHORING_HAIR_VARIANTS = HAIR_VARIANTS;
 
 export function applySceneTemplate(map: SceneMapDefinition, template: AuthoringSceneTemplate): SceneMapDefinition {
   const ambient = setCameraZoom(setBackgroundImage(map.ambient, template.backgroundImage), template.cameraZoom);

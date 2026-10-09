@@ -24,6 +24,8 @@ import { EMPTY } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
+import { KitService } from '../character/kit/kit.service';
+import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { GameHelpComponent } from './game-help.component';
 import { GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
 import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
@@ -52,6 +54,7 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
         { provide: SimulationService, useValue: { getCatalog: vi.fn(() => EMPTY) } },
         { provide: Router, useValue: router },
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
       ],
     });
     component = TestBed.createComponent(GameMenuComponent).componentInstance;
@@ -173,9 +176,19 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       expect(lobbyKeyboardHint(true)).toBeNull();
     });
 
-    it('la escena de Phaser solo pinta ese texto si lobbyKeyboardHint lo devuelve', () => {
-      expect(source).toMatch(/const keyboardHint = lobbyKeyboardHint\(matchesMedia\(COARSE_POINTER_QUERY\)\);\s*if \(keyboardHint\) \{/);
+    it('la pista del lobby es DOM (no texto de Phaser) y solo sale si lobbyKeyboardHint la devuelve', () => {
+      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\)\)\);/);
+      expect(source).toContain('@if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }');
       expect(source).not.toMatch(/add\.text\(12, 12, '← →/);
+    });
+
+    it('con puntero fino el lobby pinta el recordatorio de teclado y con puntero grueso no pinta nada', () => {
+      for (const [coarse, expected] of [[true, null], [false, lobbyKeyboardHint(false)]] as const) {
+        const { fixture, root } = mount(coarse);
+        fixture.detectChanges();
+        expect(root.querySelector('.lobby-help')?.textContent?.trim() ?? null).toBe(expected);
+        TestBed.resetTestingModule();
+      }
     });
 
     it('el botón de entrada lleva «(E)» solo con puntero fino', () => {
@@ -292,5 +305,20 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       expect(source).toMatch(/\.menu-help-layer \{\s*position: absolute; inset: 0;/);
       expect(source).toMatch(/\.menu-help-btn \{[^}]*min-height: 44px;/);
     });
+  });
+});
+
+describe('GameMenuComponent: el observador del contenedor', () => {
+  it('ngOnDestroy lo suelta antes de destruir Phaser (si no, un resize posterior lanzaría sobre un lienzo destruido), y una sola vez', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const component = Object.create(GameMenuComponent.prototype) as { detachHostWatch?: () => void; game?: unknown; ngOnDestroy(): void };
+    component.detachHostWatch = detach;
+    component.game = { destroy };
+    component.ngOnDestroy();
+    expect(order).toEqual(['detach', 'destroy']);
+    component.ngOnDestroy();
+    expect(detach).toHaveBeenCalledTimes(1);
   });
 });

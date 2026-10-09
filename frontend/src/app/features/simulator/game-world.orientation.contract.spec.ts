@@ -104,7 +104,9 @@ describe('game-world: señales iguales para todos (límite 1 de producto)', () =
   it('el anillo es único (un trazo claro y su halo), con colores fijos', () => {
     expect(source).toContain('const RING_COLOR = 0xcdbcff;');
     expect(source).toContain('const RING_HALO_COLOR = 0x0b0f1a;');
-    expect(source).toContain('const DIMMED_ALPHA = 0.55;');
+    // El atenuado de las otras etapas vive en markerEmphasis (world-characters.util): el componente no repite el valor.
+    expect(readFileSync(join(__dirname, 'world-characters.util.ts'), 'utf-8')).toContain('export const DIMMED_ALPHA = 0.55;');
+    expect(source).not.toContain('const DIMMED_ALPHA');
   });
 
   it('en táctil la pista de una persona y el rótulo de una puerta no mencionan la tecla E', () => {

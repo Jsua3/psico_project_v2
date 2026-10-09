@@ -601,7 +601,7 @@ function paintFrontProps(scene: Phaser.Scene): void {
 // ── lighting: pools cálidos, haz de ventana, partículas ──────────────────────
 
 function paintLighting(scene: Phaser.Scene, options: SceneRendererOptions): void {
-  const g = scene.add.graphics().setDepth(DEPTH.LIGHTING - 2);
+  const g = scene.add.graphics().setDepth(DEPTH.LIGHTING_FLOOR);
 
   // Sombra global muy sutil que unifica la paleta.
   g.fillStyle(0x0b1020, 0.1);
@@ -636,7 +636,7 @@ function paintLighting(scene: Phaser.Scene, options: SceneRendererOptions): void
   if (!options.reduceMotion) {
     const motes: Array<[number, number]> = [[210, 260], [420, 320], [540, 270], [300, 410], [660, 360]];
     for (const [mx, my] of motes) {
-      const mote = scene.add.circle(mx, my, 1.5, 0xcdd9ff, 0.16).setDepth(DEPTH.LIGHTING - 1);
+      const mote = scene.add.circle(mx, my, 1.5, 0xcdd9ff, 0.16).setDepth(DEPTH.LIGHTING_FLOOR);
       scene.tweens.add({
         targets: mote,
         y: my - 34,

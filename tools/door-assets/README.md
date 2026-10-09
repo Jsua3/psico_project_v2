@@ -2,6 +2,11 @@
 
 Genera `frontend/src/assets/game/doors/*.png` (48×64 RGBA).
 
+> **Desde la F8 (2026-10) este pipeline produce los ORIGINALES**, que se archivan en
+> `frontend/world-art/originals/doors/`. Los PNG que carga el juego salen de
+> `npm run world-art:build` (reescalado determinista al tamaño exacto de `WORLD_SPRITES`,
+> dibujados a escala 1, sin `DOOR_SPRITE_SCALE`). Ver `frontend/world-art/README.md`.
+
 ## Pasos
 
 1. **Frontal** — `z_image` (Higgsfield) → `remove_background` → recorte de plena resolución.

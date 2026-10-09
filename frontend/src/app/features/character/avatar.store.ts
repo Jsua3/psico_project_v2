@@ -1,45 +1,53 @@
 import { Injectable, Optional, signal } from '@angular/core';
-import { AvatarConfig } from './avatar.model';
-import { defaultAvatar, parseAvatar, serializeAvatar } from './avatar-config.util';
+
+import { AvatarV2, defaultAvatarV2, parseStoredAvatar, serializeAvatarV2 } from './kit/avatar-v2';
 
 /** Clave compartida de persistencia del avatar (la lee también el runtime Phaser). */
 export const AVATAR_STORAGE_KEY = 'psychosim_avatar';
-const KEY = AVATAR_STORAGE_KEY;
+/** Copia del texto v1 original, guardada una sola vez al migrar (spec §9.1). */
+export const AVATAR_V1_BACKUP_KEY = 'psychosim_avatar_v1';
 
 @Injectable({ providedIn: 'root' })
 export class AvatarStore {
   private readonly store: Storage | null;
-  private readonly _avatar = signal<AvatarConfig>(defaultAvatar());
+  private readonly _avatar = signal<AvatarV2>(defaultAvatarV2());
   readonly avatar = this._avatar.asReadonly();
 
   /**
-   * `storage` is optional and only used by unit tests (passed directly).
-   * Under Angular DI there is no `Storage` provider, so `@Optional()` makes the
-   * injector pass `null` instead of throwing NG0201; we then fall back to
-   * `window.localStorage`.
+   * `storage` es opcional y solo lo usan las pruebas. Bajo la DI de Angular no hay proveedor de
+   * `Storage`: `@Optional()` hace que el inyector pase `null` y se usa `window.localStorage`.
    */
   constructor(@Optional() storage?: Storage) {
     this.store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
     this.loadSaved();
   }
 
+  /** Lee lo guardado; un v1 se migra, se reescribe en v2 y su texto original queda en la copia. */
   loadSaved(): void {
-    this._avatar.set(parseAvatar(this.safeGet()));
+    const { avatar, legacyRaw } = parseStoredAvatar(this.safeGet(AVATAR_STORAGE_KEY));
+    this._avatar.set(avatar);
+    if (legacyRaw === null) return;
+    if (this.safeGet(AVATAR_V1_BACKUP_KEY) === null) this.safeSet(AVATAR_V1_BACKUP_KEY, legacyRaw);
+    this.safeSet(AVATAR_STORAGE_KEY, serializeAvatarV2(avatar));
   }
 
-  update(patch: Partial<AvatarConfig>): void {
-    this._avatar.update(a => ({ ...a, ...patch }));
+  set(avatar: AvatarV2): void {
+    this._avatar.set(avatar);
   }
 
   save(): void {
-    try { this.store?.setItem(KEY, serializeAvatar(this._avatar())); } catch { /* cuota/privado: no-op */ }
+    this.safeSet(AVATAR_STORAGE_KEY, serializeAvatarV2(this._avatar()));
   }
 
   reset(): void {
-    this._avatar.set(defaultAvatar());
+    this._avatar.set(defaultAvatarV2());
   }
 
-  private safeGet(): string | null {
-    try { return this.store?.getItem(KEY) ?? null; } catch { return null; }
+  private safeGet(key: string): string | null {
+    try { return this.store?.getItem(key) ?? null; } catch { return null; }
+  }
+
+  private safeSet(key: string, value: string): void {
+    try { this.store?.setItem(key, value); } catch { /* cuota o modo privado: no-op */ }
   }
 }

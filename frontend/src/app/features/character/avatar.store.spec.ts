@@ -1,8 +1,8 @@
-import { AvatarStore } from './avatar.store';
-import { defaultAvatar } from './avatar-config.util';
+import { AVATAR_STORAGE_KEY, AVATAR_V1_BACKUP_KEY, AvatarStore } from './avatar.store';
+import { defaultAvatarV2, serializeAvatarV2 } from './kit/avatar-v2';
 
-function mockStorage(): Storage {
-  const m = new Map<string, string>();
+function mockStorage(initial: Record<string, string> = {}): Storage {
+  const m = new Map<string, string>(Object.entries(initial));
   return {
     getItem: (k: string) => m.has(k) ? m.get(k)! : null,
     setItem: (k: string, v: string) => void m.set(k, v),
@@ -13,41 +13,54 @@ function mockStorage(): Storage {
   } as Storage;
 }
 
-describe('AvatarStore', () => {
-  it('starts from default when storage empty', () => {
-    const s = new AvatarStore(mockStorage());
-    expect(s.avatar()).toEqual(defaultAvatar());
+describe('AvatarStore (formato 2)', () => {
+  it('sin nada guardado, el valor por defecto', () => {
+    expect(new AvatarStore(mockStorage()).avatar()).toEqual(defaultAvatarV2());
   });
 
-  it('can be constructed with no storage arg (DI path) without throwing', () => {
-    // Under Angular DI there is no Storage provider; the no-arg path must work.
+  it('se puede construir sin Storage (camino de DI) sin lanzar', () => {
     expect(() => new AvatarStore()).not.toThrow();
   });
 
-  it('update merges without persisting until save', () => {
-    const store = mockStorage();
-    const s = new AvatarStore(store);
-    s.update({ uniform: 'con-bata' });
-    expect(s.avatar().uniform).toBe('con-bata');
-    expect(store.getItem('psychosim_avatar')).toBeNull();
-    s.save();
-    expect(store.getItem('psychosim_avatar')).toContain('con-bata');
+  it('un v1 guardado se migra, se reescribe en v2 y su texto original queda en la copia', () => {
+    const v1 = JSON.stringify({ castId: 'mateo', uniform: 'con-bata', hairStyle: 'largo' });
+    const storage = mockStorage({ [AVATAR_STORAGE_KEY]: v1 });
+    const store = new AvatarStore(storage);
+    expect(store.avatar()).toEqual({ schemaVersion: 2, mode: 'elenco', recipeId: 'mateo', bata: true });
+    expect(storage.getItem(AVATAR_V1_BACKUP_KEY)).toBe(v1);
+    expect(JSON.parse(storage.getItem(AVATAR_STORAGE_KEY)!)).toEqual(store.avatar());
   });
 
-  it('reset returns to default but keeps saved until next save', () => {
-    const store = mockStorage();
-    const s = new AvatarStore(store);
-    s.update({ hairStyle: 'largo' }); s.save();
-    s.reset();
-    expect(s.avatar()).toEqual(defaultAvatar());
-    expect(store.getItem('psychosim_avatar')).toContain('largo');
+  it('la copia v1 se guarda una sola vez (no la pisa una segunda migración)', () => {
+    const storage = mockStorage({ [AVATAR_STORAGE_KEY]: JSON.stringify({ castId: 'david' }), [AVATAR_V1_BACKUP_KEY]: 'original' });
+    new AvatarStore(storage);
+    expect(storage.getItem(AVATAR_V1_BACKUP_KEY)).toBe('original');
   });
 
-  it('loadSaved re-reads persisted value', () => {
-    const store = mockStorage();
-    store.setItem('psychosim_avatar', JSON.stringify({ ...defaultAvatar(), hairColor: 'rubio' }));
-    const s = new AvatarStore(store);
-    s.loadSaved();
-    expect(s.avatar().hairColor).toBe('rubio');
+  it('un v2 corrupto o de otra versión carga el valor por defecto y no toca lo guardado', () => {
+    const storage = mockStorage({ [AVATAR_STORAGE_KEY]: '{"schemaVersion":3,"mode":"elenco"}' });
+    expect(new AvatarStore(storage).avatar()).toEqual(defaultAvatarV2());
+    expect(storage.getItem(AVATAR_STORAGE_KEY)).toBe('{"schemaVersion":3,"mode":"elenco"}');
+    expect(storage.getItem(AVATAR_V1_BACKUP_KEY)).toBeNull();
+  });
+
+  it('set no guarda hasta save; reset vuelve al valor por defecto sin borrar lo guardado', () => {
+    const storage = mockStorage();
+    const store = new AvatarStore(storage);
+    const luisa = { schemaVersion: 2, mode: 'elenco', recipeId: 'luisa', bata: true } as const;
+    store.set(luisa);
+    expect(storage.getItem(AVATAR_STORAGE_KEY)).toBeNull();
+    store.save();
+    expect(storage.getItem(AVATAR_STORAGE_KEY)).toBe(serializeAvatarV2(luisa));
+    store.reset();
+    expect(store.avatar()).toEqual(defaultAvatarV2());
+    expect(storage.getItem(AVATAR_STORAGE_KEY)).toBe(serializeAvatarV2(luisa));
+  });
+
+  it('si el almacenamiento falla (cuota, modo privado), no rompe', () => {
+    const broken = { getItem: () => { throw new Error('bloqueado'); }, setItem: () => { throw new Error('cuota'); } } as unknown as Storage;
+    const store = new AvatarStore(broken);
+    expect(store.avatar()).toEqual(defaultAvatarV2());
+    expect(() => store.save()).not.toThrow();
   });
 });

@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, inject, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage } from './world-editor/room-edit.util';
-import { KenneyCharFrames, KenneyDungeonFrames } from './kenney-frames.constants';
+import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
   HOSPITAL_ZONES,
@@ -54,7 +54,6 @@ import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import { interactionVerb } from './interaction-verb.util';
 import {
   NUDGE_SUBSTEPS,
-  PLAYER_SPRITE_OFFSET_Y,
   PlayerDirection,
   PlayerMotionInput,
   computeNudgeStep,
@@ -68,44 +67,27 @@ import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
-import {
-  AVATAR_ANIM_KEYS,
-  AVATAR_DISPLAY_SCALE,
-  AVATAR_FRAME_HEIGHT,
-  AVATAR_FRAME_WIDTH,
-  AVATAR_IDLE_FRAMES,
-  AVATAR_TEXTURE_KEY,
-  AvatarLayerSpec,
-  avatarLayerSpecs,
-  composeAvatarTexture,
-  composeAvatarTextureAs,
-  createAvatarAnimations,
-  createAvatarAnimationsFor,
-  modularAvatarFlipX,
-  npcAvatarAnimKeys,
-  npcAvatarTextureKey,
-} from './phaser-avatar-renderer';
-import {
-  MAP_OBJECT_PRESETS,
-  NPC_PRESET_RENDER,
-  npcPresetConfig,
-} from './npc-avatar-presets';
-import { castAssetPath, castSheetIds, castTextureKey, npcCastSheetId, resolveCastId } from './baked-cast.util';
-import {
-  resolvePlayerVisual, v1SheetKey, v1SheetPath, v1IdleFrame, v1WalkAnimKey,
-  V1_FRAME_WIDTH, V1_FRAME_HEIGHT, V1_AVATAR_SCALE, V1_FEET_ORIGIN_Y,
-} from './v1-avatar.util';
-import { createV1WalkAnimations } from './phaser-avatar-renderer';
-import { LivingActor, livingPose, makeLivingActor, motionAmplitudes } from './character-motion.util';
+import { cameraBounds, integerZoom } from './pixel-scale.util';
+import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
-import { coerceAvatar, defaultAvatar, hairVariantPatch, parseAvatar } from '../character/avatar-config.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
-import { NpcAvatarPresetKey, NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
-import { AvatarConfig, CLOTHING_COLORS, EXPRESSIONS, GENDER_OPTIONS } from '../character/avatar.model';
-import { AUTHORING_HAIR_VARIANTS, AUTHORING_NPC_TEMPLATES } from './authoring-catalog.config';
+import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
+import type { KitBundle } from '../character/kit/kit-engine';
+import { CharacterRef, CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
+import {
+  KIT_ORIGIN_X, KIT_ORIGIN_Y, addComposedSheets, addRgbaTexture, ensureCharacterAnims, kitFrameIndex, kitSheetKey,
+  playKitPose, queueCharacterSheets,
+} from '../character/kit/kit-phaser';
+import { KitService } from '../character/kit/kit.service';
+import {
+  KIT_HINT_OFFSET_Y, KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
+  extrasCharacterRef, guideCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
+} from './world-characters.util';
+import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
+import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -128,6 +110,8 @@ interface WorldCallbacks {
   onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
+  /** Paquete del kit (null si no cargó: los actores caen a su marcador). */
+  kit: KitBundle | null;
 }
 
 interface AmbientMover {
@@ -147,30 +131,14 @@ interface NpcMover {
   anchorIdx: number;
   pauseUntil: number;
   lastPose: { direction: PlayerDirection | null; walking: boolean };
-  /** null = sprite legacy (solo flip, sin animaciones modulares). */
-  presetKey: string | null;
 }
 
-/** Escala de render de los sprites de herramienta (asset ~64px → ~40px en marcador). */
-const TOOL_SPRITE_SCALE = 0.62;
-
-/**
- * Escala de render de las puertas (asset 48×64 → 70×93 px). Anclada al personaje
- * (caja ~82 px ≈ 1.7 m ⇒ ~46 px/m): una puerta real mide ~2 m, así que debe quedar
- * por encima de la cabeza del avatar. La escala anterior (0.85) venía del tamaño
- * del marker Kenney viejo y dejaba las puertas más bajas que la gente.
- */
-const DOOR_SPRITE_SCALE = 1.45;
-/** Base de la puerta: asentada en la sombra de contacto del marker (y=16). */
-const DOOR_SPRITE_FEET_Y = 16;
 
 /** Profundidad de los rótulos del mundo: sobre todos los actores y bajo los rótulos de puerta (UI). */
 const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
-/** Transparencia de los objetos de decisión de otras etapas (F§7.2): se ven, pero no llaman la atención. */
-const DIMMED_ALPHA = 0.55;
 /** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
 const RING_COLOR = 0xcdbcff;
 const RING_HALO_COLOR = 0x0b0f1a;
@@ -185,19 +153,15 @@ function sameKeys(a: readonly string[], b: readonly string[]): boolean {
 export class DataDrivenWorldScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Sprite;
-  private avatarSpecs: AvatarLayerSpec[] = [];
-  /** Personaje del elenco horneado elegido (null → composición modular). */
-  private playerCastId: string | null = null;
-  private playerV1Id: string | null = null;
-  /** Textura efectiva del sprite del jugador (elenco u hoja compuesta). */
-  private playerTextureKey = AVATAR_TEXTURE_KEY;
-  private avatarReady = false;
-  private readonly npcCompositesReady = new Set<string>();
-  /** Texturas horneadas activas por preset (si no está, usa la compuesta). */
-  private readonly npcBakedTexture = new Map<string, string>();
+  /** Visual del jugador en el kit (null si no hay paquete). */
+  private playerVisual: CharacterVisual | null = null;
+  /** Último estado clínico recibido: cada icono nace con él (los actores se recrean en cada render). */
+  private patientState: import('../../core/models/simulation.model').PatientState | null = null;
+  /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
+  private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
-  /** Última pose aplicada — la animación solo cambia si dirección/caminar cambió. */
-  private lastPose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
+  /** Última pose aplicada — la animación solo cambia si dirección, caminar o movimiento reducido cambiaron. */
+  private lastPose: { direction: PlayerDirection | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -218,16 +182,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly npcMovers = new Map<string, NpcMover>();
-  /** Actores vivos: respiración en idle + rebote al caminar (character-motion.util). */
-  private readonly livingActors = new Map<string, {
-    sprite: Phaser.GameObjects.Sprite; actor: LivingActor; isWalking: () => boolean;
-  }>();
   /** El mundo se congela con diálogo/journal/outcome abiertos (Fase 5/13). */
   private motionPaused = false;
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
   private readonly AMBIENT_RETARGET_MS = 2600;
   private guideEntry: SceneGuideEntry | null = null;
   private guideContainer?: Phaser.GameObjects.Container;
+  /** Visual del guía actual y su última pose (null = marcador geométrico). */
+  private guideVisual: CharacterVisual | null = null;
+  private guidePose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
+  private guideDirection: PlayerDirection = 'down';
   private guideSprite?: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
   private guideBubble?: Phaser.GameObjects.Container;
   private guideTarget: { x: number; y: number } | null = null;
@@ -271,6 +235,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private stressLevel = 0;
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
   private crisisVignette?: Phaser.GameObjects.Graphics;
+  /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
+  private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
+  /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
+  private toneVignette?: Phaser.GameObjects.Graphics;
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -326,67 +294,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       '/assets/game/kenney/tiny-dungeon/Tilemap/tilemap_packed.png',
       { frameWidth: 16, frameHeight: 16 });
 
-    // Character spritesheet (player + NPCs)
-    this.load.spritesheet('characters',
-      '/assets/game/kenney/rpg-urban-pack/Spritesheet/tilemap_packed.png',
-      { frameWidth: 16, frameHeight: 16 });
-
-    // ── Avatar modular del estudiante (config del editor de personaje) ──────
-    // Las capas se componen en create(); si faltan, el jugador cae al fallback.
-    const avatarConfig = parseAvatar(
-      typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null,
-    );
-    this.playerCastId = resolveCastId(avatarConfig.castId);
-    const playerVisual = resolvePlayerVisual(avatarConfig);
-    if (playerVisual.kind === 'v1') {
-      this.playerV1Id = playerVisual.id;
-      for (const sheet of ['idle', 'walk'] as const) {
-        this.load.spritesheet(v1SheetKey(playerVisual.id, sheet), v1SheetPath(playerVisual.id, sheet),
-          { frameWidth: V1_FRAME_WIDTH, frameHeight: V1_FRAME_HEIGHT });
-      }
-    }
-    this.avatarSpecs = avatarLayerSpecs(avatarConfig);
-    for (const spec of this.avatarSpecs) {
-      this.load.image(spec.textureKey, spec.assetPath);
-    }
-
-    // ── Elenco horneado (jugables + NPCs): hojas con el contrato modular 2×.
-    //    Si una falta, el 'loaderror' la ignora y ese actor cae al modular. ──
-    for (const id of castSheetIds()) {
-      this.load.spritesheet(castTextureKey(id), castAssetPath(id),
-        { frameWidth: AVATAR_FRAME_WIDTH, frameHeight: AVATAR_FRAME_HEIGHT });
-    }
-
-    // ── Capas modulares de los presets de NPC (mismas hojas que el avatar;
-    //    claves idénticas se deduplican solas en el loader) ──────────────────
-    for (const presetKey of Object.keys(NPC_PRESET_RENDER)) {
-      const presetConfig = npcPresetConfig(presetKey);
-      if (!presetConfig) continue;
-      for (const spec of avatarLayerSpecs(presetConfig)) {
-        this.load.image(spec.textureKey, spec.assetPath);
-      }
-    }
-    for (const template of AUTHORING_NPC_TEMPLATES) {
-      for (const spec of avatarLayerSpecs(template.avatar)) {
-        this.load.image(spec.textureKey, spec.assetPath);
-      }
-    }
-    for (const hair of AUTHORING_HAIR_VARIANTS) {
-      for (const spec of avatarLayerSpecs({ ...defaultAvatar(), ...hairVariantPatch(hair.id) })) {
-        this.load.image(spec.textureKey, spec.assetPath);
-      }
-    }
-    // Todas las hojas de expresión (cualquier avatar/NPC puede usar cualquiera).
-    for (const expr of EXPRESSIONS) {
-      for (const spec of avatarLayerSpecs({ ...defaultAvatar(), mouth: expr.id })) {
-        this.load.image(spec.textureKey, spec.assetPath);
-      }
-    }
-    for (const gender of GENDER_OPTIONS) {
-      for (const clothingColor of CLOTHING_COLORS) {
-        for (const spec of avatarLayerSpecs({ ...defaultAvatar(), gender: gender.id, clothingColor: clothingColor.id, hairStyle: 'ninguno' })) {
-          this.load.image(spec.textureKey, spec.assetPath);
-        }
+    // ── Jugador del kit (spec §8.2): receta publicada (PNG) o avatar compuesto (lienzo) ──
+    const kit = this.callbacks.kit;
+    if (kit) {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(AVATAR_STORAGE_KEY) : null;
+      this.playerVisual = resolveCharacter(kit, playerCharacterRef(stored));
+      queueCharacterSheets(this, this.playerVisual);
+      // NPC, personas, guía y figurantes: todas las recetas que no son jugables (unos 14 personajes).
+      for (const [recipeId, recipe] of Object.entries(kit.recipes)) {
+        if (recipe.kind !== 'jugable') queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
       }
     }
 
@@ -443,33 +359,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.input.keyboard?.disableGlobalCapture();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
+    this.playerKitReady = this.playerVisual !== null && ensureCharacterAnims(this, this.playerVisual);
+    for (const kind of PATIENT_ICON_KINDS) addRgbaTexture(this, patientIconKey(kind), patientIconImage(kind));
     // Un toque corto (keydown y keyup en el mismo cuadro, habitual con pocos fps) deja `JustDown` en falso
     // y la pulsación se perdía junto a una persona (T0.2): el evento `down` de la tecla sí llega siempre.
     this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
     this.keys['SPACE']?.on('down', () => { this.tappedKeys.space = true; });
     this.keys['ENTER']?.on('down', () => { this.tappedKeys.enter = true; });
-    // Los rótulos miden ≥ 12 px de pantalla: se reescalan cuando el canvas cambia de tamaño.
+    // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
+    this.scale.on('resize', () => this.refitCamera());
     this.scale.on('resize', this.onScaleResize, this);
     this.onScaleResize();
-    this.createAnimations();
-    // Elenco horneado primero: si la hoja del personaje elegido cargó, es la
-    // textura del jugador (mismo contrato 3×3 que la compuesta). Si no,
-    // composición modular de siempre.
-    if (this.playerV1Id && this.textures.exists(v1SheetKey(this.playerV1Id, 'walk'))) {
-      createV1WalkAnimations(this, this.playerV1Id);
-      this.playerTextureKey = v1SheetKey(this.playerV1Id, 'walk');
-      this.avatarReady = true;
-    } else if (this.playerCastId && this.textures.exists(castTextureKey(this.playerCastId))) {
-      this.playerV1Id = null;
-      this.playerTextureKey = castTextureKey(this.playerCastId);
-      createAvatarAnimationsFor(this, this.playerTextureKey, AVATAR_ANIM_KEYS);
-      this.avatarReady = true;
-    } else {
-      this.playerV1Id = null;
-      this.playerTextureKey = AVATAR_TEXTURE_KEY;
-      this.avatarReady = composeAvatarTexture(this, this.avatarSpecs);
-      if (this.avatarReady) createAvatarAnimations(this);
-    }
     this.renderWorld();
   }
 
@@ -575,7 +475,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
     this.updateGuide(delta);
-    this.updateLivingActors(time);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
     if (this.guideContainer) this.ysort(this.guideContainer);
@@ -705,6 +604,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.guideContainer = undefined;
     this.guideBubble = undefined;
     this.guideSprite = undefined;
+    this.guideVisual = null;
     this.guideTarget = null;
     this.guideArrived = false;
 
@@ -719,28 +619,27 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       ? { x: targetMarker.x, y: targetMarker.y }
       : targetData ? { x: targetData.x, y: targetData.y } : null;
 
-    // En la sala autoría los actores Kenney van a 2.4 (spawnNpcs); el guía debe
-    // verse del mismo mundo que los demás NPCs.
-    const guideScale = this.authoredRoomActive ? 2.4 : 1.5;
-    const guideFeetY = this.authoredRoomActive ? 20 : 13;
-    const shadow = this.add.ellipse(0, guideFeetY, 15, 5, 0x000000, 0.2);
+    const kit = this.callbacks.kit;
+    const visual = kit ? this.actorVisual(guideCharacterRef(kit, entry.guideName)) : null;
+    const shadow = this.add.ellipse(0, 0, 20, 6, 0x000000, 0.2);
     let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
-    if (this.assetsLoaded && this.textures.exists('characters')) {
-      sprite = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE).setScale(guideScale);
+    if (visual) {
+      sprite = this.add.sprite(0, 0, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', 'down')).setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
     } else {
-      sprite = this.add.circle(0, -6, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
+      sprite = this.add.circle(0, -20, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
     }
-    const name = this.add.text(0, -26, entry.guideName, {
+    const name = this.add.text(0, KIT_LABEL_OFFSET_Y, entry.guideName, {
       fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#cdd9ff',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1);
 
     this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]);
-    this.setFeetOffset(this.guideContainer, guideFeetY);
+    this.setFeetOffset(this.guideContainer, 0);
     this.guideSprite = sprite;
-    if (sprite instanceof Phaser.GameObjects.Sprite) {
-      this.registerLivingActor('guide', sprite, () => this.guideTarget != null && !this.guideArrived);
-    }
+    this.guideVisual = visual;
+    this.guidePose = { direction: null, walking: false };
+    this.guideDirection = 'down';
+    this.applyGuidePose('down', false);
     this.guideBubble = this.buildGuideBubble(entry.hint);
 
     this.guideTarget = targetPos
@@ -752,6 +651,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       if (this.guideTarget) this.guideContainer.setPosition(this.guideTarget.x, this.guideTarget.y);
       this.guideArrived = true;
       this.showGuideBubble(true);
+    }
+  }
+
+  /** Pose del guía (camina hacia la herramienta, reposa de frente al llegar), solo si cambió. */
+  private applyGuidePose(direction: PlayerDirection, walking: boolean): void {
+    if (this.guidePose.direction === direction && this.guidePose.walking === walking) return;
+    this.guidePose = { direction, walking };
+    if (this.guideVisual && this.guideSprite instanceof Phaser.GameObjects.Sprite) {
+      playKitPose(this.guideSprite, this.guideVisual, direction, walking, this.callbacks.reduceMotion);
     }
   }
 
@@ -781,7 +689,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       view.right - this.guideBubbleHalfW - margin,
     );
     const bottomY = Phaser.Math.Clamp(
-      this.guideContainer.y - 30,
+      this.guideContainer.y + KIT_LABEL_OFFSET_Y - 4,
       view.top + margin + this.guideBubbleHeight,
       view.bottom - margin,
     );
@@ -794,7 +702,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!this.callbacks.reduceMotion && !this.guideArrived && this.guideTarget) {
       const step = this.GUIDE_SPEED * (delta / 1000);
       const next = stepToward(this.guideContainer, this.guideTarget, step);
-      const goingLeft = next.x < this.guideContainer.x;
+      this.guideDirection = resolveDirection(next.x - this.guideContainer.x, next.y - this.guideContainer.y, this.guideDirection);
       // Straight-line move with collision slide (consistent with player movement).
       if (!this.wouldCollide(next.x, next.y)) {
         this.guideContainer.setPosition(next.x, next.y);
@@ -805,10 +713,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       } else {
         this.guideArrived = true;   // fully blocked — stop at the nearest free spot
       }
-      if (this.guideSprite instanceof Phaser.GameObjects.Sprite) {
-        this.guideSprite.setFlipX(goingLeft);
-      }
       if (reached(this.guideContainer, this.guideTarget, 3)) this.guideArrived = true;
+      this.applyGuidePose(this.guideArrived ? 'down' : this.guideDirection, !this.guideArrived);
     }
 
     if (this.player && !this.callbacks.reduceMotion) {
@@ -891,27 +797,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   focus(key: string) {
     const m = this.markers.get(key);
     if (!m || this.callbacks.reduceMotion) return;
-    this.tweens.add({ targets: m, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
-  }
-
-  private createAnimations() {
-    if (!this.assetsLoaded) return;
-    const anims: Array<{ key: string; frames: readonly number[] }> = [
-      { key: 'walk-down',  frames: KenneyCharFrames.PLAYER_WALK_DOWN },
-      { key: 'walk-left',  frames: KenneyCharFrames.PLAYER_WALK_LEFT },
-      { key: 'walk-right', frames: KenneyCharFrames.PLAYER_WALK_RIGHT },
-      { key: 'walk-up',    frames: KenneyCharFrames.PLAYER_WALK_UP },
-    ];
-    for (const a of anims) {
-      // Always destroy stale anim before recreating — the Phaser anim manager
-      // is global and persists across renderWorld() / scene reloads.
-      if (this.anims.exists(a.key)) this.anims.remove(a.key);
-      this.anims.create({
-        key: a.key,
-        frames: this.anims.generateFrameNumbers('characters', { frames: [...a.frames] }),
-        frameRate: 6, repeat: -1
-      });
-    }
+    // Un marcador con sprite de pixel art (una persona del kit, una puerta, una herramienta) no se
+    // escala: el pulso va a su anillo.
+    const bag = m as unknown as Record<string, unknown>;
+    const target = bag['__kitSprite'] === true || bag['__pixelSprite'] === true ? bag['__pulse'] : m;
+    this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
   }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
@@ -980,8 +870,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
-    this.livingActors.clear();
     this.tiledExits.clear();
+    this.toneVignette = undefined;
     this.resetOrientationVisuals();
     this.wallsLayer = undefined;
     this.authoredRoomActive = false;
@@ -1013,10 +903,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const persisted = { x: this.world.player.x, y: this.world.player.y };
       const spawn = this.wouldCollide(persisted.x, persisted.y) ? AUTHORED_PLAYER_SPAWN : persisted;
       this.createPlayer(spawn.x, spawn.y);
-      const cam = this.cameras.main;
-      cam.setZoom(1);
-      cam.setBounds(0, 0, metadata.bounds.width, metadata.bounds.height);
-      cam.centerOn(metadata.bounds.width / 2, metadata.bounds.height / 2);
+      this.applyPixelCamera(metadata.bounds.width, metadata.bounds.height);
       this.refreshMarkerStates();
       this.updateNearestInteraction(true);
       this.buildGuide();
@@ -1105,15 +992,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.spawnAmbientDust(mapW, mapH);
     this.createPlayer(this.world.player.x, this.world.player.y);
 
-    // ── Camera: 2× zoom, smooth follow, clamp to map bounds ────────────────
-    const cam = this.cameras.main;
-    const az = Number((this.world.map.ambient as { cameraZoom?: unknown })?.cameraZoom);
-    cam.setZoom(Number.isFinite(az) && az > 0 ? az : 2);
-    cam.setBounds(0, 0, mapW, mapH);
-    cam.startFollow(this.player!, true, 0.12, 0.12);
-    // startFollow args: target, roundPixels=true, lerpX=0.12, lerpY=0.12
-    // roundPixels prevents sub-pixel shimmer on pixel art.
-    // lerp 0.12 = Undertale-style "slightly behind" smooth follow.
+    // ── Cámara: zoom entero (spec §8.3); sigue a la jugadora dentro de la sala ──
+    this.applyPixelCamera(mapW, mapH);
 
     this.refreshMarkerStates();
     this.updateNearestInteraction(true); // suppress blip on initial spawn
@@ -1146,8 +1026,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
-    this.livingActors.clear();
     this.tiledExits.clear();
+    this.toneVignette = undefined;
     this.resetOrientationVisuals();
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
@@ -1201,9 +1081,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
     }
 
-    const cam = this.cameras.main;
-    cam.setZoom(authoredClinicalRoom ? 1 : 2);
-    cam.setBounds(0, 0, actualMapW, actualMapH);
 
     let sceneMetadata: SceneRenderMetadata | null = null;
     if (sceneRenderer) {
@@ -1261,11 +1138,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         })
       : keepPosition ?? { x: spawnX, y: spawnY };
     this.createPlayer(spawn.x, spawn.y);
-    if (authoredClinicalRoom) {
-      cam.centerOn(actualMapW / 2, actualMapH / 2);
-    } else {
-      cam.startFollow(this.player!, true, 0.12, 0.12);
-    }
+    this.applyPixelCamera(actualMapW, actualMapH);
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.buildGuide();
@@ -1282,6 +1155,35 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.firstSceneFadeDone) return;
     this.firstSceneFadeDone = true;
     if (!this.callbacks.reduceMotion) this.cameras.main.fadeIn(300, 7, 10, 20);
+  }
+
+  /**
+   * Zoom entero de cámara (spec §8.3): el mayor k que deja ver el 80 % de la sala. La
+   * cámara sigue a la jugadora y se limita a la sala; si la vista es mayor, la centra.
+   */
+  private applyPixelCamera(roomWidth: number, roomHeight: number): void {
+    this.roomSize = { width: roomWidth, height: roomHeight };
+    const cam = this.cameras.main;
+    const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
+    cam.setZoom(k);
+    const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
+    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    if (this.player) {
+      cam.startFollow(this.player, true, 0.12, 0.12);
+      cam.centerOn(this.player.x, this.player.y);
+    }
+  }
+
+  /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
+  private refitCamera(): void {
+    if (!this.ready || !this.player) return;
+    this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
+    if (this.toneVignette) {
+      this.toneVignette.destroy();
+      this.applyLightingOverlay();
+    }
+    this.crisisVignette?.destroy();
+    this.applyCrisisVignette();
   }
 
   private checkExitTriggers() {
@@ -1331,33 +1233,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (nearestDist >= this.doorRearmDist) this.dbDoorArmed = true;
   }
 
-  /**
-   * Prepara (una vez) textura+anims del NPC. Prefiere su hoja HORNEADA del
-   * elenco si cargó; si no, compone el preset modular. false → fallback Kenney.
-   */
-  private ensureNpcComposite(presetKey: NpcAvatarPresetKey): boolean {
-    if (this.npcCompositesReady.has(presetKey)) return true;
-    const bakedId = npcCastSheetId(presetKey);
-    if (bakedId && this.textures.exists(castTextureKey(bakedId))) {
-      createAvatarAnimationsFor(this, castTextureKey(bakedId), npcAvatarAnimKeys(presetKey));
-      this.npcBakedTexture.set(presetKey, castTextureKey(bakedId));
-      this.npcCompositesReady.add(presetKey);
-      return true;
-    }
-    const config = npcPresetConfig(presetKey);
-    if (!config) return false;
-    const ok = composeAvatarTextureAs(this, npcAvatarTextureKey(presetKey), avatarLayerSpecs(config));
-    if (!ok) return false;
-    createAvatarAnimationsFor(this, npcAvatarTextureKey(presetKey), npcAvatarAnimKeys(presetKey));
-    this.npcCompositesReady.add(presetKey);
-    return true;
-  }
-
-  /** Textura efectiva del NPC: hoja horneada si existe, si no la compuesta. */
-  private npcTextureKey(presetKey: NpcAvatarPresetKey): string {
-    return this.npcBakedTexture.get(presetKey) ?? npcAvatarTextureKey(presetKey);
-  }
-
   private roomForCurrentWorld(): RoomConfig | null {
     if (!this.world || !this.scenarioConfig) return null;
     const mapKey = this.world.map.key;
@@ -1377,29 +1252,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     );
   }
 
-  private objectAvatarTextureKey(objectKey: string): string {
-    return `object-avatar-${objectKey}`;
-  }
-
-  private objectAvatarConfig(object: MapObjectState): AvatarConfig | null {
-    const meta = object.metadata as { avatar?: unknown } | undefined;
-    if (!meta?.avatar) return null;
-    return coerceAvatar(meta.avatar);
-  }
-
-  private ensureObjectAvatarComposite(object: MapObjectState): boolean {
-    const key = this.objectAvatarTextureKey(object.key);
-    if (this.npcCompositesReady.has(key)) return true;
-    const config = this.objectAvatarConfig(object);
-    if (!config) return false;
-    const ok = composeAvatarTextureAs(this, key, avatarLayerSpecs(config));
-    if (!ok) return false;
-    this.npcCompositesReady.add(key);
-    return true;
-  }
-
   /** Registra el mover del NPC (si trae motion) con su posición real de spawn. */
-  private registerNpcMover(npc: NpcConfig, pos: { x: number; y: number }, presetKey: string | null): void {
+  private registerNpcMover(npc: NpcConfig, pos: { x: number; y: number }): void {
     if (!npc.motion) return;
     this.npcMovers.set(npc.key, {
       key: npc.key,
@@ -1409,24 +1263,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       anchorIdx: 0,
       pauseUntil: this.time.now + (npc.motion.startDelayMs ?? 600),
       lastPose: { direction: (npc.facing ?? 'down') as PlayerDirection, walking: false },
-      presetKey,
     });
   }
 
-  /** Pose del NPC (dirección + walking) solo si cambió — como el jugador. */
+  /** Pose del NPC (dirección + caminando) solo si cambió — como el jugador. */
   private applyNpcPose(mover: NpcMover, container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
     if (mover.lastPose.direction === direction && mover.lastPose.walking === walking) return;
     mover.lastPose = { direction, walking };
-    const sprite = (container as unknown as Record<string, unknown>)['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
-    if (!sprite) return;
-    if (!mover.presetKey) { sprite.setFlipX(direction === 'left'); return; }  // legacy: solo flip
-    if (walking && !this.callbacks.reduceMotion) {
-      sprite.setFlipX(modularAvatarFlipX(direction));
-      const keys = npcAvatarAnimKeys(mover.presetKey);
-      sprite.play(direction === 'down' ? keys.down : direction === 'up' ? keys.up : keys.side, true);
-      return;
-    }
-    this.applyNpcFacing(container, direction);
+    this.playNpc(container, direction, walking);
   }
 
   private updateNpcMovers(time: number, delta: number) {
@@ -1510,101 +1354,51 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Frame de reposo del NPC modular según dirección. */
-  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: 'down' | 'up' | 'left' | 'right'): void {
-    const sprite = (container as unknown as Record<string, unknown>)['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
-    if (!sprite) return;
-    sprite.stop();
-    const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
-      : direction === 'down' ? AVATAR_IDLE_FRAMES.down
-      : AVATAR_IDLE_FRAMES.side;
-    sprite.setFrame(frame);
-    sprite.setFlipX(modularAvatarFlipX(direction));
+  /** Reposo del NPC mirando a `direction` (las 4 filas del kit son reales). */
+  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: PlayerDirection): void {
+    this.playNpc(container, direction, false);
+  }
+
+  private playNpc(container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+    const bag = container as unknown as Record<string, unknown>;
+    const sprite = bag['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__npcVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, walking, this.callbacks.reduceMotion);
   }
 
   private spawnNpcs(npcs: NpcConfig[]) {
-    // En la sala autoría los muebles son grandes: los NPCs Kenney legacy suben
-    // de escala para mantener proporción con el avatar modular (~38×58 px).
-    const npcScale = this.authoredRoomActive ? 2.4 : 1.5;
-    // Sombra de contacto en dos pasos, proporcional a la escala del sprite:
-    // asienta al NPC en el piso (no debe verse como sticker pegado).
-    const shY = this.authoredRoomActive ? 19 : 12;
-    const shW = this.authoredRoomActive ? 32 : 20;
     for (const npc of npcs) {
       // Red de seguridad: si la coord del JSON cae en colisión, buscar piso libre.
       const pos = this.wouldCollide(npc.x, npc.y)
         ? freeTileNear({ x: npc.x, y: npc.y }, (x, y) => this.wouldCollide(x, y), 18, 3)
         : { x: npc.x, y: npc.y };
-
-      // ── Rama modular: mismo universo visual que el avatar del jugador ──────
-      const presetKey = npc.avatarPresetKey;
-      if (presetKey && this.assetsLoaded && this.ensureNpcComposite(presetKey)) {
-        const render = NPC_PRESET_RENDER[presetKey];
-        const scale = npc.scale ?? render.scale;
-        // Contrato de pies: (x,y) del contenedor = pies; el frame trae los pies
-        // en y≈90 ⇒ centro del sprite a -42*scale (mismo cálculo que el jugador).
-        const spriteOffsetY = -Math.round(42 * scale);
-        const shadowSoft = this.add.ellipse(0, 0, 42 * scale, 13 * scale, 0x000000, .15);
-        const shadow = this.add.ellipse(0, 0, 28 * scale, 9 * scale, 0x000000, .27);
-        const npcSprite = this.add.sprite(0, spriteOffsetY, this.npcTextureKey(presetKey), AVATAR_IDLE_FRAMES.down)
-          .setScale(scale);
-        // El tint diferenciaba presets que compartían capas; una hoja horneada
-        // ya trae la identidad en el arte y el tint solo la ensuciaría.
-        const baseTint = this.npcBakedTexture.has(presetKey) ? null : (render.tint ?? null);
-        if (baseTint != null) npcSprite.setTint(baseTint);
-
-        const headY = spriteOffsetY - Math.round((AVATAR_FRAME_HEIGHT / 2) * scale);
-        const { label, hint } = this.createNpcLabels(npc, pos, headY - 4);
-
-        const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, npcSprite]);
-        this.setFeetOffset(container, 0);   // pies = origen del contenedor
-        this.npcMarkers.set(npc.key, container);
-        this.registerLivingActor(`npc-${npc.key}`, npcSprite,
-          () => this.npcMovers.get(npc.key)?.lastPose.walking ?? false);
-        const bag = container as unknown as Record<string, unknown>;
-        bag['__npcConfig'] = npc;
-        bag['__hintSprite'] = hint;
-        bag['__labelSprite'] = label;
-        bag['__labelOffsetY'] = headY - 4;
-        bag['__npcSprite'] = npcSprite;
-        bag['__npcPreset'] = presetKey;
-        bag['__npcBaseTint'] = baseTint;
-        this.applyNpcFacing(container, npc.facing ?? 'down');
-        this.registerNpcMover(npc, pos, presetKey);
-        continue;
-      }
-
-      // ── Fallback legacy Kenney (sin preset o assets ausentes) ──────────────
-      const shadowSoft = this.add.ellipse(0, shY, shW, shW * 0.3, 0x000000, .14);
-      const shadow = this.add.ellipse(0, shY, shW * 0.66, shW * 0.2, 0x000000, .24);
-
-      let sprite: Phaser.GameObjects.GameObject;
-      if (this.assetsLoaded && this.textures.exists('characters')) {
-        const npcSprite = this.add.sprite(0, 0, 'characters', npc.frameIndex).setScale(npcScale);
-        // Lavado lavanda muy sutil: unifica los Kenney con la paleta de la sala
-        // premium. Los paciente-* quedan libres para el tint de estado clínico.
-        if (this.authoredRoomActive && !npc.key.startsWith('paciente-')) {
-          npcSprite.setTint(0xe9e2f6);
-        }
-        sprite = npcSprite;
-      } else {
-        sprite = this.add.circle(0, -8, 10, 0x4fa3a5, 1);
-      }
-
-      // Nombre oculto hasta estar en rango: la escena no debe leerse como un
-      // diagrama etiquetado (`refreshMarkerStates` lo muestra junto a la pista cuando toca).
-      const { label, hint } = this.createNpcLabels(npc, pos, -28);
-
-      const container = this.add.container(pos.x, pos.y, [shadowSoft, shadow, sprite]);
-      this.setFeetOffset(container, shY);   // la sombra marca los pies del NPC
+      const visual = this.actorVisual(npcCharacterRef(npc));
+      // Sombra de contacto en dos pasos: asienta al NPC en el piso.
+      const shadowSoft = this.add.ellipse(0, 0, 30, 9, 0x000000, .15);
+      const shadow = this.add.ellipse(0, 0, 20, 6, 0x000000, .27);
+      const figure: Phaser.GameObjects.GameObject = visual
+        ? this.add.sprite(0, 0, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', npc.facing ?? 'down')).setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y)
+        : this.add.circle(0, -20, 10, 0x4fa3a5, 1);
+      // Nombre y pista: objetos de la escena sobre los actores (no hijos del contenedor); nacen ocultos.
+      const { label, hint } = this.createNpcLabels(npc, pos, KIT_LABEL_OFFSET_Y);
+      const parts: Phaser.GameObjects.GameObject[] = [shadowSoft, shadow, figure];
+      const icon = visual?.recipeId === PATIENT_RECIPE_ID ? this.patientIcon(0) : null;
+      if (icon) parts.push(icon);
+      const container = this.add.container(pos.x, pos.y, parts);
+      this.setFeetOffset(container, 0);   // pies = origen del contenedor
       this.npcMarkers.set(npc.key, container);
       const bag = container as unknown as Record<string, unknown>;
       bag['__npcConfig'] = npc;
       bag['__hintSprite'] = hint;
       bag['__labelSprite'] = label;
-      bag['__labelOffsetY'] = -28;
-      if (sprite instanceof Phaser.GameObjects.Sprite) bag['__npcSprite'] = sprite;
-      this.registerNpcMover(npc, pos, null);
+      bag['__labelOffsetY'] = KIT_LABEL_OFFSET_Y;
+      bag['__patientIcon'] = icon;
+      if (visual && figure instanceof Phaser.GameObjects.Sprite) {
+        bag['__npcSprite'] = figure;
+        bag['__npcVisual'] = visual;
+      }
+      this.applyNpcFacing(container, npc.facing ?? 'down');
+      this.registerNpcMover(npc, pos);
     }
   }
 
@@ -1699,45 +1493,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
-   * Called by Angular after a decision affects patient state.
-   * Updates the patient NPC's tint and shake based on crisis/trust levels.
+   * Estado clínico de la paciente (decisión 13): un icono de pixel art sobre la cabeza de cada
+   * actor dibujado con su receta; el sprite no se toca. La crisis, además, sacude 2 px.
    */
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
-    const targets: Array<{ sprite: Phaser.GameObjects.Sprite; container: Phaser.GameObjects.Container; baseTint: number | null }> = [];
-    for (const [key, container] of this.npcMarkers) {
-      if (!key.startsWith('paciente-')) continue;
-      const bag = container as unknown as Record<string, unknown>;
-      const sprite = (bag['__npcSprite'] as Phaser.GameObjects.Sprite | undefined)
-        ?? container.list.find((c): c is Phaser.GameObjects.Sprite => c instanceof Phaser.GameObjects.Sprite);
-      if (sprite) targets.push({ sprite, container, baseTint: (bag['__npcBaseTint'] as number | null) ?? null });
-    }
-    // La paciente real del caso es un marker PERSON del backend (escucha-segura).
-    for (const [key, preset] of Object.entries(MAP_OBJECT_PRESETS)) {
-      if (preset !== 'paciente-vbg') continue;
-      const marker = this.markers.get(key);
-      const sprite = marker?.list.find((c): c is Phaser.GameObjects.Sprite => c instanceof Phaser.GameObjects.Sprite);
-      if (marker && sprite) {
-        const baseTint = ((sprite as unknown as Record<string, unknown>)['__personBaseTint'] as number | null) ?? null;
-        targets.push({ sprite, container: marker, baseTint });
-      }
-    }
-    for (const { sprite, container, baseTint } of targets) {
-      if (state.crisisLevel >= 70) {
-        sprite.setTint(0xff8888);
-        if (!this.callbacks.reduceMotion) {
-          this.tweens.add({
-            targets: container, x: container.x + 2, duration: 60,
-            yoyo: true, repeat: 3, ease: 'Sine.easeInOut'
-          });
-        }
-      } else if (state.trustLevel >= 60 && state.emotionalState >= 60) {
-        sprite.setTint(0xaaffcc);
-      } else if (state.emotionalState <= 25) {
-        sprite.setTint(0x8888ff);
-      } else if (baseTint != null) {
-        sprite.setTint(baseTint);
-      } else {
-        sprite.clearTint();
+    this.patientState = state;
+    const kind = patientIconKind(state);
+    for (const container of [...this.npcMarkers.values(), ...this.markers.values()]) {
+      const icon = (container as unknown as Record<string, unknown>)['__patientIcon'] as Phaser.GameObjects.Image | null | undefined;
+      if (!icon) continue;
+      icon.setVisible(kind !== null);
+      if (kind) icon.setTexture(patientIconKey(kind));
+      if (kind === 'crisis' && !this.callbacks.reduceMotion) {
+        this.tweens.add({ targets: container, x: container.x + 2, duration: 60, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
       }
     }
   }
@@ -1781,37 +1549,29 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       padding: { x: 8, y: 4 },
     }).setDepth(6);
 
-    if (this.assetsLoaded && this.textures.exists('characters')) {
-      // Family NPCs near escucha-segura zone
-      this.add.sprite(150, 248, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
-        .setScale(2).setDepth(8).setTint(0xffc8b0);
-      this.add.text(150, 276, 'Abuela', {
+    // Figurantes (spec §7.2): la receta de figurantes, con los pies donde antes terminaba el sprite.
+    this.addExtra(150, 264);
+    this.add.text(150, 276, 'Abuela', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8c4b8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-
-      this.add.sprite(230, 268, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
-        .setScale(1.85).setDepth(8).setTint(0xb8d4ff);
-      this.add.text(230, 294, 'Hermano', {
+    this.addExtra(230, 284);
+    this.add.text(230, 294, 'Hermano', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8d4ff',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-
-      // Security at entrance
-      this.add.sprite(110, 430, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE)
-        .setScale(2).setDepth(8);
-      this.add.text(110, 458, 'Seguridad', {
+    this.addExtra(110, 446);
+    this.add.text(110, 458, 'Seguridad', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-    }
 
     if (this.assetsLoaded && this.textures.exists('dungeon-tiles')) {
       // Waiting-room chairs and reception desk
       [[380, 340], [420, 340], [380, 380], [420, 380]].forEach(([x, y]) => {
         this.add.image(x, y, 'dungeon-tiles', KenneyDungeonFrames.CHAIR).setScale(2).setDepth(7);
       });
-      this.add.image(560, 160, 'dungeon-tiles', KenneyDungeonFrames.DESK).setScale(2.2).setDepth(7);
+      this.add.image(560, 160, 'dungeon-tiles', KenneyDungeonFrames.DESK).setScale(2).setDepth(7);
       this.add.image(700, 100, 'dungeon-tiles', KenneyDungeonFrames.CABINET).setScale(2).setDepth(7);
     }
   }
@@ -1851,35 +1611,27 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       padding: { x: 8, y: 4 },
     }).setDepth(6);
 
-    if (this.assetsLoaded && this.textures.exists('characters')) {
-      this.add.sprite(180, 220, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
-        .setScale(2).setDepth(8).setTint(0xffd4c0);
-      this.add.text(180, 248, 'Sobreviviente', {
+    // Figurantes (spec §7.2): la receta de figurantes, con los pies donde antes terminaba el sprite.
+    this.addExtra(180, 236);
+    this.add.text(180, 248, 'Sobreviviente', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#ffd4c0',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-
-      this.add.sprite(280, 200, 'characters', KenneyCharFrames.PLAYER_IDLE)
-        .setScale(1.9).setDepth(8).setTint(0xa8c8ff);
-      this.add.text(280, 228, 'Psicóloga social', {
+    this.addExtra(280, 215);
+    this.add.text(280, 228, 'Psicóloga social', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#a8c8ff',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-
-      this.add.sprite(760, 90, 'characters', KenneyCharFrames.NPC_SUPERVISOR_IDLE)
-        .setScale(2).setDepth(8);
-      this.add.text(760, 118, 'Funcionario de derechos', {
+    this.addExtra(760, 106);
+    this.add.text(760, 118, 'Funcionario de derechos', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-
-      this.add.sprite(760, 400, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
-        .setScale(1.85).setDepth(8).setTint(0xb8e8c8);
-      this.add.text(760, 428, 'Trabajadora social', {
+    this.addExtra(760, 415);
+    this.add.text(760, 428, 'Trabajadora social', {
         fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8e8c8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
-    }
 
     if (this.assetsLoaded && this.textures.exists('dungeon-tiles')) {
       [[120, 400], [160, 400]].forEach(([x, y]) => {
@@ -1910,10 +1662,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING);
+    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING_FLOOR);
     // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
     // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
     this.strokeVignetteBand(g, tint, 0.12, 0.3);
+    this.toneVignette = g;
   }
 
   /**
@@ -2005,125 +1758,70 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private createPlayer(x: number, y: number) {
-    this.lastPose = { direction: null, walking: false };
-    if (this.avatarReady && this.textures.exists(this.playerTextureKey)) {
-      // Contrato de pies (player-motion.util): (x, y) del contenedor = punto de
-      // pies. Sombra centrada en los pies; el sprite sube PLAYER_SPRITE_OFFSET_Y.
-      // Sombra en dos pasos: borde suave + núcleo — asienta sin parecer sticker.
-      const shadowSoft = this.add.ellipse(0, 0, 42, 13, 0x000000, .15);
-      const shadow = this.add.ellipse(0, 0, 28, 9, 0x000000, .27);
-      const sprite = this.playerV1Id
-        ? this.add.sprite(0, 0, v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame('down'))
-            .setOrigin(0.5, V1_FEET_ORIGIN_Y).setScale(V1_AVATAR_SCALE)
-        : this.add.sprite(0, PLAYER_SPRITE_OFFSET_Y, this.playerTextureKey, AVATAR_IDLE_FRAMES.down)
-            .setScale(AVATAR_DISPLAY_SCALE);
+    this.lastPose = { direction: null, walking: false, reduce: this.callbacks.reduceMotion };
+    const visual = this.playerVisual;
+    if (visual && this.playerKitReady) {
+      // Contrato de pies (player-motion.util): (x, y) del contenedor = pies; el cuadro del
+      // kit trae los pies en (24, 68). Sombra en dos pasos bajo los pies, a escala 1.
+      const shadowSoft = this.add.ellipse(0, 0, 30, 9, 0x000000, .15);
+      const shadow = this.add.ellipse(0, 0, 20, 6, 0x000000, .27);
+      const sprite = this.add.sprite(0, 0, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', 'down'))
+        .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
       this.player = this.add.container(x, y, [shadowSoft, shadow, sprite]).setDepth(actorDepth(y));
       this.playerSprite = sprite;
-      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
+      playKitPose(sprite, visual, 'down', false, this.callbacks.reduceMotion);
       return;
     }
-    // Fallback Kenney: mismo contrato de pies (sprite 16px × 1.5 → centro -11).
+    // Sin hoja del kit (no cargó): marcador geométrico con el mismo contrato de pies.
     const shadow = this.add.ellipse(0, 0, 16, 5, 0x000000, .22);
-    if (this.assetsLoaded && this.textures.exists('characters')) {
-      const sprite = this.add.sprite(0, -11, 'characters', KenneyCharFrames.PLAYER_IDLE).setScale(1.5);
-      // scale 1.5: at zoom=2 → sprite is 48px on screen ≈ 1.5 tiles wide — correct RPG proportion.
-      this.player = this.add.container(x, y, [shadow, sprite]).setDepth(actorDepth(y));
-      this.playerSprite = sprite;
-      this.registerLivingActor('player', sprite, () => this.lastPose.walking);
-    } else {
-      const body  = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
-      const head  = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
-      const badge = this.add.rectangle(0, -10, 12,  7, 0xffffff, .9);
-      this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
-    }
+    const body = this.add.rectangle(0, -14, 24, 32, 0x4f7cac, 1).setStrokeStyle(2, 0xffffff, .9);
+    const head = this.add.circle(0, -36, 12, 0xf4c6a8, 1).setStrokeStyle(2, 0xffffff, .85);
+    const badge = this.add.rectangle(0, -10, 12, 7, 0xffffff, .9);
+    this.player = this.add.container(x, y, [shadow, body, head, badge]).setDepth(actorDepth(y));
+    this.playerSprite = undefined;
   }
 
   /**
-   * Registra un sprite como "actor vivo": respira en reposo y rebota al caminar.
-   * Captura sus valores base en el momento del registro; si se re-registra la
-   * misma clave (cambio de sala), el nuevo sprite reemplaza al anterior.
-   */
-  private registerLivingActor(key: string, sprite: Phaser.GameObjects.Sprite, isWalking: () => boolean): void {
-    this.livingActors.set(key, {
-      sprite,
-      actor: makeLivingActor(key, sprite.scaleY, sprite.y, sprite.displayHeight / 2),
-      isWalking,
-    });
-  }
-
-  /** Aplica respiración/rebote a todos los actores vivos (los muertos se purgan). */
-  private updateLivingActors(time: number): void {
-    if (this.livingActors.size === 0) return;
-    const amps = motionAmplitudes(this.callbacks.reduceMotion);
-    for (const [key, entry] of this.livingActors) {
-      if (!entry.sprite.active) { this.livingActors.delete(key); continue; }
-      const pose = livingPose(entry.actor, time, entry.isWalking(), amps);
-      entry.sprite.scaleY = pose.scaleY;
-      entry.sprite.y = pose.y;
-    }
-  }
-
-  /**
-   * Aplica la pose (dirección + caminando/idle) SOLO si cambió desde el último
-   * frame: la animación no se reinicia en cada update y el idle es inmediato
-   * al soltar teclas o quedar bloqueado contra una pared.
+   * Aplica la pose SOLO si cambió (dirección, caminar o movimiento reducido): la animación no
+   * se reinicia en cada update y el reposo es inmediato al soltar teclas o chocar con una pared.
    */
   private applyPlayerPose(direction: PlayerDirection, walking: boolean): void {
-    if (this.lastPose.direction === direction && this.lastPose.walking === walking) return;
-    this.lastPose = { direction, walking };
-    if (walking) this.playWalkAnimation(direction);
-    else this.setIdleFrame(direction);
+    const reduce = this.callbacks.reduceMotion;
+    if (this.lastPose.direction === direction && this.lastPose.walking === walking && this.lastPose.reduce === reduce) return;
+    this.lastPose = { direction, walking, reduce };
+    if (this.playerSprite && this.playerVisual && this.playerKitReady) {
+      playKitPose(this.playerSprite, this.playerVisual, direction, walking, this.callbacks.reduceMotion);
+    }
   }
 
-  /**
-   * Caminata del jugador. El avatar modular usa filas down/side/up (la fila
-   * lateral mira a la DERECHA → flip para la izquierda); Kenney usa sus
-   * animaciones `walk-*` (fila lateral mira a la DERECHA → flip para izquierda).
-   */
-  private playWalkAnimation(direction: PlayerDirection): void {
-    if (!this.playerSprite) return;
-    if (this.playerV1Id) {
-      this.playerSprite.setFlipX(false);
-      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
-      this.playerSprite.play(v1WalkAnimKey(this.playerV1Id, direction), true);
-      return;
+  /** Visual del kit con sus animaciones listas; si sus hojas no están, el figurante; si tampoco, null (→ marcador). */
+  private actorVisual(ref: CharacterRef): CharacterVisual | null {
+    const kit = this.callbacks.kit;
+    if (!kit || !this.assetsLoaded) return null;
+    for (const candidate of [ref, extrasCharacterRef(kit)]) {
+      const visual = resolveCharacter(kit, candidate);
+      addComposedSheets(this, visual); // un avatar autorado se compone aquí; las recetas vienen del preload
+      if (ensureCharacterAnims(this, visual)) return visual;
     }
-    if (this.avatarReady) {
-      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
-      if (this.callbacks.reduceMotion) { this.setIdleFrame(direction); return; }
-      const anim = direction === 'down' ? AVATAR_ANIM_KEYS.down
-        : direction === 'up' ? AVATAR_ANIM_KEYS.up
-        : AVATAR_ANIM_KEYS.side;
-      this.playerSprite.play(anim, true);
-      return;
-    }
-    this.playerSprite.setFlipX(direction === 'left');
-    if (!this.callbacks.reduceMotion) this.playerSprite.play(`walk-${direction}`, true);
+    return null;
   }
 
-  /** Frame de reposo limpio según la última dirección. */
-  private setIdleFrame(direction: PlayerDirection): void {
-    if (!this.playerSprite) return;
-    this.playerSprite.stop();
-    if (this.playerV1Id) {
-      this.playerSprite.setFlipX(false);
-      this.playerSprite.setTexture(v1SheetKey(this.playerV1Id, 'idle'), v1IdleFrame(direction));
-      return;
-    }
-    if (this.avatarReady) {
-      const frame = direction === 'up' ? AVATAR_IDLE_FRAMES.up
-        : direction === 'down' ? AVATAR_IDLE_FRAMES.down
-        : AVATAR_IDLE_FRAMES.side;
-      this.playerSprite.setFrame(frame);
-      this.playerSprite.setFlipX(modularAvatarFlipX(direction));
-      return;
-    }
-    const idleFrame =
-      direction === 'up'   ? KenneyCharFrames.PLAYER_WALK_UP[0]   :
-      direction === 'down' ? KenneyCharFrames.PLAYER_WALK_DOWN[0] :
-                             KenneyCharFrames.PLAYER_WALK_RIGHT[0];
-    this.playerSprite.setFrame(idleFrame);
-    this.playerSprite.setFlipX(direction === 'left');
+  /** Icono del estado clínico con los pies del actor en `feetY`; nace con el último estado conocido. */
+  private patientIcon(feetY: number): Phaser.GameObjects.Image | null {
+    if (!this.textures.exists(patientIconKey('crisis'))) return null;
+    const view = patientIconView(this.patientState);
+    return this.add.image(0, feetY + KIT_ICON_OFFSET_Y, view.key).setOrigin(0.5, 1).setVisible(view.visible);
+  }
+
+  /** Figurante de los mapas legados (spec §7.2): de frente, a escala 1, pies en `feetY`. */
+  private addExtra(x: number, feetY: number): void {
+    const kit = this.callbacks.kit;
+    const visual = kit ? this.actorVisual(extrasCharacterRef(kit)) : null;
+    if (!visual) return;
+    const sprite = this.add.sprite(x, feetY, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', 'down'))
+      .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y)
+      .setDepth(actorDepth(feetY));
+    playKitPose(sprite, visual, 'down', false, this.callbacks.reduceMotion);
   }
 
   /** Devuelve la clave si su textura ya cargó; si no, null (→ fallback del marcador). */
@@ -2143,10 +1841,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const sideKey = facing ? this.loadedTexture(resolveDoorSideTextureKey(object.key)) : null;
     const key = sideKey ?? this.loadedTexture(resolveDoorTextureKey(object.key));
     if (!key) return null;
-    return this.add.image(0, DOOR_SPRITE_FEET_Y, key)
+    const image = this.add.image(0, DOOR_SPRITE_FEET_Y, key)
       .setOrigin(0.5, 1)
-      .setScale(DOOR_SPRITE_SCALE)
       .setFlipX(sideKey != null && facing === 'left');
+    return this.atWorldScale(image);
+  }
+
+  /** A escala 1; un PNG viejo en la caché del navegador (otro tamaño que la tabla) se fuerza al de la tabla. */
+  private atWorldScale<T extends Phaser.GameObjects.Image>(image: T): T {
+    const spec = worldSpriteForTexture(image.texture.key);
+    const stale = spec ? staleSpriteSize(spec, image.width, image.height) : null;
+    if (stale) image.setDisplaySize(stale.width, stale.height);
+    return image;
   }
 
   private createMarker(object: MapObjectState) {
@@ -2163,14 +1869,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
+    let personVisual: CharacterVisual | null = null;
+    let doorSprite: Phaser.GameObjects.Image | null = null;
 
+    // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
+    let pixelSprite = false;
     if (this.assetsLoaded) {
-      const doorSprite = isExit ? this.buildDoorSprite(object) : null;
+      doorSprite = isExit ? this.buildDoorSprite(object) : null;
       if (doorSprite) {
         // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
         // Kenney), unificando el lenguaje visual. Al no ser un tile de Kenney, no
         // rompe la regla de la sala premium. Si el asset falta, caen las ramas de abajo.
         main = doorSprite;
+        pixelSprite = true;
       } else if (isExit && this.authoredRoomActive) {
         // Puerta dibujada (la sala premium no mezcla tiles Kenney): marco + hoja + pomo.
         const doorFrame = this.add.rectangle(0, -10, 34, 46, 0x1a1530, 0.92).setStrokeStyle(2, 0xb69cff, 0.8);
@@ -2178,40 +1889,33 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         const doorKnob = this.add.circle(7, -8, 2.5, 0xb69cff, 1);
         main = this.add.container(0, 0, [doorFrame, doorPanel, doorKnob]);
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
-        main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(2.5);
+        main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(3);
+        pixelSprite = true;
       } else if (object.type === 'TOOL') {
         const toolTex = resolveToolTextureKey(object.toolCode);
-        main = (toolTex && this.textures.exists(toolTex))
-          ? this.add.image(0, -6, toolTex).setScale(TOOL_SPRITE_SCALE)
-          : this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        if (toolTex && this.textures.exists(toolTex)) {
+          main = this.atWorldScale(this.add.image(0, -6, toolTex));
+          pixelSprite = true;
+        } else {
+          main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
+        }
       } else if (object.type === 'OBJECT' && this.loadedTexture(resolveObjectTextureKey(object.shortCode))) {
-        main = this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!).setScale(TOOL_SPRITE_SCALE);
-      } else if (object.type === 'PERSON' && this.objectAvatarConfig(object)
-          && this.ensureObjectAvatarComposite(object)) {
-        const scale = Number((object.metadata as { scale?: unknown } | undefined)?.scale ?? 0.82);
-        const personSprite = this.add.sprite(0, -Math.round(42 * scale) + 16,
-          this.objectAvatarTextureKey(object.key), AVATAR_IDLE_FRAMES.down).setScale(scale);
-        this.registerLivingActor(`person-${object.key}`, personSprite, () => false);
-        main = personSprite;
-      } else if (object.type === 'PERSON' && MAP_OBJECT_PRESETS[object.key]
-          && this.ensureNpcComposite(MAP_OBJECT_PRESETS[object.key])) {
-        // Persona del caso con preset modular (p. ej. la consultante): mismo
-        // universo visual que el avatar. El +16 alinea los pies del arte con la
-        // sombra del marker (que vive en y=16).
-        const presetKey = MAP_OBJECT_PRESETS[object.key];
-        const render = NPC_PRESET_RENDER[presetKey];
-        const personSprite = this.add.sprite(0, -Math.round(42 * render.scale) + 16,
-          this.npcTextureKey(presetKey), AVATAR_IDLE_FRAMES.down).setScale(render.scale);
-        const personTint = this.npcBakedTexture.has(presetKey) ? null : (render.tint ?? null);
-        if (personTint != null) personSprite.setTint(personTint);
-        (personSprite as unknown as Record<string, unknown>)['__personBaseTint'] = personTint;
-        this.registerLivingActor(`person-${object.key}`, personSprite, () => false);
-        main = personSprite;
-      } else if (object.type === 'PERSON' && this.textures.exists('characters')) {
-        main = this.add.sprite(0, 0, 'characters', KenneyCharFrames.NPC_PATIENT_IDLE)
-          .setScale(this.authoredRoomActive ? 2.4 : 2);
+        main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));
+        pixelSprite = true;
+      } else if (object.type === 'PERSON') {
+        personVisual = this.callbacks.kit ? this.actorVisual(personCharacterRef(this.callbacks.kit, object)) : null;
+        if (personVisual) {
+          // Pies del arte sobre la sombra del marcador (y = 16), de frente y respirando.
+          const personSprite = this.add.sprite(0, 16, kitSheetKey(personVisual, 'idle'), kitFrameIndex('idle', 'down'))
+            .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
+          playKitPose(personSprite, personVisual, 'down', false, this.callbacks.reduceMotion);
+          main = personSprite;
+        } else {
+          main = this.buildGeomMarker(color);
+        }
       } else if (this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', this.frameForType(object.type)).setScale(2);
+        pixelSprite = true;
       } else {
         main = this.buildGeomMarker(color);
       }
@@ -2230,6 +1934,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    const bag = marker as unknown as Record<string, unknown>;
+    bag['__kitSprite'] = personVisual !== null;
+    bag['__pixelSprite'] = pixelSprite;
+    bag['__pulse'] = pulse;
+    if (personVisual?.recipeId === PATIENT_RECIPE_ID) {
+      const icon = this.patientIcon(16);
+      if (icon) {
+        marker.add(icon);
+        bag['__patientIcon'] = icon;
+      }
+    }
     if (label) this.markerLabels.set(object.key, label);
     this.applyAmbientLife(marker, object);
 
@@ -2241,8 +1956,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const hintWidth = Math.ceil(hintTx.width) + 38;
       const hintBg = this.add.rectangle(0, 0, hintWidth, 22, 0x0e141a, .88).setStrokeStyle(1, 0x4fa3a5, .5);
       const lock = this.buildDoorLock(hintWidth, hintTx.width);
-      // A -90 para librar la puerta a escala real (93 px de alto, base en y+16).
-      const hint = this.add.container(object.x, object.y - 90, [hintBg, lock, hintTx])
+      // Sobre el borde alto de la puerta: su alto sale del arte, ya no hay una escala que adivinar.
+      const hintY = doorHintY(object.y, doorSprite?.displayHeight ?? DOOR_FALLBACK_HEIGHT);
+      const hint = this.add.container(object.x, hintY, [hintBg, lock, hintTx])
         .setDepth(DEPTH.UI).setVisible(false).setScale(this.labelScale);
       const bag = hint as unknown as Record<string, unknown>;
       bag['__doorBg'] = hintBg;
@@ -2368,6 +2084,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    */
   private applyAmbientLife(marker: Phaser.GameObjects.Container, object: MapObjectState) {
     if (this.callbacks.reduceMotion) return;
+    // Las personas ya respiran con su hoja de reposo; el vaivén queda para herramientas y objetos.
+    if (object.type === 'PERSON' && this.isInteractive(object)) return;
 
     if (this.isInteractive(object)) {
       // Interactable juice: subtle float on top of the existing glow pulse.
@@ -2380,10 +2098,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     const pattern = resolvePattern(object);
     if (pattern.type === 'idle') {
-      this.tweens.add({
-        targets: marker, y: object.y - 2, duration: 1700,
-        yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-      });
+      if (object.type !== 'PERSON') {
+        this.tweens.add({
+          targets: marker, y: object.y - 2, duration: 1700,
+          yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+      }
       return;
     }
     this.ambientMovers.set(object.key, {
@@ -2682,8 +2402,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.followLabels.length = 0;
     this.markers.forEach((m, key) => {
       const sel = key === this.selectedKey, near = key === this.nearestKey;
-      m.setScale(sel ? 1.12 : near ? 1.08 : 1);
-      m.setAlpha(sel || near ? 1 : this.dimmedKeys.has(key) ? DIMMED_ALPHA : .88);
+      const bag = m as unknown as Record<string, unknown>;
+      const emphasis = markerEmphasis({
+        selected: sel, near, kitSprite: bag['__kitSprite'] === true, pixelSprite: bag['__pixelSprite'] === true,
+        dimmed: this.dimmedKeys.has(key),
+      });
+      m.setScale(emphasis.scale);
+      m.setAlpha(emphasis.alpha);
       const label = this.markerLabels.get(key);
       if (!label) return;
       const shown = sel || near || revealed.includes(key);
@@ -2812,13 +2537,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   styles: [`
     :host { display: block; position: relative; width: 100%; height: 100%; }
     .phaser-host { width: 100%; height: 100%; }
-    /* El tamaño del canvas lo gobierna Phaser Scale.FIT (aspect 16:9 intacto,
-       letterbox sobre el fondo oscuro). Forzar 100% aquí deformaba el juego y
-       desbordaba el viewport en mobile. */
-    :host ::ng-deep .phaser-host canvas { display: block; max-width: 100%; max-height: 100%; }
-    /* Cruceta abajo a la izquierda y «Interactuar» abajo a la derecha: en un móvil horizontal caen en
-       las bandas negras que deja el encaje 16:9 y no tapan el piso. El contenedor no recibe toques;
-       solo los controles. */
+    /* El lienzo mide el contenedor × devicePixelRatio y Phaser lo devuelve al tamaño
+       CSS del contenedor (scale.zoom = 1/dpr): nada lo estira a escalas fraccionarias. */
+    :host ::ng-deep .phaser-host canvas { display: block; }
+    /* Cruceta abajo a la izquierda y «Interactuar» abajo a la derecha. El lienzo ocupa todo el contenedor
+       (ya no hay bandas negras de encaje 16:9): la sala centrada deja márgenes a los lados. El
+       contenedor no recibe toques; solo los controles. */
     .touch-controls {
       display: none;
       position: absolute;
@@ -2985,9 +2709,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private gameHost?: ElementRef<HTMLDivElement>;
-  private hostResizeObserver?: ResizeObserver;
+  /** Deja de seguir el tamaño del contenedor y el devicePixelRatio. */
+  private detachHostWatch?: () => void;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
   private detachScrollKeyGuard?: () => void;
+
+  private readonly kit = inject(KitService);
+  /** El componente se destruyó mientras llegaba el paquete del kit. */
+  private destroyed = false;
+  private booting = false;
 
   constructor(private readonly zone: NgZone) {}
 
@@ -3035,16 +2765,16 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
    * `refresh()` usa el tamaño en caché del contenedor, así que antes hay que leerlo (T0.3).
    */
   refreshScale(): void {
-    const scale = this.phaserGame?.scale;
-    if (!scale) return;
-    scale.getParentBounds();
-    scale.refresh();
+    const host = this.gameHost?.nativeElement;
+    if (this.phaserGame && host) fitGameToHost(this.phaserGame, host);
   }
 
   ngOnDestroy() {
+    this.destroyed = true;
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
-    this.hostResizeObserver?.disconnect();
+    this.detachHostWatch?.();
+    this.detachHostWatch = undefined;
     this.phaserGame?.destroy(true);
   }
 
@@ -3093,7 +2823,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
    *  del navegador) sin recargar la página ni perder el intento. */
   retryLoad(): void {
-    this.hostResizeObserver?.disconnect();
+    this.detachHostWatch?.();
+    this.detachHostWatch = undefined;
     this.phaserGame?.destroy(true);
     this.phaserGame = undefined;
     this.scene = undefined;
@@ -3118,11 +2849,22 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   }
 
   private boot() {
-    if (!this.gameHost || this.phaserGame) return;
+    if (!this.gameHost || this.phaserGame || this.booting) return;
+    this.booting = true;
+    // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
+    // actores caen a su marcador (KitService lo reintenta en el próximo boot).
+    this.kit.load().then(bundle => bundle, () => null).then(bundle => {
+      this.booting = false;
+      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
+    });
+  }
+
+  private startGame(kit: KitBundle | null) {
     const reduceMotion = this.effectiveReduceMotion();
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
+        kit,
         onReady:       () => this.zone.run(() => {
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
@@ -3153,11 +2895,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,
-        width: 960, height: 540,
         backgroundColor: '#0e141a',
-        pixelArt: true,    // nearest-neighbour scaling — keeps pixel art sharp
-        roundPixels: true, // 2.5D: evita shimmer sub-pixel al hacer y-sort + follow
-        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
+        pixelArt: true,    // vecino más cercano: el pixel art no se suaviza
+        roundPixels: true, // 2.5D: evita el temblor sub-píxel con el y-sort y el seguimiento
+        scale: pixelScaleConfig(this.gameHost!.nativeElement),
         scene: this.scene
       });
       // Sin la captura de Phaser, flechas y Espacio desplazarían la página (la «Vista previa»
@@ -3165,13 +2906,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       // `keydown` ya cancelados. En un reintento se vuelve a armar tras el nuevo juego.
       this.detachScrollKeyGuard?.();
       this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
-      // Scale.FIT solo escucha resize de window; el contenedor también cambia
-      // de tamaño cuando el layout muta (panel derecho, rotación, bottom sheet). `refreshScale`
-      // lee el contenedor antes de reencajar: sin eso el canvas se quedaba pequeño para siempre.
-      if (typeof ResizeObserver !== 'undefined') {
-        this.hostResizeObserver = new ResizeObserver(() => this.refreshScale());
-        this.hostResizeObserver.observe(this.gameHost!.nativeElement);
-      }
+      // Lienzo en píxeles físicos: sigue al contenedor (panel derecho, rotación, bottom
+      // sheet) y al devicePixelRatio (zoom del navegador, cambio de monitor).
+      this.detachHostWatch = watchHostSize(this.phaserGame, this.gameHost!.nativeElement);
     });
     window.setTimeout(() => {
       this.scene?.setScenarioConfig(this.scenarioConfig());
