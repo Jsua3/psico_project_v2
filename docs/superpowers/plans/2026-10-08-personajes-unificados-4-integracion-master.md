@@ -101,7 +101,7 @@ Qué se crea o se toca y quién es su dueño. Las rutas de `frontend/…` van si
 
 Run (en el worktree de la feat, `.worktrees/personajes-unificados`):
 ```bash
-git status --porcelain | grep -v '^??' ; git rev-parse --short HEAD master ; git merge-base HEAD master | cut -c1-7
+git status --porcelain | grep -v '^??' ; git rev-parse --short HEAD ; git rev-parse --short master ; git merge-base HEAD master | cut -c1-7
 git diff --stat 9dfcecb HEAD -- frontend backend_django scripts .github | tail -1
 ```
 Expected: sin líneas de cambios sin confirmar; `master` = `f39ab96`; merge-base = `51d1409`; y el último comando no imprime nada (si HEAD es posterior a `9dfcecb`, solo ha añadido archivos de `docs/`). Si `master` avanzó, **para y avisa**: el plan se ensayó contra `f39ab96`.
@@ -950,6 +950,11 @@ module.exports = [
 - [ ] **Step 1: Escribe las pruebas primero**
 
 `t4-pruebas.cjs`: al spec del resolver, tres pruebas (alias y emociones futuras, sin sonrisa, la Psicóloga conserva la suya); al test de cobertura del kit, una que exige los ocho alias y que el chequeo avise si falta uno; y el guardián del backend apuntado al catálogo del kit.
+
+Antes de la primera corrida del backend (`test-backend.mjs` exige `backend_django/.venv` y un worktree nuevo no lo trae; se quita en la tarea 11), enlaza el venv del checkout principal (corregido tras la ejecución: el plan lo ponía en la tarea 9):
+```powershell
+New-Item -ItemType Junction -Path 'D:\Sua_Files\IdeaProjects\psico_project_v3\.worktrees\integracion\backend_django\.venv' -Target 'D:\Sua_Files\IdeaProjects\psico_project_v3\backend_django\.venv'
+```
 
 Run (en `$WT/frontend`):
 ```bash
@@ -1882,10 +1887,7 @@ Expected, en este orden: `0`, `0`, `0`, `35` / `31` / `4`, `0`, `0`.
 
 - [ ] **Step 5: El backend (es el de master: la rama no lo toca)**
 
-Docker Desktop encendido. Run (en `$WT`; el venv del checkout principal se enlaza una vez):
-```powershell
-New-Item -ItemType Junction -Path 'D:\Sua_Files\IdeaProjects\psico_project_v3\.worktrees\integracion\backend_django\.venv' -Target 'D:\Sua_Files\IdeaProjects\psico_project_v3\backend_django\.venv'
-```
+Docker Desktop encendido. El venv del checkout principal ya quedó enlazado en la tarea 4; si falta, vuelve a crear la unión con el comando de ese paso. Run (en `$WT`):
 ```bash
 npm run check:backend 2>&1 | tail -3
 SIEP_TEST_DB_PORT=5563 MSYS_NO_PATHCONV=1 npm run test:backend 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -6
