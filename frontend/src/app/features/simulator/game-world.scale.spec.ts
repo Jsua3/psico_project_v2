@@ -68,6 +68,34 @@ describe('game-world: escala del canvas (T5.4)', () => {
     expect(source).not.toMatch(/scale\??\.refresh\(\)/);
     expect(source).not.toContain('Phaser.Scale.FIT');
   });
+
+  it('ngOnDestroy suelta el observador del contenedor antes de destruir Phaser, y una sola vez', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const component = componentWith({ destroy }) as unknown as { detachHostWatch?: () => void; ngOnDestroy(): void };
+    component.detachHostWatch = detach;
+    component.ngOnDestroy();
+    expect(order).toEqual(['detach', 'destroy']);
+    component.ngOnDestroy();
+    expect(detach).toHaveBeenCalledTimes(1);
+  });
+
+  it('retryLoad suelta el observador del contenedor antes de reiniciar Phaser', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const state = () => ({ set: vi.fn() });
+    const component = componentWith({ destroy }) as unknown as Record<string, unknown> & { retryLoad(): void };
+    Object.assign(component, {
+      detachHostWatch: detach,
+      renderReady: state(), renderedMapKey: state(), renderedScenarioKey: state(),
+      assetsReady: state(), loadPercent: state(), criticalLoadFailed: state(),
+      boot: vi.fn(() => { order.push('boot'); }),
+    });
+    component.retryLoad();
+    expect(order).toEqual(['detach', 'destroy', 'boot']);
+  });
 });
 
 describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {

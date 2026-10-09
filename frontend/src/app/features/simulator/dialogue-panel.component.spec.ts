@@ -896,6 +896,22 @@ describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', (
   });
 });
 
+/** Cuerpos de todos los bloques `@media <consulta> { … }` de un CSS: cuenta llaves, así que una regla solo cuenta dentro del suyo. */
+function mediaBlocks(css: string, query: string): string[] {
+  const head = `@media ${query} {`;
+  const blocks: string[] = [];
+  for (let from = css.indexOf(head); from >= 0; from = css.indexOf(head, from + head.length)) {
+    let depth = 1;
+    let end = from + head.length;
+    for (; end < css.length && depth > 0; end += 1) {
+      if (css[end] === '{') depth += 1;
+      else if (css[end] === '}') depth -= 1;
+    }
+    blocks.push(css.slice(from + head.length, end - 1));
+  }
+  return blocks;
+}
+
 describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
   let component: DialoguePanelComponent;
@@ -1017,7 +1033,9 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
 
   it('el retrato lateral mide 96 px (×3) y 64 px (×2) en pantallas bajas, y el panel lateral es lo único que se desplaza', () => {
     expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{ width: 96px; height: 96px; \}/);
-    expect(source).toMatch(/@media \(max-height: 520px\) \{[\s\S]*?\.dialogue-strip--side \.portrait-img \{ width: 64px; height: 64px; \}/);
+    const compact = mediaBlocks(source, '(max-height: 520px)');
+    expect(compact.length).toBeGreaterThan(0);
+    expect(compact.some(block => block.includes('.dialogue-strip--side .portrait-img { width: 64px; height: 64px; }'))).toBe(true);
     expect(source).not.toContain('clamp(48px, 12vh, 64px)');
     expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
     // Ya no se ancla al fondo en cada ciclo de detección.

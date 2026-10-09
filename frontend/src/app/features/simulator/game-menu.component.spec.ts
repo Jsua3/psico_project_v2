@@ -307,3 +307,18 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
     });
   });
 });
+
+describe('GameMenuComponent: el observador del contenedor', () => {
+  it('ngOnDestroy lo suelta antes de destruir Phaser (si no, un resize posterior lanzaría sobre un lienzo destruido), y una sola vez', () => {
+    const order: string[] = [];
+    const detach = vi.fn(() => { order.push('detach'); });
+    const destroy = vi.fn(() => { order.push('destroy'); });
+    const component = Object.create(GameMenuComponent.prototype) as { detachHostWatch?: () => void; game?: unknown; ngOnDestroy(): void };
+    component.detachHostWatch = detach;
+    component.game = { destroy };
+    component.ngOnDestroy();
+    expect(order).toEqual(['detach', 'destroy']);
+    component.ngOnDestroy();
+    expect(detach).toHaveBeenCalledTimes(1);
+  });
+});
