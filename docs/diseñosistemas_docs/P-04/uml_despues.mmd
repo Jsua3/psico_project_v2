@@ -1,0 +1,26 @@
+classDiagram
+    direction LR
+    class build_completion_report {
+        <<director>>
+        fija el orden de los pasos
+    }
+    class CompletionReportBuilder {
+        <<builder>>
+        +adequate, risky, inadequate, prohibited
+        +tools_used, retries, prohibited_retries
+        +competencies, recommendations, summary
+        +count_events() Builder
+        +count_reflections() Builder
+        +add_competencies() Builder
+        +add_recommendations() Builder
+        +add_summary() Builder
+        +build() dict
+    }
+    class Reporte {
+        <<producto>>
+        dict camelCase del reporte de cierre
+    }
+    build_completion_report ..> CompletionReportBuilder : encadena los pasos
+    CompletionReportBuilder ..> Reporte : build()
+    CompletionReportBuilder ..> build_timeline : usa
+    CompletionReportBuilder ..> case_effects : compute_ending

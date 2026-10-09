@@ -1,0 +1,9 @@
+classDiagram
+    direction LR
+    class game_dtos {
+        <<módulo>>
+        +build_completion_report(attempt, events) dict
+        +build_timeline(attempt, events) list
+        +metrics(attempt) dict
+    }
+    note for game_dtos "build_completion_report hace todo en una función de 99 líneas:\ncuenta eventos, deduce competencias y recomendaciones,\nelige el resumen y ensambla el diccionario."
