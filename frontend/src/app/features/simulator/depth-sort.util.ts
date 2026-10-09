@@ -13,6 +13,8 @@ export const DEPTH = {
   PROPS_BACK: 2,
   WALLS: 3,
   ENVIRONMENT: 4,
+  /** Focos, viñetas y motas de las salas: debajo de los actores (spec §8.3, biblia §2-3). */
+  LIGHTING_FLOOR: 4.5,
   ACTORS_BASE: 1000,
   PROPS_FRONT: 100000,
   LIGHTING: 200000,
@@ -34,7 +36,7 @@ const LAYER_BANDS: ReadonlyArray<readonly [string, number]> = [
   ['interactables', DEPTH.ENVIRONMENT],
   ['characters', DEPTH.ACTORS_BASE],
   ['props_front', DEPTH.PROPS_FRONT],
-  ['lighting', DEPTH.LIGHTING],
+  ['lighting', DEPTH.LIGHTING_FLOOR],
   ['overlay', DEPTH.OVERLAY],
 ];
 

@@ -109,16 +109,18 @@ interface EphemeralScore {
       @if (worldState(); as currentWorld) {
         <div class="preview-board">
           <main class="preview-main">
-            <!-- Phaser canvas -->
-            <app-game-world
-              #gameWorld
-              [world]="currentWorld"
-              [nearbyInteraction]="nearbyInteraction()"
-              [selectedInteractionKey]="selectedInteraction()?.key ?? null"
-              [reduceMotion]="reduceMotion()"
-              (proximity)="nearbyInteraction.set($event)"
-              (interact)="openInteraction($event)"
-              (positionChange)="updatePosition($event.x, $event.y)" />
+            <div class="preview-stage">
+              <!-- Phaser canvas -->
+              <app-game-world
+                #gameWorld
+                [world]="currentWorld"
+                [nearbyInteraction]="nearbyInteraction()"
+                [selectedInteractionKey]="selectedInteraction()?.key ?? null"
+                [reduceMotion]="reduceMotion()"
+                (proximity)="nearbyInteraction.set($event)"
+                (interact)="openInteraction($event)"
+                (positionChange)="updatePosition($event.x, $event.y)" />
+            </div>
 
             <!-- Dialogue -->
             <app-dialogue-panel
@@ -279,6 +281,15 @@ interface EphemeralScore {
     .preview-main {
       display: grid;
       gap: 12px;
+    }
+    /* El lienzo mide a su contenedor en píxeles físicos: el mundo necesita una caja de tamaño definido. */
+    .preview-stage {
+      position: relative;
+      aspect-ratio: 16 / 9;
+    }
+    .preview-stage app-game-world {
+      position: absolute;
+      inset: 0;
     }
 
     .preview-status-bar {

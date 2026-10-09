@@ -99,7 +99,7 @@ describe('JournalPanelComponent: «Trazabilidad» con los títulos completos', (
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [JournalPanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: jest.fn() } }],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     });
     fixture = TestBed.createComponent(JournalPanelComponent);
   });

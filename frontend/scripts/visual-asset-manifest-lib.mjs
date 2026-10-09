@@ -903,6 +903,14 @@ export function buildPremiumVisualManifest({
   };
 }
 
+/** El artefacto derivado (manifiesto, README) debe existir y coincidir byte a byte con lo que se genera hoy. */
+export function assertDerivedArtifact(filePath, expectedBytes, label = path.basename(filePath)) {
+  if (!existsSync(filePath)) throw new Error(`${label}: derived artifact missing ${filePath}`);
+  const actual = readFileSync(filePath);
+  const expected = Buffer.isBuffer(expectedBytes) ? expectedBytes : Buffer.from(expectedBytes, 'utf8');
+  if (!actual.equals(expected)) throw new Error(`${label}: derived artifact drift en ${filePath}`);
+}
+
 export function parsePremiumVisualCliArgs(args) {
   if (!Array.isArray(args) || args.length === 0) throw new Error('visual validator requires one mode argument');
   let parsed;

@@ -8,15 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 VISUAL_INVENTORY_PATH = (
     REPO_ROOT / "frontend" / "src" / "assets" / "visual" / "v1" / "inventory.v1.json"
 )
-CLINICAL_EMOTION_MAP_PATH = (
-    REPO_ROOT
-    / "frontend"
-    / "src"
-    / "assets"
-    / "characters"
-    / "v1"
-    / "clinical-emotion-map.v1.json"
-)
+KIT_PATH = REPO_ROOT / "frontend" / "src" / "assets" / "characters" / "kit" / "kit.json"
+PORTRAIT_STATES = {"neutral", "alegre", "preocupada", "triste"}
 
 EXPECTED_MAP_BINDINGS = {
     "hospital-urgencias": "hospital-urgencias",
@@ -37,20 +30,6 @@ EXPECTED_BACKEND_MAP_BINDINGS = {
     "comisaria-consultorio": "comisaria-consultorio",
     "comisaria-marco": "comisaria-consultorio-marco",
     "comisaria-cierre": "comisaria-consultorio-cierre",
-}
-EXPECTED_CLINICAL_EMOTION_MAP = {
-    "neutral": "neutral",
-    "positive": "relieved",
-    "negative": "concerned",
-    "anxious": "concerned",
-    "danger": "concerned",
-    "sad": "concerned",
-    "worried": "concerned",
-    "concerned": "concerned",
-    "relieved": "relieved",
-    "receptive": "relief",
-    "calm": "steady",
-    "closed": "rupture",
 }
 EXPECTED_OBJECT_TYPES = {"PERSON", "OBJECT", "TOOL", "EXIT"}
 TREE_PROJECTION_EMOTIONS = {"neutral", "positive", "concerned", "danger"}
@@ -99,14 +78,13 @@ def test_seeded_map_objects_use_only_the_four_inventory_categories():
     assert actual_types == EXPECTED_OBJECT_TYPES
 
 
-def test_clinical_emotion_authority_covers_seeded_tree_and_future_consequences_exactly():
-    clinical_map = _read_json(CLINICAL_EMOTION_MAP_PATH)
+def test_every_emotion_the_backend_can_emit_has_a_portrait_in_the_kit():
+    projection = _read_json(KIT_PATH)["catalog"]["emotionToPortrait"]
     expected_emotions = (
         _seeded_line_emotions()
         | TREE_PROJECTION_EMOTIONS
         | FUTURE_CONSEQUENCE_EMOTIONS
     )
 
-    assert clinical_map["schemaVersion"] == 1
-    assert clinical_map["mappings"] == EXPECTED_CLINICAL_EMOTION_MAP
-    assert set(EXPECTED_CLINICAL_EMOTION_MAP) == expected_emotions
+    assert expected_emotions - set(projection) == set()
+    assert set(projection.values()) <= PORTRAIT_STATES

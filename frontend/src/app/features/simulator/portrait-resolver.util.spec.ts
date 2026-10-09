@@ -1,130 +1,73 @@
-import { existsSync, readdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
+import { testKitBundle } from '../character/kit/testing/kit-testing';
 import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 
-const P = '/assets/characters/portraits';
-const PORTRAIT_DIR = join(__dirname, '../../../assets/characters/portraits');
+const bundle = testKitBundle();
+const png = (path: string) => `/assets/characters/kit/${path}.png`;
+const KIT_DIR = join(__dirname, '../../../assets/characters/kit');
 
-describe('resolvePortraitAsset', () => {
-  it('la sobreviviente (escucha-segura) con emoción vulnerable → retrato worried', () => {
-    expect(resolvePortraitAsset('escucha-segura', 'vulnerable'))
-      .toBe(`${P}/paciente-vbg_worried.png`);
+describe('resolvePortraitAsset (kit)', () => {
+  it.each([
+    ['hablante del seed', { speakerName: 'Abuela de la niña', emotion: 'neutral' }, png('abuela-familia/portrait-neutral')],
+    ['la emoción vulnerable es preocupada', { speakerName: 'Sobreviviente (22 años)', emotion: 'vulnerable' }, png('sobreviviente/portrait-preocupada')],
+    ['un portraitKey legado', { portraitKey: 'escucha-segura', emotion: 'danger' }, png('sobreviviente/portrait-triste')],
+    ['una voz sin cuerpo no tiene retrato', { speakerName: 'Supervisión clínica', emotion: 'danger' }, null],
+    ['un NPC de escenario que se llama como una voz', { recipeId: 'supervisor-clinico', speakerName: 'Supervisión clínica', emotion: 'positive' }, png('supervisor-clinico/portrait-alegre')],
+    ['un hablante desconocido', { speakerName: 'Nadie' }, null],
+  ])('%s', (_name, keys, expected) => {
+    expect(resolvePortraitAsset(bundle, keys)).toBe(expected);
   });
 
-  it('resuelve por speakerName cuando portraitKey es nulo', () => {
-    expect(resolvePortraitAsset(null, 'neutral', 'Sobreviviente (22 años)'))
-      .toBe(`${P}/paciente-vbg_neutral.png`);
-    expect(resolvePortraitAsset(null, 'neutral', 'Abuela de la niña'))
-      .toBe(`${P}/madre-vbg_neutral.png`);
-    expect(resolvePortraitAsset(null, 'neutral', 'Funcionaria de recepción'))
-      .toBe(`${P}/funcionaria-recepcion_neutral.png`);
-    expect(resolvePortraitAsset(null, 'neutral', 'Psicóloga hospitalaria'))
-      .toBe(`${P}/psicologa-hospitalaria_neutral.png`);
-    expect(resolvePortraitAsset(null, 'neutral', 'Profesional psicosocial'))
-      .toBe(`${P}/comisaria-profesional_neutral.png`);
-  });
-
-  it('los NPC neutral-only (funcionaria/comisaría) siempre usan neutral', () => {
-    expect(resolvePortraitAsset(null, 'positive', 'Funcionaria de recepción'))
-      .toBe(`${P}/funcionaria-recepcion_neutral.png`);
-    expect(resolvePortraitAsset(null, 'concerned', 'Profesional psicosocial'))
-      .toBe(`${P}/comisaria-profesional_neutral.png`);
-  });
-
-  it('variantes emocionales: concerned → worried (Abuela) y positive → happy solo para la Psicóloga', () => {
-    expect(resolvePortraitAsset(null, 'concerned', 'Abuela de la niña'))
-      .toBe(`${P}/madre-vbg_worried.png`);
-    expect(resolvePortraitAsset(null, 'positive', 'Psicóloga hospitalaria'))
-      .toBe(`${P}/psicologa-hospitalaria_happy.png`);
-  });
-
-  it('portraitKey tiene prioridad sobre speakerName', () => {
-    expect(resolvePortraitAsset('escucha-segura', 'neutral', 'Abuela de la niña'))
-      .toBe(`${P}/paciente-vbg_neutral.png`);
-  });
-
-  it('mapea danger → sad y concerned → worried (robustez)', () => {
-    expect(resolvePortraitAsset('escucha-segura', 'danger')).toBe(`${P}/paciente-vbg_sad.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'concerned')).toBe(`${P}/paciente-vbg_worried.png`);
-  });
-
-  it('emoción nula o desconocida → neutral', () => {
-    expect(resolvePortraitAsset('escucha-segura', null)).toBe(`${P}/paciente-vbg_neutral.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'algo-raro')).toBe(`${P}/paciente-vbg_neutral.png`);
-  });
-
-  it('devuelve null (fallback SVG) para un NPC/objeto sin retrato', () => {
-    expect(resolvePortraitAsset('ruta-vbg', 'neutral', 'Ruta institucional')).toBeNull();
-    expect(resolvePortraitAsset('contacto-agresor', 'alerta', 'Alerta de riesgo')).toBeNull();
-    expect(resolvePortraitAsset(null, 'neutral', 'Objeto del entorno')).toBeNull();
-    expect(resolvePortraitAsset(null, 'neutral', null)).toBeNull();
+  it('sin paquete del kit todavía, la silueta', () => {
+    expect(resolvePortraitAsset(null, { speakerName: 'Abuela de la niña' })).toBeNull();
   });
 });
 
-describe('resolvePortraitAsset: solo assets que existen y sin sonrisa en el duelo (T4.6, F§7.11)', () => {
-  const SPEAKERS: Array<[string, string | null, string | null]> = [
-    ['Abuela', null, 'Abuela de la niña'],
-    ['Consultante', null, 'Consultante'],
-    ['Sobreviviente', null, 'Sobreviviente (22 años)'],
-    ['Psicóloga', null, 'Psicóloga hospitalaria'],
-    ['Funcionaria', null, 'Funcionaria de recepción'],
-    ['Profesional', null, 'Profesional psicosocial'],
-    ['escucha-segura', 'escucha-segura', null],
-    ['sobreviviente-consulta', 'sobreviviente-consulta', null],
-  ];
+describe('resolvePortraitAsset: solo retratos que existen y sin sonrisa en el duelo (T4.6, F§7.11)', () => {
+  const GRIEVING = ['Abuela de la niña', 'Sobreviviente (22 años)'];
   const EMOTIONS = [
     'neutral', 'vulnerable', 'concerned', 'danger', 'positive', 'anxious', 'negative',
-    'sad', 'relieved', 'calm', 'happy', 'alerta', '', 'algo-raro', null, undefined,
+    'sad', 'relieved', 'calm', 'worried', 'receptive', 'closed', 'happy', 'alerta', '', 'algo-raro', null, undefined,
   ];
 
-  it('todo retrato devuelto existe en frontend/src/assets/characters/portraits/', () => {
-    const onDisk = new Set(readdirSync(PORTRAIT_DIR));
-    for (const [, key, name] of SPEAKERS) {
+  it('todo retrato devuelto existe en frontend/src/assets/characters/kit/', () => {
+    for (const speakerName of [...GRIEVING, 'Psicóloga hospitalaria', 'Funcionaria de recepción']) {
       for (const emotion of EMOTIONS) {
-        const asset = resolvePortraitAsset(key, emotion as string | null | undefined, name);
+        const asset = resolvePortraitAsset(bundle, { speakerName, emotion });
         expect(asset).not.toBeNull();
-        const file = asset!.replace(`${P}/`, '');
-        expect(onDisk.has(file)).toBe(true);
-        expect(existsSync(join(PORTRAIT_DIR, file))).toBe(true);
+        expect(existsSync(join(KIT_DIR, asset!.replace('/assets/characters/kit/', '')))).toBe(true);
       }
     }
   });
 
-  it('alias de F§7.11: anxious → worried, negative → sad, sad → sad, relieved y calm → neutral', () => {
-    expect(resolvePortraitAsset('escucha-segura', 'anxious')).toBe(`${P}/paciente-vbg_worried.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'negative')).toBe(`${P}/paciente-vbg_sad.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'sad')).toBe(`${P}/paciente-vbg_sad.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'relieved')).toBe(`${P}/paciente-vbg_neutral.png`);
-    expect(resolvePortraitAsset('escucha-segura', 'calm')).toBe(`${P}/paciente-vbg_neutral.png`);
-    expect(resolvePortraitAsset(null, 'anxious', 'Abuela de la niña')).toBe(`${P}/madre-vbg_worried.png`);
-  });
-
-  it('cae a neutral cuando el personaje no tiene esa variante (no existe madre-vbg_sad ni psicologa_worried)', () => {
-    expect(resolvePortraitAsset(null, 'danger', 'Abuela de la niña')).toBe(`${P}/madre-vbg_neutral.png`);
-    expect(resolvePortraitAsset(null, 'negative', 'Abuela de la niña')).toBe(`${P}/madre-vbg_neutral.png`);
-    expect(resolvePortraitAsset(null, 'concerned', 'Psicóloga hospitalaria')).toBe(`${P}/psicologa-hospitalaria_neutral.png`);
-    expect(resolvePortraitAsset(null, 'sad', 'Psicóloga hospitalaria')).toBe(`${P}/psicologa-hospitalaria_neutral.png`);
-  });
-
-  it('positive nunca sonríe a la Abuela ni a la Consultante (límite 2: sin sonrisa en el duelo)', () => {
-    for (const emotion of ['positive', 'happy']) {
-      expect(resolvePortraitAsset(null, emotion, 'Abuela de la niña')).toBe(`${P}/madre-vbg_neutral.png`);
-      expect(resolvePortraitAsset(null, emotion, 'Consultante')).toBe(`${P}/paciente-vbg_neutral.png`);
-      expect(resolvePortraitAsset('escucha-segura', emotion)).toBe(`${P}/paciente-vbg_neutral.png`);
-      expect(resolvePortraitAsset('sobreviviente-consulta', emotion)).toBe(`${P}/paciente-vbg_neutral.png`);
+  it('alias de F§7.11 y emociones de consecuencias futuras: anxious y worried → preocupada, negative y sad → triste, el resto → neutral', () => {
+    const faces = (emotion: string) => resolvePortraitAsset(bundle, { speakerName: 'Psicóloga hospitalaria', emotion });
+    expect(faces('anxious')).toBe(png('psicologa-hospitalaria/portrait-preocupada'));
+    expect(faces('worried')).toBe(png('psicologa-hospitalaria/portrait-preocupada'));
+    expect(faces('negative')).toBe(png('psicologa-hospitalaria/portrait-triste'));
+    expect(faces('sad')).toBe(png('psicologa-hospitalaria/portrait-triste'));
+    for (const calm of ['relieved', 'calm', 'receptive', 'closed']) {
+      expect(faces(calm)).toBe(png('psicologa-hospitalaria/portrait-neutral'));
     }
-    // Ningún resultado posible para madre-vbg ni paciente-vbg es una variante «happy».
-    for (const [, key, name] of SPEAKERS) {
+  });
+
+  it('positive y happy nunca sonríen a la Abuela ni a la Sobreviviente (sin sonrisa en el duelo)', () => {
+    for (const speakerName of GRIEVING) {
       for (const emotion of EMOTIONS) {
-        const asset = resolvePortraitAsset(key, emotion as string | null | undefined, name);
-        if (/madre-vbg|paciente-vbg/.test(asset ?? '')) expect(asset).not.toMatch(/_happy\./);
+        expect(resolvePortraitAsset(bundle, { speakerName, emotion })).not.toMatch(/portrait-alegre/);
       }
     }
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Abuela de la niña', emotion: 'positive' }))
+      .toBe(png('abuela-familia/portrait-neutral'));
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Sobreviviente (22 años)', emotion: 'happy' }))
+      .toBe(png('sobreviviente/portrait-neutral'));
   });
 
-  it('la sonrisa de la Psicóloga hospitalaria (positive → happy) se conserva', () => {
-    expect(resolvePortraitAsset(null, 'positive', 'Psicóloga hospitalaria')).toBe(`${P}/psicologa-hospitalaria_happy.png`);
+  it('la sonrisa de la Psicóloga hospitalaria (positive → alegre) se conserva', () => {
+    expect(resolvePortraitAsset(bundle, { speakerName: 'Psicóloga hospitalaria', emotion: 'positive' }))
+      .toBe(png('psicologa-hospitalaria/portrait-alegre'));
   });
 });
 

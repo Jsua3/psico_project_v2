@@ -13,6 +13,10 @@ import {
   signal,
 } from '@angular/core';
 import { AvatarStore } from '../character/avatar.store';
+import { toAvatarV2 } from '../character/kit/avatar-v2';
+import { resolveCharacter } from '../character/kit/character-visual.resolver';
+import { sheetSourceUrl } from '../character/kit/kit-raster';
+import { KitService } from '../character/kit/kit.service';
 import { INTRO_STAGE_HEIGHT, INTRO_STAGE_WIDTH, frameAt, introActor, stageLayout } from './intro-scene.util';
 
 /** Parte del alto de la ventana que puede ocupar el escenario: en 1366×768 cabe a 2×. */
@@ -42,22 +46,16 @@ const LAMP_CENTERS = [150, 234] as const;
           @for (x of lamps; track x) {
             <span class="intro-stage__pool" [style.left.px]="x - 44"></span>
           }
-          <img class="intro-stage__door" src="/assets/game/doors/door_urgencias.png" alt="" width="48" height="64">
-          <img class="intro-stage__chair" src="/assets/game/furniture/chair.png" alt="" width="27" height="46">
-          <img class="intro-stage__plant" src="/assets/game/furniture/plant.png" alt="" width="49" height="64">
+          <img class="intro-stage__door" src="/assets/game/doors/door_urgencias.png" alt="" width="54" height="59">
+          <img class="intro-stage__chair" src="/assets/game/furniture/chair.png" alt="" width="22" height="34">
+          <img class="intro-stage__plant" src="/assets/game/furniture/plant.png" alt="" width="36" height="47">
           @for (x of lamps; track x) {
             <span class="intro-stage__lamp" [style.left.px]="x - 9"><span class="intro-stage__cone"></span></span>
           }
           <div #actorEl class="intro-actor"
-            [class.intro-actor--pixel]="actor().pixelated"
             [class.intro-actor--walking]="phase() === 'walk'"
             (animationend)="onWalkEnd($event)">
-            <!-- track $index: al pasar de caminar a reposo cambia la hoja, no la capa; así no se recrea el nodo. -->
-            @for (layer of phaseSheet().layers; track $index) {
-              <span class="intro-actor__layer"
-                [style.background-image]="'url(' + layer + ')'"
-                [style.background-size]="phaseSheet().sheetWidth + 'px ' + phaseSheet().sheetHeight + 'px'"></span>
-            }
+            <span class="intro-actor__layer" [style.background-image]="layerUrl()" [style.background-size]="layerSize()"></span>
           </div>
         </div>
         <p class="intro-scene__caption" aria-hidden="true">Hospital · Urgencias · Noche</p>
@@ -131,9 +129,9 @@ const LAMP_CENTERS = [150, 234] as const;
       border-radius: 50%;
       background: radial-gradient(closest-side, rgba(255,236,170,.16), transparent);
     }
-    .intro-stage__door { left: 300px; top: 64px; }
-    .intro-stage__chair { left: 104px; top: 96px; }
-    .intro-stage__plant { left: 250px; top: 76px; }
+    .intro-stage__door { left: 297px; top: 69px; }
+    .intro-stage__chair { left: 106px; top: 104px; }
+    .intro-stage__plant { left: 257px; top: 93px; }
     .intro-stage__lamp {
       top: 0;
       width: 18px;
@@ -159,7 +157,7 @@ const LAMP_CENTERS = [150, 234] as const;
       clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
       background: linear-gradient(rgba(255,236,170,.2), rgba(255,236,170,.03));
     }
-    /* Pies en y=184 (pivote v1 68/72): pisa el piso, entre las dos lámparas. */
+    /* Pies en y=184 (pivote del kit 68/72): pisa el piso, entre las dos lámparas. */
     .intro-actor {
       left: 0;
       top: 116px;
@@ -173,9 +171,8 @@ const LAMP_CENTERS = [150, 234] as const;
       inset: 0;
       background-repeat: no-repeat;
       background-position: var(--frame-x, 0) var(--frame-y, 0);
-      image-rendering: auto;
+      image-rendering: pixelated;
     }
-    .intro-actor--pixel .intro-actor__layer { image-rendering: pixelated; }
     /* No escala con el escenario: a 1× su borde superior debe quedar bajo el cuadro del actor (y = 188). */
     .intro-scene__caption {
       position: absolute;
@@ -209,15 +206,31 @@ export class CaseIntroSceneComponent implements OnInit, AfterViewInit, OnDestroy
 
   private readonly zone = inject(NgZone);
   private readonly store = inject(AvatarStore);
+  private readonly kit = inject(KitService);
   // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
   // `static: true` porque ninguno de los dos nodos está dentro de un bloque de control de flujo.
   @ViewChild('viewport', { static: true }) private viewport!: ElementRef<HTMLElement>;
   @ViewChild('actorEl', { static: true }) private actorEl!: ElementRef<HTMLElement>;
 
   readonly lamps = LAMP_CENTERS;
-  readonly actor = computed(() => introActor(this.store.avatar()));
+  readonly actor = computed(() => {
+    const bundle = this.kit.bundle();
+    return bundle ? introActor(resolveCharacter(bundle, { kind: 'jugador', avatar: toAvatarV2(this.store.avatar()) })) : null;
+  });
   readonly phase = signal<'walk' | 'idle'>('walk');
-  readonly phaseSheet = computed(() => (this.phase() === 'walk' ? this.actor().walk : this.actor().idle));
+  readonly phaseSheet = computed(() => {
+    const actor = this.actor();
+    return actor ? (this.phase() === 'walk' ? actor.walk : actor.idle) : null;
+  });
+  readonly layerUrl = computed(() => {
+    const sheet = this.phaseSheet();
+    const url = sheet ? sheetSourceUrl(sheet.source) : null;
+    return url ? `url("${url}")` : 'none';
+  });
+  readonly layerSize = computed(() => {
+    const sheet = this.phaseSheet();
+    return sheet ? `${sheet.sheetWidth}px ${sheet.sheetHeight}px` : 'auto';
+  });
   readonly layout = signal(stageLayout(INTRO_STAGE_WIDTH, INTRO_STAGE_HEIGHT));
 
   private frameId = 0;
@@ -226,13 +239,14 @@ export class CaseIntroSceneComponent implements OnInit, AfterViewInit, OnDestroy
   private resizeObserver?: ResizeObserver;
 
   ngOnInit(): void {
-    if (this.reduceMotion()) {
-      this.phase.set('idle');
-      return;
-    }
+    if (this.reduceMotion()) this.phase.set('idle');
     // Mientras camina se baja la hoja de reposo: sin esto, al cambiar de hoja el personaje
     // desaparece hasta que llega la imagen (se nota con la caché fría o una red lenta).
-    for (const layer of this.actor().idle.layers) new Image().src = layer;
+    this.kit.load().then(() => {
+      const actor = this.actor();
+      const url = actor ? sheetSourceUrl(actor.idle.source) : null;
+      if (url && !this.reduceMotion()) new Image().src = url;
+    }, () => undefined);
   }
 
   ngAfterViewInit(): void {
@@ -271,13 +285,15 @@ export class CaseIntroSceneComponent implements OnInit, AfterViewInit, OnDestroy
   private tick(now: number): void {
     this.phaseStartedAt ??= now;
     const sheet = this.phaseSheet();
-    const frame = frameAt(now - this.phaseStartedAt, sheet.fps, sheet.frames.length);
-    if (frame !== this.lastFrame) this.applyFrame(frame);
+    if (sheet) {
+      const frame = frameAt(now - this.phaseStartedAt, sheet.fps, sheet.frames.length);
+      if (frame !== this.lastFrame) this.applyFrame(frame);
+    }
     this.frameId = requestAnimationFrame(next => this.tick(next));
   }
 
   private applyFrame(index: number): void {
-    const frame = this.phaseSheet().frames[index] ?? { x: 0, y: 0 };
+    const frame = this.phaseSheet()?.frames[index] ?? { x: 0, y: 0 };
     const style = this.actorEl.nativeElement.style;
     style.setProperty('--frame-x', `${-frame.x}px`);
     style.setProperty('--frame-y', `${-frame.y}px`);

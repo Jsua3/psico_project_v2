@@ -238,6 +238,8 @@ export interface DialogueState {
   key: string;
   speakerName: string;
   portraitKey: string | null;
+  /** Receta del kit del NPC que habla (solo en el cliente: diálogos de NPC de escenario). */
+  recipeId?: string | null;
   emotion: string;
   lines: DialogueLineState[];
   choices: DialogueChoiceState[];
@@ -752,17 +754,6 @@ export interface RoomExitConfig {
 
 // ─── NPC modular (flujo competitivo) ──────────────────────────────────────────
 
-export type NpcAvatarPresetKey =
-  | 'madre-vbg'
-  | 'paciente-vbg'
-  | 'colega-clinica'
-  | 'supervisor-clinico'
-  | 'seguridad'
-  | 'adolescente-nna'
-  | 'psicologa-hospitalaria'
-  | 'funcionaria-recepcion'
-  | 'comisaria-profesional';
-
 export type NpcMotionBehavior =
   | 'idle'
   | 'subtle-wander'
@@ -803,15 +794,11 @@ export interface NpcConfig {
   portrait: string;
   x: number;
   y: number;
-  /** Phaser frame index in the 'characters' spritesheet */
-  frameIndex: number;
+  /** Receta del kit que lo dibuja (spec §8.1; antes avatarPresetKey + frameIndex). */
+  recipeId: string;
   dialogue: NpcDialogue;
-  /** Preset modular (mismo universo visual que el avatar). Si falta → sprite legacy. */
-  avatarPresetKey?: NpcAvatarPresetKey;
   motion?: NpcMotionConfig;
   facing?: 'down' | 'up' | 'left' | 'right';
-  /** Override de escala de render (default: el del preset). */
-  scale?: number;
   emotion?: 'neutral' | 'calm' | 'worried' | 'anxious' | 'receptive' | 'closed';
 }
 

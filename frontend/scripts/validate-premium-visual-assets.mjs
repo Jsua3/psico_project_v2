@@ -4,8 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { assertDerivedArtifact } from './character-manifest-lib.mjs';
 import {
+  assertDerivedArtifact,
   buildPremiumVisualManifest,
   inspectPremiumMapSelection,
   inspectVisualPng,
@@ -18,7 +18,6 @@ const frontendRoot = path.resolve(scriptDirectory, '..');
 const assetsRoot = path.join(frontendRoot, 'src', 'assets');
 const sourceRoot = assetsRoot;
 const visualRoot = path.join(assetsRoot, 'visual', 'v1');
-const characterRoot = path.join(assetsRoot, 'characters', 'v1');
 
 function readJson(filePath, label) {
   try {
@@ -31,7 +30,7 @@ function readJson(filePath, label) {
 function run() {
   const options = parsePremiumVisualCliArgs(process.argv.slice(2));
   const inventory = readJson(path.join(visualRoot, 'inventory.v1.json'), 'visual inventory');
-  const palettes = [readJson(path.join(characterRoot, 'palette.v1.json'), 'character palette')];
+  const palettes = [readJson(path.join(visualRoot, 'palette.v1.json'), 'world palette')];
   const paletteById = new Map(palettes.map((palette) => [palette.paletteId, palette]));
   validatePremiumVisualInventory(inventory);
 
