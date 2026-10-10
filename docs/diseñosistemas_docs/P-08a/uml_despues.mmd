@@ -1,0 +1,33 @@
+classDiagram
+    direction LR
+    class DoorRule {
+        <<abstract>>
+        -_next
+        +set_next(rule) DoorRule
+        +handle(ctx)
+        +check(ctx)*
+    }
+    class DoorContext {
+        attempt
+        state
+        door_key
+        target_node_key
+        door
+        meta
+        +locked_message
+    }
+    DoorRule <|-- DoorExistsRule
+    DoorRule <|-- DoorTargetRule
+    DoorRule <|-- DoorNearbyRule
+    DoorRule <|-- RequiresInspectedRule
+    DoorRule <|-- RequiresToolsRule
+    DoorRule <|-- RequiresNodesRule
+    DoorRule <|-- RequiresNpcsRule
+    DoorRule ..> DoorContext : recibe
+    class world_service {
+        <<módulo>>
+        -_validate_door(...)
+        -_DOOR_CHAIN
+    }
+    world_service ..> DoorRule : recorre la cadena
+    note for DoorRule "Orden de la cadena:<br/>Exists → Target → Nearby → Inspected → Tools → Nodes → Npcs<br/>el primero que falla lanza su error y corta"

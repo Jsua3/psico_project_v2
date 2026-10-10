@@ -1,0 +1,7 @@
+classDiagram
+    direction LR
+    class world_service {
+        <<módulo>>
+        -_validate_door(attempt, state, door_key, target) dict
+    }
+    note for world_service "_validate_door revisa 7 reglas en secuencia<br/>dentro de una sola función de 34 líneas.<br/>Una regla nueva obliga a editar esa función."
