@@ -1,0 +1,11 @@
+classDiagram
+    direction LR
+    class case_pdf_rooms_renderer {
+        <<módulo>>
+        -renderUrgencias()
+        -renderSalaEscucha()
+        -renderRecepcion()
+        -renderConsultorio()
+        RENDER_BY_KIND
+    }
+    note for case_pdf_rooms_renderer "cada función repite el esqueleto:<br/>paleta, cascarón, gráfico de pared, …, luz, metadata;<br/>solo cambian los pasos de en medio"

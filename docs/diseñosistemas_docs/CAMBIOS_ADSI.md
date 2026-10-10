@@ -805,3 +805,45 @@ Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_
 **Evidencia.** `docs/diseñosistemas_docs/A-01b/`: `antes_primitivas_copiadas.png`, `despues_primitivas_compartidas.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Cut & Paste» (Unidad 4); «no te repitas» (DRY).
+
+
+### P-14b · Template Method — el esqueleto común de las salas del caso
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p14b-room-template-method` · `13dfb9c` (parte de `adsi/a01b-draw-primitives`: PR después de A-01b) |
+| **Patrón** | Template Method (comportamiento) |
+| **Archivos** | `features/simulator/case-pdf-rooms.renderer.ts`; `case-pdf-rooms.template.spec.ts` (nuevo) |
+| **Riesgo** | Bajo-medio: es arte y el orden de las capas importa; protegido por el maestro dorado de A-01b, que no cambió |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `renderUrgencias`, `renderSalaEscucha`, `renderRecepcion` y `renderConsultorio` repetían el mismo esqueleto —elegir la paleta, pintar el cascarón, crear el gráfico de la pared, **pasos propios de cada sala**, pintar la luz y devolver la metadata— y solo diferían en los pasos de en medio. Cinco líneas iguales escritas cuatro veces, con una excepción escondida: la sala de escucha pinta una alfombra entre la pared y los muebles. Agregar una sala era copiar una de ellas y editarla, y nada impedía olvidar la luz o cambiar el orden de las capas.
+
+**Solución (después).**
+
+- `CaseRoom` (clase abstracta) tiene el **método plantilla** `render`, que fija el orden: cascarón → gráfico de pared → `paintWall` → `paintFloor` → `paintFurniture` → luz → metadata. Los pasos propios de cada sala son abstractos (`paintWall`, `paintFurniture`) y el piso es un **gancho** con una implementación vacía por defecto.
+- `UrgenciasRoom`, `SalaEscuchaRoom`, `RecepcionRoom` y `ConsultorioRoom` aportan solo sus pasos, su `kind` y sus pozos de luz (`lightPools`, un dato). La sala de escucha es la única que sobrescribe el gancho (la alfombra); su lámpara de pie sigue siendo parte de sus muebles, como antes.
+- `makeRenderer` y las claves (`case-pdf-hospital-urgencias`…) no cambian: el registro de salas ahora instancia cada clase una vez (`ROOMS`).
+
+**Decisión de diseño.**
+
+- *Clases, no una tabla de funciones.* En TypeScript una función que recibe un objeto de pasos habría servido igual; se prefirió la forma clásica del patrón porque deja a la vista lo que se pide a cada sala (pasos abstractos), lo que es opcional (el gancho) y lo que no se toca (la plantilla).
+- *El orden es parte del arte.* Lo que se pinta después queda por encima, y los gráficos de igual profundidad se apilan por orden de creación. Por eso `render` no se sobrescribe: TypeScript no tiene `final`, así que lo garantizan su comentario y las pruebas.
+- *Un solo gancho.* Es la única variación de estructura que hay hoy (la alfombra). Si aparece otra (una animación ambiental, por ejemplo), será otro gancho, no otra rama dentro de la plantilla.
+- *La luz como dato.* De la última capa lo único que varía son los centros de los pozos: se declara como `lightPools` en lugar de un paso más.
+- *`CaseRoom` se exporta* solo para la prueba de la plantilla; el resto del juego sigue usando `SceneRenderer`.
+- *`premium-clinical-room` no se toca.* Tiene el mismo estilo por capas pero una sola sala y sin variantes: un Template Method con una única implementación no aporta nada (es la conclusión de la Fase 0).
+
+**Lo que no cambió:** ni una llamada de dibujo. Las ocho huellas del maestro dorado de las salas del caso (cuatro salas, con y sin texturas) son las mismas que antes, a la primera. Las pruebas de geometría, colisiones y muebles de las salas pasan sin tocarse.
+
+**Pruebas.** Frontend 2266 → **2271** (+5; 175 → 176 archivos), `tsc` de app y de pruebas sin errores y `ng build` correcto.
+
+- *Maestro dorado de A-01b, sin cambios:* es lo que comprueba que el resultado de las cuatro salas es idéntico; se escribió antes, sobre el código original.
+- *Plantilla (5), `case-pdf-rooms.template.spec.ts`:* con una sala mínima que anota cuándo corre cada paso: el cascarón va primero y la luz al final; la pared, el piso y los muebles van entre medio, en ese orden; el piso es un gancho (sin sobrescribirlo la plantilla sigue); el gráfico de la pared se crea una vez y antes de pintarla; y cada sala real devuelve la metadata de la suya.
+- *Mutaciones, 13* (muebles antes que piso, luz antes que muebles, sin luz, sin cascarón, paleta única, metadata única, sin alfombra, pozos intercambiados, sin rótulo «TRIAGE», un archivador corrido un píxel, la lámpara antes que la silla, la sala equivocada en el registro y la pared sobre otra capa): **las 13 detectadas.** Una —«todas las salas devuelven la metadata de urgencias»— sobrevivió al principio, porque ninguna prueba comprobaba lo que devuelve `render` de cada sala real (solo la función `caseRoomMetadata`); se añadió esa prueba y entonces se detecta.
+
+**Hallazgos.** (1) Lo que devuelve `render` de cada sala no tenía prueba (la mutación lo mostró). (2) Los pasos de pared y muebles siguen teniendo dibujo en línea (el tablón de avisos, el diploma con su repisa, la lámpara de pie): se podrían nombrar como las demás piezas; el maestro dorado permite hacerlo sin riesgo. (3) La plantilla queda lista para una quinta sala: es una clase con `kind`, `lightPools`, `paintWall` y `paintFurniture`.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-14b/`: `antes_cuatro_esqueletos.png`, `despues_metodo_plantilla.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Template Method (patrones de comportamiento, Unidad 3); principio de Hollywood («no nos llames, nosotros te llamamos») y abierto/cerrado (SOLID).

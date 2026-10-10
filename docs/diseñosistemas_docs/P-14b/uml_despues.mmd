@@ -1,0 +1,33 @@
+classDiagram
+    direction TB
+    class CaseRoom {
+        <<abstracta>>
+        +kind
+        #lightPools
+        +render(scene, options) «método plantilla»
+        #paintWall(scene, wall, palette)*
+        #paintFloor(scene, palette) «gancho»
+        #paintFurniture(scene, palette)*
+    }
+    class UrgenciasRoom {
+        #paintWall()
+        #paintFurniture()
+    }
+    class SalaEscuchaRoom {
+        #paintWall()
+        #paintFloor() «alfombra»
+        #paintFurniture()
+    }
+    class RecepcionRoom {
+        #paintWall()
+        #paintFurniture()
+    }
+    class ConsultorioRoom {
+        #paintWall()
+        #paintFurniture()
+    }
+    CaseRoom <|-- UrgenciasRoom
+    CaseRoom <|-- SalaEscuchaRoom
+    CaseRoom <|-- RecepcionRoom
+    CaseRoom <|-- ConsultorioRoom
+    note for CaseRoom "render fija el orden:<br/>cascarón → pared → piso → muebles → luz → metadata"
