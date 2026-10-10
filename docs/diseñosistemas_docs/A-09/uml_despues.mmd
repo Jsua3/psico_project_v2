@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant T as Prueba
+    participant C as SimulationPlayComponent
+    participant W as window (jsdom)
+    T->>C: applyLoadedWorld(mundo)
+    C->>W: worldRevealTimer = setTimeout(retirar fundido, 80 ms)
+    T->>C: afterEach → ngOnDestroy()
+    C->>W: clearTimeout(worldRevealTimer)
+    Note over T,W: el temporizador ya no existe cuando se<br/>desmonta el entorno: no hay nada que dispare

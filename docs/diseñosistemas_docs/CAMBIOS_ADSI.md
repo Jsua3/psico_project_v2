@@ -1161,3 +1161,51 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/A-05b/`: `antes_guardado_sin_adoptar_ids.png`, `despues_adopta_los_ids.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Integridad de datos entre cliente y servidor; es el cierre del frontend del cambio A-05. Observer (el store reacciona a la respuesta) sin patrón nuevo.
+
+
+### A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a09-timer-teardown` · `b458dde` (parte de `adsi/a05b-editor-adopta-ids`: PR después de A-05b) |
+| **Tipo** | Prueba intermitente («flaky») con causa en el código de producción; limpieza de recursos |
+| **Archivos** | `simulation-play.component.ts` (un campo, una asignación y un elemento más en `ngOnDestroy`); `simulation-play.timings.spec.ts` (una prueba) y el `afterEach` de siete specs de `SimulationPlayComponent` |
+| **Riesgo** | Bajo: el temporizador solo se cancela si el componente se destruye antes de dispararse |
+| **Cambio de comportamiento** | Ninguno en la aplicación (en una pantalla viva el componente no se destruye antes de los 80 ms sin que el autor haya salido) |
+
+**Problema (antes).** El job de frontend del CI de A-08 (#51, que **no toca el frontend**) terminó en rojo con las 2376 pruebas en verde: Vitest sale con código 1 por un error no capturado.
+
+```
+ReferenceError: window is not defined
+ ❯ SimulationPlayComponent.scheduleRevealEffects   simulation-play.component.ts:2652
+ ❯ Timeout.<anonymous>                             simulation-play.component.ts:2723
+ This error originated in "src/app/features/simulator/simulation-play.consent-gate.spec.ts"
+```
+
+`applyLoadedWorld` programa con `window.setTimeout` el retiro del fundido (80 ms) y, al dispararse, vuelve a usar `window`. Varias specs crean el componente con `new SimulationPlayComponent()` y nunca lo destruyen: si el temporizador se dispara cuando el entorno ya se desmontó (el último test de un archivo, en un CI lento), `window` no existe. Pasó 1 de las 7 ejecuciones de CI de la pila (#45 a #51: las otras 6 en verde), y localmente nunca.
+
+**Solución (después).**
+
+- El temporizador del retiro del fundido tiene dueño: `worldRevealTimer`, y `ngOnDestroy` lo cancela junto con los que ya cancelaba.
+- Las siete specs que crean el componente sin la plantilla de Angular lo destruyen en su `afterEach`, que es lo que hace cualquier pantalla viva al cerrarse.
+
+**Decisión de diseño.**
+
+- *El cambio de producción es mínimo y deja intacto el texto que leen los contract-specs.* `simulation-play.game-feel.contract.spec.ts` fija con expresiones regulares el bloque `window.setTimeout(() => {…}, WORLD_REVEAL_DELAY_MS)`; asignar el resultado a un campo no lo rompe (la regex lo encuentra dentro de la asignación). No hizo falta tocar ninguna aserción.
+- *No se tocaron los demás temporizadores sin dueño* (fundido de 340 ms, pulso de estrés, supervisión, anuncio…): ninguno vuelve a usar `window` al dispararse y no se han visto fallar. Es la misma limpieza si el equipo la quiere más adelante.
+- *No se silenció el error* (`dangerouslyIgnoreUnhandledErrors`): ocultaría el próximo.
+
+**Lo que no cambió:** ninguna aserción de ninguna prueba, el texto que leen los contract-specs, y los tiempos (A-03b).
+
+**Pruebas.** Frontend 2382 → **2383** (+1), `ng build` correcto; las 302 pruebas de los 11 archivos `simulation-play.*` en verde con la destrucción en el `afterEach`.
+
+- *La prueba nueva:* aplica un mundo, destruye el componente, avanza 1000 ms y comprueba que el fundido no se retira ni se piden efectos de cámara.
+- *Mutaciones, 2, las 2 detectadas:* que `ngOnDestroy` no incluya el temporizador y que no se guarde su identificador.
+- *Lo que NO se puede demostrar:* que la intermitencia haya desaparecido (ocurría 1 de cada 7 ejecuciones de CI). Lo que sí se demuestra es que la ruta del error del registro queda cerrada: el temporizador que lo causó ya no sobrevive al componente.
+- *El job fallido de #51* se volvió a ejecutar: ver el estado del PR (con el código de A-08 sin cambios).
+
+**Hallazgos.** (1) Es el tipo de fallo que FASE0 §3.4 anotó: 55 archivos de prueba leen el código fuente como texto, y por eso no se pudo mover la lógica del temporizador a un ayudante sin tocar sus aserciones. (2) `jsdom was created 178 times · 63 s total` (un 53 % del tiempo de pruebas): Vitest sugiere `pool: 'vmThreads'`; no se tocó.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-09/`: `antes_temporizador_sin_dueno.png`, `despues_temporizador_con_dueno.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Exception Handling»/gestión de recursos (Unidad 4): quien crea un recurso (un temporizador) responde de liberarlo; confiabilidad de las pruebas como parte de la calidad.

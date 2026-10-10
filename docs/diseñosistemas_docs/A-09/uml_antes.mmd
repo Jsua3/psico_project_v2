@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant T as Prueba
+    participant C as SimulationPlayComponent
+    participant W as window (jsdom)
+    T->>C: applyLoadedWorld(mundo)
+    C->>W: setTimeout(retirar fundido, 80 ms)
+    Note over T: la prueba termina y nadie destruye el componente
+    Note over W: se desmonta el entorno de pruebas
+    W-->>C: a los 80 ms dispara el temporizador
+    C->>W: window.setTimeout(...)
+    Note over C,W: ReferenceError: window is not defined.<br/>Vitest sale con código 1 aunque pasen todas las pruebas
