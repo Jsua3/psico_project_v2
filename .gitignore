@@ -22,7 +22,6 @@ secrets/
 # Logs / DB
 *.log
 *.sqlite3
-.siep-pids.json
 siep_frontend*.png
 
 # OS / IDE
