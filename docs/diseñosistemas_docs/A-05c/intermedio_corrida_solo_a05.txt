@@ -1,0 +1,15 @@
+SOLO A-05 (adsi/a05-world-save-persistence, 854c55b): sin A-05b
+------------------------------------------------------------------------------
+caso 2 nodo 9
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 41 primeros: 1:Familia en crisis | 2:Acceso a quirófano | 3:Kit PAP | 4:Sala de escucha familiar
+objetos ajenos antes: 41
+guardado 1: ids = 42 | claves = npc-mv20frdy
+guardado 2: ids = 43,44 | claves = npc-mv20frdy,question-mv20fsop
+guardado 3: ids = 45,46,47 | claves = npc-mv20frdy,question-mv20fsop,tool-mv20ftzv
+fallos de estabilidad de ids: guardado 2: npc-mv20frdy cambió de id 42 → 43 | guardado 3: npc-mv20frdy cambió de id 43 → 45 | guardado 3: question-mv20fsop cambió de id 44 → 46
+diálogos = [{"id":20,"owner":50}] | dueño real = 50
+tras borrar: objetos = npc-mv20frdy,question-mv20fsop | diálogos = 0
+tras recargar: ids = 51,52 | el editor dice: 2 objetos · 0 zonas
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 41 primeros: 1:Familia en crisis | 2:Acceso a quirófano | 3:Kit PAP | 4:Sala de escucha familiar
+objetos ajenos: antes 41 después 41 (idénticos)
+RESULTADO: 3 FALLO(S) ["guardado 2: npc-mv20frdy cambió de id 42 → 43","guardado 3: npc-mv20frdy cambió de id 43 → 45","guardado 3: question-mv20fsop cambió de id 44 → 46"]

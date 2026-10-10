@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant A as Autor (editor)
+    participant S as save_world (original)
+    participant DB as PostgreSQL
+
+    Note over A: objeto nuevo con id local 1
+    A->>S: PUT /world  objetos [id 1]
+    S->>DB: MapObject.filter(pk=1)
+    DB-->>S: el objeto 1 del caso demo
+    Note over S: lo mueve a la sala nueva<br/>y lo sobrescribe
+    S-->>A: 200 (ids = 1)
+    Note over DB: el caso demo pierde un objeto<br/>(41 pasan a 38 con 3 guardados)
+    A->>S: PUT /world  sin el objeto borrado
+    Note over S: los ausentes no se borran
+    S-->>A: 200 (el borrado reaparece al recargar)
