@@ -1216,15 +1216,15 @@ ReferenceError: window is not defined
 
 | | |
 |---|---|
-| **Rama / commit** | `adsi/a05c-editor-e2e` · `5d8ba6e` (parte de `adsi/a09-timer-teardown`: PR después de A-09) |
+| **Rama / commit** | `adsi/a05c-editor-e2e` · `5d8ba6e` y `a029142` (parte de `adsi/a09-timer-teardown`: PR después de A-09) |
 | **Tipo** | Prueba de extremo a extremo; no cambia código de producción |
 | **Archivos** | `frontend/e2e/world-editor.e2e.ts` (nuevo) |
-| **Riesgo** | Bajo: solo agrega una prueba. Corre en el job E2E del PR (no lleva `@full-case` ni `@orientation`) y dura ~15 s |
+| **Riesgo** | Bajo: solo agrega una prueba. Corre en el job E2E del PR (no lleva `@full-case` ni `@orientation`) y dura ~20 s |
 | **Cambio de comportamiento** | Ninguno |
 
 **Problema (antes).** A-05 y A-05b se respaldaron con pruebas del backend (API y PostgreSQL) y del store (Angular con una API simulada), y las dos entradas dejaron escrito que el flujo real —navegador, servidor y base— no tenía prueba propia. Esa costura es justo donde está el defecto que A-05 corrige.
 
-**Solución (después).** Una prueba de Playwright sobre el stack aislado de `npm run test:e2e`: crea un caso nuevo por API, entra como administrador, abre la pestaña «Mundo» del nodo inicial, agrega tres objetos desde la biblioteca (uno por autoguardado), le agrega un diálogo al último y lo borra con la tecla Supr, recarga, y después de cada paso compara con lo que dice el servidor y con los objetos de los demás casos.
+**Solución (después).** Una prueba de Playwright sobre el stack aislado de `npm run test:e2e`: crea un caso nuevo por API, entra como administrador, abre la pestaña «Mundo» del nodo inicial, agrega tres objetos desde la biblioteca (uno por autoguardado), le agrega un diálogo al último y lo borra con la tecla Supr; dibuja una zona de colisión con el ratón sobre el lienzo, agrega otro objeto, recarga, selecciona la zona con el ratón y la borra; y después de cada paso compara con lo que dice el servidor y con los objetos de los demás casos.
 
 **Lo que mide.** La misma prueba, sobre tres versiones del código, en la base de pruebas con el caso demo sembrado (41 objetos con ids 1 a 41):
 
@@ -1234,17 +1234,20 @@ ReferenceError: window is not defined
 | Solo A-05 (`adsi/a05-world-save-persistence`) | 41 = 41 | **cambian**: 42 → 43,44 → 45,46,47 | apunta al id real | persiste |
 | A-05 + A-05b (la punta) | 41 = 41 | **estables**: 42 → 42,43 → 42,43,44 | apunta al id real (44) | persiste; recarga: 2 objetos |
 
+El tramo de la zona de colisión (dibujarla, guardarla con su id real, conservarlo en el autoguardado siguiente, recargar con «3 objetos · 1 zonas» y borrarla seleccionándola) solo se evalúa sobre la punta: sobre las otras dos versiones la prueba ya había fallado antes. Que el guardado original ignoraba las zonas está probado por API en A-05.
+
 **Hallazgo grave, ahora confirmado en la interfaz.** El editor numera lo nuevo con ids locales que parten de 1, y el `save_world` original buscaba cada objeto con `MapObject.objects.filter(pk=…)` sin acotar a la sala. Con una base que ya tiene casos, **agregar los primeros objetos a un caso nuevo mueve a ese caso objetos de otro caso y los sobrescribe**. En la corrida, la **versión publicada** del caso demo (`SIM-VBG-001`, versión 1) pasó de 41 objetos a 38: perdió «Familia en crisis», «Acceso a quirófano» y «Kit PAP», que quedaron en el caso nuevo con los datos de las plantillas. Es el mismo defecto que A-05 documentó con pruebas de API (ahí se midió la duplicación por autoguardado, 4 → 7); aquí se ve que el efecto real es peor: corrompe otro caso, y las versiones publicadas son inmutables.
 
 **La prueba, contra cada versión.**
 
 - *En rojo primero:* sobre el código original falla en el primer guardado (`los objetos de otros casos no cambian al guardar`); sobre A-05 sin A-05b falla en el segundo (`npc-… conserva su id real en el guardado 2`, esperado 42, recibido 43); sobre la punta pasa. Son dos «mutantes» reales del código de producción y la prueba los detecta en el punto esperado.
-- *Repetición:* la prueba final corrió una vez por versión con los resultados de arriba; una versión anterior, con las mismas comprobaciones en otro orden, dio los mismos veredictos en las tres, y sobre la punta pasó en tres corridas completas. Es una prueba con autoguardado diferido: si fuera intermitente, el CI del PR lo mostrará.
+- *Repetición:* la prueba final corrió una vez por versión (la punta tardó 19,7 s) con los resultados de arriba; la primera versión de la prueba (sin el tramo de la zona), con las mismas comprobaciones, dio los mismos veredictos en las tres, pasó sobre la punta en tres corridas locales y pasó en el job E2E del CI de este PR. Es una prueba con autoguardado diferido y con arrastre del ratón: si resultara intermitente, el CI lo mostrará.
 
 **Hallazgos.**
 
 1. El editor pinta «0 objetos · 0 zonas» y deja activos los botones de la biblioteca **antes** de que cargue la sala; un clic en ese momento no hace nada (`addTemplate` sale si no hay estado). La primera versión de esta prueba cayó justo ahí; ahora espera a la respuesta del servidor y al panel «Sala». No se tocó la aplicación.
-2. No cubre: arrastrar, seleccionar con el ratón sobre el lienzo de Konva, zonas de colisión, el conflicto 409 entre dos sesiones ni el autoguardado tras un error (Fase 0, hallazgo 1).
+2. El contenedor de la página tiene desplazamiento suave: medir un elemento justo después de `scrollIntoView` da una posición intermedia y el arrastre cae fuera del lienzo (le pasó a la primera versión del tramo de la zona). La prueba usa `behavior: 'instant'` y vuelve a medir tras recargar.
+3. No cubre: arrastrar objetos sobre el lienzo, el conflicto 409 entre dos sesiones ni el autoguardado tras un error (Fase 0, hallazgo 1).
 
 **Cómo reproducirlo.**
 
