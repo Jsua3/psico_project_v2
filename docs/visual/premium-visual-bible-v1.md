@@ -77,7 +77,7 @@ La aprobación humana se realiza sobre los contact sheets deterministas y requie
 
 ## 6. Enmiendas (2026-10, personajes unificados)
 
-Fuente: `docs/superpowers/specs/2026-10-02-personajes-unificados-design.md` §11.
+Fuente: `docs/diseno/personajes-unificados.md` §11.
 
 - **§1:** la cabeza con pelo sigue en 18-21 px, salvo los peinados de `volumen`, que llegan a 25 px con el cráneo en 17 px. Los hombros (20-27 px) aplican solo de frente y de espalda; en perfil, el fondo del torso es de 10-16 px. La regla «la derecha no es espejo exacto» se cumple con la luz recalculada y las piezas asimétricas, y el validador la comprueba.
 - **§2-3:** la luz y las viñetas ambientales van debajo de los actores (`DEPTH.LIGHTING_FLOOR`); la viñeta de crisis es la única excepción. La presentación es a escala entera en píxeles físicos: el lienzo mide el contenedor × devicePixelRatio y la cámara usa un zoom entero.

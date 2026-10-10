@@ -1,8 +1,10 @@
 # PROMPT MAESTRO — SIEP (Django + Angular)
 
 > **Fuente de verdad viva del proyecto.** Última actualización completa: **2026-06-05**.  
-> El changelog Java-era detallado vive en el historial git de este archivo y en `PLAN_MAESTRO_EJECUCION_V3.md` / `PROMPT_MIGRACION_DJANGO.md` (marcados HISTÓRICOS).  
+> El changelog Java-era detallado vive en el historial git de este archivo y en `historico/PLAN_MAESTRO_EJECUCION_V3.md` / `historico/PROMPT_MIGRACION_DJANGO.md` (marcados HISTÓRICOS).  
 > Toda transformación importante debe registrarse en la sección **Historial** al final.
+
+> **Aviso de vigencia (2026-10-10).** Este documento conserva su fecha de corte del 2026-06-05, y desde entonces cambió lo que dice del stack (aquí Django 5.1, Angular 21 y Phaser 3; hoy Django 6.1, Angular 22 y Phaser 4), del repositorio (`psico_project_v2`, ramas, «repos públicos»: hoy son privados) y del backend Spring «congelado» (ya no está en el repo). Sigue siendo útil como **mapa de endpoints, componentes y tablas**. Para lo vigente: [`../README.md`](../README.md) (arranque, stack y rutas), [`arquitectura/estrategia-stack-esquema-y-despliegue.md`](arquitectura/estrategia-stack-esquema-y-despliegue.md) (esquema y despliegue) y el [índice de la documentación](README.md). Los planes y specs que cita por nombre se retiraron del árbol en la limpieza del 2026-10-10 y se recuperan con `git show 9931599:<ruta>`.
 
 ---
 
@@ -44,14 +46,13 @@ psico_project_v2/          ← MONOREPO — único repo activo
       game/scenarios/       ← ScenarioConfig JSON (7 escenas hardcodeadas)
       images/institution/   ← logos, hero images
     proxy.conf.json         ← apunta a Django :8091
-    proxy.django.json       ← preset Django :8091
-    proxy.spring.json       ← preset Spring :8090 (alternativa)
   docker-compose.yml        ← solo el servicio `db` se usa (Postgres :5433)
   .env.example              ← plantilla de secretos (POSTGRES_PASSWORD, JWT_SECRET…)
   docs/
+    README.md               ← índice de la documentación
     PROMPT_MAESTRO.md       ← este archivo
-    superpowers/specs/      ← specs por slice
-    superpowers/plans/      ← planes de implementación por slice
+    PLAN_MAESTRO_TOTAL.md   ← plan maestro por bloques
+    arquitectura/ diseno/ historico/ informes/ operacion/ pendientes/ requisitos/ visual/
 ```
 
 ### Principio arquitectónico clave
@@ -419,7 +420,7 @@ Para usar Spring en lugar de Django: cambiar `proxy.conf.json` por el contenido 
 | **T3.2** Quiz legacy `casos`/`sesiones` | **✅ HECHO** (`feat/retire-legacy-quiz`, mergeado en backend master). | Extraído `apps.reportes` sim-only; borradas apps quiz; tablas intactas. pytest 107, jest 55/64, ng build, smoke. |
 | **T3.3** Retiro Spring backend | **DIFERIDO** hasta validar Django en PRODUCCIÓN. | Flyway (dueño del esquema) vive en Spring. Requiere plan de ownership de esquema antes de tocar. **NO tocar `psicologia_proyecto/backend/`.** |
 
-Roadmap completo: `docs/superpowers/2026-06-05-cleanup-tier3-roadmap.md`.
+El roadmap completo del Tier 3 se retiró en la limpieza del 2026-10-10 (`git show 9931599:docs/superpowers/2026-06-05-cleanup-tier3-roadmap.md`); lo único abierto, la propiedad del esquema, está en [`arquitectura/estrategia-stack-esquema-y-despliegue.md`](arquitectura/estrategia-stack-esquema-y-despliegue.md).
 
 ---
 
@@ -452,8 +453,8 @@ Roadmap completo: `docs/superpowers/2026-06-05-cleanup-tier3-roadmap.md`.
 ## 17. Disciplina de trabajo
 
 **Loop por slice (una rama por trabajo):**
-1. `superpowers:brainstorming` — intent + diseño + spec (`docs/superpowers/specs/YYYY-MM-DD-*.md`)
-2. `superpowers:writing-plans` — plan de implementación (`docs/superpowers/plans/YYYY-MM-DD-*.md`)
+1. `superpowers:brainstorming` — intent + diseño + spec (`docs/diseno/`)
+2. `superpowers:writing-plans` — plan de implementación (temporal: vive en la rama y se retira del árbol al ejecutarlo; ver el ciclo de vida en [`README.md`](README.md))
 3. `superpowers:executing-plans` — TDD: test falla → mínima impl → verde → commit
 4. Verificar: `pytest -q` + `ng build` + jest + smoke en vivo
 5. `superpowers:finishing-a-development-branch` — PR o merge
@@ -468,7 +469,7 @@ Roadmap completo: `docs/superpowers/2026-06-05-cleanup-tier3-roadmap.md`.
 
 ## 18. Historial (compacto)
 
-> Changelog Java-era detallado (V1–V8, hexagonal, Tiled, Testcontainers, etc.) en git history de este archivo y en `PLAN_MAESTRO_EJECUCION_V3.md` (HISTÓRICO).
+> Changelog Java-era detallado (V1–V8, hexagonal, Tiled, Testcontainers, etc.) en git history de este archivo y en `historico/PLAN_MAESTRO_EJECUCION_V3.md` (HISTÓRICO).
 
 | Fecha | Evento |
 |---|---|

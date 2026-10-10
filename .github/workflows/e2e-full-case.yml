@@ -6,7 +6,7 @@
 # cada noche sobre master y a mano (Actions → "E2E recorridos completos" → Run
 # workflow, eligiendo la rama). Propuesta pendiente de decisión (pregunta 10 del
 # backlog): correr también el recorrido de escritorio-1366 en los PR que tocan el
-# simulador; hay un borrador inactivo en docs/superpowers/plans/e2e-full-case-pr.yml.draft.
+# simulador; hay un borrador inactivo en docs/pendientes/deudas/e2e-full-case-pr.yml.draft.
 name: E2E recorridos completos
 
 on:
