@@ -29,3 +29,8 @@ python docs/diseñosistemas_docs/tools/codeshot.py RUTA DESDE HASTA SALIDA.png -
 # Diagrama UML (Mermaid CLI)
 mmdc -i P-01/uml_despues.mmd -o P-01/uml_despues.png -b white -s 2
 ```
+
+**En Windows:** `codeshot.py` usa DejaVu Sans Mono si existe y, si no, Consolas. `mmdc` necesita un Chromium; si no
+quieres descargar el de Puppeteer, instala el CLI con `PUPPETEER_SKIP_DOWNLOAD=1` y pásale uno ya instalado
+(por ejemplo el de Playwright) con `-p puppeteer.json`, donde el archivo contiene
+`{ "executablePath": "C:/Users/<usuario>/AppData/Local/ms-playwright/chromium-NNNN/chrome-win64/chrome.exe", "args": ["--no-sandbox"] }`.

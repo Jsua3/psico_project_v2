@@ -1,0 +1,48 @@
+classDiagram
+    direction LR
+    class EditorCommand {
+        <<interface>>
+        +type
+        +execute(state)
+        +undo(state)
+    }
+    class MacroCommand {
+        <<composite>>
+        -commands
+        +execute(state)
+        +undo(state)
+    }
+    class DeleteObjectWithDialogueCommand
+    class SetZoneLabelCommand {
+        -previous
+    }
+    class DeleteObjectCommand
+    class DeleteDialogueCommand
+    class MoveObjectCommand
+    class WorldEditorStore {
+        -undoStack
+        -redoStack
+        +execute(command)
+        +undo()
+        +redo()
+    }
+    class WorldEditorComponent {
+        +updateZoneLabel(key, label)
+        +deleteSelected()
+    }
+    EditorCommand <|.. MoveObjectCommand
+    EditorCommand <|.. DeleteObjectCommand
+    EditorCommand <|.. DeleteDialogueCommand
+    EditorCommand <|.. SetZoneLabelCommand
+    EditorCommand <|.. MacroCommand
+    MacroCommand <|-- DeleteObjectWithDialogueCommand
+    MacroCommand o-- EditorCommand : commands 0..*
+    DeleteObjectWithDialogueCommand ..> DeleteObjectCommand : 1.º
+    DeleteObjectWithDialogueCommand ..> DeleteDialogueCommand : 2.º
+    WorldEditorStore o-- EditorCommand : historial con tope
+    WorldEditorComponent ..> WorldEditorStore
+    WorldEditorComponent ..> SetZoneLabelCommand
+    WorldEditorComponent ..> DeleteObjectWithDialogueCommand
+    note for MacroCommand "execute: en orden<br/>undo: en orden inverso<br/>cuenta como UN paso del historial<br/>y puede contener otros macros"
+    note for WorldEditorStore "recuerda como máximo<br/>MAX_UNDO_STEPS = 100 pasos<br/>y descarta el más antiguo"
+    note for WorldEditorComponent "updateZoneLabel y deleteSelected<br/>pasan siempre por store.execute"

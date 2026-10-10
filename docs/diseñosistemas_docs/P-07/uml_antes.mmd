@@ -1,0 +1,36 @@
+classDiagram
+    direction LR
+    class EditorCommand {
+        <<interface>>
+        +type
+        +execute(state)
+        +undo(state)
+    }
+    class PlaceObjectCommand
+    class MoveObjectCommand
+    class ResizeZoneCommand
+    class DeleteObjectCommand
+    class DeleteDialogueCommand
+    class WorldEditorStore {
+        -undoStack
+        -redoStack
+        +execute(command)
+        +undo()
+        +redo()
+    }
+    class WorldEditorComponent {
+        +updateZoneLabel(key, label)
+        +deleteSelected()
+    }
+    EditorCommand <|.. PlaceObjectCommand
+    EditorCommand <|.. MoveObjectCommand
+    EditorCommand <|.. ResizeZoneCommand
+    EditorCommand <|.. DeleteObjectCommand
+    EditorCommand <|.. DeleteDialogueCommand
+    WorldEditorStore o-- EditorCommand : pilas sin tope
+    WorldEditorComponent ..> WorldEditorStore
+    WorldEditorComponent ..> ResizeZoneCommand : comando vacío (mismo from y to)
+    WorldEditorComponent ..> DeleteObjectCommand : borra solo el objeto
+    note for WorldEditorComponent "updateZoneLabel apila un ResizeZone vacío<br/>y luego escribe la etiqueta con editorState.set:<br/>la etiqueta no se puede deshacer.<br/>deleteSelected deja huérfano el diálogo del objeto"
+    note for WorldEditorStore "las pilas de deshacer y rehacer<br/>crecen sin límite"
+    note for EditorCommand "12 comandos simples: PlaceObject, MoveObject,<br/>ResizeZone, DeleteObject, UpdateInspector,<br/>PlaceCollisionZone, DeleteCollisionZone, UpdateSpawn,<br/>UpsertDialogue, DeleteDialogue, SetMapAmbient, SetMapFields"

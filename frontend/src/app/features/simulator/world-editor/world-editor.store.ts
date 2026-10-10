@@ -103,6 +103,32 @@ export class ResizeZoneCommand implements EditorCommand {
   }
 }
 
+/** Cambia solo la etiqueta de una zona de colisión (su geometría no se toca). */
+export class SetZoneLabelCommand implements EditorCommand {
+  readonly type = 'SetZoneLabel';
+  private previous: string | null = null;
+
+  constructor(private readonly key: string, private readonly label: string) {}
+
+  execute(state: EditorState): EditorState {
+    this.previous = state.collisionZones.find(z => z.key === this.key)?.label ?? null;
+    return this.withLabel(state, this.label);
+  }
+
+  undo(state: EditorState): EditorState {
+    return this.withLabel(state, this.previous);
+  }
+
+  private withLabel(state: EditorState, label: string | null): EditorState {
+    return {
+      ...state,
+      collisionZones: state.collisionZones.map(z =>
+        z.key === this.key ? { ...z, label } : z
+      )
+    };
+  }
+}
+
 export class DeleteObjectCommand implements EditorCommand {
   readonly type = 'DeleteObject';
   private deleted: WorldObject | null = null;
@@ -262,6 +288,36 @@ export class SetMapFieldsCommand implements EditorCommand {
   }
 }
 
+// ─── Composite ──────────────────────────────────────────────────────────────
+
+/**
+ * Varios comandos que se apilan, se ejecutan y se deshacen como uno solo.
+ * Es un comando más (puede contener otros macros): el store no distingue uno simple de uno compuesto.
+ */
+export class MacroCommand implements EditorCommand {
+  constructor(readonly type: string, private readonly commands: readonly EditorCommand[]) {}
+
+  /** En orden: cada comando recibe el estado que dejó el anterior. */
+  execute(state: EditorState): EditorState {
+    return this.commands.reduce((current, command) => command.execute(current), state);
+  }
+
+  /** En orden inverso: el último comando ejecutado es el primero en deshacerse. */
+  undo(state: EditorState): EditorState {
+    return this.commands.reduceRight((current, command) => command.undo(current), state);
+  }
+}
+
+/** Borra un objeto y el diálogo que colgaba de él, en un único paso del historial. */
+export class DeleteObjectWithDialogueCommand extends MacroCommand {
+  constructor(objectKey: string) {
+    super('DeleteObjectWithDialogue', [
+      new DeleteObjectCommand(objectKey),
+      new DeleteDialogueCommand(objectKey)
+    ]);
+  }
+}
+
 // ─── Editor State ───────────────────────────────────────────────────────────
 
 export interface EditorState {
@@ -284,6 +340,9 @@ export function buildWorldSaveRequest(def: WorldDefinition, state: EditorState):
 }
 
 export type EditorTool = 'select' | 'place-object' | 'place-collision' | 'place-spawn' | 'pan';
+
+/** Cuántos pasos recuerda el historial de deshacer; al pasarse, se descarta el más antiguo. */
+export const MAX_UNDO_STEPS = 100;
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
@@ -417,6 +476,9 @@ export class WorldEditorStore {
     const next = command.execute(current);
     this.editorState.set(next);
     this.undoStack.push(command);
+    // Tope: se descarta el paso más antiguo. Rehacer solo guarda pasos que salieron de esta pila,
+    // así que deshacer y rehacer juntos tampoco superan MAX_UNDO_STEPS.
+    if (this.undoStack.length > MAX_UNDO_STEPS) this.undoStack.shift();
     this.redoStack = []; // Clear redo on new action
     this.updateStackSignals();
     this.markDirty();

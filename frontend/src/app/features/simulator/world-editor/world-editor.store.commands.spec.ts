@@ -15,6 +15,7 @@ import {
   DeleteObjectCommand,
   EditorCommand,
   EditorState,
+  MAX_UNDO_STEPS,
   MoveObjectCommand,
   PlaceCollisionZoneCommand,
   PlaceObjectCommand,
@@ -320,14 +321,16 @@ describe('WorldEditorStore', () => {
       expect(store.dirty()).toBe(true);
     });
 
-    it('comportamiento actual: la pila no tiene tope', () => {
+    it('la pila tiene tope: tras 300 cambios solo se pueden deshacer los últimos MAX_UNDO_STEPS', () => {
       loaded();
       for (let i = 0; i < 300; i++) store.execute(new MoveObjectCommand('a', i, i, i + 1, i + 1));
 
       for (let i = 0; i < 300; i++) store.undo();
 
       expect(store.canUndo()).toBe(false);
-      expect(store.editorState()!.objects[0]).toMatchObject({ x: 0, y: 0 });
+      // Se perdieron los pasos más antiguos: ya no se llega a la posición inicial (0, 0).
+      const lost = 300 - MAX_UNDO_STEPS;
+      expect(store.editorState()!.objects[0]).toMatchObject({ x: lost, y: lost });
     });
   });
 
