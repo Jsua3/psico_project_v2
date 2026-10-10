@@ -63,6 +63,31 @@ const SCENE_FADE_MS = 320;
 const NOTICE_MS = 4200;
 /** Una nota que estuvo a la vista al menos este tiempo se da por leída aunque un diálogo la cubra después. */
 const NOTE_SEEN_MS = 1500;
+/**
+ * Espera tras activar el fundido de escena antes de seguir con la decisión o la puerta. Supera en 20 ms a la
+ * transición CSS (`SCENE_FADE_MS`): son dos cosas distintas, y una no se reutiliza por la otra.
+ */
+const FADE_OUT_MS = 340;
+/** Tras aplicar un mundo nuevo, espera antes de retirar el fundido de escena; luego corren los efectos de cámara. */
+const WORLD_REVEAL_DELAY_MS = 80;
+/** La supervisión de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
+const SUPERVISION_DELAY_MS = 400;
+/** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
+const POSITION_SAVE_DEBOUNCE_MS = 550;
+/** Duración del pulso visual de estrés tras aplicar una herramienta. */
+const STRESS_PULSE_MS = 700;
+/** Línea «no hay nada cerca» tras pedir interactuar sin nada al alcance. */
+const NOTHING_NEARBY_MS = 2500;
+/** El error de una acción (toast) se apaga solo. */
+const ACTION_ERROR_MS = 4500;
+/** Nombre de la sala al cambiar de sala. */
+const ROOM_BANNER_MS = 2200;
+/** Banner «Nueva etapa: …». */
+const STAGE_BANNER_MS = 3000;
+/** Nota de transición autorada en el mapa (salto temporal). Hoy dura lo mismo que `NOTICE_MS`, pero es otro aviso. */
+const TRANSITION_NOTE_MS = 4200;
+/** El anuncio accesible se escribe tras vaciar la región viva: así el lector de pantalla repite también un texto igual. */
+const ANNOUNCE_DELAY_MS = 50;
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
@@ -1541,8 +1566,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: attempt => {
         this.busy.set(false);
         this.attempt.set(attempt);
-        // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre 400 ms
-        // después de la decisión) no debe reaparecer al reanudar.
+        // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre
+        // `SUPERVISION_DELAY_MS` después de la decisión) no debe reaparecer al reanudar.
         this.dialogue.set(null);
         this.audioDirector.setStressLevel(attempt.stressIndex);
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
@@ -1811,14 +1836,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
-  /** Pidió interactuar y no hay nada a su alcance (E, Espacio, Enter o el botón táctil): línea estática de 2,5 s. */
+  /** Pidió interactuar y no hay nada a su alcance (E, Espacio, Enter o el botón táctil): línea estática de `NOTHING_NEARBY_MS`. */
   showNothingNearby(): void {
     this.nothingNearbyNote.set(ORIENTATION_COPY.now.nothingNearby);
     if (this.nothingNearbyTimer !== null) window.clearTimeout(this.nothingNearbyTimer);
     this.nothingNearbyTimer = window.setTimeout(() => {
       this.nothingNearbyTimer = null;
       this.nothingNearbyNote.set('');
-    }, 2500);
+    }, NOTHING_NEARBY_MS);
   }
 
   /** Persona del escenario (clave `npc:{clave}` del mundo) → su configuración; null si no está cargada. */
@@ -2049,7 +2074,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     ));
   }
 
-  /** Aviso no esencial: se anuncia solo (role="status") y se apaga a los 4,2 s. */
+  /** Aviso no esencial: se anuncia solo (role="status") y se apaga a los `NOTICE_MS`. */
   private showSoftNotice(message: string): void {
     this.softNotice.set(message);
     if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
@@ -2061,7 +2086,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private showActionError(message: string) {
     this.actionError.set(message);
-    window.setTimeout(() => this.actionError.set(''), 4500);
+    window.setTimeout(() => this.actionError.set(''), ACTION_ERROR_MS);
   }
 
   /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
@@ -2140,7 +2165,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.audioDirector.setStressLevel(updated.stressIndex);
           this.pendingDecisionImpact = updated.feedback ?? null;
           if (!lastDecision && updated.feedback) {
-            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), 400);
+            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), SUPERVISION_DELAY_MS);
           }
         },
         error: err => {
@@ -2424,7 +2449,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.lastPosition = { x, y };
     this.rearmDoorInteractionWhenAway(x, y);
     if (this.positionSaveHandle) window.clearTimeout(this.positionSaveHandle);
-    this.positionSaveHandle = window.setTimeout(() => this.persistPosition(), 550);
+    this.positionSaveHandle = window.setTimeout(() => this.persistPosition(), POSITION_SAVE_DEBOUNCE_MS);
   }
 
   private rearmDoorInteractionWhenAway(x: number, y: number): void {
@@ -2495,7 +2520,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       choices: []
     });
     this.stressPulse.set(true);
-    window.setTimeout(() => this.stressPulse.set(false), 700);
+    window.setTimeout(() => this.stressPulse.set(false), STRESS_PULSE_MS);
     // Sin announce(): el panel de diálogo ya anuncia esta misma línea por su región viva (con las dos se leía dos veces).
   }
 
@@ -2619,7 +2644,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private triggerFade(callback: () => void, sound: 'dialogue_advance' | 'door_open' = 'dialogue_advance'): void {
     this.audioDirector.playSfx(sound);
     this.fadeActive.set(true);
-    window.setTimeout(callback, 340);
+    window.setTimeout(callback, FADE_OUT_MS);
   }
 
   /** Programa los efectos de cámara para cuando el fundido de escena ya dejó ver el mundo. */
@@ -2696,7 +2721,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(() => {
       this.fadeActive.set(false);
       this.scheduleRevealEffects();
-    }, 80);
+    }, WORLD_REVEAL_DELAY_MS);
     // Etapa nueva (se decidió): banner con su título aunque el mapa sea el mismo (F§4.5). No se
     // repite al recargar: `pendingStage` solo lo arma la respuesta de una decisión.
     const stage = this.pendingStage;
@@ -2798,11 +2823,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return `siep_case_intro_${attempt.caseVersionId}_${attempt.attemptId}`;
   }
 
-  /** Al cambiar de sala (puerta o decisión): nombre de la sala 1-2 s y, si el
+  /** Al cambiar de sala (puerta o decisión): nombre de la sala (`ROOM_BANNER_MS`) y, si el
    *  mapa trae texto de transición autorado (salto temporal), overlay breve. */
   private announceRoomChange(world: SimulationWorldState, stageBannerShown = false): void {
     // Con una etapa nueva manda su banner («Nueva etapa: …»), que ya nombra dónde estás.
-    if (!stageBannerShown) this.showRoomBanner(world.map.title, 2200);
+    if (!stageBannerShown) this.showRoomBanner(world.map.title, ROOM_BANNER_MS);
     const transition = (world.map.ambient as Record<string, unknown> | undefined)?.['transitionText'];
     if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
       this.seenTransitionMapKeys.add(world.map.key);
@@ -2811,7 +2836,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.transitionNoteTimer = window.setTimeout(() => {
         this.transitionNoteTimer = null;
         this.transitionNote.set('');
-      }, 4200);
+      }, TRANSITION_NOTE_MS);
     }
   }
 
@@ -2832,7 +2857,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Banner «Nueva etapa: …» y, en la tarjeta, «Decisión k registrada» (omitido sin decisión previa). */
   private announceNewStage(stage: { title: string; previousNumber: number | null }): void {
-    this.showRoomBanner(ORIENTATION_COPY.notices.newStage(stage.title), 3000);
+    this.showRoomBanner(ORIENTATION_COPY.notices.newStage(stage.title), STAGE_BANNER_MS);
     if (stage.previousNumber) {
       this.pendingNotes.unshift(ORIENTATION_COPY.notices.decisionRegistered(stage.previousNumber));
       this.flushNotes();
@@ -2911,7 +2936,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private announce(message: string): void {
     this.a11yAnnouncement.set('');
-    window.setTimeout(() => this.a11yAnnouncement.set(message), 50);
+    window.setTimeout(() => this.a11yAnnouncement.set(message), ANNOUNCE_DELAY_MS);
   }
 
   private persistAttemptToken(attempt: SimulationAttemptState) {
