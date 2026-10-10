@@ -29,7 +29,7 @@ equipo no la quiere en el repositorio, se borra este archivo y no cambia nada m�
 | #51 | **A-08** tres imports sin uso y una copia exacta | No | Antes de tocar se escribió la prueba que compara las dos vistas. No se tocaron los imports «sin uso» de pruebas marcados con `# noqa: F401` (re-exportan fixtures). |
 | #52 | **A-05b** el editor adopta los ids reales tras guardar | **Sí**, acotado (frontend) | Sin esto A-05 deja filas que cambian de id en cada autoguardado. Duda: toca el camino del autoguardado; lo cubren 6 pruebas del store, las 115 del editor, la suite completa y, desde #54, un e2e en el navegador. Solo adopta `id` y `mapObjectId`, por clave. |
 | #53 | **A-09** un temporizador sin dueño hacía fallar el CI | No | El job de frontend de #51 (que no toca el frontend) falló con las 2376 pruebas en verde; se re-ejecutó una vez para comprobar la hipótesis (pasó) y se arregló la causa en su rama. Se editaron **7 specs** (solo su `afterEach`) y tres líneas del componente (un campo, una asignación y un elemento en `ngOnDestroy`); ninguna aserción. No se silenció el error. |
-| #54 | **A-05c** el editor de mundo, probado en el navegador contra la base real | No (solo una prueba e2e nueva) | Se agregó porque la duda de #52 era no tener e2e del editor (cubre objetos, diálogo, borrado y zonas de colisión). La misma prueba sobre el código original, sobre A-05 solo y sobre la punta: **el original (también `master`) le quita tres objetos a la versión publicada del caso demo (41 → 38)**; A-05 sin A-05b recrea lo nuevo con otro id en cada autoguardado; la punta pasa. Duda: es una prueba con autoguardado diferido; si resulta intermitente en el CI, se descarta el PR sin afectar a nada más (es el último de la pila). |
+| #54 | **A-05c** el editor de mundo, probado en el navegador contra la base real | No (solo una prueba e2e nueva) | Se agregó porque la duda de #52 era no tener e2e del editor (cubre objetos, diálogo, borrado y zonas de colisión). La misma prueba sobre el código original, sobre A-05 solo y sobre la punta: **el original (también `master`) le quita tres objetos a la versión publicada del caso demo (41 → 38)**; A-05 sin A-05b recrea lo nuevo con otro id en cada autoguardado; la punta pasa. Duda: es una prueba con autoguardado diferido y con arrastre del ratón; si resulta intermitente en el CI, se descarta (es el último de la pila; #50 lo contiene por la unión de la punta). |
 
 Además: `tools/codeshot.py` ganó ancho de numeración para números de línea de cuatro cifras (las capturas del «antes»
 de P-05b salían cortadas).
@@ -41,8 +41,8 @@ de P-05b salían cortadas).
 - Corrida local completa de extremo a extremo (sobre `adsi/a09-timer-teardown`): matriz API **16/16**; Playwright
   **33 en verde y 1 omitida** a propósito por el propio spec (`guided-first-minute`, variante táctil 844x390). Incluye
   cuatro recorridos del caso completo (escritorio 1600 y 1366, móvil 390 y 412) y los de salida segura.
-- El e2e del editor (#54): pasa sobre la punta en tres corridas completas y falla en el punto esperado sobre el
-  código original y sobre A-05 sin A-05b (ver la entrada A-05c).
+- El e2e del editor (#54): pasa sobre la punta en todas las corridas completas (y en el job E2E del CI) y falla en
+  el punto esperado sobre el código original —incluido `master`— y sobre A-05 sin A-05b (ver la entrada A-05c).
 - CI de GitHub (consultado sin sondeo): todos los PR de #24 a #49 y de #51 a #53 con las seis comprobaciones en verde;
   #50 y #54 corrían de nuevo. #51 falló una vez por la intermitencia que A-09 corrige y pasó al re-ejecutarse con
   el mismo código.
@@ -67,6 +67,9 @@ La pila es **lineal**: cada rama contiene a la anterior (verificado con `git mer
   ramas posteriores sobre la anterior, con ramas nuevas. Es trabajo mecánico y se puede pedir.
 - A-05b completa a A-05: si se descarta A-05b y se conserva A-05, cada autoguardado de un objeto nuevo lo recrea con
   otro id (sin duplicados).
+- **#50 contiene la punta** (se unió con merge commits para que el informe describa la pila completa): si se
+  descarta cualquier cambio, #50 también debe reconstruirse. Si se prefiere que #50 sea solo documentación, se
+  rehace desde la punta de L-01 con únicamente los commits de documentación (rama nueva, sin `--force`).
 
 ## Qué revisar primero (de mayor a menor riesgo)
 
