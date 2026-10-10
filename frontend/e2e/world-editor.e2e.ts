@@ -12,7 +12,10 @@ import { scaled } from './support/time-scale';
  *    de lo ya guardado (sin A-05b cada guardado recreaba lo nuevo con otro id);
  * 2. el diálogo de un objeto nuevo apunta al id REAL de su objeto;
  * 3. borrar objeto + diálogo persiste: al recargar no reaparecen;
- * 4. un id local que coincide con el de otro caso no se lleva sus objetos (A-05).
+ * 4. un id local que coincide con el de otro caso no se lleva sus objetos (A-05);
+ * 5. una zona de colisión dibujada con el ratón se guarda con su id real, lo conserva en el
+ *    autoguardado siguiente y, seleccionada y borrada, desaparece del servidor (el guardado
+ *    original ignoraba las zonas).
  */
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@psychosim.edu.co';
