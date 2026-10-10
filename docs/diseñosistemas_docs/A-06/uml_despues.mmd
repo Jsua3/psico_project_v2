@@ -1,0 +1,9 @@
+flowchart LR
+    E["variable de entorno<br/>IMPORTED_STUDENT_DEFAULT_PASSWORD"] --> B["settings/base.py<br/>recorta; en blanco = valor de siempre"]
+    B --> C["settings.IMPORTED_STUDENT_DEFAULT_PASSWORD"]
+    C --> T["plantilla .xlsx<br/>(instrucciones)"]
+    C --> R["resultado de la importación<br/>defaultPassword"]
+    C --> U["cuentas creadas<br/>sin password propio"]
+    D["quien despliega"] -. "la define en el entorno" .-> E
+    classDef bien fill:#e0f5e6,stroke:#1e8449
+    class C bien
