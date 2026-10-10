@@ -1,0 +1,21 @@
+classDiagram
+    direction LR
+    class game_service {
+        +choose_decision()
+    }
+    class attempt_completed {
+        <<Signal · Subject>>
+        +send_robust(sender, attempt)
+        +connect(receiver)
+    }
+    class progression_receivers {
+        <<Observer>>
+        +record_completion_on_attempt_completed()
+    }
+    class progression_services {
+        +record_case_completion()
+    }
+    game_service ..> attempt_completed : anuncia
+    progression_receivers ..> attempt_completed : se suscribe en ready()
+    progression_receivers ..> progression_services
+    note for attempt_completed "síncrona, dentro de la transacción;<br/>un suscriptor roto no rompe la decisión"
