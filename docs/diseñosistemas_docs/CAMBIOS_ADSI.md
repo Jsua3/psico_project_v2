@@ -1041,7 +1041,8 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 - *`send_robust`, no `send`.* `record_case_completion` ya se traga sus propias excepciones («no debe romper el juego»); `send_robust` extiende esa garantía a **cualquier** suscriptor futuro: el error se registra en el log y la decisión sigue. Una prueba conecta un suscriptor que lanza y comprueba que el intento se completa y la finalización se registra igual.
 - *El remitente es el modelo (`SimulationAttempt`), el intento va como argumento.* Es la convención de Django (`post_save` hace lo mismo).
 - *`_lock_reflections` no se movió.* Forma parte del cambio de estado del intento y corre antes de guardarlo; no es una reacción a «ya se completó».
-- *DUDA declarada: un solo suscriptor.* Fase 0 la calificó de «forzada» con un único suscriptor y la dejó como decisión del equipo. Se hizo porque aporta una inversión de dependencia real (el juego deja de conocer a progresión) y el plan v1 la asignaba a la sustentación 2; si el equipo la considera sobreingeniería, el PR se descarta sin tocar el resto de la pila.
+- *DUDA declarada: un solo suscriptor.* Fase 0 la calificó de «forzada» con un único suscriptor y la dejó como decisión del equipo. Se hizo porque aporta una inversión de dependencia real (el juego deja de conocer a progresión) y el plan v1 la asignaba a la sustentación 2; si el equipo la considera sobreingeniería, se descarta (la pila es lineal: antes de fusionar hay que reconstruir las ramas siguientes sobre la anterior, con ramas nuevas; después de fusionar, `git revert -m 1`; ningún otro código usa la señal).
+- *Estado (10 de octubre): fusionado, **a decidir**.* Se fusionó en `adsi/integracion` (`2767d7d`). El equipo pidió dejarlo **anotado como lo que es** —un Observer con un único suscriptor, de valor sobre todo didáctico y de inversión de dependencias— para decidir más adelante qué hacer con él; hasta entonces se mantiene. Si aparece un segundo suscriptor, la duda se resuelve sola.
 
 **Lo que no cambió:** cuándo se registra la finalización (solo al completar, no en pausa, salida segura ni decisión intermedia), que se registre una vez por estudiante y caso, que un fallo al registrar no rompa la decisión, que ocurra dentro de la misma transacción y en el mismo punto (después del evento `ATTEMPT_COMPLETED`).
 
@@ -1202,7 +1203,8 @@ ReferenceError: window is not defined
 - *La prueba nueva:* aplica un mundo, destruye el componente, avanza 1000 ms y comprueba que el fundido no se retira ni se piden efectos de cámara.
 - *Mutaciones, 2, las 2 detectadas:* que `ngOnDestroy` no incluya el temporizador y que no se guarde su identificador.
 - *Lo que NO se puede demostrar:* que la intermitencia haya desaparecido (ocurría 1 de cada 7 ejecuciones de CI). Lo que sí se demuestra es que la ruta del error del registro queda cerrada: el temporizador que lo causó ya no sobrevive al componente.
-- *El job fallido de #51* se volvió a ejecutar: ver el estado del PR (con el código de A-08 sin cambios).
+- *El job fallido de #51* se volvió a ejecutar una vez (`gh run rerun --failed`), con el código de A-08 sin cambios, y **pasó** (6 de 6 comprobaciones en verde): coherente con una intermitencia y no con un defecto de A-08.
+- *En la punta de la pila* (`adsi/a09-timer-teardown`), la corrida local completa de Playwright dio **33 pruebas en verde y 1 omitida a propósito** por el propio spec (`guided-first-minute`, variante táctil 844x390), y la matriz API 16/16; el CI de #53 quedó en verde (6 de 6).
 
 **Hallazgos.** (1) Es el tipo de fallo que FASE0 §3.4 anotó: 55 archivos de prueba leen el código fuente como texto, y por eso no se pudo mover la lógica del temporizador a un ayudante sin tocar sus aserciones. (2) `jsdom was created 178 times · 63 s total` (un 53 % del tiempo de pruebas): Vitest sugiere `pool: 'vmThreads'`; no se tocó.
 
@@ -1229,7 +1231,7 @@ ReferenceError: window is not defined
 
 | Código | Objetos de otros casos | Ids de lo ya guardado | Diálogo | Borrar y recargar |
 |---|---|---|---|---|
-| Original (`master`, `dd4eb89`; igual en `adsi/p05b-authoring-facade`) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
+| Original (`adsi/p05b-authoring-facade`; sobre `master`, `dd4eb89`, la prueba falla en el mismo punto) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
 | Solo A-05 (`adsi/a05-world-save-persistence`) | 41 = 41 | **cambian**: 42 → 43,44 → 45,46,47 | apunta al id real | persiste |
 | A-05 + A-05b (la punta) | 41 = 41 | **estables**: 42 → 42,43 → 42,43,44 | apunta al id real (44) | persiste; recarga: 2 objetos |
 

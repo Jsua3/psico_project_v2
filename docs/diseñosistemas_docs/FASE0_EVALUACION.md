@@ -183,3 +183,50 @@ La confirmación oficial sigue siendo la del CI de GitHub sobre el PR.
 - Template Method + duplicados de los renderers pasa a Fase 2 junto con P-10.
 - Herramienta de evidencia (capturas antes/después) y plantilla IEEE del Word, fuera del repo.
 - Reparto por integrante sobre el catálogo v2.
+
+---
+
+## 10. Actualización del 10 de octubre de 2026 (todo fusionado en `adsi/integracion`)
+
+**Fusión (mañana del 10 de octubre).** Juan José Sua revisó las decisiones de la noche, las aprobó («totalmente de
+acuerdo») y pidió fusionar en orden: los PR #24 a #54 (sin el #31, que va a `master`) se fusionaron uno por uno con
+*merge commit* en `adsi/integracion`, y este (#50) al final. El árbol de `adsi/integracion` quedó idéntico al de
+`adsi/a05c-editor-e2e`. `master` no se tocó; lo que lo lleva ahí es el PR borrador #31.
+
+**Estado del catálogo v2 (§4).** Fase 1 completa (PR #24–#30, #32–#34). Fase 2 completa (#35–#44), más el Facade
+del backend que quedaba como decisión (**P-05b**, #45). Se sumaron ocho cambios que el plan anunciaba, que las
+pruebas dejaron como «decisión del equipo» o que aparecieron al cerrarlos. Cada uno tuvo su rama y su PR; la pila era
+lineal y las fusiones se hicieron en orden, así que para deshacer uno basta `git revert -m 1 <commit de la fusión>`
+(sin *force-push*; los commits están en `DECISIONES_SESION_NOCTURNA_2026-10-10.md`):
+
+| PR | Cambio | Por qué existe | Cambia comportamiento |
+|---|---|---|---|
+| #46 | **A-05** — el guardado del mundo persiste borrados y zonas | P-07 lo dejó anotado; al medirlo apareció que un objeto nuevo podía llevarse el de otra sala | **Sí** |
+| #47 | **A-07** — los olvidos del clon (peso/estado de criterios, versión de rúbrica, esquema de mundo) | P-03 los dejó fijados con una prueba | **Sí** (solo clones nuevos) |
+| #48 | **P-13** — Observer: «un intento se completó» | el plan v1 lo asignaba a la sustentación 2; Fase 0 lo dejó opcional | No |
+| #49 | **L-01** — contratos de Liskov por registro | el «test de contrato para LSP» del plan v1 (§5.2) | No (solo pruebas) |
+| #51 | **A-08** — tres imports sin uso y una copia exacta | los dos hallazgos menores que P-05b y A-01 dejaron anotados | No |
+| #52 | **A-05b** — el editor adopta los ids reales tras guardar | sin esto A-05 deja filas que cambian de id en cada autoguardado | **Sí** (acotado, frontend) |
+| #53 | **A-09** — un temporizador sin dueño hacía fallar el CI | el job de frontend de #51 (que no toca el frontend) falló 1 de 7 veces | No |
+| #54 | **A-05c** — el editor de mundo, probado en el navegador contra la base real | A-05 y A-05b no tenían prueba del flujo real; midió que el código original (también `master`) quitaba objetos a la versión publicada del caso demo (41 → 38) | No (solo una prueba e2e) |
+
+El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
+
+**Opcionales (§4).** P-13 hecho y fusionado, **anotado como «a decidir»** (un único suscriptor). **P-11 y P-15 a P-20
+no se hicieron**: riesgo alto, sin red de seguridad suficiente o una decisión de producto de por medio (razones en
+`PATRONES_EXISTENTES_Y_DESCARTADOS.md`); el 10 de octubre se aceptó la recomendación de no hacerlos por ahora.
+
+**Pruebas en la punta.** Backend 855 (línea base 307), frontend 2383 en 179 archivos (línea base 1809) y 35 de
+extremo a extremo (34 antes de A-05c; la corrida completa local anterior a A-05c: matriz API 16/16 y Playwright 33 en
+verde con 1 omitida a propósito por el propio spec).
+
+**Lo que sigue (decisión del equipo):**
+
+1. ~~Revisar y fusionar la pila en orden~~ **Hecho el 10 de octubre.** A-05b completa a A-05 en el editor: si se
+   revirtiera A-05b y se conservara A-05, cada autoguardado de un objeto nuevo lo recrearía con otro id (sin duplicados).
+2. Decidir qué hacer con P-13 (anotado como «a decidir»).
+3. Seguridad y dependencias, sin decidir: `requests` en `requirements.txt` (el inicio de sesión con Google no
+   funciona sin él) y la contraseña por defecto de los importados (valor propio en producción, o una por estudiante).
+4. Fusionar `adsi/integracion` en `master` (PR borrador #31) cuando el equipo lo decida.
+5. Reparto de la autoría en Git entre los cuatro integrantes (hoy toda la historia está a nombre de una persona).
+6. El informe Word (plantilla IEEE) a partir de esta carpeta.
