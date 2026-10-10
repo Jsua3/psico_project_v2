@@ -190,8 +190,9 @@ La confirmación oficial sigue siendo la del CI de GitHub sobre el PR.
 
 **Estado del catálogo v2 (§4).** Fase 1 completa (PR #24–#30, #32–#34). Fase 2 completa (#35–#44), más el Facade
 del backend que quedaba como decisión (**P-05b**, #45). Se sumaron siete cambios que el plan anunciaba, que las
-pruebas dejaron como «decisión del equipo» o que aparecieron al cerrarlos, y que quedan **descartables sin tocar el
-resto de la pila**:
+pruebas dejaron como «decisión del equipo» o que aparecieron al cerrarlos. Cada uno va en su rama y su PR; la pila es
+lineal, así que para descartar uno que no sea el último **antes de fusionar** hay que reconstruir las ramas siguientes
+sobre la anterior (con ramas nuevas, sin *force-push*), y **después de fusionar** basta `git revert -m 1`:
 
 | PR | Cambio | Por qué existe | Cambia comportamiento |
 |---|---|---|---|

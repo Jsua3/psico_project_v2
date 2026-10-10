@@ -46,9 +46,9 @@ frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809). Todo v
 
 ### Lo que NO se arregló y debe quedar escrito
 
-- **Cambios de comportamiento que esperan decisión**, cada uno en su rama descartable: A-05 (borra lo que antes no
-  borraba), A-05b (el editor adopta los ids reales tras guardar), A-07 (el clon conserva pesos y estado de
-  criterios), P-13 (Observer con un único suscriptor).
+- **Cambios que esperan decisión**, cada uno en su rama y su PR: A-05 (borra lo que antes no borraba), A-05b (el
+  editor adopta los ids reales tras guardar), A-07 (el clon conserva pesos y estado de criterios) y P-13 (Observer
+  con un único suscriptor; no cambia comportamiento).
 - **Hallazgos sin corregir**: `create_case` es la única mutación del editor sin auditoría; `create_object` y
   `create_tool` responden 500 si faltan campos NOT NULL; `update_dialogue` sin `lines` borra las líneas;
   `get_completion_report` devuelve el informe de un intento pausado o reemplazado; `patrol` empieza en el punto 1;
