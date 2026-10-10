@@ -1,0 +1,296 @@
+// Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
+// de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
+vi.mock('phaser', () => ({
+  __esModule: true,
+  default: {
+    Scene: class {},
+    AUTO: 0,
+    Scale: { FIT: 0, CENTER_BOTH: 0 },
+    Math: { Clamp: (value: number) => value },
+    Input: { Keyboard: { JustDown: () => false } },
+  },
+}));
+
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { EMPTY, of, throwError } from 'rxjs';
+
+import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { DialogueState, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
+import { AudioDirectorService } from './audio-director.service';
+import { ORIENTATION_COPY } from './orientation.config';
+import { SimulationPlayComponent } from './simulation-play.component';
+import type { Mock } from 'vitest';
+
+/**
+ * A-03b: cuánto dura cada aviso, espera y fundido de la pantalla de juego.
+ *
+ * Cada prueba comprueba el instante exacto: un milisegundo antes todo sigue como estaba y en el instante
+ * indicado ya cambió. Los números van escritos a propósito en la prueba (no se importan del componente): son
+ * el contrato observable, y así un cambio accidental de una constante del componente falla aquí.
+ */
+
+const CASE_VERSION_ID = 7;
+
+const FEEDBACK = {
+  classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
+  prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
+  message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false,
+};
+
+function makeWorld(mapKey = 'hospital-sala-escucha', title = 'Sala de escucha'): SimulationWorldState {
+  return {
+    map: { key: mapKey, title },
+    objects: [], tools: [], inventory: [], usedToolKeys: [], inspectedObjectKeys: [], flags: {},
+  } as unknown as SimulationWorldState;
+}
+
+function makeAttempt(overrides: Record<string, unknown> = {}, nodeKey = 'hospital-seguimiento'): SimulationAttemptState {
+  return {
+    attemptId: 'attempt-1',
+    attemptToken: 'token-1',
+    caseVersionId: CASE_VERSION_ID,
+    caseTitle: 'Caso demo',
+    status: 'IN_PROGRESS',
+    accumulatedScore: 0,
+    stressIndex: 0,
+    metrics: { victimRisk: 50 },
+    currentNode: {
+      id: 1, key: nodeKey, title: 'Título del nodo', narrative: 'Primera frase.', terminal: false,
+      options: [{ id: 101, text: 'Opción' }],
+    },
+    feedback: null,
+    completionReport: null,
+    ...overrides,
+  } as unknown as SimulationAttemptState;
+}
+
+describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () => {
+  let component: SimulationPlayComponent;
+  let sim: Record<string, Mock>;
+  let audio: Record<string, Mock>;
+  // El componente se ejercita por dentro (métodos privados): mismo recurso que usan los demás specs de instancia.
+  const internals = () => component as any;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    sessionStorage.clear();
+    localStorage.clear();
+    sim = {
+      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
+      getActiveAttempt: vi.fn(() => of(null)),
+      startAttempt: vi.fn(() => of(makeAttempt())),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => of(makeWorld())),
+      getScenarioConfig: vi.fn(() => throwError(() => new Error('sin escenario'))),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      openInteraction: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => EMPTY),
+      useTool: vi.fn(() => EMPTY),
+    };
+    audio = {
+      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [SimulationPlayComponent],
+      providers: [
+        { provide: SimulationService, useValue: sim },
+        { provide: AudioDirectorService, useValue: audio },
+        { provide: AuthService, useValue: {} },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
+        },
+      ],
+    });
+    component = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    sessionStorage.clear();
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  const advance = (ms: number) => { vi.advanceTimersByTime(ms); };
+
+  describe('avisos que se apagan solos', () => {
+    it('«no hay nada cerca» se apaga a los 2500 ms', () => {
+      component.showNothingNearby();
+      expect(component.nothingNearbyNote()).toBe(ORIENTATION_COPY.now.nothingNearby);
+
+      advance(2499);
+      expect(component.nothingNearbyNote()).toBe(ORIENTATION_COPY.now.nothingNearby);
+      advance(1);
+      expect(component.nothingNearbyNote()).toBe('');
+    });
+
+    it('un aviso suave se apaga a los 4200 ms', () => {
+      internals().showSoftNotice('Aviso no esencial');
+      expect(component.softNotice()).toBe('Aviso no esencial');
+
+      advance(4199);
+      expect(component.softNotice()).toBe('Aviso no esencial');
+      advance(1);
+      expect(component.softNotice()).toBe('');
+    });
+
+    it('el error de una acción se apaga a los 4500 ms', () => {
+      internals().showActionError('No pudimos completar la acción.');
+      expect(component.actionError()).toBe('No pudimos completar la acción.');
+
+      advance(4499);
+      expect(component.actionError()).toBe('No pudimos completar la acción.');
+      advance(1);
+      expect(component.actionError()).toBe('');
+    });
+
+    it('el nombre de la sala se muestra 2200 ms', () => {
+      internals().announceRoomChange(makeWorld('hospital-urgencias', 'Urgencias'));
+      expect(component.roomBanner()).toBe('Urgencias');
+
+      advance(2199);
+      expect(component.roomBanner()).toBe('Urgencias');
+      advance(1);
+      expect(component.roomBanner()).toBe('');
+    });
+
+    it('el banner de etapa nueva se muestra 3000 ms', () => {
+      internals().announceNewStage({ title: 'Seguimiento', previousNumber: null });
+      const banner = ORIENTATION_COPY.notices.newStage('Seguimiento');
+      expect(component.roomBanner()).toBe(banner);
+
+      advance(2999);
+      expect(component.roomBanner()).toBe(banner);
+      advance(1);
+      expect(component.roomBanner()).toBe('');
+    });
+
+    it('la nota de transición del mapa dura 4200 ms', () => {
+      const world = makeWorld('hospital-seguimiento', 'Seguimiento');
+      (world.map as unknown as { ambient: unknown }).ambient = { transitionText: 'Pasaron tres horas.' };
+
+      internals().announceRoomChange(world);
+      expect(component.transitionNote()).toBe('Pasaron tres horas.');
+
+      advance(4199);
+      expect(component.transitionNote()).toBe('Pasaron tres horas.');
+      advance(1);
+      expect(component.transitionNote()).toBe('');
+    });
+
+    it('el pulso de estrés de una herramienta dura 700 ms', () => {
+      internals().showToolFeedback({ toolCode: 'PAP', pertinent: true, feedbackMessage: 'Bien aplicada.', stressDelta: -5 });
+      expect(component.stressPulse()).toBe(true);
+
+      advance(699);
+      expect(component.stressPulse()).toBe(true);
+      advance(1);
+      expect(component.stressPulse()).toBe(false);
+    });
+  });
+
+  describe('esperas entre un paso y el siguiente', () => {
+    it('el fundido de escena espera 340 ms antes de continuar', () => {
+      const next = vi.fn();
+
+      internals().triggerFade(next);
+      expect(component.fadeActive()).toBe(true);
+
+      advance(339);
+      expect(next).not.toHaveBeenCalled();
+      advance(1);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('con el mundo cargado el fundido se retira a los 80 ms y los efectos de cámara llegan 320 ms después', () => {
+      // Doble mínimo de la escena: aplicar un mundo también pide recalcular la escala (otro temporizador, de 0 ms).
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn() };
+      internals().gameWorld = gameWorld;
+      component.attempt.set(makeAttempt());
+      component.fadeActive.set(true);
+
+      internals().applyLoadedWorld(makeWorld());
+      expect(component.fadeActive()).toBe(true);
+
+      advance(79);
+      expect(component.fadeActive()).toBe(true);
+      advance(1);
+      expect(component.fadeActive()).toBe(false);
+
+      expect(gameWorld.playRevealEffects).not.toHaveBeenCalled();
+      advance(319);
+      expect(gameWorld.playRevealEffects).not.toHaveBeenCalled();
+      advance(1);
+      expect(gameWorld.playRevealEffects).toHaveBeenCalledTimes(1);
+    });
+
+    it('la supervisión de una decisión que no es la última se abre 400 ms después de la respuesta', () => {
+      component.attempt.set(makeAttempt());
+      component.world.set(makeWorld());
+      sim['chooseDecision'].mockReturnValue(of(makeAttempt({ feedback: FEEDBACK }, 'hospital-accion')));
+      component.dialogue.set({
+        key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
+        choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
+      } as unknown as DialogueState);
+
+      component.executeDecision(101);
+      advance(340); // el fundido y, con él, la respuesta del servidor
+      expect(component.dialogue()).toBeNull();
+
+      advance(399);
+      expect(component.dialogue()).toBeNull();
+      advance(1);
+      expect(component.dialogue()?.speakerName).toBe('Supervisión clínica');
+    });
+  });
+
+  describe('guardado de la posición y anuncio accesible', () => {
+    beforeEach(() => {
+      component.attempt.set(makeAttempt());
+      component.world.set(makeWorld());
+    });
+
+    it('la posición se guarda 550 ms después del último movimiento', () => {
+      component.rememberPosition(120, 340);
+
+      advance(549);
+      expect(sim['updateWorldState']).not.toHaveBeenCalled();
+      advance(1);
+      expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 120, 340, 'hospital-sala-escucha');
+    });
+
+    it('un movimiento nuevo antes de los 550 ms reinicia la espera y se guarda solo la última posición', () => {
+      component.rememberPosition(120, 340);
+      advance(300);
+      component.rememberPosition(180, 360);
+
+      advance(549);
+      expect(sim['updateWorldState']).not.toHaveBeenCalled();
+      advance(1);
+      expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 180, 360, 'hospital-sala-escucha');
+    });
+
+    it('el anuncio para lector de pantalla se emite 50 ms después de vaciar la región', () => {
+      component.a11yAnnouncement.set('Mensaje anterior');
+
+      internals().announce('Introducción completada.');
+      expect(component.a11yAnnouncement()).toBe('');
+
+      advance(49);
+      expect(component.a11yAnnouncement()).toBe('');
+      advance(1);
+      expect(component.a11yAnnouncement()).toBe('Introducción completada.');
+    });
+  });
+});

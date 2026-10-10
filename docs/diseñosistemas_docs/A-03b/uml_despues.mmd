@@ -1,0 +1,32 @@
+classDiagram
+    direction LR
+    class SimulationPlayComponent {
+        +showNothingNearby()
+        -showActionError()
+        +executeDecision()
+        +rememberPosition()
+        -showToolFeedback()
+        -triggerFade()
+        -applyLoadedWorld()
+        -announceRoomChange()
+        -announceNewStage()
+        -announce()
+    }
+    class Tiempos {
+        <<constantes>>
+        NOTHING_NEARBY_MS = 2500
+        ACTION_ERROR_MS = 4500
+        SUPERVISION_DELAY_MS = 400
+        POSITION_SAVE_DEBOUNCE_MS = 550
+        STRESS_PULSE_MS = 700
+        FADE_OUT_MS = 340
+        WORLD_REVEAL_DELAY_MS = 80
+        ROOM_BANNER_MS = 2200
+        TRANSITION_NOTE_MS = 4200
+        STAGE_BANNER_MS = 3000
+        ANNOUNCE_DELAY_MS = 50
+        SCENE_FADE_MS = 320
+        NOTICE_MS = 4200
+    }
+    SimulationPlayComponent ..> Tiempos : cada espera por su nombre
+    note for Tiempos "FADE_OUT_MS (340) y SCENE_FADE_MS (320)<br/>son constantes distintas a propósito;<br/>TRANSITION_NOTE_MS y NOTICE_MS valen<br/>lo mismo hoy pero son avisos distintos"

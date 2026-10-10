@@ -1,0 +1,25 @@
+classDiagram
+    direction LR
+    class SimulationPlayComponent {
+        +showNothingNearby() setTimeout 2500
+        -showActionError() setTimeout 4500
+        +executeDecision() setTimeout 400
+        +rememberPosition() setTimeout 550
+        -showToolFeedback() setTimeout 700
+        -triggerFade() setTimeout 340
+        -applyLoadedWorld() setTimeout 80
+        -announceRoomChange() setTimeout 2200 y 4200
+        -announceNewStage() setTimeout 3000
+        -announce() setTimeout 50
+    }
+    class SCENE_FADE_MS {
+        320
+    }
+    class NOTICE_MS {
+        4200
+    }
+    SimulationPlayComponent ..> SCENE_FADE_MS
+    SimulationPlayComponent ..> NOTICE_MS
+    note for SimulationPlayComponent "11 números sueltos dentro de setTimeout:<br/>ninguno dice qué espera ni por qué"
+    note for SCENE_FADE_MS "el fundido espera 340, no 320:<br/>la diferencia no estaba escrita en ningún lado"
+    note for NOTICE_MS "4200 se repetía como número suelto<br/>en la nota de transición"
