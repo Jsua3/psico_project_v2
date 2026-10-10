@@ -766,7 +766,7 @@ Cualquier excepción —la base de datos caída (`OperationalError`), un error d
 4. `Rubric.is_default` no se copia; probablemente es a propósito (solo puede haber una rúbrica por defecto: `set_default` apaga las demás), pero no estaba dicho en ningún sitio.
 5. `CaseVersion.world_schema_version` no se copia: el origen puede valer 2 y el clon queda en 1. Hoy nada lo lee (solo se escribe al crear un caso), así que no tiene efecto visible.
 
-Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_GAPS` en la prueba.
+Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_GAPS` en la prueba. *(Actualización: A-07 corrige el 1, el 2, el 3 y el 5; el 4, `Rubric.is_default`, queda sin copiar a propósito.)*
 
 **Evidencia.** `docs/diseñosistemas_docs/P-03/`: `antes_clones_campo_por_campo.png`, `despues_copia_declarativa.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
@@ -972,3 +972,45 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/A-05/`: `antes_guardado_del_mundo.png`, `despues_guardado_del_mundo.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «función larga» (Unidad 4) y, como defecto, integridad de datos: un identificador generado por el cliente no puede decidir qué fila del servidor se modifica. Responsabilidad única (SOLID): cada paso del guardado es una función con un solo motivo para cambiar.
+
+
+### A-07 · Los olvidos del clon de versión — peso y estado de los criterios, versión de la rúbrica y esquema de mundo
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a07-clone-gaps` · `0e21e46` (parte de `adsi/a05-world-save-persistence`: PR después de A-05) |
+| **Tipo** | Corrección de los huecos que P-03 dejó escritos y fijados; «Cut & Paste con deriva» (dos rutas de copia de rúbricas con criterios distintos) |
+| **Archivos** | `services/case_cloning.py` (cuatro campos más y el docstring); `tests/test_clone_version_contract.py` (la lista de huecos y una aserción) |
+| **Riesgo** | Bajo-medio: el clon ya existía y solo copia cuatro campos más |
+| **Cambio de comportamiento** | **Sí, declarado:** el criterio clonado conserva `weight` y `active`; la rúbrica clonada conserva `version`; la versión clonada conserva `world_schema_version` |
+
+**Problema (antes).** P-03 declaró y fijó con una prueba cinco campos que el clon **no** copiaba. Mirados uno por uno contra el código que los lee:
+
+| Campo | Qué pasaba en el clon | Consecuencia real |
+|---|---|---|
+| `RubricCriterion.weight` | recibía el valor por defecto (0) | `rubric_service._weight` usa `weight or max_score`: el peso personalizado se perdía y el criterio valía su `max_score`. Si los pesos personalizados sumaban 100 y los `max_score` no, la suma del clon dejaba de ser 100 y `set_default` / `assign_to_case_version` la rechazan («La suma de ponderaciones activas debe ser exactamente 100») |
+| `RubricCriterion.active` | volvía activo | un criterio desactivado en el origen contaba en la nota del caso clonado (`_criteria_qs` filtra por `active`) |
+| `Rubric.version` | volvía a «1.0» | `duplicate` (la otra ruta de copia) sí la conserva: dos rutas con criterios distintos |
+| `CaseVersion.world_schema_version` | valía 1 aunque el origen valiera 2 | hoy nada lo lee; solo se escribe al crear un caso |
+| `Rubric.is_default` | recibía `False` | **no era un olvido** (ver abajo) |
+
+**Solución (después).** Se declaran los cuatro campos en sus `CopySpec` (`CASE_VERSION`, `RUBRIC`, `RUBRIC_CRITERION`), que es todo el cambio de código. La prueba de clon completo de P-03 pasa a esperar que se copien, y `KNOWN_GAPS` queda con un solo elemento.
+
+**Decisión de diseño.**
+
+- *`Rubric.is_default` sigue sin copiarse, ahora a propósito y por escrito.* Es una marca **global**: `set_default` apaga la de todas las demás rúbricas. Copiarla dejaría dos rúbricas predeterminadas. Además `rubric_for_case_version` prefiere la rúbrica propia de la versión a la predeterminada global, así que el clon usa la suya igualmente.
+- *Se cambió una aserción de P-03 y la lista de huecos.* Son las dos que fijaban justamente los olvidos; es lo que P-03 anunció («cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_GAPS`»). Ninguna otra aserción se tocó.
+- *Las versiones ya clonadas no se corrigen.* El cambio solo afecta a clones futuros; no hay migración de datos (REGLA-002) ni se reescriben los criterios de clones existentes.
+
+**Lo que no cambió:** qué se copia del resto de entidades, los vínculos, el orden, que la versión de origen no se modifica (REGLA-005) y las transacciones.
+
+**Pruebas.** Backend 815 → **815** (no hay pruebas nuevas: son las de P-03 con la expectativa cambiada), `manage.py check` limpio.
+
+- *Rojo primero:* con las expectativas nuevas y el código anterior fallaron exactamente tres pruebas, por la razón esperada: `Rubric` (`version`: «1.0» ≠ valor del origen), `RubricCriterion` (`weight` y `active`) y la de la versión (`world_schema_version` 1 ≠ 2).
+- *Mutaciones, 5, las 5 detectadas:* quitar cada uno de los cuatro campos de su declaración y **copiar `is_default`** (la prueba de huecos lo detecta: «el valor del clon debe ser el de por defecto»).
+
+**Hallazgos.** (1) Lo de `rubric_service.duplicate` y lo del clon eran dos copias con criterios distintos; ahora coinciden salvo `is_default` y el nombre («Copia de …»), que son diferencias de intención. (2) `_weight` hace que un peso 0 sea indistinguible de «sin peso»: una rúbrica con un criterio de peso 0 deseado lo vería convertido en su `max_score`. No se corrige aquí.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-07/`: `antes_olvidos_del_clon.png`, `despues_el_clon_copia_lo_que_olvidaba.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Cut & Paste» (Unidad 4): cuando hay dos rutas de copia, divergen. El Prototype declarativo de P-03 es lo que hizo visible cada omisión como una línea que falta en una lista.
