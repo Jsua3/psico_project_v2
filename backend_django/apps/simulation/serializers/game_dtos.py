@@ -1,9 +1,11 @@
 """Response DTO builders for the student simulation flow — field names match
 Spring SimulationDtos exactly (camelCase JSON)."""
-import json
 import re
 
+from shared.jsonutils import read_string_list
+
 from apps.simulation.models import (
+    AttemptStatus,
     ClinicalTool,
     DecisionOption,
     MapObject,
@@ -16,16 +18,6 @@ SAFE_EXIT_RESOURCES = [
     "Si el contenido activa malestar, contacta al Centro Integral de Psicología o a Bienestar Universitario.",
     "En riesgo inmediato, prioriza líneas locales de emergencia y rutas institucionales de protección.",
 ]
-
-
-def read_string_list(raw):
-    if not raw:
-        return []
-    try:
-        value = json.loads(raw)
-        return value if isinstance(value, list) else []
-    except (ValueError, TypeError):
-        return []
 
 
 def metrics(attempt):
@@ -194,109 +186,162 @@ def _reconsidered_recommendation(retries):
     return f"Reconsideraste {retries} respuestas antes de decidir; revísalas con tu docente."
 
 
+_SUMMARY_BY_STATUS = {
+    AttemptStatus.COMPLETED: "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
+    AttemptStatus.PAUSED: "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
+    AttemptStatus.SAFE_EXITED: "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
+    AttemptStatus.REPLACED: "Intento reemplazado. Empezaste uno nuevo y este quedó cerrado tal como estaba, disponible para revisión docente.",
+    AttemptStatus.IN_PROGRESS: "Intento en progreso.",
+}
+
+#: Estados en los que el intento ofrece los recursos de apoyo y recomienda retomar con acompañamiento.
+_SUPPORT_STATUSES = (AttemptStatus.SAFE_EXITED, AttemptStatus.PAUSED)
+#: Desde este estrés (0-100) el cierre recomienda practicar autorregulación.
+HIGH_STRESS_THRESHOLD = 70
+_GENERIC_RECOMMENDATION = (
+    "Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva."
+)
+
+
+class CompletionReportBuilder:
+    """Builder del reporte de cierre: arma el reporte paso a paso.
+
+    Cada ``count_*`` / ``add_*`` calcula una parte (conteos, competencias,
+    recomendaciones, resumen, línea de tiempo, final) y devuelve el propio
+    constructor, de modo que se encadenan. ``build()`` ensambla el diccionario
+    final. El orden importa: competencias y recomendaciones leen los conteos.
+    """
+
+    def __init__(self, attempt, events):
+        self._attempt = attempt
+        self._events = events
+        self.adequate = self.risky = self.inadequate = self.prohibited = 0
+        self.tools_used = self.retries = self.prohibited_retries = 0
+        self.reflections_count = 0
+        self.visited = []
+        self.competencies = []
+        self.recommendations = []
+        self.summary = ""
+
+    def count_events(self):
+        seen = set()
+        for ev in self._events:
+            if ev.node_id and ev.event_type == "NODE_ENTERED":
+                title = ev.node.title
+                if title not in seen:
+                    seen.add(title)
+                    self.visited.append(title)
+            if ev.event_type == "TOOL_USED":
+                self.tools_used += 1
+            if ev.event_type in case_effects.RETRY_EVENT_TYPES:
+                # Reconsideración: no se aplicó ni puntúa (se reporta aparte).
+                self.retries += 1
+                if ev.event_type == "PROHIBITED_DECISION_RETRY_REQUIRED":
+                    self.prohibited_retries += 1
+                continue
+            if ev.decision_option_id is None or ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
+                continue
+            c = ev.decision_option.classification
+            if c == "ADEQUATE":
+                self.adequate += 1
+            elif c == "RISKY":
+                self.risky += 1
+            elif c == "INADEQUATE":
+                self.inadequate += 1
+            if ev.decision_option.prohibited_conduct:
+                self.prohibited += 1
+        return self
+
+    def count_reflections(self):
+        self.reflections_count = ReflectionJournal.objects.filter(attempt_id=self._attempt.id).count()
+        return self
+
+    def add_competencies(self):
+        if self._attempt.institutional_route_activated:
+            self.competencies.append("Articulación con rutas institucionales de protección")
+        if self.adequate > 0:
+            self.competencies.append("Comunicación ética y contención emocional")
+        if self.tools_used > 0:
+            self.competencies.append("Uso pertinente de herramientas clínicas")
+        if self.reflections_count > 0:
+            self.competencies.append("Reflexión clínica documentada")
+        return self
+
+    def add_recommendations(self):
+        attempt = self._attempt
+        recommendations = self.recommendations
+        if self.risky > 0 or self.inadequate > 0:
+            recommendations.append("Revisa las decisiones riesgosas o inadecuadas con tu docente en sesión de retroalimentación.")
+        if self.retries > 0:
+            # No son decisiones ni bajan el desempeño, pero el estudiante debe ver que reconsideró algo: el juego le
+            # dijo en el momento «no se aplicó, reconsidera» y el cierre no puede callarlo.
+            recommendations.append(_reconsidered_recommendation(self.retries))
+        if attempt.stress_index >= HIGH_STRESS_THRESHOLD:
+            recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
+        if attempt.revictimization_risk:
+            recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")
+        if attempt.status in _SUPPORT_STATUSES:
+            recommendations.append("Retoma el caso con acompañamiento docente cuando te sientas preparado/a.")
+        if not recommendations:
+            recommendations.append(_GENERIC_RECOMMENDATION)
+        return self
+
+    def add_summary(self):
+        self.summary = _SUMMARY_BY_STATUS[self._attempt.status]
+        return self
+
+    def build(self):
+        attempt, events = self._attempt, self._events
+        return {
+            "attemptId": str(attempt.id),
+            "caseTitle": attempt.case_version.simulation_case.title,
+            "status": attempt.status,
+            "finalScore": attempt.accumulated_score,
+            "finalStress": attempt.stress_index,
+            "metrics": metrics(attempt),
+            "adequateDecisions": self.adequate,
+            "riskyDecisions": self.risky,
+            "inadequateDecisions": self.inadequate,
+            "prohibitedDecisions": self.prohibited,
+            "toolsUsed": self.tools_used,
+            # Primeras respuestas que el juego no aplicó (regla de reintento); no
+            # entran en los conteos de arriba ni en el final.
+            "retries": self.retries,
+            # De esas, las que eran conducta prohibida (el docente las distingue en su traza).
+            "prohibitedRetries": self.prohibited_retries,
+            "reflectionsCount": self.reflections_count,
+            # Por evento, no por estado: un intento reanudado y completado también
+            # registra honestamente que usó la salida segura en el camino.
+            "safeExitUsed": any(ev.event_type == "SAFE_EXIT_REQUESTED" for ev in events),
+            "visitedNodeTitles": self.visited,
+            "competencies": self.competencies,
+            "recommendations": self.recommendations,
+            "summaryMessage": self.summary,
+            "totalDurationSeconds": (
+                int((attempt.ended_at - attempt.started_at).total_seconds())
+                if attempt.started_at and attempt.ended_at else None
+            ),
+            "timeline": build_timeline(attempt, events),
+            # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
+            "ending": case_effects.compute_ending(attempt, events),
+        }
+
+
 def build_completion_report(attempt, events):
-    adequate = risky = inadequate = prohibited = tools_used = retries = prohibited_retries = 0
-    visited = []
-    seen = set()
-    for ev in events:
-        if ev.node_id and ev.event_type == "NODE_ENTERED":
-            title = ev.node.title
-            if title not in seen:
-                seen.add(title)
-                visited.append(title)
-        if ev.event_type == "TOOL_USED":
-            tools_used += 1
-        if ev.event_type in case_effects.RETRY_EVENT_TYPES:
-            # Reconsideración: no se aplicó ni puntúa (se reporta aparte).
-            retries += 1
-            if ev.event_type == "PROHIBITED_DECISION_RETRY_REQUIRED":
-                prohibited_retries += 1
-            continue
-        if ev.decision_option_id is None or ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
-            continue
-        c = ev.decision_option.classification
-        if c == "ADEQUATE":
-            adequate += 1
-        elif c == "RISKY":
-            risky += 1
-        elif c == "INADEQUATE":
-            inadequate += 1
-        if ev.decision_option.prohibited_conduct:
-            prohibited += 1
-
-    reflections_count = ReflectionJournal.objects.filter(attempt_id=attempt.id).count()
-
-    competencies = []
-    if attempt.institutional_route_activated:
-        competencies.append("Articulación con rutas institucionales de protección")
-    if adequate > 0:
-        competencies.append("Comunicación ética y contención emocional")
-    if tools_used > 0:
-        competencies.append("Uso pertinente de herramientas clínicas")
-    if reflections_count > 0:
-        competencies.append("Reflexión clínica documentada")
-
-    recommendations = []
-    if risky > 0 or inadequate > 0:
-        recommendations.append("Revisa las decisiones riesgosas o inadecuadas con tu docente en sesión de retroalimentación.")
-    if retries > 0:
-        # No son decisiones ni bajan el desempeño, pero el estudiante debe ver que reconsideró algo: el juego le
-        # dijo en el momento «no se aplicó, reconsidera» y el cierre no puede callarlo.
-        recommendations.append(_reconsidered_recommendation(retries))
-    if attempt.stress_index >= 70:
-        recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
-    if attempt.revictimization_risk:
-        recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")
-    if attempt.status in ("SAFE_EXITED", "PAUSED"):
-        recommendations.append("Retoma el caso con acompañamiento docente cuando te sientas preparado/a.")
-    if not recommendations:
-        recommendations.append("Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva.")
-
-    summary = {
-        "COMPLETED": "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
-        "PAUSED": "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
-        "SAFE_EXITED": "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
-        "REPLACED": "Intento reemplazado. Empezaste uno nuevo y este quedó cerrado tal como estaba, disponible para revisión docente.",
-        "IN_PROGRESS": "Intento en progreso.",
-    }[attempt.status]
-
-    return {
-        "attemptId": str(attempt.id),
-        "caseTitle": attempt.case_version.simulation_case.title,
-        "status": attempt.status,
-        "finalScore": attempt.accumulated_score,
-        "finalStress": attempt.stress_index,
-        "metrics": metrics(attempt),
-        "adequateDecisions": adequate,
-        "riskyDecisions": risky,
-        "inadequateDecisions": inadequate,
-        "prohibitedDecisions": prohibited,
-        "toolsUsed": tools_used,
-        # Primeras respuestas que el juego no aplicó (regla de reintento); no
-        # entran en los conteos de arriba ni en el final.
-        "retries": retries,
-        # De esas, las que eran conducta prohibida (el docente las distingue en su traza).
-        "prohibitedRetries": prohibited_retries,
-        "reflectionsCount": reflections_count,
-        # Por evento, no por estado: un intento reanudado y completado también
-        # registra honestamente que usó la salida segura en el camino.
-        "safeExitUsed": any(ev.event_type == "SAFE_EXIT_REQUESTED" for ev in events),
-        "visitedNodeTitles": visited,
-        "competencies": competencies,
-        "recommendations": recommendations,
-        "summaryMessage": summary,
-        "totalDurationSeconds": (
-            int((attempt.ended_at - attempt.started_at).total_seconds())
-            if attempt.started_at and attempt.ended_at else None
-        ),
-        "timeline": build_timeline(attempt, events),
-        # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
-        "ending": case_effects.compute_ending(attempt, events),
-    }
+    """Director: fija el orden de los pasos del Builder y devuelve el reporte."""
+    return (
+        CompletionReportBuilder(attempt, events)
+        .count_events()
+        .count_reflections()
+        .add_competencies()
+        .add_recommendations()
+        .add_summary()
+        .build()
+    )
 
 
 def attempt_state(attempt, raw_token, feedback, events=None):
-    in_progress = attempt.status == "IN_PROGRESS"
+    in_progress = attempt.status == AttemptStatus.IN_PROGRESS
     completion_report = None
     if not in_progress:
         if events is None:
@@ -316,7 +361,7 @@ def attempt_state(attempt, raw_token, feedback, events=None):
         "currentNode": node_state(attempt.current_node, in_progress),
         "feedback": feedback,
         "completionReport": completion_report,
-        "supportResources": SAFE_EXIT_RESOURCES if attempt.status in ("SAFE_EXITED", "PAUSED") else [],
+        "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],
     }
 
 

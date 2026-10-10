@@ -1,0 +1,21 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        +listCases()
+        +getCatalog()
+        +startAttempt()
+        ...
+    }
+    class HttpClient
+    class SimulationCatalog
+    class Dashboard
+    class GrupoList
+    class ReporteGrupo
+    class Rubrics
+    SimulationCatalog ..> SimulationService
+    Dashboard ..> SimulationService
+    GrupoList ..> SimulationService
+    ReporteGrupo ..> SimulationService
+    Rubrics ..> SimulationService
+    SimulationService ..> HttpClient : GET /api/simulation/cases
+    note for SimulationService "Cada pantalla que pide la lista<br/>dispara su propia consulta al backend,<br/>que cuenta los nodos de cada caso uno por uno"

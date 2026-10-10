@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
+import { InstructorApi } from '../../core/api/instructor.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -32,6 +33,7 @@ function createDashboard(
       { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
       { provide: ReporteService, useValue: services.reporte ?? {} },
       { provide: SimulationService, useValue: services.simulation ?? {} },
+      { provide: InstructorApi, useValue: services.simulation ?? {} },
       { provide: UserAdminService, useValue: services.users ?? {} },
       { provide: GrupoService, useValue: services.grupos ?? {} },
     ],

@@ -285,7 +285,7 @@ def test_google_login_returns_token_for_existing_active_user(client, admin_user)
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="google-client-id.apps.googleusercontent.com")
-def test_google_login_rejects_unknown_user(client):
+def test_google_login_rejects_unknown_user(client, db):
     with patch(
         "apps.users.views.verify_google_credential",
         return_value={"email": "sin_registro@x.com", "email_verified": True, "sub": "google-sub"},

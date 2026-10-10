@@ -1,0 +1,36 @@
+classDiagram
+    direction LR
+    class AIAssistantView {
+        +post(request)
+        +create_provider() AIProvider
+        -_call_llm(question, context) str
+    }
+    class AIProvider {
+        <<abstract>>
+        +api_key
+        +model
+        +complete(system, question) str*
+    }
+    class OpenAIProvider {
+        +URL
+        +complete(system, question) str
+    }
+    class AnthropicProvider {
+        +URL
+        +complete(system, question) str
+    }
+    class PROVIDERS {
+        <<registro>>
+        openai
+        anthropic
+    }
+    AIAssistantView ..> AIProvider : usa (Strategy)
+    AIAssistantView ..> PROVIDERS : consulta (Factory Method)
+    AIProvider <|-- OpenAIProvider
+    AIProvider <|-- AnthropicProvider
+    OpenAIProvider ..> post_json : adapta la API de OpenAI
+    AnthropicProvider ..> post_json : adapta la API de Anthropic
+    class post_json {
+        <<función>>
+        transporte HTTP común
+    }

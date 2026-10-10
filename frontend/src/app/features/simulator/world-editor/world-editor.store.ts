@@ -13,7 +13,7 @@
  */
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Subject, debounceTime, switchMap, catchError, of, EMPTY } from 'rxjs';
-import { SimulationService } from '../../../core/api/simulation.service';
+import { AuthoringApi } from '../../../core/api/authoring.api';
 import {
   WorldDefinition,
   WorldObject,
@@ -98,6 +98,32 @@ export class ResizeZoneCommand implements EditorCommand {
       ...state,
       collisionZones: state.collisionZones.map(z =>
         z.key === this.key ? { ...z, ...this.from } : z
+      )
+    };
+  }
+}
+
+/** Cambia solo la etiqueta de una zona de colisión (su geometría no se toca). */
+export class SetZoneLabelCommand implements EditorCommand {
+  readonly type = 'SetZoneLabel';
+  private previous: string | null = null;
+
+  constructor(private readonly key: string, private readonly label: string) {}
+
+  execute(state: EditorState): EditorState {
+    this.previous = state.collisionZones.find(z => z.key === this.key)?.label ?? null;
+    return this.withLabel(state, this.label);
+  }
+
+  undo(state: EditorState): EditorState {
+    return this.withLabel(state, this.previous);
+  }
+
+  private withLabel(state: EditorState, label: string | null): EditorState {
+    return {
+      ...state,
+      collisionZones: state.collisionZones.map(z =>
+        z.key === this.key ? { ...z, label } : z
       )
     };
   }
@@ -262,6 +288,36 @@ export class SetMapFieldsCommand implements EditorCommand {
   }
 }
 
+// ─── Composite ──────────────────────────────────────────────────────────────
+
+/**
+ * Varios comandos que se apilan, se ejecutan y se deshacen como uno solo.
+ * Es un comando más (puede contener otros macros): el store no distingue uno simple de uno compuesto.
+ */
+export class MacroCommand implements EditorCommand {
+  constructor(readonly type: string, private readonly commands: readonly EditorCommand[]) {}
+
+  /** En orden: cada comando recibe el estado que dejó el anterior. */
+  execute(state: EditorState): EditorState {
+    return this.commands.reduce((current, command) => command.execute(current), state);
+  }
+
+  /** En orden inverso: el último comando ejecutado es el primero en deshacerse. */
+  undo(state: EditorState): EditorState {
+    return this.commands.reduceRight((current, command) => command.undo(current), state);
+  }
+}
+
+/** Borra un objeto y el diálogo que colgaba de él, en un único paso del historial. */
+export class DeleteObjectWithDialogueCommand extends MacroCommand {
+  constructor(objectKey: string) {
+    super('DeleteObjectWithDialogue', [
+      new DeleteObjectCommand(objectKey),
+      new DeleteDialogueCommand(objectKey)
+    ]);
+  }
+}
+
 // ─── Editor State ───────────────────────────────────────────────────────────
 
 export interface EditorState {
@@ -285,11 +341,14 @@ export function buildWorldSaveRequest(def: WorldDefinition, state: EditorState):
 
 export type EditorTool = 'select' | 'place-object' | 'place-collision' | 'place-spawn' | 'pan';
 
+/** Cuántos pasos recuerda el historial de deshacer; al pasarse, se descarta el más antiguo. */
+export const MAX_UNDO_STEPS = 100;
+
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class WorldEditorStore {
-  private readonly simulationService = inject(SimulationService);
+  private readonly authoringApi = inject(AuthoringApi);
 
   // ─── Source of truth ───────────────────────────────────────────────────
   readonly definition = signal<WorldDefinition | null>(null);
@@ -364,9 +423,50 @@ export class WorldEditorStore {
     ).subscribe(def => {
       if (def) {
         this.definition.set(def);
+        this.adoptSavedIds(def);
         this.saving.set(false);
         this.dirty.set(false);
       }
+    });
+  }
+
+  /**
+   * A-05b: lo nuevo se numera en el editor con ids locales y el servidor devuelve los reales. Se
+   * adoptan por clave, sin tocar nada más y sin pasar por la pila de deshacer: así el siguiente
+   * guardado actualiza las filas en lugar de volver a crearlas. Si ningún id cambia, el estado es
+   * el mismo objeto (no hay repintado).
+   */
+  private adoptSavedIds(def: WorldDefinition): void {
+    const objectIds = new Map(def.objects.map(o => [o.key, o.id]));
+    const zoneIds = new Map(def.collisionZones.map(z => [z.key, z.id]));
+    const treeIds = new Map(def.dialogues.map(d => [d.key, d.id]));
+
+    this.editorState.update(state => {
+      if (!state) return state;
+      let changed = false;
+
+      const objects = state.objects.map(o => {
+        const id = objectIds.get(o.key);
+        if (id === undefined || id === o.id) return o;
+        changed = true;
+        return { ...o, id };
+      });
+      const collisionZones = state.collisionZones.map(z => {
+        const id = zoneIds.get(z.key);
+        if (id === undefined || id === z.id) return z;
+        changed = true;
+        return { ...z, id };
+      });
+      const dialogues = state.dialogues.map(d => {
+        const id = treeIds.get(d.key) ?? d.id;
+        const owner = d.mapObjectKey !== undefined ? objectIds.get(d.mapObjectKey) : undefined;
+        const mapObjectId = owner ?? d.mapObjectId;
+        if (id === d.id && mapObjectId === d.mapObjectId) return d;
+        changed = true;
+        return { ...d, id, mapObjectId };
+      });
+
+      return changed ? { ...state, objects, collisionZones, dialogues } : state;
     });
   }
 
@@ -380,7 +480,7 @@ export class WorldEditorStore {
     this.conflictDetected.set(false);
     this.resetCommandStack();
 
-    this.simulationService.worldEditor(caseVersionId, nodeId).subscribe({
+    this.authoringApi.worldEditor(caseVersionId, nodeId).subscribe({
       next: def => {
         this.definition.set(def);
         const objKeyById = new Map(def.objects.map(o => [o.id, o.key]));
@@ -417,6 +517,9 @@ export class WorldEditorStore {
     const next = command.execute(current);
     this.editorState.set(next);
     this.undoStack.push(command);
+    // Tope: se descarta el paso más antiguo. Rehacer solo guarda pasos que salieron de esta pila,
+    // así que deshacer y rehacer juntos tampoco superan MAX_UNDO_STEPS.
+    if (this.undoStack.length > MAX_UNDO_STEPS) this.undoStack.shift();
     this.redoStack = []; // Clear redo on new action
     this.updateStackSignals();
     this.markDirty();
@@ -480,7 +583,7 @@ export class WorldEditorStore {
   // ─── Validate ─────────────────────────────────────────────────────────
 
   validate(): void {
-    this.simulationService.validateWorld(this.caseVersionId).subscribe({
+    this.authoringApi.validateWorld(this.caseVersionId).subscribe({
       next: vs => this.validationState.set(vs),
       error: () => this.error.set('No se pudo ejecutar la validacion.')
     });
@@ -523,7 +626,7 @@ export class WorldEditorStore {
 
     this.saving.set(true);
     const body = buildWorldSaveRequest(def, state);
-    return this.simulationService.saveWorld(this.caseVersionId, body, this.nodeId);
+    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId);
   }
 
   private resetCommandStack(): void {

@@ -1,0 +1,8 @@
+flowchart LR
+    S["grupos/services.py<br/>DEFAULT_IMPORTED_STUDENT_PASSWORD = 'Siep2026!'"]
+    S --> T["plantilla .xlsx<br/>(instrucciones)"]
+    S --> R["resultado de la importación<br/>defaultPassword"]
+    S --> U["cuentas creadas<br/>sin password propio"]
+    D["quien despliega"] -. "no puede cambiarla sin tocar el código" .-> S
+    classDef mal fill:#ffe0e0,stroke:#c0392b
+    class S mal

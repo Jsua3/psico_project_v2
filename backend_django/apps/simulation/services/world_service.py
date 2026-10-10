@@ -13,6 +13,10 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from ..models import (
+    DEFAULT_MAP_HEIGHT,
+    DEFAULT_MAP_WIDTH,
+    INDICATOR_MAX,
+    INDICATOR_MIN,
     AttemptEvent,
     AttemptWorldState,
     ClinicalTool,
@@ -23,9 +27,9 @@ from ..models import (
     MapObject,
     SceneMap,
 )
-from . import game_service
+from . import attempt_lifecycle as lifecycle, door_chain, game_service
 from shared.jsonutils import (
-    coerce_int as _int,
+    clamp as _clamp,
     read_map as _read_map,
     read_string_list as _read_string_list,
     write_map as _write_map,
@@ -38,10 +42,6 @@ def _append_unique(raw_json, value):
     if value not in items:
         items.append(value)
     return json.dumps(items)
-
-
-def _clamp(value, low, high):
-    return max(low, min(high, value))
 
 
 # ─── autoridad del servidor (GAME-01) ────────────────────────────────────────
@@ -64,6 +64,9 @@ NPC_RANGE_TOLERANCE_PX = 16
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 PLAYER_HITBOX_WIDTH = 22
 PLAYER_HITBOX_HEIGHT = 16
+#: Estrés al usar una herramienta: baja si el uso fue pertinente y sube si no.
+TOOL_PERTINENT_STRESS_DELTA = -5
+TOOL_IMPERTINENT_STRESS_DELTA = 3
 
 
 def _require_finite_int(value, name):
@@ -187,8 +190,8 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
         return _to_world_state(attempt, world_state)
     x = _require_finite_int(player_x, "playerX")
     y = _require_finite_int(player_y, "playerY")
-    map_w = world_state.scene_map.width or 960
-    map_h = world_state.scene_map.height or 540
+    map_w = world_state.scene_map.width or DEFAULT_MAP_WIDTH
+    map_h = world_state.scene_map.height or DEFAULT_MAP_HEIGHT
     hitbox_x, hitbox_y, hitbox_w, hitbox_h = _player_hitbox(x, y)
     if not (0 <= hitbox_x and hitbox_x + hitbox_w <= map_w
             and 0 <= hitbox_y and hitbox_y + hitbox_h <= map_h):
@@ -263,7 +266,7 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     reintentos (un solo evento y un solo efecto de estrés)."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     world_state = require_world_state(attempt)
-    if attempt.status != "IN_PROGRESS":
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta herramientas")
     tool = ClinicalTool.objects.filter(
         case_version_id=attempt.case_version_id, tool_code=tool_code
@@ -304,8 +307,8 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     world_state.used_tool_keys_json = _append_unique(world_state.used_tool_keys_json, usage_key)
     world_state.save()
 
-    stress_delta = -5 if pertinent else 3
-    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, 0, 100)
+    stress_delta = TOOL_PERTINENT_STRESS_DELTA if pertinent else TOOL_IMPERTINENT_STRESS_DELTA
+    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, INDICATOR_MIN, INDICATOR_MAX)
     attempt.save()
 
     sign = "+" if stress_delta >= 0 else ""
@@ -434,36 +437,17 @@ def _validate_door(attempt, state, door_key, target_node_key):
     """La puerta debe existir en el mapa ACTUAL, estar al alcance del jugador,
     apuntar al destino solicitado y tener TODAS sus condiciones verificables
     cumplidas (requiresInspected, requiresTools, requiresNodes y requiresNpcs
-    — los NPCs vistos sí se persisten en flags.viewedNpcKeys)."""
-    door = MapObject.objects.filter(
-        scene_map_id=state.scene_map_id, object_key=door_key, object_type="EXIT"
-    ).first()
-    if not door:
-        raise NotFound(f"La puerta no existe en la sala actual: {door_key}")
-    meta = _read_map(door.metadata_json)
-    if meta.get("targetNodeKey") != target_node_key:
-        raise ValidationError("La puerta no conduce a la sala solicitada")
-    _require_nearby(state, door, "la puerta")
+    — los NPCs vistos sí se persisten en flags.viewedNpcKeys).
 
-    locked_message = meta.get("lockedMessage") or "La puerta está bloqueada."
-    inspected = set(_read_string_list(state.inspected_object_keys_json))
-    for required in meta.get("requiresInspected") or []:
-        if required not in inspected:
-            raise ValidationError(locked_message)
-    inventory = set(_read_string_list(state.inventory_json))
-    for required in meta.get("requiresTools") or []:
-        if required not in inventory:
-            raise ValidationError(locked_message)
-    required_nodes = meta.get("requiresNodes") or []
-    if required_nodes and attempt.current_node.node_key not in required_nodes:
-        raise ValidationError(locked_message)
-    flags = _read_map(state.flags_json)
-    viewed_npcs = flags.get("viewedNpcKeys")
-    viewed_npcs = set(viewed_npcs) if isinstance(viewed_npcs, list) else set()
-    for required in meta.get("requiresNpcs") or []:
-        if required not in viewed_npcs:
-            raise ValidationError(locked_message)
-    return meta
+    Las reglas son una cadena de responsabilidad (ver ``door_chain``); aquí solo
+    se arma el contexto y se la recorre."""
+    ctx = door_chain.DoorContext(attempt, state, door_key, target_node_key)
+    _DOOR_CHAIN.handle(ctx)
+    return ctx.meta
+
+
+# La cercanía se inyecta por función para que la cadena no importe este módulo.
+_DOOR_CHAIN = door_chain.build_door_chain(lambda state, door, what: _require_nearby(state, door, what))
 
 
 def _door_entry(meta, target):
@@ -473,8 +457,8 @@ def _door_entry(meta, target):
     except KeyError:
         raise ValidationError("La puerta no tiene una entrada autorada válida")
     return (
-        _clamp(entry_x, 0, target.width or 960),
-        _clamp(entry_y, 0, target.height or 540),
+        _clamp(entry_x, 0, target.width or DEFAULT_MAP_WIDTH),
+        _clamp(entry_y, 0, target.height or DEFAULT_MAP_HEIGHT),
     )
 
 
@@ -510,7 +494,7 @@ def require_world_state(attempt):
 
 
 def _require_in_progress(attempt):
-    if attempt.status != "IN_PROGRESS":
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta interacciones en el mundo")
 
 

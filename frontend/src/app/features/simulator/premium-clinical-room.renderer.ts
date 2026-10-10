@@ -6,6 +6,7 @@ import {
   AUTHORED_ROOM_WIDTH,
   isAuthoredClinicalRoomKey,
 } from './authored-clinical-room.util';
+import { ellipseC, frameC, rectC } from './graphics-primitives.util';
 import {
   PREMIUM_RENDERER_LAYERS,
   SceneRenderer,
@@ -149,23 +150,7 @@ export const premiumClinicalRoomRenderer: SceneRenderer = {
 
 // ── Helpers de dibujo (coordenadas centradas, como el resto del runtime) ─────
 
-function rectC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-               w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function frameC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                w: number, h: number, color: number, alpha = 1, line = 2): void {
-  g.lineStyle(line, color, alpha);
-  g.strokeRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function ellipseC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                  w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillEllipse(cx, cy, w, h);
-}
+// rectC, frameC y ellipseC (coordenadas centradas) viven en graphics-primitives.util.ts.
 
 /** Sombra de contacto elíptica en dos pasos (borde suave sin gradientes). */
 function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,

@@ -1,0 +1,19 @@
+classDiagram
+    direction LR
+    class AIProvider {
+        <<abstracta>>
+        +complete(system, question) str
+    }
+    class OpenAIProvider
+    class AnthropicProvider
+    AIProvider <|-- OpenAIProvider
+    AIProvider <|-- AnthropicProvider
+    class test_openai {
+        prueba propia de OpenAI
+    }
+    class test_anthropic {
+        prueba propia de Anthropic
+    }
+    test_openai ..> OpenAIProvider
+    test_anthropic ..> AnthropicProvider
+    note for AIProvider "un proveedor nuevo no hereda ninguna prueba:<br/>cumplir el contrato depende de que alguien la escriba"

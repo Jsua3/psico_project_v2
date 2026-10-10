@@ -1,0 +1,31 @@
+classDiagram
+    direction LR
+    class decision_effects {
+        +resolve() 40, 20 y 15
+        +apply() acota entre 0 y 100
+    }
+    class world_service {
+        +use_tool() -5 o +3, acota 0 y 100
+        +update_position() 960 por 540
+        -_door_entry() 960 por 540
+    }
+    class game_service {
+        +start_attempt() 0, 50 y 50
+    }
+    class case_effects {
+        +read_case_state() 50
+        +apply_case_effects() 50 y 50
+    }
+    class game_dtos {
+        +add_recommendations() estrés >= 70
+    }
+    class authoring_service {
+        +create_case() 960 por 540
+        -_apply_map_request() 960 por 540
+    }
+    class SimulationAttempt {
+        stress_index = 0
+        victim_risk = 50
+        user_trust = 50
+    }
+    note for world_service "26 líneas con el número escrito;<br/>960 x 540 y 50 se repetían<br/>en varios archivos"

@@ -28,15 +28,6 @@ def _private_ok(data):
     return response
 
 
-def _int(value, default=0):
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
 class CasesView(APIView):
     permission_classes = [IsAuthenticated]
 

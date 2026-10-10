@@ -15,8 +15,12 @@ Las opciones se identifican por option_key (estables, definidas por el seed
 seed_caso_pdf). Para opciones fuera del registro la severidad se deriva de la
 clasificación legacy, así otros casos siguen funcionando sin registro propio.
 """
-from apps.simulation.models import AttemptWorldState
-from shared.jsonutils import read_map as _read_map, write_map as _write_map
+from apps.simulation.models import AttemptStatus, AttemptWorldState
+from shared.jsonutils import (
+    clamp as _clamp,
+    read_map as _read_map,
+    write_map as _write_map,
+)
 
 #: Eventos de decisión REGISTRADA: los únicos que cuentan en el reporte y en el
 #: final. La primera respuesta riesgosa/inadecuada de una escena no se aplica
@@ -40,6 +44,8 @@ CASE_METRIC_KEYS = (
     "ruta_institucional",
     "calidad_duelo",
 )
+#: Valor con el que parte cada métrica del caso mientras ninguna opción la haya movido.
+CASE_METRIC_INITIAL = 50
 
 #: Registro canónico de consecuencias por option_key (caso PDF).
 OPTION_EFFECTS = {
@@ -206,10 +212,6 @@ ENDINGS = {
 }
 
 
-def _clamp(value, lo=0, hi=100):
-    return max(lo, min(hi, value))
-
-
 def option_severity(decision):
     """Severidad pedagógica de una opción (registro canónico o clasificación)."""
     entry = OPTION_EFFECTS.get(decision.option_key)
@@ -225,12 +227,12 @@ def _load_state(attempt):
 
 
 def read_case_state(attempt):
-    """(flags, metrics) del caso para el intento — métricas con defaults en 50."""
+    """(flags, metrics) del caso para el intento — métricas con defaults en ``CASE_METRIC_INITIAL``."""
     state = _load_state(attempt)
     raw = _read_map(state.flags_json) if state else {}
     flags = raw.get("caseFlags") if isinstance(raw.get("caseFlags"), dict) else {}
     metrics_raw = raw.get("caseMetrics") if isinstance(raw.get("caseMetrics"), dict) else {}
-    metrics = {key: int(metrics_raw.get(key, 50)) for key in CASE_METRIC_KEYS}
+    metrics = {key: int(metrics_raw.get(key, CASE_METRIC_INITIAL)) for key in CASE_METRIC_KEYS}
     return flags, metrics
 
 
@@ -264,11 +266,11 @@ def apply_case_effects(attempt, decision):
     raw = _read_map(state.flags_json)
     flags = raw.get("caseFlags") if isinstance(raw.get("caseFlags"), dict) else {}
     metrics_raw = raw.get("caseMetrics") if isinstance(raw.get("caseMetrics"), dict) else {}
-    metrics = {key: int(metrics_raw.get(key, 50)) for key in CASE_METRIC_KEYS}
+    metrics = {key: int(metrics_raw.get(key, CASE_METRIC_INITIAL)) for key in CASE_METRIC_KEYS}
 
     flags.update(entry["flags"])
     for key, delta in entry["metrics"].items():
-        metrics[key] = _clamp(metrics.get(key, 50) + delta)
+        metrics[key] = _clamp(metrics.get(key, CASE_METRIC_INITIAL) + delta)
 
     raw["caseFlags"] = flags
     raw["caseMetrics"] = metrics
@@ -290,7 +292,7 @@ def compute_ending(attempt, events):
     Solo aplica a intentos COMPLETED; en otros estados devuelve None.
     Reglas (en orden): crítico → integral → riesgo persistente → brechas.
     """
-    if attempt.status != "COMPLETED":
+    if attempt.status != AttemptStatus.COMPLETED:
         return None
 
     decisions = [

@@ -4,6 +4,8 @@ import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/ht
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
+import { CachedSimulationService } from './core/api/cached-simulation.service';
+import { SimulationService } from './core/api/simulation.service';
 import { jwtInterceptor } from './core/auth/jwt.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { settleWithin } from './core/auth/settle-within.util';
@@ -28,6 +30,8 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     { provide: TitleStrategy, useClass: SiepTitleStrategy },
     provideHttpClient(withXhr(), withInterceptors([jwtInterceptor])),
+    // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
+    { provide: SimulationService, useExisting: CachedSimulationService },
     provideAnimationsAsync(),
     provideAppInitializer(initializeAuthSession),
   ]

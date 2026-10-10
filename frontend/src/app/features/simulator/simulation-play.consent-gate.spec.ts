@@ -128,6 +128,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   }
 
   afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     sessionStorage.clear();
     TestBed.resetTestingModule();
   });

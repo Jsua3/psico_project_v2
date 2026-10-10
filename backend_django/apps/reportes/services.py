@@ -16,6 +16,7 @@ from rest_framework.exceptions import NotFound
 from apps.grupos.models import Grupo
 from apps.simulation.models.attempt import (
     AttemptEvent,
+    AttemptStatus,
     ReflectionJournal,
     SimulationAttempt,
 )
@@ -27,7 +28,7 @@ DECISION_EVENT_TYPES = ["DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED"]
 # SAFE_EXITED ya solo existe en intentos históricos (salida segura terminal, de
 # antes de la pausa reanudable) y sigue puntuando (decisión 2026-10-01). Los
 # intentos en pausa y los reemplazados (REPLACED) no puntúan.
-SCORED_STATUSES = ["COMPLETED", "SAFE_EXITED"]
+SCORED_STATUSES = [AttemptStatus.COMPLETED, AttemptStatus.SAFE_EXITED]
 
 
 def _nombre_completo(user):
@@ -59,7 +60,7 @@ def _safe_exit_attempt_ids(attempts):
     reanude, se complete o se reemplace. Los SAFE_EXITED históricos cuentan
     siempre, porque entonces la salida segura cerraba el intento.
     """
-    ids = {a.id for a in attempts if a.status == "SAFE_EXITED"}
+    ids = {a.id for a in attempts if a.status == AttemptStatus.SAFE_EXITED}
     ids.update(
         AttemptEvent.objects.filter(
             attempt_id__in=[a.id for a in attempts], event_type="SAFE_EXIT_REQUESTED"
@@ -92,13 +93,13 @@ def get_dashboard():
     # «Completada» es solo COMPLETED: SAFE_EXITED es una interrupción y la UI la
     # rotula «Interrumpido». Los promedios usan SCORED_STATUSES.
     simulaciones_completadas_hoy = SimulationAttempt.objects.filter(
-        status="COMPLETED", ended_at__gte=start_of_day
+        status=AttemptStatus.COMPLETED, ended_at__gte=start_of_day
     ).count()
     simulaciones_en_progreso = SimulationAttempt.objects.filter(
-        status="IN_PROGRESS"
+        status=AttemptStatus.IN_PROGRESS
     ).count()
     simulaciones_completadas = SimulationAttempt.objects.filter(
-        status="COMPLETED"
+        status=AttemptStatus.COMPLETED
     ).count()
     avg_sim = float(
         SimulationAttempt.objects.filter(status__in=SCORED_STATUSES).aggregate(
@@ -196,9 +197,9 @@ def _build_simulation_report(grupo, case_version_id):
     if not attempts:
         return _empty_simulation_report()
 
-    completados = sum(1 for a in attempts if a.status == "COMPLETED")
-    en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
-    en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
+    completados = sum(1 for a in attempts if a.status == AttemptStatus.COMPLETED)
+    en_progreso = sum(1 for a in attempts if a.status == AttemptStatus.IN_PROGRESS)
+    en_pausa = sum(1 for a in attempts if a.status == AttemptStatus.PAUSED)
     safe_exit_ids = _safe_exit_attempt_ids(attempts)
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje_promedio = (
@@ -236,9 +237,9 @@ def _build_simulation_report(grupo, case_version_id):
 def _estudiante_sim_dto(student, attempts, safe_exit_ids=None):
     if safe_exit_ids is None:
         safe_exit_ids = _safe_exit_attempt_ids(attempts)
-    completados = sum(1 for a in attempts if a.status == "COMPLETED")
-    en_progreso = sum(1 for a in attempts if a.status == "IN_PROGRESS")
-    en_pausa = sum(1 for a in attempts if a.status == "PAUSED")
+    completados = sum(1 for a in attempts if a.status == AttemptStatus.COMPLETED)
+    en_progreso = sum(1 for a in attempts if a.status == AttemptStatus.IN_PROGRESS)
+    en_pausa = sum(1 for a in attempts if a.status == AttemptStatus.PAUSED)
     salida_segura = sum(1 for a in attempts if a.id in safe_exit_ids)
     scored = [a for a in attempts if a.status in SCORED_STATUSES]
     puntaje = sum(a.accumulated_score for a in scored) / len(scored) if scored else 0.0
@@ -250,7 +251,7 @@ def _estudiante_sim_dto(student, attempts, safe_exit_ids=None):
         estado = "EN_PAUSA"
     elif completados > 0:
         estado = "COMPLETADO"
-    elif any(a.status == "SAFE_EXITED" for a in attempts):
+    elif any(a.status == AttemptStatus.SAFE_EXITED for a in attempts):
         estado = "SAFE_EXITED"
     else:
         estado = "PENDIENTE"

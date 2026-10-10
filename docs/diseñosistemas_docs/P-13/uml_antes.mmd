@@ -1,0 +1,10 @@
+classDiagram
+    direction LR
+    class game_service {
+        +choose_decision()
+    }
+    class progression_services {
+        +record_case_completion()
+    }
+    game_service ..> progression_services : import tardío + llamada en línea
+    note for game_service "el servicio del juego conoce a quien reacciona:<br/>agregar otra reacción obliga a editarlo"

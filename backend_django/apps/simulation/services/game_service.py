@@ -8,7 +8,11 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.simulation.models import (
+    INITIAL_STRESS_INDEX,
+    INITIAL_USER_TRUST,
+    INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptStatus,
     CaseVersion,
     DecisionOption,
     ReflectionJournal,
@@ -16,9 +20,12 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
+from apps.simulation.signals import attempt_completed
+from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
+from .node_iterator import BreadthFirstNodeIterator
 
 
 def _hash_token(raw_token: str) -> str:
@@ -138,11 +145,11 @@ def _close_active_attempts(student_id, case_version_id, reason):
     # Es un reemplazo, no una salida segura: estado y evento propios.
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
-        status__in=["IN_PROGRESS", "PAUSED"],
+        status__in=lifecycle.OPEN_STATUSES,
     )
     now = timezone.now()
     for active in actives:
-        active.status = "REPLACED"
+        lifecycle.apply(active, lifecycle.REPLACE)
         active.ended_at = now
         active.locked_at = now
         active.save()
@@ -162,7 +169,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         active = (
             SimulationAttempt.objects.filter(
                 student_id=actor.id, case_version_id=case_version_id,
-                status__in=["IN_PROGRESS", "PAUSED"],
+                status__in=lifecycle.OPEN_STATUSES,
             )
             .select_related("case_version__simulation_case", "current_node")
             .order_by("-started_at")
@@ -183,11 +190,11 @@ def start_attempt(case_version_id, actor, force_new=False):
         case_version=version,
         student_id=actor.id,
         current_node=start_node,
-        status="IN_PROGRESS",
+        status=lifecycle.INITIAL_STATUS,
         accumulated_score=0,
-        stress_index=0,
-        victim_risk=50,
-        user_trust=50,
+        stress_index=INITIAL_STRESS_INDEX,
+        victim_risk=INITIAL_VICTIM_RISK,
+        user_trust=INITIAL_USER_TRUST,
         institutional_route_activated=False,
         revictimization_risk=False,
     )
@@ -201,7 +208,7 @@ def find_active_attempt(case_version_id, actor):
     active = (
         SimulationAttempt.objects.filter(
             student_id=actor.id, case_version_id=case_version_id,
-            status__in=["IN_PROGRESS", "PAUSED"],
+            status__in=lifecycle.OPEN_STATUSES,
         )
         .select_related("case_version__simulation_case", "current_node")
         .order_by("-started_at")
@@ -219,7 +226,7 @@ def get_attempt(attempt_id, attempt_token, actor):
 
 def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == "IN_PROGRESS":
+    if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
     events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
     return dto.build_completion_report(attempt, events)
@@ -334,7 +341,7 @@ def choose_decision(
     evidence_override=False, missing_evidence=None,
 ):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta decisiones")
 
     decision = (
@@ -398,17 +405,18 @@ def choose_decision(
 
     if decision.target_node.terminal_node:
         now = timezone.now()
-        attempt.status = "COMPLETED"
+        lifecycle.apply(attempt, lifecycle.COMPLETE)
         attempt.ended_at = now
         attempt.locked_at = now
         _lock_reflections(attempt)
 
     attempt.save()
 
-    if attempt.status == "COMPLETED":
+    if attempt.status == AttemptStatus.COMPLETED:
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
-        from apps.progression.services import record_case_completion
-        record_case_completion(attempt.student_id, attempt.case_version.simulation_case_id)
+        # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
+        # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
+        attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
     feedback = dto.feedback_dto(decision, effects, message)
     return dto.attempt_state(attempt, attempt_token, feedback)
@@ -417,7 +425,7 @@ def choose_decision(
 @transaction.atomic
 def save_reflection(attempt_id, attempt_token, node_id, text, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("La bitácora ya está bloqueada")
     if not text or not text.strip():
         raise ValidationError("La bitácora requiere texto")
@@ -434,7 +442,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor):
         reflection = ReflectionJournal(attempt=attempt, node=node)
     reflection.encrypted_text = crypto_service.encrypt(text)
     reflection.encryption_key_ref = crypto_service.key_ref()
-    reflection.locked = attempt.status != "IN_PROGRESS"
+    reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 
     _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada")
@@ -450,9 +458,9 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     llamada devuelve el estado sin duplicar eventos.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
         return dto.attempt_state(attempt, attempt_token, None)
-    attempt.status = "PAUSED"
+    lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
@@ -467,11 +475,12 @@ def resume_attempt(attempt_id, attempt_token, actor):
     registrar un segundo evento. Cualquier otro estado es un error explícito.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == "IN_PROGRESS":
+    state = lifecycle.state_of(attempt)
+    if state.plays:
         return dto.attempt_state(attempt, attempt_token, None)
-    if attempt.status != "PAUSED":
+    if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
-    attempt.status = "IN_PROGRESS"
+    lifecycle.apply(attempt, lifecycle.RESUME)
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
     return dto.attempt_state(attempt, attempt_token, None)
@@ -482,29 +491,10 @@ def get_progress_map(attempt_id, attempt_token, actor):
     case_version_id = attempt.case_version_id
 
     all_nodes = list(SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id"))
-    by_id = {n.id: n for n in all_nodes}
-    start = next((n for n in all_nodes if n.start_node), all_nodes[0] if all_nodes else None)
-
-    adjacency = {n.id: [] for n in all_nodes}
-    for d in DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id"):
-        adjacency.setdefault(d.source_node_id, []).append(d.target_node_id)
-
-    ordered = []
-    visited = set()
-    queue = [start.id] if start else []
-    while queue:
-        cur = queue.pop(0)
-        if cur in visited:
-            continue
-        visited.add(cur)
-        if cur in by_id:
-            ordered.append(by_id[cur])
-        for nxt in adjacency.get(cur, []):
-            if nxt not in visited:
-                queue.append(nxt)
-    for n in all_nodes:
-        if n.id not in visited:
-            ordered.append(n)
+    edges = DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id").values_list(
+        "source_node_id", "target_node_id"
+    )
+    ordered = BreadthFirstNodeIterator(all_nodes, edges)
 
     visited_keys = list(dict.fromkeys(
         ev.node.node_key

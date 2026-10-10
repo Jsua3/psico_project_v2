@@ -1,0 +1,28 @@
+classDiagram
+    direction LR
+    class authoring_views {
+        28 endpoints del editor de casos
+    }
+    class authoring_service {
+        <<un solo módulo: 1266 líneas>>
+        +list_authoring_cases() create_case()
+        +editor() «vista de lectura»
+        +create / update / delete: node, decision
+        +create / update / delete: map, object, dialogue
+        +create / update / delete: tool
+        +update_checklist() publish() clone_version()
+        +world_editor() save_world() validate_world()
+        -require_version() ensure_draft() «guardas»
+        -clone_nodes() node_editor_state() «DTO»
+        -auditable(...) x 22 «al final del archivo»
+    }
+    class modelos_y_servicios {
+        14 modelos
+        game_dtos
+        case_cloning
+        world_validation
+        audit_service
+    }
+    authoring_views ..> authoring_service : svc.operacion()
+    authoring_service ..> modelos_y_servicios
+    note for authoring_service "ocho responsabilidades en un archivo:<br/>tocar la validación del mundo obliga a abrir<br/>el mismo módulo que la auditoría o el clonado"

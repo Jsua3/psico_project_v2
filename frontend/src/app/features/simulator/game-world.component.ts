@@ -7,7 +7,6 @@ import { backgroundImage } from './world-editor/room-edit.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
-  HOSPITAL_ZONES,
   isHospitalMap,
 } from './hospital-map.config';
 import {
@@ -22,10 +21,10 @@ import {
   getSceneDisplayLabel,
 } from './scene-map-display.util';
 import {
-  AVOIDANT_TRIGGER_RANGE, avoidantTarget, effectiveNpcBehavior, freeTileNear,
-  MovementPattern, nextAnchorIndex, npcPause, npcSpeed, npcZone, pickWanderTarget,
-  pickZoneTarget, reached, resolvePattern, stepToward,
+  effectiveNpcBehavior, freeTileNear, MovementPattern, npcPause, npcSpeed, npcZone,
+  reached, resolvePattern, stepToward,
 } from './scene-motion.util';
+import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import {
@@ -960,20 +959,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.add.text(16, 12, this.world.map.title, {
       fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
     }).setDepth(6).setScrollFactor(0);   // pin to screen — stays top-left as camera scrolls
-    if (isHospitalMap(mapKey)) {
-      this.add.text(56, 66, 'Hospital — Urgencia vital y crisis', {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: 'rgba(157,192,232,.72)',
-      }).setDepth(6);
-    }
     if (isComisariaMap(mapKey)) {
       this.add.text(56, 66, 'Comisaría — Restablecimiento de derechos', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: 'rgba(157,192,232,.72)',
       }).setDepth(6);
     }
 
-    if (isHospitalMap(mapKey)) {
-      this.renderHospitalEnvironment();
-    }
     if (isComisariaMap(mapKey)) {
       this.renderComisariaEnvironment();
     }
@@ -984,7 +975,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const t = tiledObjects.find(o => o.name === obj.key);
       return (t?.x != null && t?.y != null) ? { ...obj, x: t.x, y: t.y } : obj;
     });
-    if (isHospitalMap(mapKey) || isComisariaMap(mapKey)) {
+    if (isComisariaMap(mapKey)) {
       mergedObjects = applySceneDisplayLabels(mergedObjects, mapKey);
     }
 
@@ -1326,32 +1317,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         const anchor = anchors.length ? anchors[mover.anchorIdx] : null;
         this.applyNpcPose(mover, container, (anchor?.face as PlayerDirection | undefined) ?? dir, false);
         mover.pauseUntil = time + npcPause(mover.cfg, anchor);
-        if ((mover.cfg.behavior === 'pace' || mover.cfg.behavior === 'patrol') && anchors.length) {
-          mover.anchorIdx = nextAnchorIndex(mover.anchorIdx, anchors.length);
-        }
+        mover.anchorIdx = npcMotionStrategyFor(mover.cfg.behavior).anchorAfterArrival(mover.anchorIdx, anchors.length);
         mover.target = null;
       }
     }
   }
 
   private nextNpcTarget(mover: NpcMover, container: Phaser.GameObjects.Container): { x: number; y: number } | null {
-    const behavior = mover.cfg.behavior;
-    if (behavior === 'subtle-wander') {
-      const candidate = pickZoneTarget(mover.zone, Math.random);
-      return this.wouldCollide(candidate.x, candidate.y) ? null : candidate;
-    }
-    if ((behavior === 'pace' || behavior === 'patrol') && mover.cfg.anchors?.length) {
-      const anchor = mover.cfg.anchors[mover.anchorIdx];
-      return { x: anchor.x, y: anchor.y };
-    }
-    if (behavior === 'avoidant') {
-      if (!this.player) return null;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (d > AVOIDANT_TRIGGER_RANGE) return null;
-      const candidate = avoidantTarget(mover.zone, container, this.player, Math.random);
-      return this.wouldCollide(candidate.x, candidate.y) ? null : candidate;
-    }
-    return null;
+    return npcMotionStrategyFor(mover.cfg.behavior).nextTarget({
+      zone: mover.zone,
+      anchors: mover.cfg.anchors,
+      anchorIdx: mover.anchorIdx,
+      from: container,
+      player: this.player ?? null,
+      rand: Math.random,
+      isBlocked: (x, y) => this.wouldCollide(x, y),
+    });
   }
 
   /** Reposo del NPC mirando a `direction` (las 4 filas del kit son reales). */
@@ -1507,72 +1488,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       if (kind === 'crisis' && !this.callbacks.reduceMotion) {
         this.tweens.add({ targets: container, x: container.x + 2, duration: 60, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
       }
-    }
-  }
-
-  private renderHospitalEnvironment() {
-    const g = this.add.graphics().setDepth(3.5);
-
-    HOSPITAL_ZONES.forEach(zone => {
-      const cx = zone.x + zone.width / 2;
-      const cy = zone.y + zone.height / 2;
-      this.add.rectangle(cx, cy, zone.width, zone.height, zone.tint, zone.alpha)
-        .setStrokeStyle(1, 0x4f7cac, 0.35)
-        .setDepth(3.5);
-      this.add.text(zone.x + 8, zone.y + 6, zone.label, {
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '9px',
-        color: 'rgba(157,192,232,.75)',
-        backgroundColor: 'rgba(8,12,18,.5)',
-        padding: { x: 4, y: 2 },
-      }).setDepth(4).setAlpha(0.85);
-    });
-
-    // Internal partitions
-    g.lineStyle(2, 0x4f7cac, 0.45);
-    g.lineBetween(604, 44, 604, 324);
-    g.lineBetween(604, 360, 604, 496);
-    g.lineBetween(334, 280, 334, 496);
-    g.lineBetween(620, 44, 910, 44);
-    g.lineBetween(620, 200, 910, 200);
-    // Restricted-area barrier
-    g.lineStyle(2, 0xa85062, 0.65);
-    g.strokeRect(620, 48, 290, 160);
-
-    // Entrance signage
-    this.add.text(72, 392, 'URGENCIAS', {
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '13px',
-      color: '#e8f0f4',
-      fontStyle: 'bold',
-      backgroundColor: 'rgba(168,80,98,.82)',
-      padding: { x: 8, y: 4 },
-    }).setDepth(6);
-
-    // Figurantes (spec §7.2): la receta de figurantes, con los pies donde antes terminaba el sprite.
-    this.addExtra(150, 264);
-    this.add.text(150, 276, 'Abuela', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#e8c4b8',
-        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
-      }).setOrigin(0.5, 0).setDepth(8);
-    this.addExtra(230, 284);
-    this.add.text(230, 294, 'Hermano', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8d4ff',
-        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
-      }).setOrigin(0.5, 0).setDepth(8);
-    this.addExtra(110, 446);
-    this.add.text(110, 458, 'Seguridad', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
-        backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
-      }).setOrigin(0.5, 0).setDepth(8);
-
-    if (this.assetsLoaded && this.textures.exists('dungeon-tiles')) {
-      // Waiting-room chairs and reception desk
-      [[380, 340], [420, 340], [380, 380], [420, 380]].forEach(([x, y]) => {
-        this.add.image(x, y, 'dungeon-tiles', KenneyDungeonFrames.CHAIR).setScale(2).setDepth(7);
-      });
-      this.add.image(560, 160, 'dungeon-tiles', KenneyDungeonFrames.DESK).setScale(2).setDepth(7);
-      this.add.image(700, 100, 'dungeon-tiles', KenneyDungeonFrames.CABINET).setScale(2).setDepth(7);
     }
   }
 
@@ -2137,15 +2052,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private nextAmbientTarget(mover: AmbientMover): { x: number; y: number } | null {
-    if (mover.pattern.type === 'wander') {
-      return pickWanderTarget(mover.origin, mover.pattern.radius, Math.random);
-    }
-    if (mover.pattern.type === 'patrol' && mover.pattern.points.length) {
-      mover.patrolIdx = (mover.patrolIdx + 1) % mover.pattern.points.length;
-      const [x, y] = mover.pattern.points[mover.patrolIdx];
-      return { x, y };
-    }
-    return null;
+    const step = nextAmbientStep(mover.pattern, mover, Math.random);
+    mover.patrolIdx = step.patrolIdx;
+    return step.target;
   }
 
   /** One tasteful scene-level effect: faint, slow-rising dust motes. */

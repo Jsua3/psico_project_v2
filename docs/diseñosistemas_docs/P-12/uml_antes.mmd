@@ -1,0 +1,23 @@
+classDiagram
+    direction LR
+    class game_service {
+        +choose_decision()
+        +save_reflection()
+        +safe_exit()
+        +resume_attempt()
+        +start_attempt()
+        -_close_active_attempts()
+    }
+    class world_service {
+        +update_position()
+        +open_interaction()
+        +use_tool()
+        +enter_room()
+    }
+    class SimulationAttempt {
+        +status
+    }
+    game_service ..> SimulationAttempt : status == / != AttemptStatus.X
+    world_service ..> SimulationAttempt : status != AttemptStatus.IN_PROGRESS
+    note for game_service "cada operación decide por su cuenta<br/>qué estados acepta y cuál asigna:<br/>8 comparaciones, 5 asignaciones y 3 filtros<br/>nada impide escribir una transición inválida"
+    note for world_service "dos guardas más, con mensajes distintos"

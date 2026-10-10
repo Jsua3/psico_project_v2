@@ -1,0 +1,42 @@
+classDiagram
+    direction LR
+    class DataDrivenWorldScene {
+        -nextNpcTarget()
+        -nextAmbientTarget()
+    }
+    class NpcMotionStrategy {
+        <<interface>>
+        +nextTarget(ctx)
+        +anchorAfterArrival(idx, count)
+    }
+    class stationary {
+        idle y attentive
+    }
+    class subtleWander
+    class anchorRoute {
+        pace y patrol
+    }
+    class avoidant
+    class NPC_MOTION_STRATEGIES {
+        <<registro>>
+        Record NpcMotionBehavior
+    }
+    class AmbientMotionStrategy {
+        <<interface>>
+        +nextTarget(pattern, state, rand)
+    }
+    class idleAmbient
+    class wanderAmbient
+    class patrolAmbient
+    NpcMotionStrategy <|.. stationary
+    NpcMotionStrategy <|.. subtleWander
+    NpcMotionStrategy <|.. anchorRoute
+    NpcMotionStrategy <|.. avoidant
+    AmbientMotionStrategy <|.. idleAmbient
+    AmbientMotionStrategy <|.. wanderAmbient
+    AmbientMotionStrategy <|.. patrolAmbient
+    NPC_MOTION_STRATEGIES o-- NpcMotionStrategy : una por comportamiento
+    DataDrivenWorldScene ..> NPC_MOTION_STRATEGIES : npcMotionStrategyFor(behavior)
+    DataDrivenWorldScene ..> AmbientMotionStrategy : nextAmbientStep(pattern)
+    note for NpcMotionStrategy "sin Phaser: el azar, la posición<br/>y los obstáculos se inyectan<br/>cada regla se prueba sola"
+    note for NPC_MOTION_STRATEGIES "agregar un comportamiento = una entrada;<br/>el compilador exige cubrir la unión completa"

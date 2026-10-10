@@ -20,6 +20,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import AuditLog, CaseVersion
+from apps.simulation.services import ai_providers
 from apps.simulation.views.ai_assistant import AIAssistantView
 from psychosim.settings import base as base_settings
 
@@ -74,7 +75,7 @@ def sin_proveedor(monkeypatch):
         raise AssertionError("no debe consultarse al proveedor externo")
 
     monkeypatch.setattr(AIAssistantView, "_call_llm", _prohibido)
-    monkeypatch.setattr(AIAssistantView, "_post_json", staticmethod(_prohibido))
+    monkeypatch.setattr(ai_providers, "post_json", _prohibido)
 
 
 def _load_base_settings():

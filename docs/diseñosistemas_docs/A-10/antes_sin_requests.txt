@@ -1,0 +1,10 @@
+requirements.txt de adsi/integracion (cb5cd89): google-auth==2.59.1 y NO requests
+------------------------------------------------------------------------
+$ pip list | findstr "requests google-auth"
+google-auth==2.59.1
+$ python -c "from google.auth.transport import requests"
+ImportError: The requests library is not installed from please install the requests package to use the requests transport.
+$ sonda: POST /api/auth/google con una credencial inválida (código real, sin simular módulos)
+paquete requests: NO instalado
+POST /api/auth/google (credencial inválida) -> HTTP 400
+mensaje: El proveedor de Google no está instalado en el backend

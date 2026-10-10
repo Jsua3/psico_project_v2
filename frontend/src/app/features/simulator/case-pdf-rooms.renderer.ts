@@ -2,6 +2,7 @@
 import type Phaser from 'phaser';
 import { DEPTH, actorDepth } from './depth-sort.util';
 import { caseRoomKind } from './case-pdf-rooms.geometry';
+import { ellipseC, frameC, rectC } from './graphics-primitives.util';
 import {
   PREMIUM_RENDERER_LAYERS,
   SceneRenderer,
@@ -136,23 +137,7 @@ export function caseRoomMetadata(kind: string): SceneRenderMetadata {
 
 // ── Helpers de dibujo (mismo idioma que la sala premium) ──────────────────────
 
-function rectC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-               w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function frameC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                w: number, h: number, color: number, alpha = 1, line = 2): void {
-  g.lineStyle(line, color, alpha);
-  g.strokeRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function ellipseC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                  w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillEllipse(cx, cy, w, h);
-}
+// rectC, frameC y ellipseC (coordenadas centradas) viven en graphics-primitives.util.ts.
 
 function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
                        w: number, h: number, alpha = 0.3): void {
@@ -257,7 +242,7 @@ function paintShell(scene: Phaser.Scene, options: SceneRendererOptions, pal: Roo
 }
 
 /** Pools de luz + viñeta (estático — respeta reduced motion por diseño). */
-function paintLighting(scene: Phaser.Scene, pal: RoomPalette, pools: ScenePoint[]): void {
+function paintLighting(scene: Phaser.Scene, pal: RoomPalette, pools: readonly ScenePoint[]): void {
   const g = scene.add.graphics().setDepth(DEPTH.LIGHTING_FLOOR);
   for (const pool of pools) {
     ellipseC(g, pool.x, pool.y, 300, 120, pal.lightColor, pal.lightAlpha);
@@ -517,114 +502,158 @@ function paintClock(g: Phaser.GameObjects.Graphics, cx: number, cy: number): voi
   g.lineBetween(cx, cy, cx + 4, cy + 1);
 }
 
-// ── Render por sala ───────────────────────────────────────────────────────────
+// ── Render por sala (Template Method) ─────────────────────────────────────────
 
-function renderUrgencias(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata {
-  const pal = PALETTES['hospital-urgencias'];
-  paintShell(scene, options, pal);
-  const wall = scene.add.graphics().setDepth(DEPTH.ENVIRONMENT);
-  paintWindowCool(wall, 170, 118);
-  paintHealthSign(wall, 280, 120);
-  paintRestrictedDoor(scene, wall, 660, 150);
-  paintClock(wall, 480, 110);
-  scene.add.text(395, 156, 'TRIAGE', {
-    fontFamily: 'monospace', fontSize: '9px', color: '#9fd4cc',
-  }).setOrigin(0.5).setAlpha(0.8).setDepth(DEPTH.ENVIRONMENT);
-  // Muebles anclados a CASE_ROOM_FURNITURE['hospital-urgencias'].
-  paintCounter(scene, 490, 268, 220, 0x24414f, 0x9fc4d8, pal.accent);
-  paintWaitingChairs(scene, 195, 318, 0x2e4d62);
-  paintGurney(scene, 755, 312);
-  paintPlant(scene, 822, 388, 1.05);
-  paintLighting(scene, pal, [{ x: 480, y: 320 }, { x: 760, y: 360 }]);
-  return caseRoomMetadata('hospital-urgencias');
-}
+/**
+ * Una sala del caso. `render` es el método plantilla: fija el orden de las capas (cascarón →
+ * pared → piso → muebles → luz → metadata) y cada sala aporta sus pasos. Las capas que se pintan
+ * después quedan por encima de las anteriores, así que el orden es parte del arte: no se cambia
+ * en una subclase.
+ */
+export abstract class CaseRoom {
+  /** Clave de la sala (`hospital-urgencias`…): elige la paleta, la metadata y el renderer. */
+  abstract readonly kind: string;
+  /** Centros de los pozos de luz del suelo. */
+  protected abstract readonly lightPools: readonly ScenePoint[];
 
-function renderSalaEscucha(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata {
-  const pal = PALETTES['hospital-sala-escucha'];
-  paintShell(scene, options, pal);
-  const wall = scene.add.graphics().setDepth(DEPTH.ENVIRONMENT);
-  paintWindowWarm(wall, 200, 122);
-  paintCalmArt(wall, 480, 126);
-  paintClock(wall, 700, 110);
-  // Alfombra cálida bajo el área de escucha.
-  const rug = scene.add.graphics().setDepth(DEPTH.GRID + 1);
-  rectC(rug, 250, 396, 250, 110, 0x4a3340, 0.95);
-  rectC(rug, 250, 396, 234, 96, 0x553a48, 1);
-  frameC(rug, 250, 396, 216, 80, pal.accent, 0.25, 1);
-  // Muebles anclados a CASE_ROOM_FURNITURE['hospital-sala-escucha'].
-  paintSofa(scene, 195, 322);
-  paintCoffeeTable(scene, 325, 384);
-  paintLowCabinet(scene, 675, 270, 150, pal.accent);
-  paintChair(scene, 708, 340, 0x6a4250);
-  // Lámpara de pie cálida (esquina derecha).
-  const lamp = scene.add.graphics().setDepth(actorDepth(420));
-  contactShadow(lamp, 826, 424, 30, 9, 0.25);
-  rectC(lamp, 826, 400, 4, 46, 0x33241c);
-  ellipseC(lamp, 826, 372, 30, 18, 0xe8b46a, 0.9);
-  ellipseC(lamp, 826, 372, 44, 28, 0xffd28a, 0.18);
-  paintLighting(scene, pal, [{ x: 250, y: 380 }, { x: 700, y: 350 }]);
-  return caseRoomMetadata('hospital-sala-escucha');
-}
-
-function renderRecepcion(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata {
-  const pal = PALETTES['comisaria-recepcion'];
-  paintShell(scene, options, pal);
-  const wall = scene.add.graphics().setDepth(DEPTH.ENVIRONMENT);
-  paintInstitutionalSign(scene, wall, 480, 120);
-  paintWindowCool(wall, 180, 122);
-  paintClock(wall, 760, 108);
-  // Tablón de avisos institucional.
-  rectC(wall, 700, 160, 64, 44, 0x241a10);
-  rectC(wall, 700, 160, 56, 36, 0x8a93a8);
-  for (const [nx, ny] of [[-14, -8], [6, -10], [16, 4], [-6, 8]] as const) {
-    rectC(wall, 700 + nx, 160 + ny, 13, 11, PAPER);
+  render(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata {
+    const palette = PALETTES[this.kind];
+    paintShell(scene, options, palette);
+    const wall = scene.add.graphics().setDepth(DEPTH.ENVIRONMENT);
+    this.paintWall(scene, wall, palette);
+    this.paintFloor(scene, palette);
+    this.paintFurniture(scene, palette);
+    paintLighting(scene, palette, this.lightPools);
+    return caseRoomMetadata(this.kind);
   }
-  // Muebles anclados a CASE_ROOM_FURNITURE['comisaria-recepcion'].
-  paintCounter(scene, 490, 268, 220, 0x303a4e, 0x8a93a8, pal.accent);
-  paintFileCabinets(scene, 765, 266, 130);
-  paintWaitingChairs(scene, 195, 318, 0x3a4458);
-  paintLighting(scene, pal, [{ x: 480, y: 330 }, { x: 200, y: 380 }]);
-  return caseRoomMetadata('comisaria-recepcion');
+
+  /** Decoración de la pared (ventana, cartel, reloj…) sobre el gráfico `wall` ya creado. */
+  protected abstract paintWall(scene: Phaser.Scene, wall: Phaser.GameObjects.Graphics, palette: RoomPalette): void;
+
+  /** Gancho: lo que va sobre el piso y bajo los muebles (una alfombra). Por defecto, nada. */
+  protected paintFloor(_scene: Phaser.Scene, _palette: RoomPalette): void { /* sin decoración de piso */ }
+
+  /** Muebles, anclados a `CASE_ROOM_FURNITURE[kind]` (la huella de colisión vive en la geometría). */
+  protected abstract paintFurniture(scene: Phaser.Scene, palette: RoomPalette): void;
 }
 
-function renderConsultorio(scene: Phaser.Scene, options: SceneRendererOptions): SceneRenderMetadata {
-  const pal = PALETTES['comisaria-consultorio'];
-  paintShell(scene, options, pal);
-  const wall = scene.add.graphics().setDepth(DEPTH.ENVIRONMENT);
-  paintRightsPoster(scene, wall, 250, 128);
-  paintClock(wall, 480, 108);
-  // Diploma + repisa con carpetas.
-  rectC(wall, 600, 124, 56, 40, 0x241a10);
-  rectC(wall, 600, 124, 46, 30, PAPER);
-  rectC(wall, 600, 130, 30, 2, 0x8a93a8);
-  rectC(wall, 740, 150, 110, 6, 0x4a3a2c);
-  for (const [dx, color] of [[-30, 0x7f3f3f], [-12, 0x3f5f92], [6, 0x3d6b4f], [24, 0xa87934]] as const) {
-    rectC(wall, 740 + dx, 138, 11, 18, color);
+class UrgenciasRoom extends CaseRoom {
+  readonly kind = 'hospital-urgencias';
+  protected readonly lightPools = [{ x: 480, y: 320 }, { x: 760, y: 360 }];
+
+  protected paintWall(scene: Phaser.Scene, wall: Phaser.GameObjects.Graphics): void {
+    paintWindowCool(wall, 170, 118);
+    paintHealthSign(wall, 280, 120);
+    paintRestrictedDoor(scene, wall, 660, 150);
+    paintClock(wall, 480, 110);
+    scene.add.text(395, 156, 'TRIAGE', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#9fd4cc',
+    }).setOrigin(0.5).setAlpha(0.8).setDepth(DEPTH.ENVIRONMENT);
   }
-  // Muebles anclados a CASE_ROOM_FURNITURE['comisaria-consultorio'].
-  paintDesk(scene, 530, 290, 180);
-  paintFileCabinets(scene, 805, 268, 90);
-  paintChair(scene, 402, 360, 0x3e584f);
-  paintChair(scene, 582, 360, 0x3e584f);
-  paintPlant(scene, 132, 388, 1.1);
-  paintLighting(scene, pal, [{ x: 520, y: 340 }, { x: 220, y: 400 }]);
-  return caseRoomMetadata('comisaria-consultorio');
+
+  protected paintFurniture(scene: Phaser.Scene, pal: RoomPalette): void {
+    paintCounter(scene, 490, 268, 220, 0x24414f, 0x9fc4d8, pal.accent);
+    paintWaitingChairs(scene, 195, 318, 0x2e4d62);
+    paintGurney(scene, 755, 312);
+    paintPlant(scene, 822, 388, 1.05);
+  }
+}
+
+class SalaEscuchaRoom extends CaseRoom {
+  readonly kind = 'hospital-sala-escucha';
+  protected readonly lightPools = [{ x: 250, y: 380 }, { x: 700, y: 350 }];
+
+  protected paintWall(_scene: Phaser.Scene, wall: Phaser.GameObjects.Graphics): void {
+    paintWindowWarm(wall, 200, 122);
+    paintCalmArt(wall, 480, 126);
+    paintClock(wall, 700, 110);
+  }
+
+  /** Alfombra cálida bajo el área de escucha. */
+  protected override paintFloor(scene: Phaser.Scene, pal: RoomPalette): void {
+    const rug = scene.add.graphics().setDepth(DEPTH.GRID + 1);
+    rectC(rug, 250, 396, 250, 110, 0x4a3340, 0.95);
+    rectC(rug, 250, 396, 234, 96, 0x553a48, 1);
+    frameC(rug, 250, 396, 216, 80, pal.accent, 0.25, 1);
+  }
+
+  protected paintFurniture(scene: Phaser.Scene, pal: RoomPalette): void {
+    paintSofa(scene, 195, 322);
+    paintCoffeeTable(scene, 325, 384);
+    paintLowCabinet(scene, 675, 270, 150, pal.accent);
+    paintChair(scene, 708, 340, 0x6a4250);
+    // Lámpara de pie cálida (esquina derecha).
+    const lamp = scene.add.graphics().setDepth(actorDepth(420));
+    contactShadow(lamp, 826, 424, 30, 9, 0.25);
+    rectC(lamp, 826, 400, 4, 46, 0x33241c);
+    ellipseC(lamp, 826, 372, 30, 18, 0xe8b46a, 0.9);
+    ellipseC(lamp, 826, 372, 44, 28, 0xffd28a, 0.18);
+  }
+}
+
+class RecepcionRoom extends CaseRoom {
+  readonly kind = 'comisaria-recepcion';
+  protected readonly lightPools = [{ x: 480, y: 330 }, { x: 200, y: 380 }];
+
+  protected paintWall(scene: Phaser.Scene, wall: Phaser.GameObjects.Graphics): void {
+    paintInstitutionalSign(scene, wall, 480, 120);
+    paintWindowCool(wall, 180, 122);
+    paintClock(wall, 760, 108);
+    // Tablón de avisos institucional.
+    rectC(wall, 700, 160, 64, 44, 0x241a10);
+    rectC(wall, 700, 160, 56, 36, 0x8a93a8);
+    for (const [nx, ny] of [[-14, -8], [6, -10], [16, 4], [-6, 8]] as const) {
+      rectC(wall, 700 + nx, 160 + ny, 13, 11, PAPER);
+    }
+  }
+
+  protected paintFurniture(scene: Phaser.Scene, pal: RoomPalette): void {
+    paintCounter(scene, 490, 268, 220, 0x303a4e, 0x8a93a8, pal.accent);
+    paintFileCabinets(scene, 765, 266, 130);
+    paintWaitingChairs(scene, 195, 318, 0x3a4458);
+  }
+}
+
+class ConsultorioRoom extends CaseRoom {
+  readonly kind = 'comisaria-consultorio';
+  protected readonly lightPools = [{ x: 520, y: 340 }, { x: 220, y: 400 }];
+
+  protected paintWall(scene: Phaser.Scene, wall: Phaser.GameObjects.Graphics): void {
+    paintRightsPoster(scene, wall, 250, 128);
+    paintClock(wall, 480, 108);
+    // Diploma + repisa con carpetas.
+    rectC(wall, 600, 124, 56, 40, 0x241a10);
+    rectC(wall, 600, 124, 46, 30, PAPER);
+    rectC(wall, 600, 130, 30, 2, 0x8a93a8);
+    rectC(wall, 740, 150, 110, 6, 0x4a3a2c);
+    for (const [dx, color] of [[-30, 0x7f3f3f], [-12, 0x3f5f92], [6, 0x3d6b4f], [24, 0xa87934]] as const) {
+      rectC(wall, 740 + dx, 138, 11, 18, color);
+    }
+  }
+
+  protected paintFurniture(scene: Phaser.Scene): void {
+    paintDesk(scene, 530, 290, 180);
+    paintFileCabinets(scene, 805, 268, 90);
+    paintChair(scene, 402, 360, 0x3e584f);
+    paintChair(scene, 582, 360, 0x3e584f);
+    paintPlant(scene, 132, 388, 1.1);
+  }
 }
 
 // ── Renderers registrables ────────────────────────────────────────────────────
 
-const RENDER_BY_KIND: Record<string, (s: Phaser.Scene, o: SceneRendererOptions) => SceneRenderMetadata> = {
-  'hospital-urgencias': renderUrgencias,
-  'hospital-sala-escucha': renderSalaEscucha,
-  'comisaria-recepcion': renderRecepcion,
-  'comisaria-consultorio': renderConsultorio,
+const ROOMS: Record<string, CaseRoom> = {
+  'hospital-urgencias': new UrgenciasRoom(),
+  'hospital-sala-escucha': new SalaEscuchaRoom(),
+  'comisaria-recepcion': new RecepcionRoom(),
+  'comisaria-consultorio': new ConsultorioRoom(),
 };
 
 function makeRenderer(kind: string): SceneRenderer {
   return {
     key: `case-pdf-${kind}`,
     supports: mapKey => caseRoomKind(mapKey) === kind,
-    render: (scene, options) => RENDER_BY_KIND[kind](scene, options),
+    render: (scene, options) => ROOMS[kind].render(scene, options),
   };
 }
 

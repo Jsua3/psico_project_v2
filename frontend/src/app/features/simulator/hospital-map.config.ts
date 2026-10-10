@@ -63,29 +63,6 @@ export const RESTRICTED_AREA_BLOCK_MESSAGE =
 export const PROTOCOL_INFO_MESSAGE =
   'Protocolo EPICEE / SPIKES: prepara el entorno, valora qué sabe la familia, brinda información clara y acompaña la reacción emocional antes de documentar o activar rutas institucionales.';
 
-export interface HospitalZoneDef {
-  key: string;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  tint: number;
-  alpha: number;
-}
-
-/** Visual zone panels drawn on the hospital map (depth below markers). */
-export const HOSPITAL_ZONES: HospitalZoneDef[] = [
-  { key: 'entrada', label: 'Entrada a urgencias', x: 48, y: 380, width: 200, height: 130, tint: 0x1a2838, alpha: 0.55 },
-  { key: 'familia', label: 'Familia en crisis', x: 48, y: 200, width: 280, height: 160, tint: 0x2a1f28, alpha: 0.5 },
-  { key: 'contencion', label: 'Primeros Auxilios Psicológicos', x: 48, y: 300, width: 280, height: 90, tint: 0x1a3028, alpha: 0.45 },
-  { key: 'espera', label: 'Sala de espera', x: 340, y: 300, width: 200, height: 120, tint: 0x182028, alpha: 0.4 },
-  { key: 'informacion', label: 'Punto de información — Equipo médico', x: 520, y: 120, width: 200, height: 140, tint: 0x1a2535, alpha: 0.45 },
-  { key: 'restringida', label: 'Área médica restringida', x: 620, y: 48, width: 290, height: 160, tint: 0x281820, alpha: 0.55 },
-  { key: 'protocolo', label: 'Protocolo para noticia difícil', x: 520, y: 200, width: 200, height: 100, tint: 0x1f2530, alpha: 0.42 },
-  { key: 'vbg', label: 'Ruta de atención VBG', x: 620, y: 320, width: 290, height: 130, tint: 0x1a2830, alpha: 0.45 },
-];
-
 /** Frontend collision walls for hospital layout (overrides generic seed zones). */
 export const HOSPITAL_COLLISIONS = [
   { x: 48, y: 44, width: 864, height: 12 },
