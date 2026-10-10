@@ -5,10 +5,10 @@ entrada de `CAMBIOS_ADSI.md`, donde están el problema con su archivo y líneas,
 pruebas, las capturas «antes/después» y el diagrama UML. Aquí solo se reúne y se ordena; **no hay ninguna
 afirmación que no esté sustentada allí**. Las cifras de pruebas salen de las corridas completas de cada rama.
 
-**Estado al 10 de octubre de 2026** (la serie fusionada en `adsi/integracion`, más A-10): backend **857** pruebas
-(855 antes de A-10), frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809) y **35** de extremo a
-extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo día; `master` no se tocó (ver
-`EVIDENCIA_GIT.md`).
+**Estado al 10 de octubre de 2026** (la serie, más A-10, fusionada en `adsi/integracion` y **ya en `master`**, merge
+`8e1565d` del PR #31): backend **857** pruebas (855 antes de A-10), frontend **2383** en 179 archivos (línea base del
+proyecto: 307 y 1809) y **35** de extremo a extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el
+mismo día (ver `EVIDENCIA_GIT.md`).
 
 ---
 
@@ -41,7 +41,7 @@ extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo 
 | | `save_world` (110 líneas) | **A-05** · cinco funciones | Resuelto (con cambio de comportamiento, aprobado y fusionado el 10 de octubre) |
 | **Condicionales en cascada** | `nextNpcTarget` / `nextAmbientTarget` por tipo | **P-10** · Strategy | Resuelto |
 | | interceptor JWT con cuatro bloques casi iguales | **P-08b** · Chain of Responsibility | Resuelto |
-| **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto y fusionado; **anotado como «a decidir»** (un solo suscriptor) |
+| **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto y fusionado; **se mantiene** (un solo suscriptor; decidido el 10 de octubre por recomendación de Claude) |
 | **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto y fusionado; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c): agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38); la misma prueba falla en el mismo punto sobre `master`** |
 | | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto y fusionado (cambio de comportamiento acotado); verificado en el navegador por **A-05c** |
 | **Prueba intermitente** (no es un antipatrón del curso, pero rompía el CI) | un temporizador de 80 ms de `SimulationPlayComponent` sin dueño: se disparaba tras desmontar el entorno de pruebas (`window is not defined`) y hacía fallar 1 de 7 ejecuciones de CI de una rama que ni tocaba el frontend | **A-09** · el temporizador tiene dueño y `ngOnDestroy` lo cancela | Cerrada la ruta del error; que la intermitencia haya desaparecido **no se puede demostrar** |
@@ -52,7 +52,7 @@ extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo 
   A-05b (el editor adopta los ids reales tras guardar) y A-07 (el clon conserva pesos y estado de criterios);
   **A-10** (`requests` declarado: el inicio de sesión con Google deja de fallar siempre con 400) se agregó después,
   a pedido del equipo. **P-13** (Observer con un único suscriptor; no cambia comportamiento) está fusionado y
-  **anotado como «a decidir»**.
+  **se mantiene** (primero se anotó «a decidir» y el 10 de octubre se decidió por recomendación de Claude).
 - **Se deja así por ahora (decisión del 10 de octubre):** la contraseña por defecto de los importados (`Siep2026!`
   salvo que se defina `IMPORTED_STUDENT_DEFAULT_PASSWORD`; la misma para todos hasta que la cambien).
 - **Hallazgos sin corregir**: `create_case` es la única mutación del editor sin auditoría; `create_object` y

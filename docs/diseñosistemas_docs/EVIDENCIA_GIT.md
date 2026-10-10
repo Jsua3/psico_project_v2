@@ -4,12 +4,12 @@ Generado el 2026-10-10 por `docs/diseñosistemas_docs/tools/git_evidence.py` a p
 
 ## Resumen
 
-- **Ramas locales de la serie:** 32.
-- **Pull requests hacia `adsi/integracion`** (desde el #24): 31, más #31 → `master` (borrador para el CI oficial).
-- **Pull requests fusionados:** 30 de 31.
-- **Commits de la serie** (`f1944df..adsi/integracion`): 111, entre 2026-10-09 y 2026-10-10; merges en el rango: 35.
-- **Autores del rango:** Jsua3: 67, Juan José Sua: 44.
-- **Commits con coautoría de Claude** (`Co-Authored-By`): 111 de 111.
+- **Ramas locales de la serie:** 33.
+- **Pull requests hacia `adsi/integracion`** (desde el #24): 31; hacia la rama principal: #31 → `master` (fusionado), #56 → `master` (abierto).
+- **Pull requests fusionados:** 31 de 31.
+- **Commits de la serie** (`f1944df..adsi/integracion`): 114, entre 2026-10-09 y 2026-10-10; merges en el rango: 36.
+- **Autores del rango:** Jsua3: 69, Juan José Sua: 45.
+- **Commits con coautoría de Claude** (`Co-Authored-By`): 114 de 114.
 
 > **Lo que esta evidencia no muestra:** los commits están a nombre de una sola persona (con dos nombres de configuración, `Jsua3` y `Juan José Sua`) y de Claude como coautor. El plan (§12, punto 3) pedía que los cuatro integrantes se vieran en el historial; eso depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta, y **no está hecho**.
 
@@ -26,7 +26,7 @@ Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (G
 | [#28](https://github.com/Jsua3/psico_project_v2/pull/28) | `adsi/p08b-http-error-chain` | MERGED | P-08b · Chain of Responsibility — errores HTTP del interceptor JWT | `a78ac70` |
 | [#29](https://github.com/Jsua3/psico_project_v2/pull/29) | `adsi/p05-api-segregation` | MERGED | P-05 · Interface Segregation (SOLID) — APIs por rol en lugar de `SimulationService` de 50 métodos | `c9396fd` |
 | [#30](https://github.com/Jsua3/psico_project_v2/pull/30) | `adsi/p06-cache-proxy` | MERGED | P-06 · Proxy (caché) — lista de casos publicados | `f8af374` |
-| [#31](https://github.com/Jsua3/psico_project_v2/pull/31) | `adsi/integracion` → `master` | OPEN (borrador) | chore(adsi): rama de integración con las pruebas de Fase 0 y la documentación (borrador para el CI) | `—` |
+| [#31](https://github.com/Jsua3/psico_project_v2/pull/31) | `adsi/integracion` → `master` | MERGED | chore(adsi): lleva a master la serie ADSI (patrones, antipatrones, SOLID, pruebas y su evidencia) | `—` |
 | [#32](https://github.com/Jsua3/psico_project_v2/pull/32) | `adsi/p07-editor-commands` | MERGED | P-07 · Command + Composite — comandos del editor de mundo | `085a08a` |
 | [#33](https://github.com/Jsua3/psico_project_v2/pull/33) | `adsi/a01-duplicados` | MERGED | A-01 · Código duplicado (Cut & Paste) — ayudantes JSON y de acotación del backend | `09beb04` |
 | [#34](https://github.com/Jsua3/psico_project_v2/pull/34) | `adsi/a02-codigo-muerto` | MERGED | A-02 · Código muerto (Lava Flow / Boat Anchor) — borrado verificado | `44efdc7` |
@@ -50,7 +50,8 @@ Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (G
 | [#52](https://github.com/Jsua3/psico_project_v2/pull/52) | `adsi/a05b-editor-adopta-ids` | MERGED | A-05b · El editor adopta los ids reales que el servidor da a lo nuevo | `b950969` |
 | [#53](https://github.com/Jsua3/psico_project_v2/pull/53) | `adsi/a09-timer-teardown` | MERGED | A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente | `b458dde` |
 | [#54](https://github.com/Jsua3/psico_project_v2/pull/54) | `adsi/a05c-editor-e2e` | MERGED | A-05c · El editor de mundo, probado en el navegador contra la base real | `5d8ba6e` |
-| [#55](https://github.com/Jsua3/psico_project_v2/pull/55) | `adsi/a10-requests-google` | OPEN | A-10 · El inicio de sesión con Google declara la dependencia que necesita (`requests`) | `f6ae487` |
+| [#55](https://github.com/Jsua3/psico_project_v2/pull/55) | `adsi/a10-requests-google` | MERGED | A-10 · El inicio de sesión con Google declara la dependencia que necesita (`requests`) | `f6ae487` |
+| [#56](https://github.com/Jsua3/psico_project_v2/pull/56) | `adsi/docs-llegada-a-master` → `master` | OPEN | docs(adsi): la serie ya está en master y P-13 se mantiene | `—` |
 
 ## Cómo se reproduce
 
