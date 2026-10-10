@@ -21,10 +21,10 @@ import {
   getSceneDisplayLabel,
 } from './scene-map-display.util';
 import {
-  AVOIDANT_TRIGGER_RANGE, avoidantTarget, effectiveNpcBehavior, freeTileNear,
-  MovementPattern, nextAnchorIndex, npcPause, npcSpeed, npcZone, pickWanderTarget,
-  pickZoneTarget, reached, resolvePattern, stepToward,
+  effectiveNpcBehavior, freeTileNear, MovementPattern, npcPause, npcSpeed, npcZone,
+  reached, resolvePattern, stepToward,
 } from './scene-motion.util';
+import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import {
@@ -1317,32 +1317,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         const anchor = anchors.length ? anchors[mover.anchorIdx] : null;
         this.applyNpcPose(mover, container, (anchor?.face as PlayerDirection | undefined) ?? dir, false);
         mover.pauseUntil = time + npcPause(mover.cfg, anchor);
-        if ((mover.cfg.behavior === 'pace' || mover.cfg.behavior === 'patrol') && anchors.length) {
-          mover.anchorIdx = nextAnchorIndex(mover.anchorIdx, anchors.length);
-        }
+        mover.anchorIdx = npcMotionStrategyFor(mover.cfg.behavior).anchorAfterArrival(mover.anchorIdx, anchors.length);
         mover.target = null;
       }
     }
   }
 
   private nextNpcTarget(mover: NpcMover, container: Phaser.GameObjects.Container): { x: number; y: number } | null {
-    const behavior = mover.cfg.behavior;
-    if (behavior === 'subtle-wander') {
-      const candidate = pickZoneTarget(mover.zone, Math.random);
-      return this.wouldCollide(candidate.x, candidate.y) ? null : candidate;
-    }
-    if ((behavior === 'pace' || behavior === 'patrol') && mover.cfg.anchors?.length) {
-      const anchor = mover.cfg.anchors[mover.anchorIdx];
-      return { x: anchor.x, y: anchor.y };
-    }
-    if (behavior === 'avoidant') {
-      if (!this.player) return null;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (d > AVOIDANT_TRIGGER_RANGE) return null;
-      const candidate = avoidantTarget(mover.zone, container, this.player, Math.random);
-      return this.wouldCollide(candidate.x, candidate.y) ? null : candidate;
-    }
-    return null;
+    return npcMotionStrategyFor(mover.cfg.behavior).nextTarget({
+      zone: mover.zone,
+      anchors: mover.cfg.anchors,
+      anchorIdx: mover.anchorIdx,
+      from: container,
+      player: this.player ?? null,
+      rand: Math.random,
+      isBlocked: (x, y) => this.wouldCollide(x, y),
+    });
   }
 
   /** Reposo del NPC mirando a `direction` (las 4 filas del kit son reales). */
@@ -2062,15 +2052,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private nextAmbientTarget(mover: AmbientMover): { x: number; y: number } | null {
-    if (mover.pattern.type === 'wander') {
-      return pickWanderTarget(mover.origin, mover.pattern.radius, Math.random);
-    }
-    if (mover.pattern.type === 'patrol' && mover.pattern.points.length) {
-      mover.patrolIdx = (mover.patrolIdx + 1) % mover.pattern.points.length;
-      const [x, y] = mover.pattern.points[mover.patrolIdx];
-      return { x, y };
-    }
-    return null;
+    const step = nextAmbientStep(mover.pattern, mover, Math.random);
+    mover.patrolIdx = step.patrolIdx;
+    return step.target;
   }
 
   /** One tasteful scene-level effect: faint, slow-rising dust motes. */
