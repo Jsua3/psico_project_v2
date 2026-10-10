@@ -14,6 +14,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from ..models import (
     AttemptEvent,
+    AttemptStatus,
     AttemptWorldState,
     ClinicalTool,
     CollisionZone,
@@ -260,7 +261,7 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     reintentos (un solo evento y un solo efecto de estrés)."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     world_state = require_world_state(attempt)
-    if attempt.status != "IN_PROGRESS":
+    if attempt.status != AttemptStatus.IN_PROGRESS:
         raise ValidationError("El intento ya no acepta herramientas")
     tool = ClinicalTool.objects.filter(
         case_version_id=attempt.case_version_id, tool_code=tool_code
@@ -488,7 +489,7 @@ def require_world_state(attempt):
 
 
 def _require_in_progress(attempt):
-    if attempt.status != "IN_PROGRESS":
+    if attempt.status != AttemptStatus.IN_PROGRESS:
         raise ValidationError("El intento ya no acepta interacciones en el mundo")
 
 

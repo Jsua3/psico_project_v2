@@ -5,6 +5,7 @@ import re
 from shared.jsonutils import read_string_list
 
 from apps.simulation.models import (
+    AttemptStatus,
     ClinicalTool,
     DecisionOption,
     MapObject,
@@ -186,12 +187,15 @@ def _reconsidered_recommendation(retries):
 
 
 _SUMMARY_BY_STATUS = {
-    "COMPLETED": "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
-    "PAUSED": "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
-    "SAFE_EXITED": "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
-    "REPLACED": "Intento reemplazado. Empezaste uno nuevo y este quedó cerrado tal como estaba, disponible para revisión docente.",
-    "IN_PROGRESS": "Intento en progreso.",
+    AttemptStatus.COMPLETED: "Intento finalizado. Tu recorrido quedó registrado para evaluación formativa.",
+    AttemptStatus.PAUSED: "Pausa segura activa. Tu intento quedó guardado tal cual y puedes reanudarlo cuando lo decidas, sin penalización.",
+    AttemptStatus.SAFE_EXITED: "Salida segura registrada. El intento quedó cerrado, sin penalización, y disponible para revisión docente.",
+    AttemptStatus.REPLACED: "Intento reemplazado. Empezaste uno nuevo y este quedó cerrado tal como estaba, disponible para revisión docente.",
+    AttemptStatus.IN_PROGRESS: "Intento en progreso.",
 }
+
+#: Estados en los que el intento ofrece los recursos de apoyo y recomienda retomar con acompañamiento.
+_SUPPORT_STATUSES = (AttemptStatus.SAFE_EXITED, AttemptStatus.PAUSED)
 _GENERIC_RECOMMENDATION = (
     "Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva."
 )
@@ -274,7 +278,7 @@ class CompletionReportBuilder:
             recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
         if attempt.revictimization_risk:
             recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")
-        if attempt.status in ("SAFE_EXITED", "PAUSED"):
+        if attempt.status in _SUPPORT_STATUSES:
             recommendations.append("Retoma el caso con acompañamiento docente cuando te sientas preparado/a.")
         if not recommendations:
             recommendations.append(_GENERIC_RECOMMENDATION)
@@ -335,7 +339,7 @@ def build_completion_report(attempt, events):
 
 
 def attempt_state(attempt, raw_token, feedback, events=None):
-    in_progress = attempt.status == "IN_PROGRESS"
+    in_progress = attempt.status == AttemptStatus.IN_PROGRESS
     completion_report = None
     if not in_progress:
         if events is None:
@@ -355,7 +359,7 @@ def attempt_state(attempt, raw_token, feedback, events=None):
         "currentNode": node_state(attempt.current_node, in_progress),
         "feedback": feedback,
         "completionReport": completion_report,
-        "supportResources": SAFE_EXIT_RESOURCES if attempt.status in ("SAFE_EXITED", "PAUSED") else [],
+        "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],
     }
 
 

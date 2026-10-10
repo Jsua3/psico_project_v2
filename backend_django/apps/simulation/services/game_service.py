@@ -9,6 +9,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.simulation.models import (
     AttemptEvent,
+    AttemptStatus,
     CaseVersion,
     DecisionOption,
     ReflectionJournal,
@@ -20,6 +21,9 @@ from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
 from .node_iterator import BreadthFirstNodeIterator
+
+#: Un intento abierto (en juego o en pausa) es el «activo» del estudiante: se reanuda o se reemplaza.
+_OPEN_STATUSES = (AttemptStatus.IN_PROGRESS, AttemptStatus.PAUSED)
 
 
 def _hash_token(raw_token: str) -> str:
@@ -139,11 +143,11 @@ def _close_active_attempts(student_id, case_version_id, reason):
     # Es un reemplazo, no una salida segura: estado y evento propios.
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
-        status__in=["IN_PROGRESS", "PAUSED"],
+        status__in=_OPEN_STATUSES,
     )
     now = timezone.now()
     for active in actives:
-        active.status = "REPLACED"
+        active.status = AttemptStatus.REPLACED
         active.ended_at = now
         active.locked_at = now
         active.save()
@@ -163,7 +167,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         active = (
             SimulationAttempt.objects.filter(
                 student_id=actor.id, case_version_id=case_version_id,
-                status__in=["IN_PROGRESS", "PAUSED"],
+                status__in=_OPEN_STATUSES,
             )
             .select_related("case_version__simulation_case", "current_node")
             .order_by("-started_at")
@@ -184,7 +188,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         case_version=version,
         student_id=actor.id,
         current_node=start_node,
-        status="IN_PROGRESS",
+        status=AttemptStatus.IN_PROGRESS,
         accumulated_score=0,
         stress_index=0,
         victim_risk=50,
@@ -202,7 +206,7 @@ def find_active_attempt(case_version_id, actor):
     active = (
         SimulationAttempt.objects.filter(
             student_id=actor.id, case_version_id=case_version_id,
-            status__in=["IN_PROGRESS", "PAUSED"],
+            status__in=_OPEN_STATUSES,
         )
         .select_related("case_version__simulation_case", "current_node")
         .order_by("-started_at")
@@ -220,7 +224,7 @@ def get_attempt(attempt_id, attempt_token, actor):
 
 def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == "IN_PROGRESS":
+    if attempt.status == AttemptStatus.IN_PROGRESS:
         raise ValidationError("El intento aún está en progreso")
     events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
     return dto.build_completion_report(attempt, events)
@@ -335,7 +339,7 @@ def choose_decision(
     evidence_override=False, missing_evidence=None,
 ):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if attempt.status != AttemptStatus.IN_PROGRESS:
         raise ValidationError("El intento ya no acepta decisiones")
 
     decision = (
@@ -399,14 +403,14 @@ def choose_decision(
 
     if decision.target_node.terminal_node:
         now = timezone.now()
-        attempt.status = "COMPLETED"
+        attempt.status = AttemptStatus.COMPLETED
         attempt.ended_at = now
         attempt.locked_at = now
         _lock_reflections(attempt)
 
     attempt.save()
 
-    if attempt.status == "COMPLETED":
+    if attempt.status == AttemptStatus.COMPLETED:
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
         from apps.progression.services import record_case_completion
         record_case_completion(attempt.student_id, attempt.case_version.simulation_case_id)
@@ -418,7 +422,7 @@ def choose_decision(
 @transaction.atomic
 def save_reflection(attempt_id, attempt_token, node_id, text, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if attempt.status != AttemptStatus.IN_PROGRESS:
         raise ValidationError("La bitácora ya está bloqueada")
     if not text or not text.strip():
         raise ValidationError("La bitácora requiere texto")
@@ -435,7 +439,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor):
         reflection = ReflectionJournal(attempt=attempt, node=node)
     reflection.encrypted_text = crypto_service.encrypt(text)
     reflection.encryption_key_ref = crypto_service.key_ref()
-    reflection.locked = attempt.status != "IN_PROGRESS"
+    reflection.locked = attempt.status != AttemptStatus.IN_PROGRESS
     reflection.save()
 
     _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada")
@@ -451,9 +455,9 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     llamada devuelve el estado sin duplicar eventos.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != "IN_PROGRESS":
+    if attempt.status != AttemptStatus.IN_PROGRESS:
         return dto.attempt_state(attempt, attempt_token, None)
-    attempt.status = "PAUSED"
+    attempt.status = AttemptStatus.PAUSED
     attempt.save()
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
@@ -468,11 +472,11 @@ def resume_attempt(attempt_id, attempt_token, actor):
     registrar un segundo evento. Cualquier otro estado es un error explícito.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == "IN_PROGRESS":
+    if attempt.status == AttemptStatus.IN_PROGRESS:
         return dto.attempt_state(attempt, attempt_token, None)
-    if attempt.status != "PAUSED":
+    if attempt.status != AttemptStatus.PAUSED:
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
-    attempt.status = "IN_PROGRESS"
+    attempt.status = AttemptStatus.IN_PROGRESS
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
     return dto.attempt_state(attempt, attempt_token, None)

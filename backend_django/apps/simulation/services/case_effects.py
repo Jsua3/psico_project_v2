@@ -15,7 +15,7 @@ Las opciones se identifican por option_key (estables, definidas por el seed
 seed_caso_pdf). Para opciones fuera del registro la severidad se deriva de la
 clasificación legacy, así otros casos siguen funcionando sin registro propio.
 """
-from apps.simulation.models import AttemptWorldState
+from apps.simulation.models import AttemptStatus, AttemptWorldState
 from shared.jsonutils import (
     clamp as _clamp,
     read_map as _read_map,
@@ -290,7 +290,7 @@ def compute_ending(attempt, events):
     Solo aplica a intentos COMPLETED; en otros estados devuelve None.
     Reglas (en orden): crítico → integral → riesgo persistente → brechas.
     """
-    if attempt.status != "COMPLETED":
+    if attempt.status != AttemptStatus.COMPLETED:
         return None
 
     decisions = [
