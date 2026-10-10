@@ -6,9 +6,9 @@ Generado el 2026-10-10 por `docs/diseñosistemas_docs/tools/git_evidence.py` a p
 
 - **Ramas locales de la serie:** 31.
 - **Pull requests hacia `adsi/integracion`** (desde el #24): 30, más #31 → `master` (borrador para el CI oficial).
-- **Commits de la pila** (`adsi/integracion..adsi/a05c-editor-e2e`): 61, entre 2026-10-09 y 2026-10-10; merges en el rango: 0.
-- **Autores del rango:** Jsua3: 47, Juan José Sua: 14.
-- **Commits con coautoría de Claude** (`Co-Authored-By`): 61 de 61.
+- **Commits de la pila** (`adsi/integracion..adsi/a05c-editor-e2e`): 62, entre 2026-10-09 y 2026-10-10; merges en el rango: 0.
+- **Autores del rango:** Jsua3: 48, Juan José Sua: 14.
+- **Commits con coautoría de Claude** (`Co-Authored-By`): 62 de 62.
 
 > **Lo que esta evidencia no muestra:** los commits están a nombre de una sola persona (con dos nombres de configuración, `Jsua3` y `Juan José Sua`) y de Claude como coautor. El plan (§12, punto 3) pedía que los cuatro integrantes se vieran en el historial; eso depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta, y **no está hecho**.
 
