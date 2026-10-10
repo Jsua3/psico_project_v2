@@ -2,7 +2,7 @@
 
 Clonar una versión significa crear, para cada entidad del caso, una copia de su fila.
 Cada entidad declara aquí **qué campos se copian tal cual** (``CopySpec``); quien clona
-(``authoring_service.clone_version``) pone solo los vínculos que cambian: la versión
+(``authoring/publication.py::clone_version``) pone solo los vínculos que cambian: la versión
 nueva, los nodos, mapas y decisiones ya copiados. Antes, diez funciones repetían campo
 por campo el mismo ``objects.create(...)``.
 
