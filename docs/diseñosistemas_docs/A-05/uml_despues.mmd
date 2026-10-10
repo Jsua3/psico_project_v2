@@ -1,0 +1,8 @@
+flowchart LR
+    P["PUT /world<br/>estado completo de la sala"] --> M["1. mapa<br/>se actualiza"]
+    M --> O["2. objects<br/>upsert por id SOLO en la sala"]
+    O --> D["3. dialogues<br/>upsert y borra los ausentes<br/>dueño = objeto que se queda"]
+    D --> A["4. objetos ausentes<br/>se borran con sus diálogos"]
+    A --> Z["5. collisionZones<br/>upsert por id en la sala<br/>y borra las ausentes"]
+    Z --> R["lo recargado es lo guardado"]
+    N["lista omitida"] -. "no se toca" .-> R

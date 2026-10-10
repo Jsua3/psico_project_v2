@@ -1,0 +1,8 @@
+flowchart LR
+    P["PUT /world<br/>estado completo de la sala"] --> M["mapa<br/>se actualiza"]
+    P --> O["objects<br/>upsert por id en TODA la base<br/>los ausentes NO se borran"]
+    P --> D["dialogues<br/>upsert por id en la sala<br/>los ausentes se borran"]
+    P --> Z["collisionZones<br/>se IGNORAN"]
+    O -. "id local = id de otra sala" .-> X["el objeto ajeno se mueve<br/>a esta sala y se sobrescribe"]
+    D --> R["lo recargado: el objeto borrado<br/>reaparece sin su diálogo"]
+    O --> R

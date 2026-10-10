@@ -104,6 +104,14 @@ def validate_world(case_version_id):
 
 @transaction.atomic
 def save_world(case_version_id, node_id, request):
+    """Guarda la sala tal como la manda el editor.
+
+    El cuerpo es el estado completo de la sala: cada lista presente (`objects`,
+    `collisionZones`, `dialogues`) reemplaza a la de la base, así que lo que no viene se
+    borra, y una lista ausente no se toca. Todo se busca dentro del mapa de la sala: el
+    editor numera lo nuevo con identificadores locales que pueden coincidir con los de
+    otra sala (A-05).
+    """
     version = ensure_draft(case_version_id)
 
     revision = request.get("revision")
@@ -122,96 +130,162 @@ def save_world(case_version_id, node_id, request):
 
     map_def = request.get("map")
     if map_def is not None:
-        if _int(map_def.get("width")) > 0:
-            scene_map.width = _int(map_def.get("width"))
-        if _int(map_def.get("height")) > 0:
-            scene_map.height = _int(map_def.get("height"))
-        if _int(map_def.get("spawnX"), -1) >= 0:
-            scene_map.spawn_x = _int(map_def.get("spawnX"))
-        if _int(map_def.get("spawnY"), -1) >= 0:
-            scene_map.spawn_y = _int(map_def.get("spawnY"))
-        if map_def.get("theme") is not None:
-            scene_map.theme = map_def.get("theme")
-        if map_def.get("ambient") is not None:
-            scene_map.ambient_json = _write_map(map_def.get("ambient"))
-        scene_map.save()
+        _apply_map_definition(scene_map, map_def)
 
+    saved_objects = None
     objects = request.get("objects")
     if objects is not None:
-        for wo in objects:
-            obj = None
-            if wo.get("id") is not None:
-                obj = MapObject.objects.filter(pk=wo.get("id")).first()
-            if obj is None:
-                obj = MapObject()
-            obj.scene_map = scene_map
-            obj.object_key = wo.get("key")
-            obj.label = wo.get("label")
-            obj.object_type = wo.get("type")
-            obj.position_x = _int(wo.get("x"))
-            obj.position_y = _int(wo.get("y"))
-            obj.width = _int(wo.get("width")) if _int(wo.get("width")) > 0 else 48
-            obj.height = _int(wo.get("height")) if _int(wo.get("height")) > 0 else 48
-            obj.z_index = _int(wo.get("zIndex"))
-            obj.facing = wo.get("facing") if wo.get("facing") is not None else "down"
-            obj.color_hex = wo.get("colorHex") if wo.get("colorHex") is not None else "#4FA3A5"
-            obj.icon = wo.get("icon") if wo.get("icon") is not None else "psychology"
-            obj.short_code = wo.get("shortCode") if wo.get("shortCode") is not None else "ACT"
-            obj.collision = bool(wo.get("collision"))
-            obj.visible = bool(wo.get("visible"))
-            obj.interaction_prompt = wo.get("interactionPrompt") if wo.get("interactionPrompt") is not None else ""
-            obj.interaction_text = wo.get("interactionText") if wo.get("interactionText") is not None else ""
-            obj.tool_code = wo.get("toolCode")
-            obj.unlock_condition_json = _write_map(wo.get("unlockCondition"))
-            obj.movement_pattern_json = _write_map(wo.get("movementPattern"))
-            obj.metadata_json = _write_map(wo.get("metadata"))
-            if wo.get("decisionOptionId") is not None:
-                decision = DecisionOption.objects.filter(pk=wo.get("decisionOptionId")).first()
-                if decision:
-                    obj.decision_option = decision
-            else:
-                obj.decision_option = None
-            obj.save()
+        saved_objects = _save_objects(scene_map, objects)
 
     dialogues = request.get("dialogues")
     if dialogues is not None:
-        obj_by_key = {o.object_key: o for o in MapObject.objects.filter(scene_map=scene_map)}
-        kept_tree_ids = []
-        for dt in dialogues:
-            tree = None
-            if dt.get("id") is not None:
-                tree = DialogueTree.objects.filter(pk=dt.get("id"), scene_map=scene_map).first()
-            if tree is None:
-                tree = DialogueTree(scene_map=scene_map)
-            owner = None
-            if dt.get("mapObjectKey") is not None:
-                owner = obj_by_key.get(dt.get("mapObjectKey"))
-            if owner is None and dt.get("mapObjectId") is not None:
-                owner = MapObject.objects.filter(pk=dt.get("mapObjectId"), scene_map=scene_map).first()
-            tree.scene_map = scene_map
-            tree.map_object = owner
-            tree.tree_key = dt.get("key") or ""
-            tree.speaker_name = dt.get("speakerName") or ""
-            tree.portrait_key = dt.get("portraitKey")
-            tree.emotion = dt.get("emotion") if dt.get("emotion") is not None else "neutral"
-            tree.save()
-            kept_tree_ids.append(tree.id)
-            DialogueLine.objects.filter(dialogue_tree=tree).delete()
-            for ln in (dt.get("lines") or []):
-                DialogueLine.objects.create(
-                    dialogue_tree=tree,
-                    display_order=_int(ln.get("order")),
-                    speaker_name=ln.get("speakerName") or tree.speaker_name,
-                    text=ln.get("text") or "",
-                    emotion=ln.get("emotion") if ln.get("emotion") is not None else "neutral",
-                )
-            DialogueChoice.objects.filter(dialogue_tree=tree).delete()
-            save_dialogue_choices(tree, dt.get("choices"), case_version_id)
-        DialogueTree.objects.filter(scene_map=scene_map).exclude(pk__in=kept_tree_ids).delete()
+        _save_dialogues(scene_map, case_version_id, dialogues, saved_objects)
+
+    if saved_objects is not None:
+        _delete_absent_objects(scene_map, saved_objects)
+
+    zones = request.get("collisionZones")
+    if zones is not None:
+        _save_collision_zones(scene_map, zones)
 
     # Spring calls caseVersionRepository.save(version); @Version only bumps when the
     # entity is dirty (it isn't here), so the revision is intentionally left unchanged.
     return world_editor(case_version_id, node_id)
+
+
+def _apply_map_definition(scene_map, map_def):
+    if _int(map_def.get("width")) > 0:
+        scene_map.width = _int(map_def.get("width"))
+    if _int(map_def.get("height")) > 0:
+        scene_map.height = _int(map_def.get("height"))
+    if _int(map_def.get("spawnX"), -1) >= 0:
+        scene_map.spawn_x = _int(map_def.get("spawnX"))
+    if _int(map_def.get("spawnY"), -1) >= 0:
+        scene_map.spawn_y = _int(map_def.get("spawnY"))
+    if map_def.get("theme") is not None:
+        scene_map.theme = map_def.get("theme")
+    if map_def.get("ambient") is not None:
+        scene_map.ambient_json = _write_map(map_def.get("ambient"))
+    scene_map.save()
+
+
+def _save_objects(scene_map, objects):
+    """Crea o actualiza los objetos recibidos; devuelve los guardados, en el orden recibido."""
+    saved = []
+    for wo in objects:
+        obj = None
+        if wo.get("id") is not None:
+            obj = MapObject.objects.filter(pk=wo.get("id"), scene_map=scene_map).first()
+        if obj is None:
+            obj = MapObject()
+        obj.scene_map = scene_map
+        obj.object_key = wo.get("key")
+        obj.label = wo.get("label")
+        obj.object_type = wo.get("type")
+        obj.position_x = _int(wo.get("x"))
+        obj.position_y = _int(wo.get("y"))
+        obj.width = _int(wo.get("width")) if _int(wo.get("width")) > 0 else 48
+        obj.height = _int(wo.get("height")) if _int(wo.get("height")) > 0 else 48
+        obj.z_index = _int(wo.get("zIndex"))
+        obj.facing = wo.get("facing") if wo.get("facing") is not None else "down"
+        obj.color_hex = wo.get("colorHex") if wo.get("colorHex") is not None else "#4FA3A5"
+        obj.icon = wo.get("icon") if wo.get("icon") is not None else "psychology"
+        obj.short_code = wo.get("shortCode") if wo.get("shortCode") is not None else "ACT"
+        obj.collision = bool(wo.get("collision"))
+        obj.visible = bool(wo.get("visible"))
+        obj.interaction_prompt = wo.get("interactionPrompt") if wo.get("interactionPrompt") is not None else ""
+        obj.interaction_text = wo.get("interactionText") if wo.get("interactionText") is not None else ""
+        obj.tool_code = wo.get("toolCode")
+        obj.unlock_condition_json = _write_map(wo.get("unlockCondition"))
+        obj.movement_pattern_json = _write_map(wo.get("movementPattern"))
+        obj.metadata_json = _write_map(wo.get("metadata"))
+        if wo.get("decisionOptionId") is not None:
+            decision = DecisionOption.objects.filter(pk=wo.get("decisionOptionId")).first()
+            if decision:
+                obj.decision_option = decision
+        else:
+            obj.decision_option = None
+        obj.save()
+        saved.append(obj)
+    return saved
+
+
+def _save_dialogues(scene_map, case_version_id, dialogues, saved_objects):
+    """Crea o actualiza los diálogos recibidos y borra los ausentes.
+
+    Un diálogo solo puede colgar de un objeto que queda en la sala: si `saved_objects` es
+    la lista recibida, los objetos que se van a borrar ya no son dueños posibles.
+    """
+    if saved_objects is None:
+        owners = list(MapObject.objects.filter(scene_map=scene_map))
+    else:
+        owners = saved_objects
+    owner_by_key = {o.object_key: o for o in owners}
+    owner_ids = {o.id for o in owners}
+    kept_tree_ids = []
+    for dt in dialogues:
+        tree = None
+        if dt.get("id") is not None:
+            tree = DialogueTree.objects.filter(pk=dt.get("id"), scene_map=scene_map).first()
+        if tree is None:
+            tree = DialogueTree(scene_map=scene_map)
+        owner = None
+        if dt.get("mapObjectKey") is not None:
+            owner = owner_by_key.get(dt.get("mapObjectKey"))
+        if owner is None and dt.get("mapObjectId") is not None:
+            candidate = MapObject.objects.filter(pk=dt.get("mapObjectId"), scene_map=scene_map).first()
+            if candidate is not None and candidate.id in owner_ids:
+                owner = candidate
+        tree.scene_map = scene_map
+        tree.map_object = owner
+        tree.tree_key = dt.get("key") or ""
+        tree.speaker_name = dt.get("speakerName") or ""
+        tree.portrait_key = dt.get("portraitKey")
+        tree.emotion = dt.get("emotion") if dt.get("emotion") is not None else "neutral"
+        tree.save()
+        kept_tree_ids.append(tree.id)
+        DialogueLine.objects.filter(dialogue_tree=tree).delete()
+        for ln in (dt.get("lines") or []):
+            DialogueLine.objects.create(
+                dialogue_tree=tree,
+                display_order=_int(ln.get("order")),
+                speaker_name=ln.get("speakerName") or tree.speaker_name,
+                text=ln.get("text") or "",
+                emotion=ln.get("emotion") if ln.get("emotion") is not None else "neutral",
+            )
+        DialogueChoice.objects.filter(dialogue_tree=tree).delete()
+        save_dialogue_choices(tree, dt.get("choices"), case_version_id)
+    DialogueTree.objects.filter(scene_map=scene_map).exclude(pk__in=kept_tree_ids).delete()
+
+
+def _delete_absent_objects(scene_map, saved_objects):
+    """Borra los objetos de la sala que el editor ya no manda, con los diálogos que colgaban de ellos."""
+    absent = MapObject.objects.filter(scene_map=scene_map).exclude(pk__in=[o.id for o in saved_objects])
+    # En producción la clave foránea borra en cascada los árboles del objeto; el esquema de
+    # desarrollo no tiene cascada y borrar el objeto fallaría. Se borran explícitamente.
+    DialogueTree.objects.filter(map_object__in=absent).delete()
+    absent.delete()
+
+
+def _save_collision_zones(scene_map, zones):
+    """Crea o actualiza las zonas recibidas y borra las ausentes."""
+    kept_ids = []
+    for wz in zones:
+        zone = None
+        if wz.get("id") is not None:
+            zone = CollisionZone.objects.filter(pk=wz.get("id"), scene_map=scene_map).first()
+        if zone is None:
+            zone = CollisionZone(scene_map=scene_map)
+        width, height = _int(wz.get("width")), _int(wz.get("height"))
+        zone.zone_key = wz.get("key") or ""
+        zone.label = wz.get("label")
+        zone.position_x = _int(wz.get("x"))
+        zone.position_y = _int(wz.get("y"))
+        zone.width = width if width > 0 else 1
+        zone.height = height if height > 0 else 1
+        zone.save()
+        kept_ids.append(zone.id)
+    CollisionZone.objects.filter(scene_map=scene_map).exclude(pk__in=kept_ids).delete()
 
 
 # ─── world-snapshot validation ────────────────────────────────────────────────
