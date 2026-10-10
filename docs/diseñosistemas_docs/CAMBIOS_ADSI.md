@@ -1014,3 +1014,45 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/A-07/`: `antes_olvidos_del_clon.png`, `despues_el_clon_copia_lo_que_olvidaba.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Cut & Paste» (Unidad 4): cuando hay dos rutas de copia, divergen. El Prototype declarativo de P-03 es lo que hizo visible cada omisión como una línea que falta en una lista.
+
+
+### P-13 · Observer — «un intento se completó» es una señal a la que progresión se suscribe
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p13-attempt-completed-observer` · `4d7f813` (parte de `adsi/a07-clone-gaps`: PR después de A-07) |
+| **Patrón** | Observer (comportamiento), con la señal síncrona de Django como *Subject* |
+| **Archivos** | `simulation/signals.py` (nuevo), `simulation/services/game_service.py`, `progression/receivers.py` (nuevo), `progression/apps.py`; `simulation/tests/test_attempt_completed_signal.py` (nuevo) |
+| **Riesgo** | Medio: toca el momento en que se cierra un intento. Protegido por pruebas de caracterización escritas antes y la prueba de integración que ya existía |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `choose_decision` (la decisión que completa el caso) terminaba con `from apps.progression.services import record_case_completion` y la llamada en línea: el servicio del juego **conoce a quien reacciona** a una finalización y hay que editarlo para sumar otra reacción. El plan v1 decía que el import tardío evitaba un ciclo; Fase 0 (§3.1) ya había comprobado que no: `progression/services.py` solo importa sus propios modelos. Es un import tardío sin razón, que oculta una dependencia del juego hacia otra app.
+
+**Solución (después).**
+
+- `simulation/signals.py` declara `attempt_completed`, con su contrato en un comentario: cuándo se emite, con qué argumentos y qué garantías da.
+- `choose_decision` anuncia el hecho con `attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)` justo después de guardar el evento `ATTEMPT_COMPLETED`, donde antes llamaba a progresión.
+- `progression/receivers.py` tiene el suscriptor (`record_completion_on_attempt_completed`, una línea que llama a `record_case_completion`) y `ProgressionConfig.ready()` lo conecta, con `dispatch_uid`.
+- El servicio del juego ya no importa `apps.progression` (una prueba lo comprueba sobre el árbol sintáctico).
+
+**Decisión de diseño.**
+
+- *Síncrona y dentro de la transacción.* Fase 0 advirtió que un Observer asíncrono o con `on_commit` cambiaría la semántica: hoy un *rollback* de la decisión deshace también el registro de la finalización, y el `get_or_create` se apoya en un *savepoint*. Con la señal síncrona nada de eso cambia.
+- *`send_robust`, no `send`.* `record_case_completion` ya se traga sus propias excepciones («no debe romper el juego»); `send_robust` extiende esa garantía a **cualquier** suscriptor futuro: el error se registra en el log y la decisión sigue. Una prueba conecta un suscriptor que lanza y comprueba que el intento se completa y la finalización se registra igual.
+- *El remitente es el modelo (`SimulationAttempt`), el intento va como argumento.* Es la convención de Django (`post_save` hace lo mismo).
+- *`_lock_reflections` no se movió.* Forma parte del cambio de estado del intento y corre antes de guardarlo; no es una reacción a «ya se completó».
+- *DUDA declarada: un solo suscriptor.* Fase 0 la calificó de «forzada» con un único suscriptor y la dejó como decisión del equipo. Se hizo porque aporta una inversión de dependencia real (el juego deja de conocer a progresión) y el plan v1 la asignaba a la sustentación 2; si el equipo la considera sobreingeniería, el PR se descarta sin tocar el resto de la pila.
+
+**Lo que no cambió:** cuándo se registra la finalización (solo al completar, no en pausa, salida segura ni decisión intermedia), que se registre una vez por estudiante y caso, que un fallo al registrar no rompa la decisión, que ocurra dentro de la misma transacción y en el mismo punto (después del evento `ATTEMPT_COMPLETED`).
+
+**Pruebas.** Backend 815 → **823** (+8), `manage.py check` limpio.
+
+- *Escritas primero:* sobre el código anterior fallaban 3 (la señal no se emite, progresión no está suscrita y `game_service` todavía importa progresión), por la razón esperada; las otras 5 fijan lo que no debe cambiar y pasaban antes y después (decisión intermedia y salida segura no emiten; un suscriptor que falla y un fallo al registrar no rompen el juego; una sola finalización por estudiante y caso).
+- *Ya existían* `test_completion_hook.py` (completar un caso registra la finalización; la salida segura no) y las de `test_game.py`/`test_caso_pdf.py`, que pasan sin tocarse.
+- *Mutaciones, 8:* no emitir, `send` en vez de `send_robust`, emitir antes de guardar el evento, emitir en cada decisión, otro remitente, suscriptor con estudiante y caso intercambiados, no suscribir y suscribir sin `dispatch_uid`. **7 detectadas y 1 equivalente:** quitar `dispatch_uid` no cambia nada con una función de módulo, porque Django ya deduplica por identidad del receptor; se deja como cinturón (la documentación de Django lo recomienda en `ready()`).
+
+**Hallazgos.** (1) Capturar la excepción de un suscriptor no repara una transacción de PostgreSQL rota por un error de la base: un suscriptor que escriba debe abrir su propio *savepoint*, como hace `get_or_create`. Quedó escrito en el contrato de la señal. (2) `send_robust` registra el error en el logger de Django, no en el de progresión.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-13/`: `antes_llamada_en_linea.png`, `despues_senal_y_suscriptor.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Observer (patrones de comportamiento, Unidad 3), sustentación 2; inversión de dependencias y abierto/cerrado (SOLID): una reacción nueva a la finalización no obliga a editar el servicio del juego.
