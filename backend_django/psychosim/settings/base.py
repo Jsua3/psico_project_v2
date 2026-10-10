@@ -115,6 +115,13 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+# Contraseña con la que se crean los estudiantes importados desde Excel que no traen
+# una propia. Si la variable no existe o está en blanco se conserva el valor de
+# siempre: nunca se crea una cuenta con la contraseña vacía. Es la misma para todos
+# los importados y la ve el docente; ver CAMBIOS_ADSI.md (A-06) para el rediseño.
+IMPORTED_STUDENT_DEFAULT_PASSWORD = (
+    os.environ.get("IMPORTED_STUDENT_DEFAULT_PASSWORD", "").strip() or "Siep2026!"
+)
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
 # un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.

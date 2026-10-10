@@ -687,3 +687,37 @@ Cualquier excepción —la base de datos caída (`OperationalError`), un error d
 **Evidencia.** `docs/diseñosistemas_docs/A-04/`: `antes_busqueda_del_usuario.png`, `despues_busqueda_del_usuario.png`, `antes_prueba_sin_base.png`, `despues_prueba_con_base.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`; son diagramas de flujo del manejo de errores).
 
 **Relación con la materia.** Antipatrón «Exception Handling» (Unidad 4); la regla de capturar la excepción específica y dejar que el resto suba.
+
+
+### A-06 · Hard Code — la contraseña por defecto de los importados pasa a configuración
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a06-default-password-config` · `e62a822` (parte de `adsi/a04-google-login-errors`: PR después de A-04) |
+| **Antipatrón** | «Hard Code» (una credencial escrita como literal dentro del servicio) |
+| **Archivos** | `psychosim/settings/base.py`, `apps/grupos/services.py`, `backend_django/.env.example`; `apps/grupos/tests/test_imported_password_setting.py` (nuevo) |
+| **Riesgo** | Bajo: con la variable sin definir, el valor es el mismo de siempre |
+| **Cambio de comportamiento** | Ninguno por defecto. Con `IMPORTED_STUDENT_DEFAULT_PASSWORD` definida, esa pasa a ser la contraseña de los importados sin password propio |
+
+**Problema (antes).** `DEFAULT_IMPORTED_STUDENT_PASSWORD = "Siep2026!"` era una constante de `grupos/services.py` y se usaba en tres sitios: la hoja de instrucciones de la plantilla `.xlsx`, el resultado de la importación (`defaultPassword`, que ve el docente) y la asignación a cada estudiante importado sin password. Quien desplegaba no podía cambiarla sin tocar el código, así que la misma contraseña conocida valía para todos los importados de cualquier instalación.
+
+**Solución (después).** `settings.IMPORTED_STUDENT_DEFAULT_PASSWORD` lee la variable de entorno del mismo nombre en `base.py`; si no existe o está en blanco —también tras recortarla— conserva `Siep2026!`, de modo que **nunca se crea una cuenta con la contraseña vacía**. Los tres usos de `services.py` leen la configuración en el momento de usarla (así `override_settings` funciona en las pruebas). La variable queda documentada en `.env.example`.
+
+**Decisión de diseño.**
+
+- *La opción segura del plan (CF-2).* Se extrae a configuración y se conserva el valor por defecto; no se rediseña el flujo. El rediseño de fondo (una contraseña temporal aleatoria por estudiante con cambio obligatorio en el primer ingreso) toca el flujo del docente y de Psicología y es una decisión del equipo (ver el hallazgo).
+- *Producción no la exige.* A diferencia de `DJANGO_SECRET_KEY`, `production.py` no obliga a definirla: exigirla impediría arrancar cualquier despliegue que hoy funciona sin ella. Una advertencia en `manage.py check --deploy` sería la forma no destructiva de empujar a definirla; no se hizo para no ampliar el cambio.
+- *Se lee al usarla, no al importar el módulo.* La constante de módulo habría congelado el valor al arrancar.
+
+**Lo que no cambió:** con la variable sin definir, la plantilla, el resultado y las cuentas creadas son idénticos; las dos aserciones de `test_grupos.py` sobre `"Siep2026!"` (el `defaultPassword` y el `check_password` del estudiante importado) pasan sin tocarse. Un password propio en el archivo sigue mandando sobre el configurado.
+
+**Pruebas.** Backend 706 → **716** (+10), `manage.py check` limpio.
+
+- *Escritas antes del cambio:* 10 pruebas en `test_imported_password_setting.py`. Sobre el código original **3 pasaron** (la contraseña de siempre, la plantilla que la nombra y que el password del archivo manda: lo que ya hacía) y **7 fallaron** (la configurada se informa y se usa, la plantilla la nombra, y cinco casos de la lectura de la variable de entorno). Con el cambio pasan las 10.
+- *Mutaciones, 8:* informar siempre `Siep2026!`, usarla siempre al importar, nombrarla siempre en la plantilla, ignorar el password del archivo, no recortar la variable, dejar la contraseña vacía con la variable en blanco, cambiar el valor de reserva e ignorar la variable. **Las 8 detectadas.**
+
+**Hallazgos.** (1) El riesgo de fondo sigue en pie: **todos los importados nacen con la misma contraseña y el docente la ve en pantalla**; este cambio solo permite que no sea la del repositorio. La recomendación es una contraseña temporal aleatoria por estudiante con cambio obligatorio, o un enlace de activación. (2) `Siep2026!` sigue escrito en `base.py` como valor de reserva (y en las dos aserciones de `test_grupos.py` y en las pruebas nuevas): es el default de desarrollo, igual que `psychosim_secret` para la base de datos, y el repositorio es privado. (3) La interfaz del docente (`grupo-list.component.ts`) muestra `defaultPassword` tal cual llega; no se tocó.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-06/`: `antes_literal_en_el_servicio.png`, `despues_configuracion.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`; son diagramas de flujo de dónde nace y adónde llega la contraseña).
+
+**Relación con la materia.** Antipatrón «Hard Code» (Unidad 4): una credencial no debe vivir en el código; configuración por entorno.

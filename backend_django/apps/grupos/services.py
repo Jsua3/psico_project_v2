@@ -9,6 +9,7 @@ import zipfile
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.db import connection, transaction
@@ -27,7 +28,6 @@ from .models import Grupo
 
 User = get_user_model()
 
-DEFAULT_IMPORTED_STUDENT_PASSWORD = "Siep2026!"
 IMPORT_HEADER_ALIASES = {
     "email": "email",
     "correo": "email",
@@ -243,7 +243,7 @@ def student_import_template_bytes():
         ["nombre", "Si", "Primer nombre o nombres del estudiante."],
         ["apellido", "Si", "Apellidos del estudiante."],
         ["email", "Si", "Correo institucional o academico valido. No debe repetirse."],
-        ["password", "No", f"Si se deja vacio se usara {DEFAULT_IMPORTED_STUDENT_PASSWORD}."],
+        ["password", "No", f"Si se deja vacio se usara {settings.IMPORTED_STUDENT_DEFAULT_PASSWORD}."],
     ]
     with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8"?>
@@ -346,7 +346,7 @@ def _import_result(grupo, created=0, existing=0, assigned=0, skipped=0, duplicat
         "duplicated": duplicated,
         "errors": errors or [],
         "students": students or [],
-        "defaultPassword": DEFAULT_IMPORTED_STUDENT_PASSWORD,
+        "defaultPassword": settings.IMPORTED_STUDENT_DEFAULT_PASSWORD,
         "expectedColumns": list(STUDENT_IMPORT_COLUMNS),
         "message": message,
     }
@@ -371,7 +371,7 @@ def _validate_import_rows(grupo, rows):
         email_raw = _cell_text(item.get("email"))
         nombre = _cell_text(item.get("nombre"))
         apellido = _cell_text(item.get("apellido"))
-        password = _cell_text(item.get("password")) or DEFAULT_IMPORTED_STUDENT_PASSWORD
+        password = _cell_text(item.get("password")) or settings.IMPORTED_STUDENT_DEFAULT_PASSWORD
 
         if not nombre:
             errors.append({"row": row_number, "field": "nombre", "email": email_raw, "message": "El nombre es obligatorio.", "error": "El nombre es obligatorio."})
