@@ -1,0 +1,22 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        19 métodos públicos
+    }
+    class AuthoringApi {
+        24 métodos públicos
+    }
+    class AudioDirectorService
+    class GameWorldComponent {
+        -renderWorld()
+        -renderComisariaEnvironment()
+    }
+    class SceneRendererRegistry {
+        +resolveSceneRenderer(mapKey)
+    }
+    class GruposServices {
+        -_parse_xlsx_rows()
+    }
+    GameWorldComponent ..> SceneRendererRegistry : renderers autorados
+    note for SimulationService "el contrato HTTP pasa de 50 a 47 métodos<br/>(19 jugador, 24 autoría, 4 instructor)"
+    note for GameWorldComponent "la ruta de respaldo solo conserva<br/>el entorno de la comisaría"
