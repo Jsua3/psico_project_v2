@@ -8,6 +8,9 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.simulation.models import (
+    INITIAL_STRESS_INDEX,
+    INITIAL_USER_TRUST,
+    INITIAL_VICTIM_RISK,
     AttemptEvent,
     AttemptStatus,
     CaseVersion,
@@ -188,9 +191,9 @@ def start_attempt(case_version_id, actor, force_new=False):
         current_node=start_node,
         status=lifecycle.INITIAL_STATUS,
         accumulated_score=0,
-        stress_index=0,
-        victim_risk=50,
-        user_trust=50,
+        stress_index=INITIAL_STRESS_INDEX,
+        victim_risk=INITIAL_VICTIM_RISK,
+        user_trust=INITIAL_USER_TRUST,
         institutional_route_activated=False,
         revictimization_risk=False,
     )

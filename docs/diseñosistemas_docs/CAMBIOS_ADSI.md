@@ -479,7 +479,7 @@ Agregar un comportamiento obligaba a editar la cadena y la condición de llegada
 | **Riesgo** | Bajo-medio: 46 sitios en 5 archivos, protegidos por 99 pruebas escritas antes del cambio |
 | **Cambio de comportamiento** | Ninguno |
 
-**Aclaración de nombre.** En los documentos anteriores «A-03» significaba dos cosas: «usar `AttemptStatus` en vez de textos» (prerrequisito de P-12, `FASE0_EVALUACION.md` §3.1) y «números mágicos de `simulation-play.component.ts`» (§8). Se separan: **A-03a** es este cambio y **A-03b** queda para los números mágicos.
+**Aclaración de nombre.** En los documentos anteriores «A-03» significaba dos cosas: «usar `AttemptStatus` en vez de textos» (prerrequisito de P-12, `FASE0_EVALUACION.md` §3.1) y «números mágicos de `simulation-play.component.ts`» (§8). Se separan: **A-03a** es este cambio, **A-03b** son los tiempos de la pantalla de juego (frontend) y **A-03c** los números de las reglas del backend.
 
 **Problema (antes).** `AttemptStatus` (un `TextChoices`) ya existía en el modelo, pero ningún servicio lo usaba: los estados del intento se comparaban y asignaban con texto en unos **46 sitios de 5 archivos** (`game_service` 20, `reportes/services` 13, `game_dtos` 10, `world_service` 2, `case_effects` 1). Un error de tipeo en uno de ellos no falla: simplemente esa rama nunca se cumple.
 
@@ -588,8 +588,55 @@ Además, varios comentarios repetían el número en palabras («2,5 s», «4,2 s
   El valor sigue fijado, ahora sobre la definición. Se añadió además una prueba: la espera del fundido tiene su propia constante y no reutiliza `SCENE_FADE_MS` (la trampa de Fase 0). El plan decía actualizar esas aserciones *antes*; se actualizaron después de ver cuáles fallaban, lo que de paso confirma que son las únicas que fijaban literales.
 - *Mutaciones, 25:* 13 de valor (cada constante ±1 ms, incluidas `SCENE_FADE_MS` y `NOTICE_MS`) y 12 de cableado cruzado (cada sitio con la constante de otro): **24 detectadas** y 1 sobrevivió. La que sobrevive es X10, usar `NOTICE_MS` en la nota de transición: equivalente por valor, no una laguna de pruebas. Las cruzadas incluyen la trampa de Fase 0 (X1, el fundido con `SCENE_FADE_MS`), que se detecta con tres fallos.
 
-**Hallazgos.** (1) El §8 de `FASE0_EVALUACION.md` decía que el literal `80` «ya no está»; en `adsi/integracion` sigue (línea 2699 del original) y la aserción de la línea 13 del contract-spec lo fijaba. Se trató igual que los demás. (2) La Fase 0 contaba 13 `setTimeout`; 11 llevan tiempo y 2 no (la diferencia es de definición, no de código). (3) No se sabe si el margen de 20 ms entre `FADE_OUT_MS` (340) y `SCENE_FADE_MS` (320) es deliberado; se dejó como estaba y ahora está dicho. (4) El tope 0–100 del estrés está escrito en **6 sitios** (`simulation-play.component.ts`, `attempt-outcome.component.ts`, `game-feel.util.ts`, `patient-state.util.ts`, `stress-tier.util.ts`, `stress-hearts.util.ts`): es un duplicado (el equivalente en frontend de A-01), no un número mágico, y queda como candidato. (5) Los números del plan v1 del backend (`40/-20/+15` de `decision_effects.py`, `-5/+3` de herramientas, `50/50` iniciales, `RETENTION_DAYS`, `stress_index >= 70`) no se tocan aquí.
+**Hallazgos.** (1) El §8 de `FASE0_EVALUACION.md` decía que el literal `80` «ya no está»; en `adsi/integracion` sigue (línea 2699 del original) y la aserción de la línea 13 del contract-spec lo fijaba. Se trató igual que los demás. (2) La Fase 0 contaba 13 `setTimeout`; 11 llevan tiempo y 2 no (la diferencia es de definición, no de código). (3) No se sabe si el margen de 20 ms entre `FADE_OUT_MS` (340) y `SCENE_FADE_MS` (320) es deliberado; se dejó como estaba y ahora está dicho. (4) El tope 0–100 del estrés está escrito en **6 sitios** (`simulation-play.component.ts`, `attempt-outcome.component.ts`, `game-feel.util.ts`, `patient-state.util.ts`, `stress-tier.util.ts`, `stress-hearts.util.ts`): es un duplicado (el equivalente en frontend de A-01), no un número mágico, y queda como candidato. (5) Los números del plan v1 del backend (`40/-20/+15` de `decision_effects.py`, `-5/+3` de herramientas, `50/50` iniciales, `RETENTION_DAYS`, `stress_index >= 70`) no se tocan aquí: son A-03c.
 
 **Evidencia.** `docs/diseñosistemas_docs/A-03b/`: `antes_literales_sueltos.png`, `despues_constantes.png`, `despues_usos.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
-**Relación con la materia.** Antipatrón «Números mágicos» (Unidad 4, junto a «Hard Code»); legibilidad y un único lugar donde cambiar cada valor. Es el segundo de los dos cambios que se separaron de «A-03».
+**Relación con la materia.** Antipatrón «Números mágicos» (Unidad 4, junto a «Hard Code»); legibilidad y un único lugar donde cambiar cada valor. Es el segundo de los tres cambios en que se separó «A-03» (A-03c cubre los números del backend).
+
+
+### A-03c · Números mágicos — las reglas y escalas del intento en el backend
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a03c-backend-constants` · `b2487f5` (parte de `adsi/a03b-timing-constants`: PR después de A-03b) |
+| **Antipatrón** | «Números mágicos» (reglas de puntaje y estrés, escalas y tamaños escritos como literales) |
+| **Archivos** | `models/attempt.py`, `models/world.py`, `models/__init__.py`, `services/decision_effects.py`, `services/world_service.py`, `services/game_service.py`, `services/case_effects.py`, `services/authoring_service.py`, `serializers/game_dtos.py`; `tests/test_clinical_constants.py` (nuevo) |
+| **Riesgo** | Bajo-medio: son las reglas con las que el backend decide el puntaje y el estrés; 18 pruebas nuevas fijan los valores que no tenían prueba, antes del cambio |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** Las reglas numéricas del intento estaban escritas en **26 líneas de 7 archivos** sin nombre, y varias cifras se repetían: el `50` inicial en `game_service`, en `models/attempt.py` y en `case_effects`; el `960 × 540` de un mapa sin tamaño en `world_service` y en `authoring_service` (ocho literales); la escala `0, 100` en cuatro líneas. Quien leía `trust_delta -= 20` o `>= 70` tenía que adivinar de qué regla hablaba.
+
+**Solución (después).** Catorce constantes, cada una junto a lo que describe:
+
+- *Escala y valores iniciales* en `models/attempt.py`, junto a los campos: `INDICATOR_MIN` (0), `INDICATOR_MAX` (100), `INITIAL_STRESS_INDEX` (0), `INITIAL_VICTIM_RISK` (50) e `INITIAL_USER_TRUST` (50). Los campos del modelo y `start_attempt` usan las mismas.
+- *Tamaño por defecto de un mapa* en `models/world.py`, junto a `SceneMap.width/height`: `DEFAULT_MAP_WIDTH` (960) y `DEFAULT_MAP_HEIGHT` (540). Las usan `world_service` (movimiento y entrada de puertas) y `authoring_service` (mapa de un caso nuevo y mapa sin tamaño válido).
+- *Conducta prohibida* en `decision_effects.py`: `PROHIBITED_STRESS_PENALTY` (40), `PROHIBITED_TRUST_PENALTY` (20) y `PROHIBITED_VICTIM_RISK_PENALTY` (15).
+- *Herramientas* en `world_service.py`: `TOOL_PERTINENT_STRESS_DELTA` (−5) y `TOOL_IMPERTINENT_STRESS_DELTA` (3).
+- *Umbral de estrés alto* en `game_dtos.py`: `HIGH_STRESS_THRESHOLD` (70).
+- *Métrica inicial del caso* en `case_effects.py`: `CASE_METRIC_INITIAL` (50), que sustituye a tres literales.
+
+**Decisión de diseño.**
+
+- *Una constante por significado, no por valor.* `INITIAL_VICTIM_RISK` e `INITIAL_USER_TRUST` valen lo mismo y son dos constantes; igual `CASE_METRIC_INITIAL`, que es otra cosa aunque también valga 50. Es la misma decisión que en A-03b y deja el mismo rastro: las mutaciones que cruzan dos constantes de igual valor no se pueden detectar por comportamiento (A6 y G1, abajo).
+- *Cada constante vive donde se usa, salvo las compartidas.* No hay un módulo `constants.py` con todo: la escala, los valores iniciales y el tamaño del mapa se exportan desde `models` porque las leen varios archivos; el resto es de un solo módulo y se queda en él.
+- *Lo que no se tocó.* Los números que forman parte de datos con clave: `_TRUST` y `_VICTIM` (por clasificación), `OPTION_EFFECTS` (por opción) y las semillas de `seed_caso_pdf.py`. La cota inferior `0` de `_clamp(entry_x, 0, …)` es el origen del mapa, no la escala del indicador. `RETENTION_DAYS` (que el plan v1 listaba) ya tenía nombre en `audit_service.py`. No hay migraciones ni cambios de esquema: solo cambia cómo se escribe el `default` de tres campos de modelos `managed = False`.
+
+**Lo que no cambió:** el valor de ninguna regla ni de ninguna escala. Backend completo en verde y las pruebas que ya fijaban estos puntos pasan sin tocarse: las de A-01 (acotación a 0-100, estrés ±, `960 × 540` en `_door_entry`, valor por defecto de la métrica) y la del umbral de estrés alto del contrato del reporte (69, 70 y 100).
+
+**Pruebas.** Backend 681 → **699** (+18), `manage.py check` limpio.
+
+- *Caracterización (18), `test_clinical_constants.py`, verificadas sobre el código original antes de cambiarlo:*
+  - `resolve` en las tres clasificaciones, con y sin conducta prohibida (6): exactamente +40 de estrés, −20 de confianza y +15 de riesgo;
+  - las métricas del caso sin estado guardado y una métrica fuera de la lista (2);
+  - los valores iniciales de un intento nuevo y los `default` del modelo (2);
+  - el movimiento de un mapa sin tamaño guardado, en el borde exacto y un píxel más allá, a la derecha y abajo (1);
+  - el mapa de un caso nuevo y seis combinaciones de ancho y alto no válidos o válidos al guardar un mapa (7).
+- *Una prueba que se quitó:* se había escrito una del umbral de estrés alto y resultó duplicar `test_estres_desde_70_recomienda_autorregulacion` (contrato del reporte, 69/70/100 por el flujo real); se eliminó en vez de dejarla repetida.
+- *Mutaciones, 36* (cada constante ±1, cada punto de uso con la constante de otro, `>=` por `>`, cotas cruzadas): **34 detectadas** y 2 sobrevivieron. Las dos son equivalentes por valor, no lagunas: usar `INITIAL_USER_TRUST` donde va `INITIAL_VICTIM_RISK`, en el `default` del modelo (A6) y en `start_attempt` (G1); las dos constantes valen 50. Las tres del umbral (T1-T3) las detecta la prueba del contrato del reporte, ya existente. La tanda corrió contra los archivos de pruebas que ejercitan estos puntos y la suite completa también pasa.
+
+**Hallazgos.** (1) `decision_effects.resolve`, la función que decide cuánto pesa cada decisión, **no tenía ninguna prueba directa**: ninguna prueba comprobaba `trustDelta` ni `victimRiskDelta`, ni por el flujo HTTP. (2) El `960 × 540` de `update_position` no tenía prueba (la de A-01 cubría solo `_door_entry`); ahora hay una por el flujo HTTP. (3) Hay tres tamaños distintos que no deben confundirse: el **por defecto** (960 × 540, solo cuando el mapa no trae tamaño), el de las **salas sembradas** del caso PDF (960 × 528, `seed_caso_pdf.ROOM_W/ROOM_H`, que es también `CASE_ROOM_BOUNDS` en el frontend) y el **máximo** admisible (`MAX_MAP_WIDTH/HEIGHT`, 2560 × 1920). (4) El esquema SQL (`bootstrap_dev_db.py` y `deploy/db_seed.sql`) sigue con `DEFAULT 50`: es el mismo conocimiento escrito en SQL y en Python, y ninguna prueba los enlaza; cambiar `INITIAL_*` obligaría a cambiar el DDL a mano. (5) Las métricas del caso y los indicadores del intento usan la misma escala 0-100 pero son cosas distintas; `shared.jsonutils.clamp` conserva sus cotas por defecto para las primeras.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-03c/`: `antes_numeros_sueltos.png`, `despues_constantes.png`, `despues_usos.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Números mágicos» y «Hard Code» (Unidad 4). Cierra la familia A-03 (estados, tiempos y reglas) y deja las reglas del puntaje legibles para la sustentación.

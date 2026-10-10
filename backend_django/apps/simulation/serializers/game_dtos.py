@@ -196,6 +196,8 @@ _SUMMARY_BY_STATUS = {
 
 #: Estados en los que el intento ofrece los recursos de apoyo y recomienda retomar con acompañamiento.
 _SUPPORT_STATUSES = (AttemptStatus.SAFE_EXITED, AttemptStatus.PAUSED)
+#: Desde este estrés (0-100) el cierre recomienda practicar autorregulación.
+HIGH_STRESS_THRESHOLD = 70
 _GENERIC_RECOMMENDATION = (
     "Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva."
 )
@@ -274,7 +276,7 @@ class CompletionReportBuilder:
             # No son decisiones ni bajan el desempeño, pero el estudiante debe ver que reconsideró algo: el juego le
             # dijo en el momento «no se aplicó, reconsidera» y el cierre no puede callarlo.
             recommendations.append(_reconsidered_recommendation(self.retries))
-        if attempt.stress_index >= 70:
+        if attempt.stress_index >= HIGH_STRESS_THRESHOLD:
             recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
         if attempt.revictimization_risk:
             recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")

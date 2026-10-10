@@ -25,6 +25,15 @@ class AttemptStatus(models.TextChoices):
     REPLACED = "REPLACED"
 
 
+#: Escala de los indicadores del intento: estrés, confianza en la persona y riesgo de la víctima.
+INDICATOR_MIN = 0
+INDICATOR_MAX = 100
+#: Un intento nuevo arranca sin estrés y con la confianza y el riesgo a media escala.
+INITIAL_STRESS_INDEX = 0
+INITIAL_VICTIM_RISK = 50
+INITIAL_USER_TRUST = 50
+
+
 class SimulationAttempt(models.Model):
     AttemptStatus = AttemptStatus
 
@@ -43,10 +52,10 @@ class SimulationAttempt(models.Model):
         max_length=20, choices=AttemptStatus.choices, default=AttemptStatus.IN_PROGRESS
     )
     accumulated_score = models.IntegerField(default=0)
-    stress_index = models.IntegerField(default=0)
+    stress_index = models.IntegerField(default=INITIAL_STRESS_INDEX)
     # Clinical metrics (Flyway V8).
-    victim_risk = models.IntegerField(default=50)
-    user_trust = models.IntegerField(default=50)
+    victim_risk = models.IntegerField(default=INITIAL_VICTIM_RISK)
+    user_trust = models.IntegerField(default=INITIAL_USER_TRUST)
     institutional_route_activated = models.BooleanField(default=False)
     revictimization_risk = models.BooleanField(default=False)
     started_at = models.DateTimeField(auto_now_add=True)

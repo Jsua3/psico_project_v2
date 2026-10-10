@@ -44,6 +44,8 @@ CASE_METRIC_KEYS = (
     "ruta_institucional",
     "calidad_duelo",
 )
+#: Valor con el que parte cada métrica del caso mientras ninguna opción la haya movido.
+CASE_METRIC_INITIAL = 50
 
 #: Registro canónico de consecuencias por option_key (caso PDF).
 OPTION_EFFECTS = {
@@ -225,12 +227,12 @@ def _load_state(attempt):
 
 
 def read_case_state(attempt):
-    """(flags, metrics) del caso para el intento — métricas con defaults en 50."""
+    """(flags, metrics) del caso para el intento — métricas con defaults en ``CASE_METRIC_INITIAL``."""
     state = _load_state(attempt)
     raw = _read_map(state.flags_json) if state else {}
     flags = raw.get("caseFlags") if isinstance(raw.get("caseFlags"), dict) else {}
     metrics_raw = raw.get("caseMetrics") if isinstance(raw.get("caseMetrics"), dict) else {}
-    metrics = {key: int(metrics_raw.get(key, 50)) for key in CASE_METRIC_KEYS}
+    metrics = {key: int(metrics_raw.get(key, CASE_METRIC_INITIAL)) for key in CASE_METRIC_KEYS}
     return flags, metrics
 
 
@@ -264,11 +266,11 @@ def apply_case_effects(attempt, decision):
     raw = _read_map(state.flags_json)
     flags = raw.get("caseFlags") if isinstance(raw.get("caseFlags"), dict) else {}
     metrics_raw = raw.get("caseMetrics") if isinstance(raw.get("caseMetrics"), dict) else {}
-    metrics = {key: int(metrics_raw.get(key, 50)) for key in CASE_METRIC_KEYS}
+    metrics = {key: int(metrics_raw.get(key, CASE_METRIC_INITIAL)) for key in CASE_METRIC_KEYS}
 
     flags.update(entry["flags"])
     for key, delta in entry["metrics"].items():
-        metrics[key] = _clamp(metrics.get(key, 50) + delta)
+        metrics[key] = _clamp(metrics.get(key, CASE_METRIC_INITIAL) + delta)
 
     raw["caseFlags"] = flags
     raw["caseMetrics"] = metrics

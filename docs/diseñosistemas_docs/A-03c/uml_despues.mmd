@@ -1,0 +1,43 @@
+classDiagram
+    direction LR
+    class attempt_model {
+        <<constantes · models/attempt.py>>
+        INDICATOR_MIN = 0
+        INDICATOR_MAX = 100
+        INITIAL_STRESS_INDEX = 0
+        INITIAL_VICTIM_RISK = 50
+        INITIAL_USER_TRUST = 50
+    }
+    class world_model {
+        <<constantes · models/world.py>>
+        DEFAULT_MAP_WIDTH = 960
+        DEFAULT_MAP_HEIGHT = 540
+    }
+    class decision_effects {
+        <<constantes>>
+        PROHIBITED_STRESS_PENALTY = 40
+        PROHIBITED_TRUST_PENALTY = 20
+        PROHIBITED_VICTIM_RISK_PENALTY = 15
+    }
+    class world_service {
+        <<constantes>>
+        TOOL_PERTINENT_STRESS_DELTA = -5
+        TOOL_IMPERTINENT_STRESS_DELTA = 3
+    }
+    class case_effects {
+        <<constantes>>
+        CASE_METRIC_INITIAL = 50
+    }
+    class game_dtos {
+        <<constantes>>
+        HIGH_STRESS_THRESHOLD = 70
+    }
+    class game_service
+    class authoring_service
+    decision_effects ..> attempt_model : escala
+    world_service ..> attempt_model : escala
+    world_service ..> world_model : tamaño por defecto
+    game_service ..> attempt_model : valores iniciales
+    authoring_service ..> world_model : tamaño por defecto
+    note for attempt_model "los valores iniciales están junto a<br/>los campos que inicializan"
+    note for world_model "una sola definición de 960 x 540<br/>en vez de ocho literales"

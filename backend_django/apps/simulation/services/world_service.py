@@ -13,6 +13,10 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from ..models import (
+    DEFAULT_MAP_HEIGHT,
+    DEFAULT_MAP_WIDTH,
+    INDICATOR_MAX,
+    INDICATOR_MIN,
     AttemptEvent,
     AttemptWorldState,
     ClinicalTool,
@@ -61,6 +65,9 @@ NPC_RANGE_TOLERANCE_PX = 16
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 PLAYER_HITBOX_WIDTH = 22
 PLAYER_HITBOX_HEIGHT = 16
+#: Estrés al usar una herramienta: baja si el uso fue pertinente y sube si no.
+TOOL_PERTINENT_STRESS_DELTA = -5
+TOOL_IMPERTINENT_STRESS_DELTA = 3
 
 
 def _require_finite_int(value, name):
@@ -184,8 +191,8 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
         return _to_world_state(attempt, world_state)
     x = _require_finite_int(player_x, "playerX")
     y = _require_finite_int(player_y, "playerY")
-    map_w = world_state.scene_map.width or 960
-    map_h = world_state.scene_map.height or 540
+    map_w = world_state.scene_map.width or DEFAULT_MAP_WIDTH
+    map_h = world_state.scene_map.height or DEFAULT_MAP_HEIGHT
     hitbox_x, hitbox_y, hitbox_w, hitbox_h = _player_hitbox(x, y)
     if not (0 <= hitbox_x and hitbox_x + hitbox_w <= map_w
             and 0 <= hitbox_y and hitbox_y + hitbox_h <= map_h):
@@ -301,8 +308,8 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     world_state.used_tool_keys_json = _append_unique(world_state.used_tool_keys_json, usage_key)
     world_state.save()
 
-    stress_delta = -5 if pertinent else 3
-    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, 0, 100)
+    stress_delta = TOOL_PERTINENT_STRESS_DELTA if pertinent else TOOL_IMPERTINENT_STRESS_DELTA
+    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, INDICATOR_MIN, INDICATOR_MAX)
     attempt.save()
 
     sign = "+" if stress_delta >= 0 else ""
@@ -451,8 +458,8 @@ def _door_entry(meta, target):
     except KeyError:
         raise ValidationError("La puerta no tiene una entrada autorada válida")
     return (
-        _clamp(entry_x, 0, target.width or 960),
-        _clamp(entry_y, 0, target.height or 540),
+        _clamp(entry_x, 0, target.width or DEFAULT_MAP_WIDTH),
+        _clamp(entry_y, 0, target.height or DEFAULT_MAP_HEIGHT),
     )
 
 
