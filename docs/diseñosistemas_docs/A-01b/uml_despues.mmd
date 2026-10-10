@@ -1,0 +1,17 @@
+classDiagram
+    direction LR
+    class graphics_primitives_util {
+        <<módulo>>
+        +rectC()
+        +frameC()
+        +ellipseC()
+    }
+    class case_pdf_rooms_renderer {
+        -contactShadow()
+    }
+    class premium_clinical_room_renderer {
+        -contactShadow()
+    }
+    case_pdf_rooms_renderer ..> graphics_primitives_util
+    premium_clinical_room_renderer ..> graphics_primitives_util
+    note for graphics_primitives_util "una sola definición;<br/>las llamadas de dibujo de las salas<br/>no cambian (maestro dorado)"

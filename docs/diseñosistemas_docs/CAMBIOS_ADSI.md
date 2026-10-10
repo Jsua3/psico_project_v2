@@ -771,3 +771,37 @@ Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_
 **Evidencia.** `docs/diseñosistemas_docs/P-03/`: `antes_clones_campo_por_campo.png`, `despues_copia_declarativa.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Prototype (patrones creacionales, Unidad 2: sustentación 1) y el antipatrón «Cut & Paste» (Unidad 4). Es el único cambio de la serie cuya prueba previa descubrió defectos que el código ya tenía.
+
+
+### A-01b · Cut & Paste — las primitivas de dibujo de las salas, una sola vez
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a01b-draw-primitives` · `7f5c2cf` (parte de `adsi/p03-clone-prototype`: PR después de P-03) |
+| **Antipatrón** | «Cut & Paste» (código duplicado) |
+| **Archivos** | `features/simulator/graphics-primitives.util.ts` (nuevo), `case-pdf-rooms.renderer.ts` y `premium-clinical-room.renderer.ts`; `scene-renderers.draw-calls.spec.ts` (nuevo) |
+| **Riesgo** | Bajo en el código, pero es arte: protegido por un «maestro dorado» de cada llamada de dibujo, escrito antes |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `rectC`, `frameC` y `ellipseC` —rectángulo relleno, contorno de rectángulo y elipse con coordenadas centradas— estaban copiadas, **idénticas**, en `case-pdf-rooms.renderer.ts` y en `premium-clinical-room.renderer.ts`, y entre los dos archivos se usan 239 veces (136 y 103). Arreglar una (por ejemplo, el grosor por defecto del contorno) no llegaba a la otra. `contactShadow` también estaba duplicada, con una única diferencia: el color de la sombra sale de `SHADOW` en un archivo y de `PAL.shadow` en el otro (hoy valen lo mismo, `0x05070d`).
+
+**Solución (después).** `graphics-primitives.util.ts` define las tres primitivas y los dos renderers las importan; los 239 puntos de uso no cambian de nombre ni de firma. `contactShadow` se queda en cada archivo: usa la paleta de su propio renderer y unificarla exigiría decidir si las paletas comparten la sombra.
+
+**Decisión de diseño.**
+
+- *Un módulo de utilidades, sin clase.* Son funciones puras sobre un `Graphics` (solo tipos de Phaser: el import se elide y los specs corren sin canvas).
+- *`contactShadow` no se mueve.* Parece lo mismo pero depende del color de cada paleta; moverla con un parámetro de color cambiaría ~50 llamadas por una diferencia de nombre.
+- *Es el paso previo de P-14b.* Con las primitivas fuera, la plantilla de las salas del caso queda con solo lo que es de cada sala.
+
+**Lo que no cambió:** ni una llamada de dibujo: las huellas de los diez renderizados (las cuatro salas del caso con y sin texturas, y la sala premium con y sin movimiento) son las mismas antes y después.
+
+**Pruebas.** Frontend 2255 → **2266** (+11; 174 → 175 archivos), `tsc` de app y de pruebas sin errores y `ng build` correcto.
+
+- *Maestro dorado (11), `scene-renderers.draw-calls.spec.ts`, escrito y verificado sobre el código original:* una escena falsa registra en orden **cada** llamada (qué objeto crea y con qué profundidad, qué rectángulos, elipses, líneas y textos pinta, con qué colores y transparencias, y los tweens) y la resume en una huella (cantidad de eventos y los primeros 16 caracteres de un SHA-256). Diez huellas fijas —4 salas del caso × con/sin texturas y la sala premium × con/sin movimiento— y una prueba de control: la huella es determinista y cambia con un solo carácter. Las huellas salieron iguales en dos corridas seguidas.
+- *Mutaciones, 10:* descentrar el rectángulo en x o en y, cambiar la transparencia por defecto o ignorarla, cambiar el grosor por defecto del contorno, rellenar en vez de contornear, intercambiar ancho y alto de la elipse, descentrarla y cambiar su transparencia. **Las 10 detectadas.**
+
+**Hallazgos.** (1) Las pruebas de las salas que ya existían (`case-pdf-rooms.spec.ts`, `case-pdf-rooms.furniture.spec.ts`) comprueban la metadata, las colisiones y los muebles, **no** qué se pinta ni en qué orden; un cambio de color o una capa movida habría pasado. El maestro dorado cubre ese vacío. (2) Si el arte cambia a propósito, las huellas hay que recalcularlas y anotarlo; el encabezado del spec lo dice. (3) No se abrió el juego en el navegador: para un refactor que no debe mover un píxel, la huella exacta de cada llamada es una garantía más fuerte que una captura de pantalla.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-01b/`: `antes_primitivas_copiadas.png`, `despues_primitivas_compartidas.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Cut & Paste» (Unidad 4); «no te repitas» (DRY).
