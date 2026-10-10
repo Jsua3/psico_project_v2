@@ -423,9 +423,50 @@ export class WorldEditorStore {
     ).subscribe(def => {
       if (def) {
         this.definition.set(def);
+        this.adoptSavedIds(def);
         this.saving.set(false);
         this.dirty.set(false);
       }
+    });
+  }
+
+  /**
+   * A-05b: lo nuevo se numera en el editor con ids locales y el servidor devuelve los reales. Se
+   * adoptan por clave, sin tocar nada más y sin pasar por la pila de deshacer: así el siguiente
+   * guardado actualiza las filas en lugar de volver a crearlas. Si ningún id cambia, el estado es
+   * el mismo objeto (no hay repintado).
+   */
+  private adoptSavedIds(def: WorldDefinition): void {
+    const objectIds = new Map(def.objects.map(o => [o.key, o.id]));
+    const zoneIds = new Map(def.collisionZones.map(z => [z.key, z.id]));
+    const treeIds = new Map(def.dialogues.map(d => [d.key, d.id]));
+
+    this.editorState.update(state => {
+      if (!state) return state;
+      let changed = false;
+
+      const objects = state.objects.map(o => {
+        const id = objectIds.get(o.key);
+        if (id === undefined || id === o.id) return o;
+        changed = true;
+        return { ...o, id };
+      });
+      const collisionZones = state.collisionZones.map(z => {
+        const id = zoneIds.get(z.key);
+        if (id === undefined || id === z.id) return z;
+        changed = true;
+        return { ...z, id };
+      });
+      const dialogues = state.dialogues.map(d => {
+        const id = treeIds.get(d.key) ?? d.id;
+        const owner = d.mapObjectKey !== undefined ? objectIds.get(d.mapObjectKey) : undefined;
+        const mapObjectId = owner ?? d.mapObjectId;
+        if (id === d.id && mapObjectId === d.mapObjectId) return d;
+        changed = true;
+        return { ...d, id, mapObjectId };
+      });
+
+      return changed ? { ...state, objects, collisionZones, dialogues } : state;
     });
   }
 
