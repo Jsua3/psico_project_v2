@@ -17,13 +17,11 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
+from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
 from .node_iterator import BreadthFirstNodeIterator
-
-#: Un intento abierto (en juego o en pausa) es el «activo» del estudiante: se reanuda o se reemplaza.
-_OPEN_STATUSES = (AttemptStatus.IN_PROGRESS, AttemptStatus.PAUSED)
 
 
 def _hash_token(raw_token: str) -> str:
@@ -143,11 +141,11 @@ def _close_active_attempts(student_id, case_version_id, reason):
     # Es un reemplazo, no una salida segura: estado y evento propios.
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
-        status__in=_OPEN_STATUSES,
+        status__in=lifecycle.OPEN_STATUSES,
     )
     now = timezone.now()
     for active in actives:
-        active.status = AttemptStatus.REPLACED
+        lifecycle.apply(active, lifecycle.REPLACE)
         active.ended_at = now
         active.locked_at = now
         active.save()
@@ -167,7 +165,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         active = (
             SimulationAttempt.objects.filter(
                 student_id=actor.id, case_version_id=case_version_id,
-                status__in=_OPEN_STATUSES,
+                status__in=lifecycle.OPEN_STATUSES,
             )
             .select_related("case_version__simulation_case", "current_node")
             .order_by("-started_at")
@@ -188,7 +186,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         case_version=version,
         student_id=actor.id,
         current_node=start_node,
-        status=AttemptStatus.IN_PROGRESS,
+        status=lifecycle.INITIAL_STATUS,
         accumulated_score=0,
         stress_index=0,
         victim_risk=50,
@@ -206,7 +204,7 @@ def find_active_attempt(case_version_id, actor):
     active = (
         SimulationAttempt.objects.filter(
             student_id=actor.id, case_version_id=case_version_id,
-            status__in=_OPEN_STATUSES,
+            status__in=lifecycle.OPEN_STATUSES,
         )
         .select_related("case_version__simulation_case", "current_node")
         .order_by("-started_at")
@@ -224,7 +222,7 @@ def get_attempt(attempt_id, attempt_token, actor):
 
 def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == AttemptStatus.IN_PROGRESS:
+    if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
     events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
     return dto.build_completion_report(attempt, events)
@@ -339,7 +337,7 @@ def choose_decision(
     evidence_override=False, missing_evidence=None,
 ):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != AttemptStatus.IN_PROGRESS:
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta decisiones")
 
     decision = (
@@ -403,7 +401,7 @@ def choose_decision(
 
     if decision.target_node.terminal_node:
         now = timezone.now()
-        attempt.status = AttemptStatus.COMPLETED
+        lifecycle.apply(attempt, lifecycle.COMPLETE)
         attempt.ended_at = now
         attempt.locked_at = now
         _lock_reflections(attempt)
@@ -422,7 +420,7 @@ def choose_decision(
 @transaction.atomic
 def save_reflection(attempt_id, attempt_token, node_id, text, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != AttemptStatus.IN_PROGRESS:
+    if not lifecycle.state_of(attempt).plays:
         raise ValidationError("La bitácora ya está bloqueada")
     if not text or not text.strip():
         raise ValidationError("La bitácora requiere texto")
@@ -439,7 +437,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor):
         reflection = ReflectionJournal(attempt=attempt, node=node)
     reflection.encrypted_text = crypto_service.encrypt(text)
     reflection.encryption_key_ref = crypto_service.key_ref()
-    reflection.locked = attempt.status != AttemptStatus.IN_PROGRESS
+    reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 
     _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada")
@@ -455,9 +453,9 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     llamada devuelve el estado sin duplicar eventos.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status != AttemptStatus.IN_PROGRESS:
+    if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
         return dto.attempt_state(attempt, attempt_token, None)
-    attempt.status = AttemptStatus.PAUSED
+    lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
@@ -472,11 +470,12 @@ def resume_attempt(attempt_id, attempt_token, actor):
     registrar un segundo evento. Cualquier otro estado es un error explícito.
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    if attempt.status == AttemptStatus.IN_PROGRESS:
+    state = lifecycle.state_of(attempt)
+    if state.plays:
         return dto.attempt_state(attempt, attempt_token, None)
-    if attempt.status != AttemptStatus.PAUSED:
+    if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
-    attempt.status = AttemptStatus.IN_PROGRESS
+    lifecycle.apply(attempt, lifecycle.RESUME)
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
     return dto.attempt_state(attempt, attempt_token, None)
