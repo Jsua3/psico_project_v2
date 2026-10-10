@@ -20,6 +20,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
+from apps.simulation.signals import attempt_completed
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
@@ -413,8 +414,9 @@ def choose_decision(
 
     if attempt.status == AttemptStatus.COMPLETED:
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
-        from apps.progression.services import record_case_completion
-        record_case_completion(attempt.student_id, attempt.case_version.simulation_case_id)
+        # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
+        # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
+        attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
     feedback = dto.feedback_dto(decision, effects, message)
     return dto.attempt_state(attempt, attempt_token, feedback)
