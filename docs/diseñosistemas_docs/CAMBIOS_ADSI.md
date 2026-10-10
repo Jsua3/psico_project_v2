@@ -1261,3 +1261,44 @@ npm run test:e2e -- e2e/world-editor.e2e.ts
 **Evidencia.** `docs/diseñosistemas_docs/A-05c/`: `antes_corrida_original.png`, `intermedio_corrida_solo_a05.png`, `despues_corrida_punta.png` (con su texto en `.txt`: las líneas reales de cada corrida), `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Pruebas de extremo a extremo y de regresión (calidad); integridad entre cliente y servidor. Cierra la salvedad de A-05b («no hay e2e de este flujo»).
+
+
+### A-10 · El inicio de sesión con Google declara la dependencia que necesita (`requests`)
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a10-requests-google` · `f6ae487` (PR #55 hacia `adsi/integracion`, que ya tiene toda la serie fusionada) |
+| **Tipo** | Corrección de una dependencia no declarada; no es un patrón |
+| **Archivos** | `backend_django/requirements.txt` (dos líneas); `apps/users/tests/test_google_dependency_declared.py` (nuevo) |
+| **Riesgo** | Bajo: una librería de transporte HTTP muy usada; no cambia código de producción. Pasa por el `pip-audit` del CI |
+| **Cambio de comportamiento** | **Sí, declarado:** el inicio de sesión con Google deja de responder siempre 400 «El proveedor de Google no está instalado en el backend» y pasa a verificar la credencial con Google (inválida → 401) |
+
+**Problema (antes).** `verify_google_credential` importa `google.auth.transport.requests`, que exige el paquete `requests`. `requirements.txt` trae `google-auth` pero no `requests` (para `google-auth` es un extra opcional). Todo entorno instalado desde ese archivo —el Dockerfile, el CI y `npm run up`— quedaba sin él, y la vista convertía el `ImportError` en un 400 genérico: **el botón «Ingresar con Google» no podía funcionar nunca**, aunque `GOOGLE_OAUTH_CLIENT_ID` estuviera configurado. A-04 lo descubrió al revisar esa vista; su prueba de contrato simula el módulo (para no depender del paquete) y por eso no podía notarlo.
+
+**Solución (después).** `requests==2.34.2` en `requirements.txt`, junto a `google-auth`, fijada con `==` como el resto (es la última versión en PyPI al 10 de octubre de 2026, y `google-auth` 2.59.1 pide `requests` ≥ 2.30 y < 3 en su extra `requests`).
+
+**Decisión de diseño.**
+
+- *Una línea propia, no el extra `google-auth[requests]`.* El archivo fija cada dependencia con `==` y un extra instalaría `requests` sin fijar su versión.
+- *No se actualizó `google-auth`.* Hay una 2.61.0 disponible; los pines se revisaron el 4 de octubre y este cambio solo agrega lo que falta.
+- *La prueba lee el archivo.* Lo que se quiere impedir es que vuelva a faltar en el archivo del que instalan el Dockerfile, el CI y `npm run up`; no depende del entorno de quien la corre.
+
+**Lo que no cambió:** ninguna línea de código de producción; los mensajes y códigos de la vista cuando el módulo no está (la prueba de A-04 sigue simulando su ausencia).
+
+**Pruebas.** Backend 855 → **857** (+2), medido en un venv limpio creado desde el `requirements.txt` nuevo (119 s).
+
+- *En rojo primero:* las dos pruebas nuevas fallaban sobre el archivo anterior por la razón esperada («`requests` no está declarado»).
+- *Mutaciones, 6 sobre `requirements.txt`, las 6 detectadas:* quitar la línea, escribir mal el nombre, dejarla comentada, cambiar `==` por `>=`, quitar la versión y escribirla con mayúscula inicial (esta última la detecta la convención de nombres en minúsculas de la prueba de fijación; `pip` la habría aceptado).
+- *Con el código real, sin simular módulos* (sonda que llama a `GoogleLoginView` con una credencial inválida): sin `requests` → importación fallida y **HTTP 400**; con `requests` → importación correcta y **HTTP 401** «No fue posible validar la cuenta de Google» (la rechaza Google, tras traer sus certificados).
+- *`pip-audit -r backend_django/requirements.txt`:* «No known vulnerabilities found».
+
+**Lo que NO se pudo demostrar:** el inicio de sesión completo con una cuenta real de Google (hace falta un client id real y un token firmado por Google). Lo medido llega hasta el rechazo de una credencial inválida; el camino feliz (200) sigue cubierto por la prueba de contrato de A-04 con la verificación simulada.
+
+**Hallazgos.**
+
+1. **Ahora es alcanzable un fallo nuevo:** con `requests` instalado, si Google no responde (sin red, DNS o un proxy caído) `verify_oauth2_token` lanza `TransportError`, que no es un `ValueError`, y la vista responde **500**. Medido con un proxy muerto. Es coherente con A-04 (un fallo de infraestructura no es un fallo de autenticación) y antes no se veía porque siempre fallaba antes con el 400; un 503 diría mejor lo que pasa. No se tocó: queda anotado.
+2. **La contraseña por defecto de los importados no se tocó** (decisión del 10 de octubre: «dejémoslo así por ahora»): sigue siendo `Siep2026!` salvo que se defina `IMPORTED_STUDENT_DEFAULT_PASSWORD`.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-10/`: `antes_requirements.png`, `despues_requirements.png`, `antes_sin_requests.png`, `despues_con_requests.png` (con su texto en `.txt`: las salidas reales), `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Exception Handling» (Unidad 4): el `ImportError` convertido en un 400 genérico ocultaba que la función no podía funcionar; configuración reproducible (Unidad 7): el CI, el Dockerfile y `npm run up` instalan del mismo archivo.

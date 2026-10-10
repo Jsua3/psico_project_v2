@@ -1,0 +1,15 @@
+requirements.txt de adsi/a10-requests-google: google-auth==2.59.1 y requests==2.34.2
+------------------------------------------------------------------------
+$ pip list | findstr "requests google-auth"
+google-auth==2.59.1
+requests==2.34.2
+$ python -c "from google.auth.transport import requests; from google.oauth2 import id_token"
+import ok: google.auth.transport.requests google.oauth2.id_token
+$ sonda: POST /api/auth/google con una credencial inválida (código real, sin simular módulos)
+paquete requests: instalado
+POST /api/auth/google (credencial inválida) -> HTTP 401
+mensaje: No fue posible validar la cuenta de Google
+$ la misma sonda sin ruta a Google (proxy muerto)
+paquete requests: instalado
+POST /api/auth/google (credencial inválida) -> HTTP 500
+mensaje: Error interno del servidor

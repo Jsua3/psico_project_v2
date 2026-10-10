@@ -4,12 +4,12 @@ Generado el 2026-10-10 por `docs/diseñosistemas_docs/tools/git_evidence.py` a p
 
 ## Resumen
 
-- **Ramas locales de la serie:** 31.
-- **Pull requests hacia `adsi/integracion`** (desde el #24): 30, más #31 → `master` (borrador para el CI oficial).
-- **Pull requests fusionados:** 29 de 30.
-- **Commits de la serie** (`f1944df..adsi/integracion`): 91, entre 2026-10-09 y 2026-10-10; merges en el rango: 29.
-- **Autores del rango:** Jsua3: 48, Juan José Sua: 43.
-- **Commits con coautoría de Claude** (`Co-Authored-By`): 91 de 91.
+- **Ramas locales de la serie:** 32.
+- **Pull requests hacia `adsi/integracion`** (desde el #24): 31, más #31 → `master` (borrador para el CI oficial).
+- **Pull requests fusionados:** 30 de 31.
+- **Commits de la serie** (`f1944df..adsi/integracion`): 111, entre 2026-10-09 y 2026-10-10; merges en el rango: 35.
+- **Autores del rango:** Jsua3: 67, Juan José Sua: 44.
+- **Commits con coautoría de Claude** (`Co-Authored-By`): 111 de 111.
 
 > **Lo que esta evidencia no muestra:** los commits están a nombre de una sola persona (con dos nombres de configuración, `Jsua3` y `Juan José Sua`) y de Claude como coautor. El plan (§12, punto 3) pedía que los cuatro integrantes se vieran en el historial; eso depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta, y **no está hecho**.
 
@@ -45,11 +45,12 @@ Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (G
 | [#47](https://github.com/Jsua3/psico_project_v2/pull/47) | `adsi/a07-clone-gaps` | MERGED | A-07 · Los olvidos del clon de versión — peso y estado de los criterios, versión de la rúbrica y esquema de mundo | `0e21e46` |
 | [#48](https://github.com/Jsua3/psico_project_v2/pull/48) | `adsi/p13-attempt-completed-observer` | MERGED | P-13 · Observer — «un intento se completó» es una señal a la que progresión se suscribe | `4d7f813` |
 | [#49](https://github.com/Jsua3/psico_project_v2/pull/49) | `adsi/l01-lsp-contracts` | MERGED | L-01 · Liskov (SOLID) — una misma suite de contrato recorre todas las implementaciones registradas | `fa2f07d` |
-| [#50](https://github.com/Jsua3/psico_project_v2/pull/50) | `adsi/docs-informe-final` | OPEN | docs(adsi): informe de antipatrones y SOLID, patrones existentes y descartados, evidencia de Git | `—` |
+| [#50](https://github.com/Jsua3/psico_project_v2/pull/50) | `adsi/docs-informe-final` | MERGED | docs(adsi): informe de antipatrones y SOLID, patrones existentes y descartados, evidencia de Git | `—` |
 | [#51](https://github.com/Jsua3/psico_project_v2/pull/51) | `adsi/a08-limpieza-verificada` | MERGED | A-08 · Limpieza verificada — tres imports sin uso y una copia exacta | `4fe342b` |
 | [#52](https://github.com/Jsua3/psico_project_v2/pull/52) | `adsi/a05b-editor-adopta-ids` | MERGED | A-05b · El editor adopta los ids reales que el servidor da a lo nuevo | `b950969` |
 | [#53](https://github.com/Jsua3/psico_project_v2/pull/53) | `adsi/a09-timer-teardown` | MERGED | A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente | `b458dde` |
 | [#54](https://github.com/Jsua3/psico_project_v2/pull/54) | `adsi/a05c-editor-e2e` | MERGED | A-05c · El editor de mundo, probado en el navegador contra la base real | `5d8ba6e` |
+| [#55](https://github.com/Jsua3/psico_project_v2/pull/55) | `adsi/a10-requests-google` | OPEN | A-10 · El inicio de sesión con Google declara la dependencia que necesita (`requests`) | `f6ae487` |
 
 ## Cómo se reproduce
 
