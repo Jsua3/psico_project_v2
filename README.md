@@ -10,9 +10,11 @@ Simulación formativa tipo **RPG clínico top-down**: el estudiante explora mapa
 psico_project_v3/
   backend_django/    ← API Django 6.1 + DRF (Python 3.12-3.14)
   frontend/          ← App Angular 22 (Signals + Phaser 4 + Konva.js)
+  docs/              ← Documentación del proyecto (índice en docs/README.md)
+  deploy/            ← Volcado de la BD y scripts de actualización (Railway)
+  scripts/           ← Scripts de entorno y de pruebas (npm run up, npm run test:*)
+  tools/             ← Herramientas de arte (puertas y mobiliario)
   docker-compose.yml ← Servicio PostgreSQL 16 para desarrollo local
-  docs/
-    PROMPT_MAESTRO.md   ← Fuente de verdad del proyecto
 ```
 
 ## Requisitos previos
@@ -179,11 +181,14 @@ El enunciado histórico del proyecto usaba prefijos en español (`/api/simulacio
 | Instructor / trazabilidad | `GET /api/instructor/attempts/recent`, `GET /api/instructor/attempts/:id/trace`, `.../rubric-evaluation` | Solo PROFESOR/ADMIN |
 | Reportes | `GET /api/reportes/dashboard`, `GET /api/reportes/grupo/:id`, `.../export` | Estudiante → 403 |
 
-Ver también el informe QA: [`docs/qa-api-siep.md`](docs/qa-api-siep.md).
+## Documentación
 
-## Documentación completa
+El índice completo está en [`docs/README.md`](docs/README.md). Lo más consultado:
 
-Ver [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md) para la arquitectura completa, endpoints, componentes, esquema de BD y decisiones de diseño.
+- [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): mapa de endpoints, componentes y tablas (fecha de corte 2026-06-05; ver su aviso de vigencia).
+- [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
+- [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
+- [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías
 
@@ -191,7 +196,7 @@ Ver [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md) para la arquitectura comp
 |---|---|
 | Backend | Python 3.14 (3.12+), Django 6.1, DRF 3.18, JWT, psycopg 3 |
 | Frontend | Angular 22 (Signals), Phaser 4, Konva.js, Angular Material, Vitest |
-| Base de datos | PostgreSQL 16 en desarrollo, 18 en pruebas (esquema heredado de Flyway; ver `docs/audits/2026-10-04-estrategia-stack-esquema-y-despliegue.md`) |
+| Base de datos | PostgreSQL 16 en desarrollo, 18 en pruebas (esquema heredado de Flyway; ver `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`) |
 | Auth | JWT (simplejwt) — claims `userId` + `role` |
 | Cifrado | AES-GCM para bitácoras de reflexión |
 

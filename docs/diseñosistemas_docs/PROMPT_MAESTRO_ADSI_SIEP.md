@@ -192,7 +192,7 @@ Directo, en español, sin relleno. Decide con valores razonables y avisa; pregun
 | Plan v1 (parcialmente superado) | `Analisis_diseño_sistemas/PLAN_APLICACION_PATRONES_SIEP.md` (y proyecto de Claude) |
 | **Evaluación vigente + catálogo v2** | `Analisis_diseño_sistemas/FASE0_EVALUACION.md` (y proyecto de Claude) |
 | Registro de cambios ADSI | `psico_project_v3/docs/diseñosistemas_docs/CAMBIOS_ADSI.md` (solo en `adsi/integracion`) |
-| Docs técnicos del repo | `docs/PROMPT_MAESTRO.md` (fuente de verdad, jun 2026), `docs/PROMPT_MAESTRO_SIEP_PROFESIONAL.md` (jul 2026), `docs/audits/2026-10-04-estrategia-stack-esquema-y-despliegue.md` (stack y plan de actualización), `docs/qa-api-siep.md`, `README.md` |
+| Docs técnicos del repo | `docs/PROMPT_MAESTRO.md` (fuente de verdad, jun 2026), `docs/PROMPT_MAESTRO_SIEP_PROFESIONAL.md` (jul 2026), `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md` (stack y plan de actualización), `README.md` |
 | Material de la materia | `Analisis_diseño_sistemas/documentos_material/Material Analisis y Diseño/` |
 | Calendario | `Plan de trabajo Ana y Dis Sistemas 2026-2.PDF` (proyecto de Claude) |
 
