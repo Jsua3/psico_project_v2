@@ -42,10 +42,13 @@ BASE = "/api/admin/cases"
 #: Campos que difieren a propósito entre origen y clon (no son «datos del caso»).
 ALWAYS_EXCLUDED = {"id", "created_at", "updated_at"}
 
-#: Huecos conocidos: el clon NO los copia y recibe el valor por defecto del modelo.
+#: Lo que el clon NO copia a propósito y recibe el valor por defecto del modelo.
+#: `Rubric.is_default` es una marca GLOBAL (`set_default` apaga la de todas las demás
+#: rúbricas): copiarla dejaría dos rúbricas predeterminadas. Hasta A-07 la lista tenía cuatro
+#: campos más (`Rubric.version`, `RubricCriterion.weight` y `.active`, y el
+#: `world_schema_version` de la versión), que eran olvidos, no decisiones.
 KNOWN_GAPS = {
-    Rubric: {"version", "is_default"},
-    RubricCriterion: {"weight", "active"},
+    Rubric: {"is_default"},
 }
 
 #: modelo → (orden, {clave foránea: campo con que se la etiqueta}, campos excluidos propios)
@@ -235,9 +238,9 @@ def test_el_clon_de_la_version_es_un_borrador_enlazado_al_origen(admin, fuente):
     assert clone.published_at is None
     assert clone.created_by_id == admin.id
     assert clone.semantic_version != fuente.semantic_version
-    # world_schema_version es un hueco conocido: el origen vale 2 y el clon recibe el valor por defecto.
+    # A-07: el clon conserva el esquema de mundo de la fuente (antes recibía el valor por defecto).
     assert fuente.world_schema_version == 2
-    assert clone.world_schema_version == CaseVersion._meta.get_field("world_schema_version").get_default()
+    assert clone.world_schema_version == fuente.world_schema_version
 
 
 def test_las_rubricas_clonadas_quedan_a_nombre_de_quien_clona(admin, autor, fuente):

@@ -1,0 +1,27 @@
+classDiagram
+    direction LR
+    class CopySpec {
+        <<inmutable>>
+        +model
+        +fields
+        +copy(origen, vínculos)
+    }
+    class CASE_VERSION {
+        narrative_context
+    }
+    class RUBRIC {
+        name
+        description
+        active
+    }
+    class RUBRIC_CRITERION {
+        competency
+        title
+        description
+        max_score
+        display_order
+    }
+    CopySpec <|-- CASE_VERSION
+    CopySpec <|-- RUBRIC
+    CopySpec <|-- RUBRIC_CRITERION
+    note for RUBRIC_CRITERION "el clon recibe el valor por defecto de:<br/>weight (0), active (true), Rubric.version (1.0),<br/>CaseVersion.world_schema_version (1)<br/>— el peso personalizado se perdía al clonar"

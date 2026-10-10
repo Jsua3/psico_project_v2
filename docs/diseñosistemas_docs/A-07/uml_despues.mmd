@@ -1,0 +1,31 @@
+classDiagram
+    direction LR
+    class CopySpec {
+        <<inmutable>>
+        +model
+        +fields
+        +copy(origen, vínculos)
+    }
+    class CASE_VERSION {
+        narrative_context
+        world_schema_version
+    }
+    class RUBRIC {
+        name
+        description
+        active
+        version
+    }
+    class RUBRIC_CRITERION {
+        competency
+        title
+        description
+        weight
+        max_score
+        active
+        display_order
+    }
+    CopySpec <|-- CASE_VERSION
+    CopySpec <|-- RUBRIC
+    CopySpec <|-- RUBRIC_CRITERION
+    note for RUBRIC "is_default NO se copia, a propósito:<br/>es una marca global (set_default apaga las demás)"
