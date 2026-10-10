@@ -546,3 +546,50 @@ Agregar un comportamiento obligaba a editar la cadena y la condición de llegada
 **Evidencia.** `docs/diseñosistemas_docs/P-12/`: `antes_pausar_y_reanudar.png`, `antes_guarda_decisiones.png`, `antes_guarda_mundo.png`, `despues_attempt_lifecycle_base.png`, `despues_attempt_lifecycle_estados.png`, `despues_pausar_y_reanudar.png`, `despues_guarda_decisiones.png`, `despues_guarda_mundo.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** State (patrones de comportamiento, Unidad 3), en su forma liviana de tabla de transiciones; abierto/cerrado y responsabilidad única (SOLID). Cierra el recorrido del antipatrón «Hard Code» que abrió A-03a.
+
+
+### A-03b · Números mágicos — los tiempos de la pantalla de juego
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a03b-timing-constants` · `fb40b96` (parte de `adsi/p12-attempt-state`: PR después de P-12) |
+| **Antipatrón** | «Números mágicos» (literales sin nombre que no dicen qué esperan) |
+| **Archivos** | `simulation-play.component.ts` (11 literales y 4 comentarios), `simulation-play.timings.spec.ts` (nuevo) y `simulation-play.game-feel.contract.spec.ts` (2 aserciones modificadas y 1 prueba añadida) |
+| **Riesgo** | Bajo: solo cambia cómo se escribe cada número; 13 pruebas nuevas fijan cada tiempo al milisegundo |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `simulation-play.component.ts` tenía **11 `setTimeout` con el tiempo escrito en el sitio** (2500, 4500, 400, 550, 700, 340, 80, 2200, 4200, 3000 y 50 ms). Ninguno decía qué espera ni por qué, y dos eran trampas:
+
+- `340` (la espera del fundido de escena) vive junto a `SCENE_FADE_MS = 320` (la transición CSS del mismo fundido). Parecen el mismo número mal copiado, pero no lo son: la espera supera en 20 ms a la transición.
+- `4200` aparecía suelto en la nota de transición del mapa, igual que el valor de `NOTICE_MS`.
+
+Además, varios comentarios repetían el número en palabras («2,5 s», «4,2 s», «1-2 s» para el nombre de la sala, que en realidad dura 2,2 s) y habían empezado a divergir del código.
+
+**Solución (después).**
+
+- Cada tiempo es una constante con nombre y una línea que dice qué espera, junto a `SCENE_FADE_MS` y `NOTICE_MS`: `FADE_OUT_MS` (340), `WORLD_REVEAL_DELAY_MS` (80), `SUPERVISION_DELAY_MS` (400), `POSITION_SAVE_DEBOUNCE_MS` (550), `STRESS_PULSE_MS` (700), `NOTHING_NEARBY_MS` (2500), `ACTION_ERROR_MS` (4500), `ROOM_BANNER_MS` (2200), `STAGE_BANNER_MS` (3000), `TRANSITION_NOTE_MS` (4200) y `ANNOUNCE_DELAY_MS` (50).
+- Los cuatro comentarios que repetían el número ahora nombran la constante.
+
+**Decisión de diseño.**
+
+- *Una constante por significado, no por valor.* `FADE_OUT_MS` no reutiliza `SCENE_FADE_MS`, y `TRANSITION_NOTE_MS` no reutiliza `NOTICE_MS` aunque hoy valga lo mismo: la nota de transición es un texto narrativo autorado, no un aviso cuyo contenido ya está en la lista «Qué hacer». Si mañana se ajusta uno, el otro no se mueve en silencio. La separación de `TRANSITION_NOTE_MS` no se puede comprobar por comportamiento mientras los dos valgan 4200 (ver la mutación X10).
+- *Dónde viven.* Arriba del archivo, como las dos que ya existían: los 11 usos están en este componente. Un módulo compartido tendría sentido cuando otro componente necesite alguno.
+- *Lo que no se nombró.* El `100` del tope de estrés (`Math.max(0, Math.min(100, …))`) y el `4` de `slice(0, 4)` del código corto de la herramienta no son tiempos; la distancia de rearme de puertas (`doorInteractionRearmDistance = 72`) ya tenía nombre; los dos `setTimeout(() => …)` sin retardo no llevan número; y las duraciones de las transiciones CSS siguen en el CSS (la única que debe coincidir con una constante, `scene-fade` y `SCENE_FADE_MS`, ya la fija el contract-spec).
+
+**Lo que no cambió:** el valor de ningún tiempo. El grupo `simulation-play*` (301 pruebas, 14 de ellas nuevas) y las 2255 de toda la suite pasan; los specs de comportamiento que ya avanzaban el reloj con números (`tick(340)`, `4100`/`4300`, `10_000`…) no se tocaron.
+
+**Pruebas.** Frontend 2241 → **2255** (+14; 173 → 174 archivos), `tsc` de app y de pruebas sin errores y `ng build` correcto.
+
+- *Caracterización (13), `simulation-play.timings.spec.ts`, escritas y verificadas sobre el código original antes de tocarlo:* cada tiempo se comprueba al milisegundo (a 1 ms antes todo sigue igual y en el instante indicado ya cambió) con el componente real y relojes simulados. Cubren los 11 tiempos, `NOTICE_MS` (el aviso suave) y la espera de 320 ms de los efectos de cámara, y el reinicio de la espera del guardado de posición. Los números van escritos en la prueba, no importados: son el contrato observable. Una primera versión falló porque el doble de la escena no tenía `refreshScale` (otro temporizador de 0 ms); se completó el doble, no el código.
+- *Aserciones cambiadas (declaradas):* el contract-spec `simulation-play.game-feel.contract.spec.ts` leía el literal en el texto del componente. Al introducir las constantes, **exactamente dos pruebas fallaron** (de las 2241 existentes) y ninguna otra, ni de las nuevas:
+  - `…\}, 80\);/` pasó a `…\}, WORLD_REVEAL_DELAY_MS\);/` y se añadió `toContain('const WORLD_REVEAL_DELAY_MS = 80;')`;
+  - `…updated.feedback!)), 400);` pasó a `…, SUPERVISION_DELAY_MS);` y se añadió `toContain('const SUPERVISION_DELAY_MS = 400;')`.
+
+  El valor sigue fijado, ahora sobre la definición. Se añadió además una prueba: la espera del fundido tiene su propia constante y no reutiliza `SCENE_FADE_MS` (la trampa de Fase 0). El plan decía actualizar esas aserciones *antes*; se actualizaron después de ver cuáles fallaban, lo que de paso confirma que son las únicas que fijaban literales.
+- *Mutaciones, 25:* 13 de valor (cada constante ±1 ms, incluidas `SCENE_FADE_MS` y `NOTICE_MS`) y 12 de cableado cruzado (cada sitio con la constante de otro): **24 detectadas** y 1 sobrevivió. La que sobrevive es X10, usar `NOTICE_MS` en la nota de transición: equivalente por valor, no una laguna de pruebas. Las cruzadas incluyen la trampa de Fase 0 (X1, el fundido con `SCENE_FADE_MS`), que se detecta con tres fallos.
+
+**Hallazgos.** (1) El §8 de `FASE0_EVALUACION.md` decía que el literal `80` «ya no está»; en `adsi/integracion` sigue (línea 2699 del original) y la aserción de la línea 13 del contract-spec lo fijaba. Se trató igual que los demás. (2) La Fase 0 contaba 13 `setTimeout`; 11 llevan tiempo y 2 no (la diferencia es de definición, no de código). (3) No se sabe si el margen de 20 ms entre `FADE_OUT_MS` (340) y `SCENE_FADE_MS` (320) es deliberado; se dejó como estaba y ahora está dicho. (4) El tope 0–100 del estrés está escrito en **6 sitios** (`simulation-play.component.ts`, `attempt-outcome.component.ts`, `game-feel.util.ts`, `patient-state.util.ts`, `stress-tier.util.ts`, `stress-hearts.util.ts`): es un duplicado (el equivalente en frontend de A-01), no un número mágico, y queda como candidato. (5) Los números del plan v1 del backend (`40/-20/+15` de `decision_effects.py`, `-5/+3` de herramientas, `50/50` iniciales, `RETENTION_DAYS`, `stress_index >= 70`) no se tocan aquí.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-03b/`: `antes_literales_sueltos.png`, `despues_constantes.png`, `despues_usos.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Números mágicos» (Unidad 4, junto a «Hard Code»); legibilidad y un único lugar donde cambiar cada valor. Es el segundo de los dos cambios que se separaron de «A-03».
