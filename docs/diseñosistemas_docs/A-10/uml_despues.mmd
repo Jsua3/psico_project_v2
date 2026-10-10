@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant U as Usuario (botón de Google)
+    participant V as GoogleLoginView
+    participant F as verify_google_credential
+    participant G as google-auth + requests
+    participant S as Google (certificados)
+
+    U->>V: POST /api/auth/google (credencial)
+    V->>F: verify_google_credential
+    F->>G: import google.auth.transport.requests
+    G-->>F: ok (requests declarado y fijado)
+    F->>S: verify_oauth2_token
+    S-->>F: certificados
+    alt credencial inválida
+        F-->>V: ValueError
+        V-->>U: 401 «No fue posible validar la cuenta»
+    else credencial válida y usuario activo
+        V-->>U: 200 con el token de la aplicación
+    end
+    Note over F,S: si Google no responde: 500 (hallazgo, no se tocó)

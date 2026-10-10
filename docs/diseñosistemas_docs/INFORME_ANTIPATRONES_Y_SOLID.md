@@ -5,10 +5,10 @@ entrada de `CAMBIOS_ADSI.md`, donde están el problema con su archivo y líneas,
 pruebas, las capturas «antes/después» y el diagrama UML. Aquí solo se reúne y se ordena; **no hay ninguna
 afirmación que no esté sustentada allí**. Las cifras de pruebas salen de las corridas completas de cada rama.
 
-**Estado al 10 de octubre de 2026** (todo fusionado en `adsi/integracion`, con el mismo árbol que
-`adsi/a05c-editor-e2e`): backend **855** pruebas, frontend **2383** en 179 archivos (línea base del proyecto: 307
-y 1809) y **35** de extremo a extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo día;
-`master` no se tocó (ver `EVIDENCIA_GIT.md`).
+**Estado al 10 de octubre de 2026** (la serie fusionada en `adsi/integracion`, más A-10): backend **857** pruebas
+(855 antes de A-10), frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809) y **35** de extremo a
+extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo día; `master` no se tocó (ver
+`EVIDENCIA_GIT.md`).
 
 ---
 
@@ -30,10 +30,11 @@ y 1809) y **35** de extremo a extremo (34 antes de A-05c). Cada PR se fusionó c
 | | tres imports sin uso que A-01 y P-05b dejaron anotados (`CriterionScore`, `Rubric`, `_int`) | **A-08** · recorrido de todos los archivos del backend; solo esos tres no estaban marcados a propósito | Resuelto |
 | | `ResizeZoneCommand` sin llamador de producción desde P-07 | — | Documentado (decisión del equipo: redimensionar zonas) |
 | **Hard Code** | estados del intento como texto en ~46 sitios de 5 archivos, existiendo `AttemptStatus` | **A-03a** | Resuelto |
-| | contraseña por defecto `Siep2026!` escrita en el servicio | **A-06** · pasa a configuración (valor por defecto igual) | Resuelto el literal; **el riesgo de fondo (la misma contraseña para todos) sigue** |
+| | contraseña por defecto `Siep2026!` escrita en el servicio | **A-06** · pasa a configuración (valor por defecto igual) | Resuelto el literal; **el riesgo de fondo (la misma contraseña para todos) sigue y se deja así por ahora** (decisión del 10 de octubre) |
 | **Números mágicos** | 11 tiempos de `setTimeout` en `simulation-play.component.ts` | **A-03b** | Resuelto |
 | | reglas de puntaje, estrés y escalas del backend (`-5/+3`, `40/20/15`, `50/50`, `70`, `960×540`…) | **A-03c** | Resuelto |
 | **Exception Handling** | `GoogleLoginView`: `except Exception` que convierte un fallo de la base en «cuenta no asociada» | **A-04** (cambio de comportamiento deliberado: 401 → 500) | Resuelto |
+| | `ImportError` convertido en un 400 genérico: ocultaba que `requests` no estaba declarado y que el inicio de sesión con Google no podía funcionar nunca | **A-10** · `requests==2.34.2` en `requirements.txt` y dos pruebas que leen el archivo (cambio de comportamiento: 400 → 401 con credencial inválida) | Resuelto y fusionado; el flujo completo con una cuenta real de Google **no se pudo demostrar** |
 | **Función larga** | `build_completion_report` (~100 líneas) | **P-04** · Builder | Resuelto |
 | | `_validate_door` (cascada de `if … raise`) | **P-08a** · Chain of Responsibility | Resuelto |
 | | `get_progress_map` (BFS manual con `pop(0)`) | **P-09** · Iterator | Resuelto |
@@ -48,13 +49,17 @@ y 1809) y **35** de extremo a extremo (34 antes de A-05c). Cada PR se fusionó c
 ### Lo que NO se arregló y debe quedar escrito
 
 - **Cambios de comportamiento aprobados y fusionados el 10 de octubre**: A-05 (borra lo que antes no borraba),
-  A-05b (el editor adopta los ids reales tras guardar) y A-07 (el clon conserva pesos y estado de criterios).
-  **P-13** (Observer con un único suscriptor; no cambia comportamiento) está fusionado y **anotado como «a decidir»**.
+  A-05b (el editor adopta los ids reales tras guardar) y A-07 (el clon conserva pesos y estado de criterios);
+  **A-10** (`requests` declarado: el inicio de sesión con Google deja de fallar siempre con 400) se agregó después,
+  a pedido del equipo. **P-13** (Observer con un único suscriptor; no cambia comportamiento) está fusionado y
+  **anotado como «a decidir»**.
+- **Se deja así por ahora (decisión del 10 de octubre):** la contraseña por defecto de los importados (`Siep2026!`
+  salvo que se defina `IMPORTED_STUDENT_DEFAULT_PASSWORD`; la misma para todos hasta que la cambien).
 - **Hallazgos sin corregir**: `create_case` es la única mutación del editor sin auditoría; `create_object` y
   `create_tool` responden 500 si faltan campos NOT NULL; `update_dialogue` sin `lines` borra las líneas;
   `get_completion_report` devuelve el informe de un intento pausado o reemplazado; `patrol` empieza en el punto 1;
-  `requests` falta en `requirements.txt`, por lo que el inicio de sesión con Google siempre responde «proveedor no
-  instalado»; los demás temporizadores sin dueño de `SimulationPlayComponent` (ninguno vuelve a usar `window`); el
+  con `requests` ya instalado (A-10), si Google no responde el inicio de sesión con Google da 500 (un 503 sería más
+  claro); los demás temporizadores sin dueño de `SimulationPlayComponent` (ninguno vuelve a usar `window`); el
   editor de mundo pinta «0 objetos · 0 zonas» y deja activa la biblioteca antes de que cargue la sala (un clic en
   ese momento no hace nada); `save_world`, `create_object` y `create_dialogue` buscan `decisionOptionId` y
   `mapObjectId` por id sin acotar a la versión del caso (solo se alcanza llamando a la API a mano: la interfaz

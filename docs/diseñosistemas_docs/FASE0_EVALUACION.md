@@ -209,6 +209,7 @@ lineal y las fusiones se hicieron en orden, así que para deshacer uno basta `gi
 | #52 | **A-05b** — el editor adopta los ids reales tras guardar | sin esto A-05 deja filas que cambian de id en cada autoguardado | **Sí** (acotado, frontend) |
 | #53 | **A-09** — un temporizador sin dueño hacía fallar el CI | el job de frontend de #51 (que no toca el frontend) falló 1 de 7 veces | No |
 | #54 | **A-05c** — el editor de mundo, probado en el navegador contra la base real | A-05 y A-05b no tenían prueba del flujo real; midió que el código original (también `master`) quitaba objetos a la versión publicada del caso demo (41 → 38) | No (solo una prueba e2e) |
+| #55 | **A-10** — `requests` declarado para el inicio de sesión con Google | A-04 encontró que faltaba; el equipo pidió agregarlo (10 de octubre, tras fusionar la serie) | **Sí** (el inicio de sesión con Google deja de fallar siempre con 400) |
 
 El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
 
@@ -216,17 +217,19 @@ El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambi
 no se hicieron**: riesgo alto, sin red de seguridad suficiente o una decisión de producto de por medio (razones en
 `PATRONES_EXISTENTES_Y_DESCARTADOS.md`); el 10 de octubre se aceptó la recomendación de no hacerlos por ahora.
 
-**Pruebas en la punta.** Backend 855 (línea base 307), frontend 2383 en 179 archivos (línea base 1809) y 35 de
-extremo a extremo (34 antes de A-05c; la corrida completa local anterior a A-05c: matriz API 16/16 y Playwright 33 en
-verde con 1 omitida a propósito por el propio spec).
+**Pruebas en la punta.** Backend 857 (línea base 307; 855 antes de A-10), frontend 2383 en 179 archivos (línea
+base 1809) y 35 de extremo a extremo (34 antes de A-05c; la corrida completa local anterior a A-05c: matriz API 16/16
+y Playwright 33 en verde con 1 omitida a propósito por el propio spec).
 
 **Lo que sigue (decisión del equipo):**
 
 1. ~~Revisar y fusionar la pila en orden~~ **Hecho el 10 de octubre.** A-05b completa a A-05 en el editor: si se
    revirtiera A-05b y se conservara A-05, cada autoguardado de un objeto nuevo lo recrearía con otro id (sin duplicados).
 2. Decidir qué hacer con P-13 (anotado como «a decidir»).
-3. Seguridad y dependencias, sin decidir: `requests` en `requirements.txt` (el inicio de sesión con Google no
-   funciona sin él) y la contraseña por defecto de los importados (valor propio en producción, o una por estudiante).
+3. Seguridad y dependencias: **`requests` agregado en A-10** (el inicio de sesión con Google no funcionaba sin él;
+   falta definir `GOOGLE_OAUTH_CLIENT_ID` y reinstalar dependencias). **La contraseña por defecto de los importados
+   se deja así por ahora** (decisión del 10 de octubre); cuando se retome: valor propio en producción, o una por
+   estudiante.
 4. Fusionar `adsi/integracion` en `master` (PR borrador #31) cuando el equipo lo decida.
 5. Reparto de la autoría en Git entre los cuatro integrantes (hoy toda la historia está a nombre de una persona).
 6. El informe Word (plantilla IEEE) a partir de esta carpeta.

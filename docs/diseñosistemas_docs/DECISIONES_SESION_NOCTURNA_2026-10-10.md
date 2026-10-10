@@ -15,22 +15,23 @@ Juan José Sua leyó la cuenta y respondió:
 | ¿De acuerdo con los cambios de comportamiento (A-05, A-07, A-05b)? | **Sí, totalmente.** |
 | P-13 (Observer con un único suscriptor) | **Se deja anotado como lo que es**, para decidir después qué hacer con él. Queda fusionado y marcado como «a decidir» en el registro. |
 | ¿P-11 y P-15 a P-20? | **Lo que recomiende Claude:** no hacerlos por ahora; siguen en «evaluado, no aplicado». |
-| `requests` para Google y contraseña por defecto | **Sin decidir:** pidió que se explicara qué son (abajo). Siguen pendientes. |
+| `requests` para Google y contraseña por defecto | Pidió que se explicara qué son (abajo) y después respondió: **`requests`: sí, agregarlo y dejarlo anotado** (hecho en A-10); **contraseña por defecto: «dejémoslo así por ahora»** (no se toca; queda anotado). |
 
 **Qué son los dos pendientes de seguridad y dependencias.**
 
-- **`requests` (inicio de sesión con Google).** `backend_django/requirements.txt` trae `google-auth` pero no
-  `requests`, que esa librería necesita para verificar el token (`users/views.py` la importa). Hoy el inicio de sesión
-  con Google siempre responde «El proveedor de Google no está instalado en el backend», aunque se configure
-  `GOOGLE_OAUTH_CLIENT_ID`. El arreglo es una línea en `requirements.txt` (pasa por `pip-audit` del CI). Recomendación:
-  agregarla solo si el inicio de sesión con Google va a usarse.
-- **Contraseña por defecto de los importados.** Al importar estudiantes desde un archivo, si la columna de contraseña
-  queda vacía todos reciben la misma (`Siep2026!` por defecto; desde A-06 sale de la variable de entorno
-  `IMPORTED_STUDENT_DEFAULT_PASSWORD`). Quien la conozca puede entrar como cualquier importado que no la haya cambiado.
-  Opciones: **(1)** en producción, definir esa variable con un valor secreto propio (solo configuración); **(2)**
-  generar una contraseña aleatoria por estudiante y entregarla una sola vez; **(3)** obligar a cambiarla en el primer
-  ingreso (necesita una columna nueva, y la serie no toca el esquema). Recomendación: (1) antes de desplegar, y
-  decidir (2) o (3) con el equipo.
+- **`requests` (inicio de sesión con Google) — agregado en A-10.** `backend_django/requirements.txt` traía
+  `google-auth` pero no `requests`, que esa librería necesita para verificar el token (`users/views.py` la importa).
+  El inicio de sesión con Google respondía siempre «El proveedor de Google no está instalado en el backend», aunque se
+  configurara `GOOGLE_OAUTH_CLIENT_ID`. Ahora `requests==2.34.2` está declarado y fijado (pasa por el `pip-audit` del
+  CI). Para usarlo hay que reinstalar las dependencias (`npm run up` lo hace) y definir `GOOGLE_OAUTH_CLIENT_ID`.
+  Queda anotado un hallazgo: si Google no responde, la vista da 500 (un 503 sería más claro).
+- **Contraseña por defecto de los importados — se deja así por ahora (10 de octubre).** Al importar estudiantes desde
+  un archivo, si la columna de contraseña queda vacía todos reciben la misma (`Siep2026!` por defecto; desde A-06 sale
+  de la variable de entorno `IMPORTED_STUDENT_DEFAULT_PASSWORD`). Quien la conozca puede entrar como cualquier
+  importado que no la haya cambiado. Opciones cuando se retome: **(1)** en producción, definir esa variable con un
+  valor secreto propio (solo configuración); **(2)** generar una contraseña aleatoria por estudiante y entregarla una
+  sola vez; **(3)** obligar a cambiarla en el primer ingreso (necesita una columna nueva, y la serie no toca el
+  esquema). Recomendación vigente: (1) antes de desplegar, y decidir (2) o (3) con el equipo.
 
 ## Reglas que se aplicaron
 
@@ -81,8 +82,8 @@ de P-05b salían cortadas).
 |---|---|
 | **P-11** Strategy de finales | Con un solo caso sería código para un futuro hipotético, y antes hay que decidir qué final tienen los demás casos. Hallazgo: `compute_ending` aplica las reglas y los textos del caso del PDF a cualquier caso; uno distinto solo puede terminar en «Riesgo Persistente» o, con dos decisiones críticas, en «Crítico», y nunca en «Integral» ni «Con brechas». |
 | **P-15 a P-20** (State del componente de juego, Mediator, Memento, Abstract Factory, Factory Method, Chain/Command) | Riesgo alto: los contract-specs leen el texto fuente y habría que reescribirlos antes; no hay pase visual. Los patrones de cada unidad de la materia ya tienen su aplicación (ver `PATRONES_EXISTENTES_Y_DESCARTADOS.md`). |
-| Contraseña por defecto de los importados | Seguridad: el riesgo de fondo (la misma contraseña para todos) es de diseño; A-06 solo la movió a configuración. |
-| `requests` en `requirements.txt` | Cambio de dependencias: hoy el inicio de sesión con Google siempre responde «proveedor no instalado». |
+| Contraseña por defecto de los importados | Seguridad: el riesgo de fondo (la misma contraseña para todos) es de diseño; A-06 solo la movió a configuración. **El 10 de octubre se decidió dejarla así por ahora.** |
+| ~~`requests` en `requirements.txt`~~ | **Hecho en A-10 el 10 de octubre**, con la aprobación del equipo (era un cambio de dependencias). |
 | Hallazgos de robustez (`create_object`/`create_tool` → 500 sin campos NOT NULL; `update_dialogue` sin `lines` borra líneas; `create_case` sin auditoría; `get_completion_report` de un intento pausado; `patrol` empieza en el punto 1; `create_dialogue`, `create_object` y `save_world` buscan `mapObjectId`/`decisionOptionId` sin acotar a la versión, solo por API directa) | Cada uno cambia comportamiento y no hay una referencia clara de lo que se espera; quedan escritos en el registro. |
 | Autoría de los cuatro integrantes en Git | Depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta. |
 
@@ -98,6 +99,7 @@ de `adsi/a05c-editor-e2e`. Para deshacer una decisión se revierte su fusión, s
 | P-13 (Observer) | `git revert -m 1 2767d7d` |
 | A-05b (el editor adopta ids reales) | `git revert -m 1 3c3585e` |
 | A-05c (e2e del editor) | `git revert -m 1 cc1d128` |
+| A-10 (`requests`, agregado después, [#55](https://github.com/Jsua3/psico_project_v2/pull/55)) | `git revert f6ae487` |
 
 - Cada fusión agregó su entrada al final de `CAMBIOS_ADSI.md`, así que revertir una de en medio pedirá resolver ese
   archivo a mano (conservar la entrada o quitarla); el código y las pruebas no deberían chocar salvo que un cambio
