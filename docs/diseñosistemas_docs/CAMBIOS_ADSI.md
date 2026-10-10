@@ -1056,3 +1056,42 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/P-13/`: `antes_llamada_en_linea.png`, `despues_senal_y_suscriptor.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Observer (patrones de comportamiento, Unidad 3), sustentación 2; inversión de dependencias y abierto/cerrado (SOLID): una reacción nueva a la finalización no obliga a editar el servicio del juego.
+
+
+### L-01 · Liskov (SOLID) — una misma suite de contrato recorre todas las implementaciones registradas
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/l01-lsp-contracts` · `fa2f07d` (parte de `adsi/p13-attempt-completed-observer`: PR después de P-13) |
+| **Principio** | Sustitución de Liskov (SOLID); es el «test de contrato para LSP» que el plan v1 (§5.2) anunció |
+| **Archivos** | `test_ai_provider_lsp_contract.py`, `motion-strategies.lsp.spec.ts` y `scene-renderer.lsp.spec.ts` (nuevos); **no cambia código de producción** |
+| **Riesgo** | Ninguno en producción: solo pruebas |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** El proyecto tiene tres puntos donde un cliente usa «lo que haya en el registro» sin saber cuál es: la vista de IA con el proveedor (`PROVIDERS`), la escena con la estrategia de movimiento de cada persona (`NPC_MOTION_STRATEGIES`) y el juego con el renderer de la sala (`SCENE_RENDERERS`). Esa confianza solo es legítima si **todas** las implementaciones cumplen el mismo contrato, y lo que había eran pruebas **por clase concreta** (una para OpenAI, otra para Anthropic; una por comportamiento de movimiento; una para la sala premium). Un proveedor, comportamiento o sala nuevo no heredaba ninguna: cumplir el contrato dependía de que alguien escribiera la prueba.
+
+**Solución (después).** Tres suites que no nombran a ninguna implementación: **recorren el registro**, así que lo que se suma al registro entra solo y tiene que pasarlas.
+
+| Suite | Se parametriza por | Qué exige a **cada** implementación |
+|---|---|---|
+| `test_ai_provider_lsp_contract.py` (31) | `PROVIDERS` | es una subclase concreta de `AIProvider`; se construye con clave y modelo; devuelve el texto recortado; usa el transporte **una vez** con URL `https://`, cuerpo y cabeceras; manda el modelo, `max_tokens` y los dos textos; la clave va en las cabeceras y en ningún otro sitio; una respuesta vacía o incompleta da `""` (nunca `None` ni error); el error del transporte no se traga ni se cambia; no guarda estado entre llamadas |
+| `motion-strategies.lsp.spec.ts` (63) | `NPC_MOTION_STRATEGIES` y los tres patrones ambientales | devuelve un punto finito o `null` en una malla de 54 situaciones; no modifica el contexto (se congela antes de llamar); es determinista con el mismo azar; solo consulta obstáculos con coordenadas finitas; el índice de ancla que devuelve es un entero válido. Ambiental: el índice solo lo mueve la patrulla y queda dentro de sus puntos; `idle` nunca da destino; `wander` no sale de su radio |
+| `scene-renderer.lsp.spec.ts` (42) | los renderers del registro | la lista que se prueba es exactamente la que resuelve el registro (si alguien registra uno nuevo y no lo suma, falla); claves no vacías y únicas; no soporta mapas vacíos ni desconocidos; pinta sin lanzar, con y sin texturas; el piso y los puntos de interés quedan dentro de la sala; solo declara capas visuales y ninguna del gameplay; es determinista; **sin movimiento no crea ningún tween**; no modifica sus opciones |
+
+**Decisión de diseño.**
+
+- *Lo que cada suite NO prueba:* lo propio de cada implementación (qué URL, qué zona, qué mueble) ya lo fijan las pruebas por clase y el maestro dorado. Aquí solo está lo que tienen que cumplir todas: si una propiedad solo valiera para una, no es del contrato.
+- *Los contratos se escribieron desde lo documentado, no desde lo que hoy hace cada una.* Un ejemplo: `pace` y `patrol` **sí** pueden devolver un destino bloqueado (siguen sus anclas sin consultar obstáculos, como dice el comentario del código), así que «nunca devuelve un destino bloqueado» no es del contrato y no se exige.
+- *Una respuesta conocida para los proveedores.* La suite de IA usa una respuesta que trae el texto en la forma de cada API conocida. Un proveedor con otra forma obliga a sumar la suya a esa respuesta: es el precio de que la suite sea la misma para todos.
+- *Cuadrícula en un solo caso de prueba.* Las 54 situaciones de la estrategia de movimiento van en un bucle por propiedad (con el nombre de la situación en el mensaje), no en 54 pruebas por comportamiento: la primera versión generaba 699 casos y era ruido.
+- *No se hicieron suites para la cadena de puertas (`DoorRule`) ni para `CopySpec`:* la primera tiene eslabones con dependencias muy distintas (una consulta a la base, un *callback*) y la segunda es un dato, no una jerarquía.
+
+**Pruebas.** Backend 823 → **854** (+31); frontend 2271 → **2376** (+105; 176 → 178 archivos). No cambia código de producción.
+
+- *Mutaciones sobre las implementaciones, 27 (9 backend, 18 frontend), las 27 detectadas:* OpenAI sin recortar el texto, Anthropic sin `max_tokens`, con la clave en el cuerpo, devolviendo `None`, sin la pregunta; un proveedor que se traga el error del transporte, que guarda estado, que usa `http`, o sin la clave en las cabeceras; una estrategia que devuelve `y` indefinida, que se sale del rango de anclas, que modifica la zona o al jugador, o que ignora el azar inyectado; un patrón ambiental que se sale del doble de su radio, sin módulo, con `idle` que pide destino o que mueve el índice; renderers que declaran capas del gameplay, con el piso fuera de la sala, con un punto de interés fuera, con una zona sin ancho, con claves repetidas, que soportan el mapa vacío, o con tweens aunque se pida sin movimiento.
+
+**Hallazgos.** Ninguna implementación incumplía el contrato: las 136 pruebas pasaron a la primera, salvo cinco por un umbral mío de cuántos objetos crea una sala (las del caso crean entre 12 y 16 objetos y hacen muchas llamadas sobre pocos gráficos), que se corrigió en la prueba, no en el código. Es una buena noticia, y es lo que la suite debe seguir diciendo cuando se sume una implementación nueva.
+
+**Evidencia.** `docs/diseñosistemas_docs/L-01/`: `antes_pruebas_por_clase.png`, `despues_contrato_por_registro.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Sustitución de Liskov (SOLID, 17 y 19 de noviembre): «los objetos de un subtipo deben poder reemplazar a los del supertipo sin alterar el programa». La clasificación del plan v1 pedía justo esto para `LLMProvider`, `MovementStrategy` y `SceneRenderer`; `RowParser` y `EndingStrategy` no existen (P-02 y P-11 se retiraron).

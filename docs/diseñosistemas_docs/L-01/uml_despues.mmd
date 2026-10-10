@@ -1,0 +1,31 @@
+classDiagram
+    direction LR
+    class AIProvider {
+        <<abstracta>>
+        +complete(system, question) str
+    }
+    class PROVIDERS {
+        <<registro>>
+        openai
+        anthropic
+    }
+    class ContratoLSP {
+        <<suite única>>
+        parametrizada por el registro
+    }
+    AIProvider <|-- OpenAIProvider
+    AIProvider <|-- AnthropicProvider
+    PROVIDERS o-- OpenAIProvider
+    PROVIDERS o-- AnthropicProvider
+    ContratoLSP ..> PROVIDERS : recorre cada entrada
+    class NPC_MOTION_STRATEGIES {
+        <<registro>>
+        6 comportamientos
+    }
+    class SCENE_RENDERERS {
+        <<registro>>
+        premium + 4 salas del caso
+    }
+    ContratoLSP ..> NPC_MOTION_STRATEGIES
+    ContratoLSP ..> SCENE_RENDERERS
+    note for ContratoLSP "una implementación nueva que se registre<br/>entra sola a la suite y tiene que pasarla"
