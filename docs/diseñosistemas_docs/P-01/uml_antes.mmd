@@ -1,0 +1,10 @@
+classDiagram
+    direction LR
+    class AIAssistantView {
+        +post(request)
+        -_call_llm(question, context) str
+        -_call_openai(api_key, model, context, question) str
+        -_call_anthropic(api_key, model, context, question) str
+        -_post_json(url, payload, headers) dict
+    }
+    note for AIAssistantView "_call_llm decide con if provider == 'anthropic'.\nCada proveedor nuevo obliga a editar la vista."
