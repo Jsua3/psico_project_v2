@@ -114,6 +114,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
   });
 
   afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
@@ -231,6 +232,22 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       expect(gameWorld.playRevealEffects).not.toHaveBeenCalled();
       advance(1);
       expect(gameWorld.playRevealEffects).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el componente se destruye antes de los 80 ms, el fundido no se retira ni se piden efectos de cámara', () => {
+      // El retiro del fundido toca `window` al dispararse: en las pruebas, un temporizador de un componente
+      // que nadie destruyó se disparaba con el entorno ya desmontado («window is not defined», intermitente en CI).
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn() };
+      internals().gameWorld = gameWorld;
+      component.attempt.set(makeAttempt());
+      component.fadeActive.set(true);
+      internals().applyLoadedWorld(makeWorld());
+
+      component.ngOnDestroy();
+      advance(1000);
+
+      expect(component.fadeActive()).toBe(true);
+      expect(gameWorld.playRevealEffects).not.toHaveBeenCalled();
     });
 
     it('la supervisión de una decisión que no es la última se abre 400 ms después de la respuesta', () => {

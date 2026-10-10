@@ -48,7 +48,10 @@ describe('SimulationPlayComponent: aviso del nodo sensible', () => {
     component = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
   });
 
-  afterEach(() => TestBed.resetTestingModule());
+  afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
+    TestBed.resetTestingModule();
+  });
 
   it('sin intento no hay aviso', () => {
     expect(component.sensitiveNotice()).toBeNull();
