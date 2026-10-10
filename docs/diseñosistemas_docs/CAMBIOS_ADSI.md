@@ -1230,7 +1230,7 @@ ReferenceError: window is not defined
 
 | Código | Objetos de otros casos | Ids de lo ya guardado | Diálogo | Borrar y recargar |
 |---|---|---|---|---|
-| Original (`master`, `dd4eb89`; igual en `adsi/p05b-authoring-facade`) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
+| Original (`adsi/p05b-authoring-facade`; sobre `master`, `dd4eb89`, la prueba falla en el mismo punto) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
 | Solo A-05 (`adsi/a05-world-save-persistence`) | 41 = 41 | **cambian**: 42 → 43,44 → 45,46,47 | apunta al id real | persiste |
 | A-05 + A-05b (la punta) | 41 = 41 | **estables**: 42 → 42,43 → 42,43,44 | apunta al id real (44) | persiste; recarga: 2 objetos |
 
