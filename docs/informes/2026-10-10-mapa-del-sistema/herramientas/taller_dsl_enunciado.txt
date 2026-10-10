@@ -1,0 +1,234 @@
+## Taller: Diseño de un DSL para la Gestión de Casos Situacionales del Simulador de Psicología Social
+## 1. Contexto del proyecto
+La Facultad de Psicología requiere una herramienta que permita a sus estudiantes interactuar con casos situacionales de psicología social, tomar decisiones frente a diferentes escenarios y recibir retroalimentación sobre las consecuencias de sus elecciones.
+El proyecto nuclear plantea el desarrollo de un simulador interactivo basado en casos situacionales ramificados, en el cual el estudiante podrá analizar situaciones, tomar decisiones, utilizar herramientas profesionales y recibir retroalimentación teórica. El sistema también contempla una bitácora reflexiva y mecanismos de seguimiento del desempeño.
+Como equipo de desarrollo de software, han sido seleccionados para diseñar un prototipo conceptual basado en un DSL (Domain-Specific Language o Lenguaje Específico de Dominio) que permita representar, estructurar y validar los elementos principales de estos casos simulados.
+El DSL deberá facilitar la definición de casos, escenas, personajes, decisiones, herramientas y retroalimentaciones, permitiendo representar diferentes situaciones de psicología social de manera estructurada y consistente.
+## 2. Reto del proyecto
+El equipo debe diseñar una solución conceptual que permita representar casos situacionales de psicología social mediante un lenguaje específico del dominio.
+El simulador debe contemplar situaciones como:
+- Casos organizados en diferentes escenas.
+- Personajes con características y roles determinados.
+- Puntos de decisión dentro de cada caso.
+- Diferentes alternativas de intervención.
+- Consecuencias asociadas a las decisiones del estudiante.
+- Uso de herramientas profesionales.
+- Retroalimentación teórica.
+- Registro de las decisiones tomadas.
+- Bitácora reflexiva del estudiante.
+- Evaluación del desempeño.
+## Tu misión como equipo
+Diseñar una solución conceptual basada en un DSL que permita:
+- Estructurar los casos situacionales del simulador.
+- Representar las decisiones y ramificaciones de cada caso.
+- Validar reglas de negocio del dominio.
+- Estandarizar la definición de los casos mediante una sintaxis estructurada.
+- Simular escenarios válidos y escenarios que contengan inconsistencias.
+## 3. Objetivo de aprendizaje
+Aplicar conceptos de:
+- Modelado UML.
+- Modelado de dominios.
+- Restricciones mediante OCL.
+- Diseño de DSL.
+- Sintaxis abstracta y concreta.
+- Reglas de negocio.
+- Análisis y representación de escenarios de psicología social.
+El ejercicio busca que el equipo comprenda cómo un lenguaje específico de dominio puede facilitar la representación de información y reglas propias de un sistema particular.
+## 4. Organización del trabajo
+Duración total: 2 horas.
+Modalidad: Trabajo colaborativo de 3 a 4 integrantes.
+## Roles sugeridos
+Analista de dominio
+- Identifica los conceptos principales del simulador.
+- Participa en la construcción del modelo UML.
+Diseñador del DSL
+- Define la estructura y sintaxis concreta del lenguaje.
+- Diseña la representación JSON.
+Especialista en reglas
+- Identifica las reglas del dominio.
+- Formula las restricciones utilizando OCL.
+Documentador
+- Integra los resultados.
+- Documenta las decisiones tomadas por el equipo.
+## 5. Desarrollo de la actividad
+## Fase 1. Modelado del dominio – 30 minutos
+Como equipo, deben identificar y representar los principales elementos que intervienen en un caso situacional del simulador.
+## Actividades
+Construir un diagrama UML de clases que incluya, como mínimo:
+- Caso
+- Escena
+- Personaje
+- Decisión
+- OpciónDecisión
+- Herramienta
+- Retroalimentación
+- Bitácora
+- Evaluación
+Pueden agregar otras clases que consideren necesarias para representar adecuadamente el dominio.
+## Definir
+Para cada clase deben identificar:
+- Atributos principales.
+- Relaciones.
+- Cardinalidades.
+- Responsabilidades básicas.
+## Ejemplo
+Un Caso puede estar compuesto por una o varias Escenas.
+Una Escena puede presentar una Decisión al estudiante.
+Una Decisión puede tener varias Opciones de Decisión.
+Cada opción puede conducir a una escena diferente y generar una determinada consecuencia o retroalimentación.
+## Identificación de invariantes
+Identifiquen al menos 3 reglas o invariantes del dominio.
+Ejemplos:
+- Un caso debe contener al menos una escena.
+- Una decisión debe tener mínimo dos opciones.
+- Una opción de decisión debe conducir a una escena válida.
+## Entregable
+Diagrama UML de clases en formato imagen o archivo editable.
+## Fase 2. Definición de reglas de negocio mediante OCL – 40 minutos
+A partir del modelo construido, el equipo debe identificar las restricciones que permiten garantizar la consistencia de los casos definidos para el simulador.
+## Construir mínimo 5 reglas OCL
+Las reglas deben validar aspectos como:
+- Un caso debe contener al menos una escena.
+- Una decisión debe tener como mínimo dos opciones.
+- Una opción de decisión debe referenciar una escena existente.
+- Una escena no puede tener dos decisiones con el mismo identificador.
+- Una herramienta utilizada dentro de una escena debe estar previamente definida en el caso.
+- Una retroalimentación debe estar asociada a una decisión u opción de decisión.
+- Un caso debe tener un título y una descripción.
+- Un caso debe contener al menos un punto de decisión.
+El equipo debe seleccionar cinco o más de estas reglas o formular reglas propias justificadas a partir del dominio.
+## Ejemplo
+Si una clase Caso tiene una colección denominada escenas:
+context Caso
+inv: self.escenas->size() >= 1
+Para validar que una decisión tenga mínimo dos opciones:
+context Decision
+inv: self.opciones->size() >= 2
+## Para cada regla deben presentar
+- Número de regla.
+- Descripción en lenguaje natural.
+- Regla OCL.
+- Explicación de qué situación valida.
+- Ejemplo de cumplimiento o incumplimiento.
+## Entregable
+Documento con las reglas OCL numeradas y explicadas.
+## Fase 3. Diseño del DSL – Sintaxis concreta – 30 minutos
+El equipo deberá diseñar una representación concreta del DSL utilizando JSON.
+La estructura deberá permitir representar, como mínimo:
+- Información general del caso.
+- Escenas.
+- Personajes.
+- Decisiones.
+- Opciones de decisión.
+- Herramientas.
+- Retroalimentación.
+- Bitácora o registro de decisiones.
+## Ejemplo base
+{
+"caso": {
+"id": "CASO-001",
+"titulo": "Conflicto en una organización",
+"tematica": "Psicologia social",
+"descripcion": "Situación de conflicto entre integrantes de un equipo de trabajo"
+},
+"personajes": [
+{
+"id": "P01",
+"nombre": "Laura",
+"rol": "Lider del equipo"
+},
+{
+"id": "P02",
+"nombre": "Carlos",
+"rol": "Integrante del equipo"
+}
+],
+"herramientas": [
+{
+"id": "H01",
+"nombre": "Mapa de actores",
+"descripcion": "Herramienta para identificar actores e intereses"
+}
+],
+"escenas": [
+{
+"id": "E01",
+"descripcion": "El equipo presenta un conflicto durante una reunión",
+"decision": {
+"id": "D01",
+"pregunta": "¿Qué debería hacer el estudiante inicialmente?",
+"opciones": [
+{
+"id": "OP01",
+"descripcion": "Analizar los actores involucrados",
+"siguienteEscena": "E02",
+"herramienta": "H01"
+},
+{
+"id": "OP02",
+"descripcion": "Intervenir inmediatamente",
+"siguienteEscena": "E03"
+}
+]
+}
+}
+],
+"retroalimentacion": [
+{
+"decision": "D01",
+"mensaje": "La identificación de los actores permite comprender las diferentes posiciones presentes en el conflicto.",
+"fundamentoTeorico": "Psicologia social"
+}
+]
+}
+Nota: La estructura anterior es únicamente una referencia. El equipo deberá analizar el dominio y proponer su propia estructura.
+## Fase 4. Validación del DSL – 20 minutos
+El equipo deberá utilizar el DSL diseñado para representar dos escenarios.
+## Escenario 1. Caso válido
+Construir un caso que cumpla todas las reglas definidas.
+Debe contener como mínimo:
+- 2 personajes.
+- 2 escenas.
+- 1 decisión.
+- 2 opciones.
+- 1 herramienta.
+- 1 retroalimentación.
+## Escenario 2. Caso con errores
+Construir un caso que incumpla deliberadamente al menos tres reglas OCL.
+Por ejemplo:
+- Una decisión con una sola opción.
+- Una herramienta no definida previamente.
+- Una escena que referencia una escena inexistente.
+## Actividad de análisis
+Para el escenario con errores deben identificar:
+[TABLA]
+Error | Regla incumplida | Elemento afectado | Posible solución
+Decisión con una opción | OCL-02 | Decisión D01 | Agregar otra opción
+Herramienta inexistente | OCL-05 | Herramienta | Registrar la herramienta
+Escena inexistente | OCL-03 | Opción OP02 | Referenciar una escena válida
+[/TABLA]
+## Entregable
+Archivo:
+simulador_psicologia_social.json
+Debe contener los dos escenarios:
+- Caso válido.
+- Caso con errores.
+## 6. Entregables finales
+Cada equipo deberá entregar:
+## Entregable 1 – Modelo UML
+Diagrama de clases del dominio del simulador.
+## Entregable 2 – Reglas OCL
+Mínimo cinco reglas documentadas y explicadas.
+## Entregable 3 – DSL
+Archivo:
+simulador_psicologia_social.json
+Contendrá:
+- Un escenario válido.
+- Un escenario con errores.
+## 7. Cierre reflexivo
+El diseño de un DSL permite abstraer los elementos y reglas propios de un dominio para representarlos mediante un lenguaje estructurado.
+En este ejercicio, el dominio corresponde a los casos situacionales de psicología social. El reto no consiste únicamente en construir una estructura JSON, sino en identificar los conceptos, relaciones y reglas que hacen posible representar de manera consistente una experiencia de simulación.
+A partir del modelo UML, las restricciones OCL y la sintaxis del DSL, el equipo deberá demostrar cómo una solución de este tipo podría facilitar la creación, validación y evolución de los casos del simulador.
+El ejercicio se articula con el proyecto nuclear, cuyo propósito es integrar ingeniería de requisitos, modelado, diseño de bases de datos y prototipado para construir un producto mínimo viable del simulador.
+
+[extras en el docx: ninguno]
