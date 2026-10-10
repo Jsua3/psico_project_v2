@@ -186,11 +186,12 @@ La confirmación oficial sigue siendo la del CI de GitHub sobre el PR.
 
 ---
 
-## 10. Actualización del 10 de octubre de 2026 (punta de la pila: `adsi/l01-lsp-contracts`)
+## 10. Actualización del 10 de octubre de 2026 (punta de la pila: `adsi/a09-timer-teardown`)
 
 **Estado del catálogo v2 (§4).** Fase 1 completa (PR #24–#30, #32–#34). Fase 2 completa (#35–#44), más el Facade
-del backend que quedaba como decisión (**P-05b**, #45). Se sumaron cuatro cambios que el plan anunciaba o que las
-pruebas dejaron como «decisión del equipo» y que quedan **descartables sin tocar el resto de la pila**:
+del backend que quedaba como decisión (**P-05b**, #45). Se sumaron siete cambios que el plan anunciaba, que las
+pruebas dejaron como «decisión del equipo» o que aparecieron al cerrarlos, y que quedan **descartables sin tocar el
+resto de la pila**:
 
 | PR | Cambio | Por qué existe | Cambia comportamiento |
 |---|---|---|---|
@@ -198,17 +199,21 @@ pruebas dejaron como «decisión del equipo» y que quedan **descartables sin to
 | #47 | **A-07** — los olvidos del clon (peso/estado de criterios, versión de rúbrica, esquema de mundo) | P-03 los dejó fijados con una prueba | **Sí** (solo clones nuevos) |
 | #48 | **P-13** — Observer: «un intento se completó» | el plan v1 lo asignaba a la sustentación 2; Fase 0 lo dejó opcional | No |
 | #49 | **L-01** — contratos de Liskov por registro | el «test de contrato para LSP» del plan v1 (§5.2) | No (solo pruebas) |
+| #51 | **A-08** — tres imports sin uso y una copia exacta | los dos hallazgos menores que P-05b y A-01 dejaron anotados | No |
+| #52 | **A-05b** — el editor adopta los ids reales tras guardar | sin esto A-05 deja filas que cambian de id en cada autoguardado | **Sí** (acotado, frontend) |
+| #53 | **A-09** — un temporizador sin dueño hacía fallar el CI | el job de frontend de #51 (que no toca el frontend) falló 1 de 7 veces | No |
+
+El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
 
 **Opcionales (§4).** P-13 hecho. **P-11 y P-15 a P-20 no se hicieron**: riesgo alto, sin red de seguridad suficiente o
 una decisión de producto de por medio (razones en `PATRONES_EXISTENTES_Y_DESCARTADOS.md`).
 
-**Pruebas en la punta.** Backend 854 (línea base 307), frontend 2376 en 178 archivos (línea base 1809).
+**Pruebas en la punta.** Backend 855 (línea base 307), frontend 2383 en 179 archivos (línea base 1809).
 
 **Lo que sigue (decisión del equipo):**
 
-1. Revisar y fusionar la pila en orden, con *merge commit*; para descartar A-05, A-07 o P-13 después de fusionar,
-   `git revert -m 1 <commit de la fusión>` (sin *force-push*).
-2. A-05b: que el editor sustituya los ids locales por los reales tras guardar (hoy cada autoguardado recrea los
-   objetos nuevos con otro id, ya sin duplicados).
-3. Reparto de la autoría en Git entre los cuatro integrantes (hoy toda la historia está a nombre de una persona).
-4. El informe Word (plantilla IEEE) a partir de esta carpeta.
+1. Revisar y fusionar la pila en orden, con *merge commit*; para descartar A-05, A-05b, A-07 o P-13 después de
+   fusionar, `git revert -m 1 <commit de la fusión>` (sin *force-push*). A-05b completa a A-05 en el editor: si se
+   descarta A-05b y se conserva A-05, cada autoguardado de un objeto nuevo lo recrea con otro id (sin duplicados).
+2. Reparto de la autoría en Git entre los cuatro integrantes (hoy toda la historia está a nombre de una persona).
+3. El informe Word (plantilla IEEE) a partir de esta carpeta.
