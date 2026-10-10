@@ -2,6 +2,7 @@
 import type Phaser from 'phaser';
 import { DEPTH, actorDepth } from './depth-sort.util';
 import { caseRoomKind } from './case-pdf-rooms.geometry';
+import { ellipseC, frameC, rectC } from './graphics-primitives.util';
 import {
   PREMIUM_RENDERER_LAYERS,
   SceneRenderer,
@@ -136,23 +137,7 @@ export function caseRoomMetadata(kind: string): SceneRenderMetadata {
 
 // ── Helpers de dibujo (mismo idioma que la sala premium) ──────────────────────
 
-function rectC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-               w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function frameC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                w: number, h: number, color: number, alpha = 1, line = 2): void {
-  g.lineStyle(line, color, alpha);
-  g.strokeRect(cx - w / 2, cy - h / 2, w, h);
-}
-
-function ellipseC(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
-                  w: number, h: number, color: number, alpha = 1): void {
-  g.fillStyle(color, alpha);
-  g.fillEllipse(cx, cy, w, h);
-}
+// rectC, frameC y ellipseC (coordenadas centradas) viven en graphics-primitives.util.ts.
 
 function contactShadow(g: Phaser.GameObjects.Graphics, cx: number, cy: number,
                        w: number, h: number, alpha = 0.3): void {
