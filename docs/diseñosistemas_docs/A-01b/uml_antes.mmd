@@ -1,0 +1,17 @@
+classDiagram
+    direction LR
+    class case_pdf_rooms_renderer {
+        -rectC()
+        -frameC()
+        -ellipseC()
+        -contactShadow()
+        136 usos de las primitivas
+    }
+    class premium_clinical_room_renderer {
+        -rectC()
+        -frameC()
+        -ellipseC()
+        -contactShadow()
+        103 usos de las primitivas
+    }
+    note for case_pdf_rooms_renderer "rectC, frameC y ellipseC idénticas en los dos archivos;<br/>contactShadow solo difiere en de dónde sale el color de la sombra"
