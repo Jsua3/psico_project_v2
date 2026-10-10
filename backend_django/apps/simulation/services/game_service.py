@@ -19,6 +19,7 @@ from apps.simulation.serializers import game_dtos as dto
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
+from .node_iterator import BreadthFirstNodeIterator
 
 
 def _hash_token(raw_token: str) -> str:
@@ -482,29 +483,10 @@ def get_progress_map(attempt_id, attempt_token, actor):
     case_version_id = attempt.case_version_id
 
     all_nodes = list(SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id"))
-    by_id = {n.id: n for n in all_nodes}
-    start = next((n for n in all_nodes if n.start_node), all_nodes[0] if all_nodes else None)
-
-    adjacency = {n.id: [] for n in all_nodes}
-    for d in DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id"):
-        adjacency.setdefault(d.source_node_id, []).append(d.target_node_id)
-
-    ordered = []
-    visited = set()
-    queue = [start.id] if start else []
-    while queue:
-        cur = queue.pop(0)
-        if cur in visited:
-            continue
-        visited.add(cur)
-        if cur in by_id:
-            ordered.append(by_id[cur])
-        for nxt in adjacency.get(cur, []):
-            if nxt not in visited:
-                queue.append(nxt)
-    for n in all_nodes:
-        if n.id not in visited:
-            ordered.append(n)
+    edges = DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id").values_list(
+        "source_node_id", "target_node_id"
+    )
+    ordered = BreadthFirstNodeIterator(all_nodes, edges)
 
     visited_keys = list(dict.fromkeys(
         ev.node.node_key

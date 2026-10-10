@@ -149,3 +149,33 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 **Evidencia.** `docs/diseñosistemas_docs/P-08a/`: `antes_validate_door.png`, `despues_validate_door.png`, `despues_eslabon_base.png`, `despues_eslabones_y_cadena.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`). En este mismo lote se corrigió el salto de línea de las notas de los UML de P-01 y P-04.
 
 **Relación con la materia.** Chain of Responsibility (patrones de comportamiento, sesión del 15 de octubre); abierto/cerrado y responsabilidad única (SOLID, 17 y 19 de noviembre). Aplica también al antipatrón «función larga» y a las «condicionales en cascada».
+
+
+### P-09 · Iterator — recorrido de nodos del mapa de progreso
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p09-progress-iterator` · `d26ba11` (parte de `adsi/p08a-door-chain`: PR después de P-08a) |
+| **Patrón** | Iterator (comportamiento) |
+| **Archivos** | `services/node_iterator.py` (nuevo), `services/game_service.py`, `tests/test_node_iterator.py` (nuevo) |
+| **Riesgo** | Bajo: 7 pruebas de orden ya existentes (Fase 0) se mantienen sin tocar |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `game_service.get_progress_map` hacía en una sola función cuatro cosas: consultar nodos y decisiones, recorrer el grafo en anchura con su cola y su conjunto de visitados, agregar al final los nodos inalcanzables y armar la respuesta. El algoritmo de recorrido estaba mezclado con el acceso a datos, por lo que solo se podía probar levantando un intento completo en la base. Además la cola era una lista con `pop(0)`, que cuesta O(n) por extracción.
+
+**Solución (después).**
+
+- **Iterator:** `BreadthFirstNodeIterator` implementa el protocolo de iteración de Python (`__iter__` / `__next__`). Encapsula la frontera (`deque`), los visitados y las aristas; el cliente solo escribe `for node in iterator`.
+- **Orden:** primero los nodos alcanzables desde el inicial, por niveles y en el orden en que llegan las decisiones; después los inalcanzables, por id. El nodo inicial es el marcado `start_node` o, si no hay, el primero.
+- **Sin base de datos:** el iterador recibe los nodos y los pares `(origen, destino)` ya cargados. `get_progress_map` conserva firma y respuesta; ahora carga los datos y le pide los nodos al iterador.
+- Es **perezoso**: calcula el siguiente nodo solo cuando se lo piden.
+
+**Decisión de diseño.** El catálogo original también proponía unificar este recorrido con el de `_detect_cycle` (validación del grafo del editor). Se descartó en la Fase 0: ese es un DFS recursivo con otro propósito y arreglar su recursión sería un cambio de comportamiento. Se declara que el valor didáctico de P-09 es moderado: es un Iterator real, pero de un solo uso en el sistema.
+
+**Lo que no cambió** (fijado por las pruebas de Fase 0): el orden BFS, los nodos huérfanos al final por id, que un ciclo no repite nodos, el arranque por el primer nodo si no hay inicial marcado, las banderas `start`/`terminal`, `visitedNodeKeys` sin repetir y `currentNodeKey`.
+
+**Pruebas.** Backend +11 (`test_node_iterator.py`, sin base de datos): protocolo (`iter(it) is it`, `StopIteration` estable), grafo vacío, niveles frente a profundidad y orden de aristas dentro del nivel, ciclos y autociclos, nodo con dos caminos, inalcanzables, sin inicial marcado, varios iniciales, arista a un nodo ajeno al caso, carga perezosa y que no se modifiquen las colecciones recibidas. Total 459 → 470 con `manage.py check` limpio. Siete mutaciones: cola LIFO (DFS), sin chequeo de visitados al extraer, inalcanzables invertidos, inicio siempre el primero, emitir nodos ajenos y emitir todos los nodos como sobrantes fueron **detectadas** (1 fallo cada una, con `-x`); una séptima (quitar el filtro de visitados al *encolar*) **sobrevive y es un mutante equivalente**: el chequeo al extraer ya garantiza el resultado, y el filtro solo evita duplicados en la cola.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-09/`: `antes_get_progress_map.png`, `despues_get_progress_map.png`, `despues_node_iterator.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Iterator (patrones de comportamiento, Unidad 3); responsabilidad única (SOLID) y el antipatrón «función larga».
