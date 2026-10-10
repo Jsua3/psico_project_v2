@@ -5,7 +5,7 @@ Generado el 2026-10-10 por `docs/diseñosistemas_docs/tools/git_evidence.py` a p
 ## Resumen
 
 - **Ramas locales de la serie:** 33.
-- **Pull requests hacia `adsi/integracion`** (desde el #24): 31; hacia la rama principal: #31 → `master` (fusionado).
+- **Pull requests hacia `adsi/integracion`** (desde el #24): 31; hacia la rama principal: #31 → `master` (fusionado), #56 → `master` (abierto).
 - **Pull requests fusionados:** 31 de 31.
 - **Commits de la serie** (`f1944df..adsi/integracion`): 114, entre 2026-10-09 y 2026-10-10; merges en el rango: 36.
 - **Autores del rango:** Jsua3: 69, Juan José Sua: 45.
@@ -51,6 +51,7 @@ Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (G
 | [#53](https://github.com/Jsua3/psico_project_v2/pull/53) | `adsi/a09-timer-teardown` | MERGED | A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente | `b458dde` |
 | [#54](https://github.com/Jsua3/psico_project_v2/pull/54) | `adsi/a05c-editor-e2e` | MERGED | A-05c · El editor de mundo, probado en el navegador contra la base real | `5d8ba6e` |
 | [#55](https://github.com/Jsua3/psico_project_v2/pull/55) | `adsi/a10-requests-google` | MERGED | A-10 · El inicio de sesión con Google declara la dependencia que necesita (`requests`) | `f6ae487` |
+| [#56](https://github.com/Jsua3/psico_project_v2/pull/56) | `adsi/docs-llegada-a-master` → `master` | OPEN | docs(adsi): la serie ya está en master y P-13 se mantiene | `—` |
 
 ## Cómo se reproduce
 
