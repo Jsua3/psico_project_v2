@@ -3,6 +3,10 @@ from django.db import models
 
 from .case import CaseVersion, DecisionOption, SimulationNode
 
+#: Tamaño con el que se trata un mapa sin ancho o alto guardado (el campo vale 0 si no se fijó).
+DEFAULT_MAP_WIDTH = 960
+DEFAULT_MAP_HEIGHT = 540
+
 
 class SceneMap(models.Model):
     case_version = models.ForeignKey(

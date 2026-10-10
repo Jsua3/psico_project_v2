@@ -1,7 +1,14 @@
 """Port of Spring's DecisionEffectCalculator (1:1)."""
 from dataclasses import dataclass
 
+from apps.simulation.models import INDICATOR_MAX, INDICATOR_MIN
 from shared.jsonutils import clamp as _clamp
+
+#: Conducta prohibida: lo que se suma (estrés, riesgo de la víctima) o resta (confianza) además de
+#: lo que ya trae la clasificación de la opción.
+PROHIBITED_STRESS_PENALTY = 40
+PROHIBITED_TRUST_PENALTY = 20
+PROHIBITED_VICTIM_RISK_PENALTY = 15
 
 
 @dataclass
@@ -27,7 +34,7 @@ def _contains_route_keyword(value):
 
 def resolve(decision) -> DecisionEffects:
     score_delta = decision.score_delta + (decision.prohibited_penalty if decision.prohibited_conduct else 0)
-    stress_delta = decision.stress_delta + (40 if decision.prohibited_conduct else 0)
+    stress_delta = decision.stress_delta + (PROHIBITED_STRESS_PENALTY if decision.prohibited_conduct else 0)
 
     classification = decision.classification
     trust_delta = _TRUST[classification]
@@ -35,8 +42,8 @@ def resolve(decision) -> DecisionEffects:
 
     revictimization = decision.prohibited_conduct
     if revictimization:
-        trust_delta -= 20
-        victim_risk_delta += 15
+        trust_delta -= PROHIBITED_TRUST_PENALTY
+        victim_risk_delta += PROHIBITED_VICTIM_RISK_PENALTY
 
     target = decision.target_node
     institutional_route = (
@@ -53,9 +60,9 @@ def resolve(decision) -> DecisionEffects:
 
 def apply(attempt, effects: DecisionEffects):
     attempt.accumulated_score += effects.score_delta
-    attempt.stress_index = _clamp(attempt.stress_index + effects.stress_delta, 0, 100)
-    attempt.user_trust = _clamp(attempt.user_trust + effects.trust_delta, 0, 100)
-    attempt.victim_risk = _clamp(attempt.victim_risk + effects.victim_risk_delta, 0, 100)
+    attempt.stress_index = _clamp(attempt.stress_index + effects.stress_delta, INDICATOR_MIN, INDICATOR_MAX)
+    attempt.user_trust = _clamp(attempt.user_trust + effects.trust_delta, INDICATOR_MIN, INDICATOR_MAX)
+    attempt.victim_risk = _clamp(attempt.victim_risk + effects.victim_risk_delta, INDICATOR_MIN, INDICATOR_MAX)
     if effects.institutional_route_activated:
         attempt.institutional_route_activated = True
     if effects.revictimization_risk:

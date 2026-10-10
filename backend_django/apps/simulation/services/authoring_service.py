@@ -22,6 +22,8 @@ from rest_framework.exceptions import NotFound, ValidationError
 from shared.exceptions import Conflict
 
 from ..models import (
+    DEFAULT_MAP_HEIGHT,
+    DEFAULT_MAP_WIDTH,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
@@ -118,8 +120,8 @@ def create_case(request, actor):
         node=node,
         map_key="escena-inicial",
         title="Escena inicial",
-        width=960,
-        height=540,
+        width=DEFAULT_MAP_WIDTH,
+        height=DEFAULT_MAP_HEIGHT,
         theme="clinical-soft",
         spawn_x=145,
         spawn_y=430,
@@ -403,8 +405,8 @@ def _apply_map_request(scene_map, request):
     scene_map.title = request.get("title")
     width = _int(request.get("width"))
     height = _int(request.get("height"))
-    scene_map.width = width if width > 0 else 960
-    scene_map.height = height if height > 0 else 540
+    scene_map.width = width if width > 0 else DEFAULT_MAP_WIDTH
+    scene_map.height = height if height > 0 else DEFAULT_MAP_HEIGHT
     scene_map.theme = request.get("theme") if request.get("theme") is not None else "clinical-soft"
     scene_map.spawn_x = _int(request.get("spawnX"))
     scene_map.spawn_y = _int(request.get("spawnY"))
