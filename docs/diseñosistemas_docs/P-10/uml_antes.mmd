@@ -1,0 +1,27 @@
+classDiagram
+    direction LR
+    class DataDrivenWorldScene {
+        -npcMovers
+        -ambientMovers
+        -updateNpcMovers()
+        -nextNpcTarget()
+        -nextAmbientTarget()
+    }
+    class NpcMotionBehavior {
+        <<unión>>
+        idle
+        attentive
+        subtle-wander
+        pace
+        patrol
+        avoidant
+    }
+    class MovementPattern {
+        <<unión>>
+        idle
+        wander
+        patrol
+    }
+    DataDrivenWorldScene ..> NpcMotionBehavior : cadena de if por comportamiento
+    DataDrivenWorldScene ..> MovementPattern : cadena de if por patrón
+    note for DataDrivenWorldScene "nextNpcTarget encadena tres if (wander, anclas, avoidant)<br/>updateNpcMovers sabe que solo pace y patrol usan anclas<br/>nadie probaba estas reglas sin levantar la escena"

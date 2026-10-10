@@ -419,3 +419,51 @@ En `renderWorld` se quitaron, además del método y su llamada, dos ramas que de
 **Evidencia.** `docs/diseñosistemas_docs/A-02/`: `antes_audio_service.png`, `antes_simulation_service_metodos.png`, `antes_delete_decision.png`, `antes_render_hospital_llamada.png`, `antes_render_hospital_metodo.png`, `antes_parse_csv_rows.png`, `antes_readme.png`, `antes_contrato.png`, `despues_render_llamada.png`, `despues_contrato.png`, `despues_readme.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrones «Lava Flow» y «Boat Anchor» (Unidad 4): el refactor es eliminar, no reescribir; el criterio de seguridad es demostrar que no hay usos antes de borrar.
+
+
+## Fase 2 — Cambios
+
+### P-10 · Strategy — elección del destino de cada movimiento
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p10-npc-motion-strategy` · `14fed1e` (parte de `adsi/a02-codigo-muerto`: PR después de A-02) |
+| **Patrón** | Strategy (comportamiento) |
+| **Archivos** | `features/simulator/motion-strategies.ts` (nuevo), `game-world.component.ts` (dos cuerpos de método, una línea de `updateNpcMovers` y los imports), `motion-strategies.spec.ts` y `game-world.npc-motion.spec.ts` (nuevos) |
+| **Riesgo** | Medio-bajo: 13 contract-specs leen `game-world.component.ts` como texto; ninguno cambió |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** Hay dos sistemas de movimiento en paralelo y los dos eligían su destino con una cadena de `if` dentro de la escena de Phaser:
+
+- Las **personas** (`NpcConfig.motion`, 6 comportamientos): `nextNpcTarget` encadenaba tres `if` (`subtle-wander`, anclas de `pace`/`patrol`, `avoidant`) y `updateNpcMovers` sabía además que *solo* `pace` y `patrol` avanzan de ancla al llegar.
+- Los **objetos con vida ambiental** (`MapObjectState.movementPattern`, 3 patrones): `nextAmbientTarget` encadenaba `wander` y `patrol`.
+
+Agregar un comportamiento obligaba a editar la cadena y la condición de llegada, y **nada de eso tenía pruebas**: para ejercitar `nextNpcTarget` hacía falta levantar la escena entera (Phaser, colisiones, contenedores).
+
+**Solución (después).**
+
+- `motion-strategies.ts` (sin Phaser) reúne las reglas. Para las personas, `NpcMotionStrategy` tiene dos operaciones: `nextTarget(ctx)` (el destino, o `null` si la persona espera) y `anchorAfterArrival(idx, count)` (qué ancla sigue al llegar). Hay cuatro estrategias: `stationary` (idle y attentive), `subtleWander`, `anchorRoute` (pace y patrol, compartida) y `avoidant`, registradas en `NPC_MOTION_STRATEGIES: Record<NpcMotionBehavior, …>`.
+- Para los objetos ambientales, `nextAmbientStep(pattern, state, rand)` devuelve el destino **y** el índice de patrulla resultante, así la estrategia es pura (no muta al objeto).
+- La escena aporta lo que depende de Phaser: el azar (`Math.random`, leído al llamar), la posición de la persona y del jugador y la prueba de obstáculos (`wouldCollide`). `nextNpcTarget` y `nextAmbientTarget` conservan su nombre y firma y solo delegan; en `updateNpcMovers` la condición «solo pace y patrol» pasa a `anchorAfterArrival`.
+
+**Decisión de diseño.**
+
+- *Qué es estrategia y qué no:* solo la **elección del destino** y la **regla de llegada**. La mecánica común (pausas, dar el paso, deslizarse por el eje libre, aplicar la pose) sigue en la escena porque depende de Phaser y es la misma para todos. `idle` y `attentive` (que giran o se quedan quietos) tampoco piden destino: la escena sale antes, y su estrategia existe para que el registro cubra la unión completa.
+- *Dos familias, no una:* las personas y los objetos ambientales usan modelos y reglas distintas (velocidades, reintentos por tiempo, `patrolIdx`). Unificarlos cambiaría comportamiento; se dejan como dos familias en el mismo archivo.
+- *Abierto/cerrado con respaldo del compilador:* un comportamiento nuevo es una entrada en el registro; si se olvida, `Record<NpcMotionBehavior, …>` no compila.
+- *`patrolIdx` se conserva tal cual.* El índice de patrulla avanza **antes** de elegir, así que el primer destino es el punto 1 y el 0 queda para el final de la primera vuelta. Puede ser un defecto o la lectura «el objeto ya está en el punto 0»; no se corrige en un refactor. Queda fijado con pruebas marcadas «comportamiento actual» y cambiarlo es una línea en la estrategia `patrol`. **Decisión del equipo.**
+
+**Lo que no cambió** (fijado por 32 pruebas de caracterización escritas y verificadas **contra el código original** antes de tocarlo, y reafirmado por las 30 de las estrategias): los 6 comportamientos y los 3 patrones; la espera inicial de 600 ms (o `startDelayMs`); que el destino se dé por alcanzado a ≤ 2 px; la pausa al llegar (la del ancla, la de la configuración o la de cada comportamiento: 2400 ms para `subtle-wander`, 1600 para `pace` y 900 para `patrol`); la espera de 600 ms cuando no hay destino y de 900 ms cuando el camino está del todo bloqueado; el deslizamiento por X y luego por Y; que `avoidant` solo reaccione a ≤ 70 px y dé pasos de ≤ 16 px; que `attentive` gire a ≤ 110 px sin trasladarse; que el movimiento reducido deje solo idle (y attentive); y que el mundo en pausa lo congele todo. Se conserva también una rareza: un `subtle-wander` con anclas no las recorre pero sí usa su `face` y su `pauseMs` al llegar.
+
+**Pruebas.** Frontend 2179 → **2241** (+62; 171 → 173 archivos), `tsc` de app y de pruebas sin errores y `ng build` correcto. Los 13 contract-specs que leen `game-world.component.ts` pasan sin modificarse.
+
+- *Caracterización (32), `game-world.npc-motion.spec.ts`:* usa el arnés de `game-world.interaction.spec.ts` (Phaser simulado, la escena real con dobles mínimos). Dos expectativas iniciales eran erróneas (asumían que el destino a 10 px no se alcanzaba en un paso); se corrigieron contra el código original, no al revés.
+- *Estrategias (30), `motion-strategies.spec.ts`:* sin Phaser, con el azar y los obstáculos inyectados. Cada caso «devuelve `null`» lleva su control positivo en la misma prueba, para que un `null` vacuo no la deje pasar.
+- *RED real:* con un esqueleto sin comportamiento fallaban 21 de 30; las 9 que pasaban eran justo los casos donde no hacer nada es lo correcto.
+- *Mutaciones, 26:* **25 detectadas** y una rechazada por el compilador. 18 sobre las estrategias (ignorar obstáculos, zona, índice o copia del ancla, no dar la vuelta, `>` por `>=` en 70 px, radio doble, el índice de patrulla sin devolver, registro cruzado…) y 8 sobre el cableado de la escena (anclaje fijo, jugador nulo, sin obstáculos, índice de patrulla sin guardar, ancla sin avanzar, estrategia equivocada, azar fijo, posición de origen). La rechazada es quitar la guarda de jugador ausente de `avoidant`: no compila (`TS2345`, `Point | null` no es asignable), es decir, el tipo ya la impone. Incluida la mutación que «arregla» el salto de `patrol`: se detecta, así que la rareza quedó fijada.
+
+**Hallazgos.** (1) El salto del punto 0 de `patrol` (arriba). (2) Los dos sistemas paralelos siguen sin unificar. (3) La estrategia ambiental `idle` no se alcanza en producción: `applyAmbientLife` no registra movers para patrón idle; está en el registro para que cubra la unión. (4) La distancia de reacción usa la misma fórmula que `Phaser.Math.Distance.Between` (no `Math.hypot`) para decidir igual en el umbral exacto.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-10/`: `antes_next_npc_target.png`, `antes_llegada_ancla.png`, `antes_next_ambient_target.png`, `despues_estrategias_npc.png`, `despues_estrategias_ambientales.png`, `despues_next_npc_target.png`, `despues_next_ambient_target.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Strategy (patrones de comportamiento, Unidad 3); abierto/cerrado y responsabilidad única (SOLID); el antipatrón de las «condicionales en cascada» (la cadena de `if` por tipo).
