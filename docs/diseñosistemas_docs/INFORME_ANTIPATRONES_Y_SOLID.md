@@ -56,7 +56,9 @@ de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusion
   `requests` falta en `requirements.txt`, por lo que el inicio de sesión con Google siempre responde «proveedor no
   instalado»; los demás temporizadores sin dueño de `SimulationPlayComponent` (ninguno vuelve a usar `window`); el
   editor de mundo pinta «0 objetos · 0 zonas» y deja activa la biblioteca antes de que cargue la sala (un clic en
-  ese momento no hace nada).
+  ese momento no hace nada); `save_world`, `create_object` y `create_dialogue` buscan `decisionOptionId` y
+  `mapObjectId` por id sin acotar a la versión del caso (solo se alcanza llamando a la API a mano: la interfaz
+  ofrece únicamente las decisiones del nodo).
 - **Decisiones de producto, no tomadas**: P-11 (Strategy de finales: `compute_ending` aplica las reglas y los
   textos del caso del PDF a cualquier caso; uno que no sea el del PDF no tiene banderas, así que solo puede
   terminar en «Riesgo Persistente» o, con dos decisiones críticas, en «Crítico», y nunca en «Integral» ni «Con

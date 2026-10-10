@@ -55,7 +55,7 @@ de P-05b salían cortadas).
 | **P-15 a P-20** (State del componente de juego, Mediator, Memento, Abstract Factory, Factory Method, Chain/Command) | Riesgo alto: los contract-specs leen el texto fuente y habría que reescribirlos antes; no hay pase visual. Los patrones de cada unidad de la materia ya tienen su aplicación (ver `PATRONES_EXISTENTES_Y_DESCARTADOS.md`). |
 | Contraseña por defecto de los importados | Seguridad: el riesgo de fondo (la misma contraseña para todos) es de diseño; A-06 solo la movió a configuración. |
 | `requests` en `requirements.txt` | Cambio de dependencias: hoy el inicio de sesión con Google siempre responde «proveedor no instalado». |
-| Hallazgos de robustez (`create_object`/`create_tool` → 500 sin campos NOT NULL; `update_dialogue` sin `lines` borra líneas; `create_case` sin auditoría; `get_completion_report` de un intento pausado; `patrol` empieza en el punto 1) | Cada uno cambia comportamiento y no hay una referencia clara de lo que se espera; quedan escritos en el registro. |
+| Hallazgos de robustez (`create_object`/`create_tool` → 500 sin campos NOT NULL; `update_dialogue` sin `lines` borra líneas; `create_case` sin auditoría; `get_completion_report` de un intento pausado; `patrol` empieza en el punto 1; `create_dialogue`, `create_object` y `save_world` buscan `mapObjectId`/`decisionOptionId` sin acotar a la versión, solo por API directa) | Cada uno cambia comportamiento y no hay una referencia clara de lo que se espera; quedan escritos en el registro. |
 | Autoría de los cuatro integrantes en Git | Depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta. |
 
 ## Cómo descartar una decisión
