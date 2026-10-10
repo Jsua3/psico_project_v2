@@ -20,7 +20,7 @@ Equipo: Juan José Sua, Emerson Ángel Gómez, Santiago Leyton, Esteban Bonilla.
 ## Convenciones
 
 - **«Antes»** = tag `adsi-baseline-2` (`dd4eb89`); `adsi-baseline` (`f39ab96`) es el original.
-- **Una rama por cambio** (`adsi/pNN-nombre`) desde `adsi/integracion`, con PR hacia `adsi/integracion`. `master` no se toca hasta el final.
+- **Una rama por cambio** (`adsi/pNN-nombre`) desde `adsi/integracion`, con PR hacia `adsi/integracion`. `master` no se tocó hasta el final: la serie entró de una vez, con el PR #31, el 10 de octubre de 2026.
 - **Antes de refactorizar**, pruebas de caracterización en verde; después, la prueba nueva debe fallar si se rompe el código a propósito.
 - **Commits** en español, formato Conventional Commits.
 

@@ -186,12 +186,14 @@ La confirmación oficial sigue siendo la del CI de GitHub sobre el PR.
 
 ---
 
-## 10. Actualización del 10 de octubre de 2026 (todo fusionado en `adsi/integracion`)
+## 10. Actualización del 10 de octubre de 2026 (todo fusionado y en `master`)
 
 **Fusión (mañana del 10 de octubre).** Juan José Sua revisó las decisiones de la noche, las aprobó («totalmente de
 acuerdo») y pidió fusionar en orden: los PR #24 a #54 (sin el #31, que va a `master`) se fusionaron uno por uno con
-*merge commit* en `adsi/integracion`, y este (#50) al final. El árbol de `adsi/integracion` quedó idéntico al de
-`adsi/a05c-editor-e2e`. `master` no se tocó; lo que lo lleva ahí es el PR borrador #31.
+*merge commit* en `adsi/integracion`, y #50 (documentación) al final. Después se agregó A-10 (#55). **A pedido del
+equipo («que pase lo antes posible»), `adsi/integracion` llegó a `master` el mismo día** por el PR #31 (merge
+`8e1565d`, padres `dd4eb89` y `a026c49`): el árbol de `master` es idéntico al de `adsi/integracion`, con el CI de la
+rama en 6 de 6 y sin despliegue asociado (los workflows solo corren pruebas).
 
 **Estado del catálogo v2 (§4).** Fase 1 completa (PR #24–#30, #32–#34). Fase 2 completa (#35–#44), más el Facade
 del backend que quedaba como decisión (**P-05b**, #45). Se sumaron ocho cambios que el plan anunciaba, que las
@@ -213,9 +215,11 @@ lineal y las fusiones se hicieron en orden, así que para deshacer uno basta `gi
 
 El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
 
-**Opcionales (§4).** P-13 hecho y fusionado, **anotado como «a decidir»** (un único suscriptor). **P-11 y P-15 a P-20
-no se hicieron**: riesgo alto, sin red de seguridad suficiente o una decisión de producto de por medio (razones en
-`PATRONES_EXISTENTES_Y_DESCARTADOS.md`); el 10 de octubre se aceptó la recomendación de no hacerlos por ahora.
+**Opcionales (§4).** P-13 hecho, fusionado y **mantenido** (un único suscriptor; el equipo lo dejó anotado y luego
+pidió aplicarlo si Claude lo recomendaba: lo recomendó, razones en `DECISIONES_SESION_NOCTURNA_2026-10-10.md`).
+**P-11 y P-15 a P-20 no se hicieron**: riesgo alto, sin red de seguridad suficiente o una decisión de producto de por
+medio (razones en `PATRONES_EXISTENTES_Y_DESCARTADOS.md`); el 10 de octubre se aceptó la recomendación de no hacerlos
+por ahora.
 
 **Pruebas en la punta.** Backend 857 (línea base 307; 855 antes de A-10), frontend 2383 en 179 archivos (línea
 base 1809) y 35 de extremo a extremo (34 antes de A-05c; la corrida completa local anterior a A-05c: matriz API 16/16
@@ -225,11 +229,11 @@ y Playwright 33 en verde con 1 omitida a propósito por el propio spec).
 
 1. ~~Revisar y fusionar la pila en orden~~ **Hecho el 10 de octubre.** A-05b completa a A-05 en el editor: si se
    revirtiera A-05b y se conservara A-05, cada autoguardado de un objeto nuevo lo recrearía con otro id (sin duplicados).
-2. Decidir qué hacer con P-13 (anotado como «a decidir»).
+2. ~~Decidir qué hacer con P-13~~ **Decidido el 10 de octubre: se mantiene.**
 3. Seguridad y dependencias: **`requests` agregado en A-10** (el inicio de sesión con Google no funcionaba sin él;
    falta definir `GOOGLE_OAUTH_CLIENT_ID` y reinstalar dependencias). **La contraseña por defecto de los importados
    se deja así por ahora** (decisión del 10 de octubre); cuando se retome: valor propio en producción, o una por
    estudiante.
-4. Fusionar `adsi/integracion` en `master` (PR borrador #31) cuando el equipo lo decida.
+4. ~~Fusionar `adsi/integracion` en `master`~~ **Hecho el 10 de octubre** (PR #31, merge `8e1565d`).
 5. Reparto de la autoría en Git entre los cuatro integrantes (hoy toda la historia está a nombre de una persona).
 6. El informe Word (plantilla IEEE) a partir de esta carpeta.

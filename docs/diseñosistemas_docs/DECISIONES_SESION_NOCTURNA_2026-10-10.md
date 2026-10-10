@@ -13,9 +13,21 @@ Juan José Sua leyó la cuenta y respondió:
 |---|---|
 | ¿Fusionar en orden hacia `adsi/integracion`? | **Sí.** Se fusionaron los PR #24 a #54 (sin el #31, que va a `master`) uno por uno, en orden y con *merge commit*; este (#50) va al final porque contiene la punta. |
 | ¿De acuerdo con los cambios de comportamiento (A-05, A-07, A-05b)? | **Sí, totalmente.** |
-| P-13 (Observer con un único suscriptor) | **Se deja anotado como lo que es**, para decidir después qué hacer con él. Queda fusionado y marcado como «a decidir» en el registro. |
+| P-13 (Observer con un único suscriptor) | Primero: **«déjalo anotado como lo que es»** (quedó fusionado y marcado «a decidir»). Después, al preguntar qué era: **«aplícalo si lo recomiendas»**. Recomendación de Claude: **mantenerlo** (razones abajo); quedó decidido y va a `master` con el resto. |
 | ¿P-11 y P-15 a P-20? | **Lo que recomiende Claude:** no hacerlos por ahora; siguen en «evaluado, no aplicado». |
 | `requests` para Google y contraseña por defecto | Pidió que se explicara qué son (abajo) y después respondió: **`requests`: sí, agregarlo y dejarlo anotado** (hecho en A-10); **contraseña por defecto: «dejémoslo así por ahora»** (no se toca; queda anotado). |
+| ¿Pasar `adsi/integracion` a `master`? | **«Que pase lo antes posible».** Hecho: PR [#31](https://github.com/Jsua3/psico_project_v2/pull/31), merge `8e1565d` (padres: `dd4eb89` y `a026c49`); el árbol de `master` es idéntico al de `adsi/integracion`. CI de la rama: 6 de 6 en verde. Los workflows no despliegan nada. |
+
+**Por qué se mantiene P-13 (recomendación de Claude, 10 de octubre).**
+
+- Ya está probado (ocho pruebas y mutaciones) y respaldado por el CI; no cambia comportamiento.
+- Desacopla de verdad: el servicio del juego deja de importar `progression` (lo fija una prueba), y un segundo
+  suscriptor se agrega sin tocarlo.
+- Quitarlo tiene su propio costo: revertir una fusión de en medio obliga a resolver `CAMBIOS_ADSI.md` y a repetir
+  las pruebas, para ganar solo menos indirección.
+- Contras honestos: hoy hay un único suscriptor (un patrón «de libro»), el flujo es menos explícito que una
+  llamada directa y, si `progression` saliera de `INSTALLED_APPS`, la finalización dejaría de registrarse sin error.
+  Ninguno es un riesgo; el primero es didáctico.
 
 **Qué son los dos pendientes de seguridad y dependencias.**
 
@@ -36,7 +48,7 @@ Juan José Sua leyó la cuenta y respondió:
 ## Reglas que se aplicaron
 
 - Durante la noche no se fusionó nada en `adsi/integracion` ni en `master`; la fusión llegó con la aprobación de la
-  mañana (arriba). `master` no se tocó. Sin `--force`, sin `--no-verify`.
+  mañana (arriba) y `master` recibió la serie por el PR #31 a pedido del equipo. Sin `--force`, sin `--no-verify`.
 - Se decidió y construyó solo lo reversible (una rama y un PR), dentro del código, las pruebas y los documentos del
   repositorio, coherente con lo que el código o los documentos ya decían que debía pasar, y sin tocar seguridad.
 - **No** se construyó lo que toca seguridad (contraseñas, OAuth), lo que exige un dato de negocio que no se puede
@@ -115,5 +127,5 @@ de `adsi/a05c-editor-e2e`. Para deshacer una decisión se revierte su fusión, s
    caso, incluso a uno publicado (medido en #54, también sobre `master`: el defecto está vivo ahí).
 2. **#52 A-05b**: autoguardado del editor; ya tiene e2e (#54), pero una edición durante la petición no tiene prueba.
 3. **#47 A-07**: cambia lo que copia una versión nueva; las rúbricas ya clonadas no se corrigen.
-4. **#48 P-13**: la duda es de diseño, no de riesgo. Queda fusionado y anotado como «a decidir» (un único
-   suscriptor); si más adelante aparece un segundo suscriptor, la duda se resuelve sola.
+4. **#48 P-13**: la duda es de diseño, no de riesgo. Se mantiene (decidido el 10 de octubre); si más adelante
+   aparece un segundo suscriptor, la duda se resuelve sola.

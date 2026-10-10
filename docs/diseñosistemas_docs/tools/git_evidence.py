@@ -72,9 +72,11 @@ def main():
     w("## Resumen\n")
     w(f"- **Ramas locales de la serie:** {len(run('git', 'for-each-ref', 'refs/heads/adsi', '--format=%(refname:short)').split())}.")
     to_base = [pr for pr in prs if pr["baseRefName"] == BASE]
-    other = [f"#{pr['number']} → `{pr['baseRefName']}`" for pr in prs if pr["baseRefName"] != BASE]
+    state_es = {"MERGED": "fusionado", "OPEN": "abierto", "CLOSED": "cerrado"}
+    other = [f"#{pr['number']} → `{pr['baseRefName']}` ({'borrador' if pr['isDraft'] else state_es.get(pr['state'], pr['state'].lower())})"
+             for pr in prs if pr["baseRefName"] != BASE]
     w(f"- **Pull requests hacia `{BASE}`** (desde el #24): {len(to_base)}"
-      + (f", más {', '.join(other)} (borrador para el CI oficial)." if other else "."))
+      + (f"; hacia la rama principal: {', '.join(other)}." if other else "."))
     merged = [pr for pr in to_base if pr["state"] == "MERGED"]
     w(f"- **Pull requests fusionados:** {len(merged)} de {len(to_base)}.")
     w(f"- **Commits de la serie** (`{span}`): {len(commits)}, entre {first[2]} y {last[2]}; "
