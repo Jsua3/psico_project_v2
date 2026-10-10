@@ -5,9 +5,10 @@ entrada de `CAMBIOS_ADSI.md`, donde están el problema con su archivo y líneas,
 pruebas, las capturas «antes/después» y el diagrama UML. Aquí solo se reúne y se ordena; **no hay ninguna
 afirmación que no esté sustentada allí**. Las cifras de pruebas salen de las corridas completas de cada rama.
 
-**Estado al 10 de octubre de 2026** (punta de la pila: `adsi/a09-timer-teardown`): backend **855** pruebas,
-frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809). Todo vive en ramas con su PR hacia
-`adsi/integracion`; nada se fusionó en `master` (ver `EVIDENCIA_GIT.md`).
+**Estado al 10 de octubre de 2026** (punta de la pila: `adsi/a05c-editor-e2e`): backend **855** pruebas,
+frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809) y **35** de extremo a extremo (34 antes
+de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusionó en `master` (ver
+`EVIDENCIA_GIT.md`).
 
 ---
 
@@ -40,8 +41,8 @@ frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809). Todo v
 | **Condicionales en cascada** | `nextNpcTarget` / `nextAmbientTarget` por tipo | **P-10** · Strategy | Resuelto |
 | | interceptor JWT con cuatro bloques casi iguales | **P-08b** · Chain of Responsibility | Resuelto |
 | **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto (con una duda declarada: un solo suscriptor) |
-| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto en la rama; medido: 3 autoguardados pasaban de 4 a 7 objetos |
-| | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto en la rama (cambio de comportamiento acotado; sin e2e propio del editor) |
+| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto en la rama; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c): agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38)** |
+| | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto en la rama (cambio de comportamiento acotado); verificado en el navegador por **A-05c** |
 | **Prueba intermitente** (no es un antipatrón del curso, pero rompía el CI) | un temporizador de 80 ms de `SimulationPlayComponent` sin dueño: se disparaba tras desmontar el entorno de pruebas (`window is not defined`) y hacía fallar 1 de 7 ejecuciones de CI de una rama que ni tocaba el frontend | **A-09** · el temporizador tiene dueño y `ngOnDestroy` lo cancela | Cerrada la ruta del error; que la intermitencia haya desaparecido **no se puede demostrar** |
 
 ### Lo que NO se arregló y debe quedar escrito
@@ -53,7 +54,9 @@ frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809). Todo v
   `create_tool` responden 500 si faltan campos NOT NULL; `update_dialogue` sin `lines` borra las líneas;
   `get_completion_report` devuelve el informe de un intento pausado o reemplazado; `patrol` empieza en el punto 1;
   `requests` falta en `requirements.txt`, por lo que el inicio de sesión con Google siempre responde «proveedor no
-  instalado»; los demás temporizadores sin dueño de `SimulationPlayComponent` (ninguno vuelve a usar `window`).
+  instalado»; los demás temporizadores sin dueño de `SimulationPlayComponent` (ninguno vuelve a usar `window`); el
+  editor de mundo pinta «0 objetos · 0 zonas» y deja activa la biblioteca antes de que cargue la sala (un clic en
+  ese momento no hace nada).
 - **Decisiones de producto, no tomadas**: P-11 (Strategy de finales: `compute_ending` aplica las reglas y los
   textos del caso del PDF a cualquier caso; uno que no sea el del PDF no tiene banderas, así que solo puede
   terminar en «Riesgo Persistente» o, con dos decisiones críticas, en «Crítico», y nunca en «Integral» ni «Con
@@ -100,3 +103,8 @@ Mermaid (fuente `.mmd`).
 6. **Un hallazgo menor anotado hoy es un cambio verificable mañana.** Los dos «hallazgos menores» que P-05b y A-01
    dejaron escritos (tres imports sin uso y una copia exacta) se cerraron en A-08 con una prueba que compara las
    dos vistas antes y después.
+7. **El navegador real contó lo que las pruebas de API no podían.** Las pruebas de A-05 probaban el mecanismo
+   (un id local coincidente se lleva el objeto de otra sala); A-05c mostró cuán común es el disparador: los ids
+   locales del editor parten de 1 y existen en otro caso, así que con el código original agregar los primeros
+   objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38). La misma prueba sobre
+   tres versiones del código (original, solo A-05, punta) falla en el punto esperado en las dos primeras.

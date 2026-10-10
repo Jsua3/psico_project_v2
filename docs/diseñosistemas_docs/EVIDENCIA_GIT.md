@@ -4,11 +4,11 @@ Generado el 2026-10-10 por `docs/diseñosistemas_docs/tools/git_evidence.py` a p
 
 ## Resumen
 
-- **Ramas locales de la serie:** 30.
-- **Pull requests hacia `adsi/integracion`** (desde el #24): 29, más #31 → `master` (borrador para el CI oficial).
-- **Commits de la pila** (`adsi/integracion..adsi/a09-timer-teardown`): 56, entre 2026-10-09 y 2026-10-10; merges en el rango: 0.
-- **Autores del rango:** Jsua3: 42, Juan José Sua: 14.
-- **Commits con coautoría de Claude** (`Co-Authored-By`): 56 de 56.
+- **Ramas locales de la serie:** 31.
+- **Pull requests hacia `adsi/integracion`** (desde el #24): 30, más #31 → `master` (borrador para el CI oficial).
+- **Commits de la pila** (`adsi/integracion..adsi/a05c-editor-e2e`): 58, entre 2026-10-09 y 2026-10-10; merges en el rango: 0.
+- **Autores del rango:** Jsua3: 44, Juan José Sua: 14.
+- **Commits con coautoría de Claude** (`Co-Authored-By`): 58 de 58.
 
 > **Lo que esta evidencia no muestra:** los commits están a nombre de una sola persona (con dos nombres de configuración, `Jsua3` y `Juan José Sua`) y de Claude como coautor. El plan (§12, punto 3) pedía que los cuatro integrantes se vieran en el historial; eso depende de que cada dueño de rama revise, apruebe o commitee desde su cuenta, y **no está hecho**.
 
@@ -48,11 +48,12 @@ Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (G
 | [#51](https://github.com/Jsua3/psico_project_v2/pull/51) | `adsi/a08-limpieza-verificada` | OPEN | A-08 · Limpieza verificada — tres imports sin uso y una copia exacta | `4fe342b` |
 | [#52](https://github.com/Jsua3/psico_project_v2/pull/52) | `adsi/a05b-editor-adopta-ids` | OPEN | A-05b · El editor adopta los ids reales que el servidor da a lo nuevo | `b950969` |
 | [#53](https://github.com/Jsua3/psico_project_v2/pull/53) | `adsi/a09-timer-teardown` | OPEN | A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente | `b458dde` |
+| [#54](https://github.com/Jsua3/psico_project_v2/pull/54) | `adsi/a05c-editor-e2e` | OPEN | A-05c · El editor de mundo, probado en el navegador contra la base real | `5d8ba6e` |
 
 ## Cómo se reproduce
 
 ```bash
 python docs/diseñosistemas_docs/tools/git_evidence.py
-git log --format='%h %an %ad %s' --date=short adsi/integracion..adsi/a09-timer-teardown
+git log --format='%h %an %ad %s' --date=short adsi/integracion..adsi/a05c-editor-e2e
 gh pr list --state all --limit 100 --json number,title,headRefName,baseRefName,state
 ```

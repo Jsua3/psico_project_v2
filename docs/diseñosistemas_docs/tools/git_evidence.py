@@ -5,7 +5,7 @@ No inventa nada: cada cifra sale de `git` y de `gh pr list` en el momento de cor
 columnas de commit salen de la ficha de cada entrada de CAMBIOS_ADSI.md.
 
 Uso (desde la raíz del repositorio):
-    python docs/diseñosistemas_docs/tools/git_evidence.py [--tip adsi/a09-timer-teardown]
+    python docs/diseñosistemas_docs/tools/git_evidence.py [--tip adsi/a05c-editor-e2e]
 """
 import argparse
 import json
@@ -48,7 +48,7 @@ def pull_requests():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tip", default="adsi/a09-timer-teardown", help="rama punta de la pila")
+    parser.add_argument("--tip", default="adsi/a05c-editor-e2e", help="rama punta de la pila")
     args = parser.parse_args()
 
     entries = registry_entries()

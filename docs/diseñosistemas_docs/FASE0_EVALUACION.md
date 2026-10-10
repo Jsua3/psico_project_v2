@@ -186,10 +186,10 @@ La confirmación oficial sigue siendo la del CI de GitHub sobre el PR.
 
 ---
 
-## 10. Actualización del 10 de octubre de 2026 (punta de la pila: `adsi/a09-timer-teardown`)
+## 10. Actualización del 10 de octubre de 2026 (punta de la pila: `adsi/a05c-editor-e2e`)
 
 **Estado del catálogo v2 (§4).** Fase 1 completa (PR #24–#30, #32–#34). Fase 2 completa (#35–#44), más el Facade
-del backend que quedaba como decisión (**P-05b**, #45). Se sumaron siete cambios que el plan anunciaba, que las
+del backend que quedaba como decisión (**P-05b**, #45). Se sumaron ocho cambios que el plan anunciaba, que las
 pruebas dejaron como «decisión del equipo» o que aparecieron al cerrarlos. Cada uno va en su rama y su PR; la pila es
 lineal, así que para descartar uno que no sea el último **antes de fusionar** hay que reconstruir las ramas siguientes
 sobre la anterior (con ramas nuevas, sin *force-push*), y **después de fusionar** basta `git revert -m 1`:
@@ -203,13 +203,16 @@ sobre la anterior (con ramas nuevas, sin *force-push*), y **después de fusionar
 | #51 | **A-08** — tres imports sin uso y una copia exacta | los dos hallazgos menores que P-05b y A-01 dejaron anotados | No |
 | #52 | **A-05b** — el editor adopta los ids reales tras guardar | sin esto A-05 deja filas que cambian de id en cada autoguardado | **Sí** (acotado, frontend) |
 | #53 | **A-09** — un temporizador sin dueño hacía fallar el CI | el job de frontend de #51 (que no toca el frontend) falló 1 de 7 veces | No |
+| #54 | **A-05c** — el editor de mundo, probado en el navegador contra la base real | A-05 y A-05b no tenían prueba del flujo real; midió que el código original quitaba objetos a la versión publicada del caso demo (41 → 38) | No (solo una prueba e2e) |
 
 El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
 
 **Opcionales (§4).** P-13 hecho. **P-11 y P-15 a P-20 no se hicieron**: riesgo alto, sin red de seguridad suficiente o
 una decisión de producto de por medio (razones en `PATRONES_EXISTENTES_Y_DESCARTADOS.md`).
 
-**Pruebas en la punta.** Backend 855 (línea base 307), frontend 2383 en 179 archivos (línea base 1809).
+**Pruebas en la punta.** Backend 855 (línea base 307), frontend 2383 en 179 archivos (línea base 1809) y 35 de
+extremo a extremo (34 antes de A-05c; la corrida completa local anterior a A-05c: matriz API 16/16 y Playwright 33 en
+verde con 1 omitida a propósito por el propio spec).
 
 **Lo que sigue (decisión del equipo):**
 
