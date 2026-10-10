@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant E as Editor (estado local)
+    participant S as Servidor (save_world)
+    E->>S: PUT objects [..., nuevo id=12 (local)]
+    S-->>E: definición (nuevo id=137 real)
+    Note over E: adopta los ids por clave:<br/>nuevo pasa a id=137<br/>(sin pila de deshacer, sin repintar si nada cambia)
+    E->>S: PUT objects [..., nuevo id=137]
+    S-->>E: definición (nuevo id=137)
+    Note over S: actualiza la misma fila

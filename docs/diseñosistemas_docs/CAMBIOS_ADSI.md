@@ -1123,3 +1123,41 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/A-08/`: `antes_imports_y_copia.png`, `despues_una_sola_funcion.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrones «Lava Flow» y «Cut & Paste» (Unidad 4), «no te repitas» (DRY). Cierra los dos hallazgos menores de P-05b y A-01.
+
+
+### A-05b · El editor adopta los ids reales que el servidor da a lo nuevo
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a05b-editor-adopta-ids` · `b950969` (parte de `adsi/a08-limpieza-verificada`: PR después de A-08) |
+| **Tipo** | Completa A-05 del lado del frontend; no es un patrón |
+| **Archivos** | `world-editor/world-editor.store.ts` (un método y una llamada); `world-editor/world-editor.store.saved-ids.spec.ts` (nuevo) |
+| **Riesgo** | Medio-bajo: toca el camino del autoguardado del editor; no hay e2e de este flujo en esta sesión. Protegido por seis pruebas del store y las 115 que ya existían del editor (comandos del store, macro y componente), más la suite completa |
+| **Cambio de comportamiento** | Sí, acotado: tras guardar, los objetos, zonas y diálogos **nuevos** cambian su id local por el real en el estado del editor |
+
+**Problema (antes).** El editor numera lo nuevo con ids locales (`nextLocalId()`: el mayor id de la sala más uno) y, tras cada guardado, solo hacía `definition.set(respuesta)`: el estado editable seguía con los ids locales. A-05 hizo que el servidor busque cada id **dentro de la sala**; un id local que no existe crea, por tanto, una fila nueva y borra la anterior. Resultado sin este cambio: cada autoguardado de un objeto nuevo lo recrea con otro id (sin duplicados, pero con la fila cambiando) y los diálogos conservan un `mapObjectId` que ya no existe.
+
+**Solución (después).** Tras guardar, `adoptSavedIds` toma los ids de la respuesta **por clave** (objetos, zonas y diálogos) y, en los diálogos, el `mapObjectId` del objeto al que apuntan:
+
+- no pasa por la pila de deshacer ni marca el estado como sucio: no dispara otro guardado;
+- toca solo los campos `id` y `mapObjectId`: lo que el autor edite mientras tanto se conserva;
+- si ningún id cambia devuelve **el mismo objeto de estado**: no hay repintado del lienzo.
+
+**Decisión de diseño.**
+
+- *Por clave, no por posición.* La clave de un elemento es estable en el editor; la posición en la lista no (se reordena al deshacer un borrado).
+- *Lo que el servidor no devuelve conserva su id local.* No se pone `undefined` a nada (el compilador impide esa mutación: la mutante «un objeto que el servidor no devuelve pierde su id» no compila).
+- *Deshacer tras adoptar:* reponer un elemento borrado vuelve a traer su id anterior (el comando recuerda el objeto entero); el siguiente guardado lo crea de nuevo. Es correcto y no se intenta evitar.
+
+**Lo que no cambió:** el contenido de cada guardado salvo los ids, el debounce de 1500 ms, el manejo de errores 409 y 500, la pila de deshacer y rehacer y que un guardado fallido no cambie nada.
+
+**Pruebas.** Frontend 2376 → **2382** (+6; 178 → 179 archivos), `ng build` correcto.
+
+- *En rojo primero:* con el código anterior fallaban 3 de las 6 (el objeto, la zona y el diálogo nuevos seguían con su id local); las otras 3 fijan lo que no debe cambiar y pasaban antes y después.
+- *Mutaciones, 8:* no adoptar, buscar con otra clave, el diálogo sin el id de su objeto ni el suyo, zonas sin adoptar, estado siempre nuevo, adoptar dejando el estado sucio, y quitar la guarda de «no devuelto». **7 detectadas por las pruebas y 1 por el compilador.**
+
+**Hallazgos.** (1) El autoguardado sigue muriendo tras un error de guardado (Fase 0, hallazgo 1): no se tocó. (2) Las pruebas del store usan un `AuthoringApi` simulado con respuestas síncronas, así que no cubren que el autor edite *durante* la petición; la adopción toca solo ids para que eso sea seguro, pero no hay una prueba de la carrera.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-05b/`: `antes_guardado_sin_adoptar_ids.png`, `despues_adopta_los_ids.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Integridad de datos entre cliente y servidor; es el cierre del frontend del cambio A-05. Observer (el store reacciona a la respuesta) sin patrón nuevo.
