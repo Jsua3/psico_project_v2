@@ -134,14 +134,52 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   expect(afterDelete['objects'].some((o: Json) => o['key'] === ownerKey), 'el objeto borrado ya no está').toBe(false);
   expect(afterDelete['dialogues'], 'su diálogo tampoco').toHaveLength(0);
 
-  // 4. Recarga: lo borrado no reaparece y el editor muestra exactamente lo guardado.
+  // 4. Zona de colisión: se dibuja con el ratón y se guarda con su id real (el original ignoraba las zonas).
+  const canvas = page.locator('.we-konva-host canvas').first();
+  // El lienzo queda debajo del pliegue en 1280x720: se centra antes de medirlo y operar sobre él.
+  // `instant`: el contenedor tiene desplazamiento suave y medir a mitad del movimiento da otra posición.
+  const centerCanvas = async () => {
+    await canvas.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }));
+    const box = await canvas.boundingBox();
+    expect(box, 'el lienzo del editor está en pantalla').not.toBeNull();
+    return box!;
+  };
+  // La herramienta se elige antes de medir: el clic de Playwright desplaza la página hasta el botón.
+  await page.getByRole('button', { name: /zona de colisi[oó]n/i }).click();
+  const box = await centerCanvas();
+  await autosaved(page, versionId, async () => {
+    await page.mouse.move(box.x + 160, box.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 280, box.y + 200, { steps: 6 });
+    await page.mouse.up();
+  });
+  const withZone = await readWorld(request, token, versionId, nodeId);
+  expect(withZone['collisionZones'], 'la zona dibujada se guardó').toHaveLength(1);
+  const zoneId: number = withZone['collisionZones'][0]['id'];
+
+  // 5. Otro autoguardado (un objeto más): la zona conserva su id.
+  await autosaved(page, versionId, async () => { await templates.nth(3).click(); });
+  const nextWorld = await readWorld(request, token, versionId, nodeId);
+  expect(nextWorld['objects']).toHaveLength(3);
+  expect(nextWorld['collisionZones'].map((z: Json) => z['id']), 'la zona conserva su id real').toEqual([zoneId]);
+
+  // 6. Recarga: lo borrado no reaparece y el editor muestra exactamente lo guardado.
   await page.reload();
   await openWorldEditor(page, versionId);
-  await expect(page.locator('.we-info')).toContainText('2 objetos');
+  await expect(page.locator('.we-info')).toContainText('3 objetos · 1 zonas');
   const reloaded = await readWorld(request, token, versionId, nodeId);
-  expect(reloaded['objects'].map((o: Json) => o['id']).sort())
-    .toEqual(afterDelete['objects'].map((o: Json) => o['id']).sort());
+  expect(reloaded['objects'].map((o: Json) => o['id']).sort()).toEqual(nextWorld['objects'].map((o: Json) => o['id']).sort());
+  expect(reloaded['objects'].some((o: Json) => o['key'] === ownerKey), 'el objeto borrado no reaparece').toBe(false);
 
-  // 5. Tras borrar y recargar, tampoco.
+  // 7. Borrar la zona (seleccionada con el ratón sobre el lienzo): el servidor la quita.
+  await page.keyboard.press('v');
+  const reloadedBox = await centerCanvas();
+  await page.mouse.click(reloadedBox.x + 220, reloadedBox.y + 160);
+  await autosaved(page, versionId, async () => {
+    await page.getByRole('button', { name: /eliminar zona/i }).click();
+  });
+  expect((await readWorld(request, token, versionId, nodeId))['collisionZones'], 'la zona borrada ya no está').toHaveLength(0);
+
+  // 8. Nada de otros casos se tocó al terminar.
   expect(await foreignObjects(request, token, versionId), 'los objetos de otros casos no cambian').toBe(foreignBefore);
 });
