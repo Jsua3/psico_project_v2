@@ -1,0 +1,26 @@
+classDiagram
+    direction LR
+    class authoring_service {
+        +clone_version()
+        -_clone_nodes() 12 campos escritos a mano
+        -_clone_decisions() 9 campos
+        -_clone_maps() 8 campos
+        -_clone_collision_zones() 6 campos
+        -_clone_map_objects() 20 campos
+        -_clone_dialogues() 4 + 4 + 5 campos
+        -_clone_clinical_tools() 6 campos
+        -_clone_rubrics() 3 + 5 campos
+    }
+    class SimulationNode
+    class DecisionOption
+    class SceneMap
+    class MapObject
+    class DialogueTree
+    class Rubric
+    authoring_service ..> SimulationNode : objects.create(campo=origen.campo, ...)
+    authoring_service ..> DecisionOption : objects.create(...)
+    authoring_service ..> SceneMap : objects.create(...)
+    authoring_service ..> MapObject : objects.create(...)
+    authoring_service ..> DialogueTree : objects.create(...)
+    authoring_service ..> Rubric : objects.create(...)
+    note for authoring_service "83 asignaciones de campo en 10 bucles casi iguales:<br/>un campo nuevo del modelo se olvidaba sin que nada fallara"

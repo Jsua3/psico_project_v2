@@ -1,0 +1,40 @@
+classDiagram
+    direction LR
+    class CopySpec {
+        <<dato inmutable>>
+        +model
+        +fields
+        +copy(source, **links)
+    }
+    class case_cloning {
+        <<módulo>>
+        NODE
+        DECISION
+        MAP
+        COLLISION_ZONE
+        MAP_OBJECT
+        DIALOGUE_TREE
+        DIALOGUE_LINE
+        DIALOGUE_CHOICE
+        CLINICAL_TOOL
+        RUBRIC
+        RUBRIC_CRITERION
+        CASE_VERSION
+    }
+    class authoring_service {
+        +clone_version()
+        -_clone_nodes()
+        -_clone_decisions()
+        -_clone_maps()
+        -_clone_map_objects()
+        -_clone_dialogues()
+        -_clone_rubrics()
+    }
+    class test_clone_version_contract {
+        <<prueba>>
+        compara cada campo de cada fila
+    }
+    case_cloning o-- CopySpec : 12 declaraciones
+    authoring_service ..> case_cloning : pone solo los vínculos
+    test_clone_version_contract ..> authoring_service : clon completo
+    note for CopySpec "una sola forma de copiar:<br/>campos declarados + vínculos de quien clona"

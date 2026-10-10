@@ -721,3 +721,53 @@ Cualquier excepción —la base de datos caída (`OperationalError`), un error d
 **Evidencia.** `docs/diseñosistemas_docs/A-06/`: `antes_literal_en_el_servicio.png`, `despues_configuracion.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`; son diagramas de flujo de dónde nace y adónde llega la contraseña).
 
 **Relación con la materia.** Antipatrón «Hard Code» (Unidad 4): una credencial no debe vivir en el código; configuración por entorno.
+
+
+### P-03 · Prototype — la copia de una versión de caso, declarada una sola vez
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p03-clone-prototype` · `c0a5de6` (parte de `adsi/a06-default-password-config`: PR después de A-06) |
+| **Patrón** | Prototype (creacional), declarativo; de paso elimina «Cut & Paste» |
+| **Archivos** | `services/case_cloning.py` (nuevo), `services/authoring_service.py` (los `_clone_*`); `tests/test_clone_version_contract.py` y `tests/test_case_cloning.py` (nuevos) |
+| **Riesgo** | Medio: es cómo un autor crea una versión nueva, y la versión publicada no debe tocarse (REGLA-005). Protegido por una prueba de clon completo escrita antes |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `clone_version` copiaba una versión con ocho funciones `_clone_*` (nodos, decisiones, mapas, zonas, objetos, diálogos con sus líneas y opciones, herramientas, rúbricas con sus criterios) que escribían a mano, campo por campo, el mismo `objects.create(campo=origen.campo, …)`: **83 asignaciones en 12 entidades**. Era un «Cut & Paste» en el que un campo nuevo del modelo se olvidaba sin que nada fallara, y de hecho ya se habían olvidado algunos (ver hallazgos).
+
+**Solución (después).**
+
+- `case_cloning.py` declara, para cada entidad, **qué campos se copian tal cual** con un `CopySpec(modelo, campos)` inmutable, y tiene **una sola forma de copiar**: `copy(origen, **vínculos)` crea la fila con los campos declarados más los vínculos que pasa quien clona.
+- `authoring_service.py` conserva el orden y el recorrido (qué se copia primero y cómo se remapean nodos, mapas y decisiones) y pone únicamente los vínculos; cada `_clone_*` pasó de entre 11 y 30 líneas a entre 3 y 17.
+- `objects.create` por fila y los mismos órdenes (`id`, `display_order`): los identificadores se asignan en el mismo orden que antes.
+
+**Decisión de diseño.**
+
+- *Declarativo, no el `clone()` del libro.* Un `clone()` en cada modelo mezclaría persistencia con la regla de autoría (las tablas son `managed = False`). Aquí el prototipo es la fila de origen y la declaración dice qué de ella se copia: Prototype guiado por datos.
+- *Listas de campos explícitas, no derivadas de `_meta`.* Derivarlas copiaría de más: el candado optimista de la versión (`CaseVersion.version`), `Rubric.is_default`… Cambiaría el comportamiento. Con listas explícitas, un campo nuevo del modelo no se copia hasta que alguien lo decida, y la prueba de clon completo obliga a esa decisión.
+- *Los vínculos los pone quien clona.* Dependen de qué copias existen (`node_copies`, `map_copies`, `decision_copies`); el módulo no sabe de ellas.
+- *No es un recorte de líneas.* El servicio pierde 125 líneas y gana 27, y el módulo nuevo suma 89 (con su explicación); lo que cambia es que las listas de campos son datos y la copia existe una sola vez.
+
+**Lo que no cambió:** qué se copia (los mismos 83 campos), con qué vínculos, en qué orden, y que la versión de origen no se modifica. Las 20 pruebas de `test_authoring.py` pasan sin tocarse.
+
+**Pruebas.** Backend 716 → **759** (+43), `manage.py check` limpio.
+
+- *Clon completo (16), `test_clone_version_contract.py`, escrita y verificada sobre el código original:* para cada una de las 11 entidades que cuelgan de la versión recorre todos los campos concretos del modelo y compara cada fila del clon con la de origen (los vínculos, por la clave natural de lo que apuntan). Excluye solo identificadores, marcas de tiempo y el vínculo con la versión, y trae escritos los **huecos conocidos**. Además: el clon es un borrador enlazado al origen, las entidades cuelgan del clon y no de la fuente, las rúbricas quedan a nombre de quien clona y **la versión publicada de origen no cambia** (REGLA-005).
+- *Una fila «toda distinta» por entidad.* La primera versión de la prueba usaba solo los datos sembrados y **cuatro** omisiones del clon original pasaban desapercibidas (`position_y` de un nodo, la decisión enlazada de un objeto, el `portrait_key` de un árbol y el `effect_json` de una opción), porque en lo sembrado valían el valor por defecto o `None`. Ahora la fuente trae, de cada entidad, una fila con **todos** los campos distintos del predeterminado, calculados desde el modelo.
+- *Declaración (27), `test_case_cloning.py`, sin base de datos:* que cada campo declarado exista, sea plano (no clave foránea, ni identificador, ni marca de tiempo) y no se repita, y cómo `copy` junta campos y vínculos.
+- *Mutaciones sobre el código original (18):* quitar un campo o un vínculo de cada `_clone_*` y no enlazar el clon al origen. **Las 18 detectadas** (con la fila «toda distinta»).
+- *Mutaciones sobre el código nuevo (25):* quitar un campo de cada una de las 12 declaraciones, apuntar un vínculo a la fila de origen, perder una decisión o un objeto enlazado, conservar el autor original de la rúbrica, no enlazar al origen, conservar el estado de la fuente y revertir el orden. **24 detectadas.** Una sobrevivió al principio —la rúbrica clonada conservando al autor original— porque en la fuente creaba la rúbrica el mismo usuario que clona; ahora la crea otro. La que queda es equivalente: clonar las líneas de un diálogo en orden inverso solo cambia los identificadores asignados, y todos los lectores las ordenan por `display_order`.
+
+**Hallazgos.** Los huecos que el clon tiene **hoy**, ahora escritos y fijados por la prueba (no se corrigen aquí: son un cambio de comportamiento y una decisión del equipo):
+
+1. `RubricCriterion.weight` **no se copia**: el criterio clonado recibe el valor por defecto (0). `rubric_service` usa `weight or max_score`, así que el peso personalizado de una rúbrica se pierde al clonar la versión y el criterio vale su `max_score`. La duplicación de rúbricas del propio `rubric_service` sí lo copia: son dos rutas de copia con criterios distintos.
+2. `RubricCriterion.active` **no se copia**: un criterio desactivado vuelve activo en el clon.
+3. `Rubric.version` no se copia (el clon vuelve a «1.0»); la duplicación del `rubric_service` sí la copia.
+4. `Rubric.is_default` no se copia; probablemente es a propósito (solo puede haber una rúbrica por defecto: `set_default` apaga las demás), pero no estaba dicho en ningún sitio.
+5. `CaseVersion.world_schema_version` no se copia: el origen puede valer 2 y el clon queda en 1. Hoy nada lo lee (solo se escribe al crear un caso), así que no tiene efecto visible.
+
+Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_GAPS` en la prueba.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-03/`: `antes_clones_campo_por_campo.png`, `despues_copia_declarativa.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Prototype (patrones creacionales, Unidad 2: sustentación 1) y el antipatrón «Cut & Paste» (Unidad 4). Es el único cambio de la serie cuya prueba previa descubrió defectos que el código ya tenía.

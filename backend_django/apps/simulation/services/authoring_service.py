@@ -40,7 +40,7 @@ from ..models import (
     SimulationNode,
 )
 from ..serializers import game_dtos as dto
-from . import world_validation
+from . import case_cloning as cloning, world_validation
 from .audit_service import auditable
 from shared.jsonutils import (
     coerce_int as _int,
@@ -638,11 +638,11 @@ def publish(case_version_id):
 @transaction.atomic
 def clone_version(case_version_id, actor):
     source = _require_version(case_version_id)
-    clone = CaseVersion.objects.create(
+    clone = cloning.CASE_VERSION.copy(
+        source,
         simulation_case=source.simulation_case,
         semantic_version=_next_minor(source),
         status="DRAFT",
-        narrative_context=source.narrative_context,
         cloned_from=source,
         created_by=actor,
     )
@@ -661,175 +661,77 @@ def clone_version(case_version_id, actor):
 
 
 def _clone_nodes(source, clone):
-    copies = {}
-    for node in SimulationNode.objects.filter(case_version_id=source.id).order_by("id"):
-        copy = SimulationNode.objects.create(
-            case_version=clone,
-            node_key=node.node_key,
-            title=node.title,
-            narrative=node.narrative,
-            support_resources_json=node.support_resources_json,
-            required_tools_json=node.required_tools_json,
-            sensitive_content=node.sensitive_content,
-            safe_exit_required=node.safe_exit_required,
-            warning_message=node.warning_message,
-            start_node=node.start_node,
-            terminal_node=node.terminal_node,
-            position_x=node.position_x,
-            position_y=node.position_y,
-        )
-        copies[node.id] = copy
-    return copies
+    return {
+        node.id: cloning.NODE.copy(node, case_version=clone)
+        for node in SimulationNode.objects.filter(case_version_id=source.id).order_by("id")
+    }
 
 
 def _clone_decisions(source, clone, node_copies):
-    copies = {}
-    for d in DecisionOption.objects.filter(case_version_id=source.id).order_by("id"):
-        copy = DecisionOption.objects.create(
+    return {
+        d.id: cloning.DECISION.copy(
+            d,
             case_version=clone,
-            option_key=d.option_key,
             source_node=node_copies.get(d.source_node_id),
             target_node=node_copies.get(d.target_node_id),
-            text=d.text,
-            classification=d.classification,
-            score_delta=d.score_delta,
-            stress_delta=d.stress_delta,
-            prohibited_penalty=d.prohibited_penalty,
-            immediate_feedback=d.immediate_feedback,
-            prohibited_conduct=d.prohibited_conduct,
-            prohibition_reason=d.prohibition_reason,
         )
-        copies[d.id] = copy
-    return copies
+        for d in DecisionOption.objects.filter(case_version_id=source.id).order_by("id")
+    }
 
 
 def _clone_maps(source, clone, node_copies):
-    copies = {}
-    for m in SceneMap.objects.filter(case_version_id=source.id).order_by("id"):
-        copy = SceneMap.objects.create(
-            case_version=clone,
-            node=node_copies.get(m.node_id),
-            map_key=m.map_key,
-            title=m.title,
-            width=m.width,
-            height=m.height,
-            theme=m.theme,
-            spawn_x=m.spawn_x,
-            spawn_y=m.spawn_y,
-            ambient_json=m.ambient_json,
-        )
-        copies[m.id] = copy
-    return copies
+    return {
+        m.id: cloning.MAP.copy(m, case_version=clone, node=node_copies.get(m.node_id))
+        for m in SceneMap.objects.filter(case_version_id=source.id).order_by("id")
+    }
 
 
 def _clone_collision_zones(map_copies):
     for source_map_id, cloned_map in map_copies.items():
         for zone in CollisionZone.objects.filter(scene_map_id=source_map_id).order_by("id"):
-            CollisionZone.objects.create(
-                scene_map=cloned_map,
-                zone_key=zone.zone_key,
-                label=zone.label,
-                position_x=zone.position_x,
-                position_y=zone.position_y,
-                width=zone.width,
-                height=zone.height,
-            )
+            cloning.COLLISION_ZONE.copy(zone, scene_map=cloned_map)
 
 
 def _clone_map_objects(map_copies, decision_copies):
     copies = {}
     for source_map_id, cloned_map in map_copies.items():
         for obj in MapObject.objects.filter(scene_map_id=source_map_id).order_by("id"):
-            copy = MapObject.objects.create(
+            copies[obj.id] = cloning.MAP_OBJECT.copy(
+                obj,
                 scene_map=cloned_map,
-                object_key=obj.object_key,
-                label=obj.label,
-                object_type=obj.object_type,
-                position_x=obj.position_x,
-                position_y=obj.position_y,
-                width=obj.width,
-                height=obj.height,
-                color_hex=obj.color_hex,
-                icon=obj.icon,
-                short_code=obj.short_code,
-                collision=obj.collision,
-                visible=obj.visible,
-                interaction_prompt=obj.interaction_prompt,
-                interaction_text=obj.interaction_text,
                 decision_option=decision_copies.get(obj.decision_option_id) if obj.decision_option_id else None,
-                tool_code=obj.tool_code,
-                unlock_condition_json=obj.unlock_condition_json,
-                z_index=obj.z_index,
-                facing=obj.facing,
-                movement_pattern_json=obj.movement_pattern_json,
-                metadata_json=obj.metadata_json,
             )
-            copies[obj.id] = copy
     return copies
 
 
 def _clone_dialogues(map_copies, object_copies, decision_copies):
     for source_map_id, cloned_map in map_copies.items():
         for tree in DialogueTree.objects.filter(scene_map_id=source_map_id).order_by("id"):
-            tree_copy = DialogueTree.objects.create(
+            tree_copy = cloning.DIALOGUE_TREE.copy(
+                tree,
                 scene_map=cloned_map,
                 map_object=object_copies.get(tree.map_object_id) if tree.map_object_id else None,
-                tree_key=tree.tree_key,
-                speaker_name=tree.speaker_name,
-                portrait_key=tree.portrait_key,
-                emotion=tree.emotion,
             )
             for line in DialogueLine.objects.filter(dialogue_tree_id=tree.id).order_by("display_order"):
-                DialogueLine.objects.create(
-                    dialogue_tree=tree_copy,
-                    display_order=line.display_order,
-                    speaker_name=line.speaker_name,
-                    text=line.text,
-                    emotion=line.emotion,
-                )
+                cloning.DIALOGUE_LINE.copy(line, dialogue_tree=tree_copy)
             for choice in DialogueChoice.objects.filter(dialogue_tree_id=tree.id).order_by("display_order"):
-                DialogueChoice.objects.create(
+                cloning.DIALOGUE_CHOICE.copy(
+                    choice,
                     dialogue_tree=tree_copy,
-                    choice_key=choice.choice_key,
-                    text=choice.text,
                     decision_option=decision_copies.get(choice.decision_option_id) if choice.decision_option_id else None,
-                    required_tool_code=choice.required_tool_code,
-                    effect_json=choice.effect_json,
-                    display_order=choice.display_order,
                 )
 
 
 def _clone_clinical_tools(source, clone):
     for tool in ClinicalTool.objects.filter(case_version_id=source.id).order_by("id"):
-        ClinicalTool.objects.create(
-            case_version=clone,
-            tool_code=tool.tool_code,
-            label=tool.label,
-            icon=tool.icon,
-            category=tool.category,
-            description=tool.description,
-            active=tool.active,
-        )
+        cloning.CLINICAL_TOOL.copy(tool, case_version=clone)
 
 
 def _clone_rubrics(source, clone, actor):
     for rubric in Rubric.objects.filter(case_version_id=source.id).order_by("id"):
-        rubric_copy = Rubric.objects.create(
-            case_version=clone,
-            name=rubric.name,
-            description=rubric.description,
-            active=rubric.active,
-            created_by=actor,
-        )
+        rubric_copy = cloning.RUBRIC.copy(rubric, case_version=clone, created_by=actor)
         for criterion in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order"):
-            RubricCriterion.objects.create(
-                rubric=rubric_copy,
-                competency=criterion.competency,
-                title=criterion.title,
-                description=criterion.description,
-                max_score=criterion.max_score,
-                display_order=criterion.display_order,
-            )
+            cloning.RUBRIC_CRITERION.copy(criterion, rubric=rubric_copy)
 
 
 def _create_draft_checklist(clone, actor):
