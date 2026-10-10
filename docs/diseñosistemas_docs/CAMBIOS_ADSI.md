@@ -1202,7 +1202,8 @@ ReferenceError: window is not defined
 - *La prueba nueva:* aplica un mundo, destruye el componente, avanza 1000 ms y comprueba que el fundido no se retira ni se piden efectos de cámara.
 - *Mutaciones, 2, las 2 detectadas:* que `ngOnDestroy` no incluya el temporizador y que no se guarde su identificador.
 - *Lo que NO se puede demostrar:* que la intermitencia haya desaparecido (ocurría 1 de cada 7 ejecuciones de CI). Lo que sí se demuestra es que la ruta del error del registro queda cerrada: el temporizador que lo causó ya no sobrevive al componente.
-- *El job fallido de #51* se volvió a ejecutar: ver el estado del PR (con el código de A-08 sin cambios).
+- *El job fallido de #51* se volvió a ejecutar una vez (`gh run rerun --failed`), con el código de A-08 sin cambios, y **pasó** (6 de 6 comprobaciones en verde): coherente con una intermitencia y no con un defecto de A-08.
+- *En la punta de la pila* (`adsi/a09-timer-teardown`), la corrida local completa de Playwright dio **33 pruebas en verde y 1 omitida a propósito** por el propio spec (`guided-first-minute`, variante táctil 844x390), y la matriz API 16/16; el CI de #53 quedó en verde (6 de 6).
 
 **Hallazgos.** (1) Es el tipo de fallo que FASE0 §3.4 anotó: 55 archivos de prueba leen el código fuente como texto, y por eso no se pudo mover la lógica del temporizador a un ayudante sin tocar sus aserciones. (2) `jsdom was created 178 times · 63 s total` (un 53 % del tiempo de pruebas): Vitest sugiere `pool: 'vmThreads'`; no se tocó.
 
