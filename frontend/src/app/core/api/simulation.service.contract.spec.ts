@@ -62,7 +62,6 @@ const CONTRACTS: Contract[] = [
     body: { caseVersionId: 7, forceNew: false } },
   { method: 'getProgressMap', call: s => s.getProgressMap(ATTEMPT, TOKEN), verb: 'GET',
     url: `${att}/progress-map`, attemptToken: true },
-  { method: 'getAttempt', call: s => s.getAttempt(ATTEMPT, TOKEN), verb: 'GET', url: att, attemptToken: true },
   { method: 'getWorld', call: s => s.getWorld(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/world`, attemptToken: true },
   { method: 'enterRoom', call: s => s.enterRoom(ATTEMPT, TOKEN, 'sala-b', 'puerta-a'), verb: 'POST',
     url: `${att}/enter-room`, body: { attemptToken: TOKEN, targetNodeKey: 'sala-b', doorKey: 'puerta-a' } },
@@ -83,8 +82,6 @@ const CONTRACTS: Contract[] = [
     url: `${att}/safe-exit`, body: { attemptToken: TOKEN, reason: 'necesito parar' } },
   { method: 'resumeAttempt', call: s => s.resumeAttempt(ATTEMPT, TOKEN), verb: 'POST',
     url: `${att}/resume`, body: { attemptToken: TOKEN } },
-  { method: 'getCompletionReport', call: s => s.getCompletionReport(ATTEMPT, TOKEN), verb: 'GET',
-    url: `${att}/completion-report`, attemptToken: true },
   { method: 'attemptHistory', call: s => s.attemptHistory(), verb: 'GET', url: `${S}/attempts/history` },
 
   // ── docente ────────────────────────────────────────────────────────────────
@@ -109,7 +106,6 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteNode', call: s => s.deleteNode(9, 2), verb: 'DELETE', url: `${A}/9/nodes/2` },
   { method: 'createDecision', call: s => s.createDecision(9, body('dec')), verb: 'POST', url: `${A}/9/decisions`, body: body('dec') },
   { method: 'updateDecision', call: s => s.updateDecision(9, 2, body('dec')), verb: 'PUT', url: `${A}/9/decisions/2`, body: body('dec') },
-  { method: 'deleteDecision', call: s => s.deleteDecision(9, 2), verb: 'DELETE', url: `${A}/9/decisions/2` },
   { method: 'createMap', call: s => s.createMap(9, body('mapa')), verb: 'POST', url: `${A}/9/maps`, body: body('mapa') },
   { method: 'updateMap', call: s => s.updateMap(9, 2, body('mapa')), verb: 'PUT', url: `${A}/9/maps/2`, body: body('mapa') },
   { method: 'deleteMap', call: s => s.deleteMap(9, 2), verb: 'DELETE', url: `${A}/9/maps/2` },
@@ -284,13 +280,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(50);
+    expect(publicMethods).toHaveLength(47);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
-    expect([player.length, authoring.length, instructor.length]).toEqual([21, 25, 4]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(47);
+    expect([player.length, authoring.length, instructor.length]).toEqual([19, 24, 4]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'saveRubric']);
   });
 

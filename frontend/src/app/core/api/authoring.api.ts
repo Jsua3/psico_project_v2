@@ -93,11 +93,6 @@ export class AuthoringApi {
       .pipe(map(r => r.data));
   }
 
-  deleteDecision(caseVersionId: number, decisionId: number) {
-    return this.http.delete<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/decisions/${decisionId}`)
-      .pipe(map(r => r.data));
-  }
-
   // ─── Map CRUD ───────────────────────────────────────────────────────────────
 
   createMap(caseVersionId: number, body: MapUpsertRequest) {

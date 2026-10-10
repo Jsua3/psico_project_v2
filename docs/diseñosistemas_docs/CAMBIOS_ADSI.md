@@ -382,3 +382,40 @@ El riesgo real de la duplicación: una corrección del parseo tolerante de JSON 
 **Evidencia.** `docs/diseñosistemas_docs/A-01/`: `antes_game_dtos_read_string_list.png`, `antes_instructor_read_map.png`, `antes_game_views_int.png`, `antes_clamp_tres_copias.png`, `despues_jsonutils.png`, `despues_importaciones.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Cut & Paste» / código duplicado (Unidad 4) y principio DRY; la mutación de este cambio es un ejemplo concreto de por qué un refactor «seguro» sin pruebas en los puntos de uso no tiene red de seguridad.
+
+
+### A-02 · Código muerto (Lava Flow / Boat Anchor) — borrado verificado
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a02-codigo-muerto` · `44efdc7` (parte de `adsi/a01-duplicados`: PR después de A-01) |
+| **Antipatrón** | Código muerto: «Lava Flow» (código que quedó de versiones anteriores) y «Boat Anchor» (código que nadie usa) |
+| **Archivos** | Frontend: `audio.service.ts` (borrado), `core/api/simulation.service.ts`, `core/api/authoring.api.ts`, `features/simulator/game-world.component.ts`, `features/simulator/hospital-map.config.ts`; sus contratos de pruebas. Backend: `apps/grupos/services.py`. `README.md` |
+| **Riesgo** | Bajo: cada candidato tiene cero usos comprobados y, tras borrar, compilan y pasan las suites completas |
+| **Cambio de comportamiento** | Ninguno |
+
+**Qué se borró y por qué es seguro.**
+
+| Código | Evidencia de que está muerto |
+|---|---|
+| `audio.service.ts` (reexporta `AudioDirectorService as AudioService`) | 0 importadores en `src/` y `e2e/` |
+| `SimulationService.getAttempt` y `getCompletionReport` | Solo los llaman el propio servicio y sus pruebas |
+| `AuthoringApi.deleteDecision` | Solo lo llama su prueba de contrato |
+| `renderHospitalEnvironment` y sus ramas en `renderWorld` | `HOSPITAL_MAP_KEY` es `urgencias-crisis`, que `resolveSceneRenderer` resuelve al renderer premium (lo fija `case-pdf-rooms.spec.ts`); `renderWorld` sale justo después de llamarlo, así que `isHospitalMap(mapKey)` es siempre falso en el resto del método |
+| `HOSPITAL_ZONES` y `HospitalZoneDef` | Solo los usaba `renderHospitalEnvironment` (quedaron huérfanos) |
+| `_parse_csv_rows` y `import csv` | Sin ningún llamador: la importación solo acepta `.xlsx` (la pantalla, el serializador y `_parse_student_import` lo exigen) |
+| README (líneas 109 y 125) | Decía que se podía cargar `.csv` y descargar una plantilla CSV; la pantalla acepta solo `.xlsx` y descarga `plantilla_importacion_estudiantes_siep.xlsx` |
+
+En `renderWorld` se quitaron, además del método y su llamada, dos ramas que dependían del mismo hecho: el rótulo «Hospital — Urgencia vital y crisis» y el `isHospitalMap(mapKey) ||` de la etiqueta de objetos. Los endpoints del backend (`GET attempt`, `completion-report`, `DELETE decisions`) **no se tocan**: solo se borran los envoltorios del cliente que nadie llama.
+
+**Pruebas.** Sin pruebas nuevas ni mutaciones: no hay comportamiento nuevo que fijar y, al borrar, la garantía es que nada lo referenciaba (compilación) y que las suites completas siguen verdes.
+
+- *Frontend:* 2184 → **2179** (−5; 171 archivos), `tsc` de app y de pruebas sin errores y `ng build` correcto. Los cinco son filas de tablas de contrato de los métodos borrados (`getAttempt`, `getCompletionReport` y `deleteDecision` en el contrato de 50 métodos; `getAttempt` y `getCompletionReport` en la prueba de GET privados). Los totales del contrato pasan de 50 a 47 métodos y de 21 / 25 / 4 a **19 / 24 / 4**. Ninguna otra aserción se modificó.
+- *Backend:* 546 sin cambios, `manage.py check` limpio y sin imports sin uso en `grupos/services.py`.
+- *Qué no se pudo probar con pruebas:* que `renderHospitalEnvironment` no se ejecuta en el juego real. Las pruebas unitarias no dibujan con Phaser; la garantía es el argumento estático de arriba (la salida anticipada y la prueba del registro). Una corrida del e2e del caso completo lo confirmaría empíricamente.
+
+**Candidatos que se dejaron sin tocar** (misma familia, necesitan su propio análisis): `HOSPITAL_COLLISIONS` en `wouldCollide` y las ramas hospitalarias de `scene-map-display.util.ts` (se usan también fuera de `renderWorld`), `renderComisariaEnvironment` (sigue alcanzable como respaldo si falla la carga del JSON del escenario) y `ResizeZoneCommand` (sin llamador de producción desde P-07; ver su entrada).
+
+**Evidencia.** `docs/diseñosistemas_docs/A-02/`: `antes_audio_service.png`, `antes_simulation_service_metodos.png`, `antes_delete_decision.png`, `antes_render_hospital_llamada.png`, `antes_render_hospital_metodo.png`, `antes_parse_csv_rows.png`, `antes_readme.png`, `antes_contrato.png`, `despues_render_llamada.png`, `despues_contrato.png`, `despues_readme.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrones «Lava Flow» y «Boat Anchor» (Unidad 4): el refactor es eliminar, no reescribir; el criterio de seguridad es demostrar que no hay usos antes de borrar.

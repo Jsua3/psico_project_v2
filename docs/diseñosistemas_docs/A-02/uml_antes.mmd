@@ -1,0 +1,33 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        21 métodos públicos
+        +getAttempt()
+        +getCompletionReport()
+    }
+    class AuthoringApi {
+        25 métodos públicos
+        +deleteDecision()
+    }
+    class AudioService {
+        <<reexport sin importadores>>
+    }
+    class AudioDirectorService
+    class GameWorldComponent {
+        -renderWorld()
+        -renderHospitalEnvironment()
+        -renderComisariaEnvironment()
+    }
+    class SceneRendererRegistry {
+        +resolveSceneRenderer(mapKey)
+    }
+    class GruposServices {
+        -_parse_csv_rows()
+        -_parse_xlsx_rows()
+    }
+    AudioService ..> AudioDirectorService : reexporta
+    GameWorldComponent ..> SceneRendererRegistry : urgencias-crisis siempre tiene renderer
+    note for SimulationService "getAttempt y getCompletionReport:<br/>0 usos fuera del servicio y de las pruebas"
+    note for AuthoringApi "deleteDecision: 0 usos<br/>fuera del servicio y de las pruebas"
+    note for GameWorldComponent "renderWorld sale antes de llegar<br/>a renderHospitalEnvironment"
+    note for GruposServices "_parse_csv_rows no tiene llamadores:<br/>solo se acepta .xlsx"

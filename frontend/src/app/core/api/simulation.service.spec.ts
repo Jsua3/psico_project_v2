@@ -23,10 +23,8 @@ describe('SimulationService private attempt GETs', () => {
   afterEach(() => httpMock.verify());
 
   it.each([
-    ['getAttempt', () => service.getAttempt(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}`],
     ['getProgressMap', () => service.getProgressMap(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}/progress-map`],
     ['getWorld', () => service.getWorld(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}/world`],
-    ['getCompletionReport', () => service.getCompletionReport(attemptId, attemptToken), `/api/simulation/attempts/${attemptId}/completion-report`],
   ])('%s keeps the token out of the URL and sends it in the private header', (_name, call, url) => {
     // `call` es una unión de funciones con distintos Observable<T>: TypeScript no puede
     // resolver una llamada a un método sobrecargado (subscribe) sobre una unión de tipos de
