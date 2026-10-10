@@ -1095,3 +1095,31 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/L-01/`: `antes_pruebas_por_clase.png`, `despues_contrato_por_registro.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Sustitución de Liskov (SOLID, 17 y 19 de noviembre): «los objetos de un subtipo deben poder reemplazar a los del supertipo sin alterar el programa». La clasificación del plan v1 pedía justo esto para `LLMProvider`, `MovementStrategy` y `SceneRenderer`; `RowParser` y `EndingStrategy` no existen (P-02 y P-11 se retiraron).
+
+
+### A-08 · Limpieza verificada — tres imports sin uso y una copia exacta
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a08-limpieza-verificada` · `4fe342b` (parte de `adsi/l01-lsp-contracts`: PR después de L-01) |
+| **Antipatrón** | Código muerto («Lava Flow») y «Cut & Paste» |
+| **Archivos** | `services/instructor_service.py`, `services/world_service.py`, `services/authoring/world_definition.py`, `services/authoring/__init__.py` (el mapa de dependencias); `tests/test_authoring_operations_contract.py` (una prueba) |
+| **Riesgo** | Bajo: son imports que ningún nombre usa y una función idéntica a otra |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** Dos hallazgos que otros cambios dejaron anotados:
+
+1. `instructor_service.py` importaba `CriterionScore` y `Rubric`, y `world_service.py` importaba `_int`; ninguno se usa (A-01 había movido `_int` a `shared/jsonutils.py` y dejó este alias). Lo comprobó un recorrido de todos los archivos del backend: son los únicos imports sin uso que no están marcados a propósito (`# noqa: F401` en pruebas que re-exportan fixtures).
+2. `_world_clinical_tool` (en `world_definition.py`) era una copia exacta de `clinical_tool_editor` (en `editor_view.py`), campo por campo: P-05b la anotó y no la tocó para no mezclarla.
+
+**Solución (después).** Se quitan los tres imports; `world_definition` usa `clinical_tool_editor` de `editor_view` y la copia desaparece (el mapa de dependencias del paquete lo recoge: `world_definition` importa ahora `editor_view`, sin ciclos).
+
+**Pruebas.** Backend 854 → **855** (+1), `manage.py check` limpio.
+
+- *Antes de tocar:* una prueba nueva compara `world-editor["clinicalTools"]` con `editor["tools"]` (que las dos vistas coincidan). Pasa antes y después.
+- *Mutaciones, 3, las 3 detectadas:* el editor de mundo sin herramientas, en orden inverso, y la herramienta sin su estado activo en las dos vistas.
+- *Comprobaciones estáticas:* ningún import sin uso y ningún nombre sin definir en los tres archivos; la suite completa en verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-08/`: `antes_imports_y_copia.png`, `despues_una_sola_funcion.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrones «Lava Flow» y «Cut & Paste» (Unidad 4), «no te repitas» (DRY). Cierra los dos hallazgos menores de P-05b y A-01.

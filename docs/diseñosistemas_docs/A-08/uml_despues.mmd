@@ -1,0 +1,10 @@
+classDiagram
+    direction LR
+    class editor_view {
+        +clinical_tool_editor(t)
+    }
+    class world_definition {
+        +world_editor()
+    }
+    world_definition ..> editor_view : clinical_tool_editor
+    note for editor_view "una sola vista de una herramienta,<br/>la usan los dos editores"
