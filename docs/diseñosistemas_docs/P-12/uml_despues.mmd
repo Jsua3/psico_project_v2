@@ -1,0 +1,43 @@
+classDiagram
+    direction LR
+    class AttemptState {
+        <<abstracta>>
+        +status
+        +plays
+        +is_open
+        +transitions
+        +can(action)
+        +next(action)
+    }
+    class InProgress {
+        plays = true
+        is_open = true
+    }
+    class Paused {
+        is_open = true
+    }
+    class Completed
+    class Replaced
+    class SafeExited {
+        solo histórico
+    }
+    class attempt_lifecycle {
+        <<módulo>>
+        +state_of(attempt)
+        +apply(attempt, action)
+        +OPEN_STATUSES
+        +INITIAL_STATUS
+    }
+    class game_service
+    class world_service
+    AttemptState <|-- InProgress
+    AttemptState <|-- Paused
+    AttemptState <|-- Completed
+    AttemptState <|-- Replaced
+    AttemptState <|-- SafeExited
+    attempt_lifecycle o-- AttemptState : tabla de estados
+    game_service ..> attempt_lifecycle
+    world_service ..> attempt_lifecycle
+    note for InProgress "complete → COMPLETED<br/>pause → PAUSED<br/>replace → REPLACED"
+    note for Paused "resume → IN_PROGRESS<br/>replace → REPLACED"
+    note for attempt_lifecycle "una transición inválida lanza<br/>InvalidAttemptTransition (400)<br/>y deja el estado como estaba"

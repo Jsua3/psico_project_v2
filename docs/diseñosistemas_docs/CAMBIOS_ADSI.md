@@ -500,3 +500,49 @@ Agregar un comportamiento obligaba a editar la cadena y la condición de llegada
 **Evidencia.** `docs/diseñosistemas_docs/A-03a/`: `antes_game_service_estados.png`, `antes_reportes_conteos.png`, `antes_resumen_por_estado.png`, `despues_game_service_estados.png`, `despues_reportes_conteos.png`, `despues_resumen_por_estado.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Hard Code» (Unidad 4). Es el paso previo de P-12 (State): sin una única definición de los estados no hay tabla de transiciones posible.
+
+
+### P-12 · State — ciclo de vida del intento (versión liviana)
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p12-attempt-state` · `cecdaa6` (parte de `adsi/a03a-attempt-status`: PR después de A-03a) |
+| **Patrón** | State (comportamiento), liviano: una tabla de transiciones y cinco objetos de estado pequeños |
+| **Archivos** | `services/attempt_lifecycle.py` y `tests/test_attempt_lifecycle.py` (nuevos), `services/game_service.py` (16 puntos: 8 comparaciones, 5 asignaciones y 3 filtros), `services/world_service.py` (2 guardas) |
+| **Riesgo** | Bajo-medio: 18 puntos de decisión en 2 archivos, cubiertos por la matriz de 89 pruebas de A-03a, que pasa sin modificarse |
+| **Cambio de comportamiento** | Ninguno con datos válidos (para un estado fuera de los cinco, ver «Hallazgos», punto 4) |
+
+**Problema (antes).** Las reglas del ciclo de vida del intento estaban repartidas en 18 puntos: en `game_service`, 8 comparaciones de estado, 5 asignaciones y 3 filtros (los tres con `_OPEN_STATUSES`), y en `world_service`, 2 guardas con mensajes propios. Cada operación decidía por su cuenta qué estado la acepta y a cuál pasa. No había en el código una lista de transiciones válidas (solo se deducía leyendo las 18 guardas) y, como mostró la matriz de A-03a, **las transiciones inválidas no tenían ninguna prueba**: nada impedía escribir `attempt.status = AttemptStatus.REPLACED` sobre un intento `COMPLETED`.
+
+**Solución (después).**
+
+- `attempt_lifecycle.py` (118 líneas, sin ORM ni base de datos): cuatro acciones (`complete`, `pause`, `resume`, `replace`) y cinco clases de estado (`InProgress`, `Paused`, `Completed`, `Replaced`, `SafeExited`) que heredan de `AttemptState`. Cada una declara su `status` y lo que la distingue: dos capacidades —`plays` (acepta decisiones, bitácora, herramientas y movimiento) e `is_open` (es el «intento activo»)— y su tabla `transitions` (los tres terminales no declaran ninguna).
+- Transiciones: `IN_PROGRESS` → `COMPLETED` (complete), `PAUSED` (pause) o `REPLACED` (replace); `PAUSED` → `IN_PROGRESS` (resume) o `REPLACED` (replace). `COMPLETED`, `REPLACED` y `SAFE_EXITED` son terminales.
+- API: `state_of(attempt)`, `state.can(action)`, `state.next(action)`, `apply(attempt, action)`, `OPEN_STATUSES` (derivado de `is_open`) e `INITIAL_STATUS`.
+- Los servicios preguntan al estado: seis guardas de `game_service` pasan a `state_of(attempt).plays` o `.can(...)`; sus cuatro cambios de estado, a `apply(...)`; la creación del intento, a `INITIAL_STATUS`; los tres filtros, a `OPEN_STATUSES`; y las dos guardas de `world_service`, a `plays`.
+
+**Decisión de diseño.**
+
+- *Liviano, no el State clásico.* El clásico pondría un método por operación en cada estado (`choose_decision()`, `pause()`…). Con 5 estados y 13 operaciones eso mueve a las clases de estado la transacción, los eventos y el DTO, y repite en cada una el mismo rechazo. Aquí el estado responde dos preguntas (¿juega?, ¿sigue abierto?) y dice a dónde puede ir. Es lo que recomendó la revisión de Fase 0 (`FASE0_EVALUACION.md` §3.1).
+- *Lo que NO entra en el State:* qué puntúa (`reportes`) y qué texto y recursos de apoyo se muestran (`game_dtos`) son decisiones de esas capas, que siguen leyendo `AttemptStatus`. `ended_at`, `locked_at`, los eventos y `record_case_completion` se quedan en el servicio: `apply` solo cambia el valor en memoria.
+- *La idempotencia es de la operación, no del estado.* `safe_exit` fuera de su estado de origen y `resume` sobre un intento ya en juego devuelven el estado sin evento, como antes; por eso preguntan `can(...)` y no llaman a `apply` a ciegas. Así se conserva REGLA-004: `safe_exit` responde 200 en los cinco estados (lo fija la matriz).
+- *La excepción es una red de seguridad, no un camino.* `InvalidAttemptTransition` es un `ValidationError` (400) y deja el estado como estaba. Las guardas de cada operación ya impiden toda transición inválida, así que **en las rutas actuales no se dispara nunca**; está para quien agregue una operación nueva.
+- *Abierto/cerrado con respaldo de prueba.* Agregar un estado es una clase y una entrada en `_STATES`; si se agrega un valor a `AttemptStatus` sin su estado, falla la prueba de exhaustividad.
+- *No se aplicó el decorador `@requires_status`* que planteaba el plan original (`PLAN_APLICACION_PATRONES_SIEP.md`, fila P-12): la guarda necesita el intento que cada función carga con `_require_attempt` (token y dueño) en su propio cuerpo, así que un decorador tendría que repetir esa carga o cambiar las firmas, y con 8 guardas, cada una con su mensaje o su retorno propio, no quitaba código. Tampoco se crearon `can_decide()` ni `can_resume()`: `plays` y `can(RESUME)` dicen lo mismo con menos superficie.
+
+**Lo que no cambió** (fijado por las 89 pruebas de la matriz de A-03a, que pasan sin modificarse): los seis mensajes de rechazo, textuales («El intento ya no acepta decisiones», «La bitácora ya está bloqueada», «El intento aún está en progreso», «Solo un intento en pausa segura puede reanudarse», «El intento ya no acepta interacciones en el mundo» y «El intento ya no acepta herramientas»); qué operación es idempotente en qué estado; `ended_at`, `locked_at`, los eventos y el informe de cierre; y el DTO y los reportes, que no se tocaron. `OPEN_STATUSES` es la misma tupla (`IN_PROGRESS`, `PAUSED`, en ese orden), así que los filtros del ORM piden lo mismo. Se conserva `attempt.status == AttemptStatus.COMPLETED` tras la decisión: decide si se registra el cierre del caso, es el *resultado* de la decisión y no una regla de transición.
+
+**Un cambio sin efecto.** `reflection.locked = attempt.status != IN_PROGRESS` era siempre `False`, porque la guarda de arriba ya exige que el intento esté en juego; ahora es `reflection.locked = False`. La mutación lo señaló como equivalente (G5, abajo).
+
+**Pruebas.** Backend 645 → **681** (+36), `manage.py check` limpio; el frontend no se tocó.
+
+- *Matriz de A-03a (89), sin modificarse:* ya cubría las 13 operaciones en los 5 estados y las transiciones; es la que garantiza que el cambio no altera el comportamiento.
+- *Tabla (36), `test_attempt_lifecycle.py`, sin base de datos:* exhaustividad sobre `AttemptStatus`; la tabla completa de transiciones por igualdad; los 20 pares estado × acción (5 × 4); que solo `IN_PROGRESS` juega y que solo `IN_PROGRESS` y `PAUSED` están abiertos; que los terminales no tienen salida; que ninguna transición llega a `SAFE_EXITED`; `INITIAL_STATUS`; y la semántica de `apply` (mueve, recorre un ciclo, una transición inválida lanza y no cambia el estado, y la excepción es un `ValidationError` con el estado y la acción en el mensaje).
+- *Sin RED separado para las 36:* no se corrieron antes de que existiera el módulo (habría sido un `ImportError`, que no demuestra nada). Lo que muestra que detectan algo son las mutaciones.
+- *Mutaciones, 32* (18 sobre el módulo, 12 sobre `game_service` y 2 sobre `world_service`): **31 detectadas** y 1 sobrevivió. Es G5, equivalente: «la bitácora nace siempre sin bloquear», la expresión redundante de arriba, que se simplificó. En 29 de las 31 la primera prueba que falla es de la matriz de A-03a; en 2 —`next()` deja de rechazar (L12) y la transición inválida deja de ser un `ValidationError` (L18)— las 89 pasan y solo fallan las nuevas, que son justo la red de seguridad que ninguna ruta dispara.
+
+**Hallazgos.** (1) La guarda ya existía en cada operación: la tabla no corrige un defecto, concentra la definición y deja una sola fila por modificar si el ciclo cambia. (2) La mutación G5 destapó lógica redundante en el original (arriba). (3) `get_completion_report` solo rechaza `IN_PROGRESS`: un intento en pausa, reemplazado o con salida segura histórica devuelve el informe de cierre (200). Está fijado por la matriz y no se cambió; si no es lo querido, es una decisión del equipo (en la tabla sería una capacidad más). (4) Un estado fuera de los cinco ya no se trata como «no juega»: `state_of` lanza `KeyError`, mientras que antes cada operación lo trataba como «no está en juego» (400, o devolver el estado en `safe_exit`). No puede darse con el esquema de despliegue: `simulation_attempts_v2_status_check` admite solo esos cinco valores y `test_deploy_schema_contract.py` comprueba que admite todos los de `AttemptStatus`. El DDL de desarrollo (`bootstrap_dev_db`) no replica ese CHECK, así que allí solo ocurriría escribiendo a mano un valor. Se prefiere un fallo explícito a uno silencioso y se declara aquí. (5) `SAFE_EXITED` sigue siendo solo histórico: está en la tabla como terminal sin entradas y una prueba fija que ninguna transición llega a él.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-12/`: `antes_pausar_y_reanudar.png`, `antes_guarda_decisiones.png`, `antes_guarda_mundo.png`, `despues_attempt_lifecycle_base.png`, `despues_attempt_lifecycle_estados.png`, `despues_pausar_y_reanudar.png`, `despues_guarda_decisiones.png`, `despues_guarda_mundo.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** State (patrones de comportamiento, Unidad 3), en su forma liviana de tabla de transiciones; abierto/cerrado y responsabilidad única (SOLID). Cierra el recorrido del antipatrón «Hard Code» que abrió A-03a.
