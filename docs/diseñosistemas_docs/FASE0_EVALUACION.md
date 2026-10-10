@@ -203,7 +203,7 @@ sobre la anterior (con ramas nuevas, sin *force-push*), y **después de fusionar
 | #51 | **A-08** — tres imports sin uso y una copia exacta | los dos hallazgos menores que P-05b y A-01 dejaron anotados | No |
 | #52 | **A-05b** — el editor adopta los ids reales tras guardar | sin esto A-05 deja filas que cambian de id en cada autoguardado | **Sí** (acotado, frontend) |
 | #53 | **A-09** — un temporizador sin dueño hacía fallar el CI | el job de frontend de #51 (que no toca el frontend) falló 1 de 7 veces | No |
-| #54 | **A-05c** — el editor de mundo, probado en el navegador contra la base real | A-05 y A-05b no tenían prueba del flujo real; midió que el código original quitaba objetos a la versión publicada del caso demo (41 → 38) | No (solo una prueba e2e) |
+| #54 | **A-05c** — el editor de mundo, probado en el navegador contra la base real | A-05 y A-05b no tenían prueba del flujo real; midió que el código original (también `master`) quitaba objetos a la versión publicada del caso demo (41 → 38) | No (solo una prueba e2e) |
 
 El PR #50 es esta documentación (informe, patrones, evidencia de Git); no cambia código.
 

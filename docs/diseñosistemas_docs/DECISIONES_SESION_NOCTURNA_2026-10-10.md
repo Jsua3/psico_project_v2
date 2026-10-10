@@ -29,7 +29,7 @@ equipo no la quiere en el repositorio, se borra este archivo y no cambia nada m�
 | #51 | **A-08** tres imports sin uso y una copia exacta | No | Antes de tocar se escribió la prueba que compara las dos vistas. No se tocaron los imports «sin uso» de pruebas marcados con `# noqa: F401` (re-exportan fixtures). |
 | #52 | **A-05b** el editor adopta los ids reales tras guardar | **Sí**, acotado (frontend) | Sin esto A-05 deja filas que cambian de id en cada autoguardado. Duda: toca el camino del autoguardado; lo cubren 6 pruebas del store, las 115 del editor, la suite completa y, desde #54, un e2e en el navegador. Solo adopta `id` y `mapObjectId`, por clave. |
 | #53 | **A-09** un temporizador sin dueño hacía fallar el CI | No | El job de frontend de #51 (que no toca el frontend) falló con las 2376 pruebas en verde; se re-ejecutó una vez para comprobar la hipótesis (pasó) y se arregló la causa en su rama. Se editaron **7 specs** (solo su `afterEach`) y tres líneas del componente (un campo, una asignación y un elemento en `ngOnDestroy`); ninguna aserción. No se silenció el error. |
-| #54 | **A-05c** el editor de mundo, probado en el navegador contra la base real | No (solo una prueba e2e nueva) | Se agregó porque la duda de #52 era no tener e2e del editor (cubre objetos, diálogo, borrado y zonas de colisión). La misma prueba sobre el código original, sobre A-05 solo y sobre la punta: **el original le quita tres objetos a la versión publicada del caso demo (41 → 38)**; A-05 sin A-05b recrea lo nuevo con otro id en cada autoguardado; la punta pasa. Duda: es una prueba con autoguardado diferido; si resulta intermitente en el CI, se descarta el PR sin afectar a nada más (es el último de la pila). |
+| #54 | **A-05c** el editor de mundo, probado en el navegador contra la base real | No (solo una prueba e2e nueva) | Se agregó porque la duda de #52 era no tener e2e del editor (cubre objetos, diálogo, borrado y zonas de colisión). La misma prueba sobre el código original, sobre A-05 solo y sobre la punta: **el original (también `master`) le quita tres objetos a la versión publicada del caso demo (41 → 38)**; A-05 sin A-05b recrea lo nuevo con otro id en cada autoguardado; la punta pasa. Duda: es una prueba con autoguardado diferido; si resulta intermitente en el CI, se descarta el PR sin afectar a nada más (es el último de la pila). |
 
 Además: `tools/codeshot.py` ganó ancho de numeración para números de línea de cuatro cifras (las capturas del «antes»
 de P-05b salían cortadas).
@@ -72,7 +72,7 @@ La pila es **lineal**: cada rama contiene a la anterior (verificado con `git mer
 
 1. **#46 A-05**: cambia qué borra el guardado del mundo (borra los objetos y zonas que el cliente ya no manda). **No
    es opcional en la práctica:** el código original, al agregar objetos a un caso nuevo, le quita objetos a otro
-   caso, incluso a uno publicado (medido en #54).
+   caso, incluso a uno publicado (medido en #54, también sobre `master`: el defecto está vivo ahí).
 2. **#52 A-05b**: autoguardado del editor; ya tiene e2e (#54), pero una edición durante la petición no tiene prueba.
 3. **#47 A-07**: cambia lo que copia una versión nueva; las rúbricas ya clonadas no se corrigen.
 4. **#48 P-13**: la duda es de diseño, no de riesgo.
