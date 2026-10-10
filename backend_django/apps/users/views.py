@@ -109,13 +109,8 @@ class GoogleLoginView(APIView):
         if not email:
             raise GoogleAuthenticationError("La cuenta de Google no entregó un correo válido")
 
-        try:
-            user = User.objects.filter(email=email).first()
-        except Exception as exc:
-            raise GoogleAuthenticationError(
-                "La cuenta de Google no está asociada a un usuario activo"
-            ) from exc
-
+        # Un fallo de la base de datos no es un fallo de autenticación: se deja propagar (500).
+        user = User.objects.filter(email=email).first()
         if not user or not user.activo:
             raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo")
 
