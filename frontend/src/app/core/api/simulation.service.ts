@@ -58,13 +58,6 @@ export class SimulationService {
       .pipe(map(response => response.data));
   }
 
-  getAttempt(attemptId: string, attemptToken: string) {
-    return this.http.get<ApiResponse<SimulationAttemptState>>(
-      `${this.API}/attempts/${attemptId}`, this.attemptOptions(attemptToken),
-    )
-      .pipe(map(response => response.data));
-  }
-
   getWorld(attemptId: string, attemptToken: string) {
     return this.http.get<ApiResponse<SimulationWorldState>>(
       `${this.API}/attempts/${attemptId}/world`, this.attemptOptions(attemptToken),
@@ -154,13 +147,6 @@ export class SimulationService {
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/resume`, {
       attemptToken
     }).pipe(map(response => response.data));
-  }
-
-  getCompletionReport(attemptId: string, attemptToken: string) {
-    return this.http.get<ApiResponse<AttemptCompletionReport>>(
-      `${this.API}/attempts/${attemptId}/completion-report`, this.attemptOptions(attemptToken),
-    )
-      .pipe(map(response => response.data));
   }
 
   attemptHistory() {

@@ -3,7 +3,6 @@
 GrupoDTO = {id, nombre, codigo, totalEstudiantes}. Permission/role failures use
 IllegalArgumentException semantics -> 400 (ValidationError), not 403.
 """
-import csv
 import io
 import re
 import zipfile
@@ -122,13 +121,6 @@ def _cell_text(cell):
     if value.endswith(".0") and value[:-2].isdigit():
         return value[:-2]
     return value
-
-
-def _parse_csv_rows(uploaded_file):
-    raw = uploaded_file.read()
-    text = raw.decode("utf-8-sig")
-    reader = csv.reader(io.StringIO(text))
-    return [[_cell_text(cell) for cell in row] for row in reader]
 
 
 def _xlsx_shared_strings(zf):

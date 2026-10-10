@@ -106,7 +106,7 @@ Localmente, `npm run test:e2e` sigue corriendo todo.
 
 ## Grupos — importar estudiantes por Excel
 
-En **Portal → Grupos → Gestionar**, puedes cargar un archivo `.xlsx` o `.csv` con todos los estudiantes del grupo.
+En **Portal → Grupos → Gestionar**, puedes cargar un archivo `.xlsx` con todos los estudiantes del grupo.
 
 **Formato recomendado (plantilla institucional):**
 
@@ -122,7 +122,7 @@ El sistema:
 - reutiliza usuarios existentes con el mismo email
 - reporta filas con error sin detener el resto
 
-Usa **Descargar plantilla** en la pantalla para obtener un CSV compatible con Excel.
+Usa **Descargar plantilla Excel** en la pantalla para obtener la plantilla en formato `.xlsx`. Solo se acepta `.xlsx`.
 
 ## Comandos útiles
 
