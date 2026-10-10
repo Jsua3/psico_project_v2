@@ -1229,7 +1229,7 @@ ReferenceError: window is not defined
 
 | Código | Objetos de otros casos | Ids de lo ya guardado | Diálogo | Borrar y recargar |
 |---|---|---|---|---|
-| Original (`adsi/p05b-authoring-facade`) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
+| Original (`master`, `dd4eb89`; igual en `adsi/p05b-authoring-facade`) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
 | Solo A-05 (`adsi/a05-world-save-persistence`) | 41 = 41 | **cambian**: 42 → 43,44 → 45,46,47 | apunta al id real | persiste |
 | A-05 + A-05b (la punta) | 41 = 41 | **estables**: 42 → 42,43 → 42,43,44 | apunta al id real (44) | persiste; recarga: 2 objetos |
 
@@ -1239,7 +1239,7 @@ El tramo de la zona de colisión (dibujarla, guardarla con su id real, conservar
 
 **La prueba, contra cada versión.**
 
-- *En rojo primero:* sobre el código original falla en el primer guardado (`los objetos de otros casos no cambian al guardar`); sobre A-05 sin A-05b falla en el segundo (`npc-… conserva su id real en el guardado 2`, esperado 42, recibido 43); sobre la punta pasa. Son dos «mutantes» reales del código de producción y la prueba los detecta en el punto esperado.
+- *En rojo primero:* sobre el código original falla en el primer guardado (`los objetos de otros casos no cambian al guardar`), tanto en `adsi/p05b-authoring-facade` como en `master` (`dd4eb89`, corrida aparte con el mismo archivo): el defecto está vivo en `master`; sobre A-05 sin A-05b falla en el segundo (`npc-… conserva su id real en el guardado 2`, esperado 42, recibido 43); sobre la punta pasa. Son dos «mutantes» reales del código de producción y la prueba los detecta en el punto esperado.
 - *Repetición:* la prueba final corrió una vez por versión (la punta tardó 19,7 s) con los resultados de arriba; la primera versión de la prueba (sin el tramo de la zona), con las mismas comprobaciones, dio los mismos veredictos en las tres, pasó sobre la punta en tres corridas locales y pasó en el job E2E del CI de este PR. Es una prueba con autoguardado diferido y con arrastre del ratón: si resultara intermitente, el CI lo mostrará.
 
 **Hallazgos.**
