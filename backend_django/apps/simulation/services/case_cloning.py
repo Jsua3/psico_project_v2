@@ -6,11 +6,13 @@ Cada entidad declara aquí **qué campos se copian tal cual** (``CopySpec``); qu
 nueva, los nodos, mapas y decisiones ya copiados. Antes, diez funciones repetían campo
 por campo el mismo ``objects.create(...)``.
 
-Lo que NO se declara no se copia. Hoy no se copian, a propósito o por olvido que el
-equipo debe decidir: ``CaseVersion.world_schema_version``, ``Rubric.version``,
-``Rubric.is_default``, ``RubricCriterion.weight`` y ``RubricCriterion.active`` (valen el
-valor por defecto del modelo en el clon). ``test_clone_version_contract`` fija esa lista
-y falla si un campo nuevo del modelo no se declara ni se excluye.
+Lo que NO se declara no se copia, y recibe el valor por defecto del modelo. Hoy solo
+queda ``Rubric.is_default``, **a propósito**: es una marca global (``set_default`` apaga la
+de todas las demás rúbricas), así que copiarla dejaría dos rúbricas predeterminadas. Hasta
+A-07 tampoco se copiaban ``CaseVersion.world_schema_version``, ``Rubric.version`` ni
+``RubricCriterion.weight`` y ``.active``: eran olvidos, y el peso personalizado de un
+criterio se perdía al clonar. ``test_clone_version_contract`` fija la lista de lo no
+copiado y falla si un campo nuevo del modelo no se declara ni se excluye.
 """
 from dataclasses import dataclass
 
@@ -42,7 +44,7 @@ class CopySpec:
         return self.model.objects.create(**values, **links)
 
 
-CASE_VERSION = CopySpec(CaseVersion, ("narrative_context",))
+CASE_VERSION = CopySpec(CaseVersion, ("narrative_context", "world_schema_version"))
 
 NODE = CopySpec(SimulationNode, (
     "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
@@ -82,8 +84,8 @@ CLINICAL_TOOL = CopySpec(ClinicalTool, (
     "tool_code", "label", "icon", "category", "description", "active",
 ))
 
-RUBRIC = CopySpec(Rubric, ("name", "description", "active"))
+RUBRIC = CopySpec(Rubric, ("name", "description", "active", "version"))
 
 RUBRIC_CRITERION = CopySpec(RubricCriterion, (
-    "competency", "title", "description", "max_score", "display_order",
+    "competency", "title", "description", "weight", "max_score", "active", "display_order",
 ))
