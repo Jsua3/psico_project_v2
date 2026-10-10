@@ -1449,6 +1449,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private roomBannerTimer: number | null = null;
   private transitionNoteTimer: number | null = null;
   private pauseDeadlineTimer: number | null = null;
+  /** Retiro del fundido tras cargar el mundo: si el componente se destruye antes, no debe dispararse. */
+  private worldRevealTimer: number | null = null;
   /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
   private pauseSent = false;
   /** Tras pausar se recarga el mundo (dos GET encadenados) y `busy()` sigue activo hasta que termina. */
@@ -1501,7 +1503,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCompactWatch?.();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -2718,7 +2720,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
-    window.setTimeout(() => {
+    this.worldRevealTimer = window.setTimeout(() => {
       this.fadeActive.set(false);
       this.scheduleRevealEffects();
     }, WORLD_REVEAL_DELAY_MS);
