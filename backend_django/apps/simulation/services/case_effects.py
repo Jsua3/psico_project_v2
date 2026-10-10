@@ -16,7 +16,11 @@ seed_caso_pdf). Para opciones fuera del registro la severidad se deriva de la
 clasificación legacy, así otros casos siguen funcionando sin registro propio.
 """
 from apps.simulation.models import AttemptWorldState
-from shared.jsonutils import read_map as _read_map, write_map as _write_map
+from shared.jsonutils import (
+    clamp as _clamp,
+    read_map as _read_map,
+    write_map as _write_map,
+)
 
 #: Eventos de decisión REGISTRADA: los únicos que cuentan en el reporte y en el
 #: final. La primera respuesta riesgosa/inadecuada de una escena no se aplica
@@ -204,10 +208,6 @@ ENDINGS = {
         "tone": "critical",
     },
 }
-
-
-def _clamp(value, lo=0, hi=100):
-    return max(lo, min(hi, value))
 
 
 def option_severity(decision):

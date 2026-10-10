@@ -1,6 +1,8 @@
 """Port of Spring's DecisionEffectCalculator (1:1)."""
 from dataclasses import dataclass
 
+from shared.jsonutils import clamp as _clamp
+
 
 @dataclass
 class DecisionEffects:
@@ -14,10 +16,6 @@ class DecisionEffects:
 
 _TRUST = {"ADEQUATE": 10, "RISKY": -5, "INADEQUATE": -12}
 _VICTIM = {"ADEQUATE": -5, "RISKY": 8, "INADEQUATE": 12}
-
-
-def _clamp(value, lo, hi):
-    return max(lo, min(hi, value))
 
 
 def _contains_route_keyword(value):

@@ -1,7 +1,8 @@
 """Response DTO builders for the student simulation flow — field names match
 Spring SimulationDtos exactly (camelCase JSON)."""
-import json
 import re
+
+from shared.jsonutils import read_string_list
 
 from apps.simulation.models import (
     ClinicalTool,
@@ -16,16 +17,6 @@ SAFE_EXIT_RESOURCES = [
     "Si el contenido activa malestar, contacta al Centro Integral de Psicología o a Bienestar Universitario.",
     "En riesgo inmediato, prioriza líneas locales de emergencia y rutas institucionales de protección.",
 ]
-
-
-def read_string_list(raw):
-    if not raw:
-        return []
-    try:
-        value = json.loads(raw)
-        return value if isinstance(value, list) else []
-    except (ValueError, TypeError):
-        return []
 
 
 def metrics(attempt):
