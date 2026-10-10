@@ -467,3 +467,36 @@ Agregar un comportamiento obligaba a editar la cadena y la condición de llegada
 **Evidencia.** `docs/diseñosistemas_docs/P-10/`: `antes_next_npc_target.png`, `antes_llegada_ancla.png`, `antes_next_ambient_target.png`, `despues_estrategias_npc.png`, `despues_estrategias_ambientales.png`, `despues_next_npc_target.png`, `despues_next_ambient_target.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Strategy (patrones de comportamiento, Unidad 3); abierto/cerrado y responsabilidad única (SOLID); el antipatrón de las «condicionales en cascada» (la cadena de `if` por tipo).
+
+
+### A-03a · Hard Code — `AttemptStatus` en lugar de textos sueltos
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a03a-attempt-status` · `67472dd` (parte de `adsi/p10-npc-motion-strategy`: PR después de P-10) |
+| **Antipatrón** | «Hard Code» (textos literales donde ya existe una definición) |
+| **Archivos** | `services/game_service.py`, `services/world_service.py`, `services/case_effects.py`, `serializers/game_dtos.py`, `reportes/services.py`; `tests/test_attempt_lifecycle_contract.py` y `reportes/tests/test_estados_contract.py` (nuevos) |
+| **Riesgo** | Bajo-medio: 46 sitios en 5 archivos, protegidos por 99 pruebas escritas antes del cambio |
+| **Cambio de comportamiento** | Ninguno |
+
+**Aclaración de nombre.** En los documentos anteriores «A-03» significaba dos cosas: «usar `AttemptStatus` en vez de textos» (prerrequisito de P-12, `FASE0_EVALUACION.md` §3.1) y «números mágicos de `simulation-play.component.ts`» (§8). Se separan: **A-03a** es este cambio y **A-03b** queda para los números mágicos.
+
+**Problema (antes).** `AttemptStatus` (un `TextChoices`) ya existía en el modelo, pero ningún servicio lo usaba: los estados del intento se comparaban y asignaban con texto en unos **46 sitios de 5 archivos** (`game_service` 20, `reportes/services` 13, `game_dtos` 10, `world_service` 2, `case_effects` 1). Un error de tipeo en uno de ellos no falla: simplemente esa rama nunca se cumple.
+
+**Solución (después).**
+
+- Los cinco archivos usan `AttemptStatus.X`. Los grupos que se repetían pasan a constantes con nombre: `_OPEN_STATUSES` en `game_service` (los tres `status__in=["IN_PROGRESS", "PAUSED"]`) y `_SUPPORT_STATUSES` en `game_dtos` (los dos `("SAFE_EXITED", "PAUSED")`).
+- Es seguro porque `TextChoices` es un `str`: `AttemptStatus.COMPLETED == "COMPLETED"`, tiene el mismo *hash* (sirve de clave de diccionario) y guarda el mismo valor en los filtros del ORM, el JSON y la base.
+- **No se tocó** el vocabulario propio del reporte (`estado = "SAFE_EXITED"`, junto a `EN_PROGRESO`, `EN_PAUSA`…), los tipos de evento (`"ATTEMPT_REPLACED"`…) ni el DDL de `bootstrap_dev_db.py`: no son el estado del intento.
+
+**Pruebas.** Backend 546 → **645** (+99), `manage.py check` limpio.
+
+- *Matriz operación × estado (89), escrita antes del cambio:* para 13 operaciones y los 5 estados, qué se acepta, qué se rechaza y con qué mensaje, y qué es idempotente; más las transiciones (pausar, reanudar, completar, reemplazar) y qué cuenta como intento «activo». Las transiciones inválidas no tenían ninguna prueba. Pasa sin modificarse sobre el código original.
+- *Contadores de reportes (10), añadidas tras la mutación:* qué estado cuenta cada contador del tablero y del reporte de grupo, y la precedencia del estado del estudiante (`EN_PROGRESO` > `EN_PAUSA` > `COMPLETADO` > `SAFE_EXITED` > `PENDIENTE`). También pasan sobre el código original.
+- *Mutaciones, 36* (cada miembro de `AttemptStatus` cambiado por otro en cada punto de uso): **30 detectadas** de entrada y **6 sobrevivieron**, todas en `reportes/services.py`: cambiar lo que cuenta «en progreso» o «completadas» en el tablero, qué estados cuentan en el reporte de grupo y de estudiante, y la salida segura histórica sin evento. Es una laguna anterior a este cambio (la misma clase que mostró A-01). Con las 10 pruebas nuevas, las 6 quedan detectadas.
+
+**Hallazgos.** (1) Las pruebas de reportes no distinguían entre estados: se podía mezclar `COMPLETED` con `PAUSED` en un contador sin que nada fallara. (2) La rama de la salida segura **histórica** (contar por el estado `SAFE_EXITED`, sin evento) no tenía prueba propia: el único caso traía también el evento `SAFE_EXIT_REQUESTED`, que cubría el conteo por otro camino. Ahora la tiene. (3) La matriz deja por escrito que `safe_exit` y `resume` son idempotentes fuera de su estado de origen (devuelven el estado sin evento), mientras decisiones, bitácora, herramientas y movimiento se rechazan con 400.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-03a/`: `antes_game_service_estados.png`, `antes_reportes_conteos.png`, `antes_resumen_por_estado.png`, `despues_game_service_estados.png`, `despues_reportes_conteos.png`, `despues_resumen_por_estado.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Hard Code» (Unidad 4). Es el paso previo de P-12 (State): sin una única definición de los estados no hay tabla de transiciones posible.

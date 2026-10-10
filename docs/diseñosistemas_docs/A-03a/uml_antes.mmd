@@ -1,0 +1,21 @@
+classDiagram
+    direction LR
+    class AttemptStatus {
+        <<TextChoices>>
+        IN_PROGRESS
+        PAUSED
+        SAFE_EXITED
+        COMPLETED
+        REPLACED
+    }
+    class game_service
+    class world_service
+    class game_dtos
+    class reportes_services
+    class case_effects
+    note for AttemptStatus "existe, pero ningún servicio la usa"
+    note for game_service "20 literales de estado<br/>comparaciones y asignaciones con texto"
+    note for reportes_services "13 literales: conteos, filtros y SCORED_STATUSES"
+    note for game_dtos "10 literales: claves del resumen<br/>y estados con recursos de apoyo"
+    note for world_service "2 literales: guardas de juego"
+    note for case_effects "1 literal: solo calcula el final en COMPLETED"

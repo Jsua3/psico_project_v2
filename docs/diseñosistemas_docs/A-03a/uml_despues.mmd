@@ -1,0 +1,22 @@
+classDiagram
+    direction LR
+    class AttemptStatus {
+        <<TextChoices>>
+        IN_PROGRESS
+        PAUSED
+        SAFE_EXITED
+        COMPLETED
+        REPLACED
+    }
+    class game_service
+    class world_service
+    class game_dtos
+    class reportes_services
+    class case_effects
+    game_service ..> AttemptStatus
+    world_service ..> AttemptStatus
+    game_dtos ..> AttemptStatus
+    reportes_services ..> AttemptStatus
+    case_effects ..> AttemptStatus
+    note for AttemptStatus "una sola definición de los estados;<br/>los valores guardados no cambian<br/>(TextChoices es un str)"
+    note for reportes_services "el vocabulario propio del reporte<br/>(estado = 'SAFE_EXITED') se deja como está"
