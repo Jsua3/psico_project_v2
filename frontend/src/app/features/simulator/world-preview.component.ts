@@ -15,7 +15,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, ViewChild, inject, input, signal, effect, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { SimulationService } from '../../core/api/simulation.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import {
   ClinicalToolState,
   CollisionZoneState,
@@ -419,7 +419,7 @@ interface EphemeralScore {
   `]
 })
 export class WorldPreviewComponent implements OnInit {
-  private readonly simulationService = inject(SimulationService);
+  private readonly authoringApi = inject(AuthoringApi);
 
   /** Case version ID to preview — passed from the parent case editor. */
   readonly caseVersionId = input.required<number>();
@@ -595,7 +595,7 @@ export class WorldPreviewComponent implements OnInit {
     this.worldState.set(null);
     this.definition.set(null);
 
-    this.simulationService.worldPreview(cvId, nodeId).subscribe({
+    this.authoringApi.worldPreview(cvId, nodeId).subscribe({
       next: (def: WorldDefinition) => {
         this.definition.set(def);
 

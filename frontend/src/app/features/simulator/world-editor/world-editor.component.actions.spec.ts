@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 
-import { SimulationService } from '../../../core/api/simulation.service';
+import { AuthoringApi } from '../../../core/api/authoring.api';
 import { WorldCollisionZone, WorldDefinition, WorldDialogueTree, WorldObject } from '../../../core/models/simulation.model';
 import { AUTHORING_SCENE_TEMPLATES } from '../authoring-catalog.config';
 import { WorldEditorComponent } from './world-editor.component';
@@ -55,7 +55,7 @@ describe('WorldEditorComponent: acciones del inspector', () => {
     };
     TestBed.configureTestingModule({
       imports: [WorldEditorComponent],
-      providers: [{ provide: SimulationService, useValue: sim }],
+      providers: [{ provide: AuthoringApi, useValue: sim }],
     });
     const fixture = TestBed.createComponent(WorldEditorComponent);
     fixture.componentRef.setInput('caseVersionId', 1);

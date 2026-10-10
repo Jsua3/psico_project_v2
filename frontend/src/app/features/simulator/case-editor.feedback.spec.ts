@@ -23,7 +23,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { SimulationService } from '../../core/api/simulation.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { CaseEditorView } from '../../core/models/simulation.model';
 import { CaseEditorComponent } from './case-editor.component';
@@ -82,7 +82,7 @@ describe('editor de casos: feedback de acciones (comportamiento)', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        { provide: SimulationService, useValue: sim },
+        { provide: AuthoringApi, useValue: sim },
         { provide: NotificationService, useValue: notify },
         {
           provide: ActivatedRoute,

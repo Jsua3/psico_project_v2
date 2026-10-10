@@ -209,3 +209,38 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 **Evidencia.** `docs/diseñosistemas_docs/P-08b/`: `antes_jwt_interceptor.png`, `despues_jwt_interceptor.png`, `despues_eslabon_base.png`, `despues_eslabones.png`, `despues_cadena.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Chain of Responsibility (patrones de comportamiento, sesión del 15 de octubre); abierto/cerrado y responsabilidad única (SOLID). Aplica también a los antipatrones «función larga», «condicionales en cascada» y «código duplicado».
+
+
+### P-05 · Interface Segregation (SOLID) — APIs por rol en lugar de `SimulationService` de 50 métodos
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p05-api-segregation` · `c9396fd` (parte de `adsi/p08b-http-error-chain`: PR después de P-08b) |
+| **Principio / patrón** | Interface Segregation y Responsabilidad Única (SOLID). **No se aplicó Facade** (ver decisión de diseño) |
+| **Archivos** | `core/api/authoring.api.ts`, `instructor.api.ts`, `api-response.ts`, `api-boundaries.contract.spec.ts` (nuevos); `simulation.service.ts`; 6 consumidores; 5 pruebas ajustadas |
+| **Riesgo** | Medio: toca 6 componentes y 5 pruebas, pero ninguna llamada HTTP cambia |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `SimulationService` tenía 50 métodos públicos para tres roles distintos: 21 del jugador, 4 del instructor y 25 de autoría (editor de casos y editor de mundo). Los métodos casi no se cruzan entre roles, pero todos los componentes inyectaban el servicio completo: el editor de casos «veía» cómo se juega un intento y el jugador «veía» cómo se publica un caso. Cualquier cambio de autoría obligaba a editar la misma clase que usa el jugador, y 17 pruebas tenían que simular un servicio de 50 métodos para usar uno o dos.
+
+**Solución (después).**
+
+- `SimulationService` queda solo con el **jugador** (21 métodos).
+- `AuthoringApi` reúne los 25 métodos de **autoría y editor de mundo** (casos, nodos, decisiones, mapas, objetos, herramientas, checklist, publicación, `worldEditor`/`saveWorld`/`validateWorld`/`worldPreview`).
+- `InstructorApi` reúne los 4 del **instructor** (`recentAttempts`, `attemptTrace`, `rubric`, `saveRubric`).
+- `ApiResponse<T>` (el sobre `{ data }`) vive en un único archivo en lugar de declararse en cada servicio.
+- Migración de consumidores: `case-editor`, `case-authoring-hub`, el store del editor de mundo y `world-preview` inyectan solo `AuthoringApi`; `instructor-trace` solo `InstructorApi`; el dashboard inyecta `SimulationService` e `InstructorApi`. Los demás siguen con `SimulationService`.
+
+**Decisión de diseño.** El catálogo original decía «Facade / ISP». La verificación de la Fase 0 ya advertía que una fachada que solo delega no aporta nada mientras los componentes sigan inyectando el servicio completo. Como aquí se migraron los consumidores, dejar `SimulationService` como fachada delegando 29 métodos que nadie llama habría sido código muerto, así que **no se aplicó Facade** y el cambio se declara como Interface Segregation. Un candidato real de Facade queda pendiente en el backend (`authoring_service.py`, un módulo de más de 1300 líneas cuyos imports habría que preservar al dividirlo).
+
+**Lo que no cambió** (fijado por el contrato HTTP de Fase 0): para los 50 métodos, el verbo, la URL con sus parámetros (`nodeId` incluido, también cuando vale 0), el cuerpo, que el token de intento viaje solo en cabecera y que se desenvuelva `{ data }`; `studentReport` sigue completando `phaseDurations` con `[]`.
+
+**Pruebas.** Frontend 2094 → 2129 (+9 de fronteras, +2 del contrato; 167 → 168 archivos de prueba), ejecutadas en tu equipo, con `tsc` de app y de pruebas sin errores y `ng build` correcto.
+- *Contrato de 50 métodos:* el `it.each` y las pruebas con comportamiento propio **no cambiaron en lo que verifican**; solo se ajustó cómo obtiene el servicio (une las tres APIs en un objeto). La prueba final ahora comprueba que cada método vive en una sola API y que el reparto es 21 / 25 / 4.
+- *Nuevo `api-boundaries.contract.spec.ts`:* fija qué archivos pueden inyectar `AuthoringApi` e `InstructorApi`, que los consumidores migrados no dependen del servicio del jugador, que este no importa las otras dos y que el sobre `ApiResponse` no se vuelve a duplicar.
+- *Pruebas ajustadas:* `case-editor.feedback`, `world-editor.store.commands` y `world-editor.component.actions` cambian solo el token del proveedor (`SimulationService` → `AuthoringApi`); `dashboard.component.spec` añade el mismo simulacro como `InstructorApi`. Ninguna aserción se tocó.
+- *Siete mutaciones, todas detectadas:* un método de autoría duplicado en el servicio del jugador, una URL de `cloneCaseVersion` cambiada, `saveRubric` sin desenvolver `{ data }`, `instructor-trace` inyectando `SimulationService`, `worldPreview` sin `nodeId`, un consumidor nuevo que inyecta `AuthoringApi` sin declararlo y `ApiResponse` redeclarado. Al restaurar vuelve el verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-05/`: `antes_simulation_service.png`, `despues_simulation_service.png`, `despues_authoring_api.png`, `despues_instructor_api.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Interface Segregation y Responsabilidad Única (SOLID, 17 y 19 de noviembre); antipatrón «clase Dios / objeto Dios».

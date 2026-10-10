@@ -1,0 +1,39 @@
+classDiagram
+    direction LR
+    class SimulationService {
+        jugador (21 métodos)
+    }
+    class InstructorApi {
+        recentAttempts()
+        attemptTrace()
+        rubric()
+        saveRubric()
+    }
+    class AuthoringApi {
+        autoría y editor de mundo (25 métodos)
+    }
+    class ApiResponse~T~ {
+        <<interface>>
+        data : T
+    }
+    class SimulationPlay
+    class SimulationCatalog
+    class Dashboard
+    class InstructorTrace
+    class CaseEditor
+    class CaseAuthoringHub
+    class WorldEditorStore
+    class WorldPreview
+    SimulationPlay ..> SimulationService
+    SimulationCatalog ..> SimulationService
+    Dashboard ..> SimulationService
+    Dashboard ..> InstructorApi
+    InstructorTrace ..> InstructorApi
+    CaseEditor ..> AuthoringApi
+    CaseAuthoringHub ..> AuthoringApi
+    WorldEditorStore ..> AuthoringApi
+    WorldPreview ..> AuthoringApi
+    SimulationService ..> ApiResponse
+    InstructorApi ..> ApiResponse
+    AuthoringApi ..> ApiResponse
+    note for AuthoringApi "Cada cliente depende solo de la API de su rol<br/>(api-boundaries.contract.spec.ts fija quién puede inyectarla)"
