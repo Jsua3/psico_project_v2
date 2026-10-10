@@ -130,6 +130,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     vi.useRealTimers();
     sessionStorage.clear();
     TestBed.resetTestingModule();

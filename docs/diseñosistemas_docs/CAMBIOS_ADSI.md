@@ -1095,3 +1095,117 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 **Evidencia.** `docs/diseñosistemas_docs/L-01/`: `antes_pruebas_por_clase.png`, `despues_contrato_por_registro.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Sustitución de Liskov (SOLID, 17 y 19 de noviembre): «los objetos de un subtipo deben poder reemplazar a los del supertipo sin alterar el programa». La clasificación del plan v1 pedía justo esto para `LLMProvider`, `MovementStrategy` y `SceneRenderer`; `RowParser` y `EndingStrategy` no existen (P-02 y P-11 se retiraron).
+
+
+### A-08 · Limpieza verificada — tres imports sin uso y una copia exacta
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a08-limpieza-verificada` · `4fe342b` (parte de `adsi/l01-lsp-contracts`: PR después de L-01) |
+| **Antipatrón** | Código muerto («Lava Flow») y «Cut & Paste» |
+| **Archivos** | `services/instructor_service.py`, `services/world_service.py`, `services/authoring/world_definition.py`, `services/authoring/__init__.py` (el mapa de dependencias); `tests/test_authoring_operations_contract.py` (una prueba) |
+| **Riesgo** | Bajo: son imports que ningún nombre usa y una función idéntica a otra |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** Dos hallazgos que otros cambios dejaron anotados:
+
+1. `instructor_service.py` importaba `CriterionScore` y `Rubric`, y `world_service.py` importaba `_int`; ninguno se usa (A-01 había movido `_int` a `shared/jsonutils.py` y dejó este alias). Lo comprobó un recorrido de todos los archivos del backend: son los únicos imports sin uso que no están marcados a propósito (`# noqa: F401` en pruebas que re-exportan fixtures).
+2. `_world_clinical_tool` (en `world_definition.py`) era una copia exacta de `clinical_tool_editor` (en `editor_view.py`), campo por campo: P-05b la anotó y no la tocó para no mezclarla.
+
+**Solución (después).** Se quitan los tres imports; `world_definition` usa `clinical_tool_editor` de `editor_view` y la copia desaparece (el mapa de dependencias del paquete lo recoge: `world_definition` importa ahora `editor_view`, sin ciclos).
+
+**Pruebas.** Backend 854 → **855** (+1), `manage.py check` limpio.
+
+- *Antes de tocar:* una prueba nueva compara `world-editor["clinicalTools"]` con `editor["tools"]` (que las dos vistas coincidan). Pasa antes y después.
+- *Mutaciones, 3, las 3 detectadas:* el editor de mundo sin herramientas, en orden inverso, y la herramienta sin su estado activo en las dos vistas.
+- *Comprobaciones estáticas:* ningún import sin uso y ningún nombre sin definir en los tres archivos; la suite completa en verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-08/`: `antes_imports_y_copia.png`, `despues_una_sola_funcion.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrones «Lava Flow» y «Cut & Paste» (Unidad 4), «no te repitas» (DRY). Cierra los dos hallazgos menores de P-05b y A-01.
+
+
+### A-05b · El editor adopta los ids reales que el servidor da a lo nuevo
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a05b-editor-adopta-ids` · `b950969` (parte de `adsi/a08-limpieza-verificada`: PR después de A-08) |
+| **Tipo** | Completa A-05 del lado del frontend; no es un patrón |
+| **Archivos** | `world-editor/world-editor.store.ts` (un método y una llamada); `world-editor/world-editor.store.saved-ids.spec.ts` (nuevo) |
+| **Riesgo** | Medio-bajo: toca el camino del autoguardado del editor; no hay e2e de este flujo en esta sesión. Protegido por seis pruebas del store y las 115 que ya existían del editor (comandos del store, macro y componente), más la suite completa |
+| **Cambio de comportamiento** | Sí, acotado: tras guardar, los objetos, zonas y diálogos **nuevos** cambian su id local por el real en el estado del editor |
+
+**Problema (antes).** El editor numera lo nuevo con ids locales (`nextLocalId()`: el mayor id de la sala más uno) y, tras cada guardado, solo hacía `definition.set(respuesta)`: el estado editable seguía con los ids locales. A-05 hizo que el servidor busque cada id **dentro de la sala**; un id local que no existe crea, por tanto, una fila nueva y borra la anterior. Resultado sin este cambio: cada autoguardado de un objeto nuevo lo recrea con otro id (sin duplicados, pero con la fila cambiando) y los diálogos conservan un `mapObjectId` que ya no existe.
+
+**Solución (después).** Tras guardar, `adoptSavedIds` toma los ids de la respuesta **por clave** (objetos, zonas y diálogos) y, en los diálogos, el `mapObjectId` del objeto al que apuntan:
+
+- no pasa por la pila de deshacer ni marca el estado como sucio: no dispara otro guardado;
+- toca solo los campos `id` y `mapObjectId`: lo que el autor edite mientras tanto se conserva;
+- si ningún id cambia devuelve **el mismo objeto de estado**: no hay repintado del lienzo.
+
+**Decisión de diseño.**
+
+- *Por clave, no por posición.* La clave de un elemento es estable en el editor; la posición en la lista no (se reordena al deshacer un borrado).
+- *Lo que el servidor no devuelve conserva su id local.* No se pone `undefined` a nada (el compilador impide esa mutación: la mutante «un objeto que el servidor no devuelve pierde su id» no compila).
+- *Deshacer tras adoptar:* reponer un elemento borrado vuelve a traer su id anterior (el comando recuerda el objeto entero); el siguiente guardado lo crea de nuevo. Es correcto y no se intenta evitar.
+
+**Lo que no cambió:** el contenido de cada guardado salvo los ids, el debounce de 1500 ms, el manejo de errores 409 y 500, la pila de deshacer y rehacer y que un guardado fallido no cambie nada.
+
+**Pruebas.** Frontend 2376 → **2382** (+6; 178 → 179 archivos), `ng build` correcto.
+
+- *En rojo primero:* con el código anterior fallaban 3 de las 6 (el objeto, la zona y el diálogo nuevos seguían con su id local); las otras 3 fijan lo que no debe cambiar y pasaban antes y después.
+- *Mutaciones, 8:* no adoptar, buscar con otra clave, el diálogo sin el id de su objeto ni el suyo, zonas sin adoptar, estado siempre nuevo, adoptar dejando el estado sucio, y quitar la guarda de «no devuelto». **7 detectadas por las pruebas y 1 por el compilador.**
+
+**Hallazgos.** (1) El autoguardado sigue muriendo tras un error de guardado (Fase 0, hallazgo 1): no se tocó. (2) Las pruebas del store usan un `AuthoringApi` simulado con respuestas síncronas, así que no cubren que el autor edite *durante* la petición; la adopción toca solo ids para que eso sea seguro, pero no hay una prueba de la carrera.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-05b/`: `antes_guardado_sin_adoptar_ids.png`, `despues_adopta_los_ids.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Integridad de datos entre cliente y servidor; es el cierre del frontend del cambio A-05. Observer (el store reacciona a la respuesta) sin patrón nuevo.
+
+
+### A-09 · Un temporizador sin dueño hacía fallar el CI de forma intermitente
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a09-timer-teardown` · `b458dde` (parte de `adsi/a05b-editor-adopta-ids`: PR después de A-05b) |
+| **Tipo** | Prueba intermitente («flaky») con causa en el código de producción; limpieza de recursos |
+| **Archivos** | `simulation-play.component.ts` (un campo, una asignación y un elemento más en `ngOnDestroy`); `simulation-play.timings.spec.ts` (una prueba) y el `afterEach` de siete specs de `SimulationPlayComponent` |
+| **Riesgo** | Bajo: el temporizador solo se cancela si el componente se destruye antes de dispararse |
+| **Cambio de comportamiento** | Ninguno en la aplicación (en una pantalla viva el componente no se destruye antes de los 80 ms sin que el autor haya salido) |
+
+**Problema (antes).** El job de frontend del CI de A-08 (#51, que **no toca el frontend**) terminó en rojo con las 2376 pruebas en verde: Vitest sale con código 1 por un error no capturado.
+
+```
+ReferenceError: window is not defined
+ ❯ SimulationPlayComponent.scheduleRevealEffects   simulation-play.component.ts:2652
+ ❯ Timeout.<anonymous>                             simulation-play.component.ts:2723
+ This error originated in "src/app/features/simulator/simulation-play.consent-gate.spec.ts"
+```
+
+`applyLoadedWorld` programa con `window.setTimeout` el retiro del fundido (80 ms) y, al dispararse, vuelve a usar `window`. Varias specs crean el componente con `new SimulationPlayComponent()` y nunca lo destruyen: si el temporizador se dispara cuando el entorno ya se desmontó (el último test de un archivo, en un CI lento), `window` no existe. Pasó 1 de las 7 ejecuciones de CI de la pila (#45 a #51: las otras 6 en verde), y localmente nunca.
+
+**Solución (después).**
+
+- El temporizador del retiro del fundido tiene dueño: `worldRevealTimer`, y `ngOnDestroy` lo cancela junto con los que ya cancelaba.
+- Las siete specs que crean el componente sin la plantilla de Angular lo destruyen en su `afterEach`, que es lo que hace cualquier pantalla viva al cerrarse.
+
+**Decisión de diseño.**
+
+- *El cambio de producción es mínimo y deja intacto el texto que leen los contract-specs.* `simulation-play.game-feel.contract.spec.ts` fija con expresiones regulares el bloque `window.setTimeout(() => {…}, WORLD_REVEAL_DELAY_MS)`; asignar el resultado a un campo no lo rompe (la regex lo encuentra dentro de la asignación). No hizo falta tocar ninguna aserción.
+- *No se tocaron los demás temporizadores sin dueño* (fundido de 340 ms, pulso de estrés, supervisión, anuncio…): ninguno vuelve a usar `window` al dispararse y no se han visto fallar. Es la misma limpieza si el equipo la quiere más adelante.
+- *No se silenció el error* (`dangerouslyIgnoreUnhandledErrors`): ocultaría el próximo.
+
+**Lo que no cambió:** ninguna aserción de ninguna prueba, el texto que leen los contract-specs, y los tiempos (A-03b).
+
+**Pruebas.** Frontend 2382 → **2383** (+1), `ng build` correcto; las 302 pruebas de los 11 archivos `simulation-play.*` en verde con la destrucción en el `afterEach`.
+
+- *La prueba nueva:* aplica un mundo, destruye el componente, avanza 1000 ms y comprueba que el fundido no se retira ni se piden efectos de cámara.
+- *Mutaciones, 2, las 2 detectadas:* que `ngOnDestroy` no incluya el temporizador y que no se guarde su identificador.
+- *Lo que NO se puede demostrar:* que la intermitencia haya desaparecido (ocurría 1 de cada 7 ejecuciones de CI). Lo que sí se demuestra es que la ruta del error del registro queda cerrada: el temporizador que lo causó ya no sobrevive al componente.
+- *El job fallido de #51* se volvió a ejecutar: ver el estado del PR (con el código de A-08 sin cambios).
+
+**Hallazgos.** (1) Es el tipo de fallo que FASE0 §3.4 anotó: 55 archivos de prueba leen el código fuente como texto, y por eso no se pudo mover la lógica del temporizador a un ayudante sin tocar sus aserciones. (2) `jsdom was created 178 times · 63 s total` (un 53 % del tiempo de pruebas): Vitest sugiere `pool: 'vmThreads'`; no se tocó.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-09/`: `antes_temporizador_sin_dueno.png`, `despues_temporizador_con_dueno.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «Exception Handling»/gestión de recursos (Unidad 4): quien crea un recurso (un temporizador) responde de liberarlo; confiabilidad de las pruebas como parte de la calidad.

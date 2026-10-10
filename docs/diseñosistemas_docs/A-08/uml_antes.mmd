@@ -1,0 +1,16 @@
+classDiagram
+    direction LR
+    class editor_view {
+        +clinical_tool_editor(t)
+    }
+    class world_definition {
+        -_world_clinical_tool(t)
+    }
+    class instructor_service {
+        importa CriterionScore, Rubric
+    }
+    class world_service {
+        importa _int
+    }
+    note for world_definition "copia exacta de clinical_tool_editor:<br/>cambiar uno obliga a acordarse del otro"
+    note for instructor_service "tres imports sin ningún uso"

@@ -134,6 +134,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
   });
 
   afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();

@@ -25,6 +25,7 @@ from shared.jsonutils import (
     write_map as _write_map,
 )
 
+from .editor_view import clinical_tool_editor
 from .guards import ensure_draft, require_version
 from .scenes import save_dialogue_choices
 
@@ -67,7 +68,7 @@ def world_editor(case_version_id, node_id):
         "objects": [_world_object(o) for o in objects],
         "collisionZones": [_world_collision_zone(c) for c in collisions],
         "dialogues": [_world_dialogue_tree(t) for t in dialogue_trees],
-        "clinicalTools": [_world_clinical_tool(t) for t in tools],
+        "clinicalTools": [clinical_tool_editor(t) for t in tools],
         "safeExit": {
             "configured": has_safe_exit,
             "exitObjectKey": exit_key,
@@ -445,16 +446,4 @@ def _world_dialogue_tree(tree):
         "mapObjectId": tree.map_object_id,
         "lines": lines,
         "choices": choices,
-    }
-
-
-def _world_clinical_tool(t):
-    return {
-        "id": t.id,
-        "code": t.tool_code,
-        "label": t.label,
-        "icon": t.icon,
-        "category": t.category,
-        "description": t.description,
-        "active": t.active,
     }

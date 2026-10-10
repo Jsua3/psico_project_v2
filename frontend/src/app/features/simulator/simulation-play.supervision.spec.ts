@@ -115,6 +115,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
   });
 
   afterEach(() => {
+    component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
