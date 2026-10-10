@@ -572,6 +572,15 @@ def test_ninguna_mutacion_sobre_una_version_publicada_pasa_ni_deja_rastro(api, p
 
 
 # ── lo que mover el código podía perder sin que nada fallara ─────────────────
+def test_las_herramientas_del_editor_de_mundo_son_las_del_editor_de_casos(api, draft):
+    """Las dos vistas de una herramienta clínica coinciden campo por campo (A-08 las une en una)."""
+    editor_tools = _editor(api, draft)["tools"]
+    world_tools = api.get(f"{BASE}/{draft}/world-editor").data["data"]["clinicalTools"]
+
+    assert editor_tools
+    assert world_tools == editor_tools
+
+
 def test_la_vista_previa_del_mundo_sigue_al_nodo_pedido(api, draft):
     maps = _editor(api, draft)["maps"]
     assert len(maps) >= 2

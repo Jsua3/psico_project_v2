@@ -18,8 +18,9 @@ fachada ``services/authoring_service.py``, que además aplica la auditoría.
 Dependencias (sin ciclos): ``guards`` y ``request_utils`` no importan nada del paquete;
 ``editor_view`` importa ``guards``; ``graph`` y ``scenes`` importan ``editor_view``,
 ``guards`` y ``request_utils``; ``tools`` importa ``editor_view`` y ``guards``;
-``world_definition`` importa ``guards`` y ``scenes`` (las opciones de un diálogo se
-guardan igual en los dos sitios); ``publication`` importa ``editor_view``, ``guards``,
+``world_definition`` importa ``editor_view`` (la herramienta clínica se ve igual en los dos
+editores), ``guards`` y ``scenes`` (las opciones de un diálogo se guardan igual en los dos
+sitios); ``publication`` importa ``editor_view``, ``guards``,
 ``request_utils`` y ``world_definition`` (publicar valida el mundo); ``cases`` importa
 ``editor_view`` y ``publication`` (un caso nuevo nace con su checklist).
 """

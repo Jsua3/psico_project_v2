@@ -30,7 +30,6 @@ from ..models import (
 from . import attempt_lifecycle as lifecycle, door_chain, game_service
 from shared.jsonutils import (
     clamp as _clamp,
-    coerce_int as _int,
     read_map as _read_map,
     read_string_list as _read_string_list,
     write_map as _write_map,

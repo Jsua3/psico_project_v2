@@ -12,9 +12,7 @@ from shared.jsonutils import read_map as _read_map
 
 from ..models import (
     AttemptEvent,
-    CriterionScore,
     ReflectionJournal,
-    Rubric,
     RubricCriterion,
     RubricEvaluation,
     SimulationAttempt,
