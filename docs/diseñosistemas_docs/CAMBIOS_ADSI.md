@@ -847,3 +847,77 @@ Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_
 **Evidencia.** `docs/diseñosistemas_docs/P-14b/`: `antes_cuatro_esqueletos.png`, `despues_metodo_plantilla.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Template Method (patrones de comportamiento, Unidad 3); principio de Hollywood («no nos llames, nosotros te llamamos») y abierto/cerrado (SOLID).
+
+
+### P-05b · Facade — `authoring_service` pasa a ser la puerta de un subsistema por responsabilidades
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p05b-authoring-facade` · `d48f0be` (parte de `adsi/p14b-room-template-method`: PR después de P-14b) |
+| **Patrón** | Facade (estructural); de paso reparte responsabilidades (SRP) y deshace un «objeto Dios» |
+| **Archivos** | `services/authoring_service.py` (ahora la fachada), `services/authoring/` (nuevo: 9 módulos), `services/case_cloning.py` (solo un comentario); `tests/test_authoring_operations_contract.py` (nuevo); `tools/codeshot.py` (ancho de la numeración con cuatro cifras) |
+| **Riesgo** | Medio: es todo el editor de casos y lleva la auditoría, las transacciones y la regla de que lo publicado no se toca (REGLA-005). Protegido por pruebas de caracterización escritas antes y por una comparación estructural, función por función |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** Es el candidato que P-05 dejó anotado. `authoring_service.py` era un único módulo de **1266 líneas y 71 funciones** que el propio archivo repartía, con comentarios, en 17 secciones: casos, guardas, vista del editor, nodos, decisiones, mapas, objetos, diálogos, herramientas, checklist, publicación, clonado, editor de mundo, su validación y los DTO de lectura. Ocho responsabilidades con razones de cambio distintas en un mismo archivo: para tocar la validación del mundo había que abrir el mismo módulo que el clonado o la auditoría, el módulo importaba 14 modelos más los DTO, el clonado, la validación y la auditoría, y la auditoría de 22 operaciones se aplicaba **reasignando cada nombre al final del archivo** (`create_node = auditable(...)(create_node)`), a mil líneas de la función que decoraba. Las vistas llaman a 28 de esas funciones.
+
+**Solución (después).**
+
+- `authoring_service.py` queda como **fachada** (176 líneas, con su explicación): las mismas 28 operaciones con la misma firma, cada una una línea que delega en el subsistema, y las 22 que modifican algo con su `@auditable` justo encima.
+- `services/authoring/` reparte el resto, un módulo por responsabilidad:
+
+| Módulo | Qué contiene | Funciones | Líneas |
+|---|---|---|---|
+| `guards` | qué versión y qué entidades se pueden tocar (404 / 400) | 8 | 90 |
+| `request_utils` | lectura de los cuerpos de petición | 2 | 10 |
+| `editor_view` | la vista de lectura del editor y sus DTO | 8 | 179 |
+| `cases` | listar y crear casos | 4 | 102 |
+| `graph` | nodos y decisiones | 8 | 110 |
+| `scenes` | mapas, objetos y diálogos | 14 | 202 |
+| `tools` | herramientas clínicas | 4 | 42 |
+| `publication` | checklist, publicar y clonar una versión | 14 | 222 |
+| `world_definition` | editor de mundo: leer, guardar, validar, previsualizar | 10 | 386 |
+| `authoring_service` (fachada) | las 28 operaciones y la auditoría | 28 | 176 |
+
+- Las dependencias no tienen ciclos (se comprobó con el grafo de importaciones): `guards` y `request_utils` no importan nada del paquete; `editor_view` solo `guards`; `graph`, `scenes` y `tools` importan la vista y las guardas; `world_definition` importa `scenes` (las opciones de un diálogo se guardan igual en los dos sitios); `publication` importa `world_definition` (publicar valida el mundo); `cases` importa `publication` (un caso nuevo nace con su checklist).
+- Las vistas no se tocaron: siguen importando `authoring_service`.
+
+**Decisión de diseño.**
+
+- *La auditoría vive en la fachada, y por eso la fachada no reexporta.* `@auditable` guarda en el `context` del registro el nombre de la función y el último tramo de su módulo (`class: authoring_service`). Si la auditoría se aplicara en `graph.py` o `publication.py`, las filas pasarían a decir `class: graph`, `class: publication`… y quien lea el registro vería otro valor. Por eso cada operación es una función propia de la fachada y no un `from .graph import create_node`. Una prueba fija el `context` de las 22.
+- *La auditoría sigue fuera de la transacción.* La operación del subsistema corre dentro de su `@transaction.atomic` y el registro se escribe después; un fallo del registro nunca llega a quien llama (como antes).
+- *Fachada explícita: 28 funciones cortas.* Es la lista de lo que el editor ofrece; antes había que deducirla de las funciones sin guion bajo de un archivo de 1266 líneas.
+- *Se movió el código, no se reescribió.* Una comparación de los árboles sintácticos, función por función, da **67 de 71 idénticas**; las otras cuatro difieren solo en lo declarado abajo.
+- *No es un recorte de líneas.* El conjunto pasa de 1266 a 1519 líneas (docstrings de módulo, imports por módulo y las 28 funciones de la fachada). Lo que cambia es dónde vive cada cosa y que ninguna responsabilidad obliga a abrir las demás.
+- *`save_dialogue_choices` es pública en `scenes`* porque la usa también `world_definition`; en el original era privada del módulo único.
+- *Paquete bajo `services/`, no módulos sueltos junto a los demás servicios:* `services/` ya tiene más de veinte archivos y estos nueve solo tienen sentido juntos, detrás de la fachada.
+
+**Diferencias declaradas** (las únicas entre el código movido y el original):
+
+1. `update_decision` y `delete_decision` tenían escrita en línea la guarda «la decisión existe y es de esta versión»; ahora usan `require_decision_in_version`, igual que nodos, mapas, objetos, herramientas y diálogos usaban la suya. Mismos mensajes y mismos códigos (404 y 400), fijados por prueba.
+2. `update_checklist` importaba `timezone` dentro de la función; el import sube al encabezado del módulo.
+3. `save_dialogue_choices` gana un docstring.
+
+**Lo que no cambió:** las respuestas, los mensajes y los códigos HTTP; las filas de auditoría de las 22 operaciones (acción, tipo de recurso, identificador y `context`); que `create_case` siga sin auditarse; las transacciones; el orden de las escrituras; las firmas de las 28 operaciones.
+
+**Pruebas.** Backend 759 → **804** (+45), `manage.py check` limpio.
+
+- *Caracterización, 25 escritas y verificadas sobre el original antes de mover nada* (`test_authoring_operations_contract.py`): una por una, las 28 operaciones: qué responde (código y mensaje), qué escribe y qué deja en la auditoría (acción, tipo de recurso, id y `context`, que es lo que la fachada podía cambiar sin que nada más fallara), los errores con su mensaje exacto, y que ninguna mutación sobre una versión publicada pase ni deje rastro.
+- *Añadidas tras la primera ronda de mutaciones, 20:* cada una mata una mutación que las anteriores y las de `test_authoring.py` dejaban pasar. Vista previa del mundo por nodo; la validación y la salida segura; las opciones de un diálogo solo enlazan decisiones de su versión; la decisión sin retroalimentación se guarda vacía; la versión archivada no se modifica ni se publica; lo ya publicado se rechaza; publicar deja la fecha; publicar con errores de validación se rechaza y los nombra; el checklist parcial y el completo; el siguiente menor de un clon y la versión de dos partes; los códigos de caso; el checklist con que nace un caso; la transacción de crear y de actualizar un diálogo, de guardar el mundo, de clonar y de crear un caso; una prueba que recorre las 16 mutaciones de una sola escritura y comprueba que, si armar la vista falla, no queda nada escrito; y una que fija el 500 de crear una herramienta sin descripción. **Las 45 pasan también sobre el `authoring_service.py` original** (se cambió el archivo por el de `HEAD`, se corrieron y se restauró por hash).
+- *Comparación estructural (script de apoyo, no ejecuta nada):* 67 de 71 funciones idénticas; las 22 auditorías con la misma acción, tipo de recurso e índice del argumento; las 28 firmas iguales y cada una delegando con los mismos argumentos. Es una garantía de que **el código se movió**; que **se comporte igual** lo dicen las pruebas.
+- *Dos comprobaciones estáticas:* ningún import sin uso y ningún nombre sin definir en los 10 archivos (la comparación de árboles iguala `_ayudante` y `ayudante` a propósito, así que no habría visto una referencia a uno que dejó de existir).
+- *Mutaciones, 64 distintas en tres rondas.* **Primera (41),** sobre la fachada y los nueve módulos: delegar en otra función, quitar la auditoría o cambiarle la acción, el tipo de recurso o el índice, no pasar el actor, invertir cada guarda de pertenencia, los límites del checklist y de la publicación, el siguiente menor, el código de caso, la salida segura, las opciones de diálogo, y algunas transacciones. **29 detectadas y 12 sobrevivieron.** **Segunda (20):** esas 12 más 8 nuevas, ya con las pruebas añadidas: **19 detectadas**; sobrevivió `update_decision` sin transacción (hace una sola escritura, y nada prueba que se deshaga si falla armar la vista). **Tercera (16):** quita la transacción de cada una de las mutaciones de una sola escritura: **las 16 detectadas** por la prueba que recorre todas. Resultado: las 64 detectadas con el conjunto final. Una de la primera ronda (`clone_version` sin el actor) terminó en *error* y no en *fallo*: la fixture `draft` clona la versión y el clon revienta porque `created_by` es NOT NULL; deja la suite en rojo igual.
+
+**Lo que enseñaron los doce supervivientes.** Ninguno era un riesgo nuevo de mover el código: eran huecos que **el original ya tenía** y que la suite de entonces no veía. No había prueba de la vista previa del mundo con un nodo, de que una versión archivada se rechace, de que una decisión sin retroalimentación se guarde vacía, del estado del checklist (`COMPLETE` / `PENDING`), de la numeración del clon, de la fecha de publicación, de los códigos únicos, del checklist inicial, de la salida segura en la validación, del filtro por versión en las opciones del diálogo ni de las transacciones. El cambio los cierra. De paso, la prueba de que «lo publicado no se toca» ahora recorre las 20 operaciones que modifican algo (antes de añadir `update_dialogue` y `delete_dialogue` recorría 18); `publish` y `clone_version` tienen la suya.
+
+**Hallazgos.** Lo que las pruebas de caracterización encontraron en el código tal como estaba (no se corrige aquí; son cambios de comportamiento):
+
+1. `create_case` es la única operación del editor que **no deja rastro de auditoría**: las otras 22 sí. Quedó fijado como «comportamiento actual».
+2. `create_object` sin `interactionPrompt` o `interactionText`, y `create_tool` sin `description`, responden **500**: las columnas son NOT NULL y la operación guarda `None`; el editor de mundo (`save_world`) completa con `""`. Dos rutas de escritura del mismo objeto con criterios distintos.
+3. `update_dialogue` sin `lines` en el cuerpo **borra las líneas** del diálogo (las borra antes de mirar el cuerpo).
+4. `_world_clinical_tool` (en `world_definition.py`) es una copia exacta de `clinical_tool_editor` (en `editor_view.py`). No se tocó para no mezclar un «Cut & Paste» con este cambio.
+5. Publicar un borrador clonado del caso sembrado funciona (200). `test_checklist_full_then_publish` ramifica según `canPublish`: hoy siempre entra por la rama de éxito, pero no comprobaba la fecha de publicación, y la rama de rechazo (publicar con errores de validación) no se ejercitaba con datos reales. Las cubren ahora `test_publicar_deja_la_version_publicada_con_su_fecha` y `test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra`.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-05b/`: `antes_un_solo_modulo.png`, `despues_fachada_y_paquete.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Facade (patrones estructurales, Unidad 2); responsabilidad única y abierto/cerrado (SOLID); antipatrón «clase Dios / objeto Dios» y, en `save_world`, «función larga» (Unidad 4). Es la contraparte backend de P-05: allí se partió por roles el servicio del frontend; aquí, por responsabilidades, el de autoría.
