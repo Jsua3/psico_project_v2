@@ -1,7 +1,7 @@
 # Kit de personajes SIEP
 
 Todos los personajes del juego salen de este kit: maniquí etiquetado + piezas +
-recetas + motor determinista. Spec: `docs/superpowers/specs/2026-10-02-personajes-unificados-design.md`.
+recetas + motor determinista. Spec: `docs/diseno/personajes-unificados.md`.
 Esta carpeta es autoría y no se publica; la salida vive en `src/assets/characters/kit/`.
 
 | Qué | Dónde |

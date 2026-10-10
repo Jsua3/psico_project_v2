@@ -1095,7 +1095,7 @@ if (this.verbalTension() >= 0.9) {
 
 ### BLOQUE G — RF-027: Asistente IA Contextual
 
-**Requisito:** `docs/Requisitos Funcionales (Simulador)/RF-027.md`. Prioridad Alta.
+**Requisito:** `docs/requisitos/funcionales/RF-027.md`. Prioridad Alta.
 
 **Restricciones críticas (del doc RF-027):**
 - NO revelar respuestas correctas ANTES de que el estudiante haya tomado una decisión

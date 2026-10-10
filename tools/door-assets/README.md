@@ -26,7 +26,7 @@ El preview se escribe a una ruta **explícita**: nunca junto al output, para no 
 ## Por qué la lateral no se genera con IA
 
 Se intentó dos veces y quedó documentado en
-`docs/superpowers/specs/2026-07-09-arte-puertas-exit-design.md`:
+`docs/diseno/arte-puertas-exit.md`:
 
 - `z_image` desde cero metía piso y zócalo, y el ángulo salía distinto en cada puerta.
 - `flux_kontext` conservaba la identidad pero apenas rotaba.
