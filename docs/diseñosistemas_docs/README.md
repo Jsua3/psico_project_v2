@@ -8,9 +8,13 @@ Equipo: Juan José Sua, Emerson Ángel Gómez, Santiago Leyton, Esteban Bonilla.
 | `CAMBIOS_ADSI.md` | **Registro vivo**: cada patrón o antipatrón aplicado, con problema, solución, riesgo, commit, pruebas y capturas |
 | `FASE0_EVALUACION.md` | Evaluación contra el código real, catálogo v2 de patrones, estado y qué sigue (§8–§9: actualización del 9 oct) |
 | `PLAN_APLICACION_PATRONES_SIEP.md` | Plan v1 (parcialmente superado por `FASE0_EVALUACION.md`) |
-| `PROMPT_MAESTRO_ADSI_SIEP.md` | Contexto completo para abrir una sesión nueva de trabajo con Claude |
-| `P-NN/`, `A-NN/` | Evidencia de cada cambio (`P-` patrones, `A-` antipatrones y limpieza): `antes_*.png`, `despues_*.png`, `uml_antes.*`, `uml_despues.*` (`.mmd` = fuente Mermaid) |
+| `PROMPT_MAESTRO_ADSI_SIEP.md` | Contexto completo para abrir una sesión nueva de trabajo con Claude (anterior a la pila de ramas: su §8 describe el flujo de entonces) |
+| `INFORME_ANTIPATRONES_Y_SOLID.md` | **Para el informe:** antipatrones encontrados y qué se hizo con cada uno, mapa SOLID, lo que no se arregló |
+| `PATRONES_EXISTENTES_Y_DESCARTADOS.md` | **Para el informe:** patrones que SIEP ya tenía (Unidad 5), patrones aplicados por unidad y los evaluados y descartados, con su razón |
+| `EVIDENCIA_GIT.md` | Ramas, pull requests e historial de la serie (generado: no se edita a mano) |
+| `P-NN/`, `A-NN/`, `L-NN/` | Evidencia de cada cambio (`P-` patrones, `A-` antipatrones y limpieza, `L-` contrato de Liskov): `antes_*.png`, `despues_*.png`, `uml_antes.*`, `uml_despues.*` (`.mmd` = fuente Mermaid) |
 | `tools/codeshot.py` | Genera la captura PNG de un fragmento con sus números de línea reales |
+| `tools/git_evidence.py` | Genera `EVIDENCIA_GIT.md` desde `git` y `gh pr list` |
 
 ## Convenciones
 
