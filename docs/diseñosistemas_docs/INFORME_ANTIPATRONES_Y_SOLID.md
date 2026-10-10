@@ -41,7 +41,7 @@ de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusion
 | **Condicionales en cascada** | `nextNpcTarget` / `nextAmbientTarget` por tipo | **P-10** · Strategy | Resuelto |
 | | interceptor JWT con cuatro bloques casi iguales | **P-08b** · Chain of Responsibility | Resuelto |
 | **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto (con una duda declarada: un solo suscriptor) |
-| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto en la rama; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c): agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38)** |
+| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto en la rama; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c), también sobre `master`: agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38)** |
 | | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto en la rama (cambio de comportamiento acotado); verificado en el navegador por **A-05c** |
 | **Prueba intermitente** (no es un antipatrón del curso, pero rompía el CI) | un temporizador de 80 ms de `SimulationPlayComponent` sin dueño: se disparaba tras desmontar el entorno de pruebas (`window is not defined`) y hacía fallar 1 de 7 ejecuciones de CI de una rama que ni tocaba el frontend | **A-09** · el temporizador tiene dueño y `ngOnDestroy` lo cancela | Cerrada la ruta del error; que la intermitencia haya desaparecido **no se puede demostrar** |
 
@@ -107,4 +107,5 @@ Mermaid (fuente `.mmd`).
    (un id local coincidente se lleva el objeto de otra sala); A-05c mostró cuán común es el disparador: los ids
    locales del editor parten de 1 y existen en otro caso, así que con el código original agregar los primeros
    objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38). La misma prueba sobre
-   tres versiones del código (original, solo A-05, punta) falla en el punto esperado en las dos primeras.
+   tres versiones del código (original, solo A-05, punta) falla en el punto esperado en las dos primeras, y el
+   «original» incluye `master`: el defecto está vivo ahí.
