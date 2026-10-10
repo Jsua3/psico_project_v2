@@ -5,10 +5,10 @@ entrada de `CAMBIOS_ADSI.md`, donde están el problema con su archivo y líneas,
 pruebas, las capturas «antes/después» y el diagrama UML. Aquí solo se reúne y se ordena; **no hay ninguna
 afirmación que no esté sustentada allí**. Las cifras de pruebas salen de las corridas completas de cada rama.
 
-**Estado al 10 de octubre de 2026** (punta de la pila: `adsi/a05c-editor-e2e`): backend **855** pruebas,
-frontend **2383** en 179 archivos (línea base del proyecto: 307 y 1809) y **35** de extremo a extremo (34 antes
-de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusionó en `master` (ver
-`EVIDENCIA_GIT.md`).
+**Estado al 10 de octubre de 2026** (todo fusionado en `adsi/integracion`, con el mismo árbol que
+`adsi/a05c-editor-e2e`): backend **855** pruebas, frontend **2383** en 179 archivos (línea base del proyecto: 307
+y 1809) y **35** de extremo a extremo (34 antes de A-05c). Cada PR se fusionó con su *merge commit* el mismo día;
+`master` no se tocó (ver `EVIDENCIA_GIT.md`).
 
 ---
 
@@ -23,7 +23,7 @@ de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusion
 | | diez bucles `_clone_*` campo por campo (83 asignaciones) | **P-03** · Prototype declarativo (`CopySpec`) | Resuelto |
 | | `rectC`/`frameC`/`ellipseC` idénticas en dos renderers (239 usos) | **A-01b** · `graphics-primitives.util.ts` | Resuelto |
 | | cuatro funciones `render*` con el mismo esqueleto | **P-14b** · Template Method (`CaseRoom`) | Resuelto |
-| | dos rutas de copia de rúbricas con criterios distintos; el clon olvidaba cuatro campos | **A-07** · se declaran en el `CopySpec` | Resuelto (decisión del equipo pendiente de fusionar) |
+| | dos rutas de copia de rúbricas con criterios distintos; el clon olvidaba cuatro campos | **A-07** · se declaran en el `CopySpec` | Resuelto (aprobado y fusionado el 10 de octubre) |
 | | `_world_clinical_tool` era una copia exacta de `clinical_tool_editor` | **A-08** · una sola función | Resuelto |
 | | `contactShadow` en los dos renderers; el acotado 0–100 del estrés en 6 archivos del frontend | — | **Documentado, no tocado** |
 | **Lava Flow / Boat Anchor** | `audio.service.ts`, `renderHospitalEnvironment`, `_parse_csv_rows`, `game_views._int`, `getAttempt`/`getCompletionReport`/`deleteDecision` | **A-02** · borrado verificado con `ng build`, `ng test` y las suites | Resuelto |
@@ -37,19 +37,19 @@ de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusion
 | **Función larga** | `build_completion_report` (~100 líneas) | **P-04** · Builder | Resuelto |
 | | `_validate_door` (cascada de `if … raise`) | **P-08a** · Chain of Responsibility | Resuelto |
 | | `get_progress_map` (BFS manual con `pop(0)`) | **P-09** · Iterator | Resuelto |
-| | `save_world` (110 líneas) | **A-05** · cinco funciones | Resuelto (con cambio de comportamiento, en revisión) |
+| | `save_world` (110 líneas) | **A-05** · cinco funciones | Resuelto (con cambio de comportamiento, aprobado y fusionado el 10 de octubre) |
 | **Condicionales en cascada** | `nextNpcTarget` / `nextAmbientTarget` por tipo | **P-10** · Strategy | Resuelto |
 | | interceptor JWT con cuatro bloques casi iguales | **P-08b** · Chain of Responsibility | Resuelto |
-| **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto (con una duda declarada: un solo suscriptor) |
-| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto en la rama; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c): agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38); la misma prueba falla en el mismo punto sobre `master`** |
-| | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto en la rama (cambio de comportamiento acotado); verificado en el navegador por **A-05c** |
+| **Acoplamiento al detalle** | `choose_decision` importaba y llamaba a progresión en línea | **P-13** · Observer | Resuelto y fusionado; **anotado como «a decidir»** (un solo suscriptor) |
+| **Integridad de datos** (no es un antipatrón del curso, pero es lo más grave que apareció) | `save_world` buscaba objetos por `id` en toda la base: un objeto nuevo con un id local coincidente **se llevaba el de otra sala**, y cada autoguardado duplicaba lo nuevo | **A-05** | Resuelto y fusionado; medido por API: 3 autoguardados pasaban de 4 a 7 objetos; **medido en el navegador (A-05c): agregar tres objetos a un caso nuevo le quitó tres a la versión publicada del caso demo (41 → 38); la misma prueba falla en el mismo punto sobre `master`** |
+| | el editor no sustituía los ids locales por los reales tras guardar, así que cada autoguardado recreaba lo nuevo con otro id | **A-05b** · el store adopta los ids de la respuesta por clave | Resuelto y fusionado (cambio de comportamiento acotado); verificado en el navegador por **A-05c** |
 | **Prueba intermitente** (no es un antipatrón del curso, pero rompía el CI) | un temporizador de 80 ms de `SimulationPlayComponent` sin dueño: se disparaba tras desmontar el entorno de pruebas (`window is not defined`) y hacía fallar 1 de 7 ejecuciones de CI de una rama que ni tocaba el frontend | **A-09** · el temporizador tiene dueño y `ngOnDestroy` lo cancela | Cerrada la ruta del error; que la intermitencia haya desaparecido **no se puede demostrar** |
 
 ### Lo que NO se arregló y debe quedar escrito
 
-- **Cambios que esperan decisión**, cada uno en su rama y su PR: A-05 (borra lo que antes no borraba), A-05b (el
-  editor adopta los ids reales tras guardar), A-07 (el clon conserva pesos y estado de criterios) y P-13 (Observer
-  con un único suscriptor; no cambia comportamiento).
+- **Cambios de comportamiento aprobados y fusionados el 10 de octubre**: A-05 (borra lo que antes no borraba),
+  A-05b (el editor adopta los ids reales tras guardar) y A-07 (el clon conserva pesos y estado de criterios).
+  **P-13** (Observer con un único suscriptor; no cambia comportamiento) está fusionado y **anotado como «a decidir»**.
 - **Hallazgos sin corregir**: `create_case` es la única mutación del editor sin auditoría; `create_object` y
   `create_tool` responden 500 si faltan campos NOT NULL; `update_dialogue` sin `lines` borra las líneas;
   `get_completion_report` devuelve el informe de un intento pausado o reemplazado; `patrol` empieza en el punto 1;
@@ -63,7 +63,7 @@ de A-05c). Todo vive en ramas con su PR hacia `adsi/integracion`; nada se fusion
   textos del caso del PDF a cualquier caso; uno que no sea el del PDF no tiene banderas, así que solo puede
   terminar en «Riesgo Persistente» o, con dos decisiones críticas, en «Crítico», y nunca en «Integral» ni «Con
   brechas»; decidir qué final tienen los demás casos es una decisión de producto) y los opcionales P-15 a P-20 del
-  plan v1 (alto riesgo: los contract-specs leen el texto fuente).
+  plan v1 (alto riesgo: los contract-specs leen el texto fuente). El 10 de octubre se aceptó no hacerlos por ahora.
 - **Dos DDL distintas**: `bootstrap_dev_db` no replica los `ON DELETE CASCADE` de `deploy/db_seed.sql`.
 
 ---

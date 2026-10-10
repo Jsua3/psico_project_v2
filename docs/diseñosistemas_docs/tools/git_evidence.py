@@ -5,7 +5,10 @@ No inventa nada: cada cifra sale de `git` y de `gh pr list` en el momento de cor
 columnas de commit salen de la ficha de cada entrada de CAMBIOS_ADSI.md.
 
 Uso (desde la raíz del repositorio):
-    python docs/diseñosistemas_docs/tools/git_evidence.py [--tip adsi/a05c-editor-e2e]
+    python docs/diseñosistemas_docs/tools/git_evidence.py [--tip adsi/integracion] [--start f1944df]
+
+`--start` es el commit desde el que se cuenta la serie (la punta de `adsi/integracion` cuando empezó) y
+`--tip` la rama donde termina; con todo fusionado, la punta es `adsi/integracion`.
 """
 import argparse
 import json
@@ -20,7 +23,8 @@ ROOT = Path(__file__).resolve().parents[3]
 DOCS = ROOT / "docs" / "diseñosistemas_docs"
 REGISTRY = DOCS / "CAMBIOS_ADSI.md"
 OUTPUT = DOCS / "EVIDENCIA_GIT.md"
-BASE = "adsi/integracion"
+BASE = "adsi/integracion"  # rama a la que apuntan los PR de la serie
+START = "f1944df"  # punta de adsi/integracion cuando empezó la serie
 
 
 def run(*args):
@@ -48,15 +52,17 @@ def pull_requests():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tip", default="adsi/a05c-editor-e2e", help="rama punta de la pila")
+    parser.add_argument("--tip", default="adsi/integracion", help="rama donde termina la serie")
+    parser.add_argument("--start", default=START, help="commit desde el que se cuenta la serie")
     args = parser.parse_args()
+    span = f"{args.start}..{args.tip}"
 
     entries = registry_entries()
     prs = pull_requests()
-    commits = run("git", "log", "--format=%H%x09%an%x09%ad%x09%s", "--date=short", f"{BASE}..{args.tip}").splitlines()
+    commits = run("git", "log", "--format=%H%x09%an%x09%ad%x09%s", "--date=short", span).splitlines()
     authors = Counter(line.split("\t")[1] for line in commits)
-    coauthored = int(run("git", "log", "--grep=Co-Authored-By: Claude", "--oneline", f"{BASE}..{args.tip}").count("\n"))
-    first, last = commits[-1].split("\t"), commits[0].split("\t")
+    coauthored = int(run("git", "log", "--grep=Co-Authored-By: Claude", "--oneline", span).count("\n"))
+    first, last = (commits[-1].split("\t"), commits[0].split("\t")) if commits else (["", "", "—"], ["", "", "—"])
 
     out = []
     w = out.append
@@ -69,8 +75,10 @@ def main():
     other = [f"#{pr['number']} → `{pr['baseRefName']}`" for pr in prs if pr["baseRefName"] != BASE]
     w(f"- **Pull requests hacia `{BASE}`** (desde el #24): {len(to_base)}"
       + (f", más {', '.join(other)} (borrador para el CI oficial)." if other else "."))
-    w(f"- **Commits de la pila** (`{BASE}..{args.tip}`): {len(commits)}, entre {first[2]} y {last[2]}; "
-      f"merges en el rango: {run('git', 'rev-list', '--merges', '--count', f'{BASE}..{args.tip}').strip()}.")
+    merged = [pr for pr in to_base if pr["state"] == "MERGED"]
+    w(f"- **Pull requests fusionados:** {len(merged)} de {len(to_base)}.")
+    w(f"- **Commits de la serie** (`{span}`): {len(commits)}, entre {first[2]} y {last[2]}; "
+      f"merges en el rango: {run('git', 'rev-list', '--merges', '--count', span).strip()}.")
     w("- **Autores del rango:** " + ", ".join(f"{name}: {count}" for name, count in authors.most_common()) + ".")
     w(f"- **Commits con coautoría de Claude** (`Co-Authored-By`): {coauthored} de {len(commits)}.\n")
     w("> **Lo que esta evidencia no muestra:** los commits están a nombre de una sola persona (con dos "
@@ -79,7 +87,8 @@ def main():
       "dueño de rama revise, apruebe o commitee desde su cuenta, y **no está hecho**.\n")
     w("## Pila de ramas y pull requests\n")
     w("Cada rama parte de la anterior de la pila y su PR apunta a `adsi/integracion` (GitHub Flow, Unidad 7). "
-      "Se fusionan en este orden, con *merge commit* (no *squash*), para que la historia conserve cada cambio.\n")
+      "Se fusionan en este orden, con *merge commit* (no *squash*), para que la historia conserve cada cambio; "
+      "la columna «Estado» dice cuáles ya lo están.\n")
     w("| PR | Rama | Estado | Cambio | Commit del código |")
     w("|---|---|---|---|---|")
     for pr in prs:
@@ -92,7 +101,7 @@ def main():
     w("\n## Cómo se reproduce\n")
     w("```bash")
     w("python docs/diseñosistemas_docs/tools/git_evidence.py")
-    w(f"git log --format='%h %an %ad %s' --date=short {BASE}..{args.tip}")
+    w(f"git log --format='%h %an %ad %s' --date=short {span}")
     w("gh pr list --state all --limit 100 --json number,title,headRefName,baseRefName,state")
     w("```")
     OUTPUT.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
