@@ -93,3 +93,30 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 
 **Relación con la materia.** Strategy, Adapter y Factory Method (patrones de comportamiento, estructurales y creacionales vistos el 6, 8 y 26 de octubre); principios abierto/cerrado y de inversión de dependencias (SOLID, sesión del 17/19 de noviembre).
 
+### P-04 · Builder — reporte de cierre del intento
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/p04-report-builder` · `e92994c` (parte de `adsi/p01-ai-strategy`: PR después de P-01) |
+| **Patrón** | Builder (creacional) |
+| **Archivos** | `serializers/game_dtos.py`, `tests/test_completion_report_builder.py` (nuevo) |
+| **Riesgo** | Bajo: 31 pruebas de caracterización sobre el reporte pasan sin modificarse |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** `build_completion_report` era una sola función de 99 líneas que contaba eventos, deducía competencias y recomendaciones, elegía el resumen según el estado y ensamblaba el diccionario. No había forma de probar una regla (por ejemplo, el umbral de estrés de las recomendaciones) sin armar un intento completo con eventos en la base de datos.
+
+**Solución (después).**
+
+- **Builder:** `CompletionReportBuilder` construye el reporte por pasos encadenables: `count_events()`, `count_reflections()`, `add_competencies()`, `add_recommendations()`, `add_summary()` y `build()`, que ensambla el diccionario en el mismo orden de claves de siempre.
+- **Director:** `build_completion_report` conserva su nombre y su firma (lo usan `game_service` e `instructor_service`) y solo fija el orden de los pasos. Competencias y recomendaciones leen los conteos, por eso el orden importa.
+- Las constantes de texto (`_SUMMARY_BY_STATUS`, `_GENERIC_RECOMMENDATION`) salen al nivel del módulo.
+
+**Decisión de diseño.** Hay un solo producto (el diccionario del reporte), así que no aparece la ventaja clásica de un Builder de producir varias representaciones. El valor aquí es separar los pasos para poder probarlos uno a uno y sin base de datos. `count_events()` se dejó como un único recorrido de los eventos (visitados, herramientas, reintentos y decisiones) para no cambiar ni el comportamiento ni el número de consultas.
+
+**Lo que no cambió** (fijado por las pruebas): las 22 claves del reporte y su orden, los conteos y la regla de reintentos, las competencias, las recomendaciones y su orden, la recomendación genérica, los mensajes por estado (un estado desconocido sigue lanzando `KeyError`), la duración, la línea de tiempo y el final.
+
+**Pruebas.** Backend +16 (`test_completion_report_builder.py`, sin base de datos): conteos, reintentos que no cuentan como decisiones, nodos visitados sin repetir, competencias, recomendaciones en orden, resumen por estado, ensamblado y director. Total 408 → 424 sobre `adsi/integracion` (442 junto con P-01). Cinco mutaciones (umbral de estrés, competencia de comunicación, director sin `count_events`, reintentos prohibidos, conducta prohibida) hacen fallar entre 2 y 12 pruebas; al restaurar vuelve el verde.
+
+**Evidencia.** `docs/diseñosistemas_docs/P-04/`: `antes_build_completion_report.png`, `despues_builder_pasos.png`, `despues_builder_build_y_director.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Builder (patrones creacionales, sesión del 6 de octubre); responsabilidad única y abierto/cerrado (SOLID, 17 y 19 de noviembre). Aplica también al antipatrón «función larga» del bloque de antipatrones.
