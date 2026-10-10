@@ -1,0 +1,15 @@
+A-05 + A-05b (adsi/a09-timer-teardown, b2d40bb)
+------------------------------------------------------------------------------
+caso 2 nodo 9
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 41 primeros: 1:Familia en crisis | 2:Acceso a quirófano | 3:Kit PAP | 4:Sala de escucha familiar
+objetos ajenos antes: 41
+guardado 1: ids = 42 | claves = npc-mv20giof
+guardado 2: ids = 42,43 | claves = npc-mv20giof,question-mv20gjzd
+guardado 3: ids = 42,43,44 | claves = npc-mv20giof,question-mv20gjzd,tool-mv20gla6
+fallos de estabilidad de ids: ninguno
+diálogos = [{"id":20,"owner":44}] | dueño real = 44
+tras borrar: objetos = npc-mv20giof,question-mv20gjzd | diálogos = 0
+tras recargar: ids = 42,43 | el editor dice: 2 objetos · 0 zonas
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 41 primeros: 1:Familia en crisis | 2:Acceso a quirófano | 3:Kit PAP | 4:Sala de escucha familiar
+objetos ajenos: antes 41 después 41 (idénticos)
+RESULTADO: OK []

@@ -1132,7 +1132,7 @@ Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) si
 | **Rama / commit** | `adsi/a05b-editor-adopta-ids` · `b950969` (parte de `adsi/a08-limpieza-verificada`: PR después de A-08) |
 | **Tipo** | Completa A-05 del lado del frontend; no es un patrón |
 | **Archivos** | `world-editor/world-editor.store.ts` (un método y una llamada); `world-editor/world-editor.store.saved-ids.spec.ts` (nuevo) |
-| **Riesgo** | Medio-bajo: toca el camino del autoguardado del editor; no hay e2e de este flujo en esta sesión. Protegido por seis pruebas del store y las 115 que ya existían del editor (comandos del store, macro y componente), más la suite completa |
+| **Riesgo** | Medio-bajo: toca el camino del autoguardado del editor; no había e2e de este flujo cuando se escribió (lo agrega A-05c). Protegido por seis pruebas del store y las 115 que ya existían del editor (comandos del store, macro y componente), más la suite completa |
 | **Cambio de comportamiento** | Sí, acotado: tras guardar, los objetos, zonas y diálogos **nuevos** cambian su id local por el real en el estado del editor |
 
 **Problema (antes).** El editor numera lo nuevo con ids locales (`nextLocalId()`: el mayor id de la sala más uno) y, tras cada guardado, solo hacía `definition.set(respuesta)`: el estado editable seguía con los ids locales. A-05 hizo que el servidor busque cada id **dentro de la sala**; un id local que no existe crea, por tanto, una fila nueva y borra la anterior. Resultado sin este cambio: cada autoguardado de un objeto nuevo lo recrea con otro id (sin duplicados, pero con la fila cambiando) y los diálogos conservan un `mapObjectId` que ya no existe.
@@ -1210,3 +1210,50 @@ ReferenceError: window is not defined
 **Evidencia.** `docs/diseñosistemas_docs/A-09/`: `antes_temporizador_sin_dueno.png`, `despues_temporizador_con_dueno.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Exception Handling»/gestión de recursos (Unidad 4): quien crea un recurso (un temporizador) responde de liberarlo; confiabilidad de las pruebas como parte de la calidad.
+
+
+### A-05c · El editor de mundo, probado en el navegador contra la base real
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a05c-editor-e2e` · `5d8ba6e` (parte de `adsi/a09-timer-teardown`: PR después de A-09) |
+| **Tipo** | Prueba de extremo a extremo; no cambia código de producción |
+| **Archivos** | `frontend/e2e/world-editor.e2e.ts` (nuevo) |
+| **Riesgo** | Bajo: solo agrega una prueba. Corre en el job E2E del PR (no lleva `@full-case` ni `@orientation`) y dura ~15 s |
+| **Cambio de comportamiento** | Ninguno |
+
+**Problema (antes).** A-05 y A-05b se respaldaron con pruebas del backend (API y PostgreSQL) y del store (Angular con una API simulada), y las dos entradas dejaron escrito que el flujo real —navegador, servidor y base— no tenía prueba propia. Esa costura es justo donde está el defecto que A-05 corrige.
+
+**Solución (después).** Una prueba de Playwright sobre el stack aislado de `npm run test:e2e`: crea un caso nuevo por API, entra como administrador, abre la pestaña «Mundo» del nodo inicial, agrega tres objetos desde la biblioteca (uno por autoguardado), le agrega un diálogo al último y lo borra con la tecla Supr, recarga, y después de cada paso compara con lo que dice el servidor y con los objetos de los demás casos.
+
+**Lo que mide.** La misma prueba, sobre tres versiones del código, en la base de pruebas con el caso demo sembrado (41 objetos con ids 1 a 41):
+
+| Código | Objetos de otros casos | Ids de lo ya guardado | Diálogo | Borrar y recargar |
+|---|---|---|---|---|
+| Original (`adsi/p05b-authoring-facade`) | **41 → 38**: los tres guardados se llevan los objetos 1, 2 y 3 del caso demo publicado | los ids 1, 2, 3 (los robados) | apunta al objeto 3 | **no persiste**: el objeto sigue y reaparece |
+| Solo A-05 (`adsi/a05-world-save-persistence`) | 41 = 41 | **cambian**: 42 → 43,44 → 45,46,47 | apunta al id real | persiste |
+| A-05 + A-05b (la punta) | 41 = 41 | **estables**: 42 → 42,43 → 42,43,44 | apunta al id real (44) | persiste; recarga: 2 objetos |
+
+**Hallazgo grave, ahora confirmado en la interfaz.** El editor numera lo nuevo con ids locales que parten de 1, y el `save_world` original buscaba cada objeto con `MapObject.objects.filter(pk=…)` sin acotar a la sala. Con una base que ya tiene casos, **agregar los primeros objetos a un caso nuevo mueve a ese caso objetos de otro caso y los sobrescribe**. En la corrida, la **versión publicada** del caso demo (`SIM-VBG-001`, versión 1) pasó de 41 objetos a 38: perdió «Familia en crisis», «Acceso a quirófano» y «Kit PAP», que quedaron en el caso nuevo con los datos de las plantillas. Es el mismo defecto que A-05 documentó con pruebas de API (ahí se midió la duplicación por autoguardado, 4 → 7); aquí se ve que el efecto real es peor: corrompe otro caso, y las versiones publicadas son inmutables.
+
+**La prueba, contra cada versión.**
+
+- *En rojo primero:* sobre el código original falla en el primer guardado (`los objetos de otros casos no cambian al guardar`); sobre A-05 sin A-05b falla en el segundo (`npc-… conserva su id real en el guardado 2`, esperado 42, recibido 43); sobre la punta pasa. Son dos «mutantes» reales del código de producción y la prueba los detecta en el punto esperado.
+- *Repetición:* la prueba final corrió una vez por versión con los resultados de arriba; una versión anterior, con las mismas comprobaciones en otro orden, dio los mismos veredictos en las tres, y sobre la punta pasó en tres corridas completas. Es una prueba con autoguardado diferido: si fuera intermitente, el CI del PR lo mostrará.
+
+**Hallazgos.**
+
+1. El editor pinta «0 objetos · 0 zonas» y deja activos los botones de la biblioteca **antes** de que cargue la sala; un clic en ese momento no hace nada (`addTemplate` sale si no hay estado). La primera versión de esta prueba cayó justo ahí; ahora espera a la respuesta del servidor y al panel «Sala». No se tocó la aplicación.
+2. No cubre: arrastrar, seleccionar con el ratón sobre el lienzo de Konva, zonas de colisión, el conflicto 409 entre dos sesiones ni el autoguardado tras un error (Fase 0, hallazgo 1).
+
+**Cómo reproducirlo.**
+
+```bash
+git switch --detach adsi/p05b-authoring-facade                 # o a05 / la punta
+git checkout adsi/a05c-editor-e2e -- frontend/e2e/world-editor.e2e.ts
+npm run test:e2e -- e2e/world-editor.e2e.ts
+```
+
+**Evidencia.** `docs/diseñosistemas_docs/A-05c/`: `antes_corrida_original.png`, `intermedio_corrida_solo_a05.png`, `despues_corrida_punta.png` (con su texto en `.txt`: las líneas reales de cada corrida), `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Pruebas de extremo a extremo y de regresión (calidad); integridad entre cliente y servidor. Cierra la salvedad de A-05b («no hay e2e de este flujo»).

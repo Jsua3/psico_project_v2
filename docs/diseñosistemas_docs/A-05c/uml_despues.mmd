@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant A as Autor (editor + A-05b)
+    participant S as save_world (A-05)
+    participant DB as PostgreSQL
+
+    Note over A: objeto nuevo con id local 1
+    A->>S: PUT /world  objetos [id 1]
+    S->>DB: filter(pk=1, scene_map=esta sala)
+    DB-->>S: nada
+    S->>DB: INSERT objeto nuevo
+    S-->>A: 200 (id real 42)
+    Note over A: adoptSavedIds<br/>1 pasa a 42, por clave
+    A->>S: PUT /world  objetos [id 42]
+    S->>DB: UPDATE de la fila 42
+    S-->>A: 200 (mismo id)
+    A->>S: PUT /world  sin el objeto borrado
+    S->>DB: DELETE de los ausentes
+    S-->>A: 200 (no reaparece al recargar)

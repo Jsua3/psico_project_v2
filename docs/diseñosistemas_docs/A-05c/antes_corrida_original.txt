@@ -1,0 +1,15 @@
+ORIGINAL (adsi/p05b-authoring-facade, 1b8de41): sin A-05 ni A-05b
+------------------------------------------------------------------------------
+caso 2 nodo 9
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 41 primeros: 1:Familia en crisis | 2:Acceso a quirófano | 3:Kit PAP | 4:Sala de escucha familiar
+objetos ajenos antes: 41
+guardado 1: ids = 1 | claves = npc-mv20ekh6
+guardado 2: ids = 1,2 | claves = npc-mv20ekh6,question-mv20elsh
+guardado 3: ids = 1,2,3 | claves = npc-mv20ekh6,question-mv20elsh,tool-mv20en9k
+fallos de estabilidad de ids: ninguno
+diálogos = [{"id":20,"owner":3}] | dueño real = 3
+tras borrar: objetos = npc-mv20ekh6,question-mv20elsh,tool-mv20en9k | diálogos = 0
+tras recargar: ids = 1,2,3 | el editor dice: 3 objetos · 0 zonas
+versión ajena 1 estado PUBLISHED caso SIM-VBG-001 objetos 38 primeros: 4:Sala de escucha familiar | 5:Familia en crisis | 6:Marco normativo | 7:Psicóloga hospitalaria
+objetos ajenos: antes 41 después 38 (¡CAMBIARON!)
+RESULTADO: 3 FALLO(S) ["tras borrar se esperaban 2 objetos y hay 3","el objeto borrado sigue en el servidor","los objetos de otro caso cambiaron"]
