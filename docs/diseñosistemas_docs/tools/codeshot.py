@@ -66,6 +66,7 @@ def main():
     lexer = get_lexer_by_name(a.lang) if a.lang else guess_lexer_for_filename(a.file, chunk)
     hl = [n - a.start + 1 for n in parse_hl(a.hl) if a.start <= n <= a.end]
     fmt = make_formatter(font_size=17, line_numbers=True, line_number_start=a.start,
+                         line_number_chars=max(2, len(str(a.end))),
                          line_number_bg="#f0f0f0", line_number_fg="#777777", line_pad=4,
                          hl_lines=hl, hl_color="#fff3b0", style="default", image_pad=14)
     png = highlight(chunk, lexer, fmt)

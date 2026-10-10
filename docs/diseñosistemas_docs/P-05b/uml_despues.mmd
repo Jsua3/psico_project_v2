@@ -1,0 +1,67 @@
+classDiagram
+    direction TB
+    class authoring_views {
+        28 endpoints del editor de casos
+    }
+    class authoring_service {
+        <<Facade>>
+        +28 operaciones con la firma de siempre
+        +auditable en las 22 mutaciones
+    }
+    class cases {
+        list_authoring_cases()
+        create_case()
+    }
+    class graph {
+        nodos y decisiones
+    }
+    class scenes {
+        mapas, objetos, diálogos
+        save_dialogue_choices()
+    }
+    class tools {
+        herramientas clínicas
+    }
+    class publication {
+        update_checklist()
+        publish()
+        clone_version()
+    }
+    class world_definition {
+        world_editor() save_world()
+        validate_world() world_preview()
+        run_world_validation()
+    }
+    class editor_view {
+        editor()
+        DTO de lectura
+    }
+    class guards {
+        require_version()
+        ensure_draft()
+        require_X_in_version()
+    }
+    class request_utils {
+        flag()
+        write_string_list()
+    }
+    authoring_views ..> authoring_service : única puerta
+    authoring_service ..> cases
+    authoring_service ..> graph
+    authoring_service ..> scenes
+    authoring_service ..> tools
+    authoring_service ..> publication
+    authoring_service ..> world_definition
+    authoring_service ..> editor_view
+    cases ..> publication : el caso nuevo nace con checklist
+    publication ..> world_definition : publicar valida el mundo
+    world_definition ..> scenes : mismas opciones de diálogo
+    graph ..> editor_view
+    scenes ..> editor_view
+    tools ..> editor_view
+    cases ..> editor_view
+    publication ..> editor_view
+    editor_view ..> guards
+    note for authoring_service "la auditoría vive aquí, fuera de la transacción:<br/>el registro guarda class = authoring_service como antes"
+    note for guards "además de editor_view, lo importan<br/>graph, scenes, tools, publication y world_definition"
+    note for request_utils "lo importan graph, scenes y publication"
