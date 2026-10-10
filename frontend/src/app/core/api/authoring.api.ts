@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 import {
   CaseEditorView,
   ChecklistUpdateRequest,
@@ -15,6 +15,7 @@ import {
   WorldValidationState
 } from '../models/simulation.model';
 import { ApiResponse } from './api-response';
+import { CaseListCache } from './case-list-cache';
 
 export interface CaseCreateRequest {
   title: string;
@@ -32,6 +33,7 @@ export interface CaseCreateRequest {
 @Injectable({ providedIn: 'root' })
 export class AuthoringApi {
   private readonly http = inject(HttpClient);
+  private readonly caseList = inject(CaseListCache);
 
   caseEditor(caseVersionId: number) {
     return this.http.get<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/editor`)
@@ -40,7 +42,11 @@ export class AuthoringApi {
 
   publishCase(caseVersionId: number) {
     return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/publish`, {})
-      .pipe(map(response => response.data));
+      .pipe(
+        map(response => response.data),
+        // Publicar agrega un caso a la lista de publicados: la lista guardada ya no sirve.
+        tap(() => this.caseList.invalidate()),
+      );
   }
 
   cloneCaseVersion(caseVersionId: number) {
