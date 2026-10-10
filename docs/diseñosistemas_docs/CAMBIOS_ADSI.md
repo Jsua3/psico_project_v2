@@ -640,3 +640,50 @@ Además, varios comentarios repetían el número en palabras («2,5 s», «4,2 s
 **Evidencia.** `docs/diseñosistemas_docs/A-03c/`: `antes_numeros_sueltos.png`, `despues_constantes.png`, `despues_usos.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Antipatrón «Números mágicos» y «Hard Code» (Unidad 4). Cierra la familia A-03 (estados, tiempos y reglas) y deja las reglas del puntaje legibles para la sustentación.
+
+
+### A-04 · Exception Handling — `GoogleLoginView` deja de disfrazar un fallo de la base de datos
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a04-google-login-errors` · `2207f9c` (parte de `adsi/a03c-backend-constants`: PR después de A-03c) |
+| **Antipatrón** | «Exception Handling» (`except Exception` demasiado ancho que reetiqueta el error) |
+| **Archivos** | `users/views.py`; `users/tests/test_google_login_contract.py` (nuevo) y `users/tests/test_auth.py` (una línea) |
+| **Riesgo** | Bajo: una sola búsqueda; el camino correcto no cambia |
+| **Cambio de comportamiento** | **Sí, deliberado:** si la base de datos falla al buscar al usuario, la respuesta pasa de `401 «La cuenta de Google no está asociada a un usuario activo»` a `500 «Error interno del servidor»` |
+
+**Problema (antes).** En `GoogleLoginView.post`, la búsqueda del usuario estaba envuelta así:
+
+```python
+try:
+    user = User.objects.filter(email=email).first()
+except Exception as exc:
+    raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo") from exc
+```
+
+Cualquier excepción —la base de datos caída (`OperationalError`), un error de programación, un `RuntimeError`— se presentaba como un problema de la cuenta del estudiante. Al estudiante le decía «tu cuenta no está asociada» cuando el fallo era del servidor, y para quien vigila el servicio era un 401 corriente: no dejaba ningún error en el registro. Es el más dañino de los nueve `except Exception` del backend, porque convierte un fallo de infraestructura en un error de credenciales.
+
+**Solución (después).** Se quita el `try/except`: la búsqueda no atrapa nada. Un fallo de la base de datos llega al manejador de excepciones del proyecto, que responde `500 «Error interno del servidor»`, y Django lo deja en el registro. Los demás caminos —usuario inexistente o inactivo, correo vacío o sin verificar, credencial rechazada por Google, sin `client_id`— responden igual que antes.
+
+**Decisión de diseño.**
+
+- *Solo este sitio.* Los otros ocho `except Exception` se revisaron y no se tocaron: `audit_service` (×2), `progression/services` y `ai_assistant:143` existen porque la auditoría y el progreso no deben interrumpir el juego (REGLA-006); `access_request_service` y `ai_assistant:64` registran el error y siguen con un mensaje amable; `grupos/services:387` junta el texto del error de cada fila del archivo importado; y `ai_assistant:80` solo cae a un título por defecto. Ninguno convierte un fallo del servidor en un error del cliente sin dejar rastro.
+- *Un 500 y no un 503.* El proyecto ya traduce toda excepción sin tratar a 500 (`custom_exception_handler`); no se inventa otro código para un solo caso.
+
+**Pruebas.** Backend 699 → **706** (+7), `manage.py check` limpio.
+
+- *Caracterización (6, `test_google_login_contract.py`), escritas y verificadas sobre el código original:* usuario inactivo (401), cuenta sin correo (401), credencial que Google rechaza (401), proveedor de Google no instalado (400), cuerpo sin credencial (400) y el defecto mismo: el fallo de la base de datos como 401. Las dos que ejercitan la traducción de errores de `verify_google_credential` usan un transporte de Google falso (ver el hallazgo 2).
+- *El cambio:* la última prueba pasa de esperar `401` a esperar `500 «Error interno del servidor»`. Es el cambio de comportamiento declarado; no hay otra aserción tocada.
+- *Prueba añadida tras la mutación (1):* sin `client_id` configurado responde 400 con el mensaje exacto «El inicio de sesión con Google no está configurado».
+- *Mutaciones, 7:* restaurar el `except`, dejar entrar a un inactivo, no exigir correo verificado, no exigir correo, dejar escapar el `ValueError` de Google, quitar la guarda del `client_id` y responder 403. **Las 7 detectadas**, pero la de la guarda del `client_id` **sobrevivió** al principio: la prueba que ya existía solo pedía que el mensaje nombrara a «Google», y sin la guarda el flujo cae igual en un 400 que también lo nombra (por el hallazgo 2). Se añadió la prueba con el mensaje exacto y entonces se detecta.
+- *Una prueba existente, una línea (declarado):* `test_google_login_rejects_unknown_user(client)` pasó a `(client, db)`. Ninguna aserción cambió. Ver el hallazgo 1.
+
+**Hallazgos.**
+
+1. **Una prueba que pasaba sin ejecutar lo que decía probar.** `test_google_login_rejects_unknown_user` no pedía la fixture `db`, así que pytest-django prohíbe el acceso a la base y la búsqueda del usuario lanzaba `RuntimeError`. El `except Exception` lo tragaba y lo reetiquetaba como 401 «asociada», que era justo lo que la prueba esperaba: pasaba sin que la búsqueda se ejecutara jamás. Al quitar el `except` respondió 500 y se vio. Es el costo concreto del antipatrón: el mismo manejador que esconde los fallos del servidor esconde los de las pruebas.
+2. **El inicio de sesión con Google no puede funcionar tal como se empaqueta.** `requirements.txt` lista `google-auth==2.59.1` pero no `requests`, que `google.auth.transport.requests` necesita (`import requests` falla en el `.venv`, y el `Dockerfile` solo instala `requirements.txt`). `verify_google_credential` siempre termina en su rama `ImportError` y responde `400 «El proveedor de Google no está instalado en el backend»`, aunque se configure `GOOGLE_OAUTH_CLIENT_ID`. No se corrige aquí porque cambia las dependencias que se despliegan: **decisión del equipo** (añadir `requests` o usar `google-auth[requests]`). Hoy el botón está oculto porque, sin `client_id`, `GET /api/auth/google/config` responde `enabled: false`; si se configura el `client_id` sin añadir `requests`, el botón aparece y falla. Las pruebas de este cambio no dependen de `requests`: sustituyen el transporte por uno falso.
+3. **Efecto en la pantalla de inicio de sesión.** `login.component.ts` (`googleErrorMessage`) traduce 401 y 403 a «Esa cuenta de Google no está registrada o está inactiva. Solicita acceso o usa tu correo y contraseña.» y, para cualquier otro estado, muestra el mensaje del servidor. Con el cambio, una caída de la base de datos le muestra al estudiante «Error interno del servidor» en vez de decirle que su cuenta no está registrada. No se tocó el frontend; un texto más amable para los 5xx sería una línea en esa función.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-04/`: `antes_busqueda_del_usuario.png`, `despues_busqueda_del_usuario.png`, `antes_prueba_sin_base.png`, `despues_prueba_con_base.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`; son diagramas de flujo del manejo de errores).
+
+**Relación con la materia.** Antipatrón «Exception Handling» (Unidad 4); la regla de capturar la excepción específica y dejar que el resto suba.

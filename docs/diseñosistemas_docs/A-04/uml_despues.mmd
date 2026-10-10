@@ -1,0 +1,9 @@
+flowchart TD
+    A["POST /api/auth/google"] --> B["verify_google_credential"]
+    B -- "ValueError" --> E401a["401 no se pudo validar la cuenta"]
+    B -- "correcta" --> C["User.objects.filter(email).first()"]
+    C -- "usuario encontrado y activo" --> OK["200 token"]
+    C -- "no existe o inactivo" --> E401b["401 cuenta no asociada"]
+    C -- "la base de datos falla" --> E500["500 Error interno del servidor<br/>(queda en el registro del servidor)"]
+    classDef bien fill:#e0f5e6,stroke:#1e8449
+    class E500 bien
