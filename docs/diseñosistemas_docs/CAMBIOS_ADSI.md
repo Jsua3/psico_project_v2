@@ -314,7 +314,7 @@ _Cada cambio se registra con: patrón o antipatrón, archivos, motivo, riesgo, c
 | `PUT` con una zona menos y etiquetas nuevas | Devuelve las 8 zonas con sus etiquetas originales |
 | Borrar objeto **y** diálogo y guardar | El objeto **reaparece sin su diálogo** |
 
-Consecuencias para este cambio: el estado local del editor queda coherente (objetivo de P-07) y `SetZoneLabelCommand` corrige el deshacer, pero las zonas no se guardan de ninguna forma hoy. Con el macro, al recargar vuelve el objeto sin diálogo; antes de P-07 volvían los dos. Corregirlo exige un cambio de backend aparte (propuesto como A-05: que `save_world` borre los objetos ausentes y persista las zonas, con pruebas previas; es un cambio de comportamiento que toca claves foráneas). **Decisión del equipo antes de fusionar P-07.**
+Consecuencias para este cambio: el estado local del editor queda coherente (objetivo de P-07) y `SetZoneLabelCommand` corrige el deshacer, pero las zonas no se guardan de ninguna forma hoy. Con el macro, al recargar vuelve el objeto sin diálogo; antes de P-07 volvían los dos. Corregirlo exige un cambio de backend aparte (propuesto como A-05: que `save_world` borre los objetos ausentes y persista las zonas, con pruebas previas; es un cambio de comportamiento que toca claves foráneas). **Decisión del equipo antes de fusionar P-07.** *(Actualización: A-05 lo corrige, con pruebas, en su propia rama y PR; la decisión sigue siendo del equipo.)*
 
 **Lo que no cambió** (fijado por las pruebas de Fase 0): los 12 comandos simples (ejecutan sin mutar el estado, ejecutar y deshacer devuelve el mismo contenido, tipo), el orden de la pila y que una acción nueva descarte lo que se podía rehacer, el autoguardado de 1500 ms con sus errores, `applyScenePreset`, `addTemplate`, `updateObjectField` y `deleteSelectedZone`. Siguen sin corregirse los hallazgos 1, 2 y 5 de Fase 0 (el autoguardado muere tras un error, el guardado pendiente bajo otro nodo y que deshacer un borrado repone el elemento al final de la lista).
 
@@ -921,3 +921,54 @@ Cada uno se corrige añadiendo el campo a su `CopySpec` y quitándolo de `KNOWN_
 **Evidencia.** `docs/diseñosistemas_docs/P-05b/`: `antes_un_solo_modulo.png`, `despues_fachada_y_paquete.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
 
 **Relación con la materia.** Facade (patrones estructurales, Unidad 2); responsabilidad única y abierto/cerrado (SOLID); antipatrón «clase Dios / objeto Dios» y, en `save_world`, «función larga» (Unidad 4). Es la contraparte backend de P-05: allí se partió por roles el servicio del frontend; aquí, por responsabilidades, el de autoría.
+
+
+### A-05 · Integridad del guardado del mundo — persiste borrados y zonas, y no se lleva objetos de otra sala
+
+| | |
+|---|---|
+| **Rama / commit** | `adsi/a05-world-save-persistence` · `8e01350` (parte de `adsi/p05b-authoring-facade`: PR después de P-05b) |
+| **Tipo** | Corrección de un defecto de integridad que P-07 dejó anotado, más «función larga» (`save_world`, 110 líneas) |
+| **Archivos** | `services/authoring/world_definition.py`; `tests/test_world_save_persistence.py` (nuevo) |
+| **Riesgo** | Medio-alto: ahora borra datos de autoría que antes no borraba. Protegido por pruebas escritas en rojo antes y por 19 mutaciones |
+| **Cambio de comportamiento** | **Sí, declarado:** (1) los objetos que el editor ya no manda se borran, con sus diálogos; (2) las zonas de colisión se guardan; (3) cada objeto, zona o diálogo se busca por id **solo dentro de la sala** |
+
+**Problema (antes).** Es el «A-05» que P-07 propuso (no es el A-05 del plan v1, el de la rúbrica con dos nomenclaturas, que no se retomó). El editor envía en cada guardado el estado completo de la sala (`objects`, `collisionZones`, `dialogues`), pero `save_world` solo cumplía con una parte:
+
+1. **No borraba los objetos ausentes.** Era un *upsert*: el objeto borrado en el editor reaparecía al recargar, sin su diálogo (los diálogos ausentes sí se borraban).
+2. **Ignoraba `collisionZones` por completo.** Las zonas que el autor coloca, mueve, etiqueta o borra nunca llegaban a la base.
+3. **Buscaba cada objeto por `id` en toda la base**, no en la sala. El editor numera lo nuevo con ids locales (`nextLocalId()` = mayor id de la sala + 1), que pueden coincidir con el id real de un objeto de **otra sala o de otra versión**. Medido en la corrida en rojo: al guardar un objeto nuevo con ese id, el objeto de la sala 50 pasó a la sala 49 con la clave y la etiqueta del nuevo.
+4. **Cada autoguardado duplicaba lo nuevo.** El editor no sustituye los ids locales por los reales tras guardar, y un id local que no existe en la base crea una fila nueva cada vez. Medido con tres autoguardados seguidos del mismo estado: de 4 a **7** objetos (tres copias del objeto nuevo). Con el cambio: de 4 a 5.
+
+**Solución (después).** `save_world` conserva su contrato (el cuerpo es el estado completo de la sala) y lo cumple entero; se parte en un orquestador corto y cinco funciones:
+
+- `_apply_map_definition`: el mapa, igual que antes.
+- `_save_objects`: crea o actualiza cada objeto recibido; el `id` se busca **dentro de la sala**; si no está, se crea uno nuevo.
+- `_save_dialogues`: igual que antes, pero un diálogo solo puede colgar de un objeto que **se queda** en la sala.
+- `_delete_absent_objects`: borra los objetos de la sala que no vinieron, **después** de los diálogos, y borra antes los árboles que colgaban de ellos.
+- `_save_collision_zones`: crea o actualiza cada zona recibida (id dentro de la sala), con ancho y alto mínimos de 1, y borra las ausentes.
+
+Una lista **omitida** no se toca: un cuerpo solo con `map` (o con `revision`) sigue funcionando.
+
+**Decisión de diseño.**
+
+- *Los árboles se borran explícitamente.* La clave foránea `dialogue_trees.map_object_id` es `ON DELETE CASCADE` en el esquema de producción (`deploy/db_seed.sql`) pero `NO ACTION` en el de desarrollo (`bootstrap_dev_db`): borrar el objeto fallaría allí. Se borra el árbol primero, sin depender de la cascada.
+- *Un diálogo que viene en el cuerpo pero cuyo objeto se fue queda sin dueño; no se borra.* El cuerpo lo manda explícitamente, y el editor actual ya manda las dos cosas juntas (macro de P-07).
+- *El orden importa:* objetos → diálogos → borrado de objetos ausentes → zonas. Los diálogos necesitan los objetos nuevos ya guardados, y los objetos solo se pueden borrar cuando ningún árbol que se queda apunta a ellos.
+- *Qué se hace con un id que no está en la sala:* se crea un objeto nuevo y se ignora el id del cuerpo (la base asigna el real). Es lo que ya ocurría con un id inexistente; deja de pasar con uno de otra sala.
+- *`clinicalTools` del cuerpo se sigue ignorando:* las herramientas tienen su propio CRUD y son de la versión, no de la sala.
+- *No se tocó el frontend.* El editor sigue sin adoptar los ids reales tras guardar, así que cada autoguardado vuelve a crear los objetos nuevos con un id distinto (sin duplicados, pero con la fila cambiando). Adoptar los ids de la respuesta en el store es el paso natural; queda como cambio aparte.
+
+**Lo que no cambió:** el candado optimista (409), que solo se guarde un borrador, la auditoría (`ADMIN_SAVE_WORLD`), la transacción, que una lista omitida no toque nada, las otras salas (una prueba compara todas sus filas antes y después), los valores por defecto de los objetos y las pruebas de `test_authoring.py` y de `test_world_authority.py` (ninguna aserción se tocó).
+
+**Pruebas.** Backend 804 → **815** (+11), `manage.py check` limpio.
+
+- *Escritas primero, en rojo (10 pruebas: 8 fallaban y 2 pasaban):* las 8 que fallaban fijan el comportamiento nuevo, una por cada defecto; las 2 que pasaban antes y después fijan lo que no debe cambiar (omitir listas y actualizar por id). Fallaron por la razón esperada: el objeto seguía en la base, las zonas volvían con sus etiquetas originales, el objeto de otra sala se llevaba la clave y la etiqueta del nuevo.
+- *Después:* las 10 en verde. Una más (zona sin clave ni tamaño) se añadió tras las mutaciones: son 11.
+- *Mutaciones, 19:* buscar objetos o zonas en toda la base, no borrar los objetos ni las zonas ausentes, no borrar antes los árboles, dueños de diálogo que incluyen lo que se va o no limitados a lo que queda, nunca borrar o borrar lo que sí viene, que una lista vacía no vacíe la sala (objetos, zonas, diálogos), sin transacción, no devolver lo guardado, ancho o alto mínimo distinto, clave vacía distinta, etiqueta sin guardar y coordenadas intercambiadas. **Las 19 detectadas.** Dos sobrevivieron al principio (el ancho mínimo y la clave por defecto de una zona, que ninguna prueba ejercitaba); se añadió la prueba y se detectan.
+
+**Hallazgos.** (1) El editor no sustituye los ids locales por los reales tras guardar (`executeSave` solo hace `definition.set`): era la causa de los duplicados y sigue causando que las filas nuevas cambien de id en cada guardado. (2) Las dos DDL difieren: en `bootstrap_dev_db` las claves foráneas no tienen `ON DELETE CASCADE` como en `deploy/db_seed.sql`, así que las pruebas corren contra un esquema más estricto que producción (es una ventaja aquí, pero conviene saberlo). (3) Las zonas guardadas ahora entran en las validaciones de geometría de `world_validation`: un autor puede ver errores nuevos al publicar (zonas fuera del mapa, por ejemplo) que antes no aparecían porque sus zonas nunca se guardaban.
+
+**Evidencia.** `docs/diseñosistemas_docs/A-05/`: `antes_guardado_del_mundo.png`, `despues_guardado_del_mundo.png`, `uml_antes.png`, `uml_despues.png` (fuentes Mermaid `.mmd`).
+
+**Relación con la materia.** Antipatrón «función larga» (Unidad 4) y, como defecto, integridad de datos: un identificador generado por el cliente no puede decidir qué fila del servidor se modifica. Responsabilidad única (SOLID): cada paso del guardado es una función con un solo motivo para cambiar.
