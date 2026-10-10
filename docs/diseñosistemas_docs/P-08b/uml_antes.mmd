@@ -1,0 +1,13 @@
+classDiagram
+    direction LR
+    class jwtInterceptor {
+        <<función>>
+        +jwtInterceptor(req, next)
+    }
+    class AuthService
+    class Router
+    class NotificationService
+    jwtInterceptor ..> AuthService : inject
+    jwtInterceptor ..> Router : inject
+    jwtInterceptor ..> NotificationService : inject
+    note for jwtInterceptor "Una sola función hace todo:<br/>agrega el Bearer y, dentro de catchError,<br/>decide con una cascada de if<br/>(no-HTTP, login, 401, 403 en /me, 403, status 0).<br/>La limpieza de sesión está escrita dos veces."

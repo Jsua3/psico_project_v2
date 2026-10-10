@@ -1,0 +1,31 @@
+classDiagram
+    direction TB
+    class HttpErrorHandler {
+        <<abstract>>
+        -next
+        +setNext(handler) HttpErrorHandler
+        +handle(ctx)
+        #canHandle(ctx)*
+        #apply(ctx)*
+    }
+    class HttpErrorContext {
+        error
+        url
+        auth
+        router
+        notifications
+    }
+    HttpErrorHandler <|-- NonHttpErrorHandler
+    HttpErrorHandler <|-- LoginErrorHandler
+    HttpErrorHandler <|-- UnauthorizedHandler
+    HttpErrorHandler <|-- InactiveUserHandler
+    HttpErrorHandler <|-- ForbiddenHandler
+    HttpErrorHandler <|-- NoConnectionHandler
+    HttpErrorHandler ..> HttpErrorContext : recibe
+    class jwtInterceptor {
+        <<función>>
+        +jwtInterceptor(req, next)
+    }
+    jwtInterceptor ..> HttpErrorHandler : errorChain.handle(ctx)
+    note for HttpErrorHandler "Orden de la cadena:<br/>NonHttp → Login → 401 → 403 en /me → 403 → status 0<br/>cada eslabón guarda al siguiente (next);<br/>el primero que reconoce el error lo atiende y corta"
+    note for UnauthorizedHandler "401 y 403 en /me comparten<br/>expireSession(ctx):<br/>antes estaba escrito dos veces"
