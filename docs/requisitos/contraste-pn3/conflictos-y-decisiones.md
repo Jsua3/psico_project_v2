@@ -2,6 +2,8 @@
 
 > Síntesis del contraste de los 60 ítems de la línea base (detalle en [`matriz-cumplimiento.md`](matriz-cumplimiento.md) y [`detalle-por-requisito.md`](detalle-por-requisito.md)). Evaluación: 2026-10-10; redacción: 2026-10-11. Todo lo que aquí se afirma sale de leer el código de `master`; nada se ejecutó. Los valores por defecto de las decisiones son **supuestos de trabajo para que el usuario los revise**, no decisiones tomadas por el equipo.
 
+> **Actualización (2026-10-11, tras la ola 0):** las filas 0.1 a 0.4 y los defectos D-1 a D-4 ya tienen su PR (#64 a #67): ver «Estado de la ola 0» en la sección 2 y «Corregidos» en la sección 3. Las cifras de la lectura rápida y la matriz describen el código **antes** de esos cambios.
+
 **Lectura rápida.** 14 ítems cumplen, 38 cumplen en parte, 1 no se cumple, 5 están en conflicto y 2 no se pueden verificar leyendo código. Casi todo lo «parcial» se explica por cuatro causas: (1) el actor —la línea base dice «profesor» y SIEP deja autorar y publicar solo al administrador—, (2) no hay DSL ni validación al ejecutar, (3) la retroalimentación pedagógica llega en el momento y no al final, (4) faltan pistas, fechas y asignación individual. Lo más urgente no es de la línea base: dos agujeros de acceso a datos de otros docentes y un defecto que borra datos de un nodo al guardarlo (sección 3).
 
 ---
@@ -107,6 +109,8 @@ Prioridad = impacto sobre la línea base, riesgo de datos y esfuerzo; el orden r
 
 Notas de orden: la ola 0 se puede ejecutar ya y en paralelo; la 1 espera #2 y #6; la 2.1 desbloquea el segundo caso (propuesta J) y la 3.2 comparte decisión con la propuesta G (asistente y ayuda).
 
+**Estado de la ola 0 (2026-10-11).** Las cuatro filas se hicieron con la prueba primero, cada una en su PR y sin tocar el esquema: 0.1 → [#64](https://github.com/Jsua3/psico_project_v2/pull/64), 0.2 → [#65](https://github.com/Jsua3/psico_project_v2/pull/65), 0.3 → [#66](https://github.com/Jsua3/psico_project_v2/pull/66) y 0.4 → [#67](https://github.com/Jsua3/psico_project_v2/pull/67). La 0.4 quedó **a medias a propósito**: se añadieron las reglas estructurales a la validación de publicación (`NODE_WITHOUT_OPTIONS`, `NODE_WITHOUT_MAP`, `DECISION_NODE_NOT_IN_CASE`, `UNREACHABLE_NODE`) y el guardián «una decisión solo une nodos de su versión», pero la siembra (`seed_caso_pdf`, `bootstrap_dev_db`) sigue escribiendo `PUBLISHED` sin pasar por la compuerta. El caso sembrado trae además un nodo huérfano (`comisaria-recepcion`, sin opciones y sin entradas): por eso «sin opciones» solo es error en nodos alcanzables y el huérfano sale como advertencia `UNREACHABLE_NODE`. La matriz y el detalle por requisito **no se re-midieron**: describen el código antes de estos cambios.
+
 ---
 
 ## 3. Defectos hallados fuera de la línea base
@@ -127,6 +131,8 @@ Estado: **verificado** = leído en el código por quien redactó este documento;
 | D-10 | La siembra `seed_caso_pdf` borra los intentos de la versión que resiembra: solo la invocan comandos de desarrollo, pero rompe REGLA-005 y RN-06 si se corriera en producción. | `backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1144-1176` | reportado |
 
 D-1 a D-4 no dependen de ninguna decisión de producto y son los primeros candidatos de la ola 0.
+
+**Corregidos (2026-10-11):** D-1, D-2 y D-3 en [#64](https://github.com/Jsua3/psico_project_v2/pull/64) (alcance por docente: el nuevo módulo `apps/simulation/services/instructor_scope.py` calcula los estudiantes de cada docente y el ADMIN sigue viendo todo); D-4 en [#65](https://github.com/Jsua3/psico_project_v2/pull/65) (guardar un nodo conserva sus herramientas y apoyos si el formulario no los trae). Las referencias `ruta:línea` de D-1 a D-4 describen el código **anterior** a esas correcciones: se ven con `git show 700904f:<ruta>`.
 
 ---
 
