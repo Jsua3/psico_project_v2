@@ -83,6 +83,15 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     expect(source).not.toContain('Salida segura (Escape)');
   });
 
+  it('el botón del pie no pisa su nombre con un aria-label: el texto visible es el nombre (WCAG 2.5.3)', () => {
+    const footerButton = source.match(/<button class="safe-exit"[\s\S]*?<\/button>/)?.[0] ?? '';
+    // Con aria-label «Salida segura» y la tecla «Esc» visible, axe 4.14 marca label-content-name-mismatch.
+    expect(footerButton).not.toContain('aria-label');
+    // El texto que da el nombre sigue ahí, y la tecla queda fuera del árbol de accesibilidad.
+    expect(footerButton).toContain("<strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong>");
+    expect(footerButton).toContain('<kbd aria-hidden="true">Esc</kbd>');
+  });
+
   it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
     const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
     expect(notice).toContain('class="pausing-notice"');

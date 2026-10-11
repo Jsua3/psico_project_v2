@@ -379,10 +379,11 @@ const CASE_INTRO_PARAGRAPHS = [
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
           [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
-            <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04). -->
+            <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04).
+                 Sin aria-label: el nombre accesible sale del texto visible («Salida segura» o «Pausando…»; la
+                 tecla Esc es aria-hidden), así contiene su etiqueta visible (WCAG 2.5.3, axe label-content-name-mismatch). -->
             <button class="safe-exit" type="button" (click)="pauseFromOverlay()"
-              [attr.aria-busy]="pausing() ? 'true' : null"
-              [attr.aria-label]="pausing() ? 'Pausando…' : 'Salida segura'">
+              [attr.aria-busy]="pausing() ? 'true' : null">
               <mat-icon aria-hidden="true">exit_to_app</mat-icon>
               <span class="safe-exit__copy"><strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong><kbd aria-hidden="true">Esc</kbd></span>
             </button>
