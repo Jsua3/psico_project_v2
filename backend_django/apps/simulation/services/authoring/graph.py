@@ -45,8 +45,13 @@ def _apply_node_request(node, request):
     node.node_key = request.get("nodeKey")
     node.title = request.get("title")
     node.narrative = request.get("narrative")
-    node.required_tools_json = write_string_list(request.get("requiredTools"))
-    node.support_resources_json = write_string_list(request.get("supportResources"))
+    # Una lista presente (aunque vacía) reemplaza; una ausente significa «no tocar»: el
+    # formulario del editor no las edita y antes las enviaba vacías, borrándolas. En un
+    # nodo nuevo, ausente es lista vacía.
+    if node.pk is None or "requiredTools" in request:
+        node.required_tools_json = write_string_list(request.get("requiredTools"))
+    if node.pk is None or "supportResources" in request:
+        node.support_resources_json = write_string_list(request.get("supportResources"))
     node.sensitive_content = flag(request, "sensitiveContent")
     node.safe_exit_required = flag(request, "safeExitRequired")
     node.warning_message = request.get("warningMessage")

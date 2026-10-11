@@ -25,7 +25,7 @@ import { join } from 'path';
 
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { CaseEditorView } from '../../core/models/simulation.model';
+import { CaseEditorView, NodeEditorState } from '../../core/models/simulation.model';
 import { CaseEditorComponent } from './case-editor.component';
 import type { Mock } from 'vitest';
 
@@ -67,6 +67,8 @@ describe('editor de casos: feedback de acciones (comportamiento)', () => {
     updateChecklist: Mock;
     createTool: Mock;
     deleteNode: Mock;
+    updateNode: Mock;
+    createNode: Mock;
   };
   let notify: { success: Mock; error: Mock };
 
@@ -77,6 +79,8 @@ describe('editor de casos: feedback de acciones (comportamiento)', () => {
       updateChecklist: vi.fn(() => of(editorView)),
       createTool: vi.fn(() => of(editorView)),
       deleteNode: vi.fn(() => of(editorView)),
+      updateNode: vi.fn(() => of(editorView)),
+      createNode: vi.fn(() => of(editorView)),
     };
     notify = { success: vi.fn(), error: vi.fn() };
 
@@ -206,5 +210,36 @@ describe('editor de casos: feedback de acciones (comportamiento)', () => {
 
     expect(sim.deleteNode).toHaveBeenCalledWith(CASE_VERSION_ID, 3);
     expect(notify.success).toHaveBeenCalledWith('Nodo eliminado.');
+  });
+
+  // El formulario del nodo no edita las herramientas requeridas ni los recursos de apoyo;
+  // antes los enviaba siempre vacíos y guardar el título borraba los datos del nodo.
+  it('guardar un nodo existente conserva sus herramientas y sus apoyos', () => {
+    const node = {
+      id: 3, key: 'n-3', title: 'Nodo', narrative: 'Texto', warningMessage: null,
+      startNode: false, terminal: false, sensitiveContent: false, safeExitRequired: false,
+      positionX: 10, positionY: 20, requiredTools: ['PAP'], supportResources: ['Línea 106'],
+    } as unknown as NodeEditorState;
+    component.openPanel({ kind: 'node-edit', node });
+
+    component.saveNode(CASE_VERSION_ID);
+
+    expect(sim.updateNode).toHaveBeenCalledWith(
+      CASE_VERSION_ID,
+      3,
+      expect.objectContaining({ requiredTools: ['PAP'], supportResources: ['Línea 106'] }),
+    );
+  });
+
+  it('un nodo nuevo se crea con las listas vacías', () => {
+    component.openPanel({ kind: 'node-create' });
+    component.nodeForm!.patchValue({ nodeKey: 'nuevo', title: 'Nuevo', narrative: 'Texto' });
+
+    component.saveNode(CASE_VERSION_ID);
+
+    expect(sim.createNode).toHaveBeenCalledWith(
+      CASE_VERSION_ID,
+      expect.objectContaining({ requiredTools: [], supportResources: [] }),
+    );
   });
 });
