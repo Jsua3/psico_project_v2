@@ -1,0 +1,353 @@
+{
+ "grupo": "g4-dsl-publicacion",
+ "items": [
+  {
+   "id": "RF-12",
+   "veredicto": "parcial",
+   "resumen": "La compuerta de validación existe y funciona: bloquea publicar y nombra cada error. Pero no hay un DSL formal; son 14 errores y 1 advertencia codificados a mano en world_validation.py. Esas reglas omiten condiciones estructurales de la línea base (destino de otra versión, nodo sin mapa, nodo sin salida o inalcanzable) y solo el ADMIN puede ejecutar la validación, no el profesor.",
+   "clausulas": [
+    {
+     "texto": "Antes de usar un caso, el sistema debe revisar el caso",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:73 - publish() corre run_world_validation antes de cambiar el estado",
+      "backend_django/apps/simulation/urls_admin.py:47 - POST /api/admin/cases/<id>/world/validate, validación bajo demanda",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:55 - world_editor() incluye la validación en cada lectura (clave validation en :77)",
+      "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:148 - botón Validar",
+      "backend_django/apps/simulation/services/game_service.py:160 - al iniciar un intento NO se revalida, solo se exige PUBLISHED; equivale porque lo publicado es inmutable (backend_django/apps/simulation/services/authoring/guards.py:28)"
+     ]
+    },
+    {
+     "texto": "...que cumpla la estructura definida en el DSL",
+     "estado": "parcial",
+     "evidencia": [
+      "Búsqueda de DSL sin resultados en backend_django/ ni frontend/src/: no existe gramática, JSON Schema ni documento que lo defina",
+      "frontend/src/app/core/models/simulation.model.ts:574 - único equivalente: WorldDefinition v2, contrato canónico entre editor y juego (interfaces TypeScript)",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:62 - el mundo se arma como dict con schemaVersion 2 a partir de tablas",
+      "backend_django/apps/simulation/services/authoring/graph.py:100 - la forma de los datos se valida al escribir (clasificación enum), no contra un esquema",
+      "backend_django/apps/simulation/services/authoring/graph.py:87 - origen y destino de una decisión se buscan por id sin filtrar por versión (contraste: guards.py:39 require_node_in_version)"
+     ]
+    },
+    {
+     "texto": "...que cumpla las reglas definidas en el DSL",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/world_validation.py:37 - reglas vigentes: grafo (un inicial, al menos un terminal, sin ciclos, :52-104), geometría (:112), ética (:144), salida segura (:156), límites (:165)",
+      "backend_django/apps/simulation/services/world_validation.py:52 - no revisa nodo sin mapa, nodo no terminal sin opciones, nodo inalcanzable desde el inicial, decisión sin texto ni destino de otra versión",
+      "backend_django/apps/simulation/services/world_service.py:467 - en juego falla con 'La escena no tiene mapa configurado': error que la validación no anticipa",
+      "docs/informes/2026-10-03-diagnostico-jugabilidad/code-wayfinding.md:383 - WAY-17: tampoco valida referencias requires* ni destinos sin mapa"
+     ]
+    },
+    {
+     "texto": "...y señalar qué hace falta cuando exista algún error",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/world_validation.py:25 - cada incidencia lleva severity, code, message y entityRef",
+      "backend_django/apps/simulation/services/authoring/publication.py:75 - el rechazo concatena [código] mensaje de todos los errores",
+      "backend_django/apps/simulation/tests/test_authoring_operations_contract.py:679 - prueba que el rechazo nombra [NO_SAFE_EXIT]",
+      "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:485 - panel Validación con errores y advertencias",
+      "Salvedades: backend_django/apps/simulation/services/authoring/editor_view.py:59 y frontend/src/app/features/simulator/case-editor.component.ts:61 habilitan Publicar solo por el checklist; entityRef declarado en simulation.model.ts:580 y nunca usado; world-editor.component.ts:494 usa track issue.code (códigos repetidos)"
+     ]
+    },
+    {
+     "texto": "Actor: Profesor / Sistema",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/authoring_views.py:23 - todas las rutas de autoría, incluida world/validate, exigen IsAdmin",
+      "frontend/src/app/app.routes.ts:56 - editor de casos con roleGuard('ADMIN')",
+      "backend_django/apps/simulation/tests/test_authoring.py:55 - el profesor recibe 403 en el editor"
+     ]
+    }
+   ],
+   "brecha": "(1) No existe un DSL formal ni un documento de reglas citable. (2) Faltan reglas estructurales que hoy solo fallan en juego: nodo sin mapa, nodo no terminal sin opciones, nodo inalcanzable, decisión con origen o destino de otra versión, referencias requires* desconocidas. (3) El profesor no puede validar: solo el ADMIN. (4) En el editor de casos el botón Publicar no refleja la validación.",
+   "accion": "1) Añadir a world_validation.validate las reglas estructurales (nodo sin mapa, no terminal sin opciones, inalcanzable, destino de otra versión; advertencia para requires* desconocidas) y exigir la versión en graph._apply_decision_request. 2) Documentar la lista de reglas con código, severidad y mensaje como especificación del DSL. 3) Mostrar los errores en la cabecera del editor y deshabilitar Publicar si canPublish es false. 4) Si el profesor autora, abrir world/validate a PROFESOR con control de propiedad. 5) Una prueba unitaria por código (hoy solo NO_SAFE_EXIT se ejercita).",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿La línea base exige un DSL formal (gramática o JSON Schema versionado) o basta documentar las reglas de WorldDefinition v2? ¿Quién valida: solo ADMIN (hoy) o también PROFESOR? ¿Qué reglas nuevas bloquean (error) y cuáles solo avisan (advertencia)?",
+   "terminologia": "caso = versión de caso (CaseVersion en DRAFT) dentro de un SimulationCase. DSL = no existe como lenguaje; equivale al contrato WorldDefinition v2 (JSON, schemaVersion 2) más las reglas de world_validation.py. Estructura = grafo de nodos y decisiones (escena = nodo con su mapa o sala; conclusión = nodo terminal) más mapas y objetos. Reglas = códigos NO_START_NODE, GRAPH_CYCLE, NO_SAFE_EXIT, etc. Señalar qué hace falta = lista {severity, code, message, entityRef}. Usar = publicar o iniciar un intento. Profesor = hoy rol ADMIN en el editor.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_la_validacion_del_mundo_exige_una_salida_segura (:598)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra (:679)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_validate_world (:143, solo la forma de la respuesta)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_checklist_full_then_publish (:241)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_editor_forbidden_for_profesor (:55)",
+    "frontend/src/app/features/simulator/world-editor/world-editor.store.commands.spec.ts (validate)"
+   ]
+  },
+  {
+   "id": "RF-13",
+   "veredicto": "parcial",
+   "resumen": "Se puede pasar de borrador a publicado, con compuertas de checklist y validación. No existe ninguna operación de archivar ni de volver a borrador: ARCHIVED solo lo escribe un comando de siembra. Además solo el ADMIN puede publicar, no el profesor.",
+   "clausulas": [
+    {
+     "texto": "Existen los estados borrador, publicado y archivado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/models/case.py:10 - CaseVersionStatus: DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED",
+      "deploy/db_seed.sql:489 - CHECK de status en case_versions"
+     ]
+    },
+    {
+     "texto": "Cambiar de borrador a publicado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:57 - publish() exige DRAFT, checklist 100% y validación sin errores; fija status y published_at (:82-84)",
+      "backend_django/apps/simulation/urls_admin.py:31 - POST /api/admin/cases/<id>/publish",
+      "backend_django/apps/simulation/services/authoring_service.py:151 - auditado como ADMIN_PUBLISH_CASE",
+      "frontend/src/app/features/simulator/case-editor.component.ts:61 - botón Publicar con confirmación (:1052)",
+      "backend_django/apps/simulation/tests/test_authoring_operations_contract.py:662 - publicar deja PUBLISHED con fecha"
+     ]
+    },
+    {
+     "texto": "Cambiar a archivado",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/urls_admin.py:28 - ninguna ruta de archivar en todo el conjunto de rutas; authoring_service.py no tiene operación equivalente",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1412 - única escritura de ARCHIVED fuera de pruebas: comando de siembra (:1428 desactiva casos legados con active=False)",
+      "backend_django/apps/simulation/tests/test_authoring_operations_contract.py:646 - la prueba fuerza ARCHIVED con un UPDATE directo",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:468 - solo existe la etiqueta 'Archivado'",
+      "backend_django/apps/simulation/services/authoring/publication.py:82 - publicar una versión nueva no archiva la anterior; ambas quedan PUBLISHED y visibles (game_service.py:124)"
+     ]
+    },
+    {
+     "texto": "Volver a borrador (o salir de archivado)",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/guards.py:28 - ensure_draft: una versión que no es DRAFT no se modifica",
+      "backend_django/apps/simulation/services/authoring/publication.py:61 - PUBLISHED y ARCHIVED rechazan publicar (:65)",
+      "backend_django/apps/simulation/services/authoring/publication.py:89 - la salida prevista es clonar a un DRAFT nuevo (REGLA-005, docs/PLAN_MAESTRO_TOTAL.md:33)"
+     ]
+    },
+    {
+     "texto": "Actor: Profesor / Administrador",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/authoring_views.py:23 - IsAdmin en todas las rutas; PublishView en :41",
+      "backend_django/apps/simulation/tests/test_authoring.py:126 - el profesor recibe 403 al crear un caso"
+     ]
+    },
+    {
+     "texto": "Estado del caso (no solo de su versión)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/models/case.py:49 - el estado vive en CaseVersion",
+      "backend_django/apps/simulation/models/case.py:27 - SimulationCase solo tiene active y ningún endpoint lo cambia"
+     ]
+    }
+   ],
+   "brecha": "Falta archivar (y cualquier despublicar), el profesor no puede cambiar estados y el estado es por versión, no por caso. Al publicar una versión nueva la anterior sigue publicada y visible para estudiantes. Archivar versiones solo es posible por comando de siembra o SQL.",
+   "accion": "Añadir publication.archive(case_version_id) (PUBLISHED o DRAFT a ARCHIVED) con @auditable en authoring_service.py, ruta POST /api/admin/cases/<id>/archive y botón Archivar con confirmación en case-editor. Ajustar instructor_service.recent_attempts (filtra PUBLISHED) para que los intentos de versiones archivadas no desaparezcan del seguimiento. Opcional: al publicar, archivar la versión publicada anterior del mismo caso. Si el profesor debe poder, usar IsProfesorOrAdmin con propiedad del caso (SimulationCase.created_by).",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Publican y archivan solo ADMIN (hoy) o también PROFESOR? ¿Archivar actúa sobre la versión o sobre el caso completo (active)? ¿Volver a borrador es reabrir (rompe REGLA-005) o basta clonar? ¿Qué pasa con intentos en curso y asignaciones de grupo de una versión archivada?",
+   "terminologia": "caso = SimulationCase (contenedor: code, title, active) + CaseVersion (unidad que se publica: semantic_version + status). borrador = DRAFT; publicado = PUBLISHED; archivado = ARCHIVED. IN_REVIEW existe en esquema y modelo sin uso (RQ-NEG-008 pide aprobación por roles). Cambiar el estado = publish() y, para volver a editar, clone_version().",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_deja_la_version_publicada_con_su_fecha (:662)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_una_version_ya_publicada_se_rechaza (:655)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_una_version_archivada_tampoco_se_modifica_ni_se_publica (:645)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_ninguna_mutacion_sobre_una_version_publicada_pasa_ni_deja_rastro (:557)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_publish_blocked_without_checklist (:219)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_create_case_forbidden_for_profesor (:126)",
+    "frontend/src/app/features/simulator/case-editor.feedback.spec.ts (confirmación y errores de publicar)"
+   ]
+  },
+  {
+   "id": "CU-05",
+   "veredicto": "parcial",
+   "resumen": "Revisar reglas y publicar existen de punta a punta en la interfaz del ADMIN, con checklist, validación y confirmación. Faltan archivar y volver a borrador, la validación solo cubre parte de las reglas y el profesor no participa.",
+   "clausulas": [
+    {
+     "texto": "Revisar que el caso cumpla las reglas definidas (RF-12)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/urls_admin.py:47 - endpoint de validación",
+      "backend_django/apps/simulation/services/authoring/publication.py:73 - validación como compuerta",
+      "backend_django/apps/simulation/services/world_validation.py:52 - reglas estructurales incompletas (ver RF-12)"
+     ]
+    },
+    {
+     "texto": "Publicarlo (RF-13)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/case-editor.component.ts:61 - botón Publicar con confirmación",
+      "backend_django/apps/simulation/services/authoring/publication.py:57 - publish()",
+      "frontend/src/app/core/api/authoring.api.ts:43 - publishCase invalida la lista en caché"
+     ]
+    },
+    {
+     "texto": "Archivarlo",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/urls_admin.py:28 - sin ruta de archivar",
+      "frontend/src/app/features/simulator/case-editor.component.ts:58 - la cabecera solo ofrece Clonar versión y Publicar"
+     ]
+    },
+    {
+     "texto": "Dejarlo como borrador",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/cases.py:55 - los casos nacen en DRAFT; basta con no publicar",
+      "backend_django/apps/simulation/services/authoring/publication.py:96 - el clon nace en DRAFT",
+      "backend_django/apps/simulation/services/authoring/guards.py:28 - no hay acción para volver de PUBLISHED a borrador"
+     ]
+    },
+    {
+     "texto": "Actor: Profesor / Sistema",
+     "estado": "no_cumple",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:56 - roleGuard('ADMIN') en el editor",
+      "backend_django/apps/simulation/views/authoring_views.py:23 - IsAdmin"
+     ]
+    },
+    {
+     "texto": "Flujo completo en la interfaz",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/app/features/simulator/case-authoring-hub.component.ts:79 - hub, editor, checklist (case-editor.component.ts:196), pestaña Mundo con Validar, Publicar",
+      "backend_django/apps/simulation/services/authoring/editor_view.py:59 - Publicar se habilita por checklist aunque la validación falle; el rechazo llega después como notificación",
+      "frontend/e2e - ningún e2e cubre validar ni publicar"
+     ]
+    }
+   ],
+   "brecha": "El flujo cubre validar y publicar solo para ADMIN. No hay archivar ni despublicar. La validación no se ve en el editor de casos antes de pulsar Publicar. No hay prueba e2e del flujo.",
+   "accion": "Cerrar RF-13 (acción de archivar) y RF-12 (reglas faltantes). Mostrar en el editor el resumen de validación (errores y advertencias de world/validate) junto al checklist y habilitar Publicar solo con checklist 100% y canPublish. Añadir un e2e Playwright: crear caso, validar, publicar, archivar.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Misma decisión de roles que RF-12 y RF-13: ¿el profesor valida, publica y archiva, o el CU se reasigna al ADMIN con el profesor como solicitante?",
+   "terminologia": "Validar y publicar caso = checklist ético (6 ítems) + world/validate + publish sobre una CaseVersion. Revisar reglas = validación del mundo (errores bloquean, advertencias no). Borrador = DRAFT; archivar = ARCHIVED sin operación. Sistema = backend Django (services/authoring).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_authoring.py::test_checklist_full_then_publish (:241)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra (:679)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_checklist_publicar_y_clonar_dejan_su_rastro (:448)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_el_checklist_completo_queda_completo_y_el_parcial_pendiente (:697)",
+    "frontend/src/app/features/simulator/case-editor.feedback.spec.ts"
+   ]
+  },
+  {
+   "id": "RN-03",
+   "veredicto": "cumple",
+   "resumen": "El backend impide que un estudiante vea, reciba asignado o inicie un caso cuya versión no esté PUBLISHED (y activa). Falta una prueba directa de ese rechazo.",
+   "clausulas": [
+    {
+     "texto": "Un estudiante no puede iniciar ni retomar un intento sobre un caso no publicado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:58 - _require_published: status distinto de PUBLISHED o caso inactivo da 403",
+      "backend_django/apps/simulation/services/game_service.py:162 - start_attempt lo exige; find_active_attempt en :207",
+      "backend_django/apps/simulation/views/game_views.py:38 - StartAttemptView"
+     ]
+    },
+    {
+     "texto": "El estudiante solo ve casos publicados",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:124 - list_published_cases filtra PUBLISHED y activos",
+      "backend_django/apps/progression/catalog.py:13 - build_catalog igual"
+     ]
+    },
+    {
+     "texto": "No se puede asignar a un grupo un caso no publicado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:571 - asignar_caso rechaza lo no publicado o inactivo"
+     ]
+    },
+    {
+     "texto": "El único camino a PUBLISHED dentro de la app pasa por publish() con sus compuertas",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:82 - único setter de PUBLISHED en servicios y vistas",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1144 - excepción: la siembra fija PUBLISHED sin validar (también bootstrap_dev_db.py:452)"
+     ]
+    },
+    {
+     "texto": "Intentos ya abiertos cuando la versión deja de estar publicada",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:67 - _require_attempt no revisa el estado de la versión; no existe operación de archivar, así que el caso es hoy inalcanzable salvo SQL"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha de producto. Faltan pruebas del rechazo (DRAFT, ARCHIVED y caso inactivo dan 403). La interfaz ofrece Probar caso sobre borradores y muestra un error genérico.",
+   "accion": "Sin cambio obligatorio. Recomendado (S): añadir pruebas para _require_published con DRAFT, ARCHIVED y active=False, y que simulation-play muestre el mensaje del backend 'El caso no está publicado' en lugar del genérico.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "caso = CaseVersion con status PUBLISHED y SimulationCase.active=true. Estar publicado = PUBLISHED. Utilizar = iniciar o retomar un intento y verlo en listados. Estudiante = rol ESTUDIANTE (el ADMIN también juega lo publicado).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py::test_start_attempt_requires_group_case_assignment (:83, cubre asignación, no estado)",
+    "backend_django/apps/simulation/tests/test_game.py::test_cases_lists_only_assigned_for_students (:73)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_una_version_ya_publicada_se_rechaza (:655)"
+   ]
+  },
+  {
+   "id": "RN-05",
+   "veredicto": "parcial",
+   "resumen": "Un caso con errores de validación no puede publicarse (rechazo 400 en el backend, con prueba). No hay verificación al ejecutar: depende de que el estado PUBLISHED solo se alcance por publish(), y la siembra y la vista previa del editor ejecutan sin pasar la compuerta. Las reglas validadas son además incompletas.",
+   "clausulas": [
+    {
+     "texto": "Si no cumple las reglas, no podrá publicarse",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:73 - rechaza con 400 si hay errores y los nombra",
+      "backend_django/apps/simulation/tests/test_authoring_operations_contract.py:679 - prueba el rechazo y que queda en DRAFT",
+      "backend_django/apps/simulation/views/authoring_views.py:41 - la compuerta está en el backend, no solo en la interfaz"
+     ]
+    },
+    {
+     "texto": "Si no cumple las reglas, no podrá ejecutarse",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:58 - la ejecución solo comprueba el estado PUBLISHED; no hay revalidación al iniciar (:160)",
+      "backend_django/apps/simulation/services/authoring/guards.py:28 - lo publicado es inmutable: lo ejecutado es lo validado (prueba test_authoring_operations_contract.py:557)",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1141 - la siembra escribe PUBLISHED sin validar (también bootstrap_dev_db.py:452)",
+      "frontend/src/app/features/simulator/world-preview.component.ts:603 - la vista previa del editor ejecuta un borrador inválido solo con advertencia"
+     ]
+    },
+    {
+     "texto": "...las reglas definidas en el DSL (alcance del conjunto validado)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/world_validation.py:37 - 14 errores y 1 advertencia; sin DSL formal",
+      "backend_django/apps/simulation/services/world_service.py:467 - pasan la validación y fallan en juego: nodo sin mapa ('La escena no tiene mapa configurado'), destino sin sala (:421), puerta sin entrada autorada (:458)",
+      "backend_django/apps/simulation/services/authoring/graph.py:87 - decisión con origen o destino de otra versión no se rechaza"
+     ]
+    },
+    {
+     "texto": "Integridad de la compuerta (sin atajos en la app)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:57 - validación y cambio de estado sin bloqueo de fila: una edición concurrente puede colarse entre ambos pasos",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:152 - la revisión no se incrementa, así que el control optimista del guardado no detecta conflictos"
+     ]
+    }
+   ],
+   "brecha": "(1) Ninguna verificación al ejecutar ni en los comandos de siembra. (2) El conjunto de reglas no cubre todo lo que rompe en juego ni la estructura base (RN-02). (3) La vista previa ejecuta borradores inválidos. (4) Compuerta sin bloqueo de fila.",
+   "accion": "Extraer ensure_publishable(version) (checklist + validación) en publication.py y usarla desde publish() y desde seed_caso_pdf y bootstrap_dev_db, de modo que ningún camino marque PUBLISHED sin pasar. Añadir una prueba que recorra todas las versiones PUBLISHED sembradas y exija canPublish. Completar las reglas faltantes (ver RF-12). Opcional: select_for_update de la versión en publish() y mostrar el error de validación al ejecutar la vista previa.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Ejecutar incluye la vista previa del editor y Probar caso sobre borradores? Si se endurecen las reglas, ¿una versión ya publicada que deja de validar debe bloquearse en juego o solo marcarse para revisión?",
+   "terminologia": "Reglas definidas en el DSL = códigos de world_validation.py (no existe DSL). Publicarse = pasar publish() con checklist 100% y sin errores. Ejecutarse = iniciar o continuar un intento (start_attempt y siguientes) o recorrer la vista previa del editor. Caso = CaseVersion.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra (:679)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_la_validacion_del_mundo_exige_una_salida_segura (:598)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_ninguna_mutacion_sobre_una_version_publicada_pasa_ni_deja_rastro (:557)",
+    "backend_django/apps/simulation/tests/test_authoring.py::test_checklist_full_then_publish (:241)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_deja_la_version_publicada_con_su_fecha (:662, prueba indirecta de que el caso sembrado valida)"
+   ]
+  }
+ ],
+ "observaciones": [
+  "No existe un DSL. La palabra DSL no aparece en backend_django/ ni en frontend/src/. Hay una definición JSON del mundo (WorldDefinition v2, schemaVersion 2, frontend/src/app/core/models/simulation.model.ts:574, backend_django/apps/simulation/services/authoring/world_definition.py:62) con validadores propios en backend_django/apps/simulation/services/world_validation.py. Para el texto base, DSL equivale hoy a esa definición más sus reglas, sin gramática ni esquema versionado.",
+  "Modelo de roles: toda la autoría (validar, publicar, clonar) es solo ADMIN (backend_django/apps/simulation/views/authoring_views.py:23; frontend/src/app/app.routes.ts:56). La línea base asigna al Profesor RF-05 a RF-13 y CU-04/CU-05. Es una decisión de producto transversal al grupo de autoría, no un defecto de este grupo, y las pruebas la fijan (test_authoring.py:55 y :126).",
+  "Archivado y versionado: ninguna operación de la app archiva (solo seed_caso_pdf.py:1412 y SQL). Publicar una versión nueva deja la anterior PUBLISHED; ambas aparecen en el catálogo y build_catalog las trata como entradas distintas (backend_django/apps/progression/catalog.py:13-31). Archivar además haría desaparecer los intentos de esa versión de instructor_service.recent_attempts (:64, filtra PUBLISHED).",
+  "Cobertura: de los 15 códigos de world_validation.py solo NO_SAFE_EXIT se ejercita en pruebas (test_authoring_operations_contract.py:611). Es una función pura sobre un dict, fácil de probar por regla. No existe prueba del rechazo de _require_published (no hay ninguna aserción con 'no está publicado').",
+  "Hay fallos de juego que el validador no anticipa: nodo sin mapa (world_service.py:467), destino sin sala (:421) y puerta sin entrada autorada (:458). Un caso publicado puede pasar validación y romperse al jugar, lo que debilita RN-05 aunque la compuerta funcione.",
+  "Incoherencia de interfaz: el botón Publicar se habilita por editor.publishable, que solo refleja el checklist (editor_view.py:59), mientras la validación vive en la pestaña Mundo y solo se muestra al abrir un nodo. El usuario descubre el rechazo después de confirmar. El campo entityRef de cada error nunca se usa para ubicar la entidad.",
+  "Probar caso (case-authoring-hub.component.ts:83) lleva a jugar cualquier estado, incluido DRAFT. El backend responde 'El caso no está publicado' (game_service.py:63) pero simulation-play.component.ts:1606 muestra un mensaje genérico de permisos. La prueba de un borrador se hace en la pestaña Vista previa.",
+  "Concurrencia: publish() no bloquea la fila y save_world compara una revisión que nunca se incrementa (world_definition.py:152), por lo que la detección de conflictos es nominal. Riesgo bajo (un solo autor ADMIN), pero relevante si el profesor pasa a autorar.",
+  "El validador no comprueba que el caso resuelva una rúbrica (RF-22): rubric_service.rubric_for_case_version (:297) lanza NotFound si no hay asignada, propia ni predeterminada. Pertenece a otro grupo de requisitos.",
+  "IN_REVIEW existe en el modelo y en el CHECK de la base (deploy/db_seed.sql:489) pero ningún código lo usa; el requisito de negocio RQ-NEG-008 (docs/requisitos/negocio/requisitos-de-negocio.csv:9) pide aprobación por roles antes de publicar. Es el hueco natural para el flujo Profesor propone / ADMIN publica.",
+  "El esquema de desarrollo (bootstrap_dev_db.py:45-92) no tiene el CHECK de status ni las UNIQUE de node_key y option_key que sí trae deploy/db_seed.sql:489, :3575 y :3903. El validador tampoco revisa claves duplicadas. No se verificó qué esquema usan las pruebas."
+ ]
+}

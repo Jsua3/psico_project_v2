@@ -1,0 +1,77 @@
+{
+ "grupo": "lote3",
+ "lente": "falso-incumple",
+ "revision": [
+  {
+   "id": "RN-06",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El texto base pide que cada intento se guarde de manera independiente para no reemplazar los anteriores. El codigo crea una fila nueva con su propio token y eventos. forceNew solo cambia el estado del intento abierto a REPLACED y fija ended_at y locked_at, sin borrar ni sobrescribir datos; los cerrados no se tocan. El nombre REPLACED es colision terminologica, no perdida de datos; no hay argumento para bajar el veredicto.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:142-157 (_close_active_attempts solo cambia estado, ended_at, locked_at y anade evento)",
+    "backend_django/apps/simulation/services/game_service.py:187-200 (fila nueva con token propio)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:284-295 (forceNew no toca los cerrados)"
+   ]
+  },
+  {
+   "id": "RN-07",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Se busco una guarda que impida el camino con forceNew y no existe. start_attempt cierra en la misma transaccion los intentos abiertos (IN_PROGRESS y PAUSED) y crea otro; la UI ofrece Iniciar nuevo intento sin confirmacion. La defensa posible es que nunca hay dos abiertos a la vez porque el cierre es atomico, pero la clausula literal dice que no podra iniciar otro si tiene uno en progreso, y el sistema lo permite explicitamente y lo fija una prueba. El conflicto se sostiene.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:160-181 (@transaction.atomic; forceNew llama a _close_active_attempts y sigue creando)",
+    "backend_django/apps/simulation/serializers/requests.py:6 (forceNew por defecto false, controlado por el cliente)",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:183-185 (boton Iniciar nuevo intento sin confirmacion)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:270-281 (fija que forceNew reemplaza al abierto)"
+   ]
+  },
+  {
+   "id": "RN-08",
+   "acuerdo": false,
+   "veredicto_revisado": "parcial",
+   "motivo": "El texto base prescribe dos momentos: la consecuencia en el momento y la retroalimentacion pedagogica al terminar. No prohibe mostrar nada antes del cierre, asi que el conflicto exige una contradiccion activa que no se demuestra. La consecuencia en el momento si se cumple (el nodo destino y su narrativa se entregan al decidir). La retroalimentacion pedagogica al terminar no se cumple: el reporte de cierre no trae la explicacion por decision. Eso da parcial, no conflicto. La nota de separacion consecuencia/pedagogia es columna de notas en la base y no cambia el veredicto.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:401-404 (la decision mueve al nodo destino; consecuencia en el momento)",
+    "backend_django/apps/simulation/serializers/game_dtos.py:270-327 (el reporte de cierre no incluye explicacion por decision)",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:2614-2644 (dialogo Supervision clinica tras cada decision)",
+    "docs/requisitos/baseline-pn3/03-reglas-de-negocio.md:14 (texto base y nota de separacion)"
+   ]
+  },
+  {
+   "id": "RN-09",
+   "acuerdo": false,
+   "veredicto_revisado": "parcial",
+   "motivo": "Se busco el requisito de nota oficial y el sistema no la declara oficial: no hay marca de oficial, no sale en reportes ni CSV y el estudiante no la ve. Pero el motor calcula un total ponderado de 1.00 a 5.00 (validado por criterio) que se muestra al docente como total. Eso contradice la nota de la base, que deja la calificacion numerica para una fase posterior, pero el texto principal solo prohibe nota oficial. Veredicto parcial: la parte de valoracion formativa cumple y la parte de no nota oficial solo se cumple en la forma. Si se lee cualquier total numerico 1-5 como nota oficial, seria conflicto; la lectura estricta del texto no lo exige.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/rubric_service.py:412-430 (validacion 1.0-5.0; total ponderado redondeado a 2 decimales)",
+    "backend_django/apps/simulation/services/instructor_service.py:134-145 (totalScore expuesto solo al docente)",
+    "docs/requisitos/baseline-pn3/03-reglas-de-negocio.md:15 (texto base: no nota oficial de 0,0 a 5,0)"
+   ]
+  },
+  {
+   "id": "RN-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Verificado en codigo: _require_published rechaza con PermissionDenied si la version no esta PUBLISHED o el caso esta inactivo, y start_attempt la exige antes de crear intento. La clausula de intentos ya abiertos tras dejar de publicarse no forma parte del texto base y no debe bajar el veredicto; ademas el sistema no tiene operacion para despublicar. La falta de prueba directa es una recomendacion, no un defecto de cumplimiento.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:58-64 (_require_published)",
+    "backend_django/apps/simulation/services/game_service.py:162 (start_attempt lo exige)"
+   ]
+  },
+  {
+   "id": "RNF-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Solo se revisaron las citas del evaluador (no reabri el codigo de viewports). El texto base pide que la interfaz pueda usarse desde computador, tableta y celular; el requisito es de capacidad, no de verificacion automatica. Las citas muestran diseno responsivo para los tres formatos y recorrido automatico en computador y celular del estudiante. La tableta tiene evidencia de CSS y de playtest manual. Las salvedades (portal sin viewport de prueba, tableta fuera de la matriz automatica) son huecos de verificacion, no de comportamiento, y no justifican bajar a parcial. Queda como no verificado con prueba automatica el portal en tableta.",
+   "evidencia": [
+    "frontend/e2e/support/required-viewports.ts:4-7 (viewports de computador y celular)",
+    "frontend/src/app/shared/layout/shell.component.ts:643-651 (menu movil bajo 920 px)",
+    "docs/informes/2026-10-04-informe-sesion-jugabilidad.md:51 (aviso visible en 1024x768)"
+   ]
+  }
+ ],
+ "clausulas_omitidas": [
+  "RN-09: la nota del texto base dice que la calificacion numerica podra evaluarse en una fase posterior (docs/requisitos/baseline-pn3/03-reglas-de-negocio.md:15, columna de notas). El evaluador no la listo como clausula; es la que hace que el total 1-5 sea relevante y debe considerarse al decidir RN-09.",
+  "RN-08: la nota Se separa consecuencia narrativa de retroalimentacion pedagogica (03-reglas-de-negocio.md:14) el evaluador si la incluyo como no_cumple; no se omite, pero se trata como nota y no como clausula principal."
+ ]
+}

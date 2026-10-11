@@ -1,0 +1,338 @@
+{
+ "grupo": "g9-rnf-a",
+ "items": [
+  {
+   "id": "RNF-01",
+   "veredicto": "cumple",
+   "resumen": "Las contraseñas se guardan solo como hash bcrypt con sal (10 rondas) en todas las vías de alta (admin, registro, importación Excel, semillas). No se devuelven por la API ni se guardan en el cliente. Punto débil operativo fuera del texto literal: la contraseña por defecto compartida de los importados.",
+   "clausulas": [
+    {
+     "texto": "Las credenciales se guardan de forma segura (hash con sal, no reversible)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/models.py:78-86 (set_password: bcrypt.hashpw + gensalt(rounds=10); columna password_hash en :44)",
+      "backend_django/psychosim/settings/base.py:84-88 (PASSWORD_HASHERS con BCrypt primero)",
+      "backend_django/apps/users/serializers.py:75-86 y 140-141 (alta y cambio de clave pasan por create_user/set_password)",
+      "backend_django/apps/grupos/services.py:435-442 (importación masiva usa create_user)",
+      "backend_django/apps/users/management/commands/seed_demo_users.py:57 (semillas vía create_user)",
+      "deploy/db_seed.sql:3128-3146 (la tabla users del volcado solo trae hashes $2b$10$)"
+     ]
+    },
+    {
+     "texto": "No quedan almacenadas como texto visible (un valor que no sea hash no valida)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/models.py:88-99 (check_password: bcrypt.checkpw para $2; otro formato va al verificador de Django, que rechaza lo que no sea un hash reconocible)",
+      "backend_django/apps/users/tests/test_models.py:22-23 (la clave guardada empieza por $2)"
+     ]
+    },
+    {
+     "texto": "La credencial no se expone por la API ni se persiste en el cliente",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/serializers.py:54, 119 y 131 (password write_only)",
+      "backend_django/apps/users/serializers.py:36-41 (UserSummarySerializer sin password)",
+      "frontend/src/app/features/login/login.component.html:127-133 (input type=password con alternar visibilidad)",
+      "frontend/src/app/features/login/login.component.ts:310-314 (solo se recuerda el correo)",
+      "frontend/src/app/core/auth/auth.service.ts:60 (se guarda el token JWT, no la clave)"
+     ]
+    }
+   ],
+   "brecha": "Ninguna contra el literal. Riesgos operativos: (1) IMPORTED_STUDENT_DEFAULT_PASSWORD tiene valor por omisión en el código (settings/base.py:122-124), se devuelve en claro al docente (grupos/services.py:349) y se escribe en la plantilla (services.py:246); no hay cambio de clave por el propio usuario (apps/users/urls.py:13-18), así que los importados la conservan hasta que un ADMIN la edite. (2) Las claves de demostración están documentadas (docs/operacion/despliegue-railway.md:101-106) y el volcado las restaura en producción. (3) Sin límite de intentos de login ni validadores de contraseña de Django.",
+   "accion": "Para la línea base, ninguna. Endurecimiento opcional: exigir cambio de clave en el primer ingreso o generar una temporal por usuario, no restaurar usuarios demo en producción, y agregar throttling al login.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Ninguna para cumplir el texto. Opcional: política de contraseña inicial de los importados (hoy se mantiene la compartida por decisión del equipo, «así por ahora»).",
+   "terminologia": "«Credenciales» = correo + contraseña de CustomUser (tabla users, columna password_hash). «Texto visible» = contraseña en claro. «De forma segura» = hash bcrypt con sal. Nota: el catálogo propio del equipo usa IDs de 3 dígitos (docs/requisitos/no-funcionales/RNF-00x.md) con otro significado (p. ej. su RNF-002 es control de acceso por rol); no confundir con RNF-01 de la línea base.",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_models.py:7-23",
+    "backend_django/apps/users/tests/test_auth.py:318-345 (cambio de contraseña con hash y verificación)",
+    "backend_django/shared/tests/test_dependency_compat.py:49-66 (vectores bcrypt y formato $2b$10$)",
+    "backend_django/apps/grupos/tests/test_imported_password_setting.py:51-77"
+   ]
+  },
+  {
+   "id": "RNF-02",
+   "veredicto": "parcial",
+   "resumen": "El código está preparado para HTTPS detrás de un proxy (production.py reconoce X-Forwarded-Proto, cookies seguras, cliente con rutas relativas y https hacia terceros), pero no fuerza HTTPS: la redirección está apagada por defecto, no hay HSTS y no hay prueba. La conexión segura depende de la terminación TLS de Railway, que no se puede verificar leyendo el repositorio.",
+   "clausulas": [
+    {
+     "texto": "Desplegada, la información usuario-sistema viaja por conexión segura (HTTPS/TLS)",
+     "estado": "parcial",
+     "evidencia": [
+      "Dockerfile:17 y :29 (settings de producción por defecto; gunicorn sirve HTTP plano en $PORT, sin TLS propio)",
+      "backend_django/psychosim/settings/production.py:75-76 (SECURE_PROXY_SSL_HEADER = HTTP_X_FORWARDED_PROTO https)",
+      "railway.json:1-11 (sin configuración de TLS: lo da la plataforma)",
+      "docs/operacion/despliegue-railway.md:99-100 (la verificación indica abrir https://TU-DOMINIO/)"
+     ]
+    },
+    {
+     "texto": "El sistema no sirve ni acepta tráfico por HTTP plano (redirección y HSTS)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/psychosim/settings/production.py:70-73 (SECURE_SSL_REDIRECT sale de DJANGO_SECURE_SSL_REDIRECT, por defecto false)",
+      ".env.example:45-46 (comentario dice que por defecto no redirige, pero la variable de ejemplo está en true)",
+      "Grep: ningún SECURE_HSTS_* en backend_django/psychosim/settings",
+      "backend_django/psychosim/settings/base.py:36 (SecurityMiddleware instalado, así que la redirección se puede activar por variable)"
+     ]
+    },
+    {
+     "texto": "Cookies y credenciales solo por canal seguro",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/psychosim/settings/production.py:77-78 (SESSION_COOKIE_SECURE y CSRF_COOKIE_SECURE)",
+      "backend_django/psychosim/settings/production.py:51-52 (CSRF_TRUSTED_ORIGINS solo https)",
+      "La autenticación es por JWT en cabecera, no por cookies, así que estos flags tienen poco efecto práctico"
+     ]
+    },
+    {
+     "texto": "El cliente y las salidas del backend usan https y no mezclan contenido",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/core/auth/auth.service.ts:26 (API relativa /api/auth: hereda el esquema de la página)",
+      "frontend/src/app/features/login/login.component.ts:246 (Google Identity Services por https)",
+      "backend_django/apps/simulation/services/ai_providers.py:58 y :76 (proveedores de IA por https)",
+      "Grep en frontend/src: sin URLs http:// de runtime"
+     ]
+    }
+   ],
+   "brecha": "HTTPS no está impuesto por la aplicación: con la redirección apagada y sin HSTS, un acceso por http:// se sirve en claro si la plataforma no lo redirige (no verificable aquí). No hay prueba automática de los settings de producción. La BD (DATABASE_URL, sin sslmode explícito) queda fuera del texto, que habla de usuario-sistema. El plan de Hetzner con Caddy (docs/arquitectura/estrategia-stack-esquema-y-despliegue.md:305) es solo propuesta: no hay Caddyfile ni compose de producción en el repo.",
+   "accion": "Poner DJANGO_SECURE_SSL_REDIRECT=true en el entorno desplegado (y documentarla en la tabla de variables de despliegue-railway.md), añadir SECURE_HSTS_SECONDS con un valor bajo al inicio, corregir el comentario contradictorio de .env.example y agregar una prueba de los settings de producción. Confirmar con curl -I http://dominio que redirige.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Dónde se despliega la entrega (Railway hoy, Hetzner con Caddy propuesto) y si se activa redirección forzada y HSTS (HSTS con includeSubDomains/preload es difícil de revertir).",
+   "terminologia": "«Plataforma desplegada» = entorno con DJANGO_SETTINGS_MODULE=psychosim.settings.production (hoy Railway). «Conexión segura» = HTTPS/TLS. «Información que se envíe» = peticiones a /api y el JWT. No confundir con el RNF-002 del catálogo del equipo (control de acceso por rol).",
+   "pruebas_existentes": [
+    "Ninguna automática para HTTPS o settings de producción",
+    "Verificación manual descrita en docs/operacion/despliegue-railway.md:97-106"
+   ]
+  },
+  {
+   "id": "RNF-03",
+   "veredicto": "cumple",
+   "resumen": "La interfaz es responsiva por diseño (viewport meta, media queries en portal, login, portada y juego, controles táctiles por tipo de puntero) y el recorrido del estudiante se verifica en cada PR en 1600x900, 1366x768, 390x844, 412x915 y 844x390 con Axe y auditoría de geometría. La tableta se cubre por CSS y playtests manuales, sin viewport propio en la matriz automática.",
+   "clausulas": [
+    {
+     "texto": "Se puede usar desde computador",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/e2e/support/required-viewports.ts:4-5 (1600x900 y 1366x768, teclado)",
+      "frontend/e2e/vertical-quality.e2e.ts:14-21 (recorrido con Axe y geometría por viewport)",
+      ".github/workflows/ci.yml:149 (corre en cada PR: excluye solo @full-case y @orientation)",
+      ".github/workflows/e2e-full-case.yml:56 (recorrido completo nocturno en 4 viewports)"
+     ]
+    },
+    {
+     "texto": "Se puede usar desde celular (vertical y horizontal, táctil)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/e2e/support/required-viewports.ts:6-7 (390x844 y 412x915, touch)",
+      "frontend/e2e/support/guided-viewports.ts:11 (844x390 horizontal)",
+      "frontend/e2e/support/quality-gates.ts:97-174 (sin desbordamiento horizontal; controles y diálogos dentro del viewport)",
+      "frontend/src/app/features/simulator/game-world.component.ts:2414-2443 (cruceta y botón Interactuar)",
+      "frontend/src/app/features/simulator/game-world.touch.contract.spec.ts:7-10 (controles táctiles por pointer: coarse, no por ancho)",
+      "frontend/e2e/lobby.e2e.ts:110-121 (tap en 390x844)",
+      "frontend/src/index.html:7 (meta viewport sin bloquear zoom)"
+     ]
+    },
+    {
+     "texto": "Se puede usar desde tableta",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/shared/layout/shell.component.ts:643-651 y :676 (menú móvil por debajo de 920 px)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:92 y :1064 (modo compacto y hoja inferior por debajo de 760 px)",
+      "frontend/src/app/features/simulator/game-world.component.ts:2558 (cruceta por tipo de puntero: tabletas sí)",
+      "docs/informes/2026-10-03-diagnostico-jugabilidad/playtest-touch.md:4-5 (1024x768 medido a mano, viewport emulado)",
+      "docs/informes/2026-10-04-informe-sesion-jugabilidad.md:51 (aviso visible en 1024x768 tras el arreglo)"
+     ]
+    },
+    {
+     "texto": "El portal de docente y administrador se adapta a esos tamaños",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/dashboard/dashboard.component.scss:733-803 (breakpoints 1100/912/768/390)",
+      "frontend/src/app/features/admin/users.component.ts:260-264",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:590-592",
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:503 y :560-573 (tablas con overflow-x)",
+      "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:771-774",
+      "Solo evidencia por lectura de CSS: ninguna prueba abre estas pantallas en un viewport"
+     ]
+    }
+   ],
+   "brecha": "Es un hueco de verificación, no de comportamiento: (1) no hay viewport de tableta (768x1024 ni 1024x768) en la matriz automática; los hallazgos TOUCH-13/14 del 2026-10-03 (HUD en vertical, textos solapados en tableta) se midieron a mano y su cierre no tiene prueba que lo ancle. (2) El portal docente/admin y los editores no se abren en ningún viewport de prueba. (3) Solo Chromium con viewport emulado (frontend/playwright.config.ts:31-44); iPhone/iPad reales siguen pendientes (docs/pendientes/deudas/2026-09-29-ui-mes-99-pendientes.md:14). (4) Un portátil táctil con puntero principal de ratón no ve las flechas (mismo documento, :32).",
+   "accion": "Añadir 768x1024 y 1024x768 (táctil) a REQUIRED_VIEWPORTS y un recorrido corto del portal (dashboard, grupos, usuarios) con assertQualityState en 390x844 y 768x1024. Corregir lo que aparezca.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Si la tableta entra en la matriz obligatoria del CI (cuesta minutos por PR en un runner sin GPU) o solo en el nocturno, y si el editor de mundo/DAG se exige usable en táctil o es solo de escritorio.",
+   "terminologia": "Computador = escritorio 1366-1600 px con teclado y ratón; tableta = 768-1024 px táctil; celular = 390-412 px vertical y 844x390 horizontal. «Interfaz adaptable» = diseño responsivo (CSS por ancho y por tipo de puntero) con modo compacto del juego (COMPACT_QUERY).",
+   "pruebas_existentes": [
+    "frontend/e2e/vertical-quality.e2e.ts (4 viewports, Axe + geometría, en CI por PR)",
+    "frontend/e2e/full-case.e2e.ts (4 viewports, nocturno)",
+    "frontend/e2e/guided-first-minute.e2e.ts y frontend/e2e/safe-exit.e2e.ts (1366x768 y 844x390, @orientation, nocturno)",
+    "frontend/e2e/lobby.e2e.ts:110-121",
+    "frontend/src/app/features/simulator/game-world.touch.contract.spec.ts",
+    "frontend/src/app/features/simulator/simulation-play.orientation.contract.spec.ts",
+    "frontend/src/app/shared/layout/shell.a11y.spec.ts"
+   ]
+  },
+  {
+   "id": "RNF-04",
+   "veredicto": "parcial",
+   "resumen": "La base es sólida: enlaces de salto, foco visible global, recorrido por teclado del juego y de los diálogos, contraste corregido con pruebas de contrato y Axe WCAG 2.1 A/AA como puerta de CI sobre el recorrido del estudiante. Quedan brechas conocidas: atajos de una tecla sin desactivar, campos del login sin borde, muchos textos de 9 a 11 px, edición de mundo solo con puntero y Axe sin cubrir portal ni editores.",
+   "clausulas": [
+    {
+     "texto": "Navegación con teclado en los recorridos del estudiante (login, portal, juego, diálogos)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/app.component.ts:13-15 y :39-45 (enlaces «Saltar al contenido» y «Saltar al juego» con foco)",
+      "frontend/src/styles/styles.scss:116-119 (:focus-visible global de 3 px)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:1648-1727 (Esc en cadena, J bitácora, E interactuar)",
+      "frontend/src/app/features/simulator/dialogue-progression.util.ts:50-59 (Esc, Enter/Espacio y teclas 1-9 para las opciones)",
+      "frontend/src/app/features/simulator/game-world.component.ts:2389-2393 (mapa con WASD/flechas y E)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:232 y :260 (cdkTrapFocus en tarjetas modales)",
+      "frontend/e2e/safe-exit.e2e.ts (salida segura por teclado en cada estado)"
+     ]
+    },
+    {
+     "texto": "Los atajos de una tecla se pueden desactivar, reasignar o limitar al foco (WCAG 2.1.4, nivel A)",
+     "estado": "no_cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/simulation-play.component.ts:1714-1726 (J y E son globales en window, sin ajuste)",
+      "docs/informes/2026-10-03-bloque-h-accesibilidad-brechas.md:40 (hallazgo H-07, abierto)"
+     ]
+    },
+    {
+     "texto": "Buen contraste (texto 4,5:1, componentes y foco 3:1)",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/styles/contrast.contract.spec.ts:22-160 y frontend/src/styles/a11y-bloque-h.contract.spec.ts:10-91 (pares corregidos y fijados por prueba)",
+      "frontend/e2e/support/quality-gates.ts:8-9 y :78-80 (Axe bloquea serious/critical con etiquetas wcag2a/wcag2aa/wcag21a/wcag21aa)",
+      "frontend/e2e/support/quality-gates.ts:67-70 (solo resultType violations: los incomplete, p. ej. fondos con degradado, no se revisan)",
+      "frontend/src/app/features/login/login.component.scss:270-272 (campos #f3f4f6 sin borde sobre blanco, ~1,10:1; H-28 abierto)"
+     ]
+    },
+    {
+     "texto": "Textos legibles",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/styles/styles.scss:125-129 (Poppins autoalojada) y frontend/src/index.html:2 y :7 (lang=es, zoom permitido)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:641 y :692 (.66rem y .58rem en el juego)",
+      "frontend/src/app/features/simulator/safe-exit-button.component.ts:58 (.62rem)",
+      "frontend/src/app/features/login/login.component.scss:594, :621 y :693 (.6-.62rem)",
+      "frontend/src/app/features/simulator/dag-editor.component.ts:287-310 (10-11 px) y tool-inventory.component.ts:139 (11px !important)"
+     ]
+    },
+    {
+     "texto": "Teclado en las herramientas de autoría (editor de mundo y DAG)",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:890-906 (el teclado solo cambia de herramienta y hace zoom; colocar y mover objetos es con puntero sobre el lienzo Konva)",
+      "frontend/src/styles/a11y-bloque-h.contract.spec.ts:112-116 (el DAG ya responde a Enter y Espacio)"
+     ]
+    }
+   ],
+   "brecha": "(1) Atajos J/E/WASD globales sin ajuste (2.1.4 A). (2) Contraste de componentes: campos del login sin borde. (3) Puerta Axe solo cubre login, lobby, caso y resultado: no portada, registro, portal, editores ni las opciones del diálogo, y nunca se corrió con lector de pantalla (lista pendiente en docs/informes/2026-10-03-bloque-h-accesibilidad-brechas.md:107-121). (4) Mundo sin alternativa tipo «ir a…» para quien usa lector (H-06); queda fuera del texto literal pero sí está en el RNF-004 del equipo. (5) Textos de 9-11 px en controles y etiquetas. (6) Editor de mundo no operable solo con teclado.",
+   "accion": "Cambio mínimo: (a) limitar J/E al foco del juego o añadir un ajuste «Atajos de una tecla»; (b) borde de 1,5 px #767676 en los campos del login; (c) subir a ≥ .75rem (12 px) las etiquetas de controles (salida segura, inventario, login); (d) añadir al assertQualityState la portada, el registro y 3 pantallas del portal; (e) pasada manual con NVDA y VoiceOver sobre la lista pendiente.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Criterio de referencia (WCAG 2.1 AA, como el RNF-004 del equipo, o 2.2 AA, como sugiere la auditoría); qué opción de atajos (ajuste, solo con foco o modificador); si el borde de los campos del login puede cambiar la identidad visual; si las herramientas de autoría deben ser operables solo con teclado.",
+   "terminologia": "«Navegación con teclado» = Tab/Enter/Espacio + WASD/flechas + E, J y Esc (salida segura) + teclas 1-9 en los diálogos. «Buen contraste» = razones WCAG 4,5:1 (texto) y 3:1 (foco y componentes). «Textos legibles» = tamaño y tipografía (Poppins, rem). El RNF-04 de la línea base es «accesibilidad básica»; el RNF-004 del equipo (docs/requisitos/no-funcionales/RNF-004.md) es más exigente: WCAG 2.1 AA, 100 % de funciones críticas por teclado y 0 bloqueos con lector de pantalla.",
+   "pruebas_existentes": [
+    "frontend/e2e/vertical-quality.e2e.ts + frontend/e2e/support/quality-gates.ts (Axe + geometría, 10 estados x 4 viewports, en CI por PR)",
+    "frontend/e2e/full-case.e2e.ts:218 y :230 (Axe en la última supervisión y el desenlace, nocturno)",
+    "frontend/src/styles/contrast.contract.spec.ts",
+    "frontend/src/styles/a11y-bloque-h.contract.spec.ts",
+    "frontend/src/styles/contrast.util.spec.ts",
+    "frontend/src/app/app.component.spec.ts (enlaces de salto)",
+    "frontend/src/app/features/login/login.a11y.spec.ts",
+    "frontend/src/app/features/public/landing.a11y.spec.ts",
+    "frontend/src/app/shared/layout/shell.a11y.spec.ts",
+    "frontend/src/app/features/simulator/simulation-play.a11y-review.spec.ts",
+    "frontend/src/app/features/simulator/keyboard-focus.util.spec.ts",
+    "frontend/src/app/features/simulator/keyboard-capture.contract.spec.ts",
+    "frontend/e2e/safe-exit.e2e.ts"
+   ]
+  },
+  {
+   "id": "RN-01",
+   "veredicto": "parcial",
+   "resumen": "En la práctica el producto cumple la regla: el único caso real está basado en un documento de psicología social, toda la evaluación es formativa con rúbrica y no existe función de diagnóstico. Lo que falta es declararla de forma explícita y visible y tener un control en el flujo de publicación; hoy solo aparece, con otras palabras, en la portada y en el reporte del estudiante.",
+   "clausulas": [
+    {
+     "texto": "Los casos se enfocan en situaciones de psicología social",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:4 y :67 (caso SIM-VBG-001 basado en el documento canónico de Psicología Social)",
+      "backend_django/apps/simulation/management/commands/bootstrap_dev_db.py:387 («Caso formativo de psicología social»)",
+      "frontend/src/app/features/public/landing.component.ts:72-97 (catálogo: violencia basada en género disponible; otros dos «Próximamente»)",
+      "frontend/src/app/core/config/brand.config.ts:6-10 (plataforma académica de casos psicosociales)",
+      "backend_django/apps/simulation/views/ai_assistant.py:96 (asistente «para estudiantes de psicología social»; apagado por defecto en settings/base.py:128)"
+     ]
+    },
+    {
+     "texto": "Con fines educativos",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/core/config/brand.config.ts:8 (retroalimentación formativa, evaluación por docentes con rúbricas)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:200 (chip «Simulación formativa con datos ficticios»)",
+      "frontend/src/app/features/public/landing.component.ts:70 y :157-159 (evaluación formativa)",
+      "frontend/src/app/features/simulator/game-help.content.ts:129 (ninguna opción marcada como correcta; retroalimentación formativa)"
+     ]
+    },
+    {
+     "texto": "No se usan para realizar diagnósticos clínicos (el sistema no produce diagnósticos)",
+     "estado": "cumple",
+     "evidencia": [
+      "Grep sin resultados de «diagnóstic», DSM, CIE o trastorno en backend_django/*.py fuera de los textos de caso",
+      "backend_django/apps/reportes/services.py:229 y :269 (solo conteos de decisiones por clasificación)",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:36 y :491 (revisión docente formativa con rúbrica)"
+     ]
+    },
+    {
+     "texto": "El alcance (fines educativos, sin diagnóstico clínico) se comunica al usuario dentro del producto",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/app/features/public/landing.component.ts:159 («Sin diagnósticos ni decisiones automáticas»)",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:139 («no equivale a diagnóstico automático»)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:193-224 (el aviso previo al caso habla de contenido sensible y salida segura, no del alcance)",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:37-178 (la pantalla de resultado no dice que es formativa ni que no es diagnóstico)",
+      "frontend/src/app/app.routes.ts:6-102 (sin página de términos ni alcance)",
+      "README.md:5 y frontend/src/app/features/simulator/dialogue-panel.component.ts:53 (el producto se llama «RPG clínico» y usa «Decisión clínica»)"
+     ]
+    },
+    {
+     "texto": "Hay un control que impida publicar casos fuera de ese alcance",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/models/case.py:23-33 (SimulationCase sin campo de dominio o alcance)",
+      "backend_django/apps/simulation/services/authoring/publication.py:37-43 y :68-71 (publicar exige un checklist de 6 ítems al 100 %: revisión ética por experto, lenguaje no estigmatizante, etc., ninguno sobre el alcance)",
+      "frontend/src/app/features/simulator/case-editor.component.ts:196-230 (pestaña «Checklist ético»)"
+     ]
+    }
+   ],
+   "brecha": "La regla es de propósito y de contenido, y el sistema la respeta de hecho, pero sin enunciado único ni verificación propia: (1) el texto «fines educativos, no diagnóstico clínico» no aparece completo en login, aviso previo al caso ni pantalla de resultado, y la UI usa vocabulario «clínico» (README.md:5, dialogue-panel.component.ts:53, login-role.config.ts:43, game-menu.component.ts:225); (2) el checklist de publicación no tiene ítem de alcance; (3) el prompt del asistente de IA no prohíbe diagnosticar (ai_assistant.py:95-102), aunque RF-027 del equipo lo exige (docs/requisitos/funcionales/RF-027.md:9).",
+   "accion": "Definir una constante de alcance en brand.config.ts y mostrarla en el login, en el aviso previo al caso y en la pantalla de resultado. Añadir un séptimo ítem (p. ej. scopeEducational) al checklist de publicación (publication.py:37-43 y el divisor 6; case-editor.component.ts:896). Añadir «no emitas diagnósticos clínicos» al contexto del asistente. No requiere cambio de esquema: el checklist guarda solo completion_ratio.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Texto oficial del aviso de alcance (lo valida Psicología), en qué pantallas se muestra, si el ítem nuevo bloquea la publicación, y si se cambia el vocabulario «clínico/a» de la interfaz por «psicosocial» o se deja.",
+   "terminologia": "«Psicología social» (línea base) = «psicología social» y «psicosocial» en SIEP (entrenamiento psicosocial; el caso nace del documento «Caso juego social PSICOLOGIA SOCIAL»). «Fines educativos» = «formativo/a» (evaluación formativa, retroalimentación formativa). «Diagnósticos clínicos» no tiene equivalente funcional: lo más cercano es evaluación formativa, trazabilidad y rúbrica. «Decisión clínica» en la UI es la decisión del estudiante en el caso simulado, no un diagnóstico. «Caso» = SimulationCase / CaseVersion.",
+   "pruebas_existentes": [
+    "frontend/src/app/features/simulator/simulation-catalog.component.spec.ts:47 (ortografía del texto «diagnóstico automático»)",
+    "backend_django/apps/simulation/tests/test_caso_pdf.py (el caso sembrado)",
+    "frontend/e2e/consent-gate.e2e.ts (aviso de contenido previo al caso)",
+    "frontend/e2e/no-chatbot.e2e.ts (asistente apagado por defecto)"
+   ]
+  }
+ ],
+ "observaciones": [
+  "Numeración: la línea base usa RNF-01..08 (2 dígitos) y el catálogo propio del equipo usa RNF-001..010 (3 dígitos, docs/requisitos/no-funcionales/) con significados distintos (RNF-02 base = comunicación segura frente a RNF-002 equipo = control de acceso por rol; RNF-04 base = accesibilidad básica frente a RNF-004 equipo = WCAG 2.1 AA con lector de pantalla). Conviene citar siempre con el prefijo del documento.",
+  "Punto débil real de credenciales, fuera del literal de RNF-01: todos los estudiantes importados comparten una contraseña por defecto (IMPORTED_STUDENT_DEFAULT_PASSWORD, settings/base.py:122-124), visible al docente (grupos/services.py:349) y sin cambio por el propio usuario (apps/users/urls.py:13-18). El equipo la dejó «así por ahora».",
+  "Las credenciales demo están documentadas en docs/operacion/despliegue-railway.md:101-106 y el volcado deploy/db_seed.sql las restaura en producción; la guía recomienda cambiarlas, pero nada lo exige.",
+  "Sin throttling de login (REST_FRAMEWORK en settings/base.py:90-99 no define límites) ni AUTH_PASSWORD_VALIDATORS; solo min_length=8 en serializers. Con bcrypt 5.0.0 (requirements.txt:10) una contraseña de más de 72 bytes hace fallar set_password con ValueError y los serializers no tienen max_length: es un 500 al crear o editar ese usuario (el login lo captura y responde 401).",
+  "El JWT vive en localStorage (auth.service.ts:60) durante 8 h por defecto (settings/base.py:101-104): expuesto a XSS, aceptable para esta fase pero a considerar si se endurece la sesión.",
+  "Documentos de auditoría antiguos están desactualizados frente al código: docs/informes/2026-10-03-bloque-h-accesibilidad-brechas.md da como abiertos H-01..H-03 (salida segura dentro de diálogos e introducción), pero el código ya trae el botón «Salida segura» en el panel de diálogo, las tarjetas de introducción y la bitácora, y Esc en la introducción (simulation-play.component.ts:248, :279, :371, :434, :456, :1668-1675; dialogue-panel.component.ts:49). Las brechas H-06, H-07 y H-28 siguen vigentes.",
+  "Todo e2e corre solo en Chromium con dispositivos emulados (frontend/playwright.config.ts:31-44); no hay WebKit, Firefox ni dispositivos reales. Esto afecta a RNF-03 y RNF-04 por igual.",
+  "Para RNF-02, el entorno desplegado real no se pudo verificar desde el repositorio (TLS y redirección dependen de Railway). La migración propuesta a Hetzner con Caddy no tiene artefactos en el repo y obligará a re-verificar RNF-02.",
+  "Revisión estática: no se ejecutó ninguna prueba, servidor ni medición; los veredictos salen de leer código, configuración y los informes citados."
+ ]
+}

@@ -1,0 +1,88 @@
+{
+ "grupo": "lote1",
+ "lente": "falso-incumple",
+ "revision": [
+  {
+   "id": "RF-01",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El texto pide iniciar y cerrar sesion con credenciales. El login existe y el boton Cerrar sesion llama a logout(). Las salvedades del evaluador (sin revocacion del JWT, sin throttling) son endurecimiento de seguridad que RF-01 no exige, asi que no bajan el veredicto.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:55-74",
+    "frontend/src/app/shared/layout/shell.component.ts:145",
+    "frontend/src/app/shared/layout/shell.component.ts:780-783",
+    "frontend/src/app/core/auth/auth.service.ts:78"
+   ]
+  },
+  {
+   "id": "RF-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El administrador crea, actualiza y activa o desactiva usuarios con IsAdmin. El cambio de estado es real: user.activo se guarda y el login lo rechaza. El rol se asigna con AdminUserWriteSerializer. Verificado en views.py; no hay guarda que impida el camino citado.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:190-231",
+    "backend_django/apps/users/views.py:193,210,223"
+   ]
+  },
+  {
+   "id": "CU-02",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "CU-02 pide cuatro acciones: crear usuarios, actualizar datos, activar o desactivar y asignar roles. Las cuatro estan en /api/admin/users* con IsAdmin, y la ruta de la pantalla Usuarios es exclusiva de ADMIN. No hay una lectura alternativa del texto que cambie el veredicto.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:199-231",
+    "frontend/src/app/app.routes.ts:86-91"
+   ]
+  },
+  {
+   "id": "RN-10",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "La regla dice que el administrador crea las cuentas y que el profesor no administra cuentas globales. El flujo de importacion crea cuentas con User.objects.create_user y rol ESTUDIANTE para el profesor dueno del grupo. Devuelve la contrasena por defecto en defaultPassword. Una lectura de que el alta es solo administracion del grupo no basta: la regla dice explicitamente quien crea cuentas. Se mantiene conflicto.",
+   "evidencia": [
+    "backend_django/apps/grupos/services.py:422-442",
+    "backend_django/apps/grupos/services.py:374",
+    "backend_django/apps/grupos/services.py:349",
+    "backend_django/apps/grupos/views.py:82-97"
+   ]
+  },
+  {
+   "id": "RF-04",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "RF-04 pide crear grupos y agregar o retirar estudiantes ya registrados. agregar_estudiante busca el correo, rechaza si no es ESTUDIANTE y hace INSERT ON CONFLICT. quitar_estudiante borra la fila de union. La importacion que crea cuentas es una extension y no contradice RF-04, asi que no baja el veredicto.",
+   "evidencia": [
+    "backend_django/apps/grupos/services.py:544-558",
+    "backend_django/apps/grupos/services.py:533-541",
+    "backend_django/apps/grupos/services.py:496-501"
+   ]
+  },
+  {
+   "id": "CU-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El flujo del caso de uso existe: el profesor crea el grupo, agrega estudiantes registrados por correo, ve la lista y retira. Las rutas son PROFESOR. La importacion Excel en la misma pantalla es un extra, que el CU no prohibe expresamente; la contradiccion con RN-10 se trata en RN-10, no aqui.",
+   "evidencia": [
+    "backend_django/apps/grupos/services.py:544-558",
+    "backend_django/apps/grupos/services.py:496-501",
+    "frontend/src/app/app.routes.ts:74-79"
+   ]
+  },
+  {
+   "id": "RNF-01",
+   "acuerdo": false,
+   "veredicto_revisado": "parcial",
+   "motivo": "Las dos clausulas sobre hash (bcrypt, no expuesto por API) se cumplen. La clausula de no almacenar la credencial como texto visible no se cumple del todo: la contrasena compartida de importados es un literal en settings ([contraseña por defecto de los importados]) y las contrasenas demo ([contraseña demo ESTUDIANTE], [contraseña demo PROFESOR], [contraseña demo ADMIN]) estan como literales en login-role.config.ts, que va al cliente. El evaluador lo menciona como riesgo operativo pero no lo cuenta en la clausula. Eso obliga a bajar a parcial.",
+   "evidencia": [
+    "backend_django/psychosim/settings/base.py:122-123",
+    "frontend/src/app/features/login/login-role.config.ts:32,47,62",
+    "frontend/src/app/features/login/login.component.html:99-104",
+    "backend_django/apps/grupos/services.py:349"
+   ]
+  }
+ ],
+ "clausulas_omitidas": [
+  "RNF-01: la credencial no queda como texto visible en el codigo fuente ni en el cliente. Hoy hay un literal de contrasena fija de importados (base.py:122-123) y contrasenas demo literales en login-role.config.ts:32,47,62 (ese literal viaja al cliente; el boton solo se oculta con isDev).",
+  "RN-10: el profesor no recibe ni ve contrasenas de cuentas globales. El resultado de importacion le devuelve defaultPassword (grupos/services.py:349) y la UI la muestra (grupo-list.component.ts:234)."
+ ]
+}
