@@ -1,0 +1,80 @@
+{
+ "grupo": "lote3",
+ "lente": "falso-cumple",
+ "revision": [
+  {
+   "id": "RN-06",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Cada intento es una fila propia (create en un unico punto, game_service.py:188). forceNew solo cambia el estado a REPLACED y conserva fila, eventos y reflexiones. Las FK de intentos hacia version y estudiante no tienen CASCADE (DO_NOTHING; sin ON DELETE CASCADE hacia case_versions en el seed). El unico borrado de intentos es el comando de siembra seed_caso_pdf (dev). No hallé camino que sobrescriba o borre intentos previos.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:142",
+    "backend_django/apps/simulation/services/game_service.py:188",
+    "backend_django/apps/simulation/models/attempt.py:42",
+    "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1165"
+   ]
+  },
+  {
+   "id": "RN-07",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Confirmado: con force_new=True start_attempt cierra los intentos abiertos y crea otro (el cliente controla la bandera), lo que contradice 'no podra iniciar otro si todavia tiene uno en progreso'. Ademas la comprobacion sin forceNew no es atomica (lectura y luego insercion, sin indice unico parcial). El veredicto no es generoso.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:160",
+    "backend_django/apps/simulation/services/game_service.py:166",
+    "backend_django/apps/simulation/services/game_service.py:180",
+    "backend_django/apps/simulation/services/game_service.py:181"
+   ]
+  },
+  {
+   "id": "RN-08",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Confirmado: la decision devuelve de inmediato el mensaje evaluativo formateado (format_feedback) en la misma respuesta, por lo que la retroalimentacion pedagogica no espera al cierre del intento. No hay separacion de consecuencia narrativa y pedagogica. El veredicto no es generoso.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:393",
+    "backend_django/apps/simulation/services/decision_effects.py:72",
+    "backend_django/apps/simulation/serializers/game_dtos.py:80"
+   ]
+  },
+  {
+   "id": "RN-09",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Confirmado: rubric_service valida cada calificacion entre 1.0 y 5.0 y persiste un total ponderado (total_score), lo cual es una calificacion numerica en la escala que la regla dice no generar en esta fase. Se acepta el mitigante (solo docente, no es 'nota oficial') como atenuante, no como cumplimiento.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/rubric_service.py:418",
+    "backend_django/apps/simulation/services/rubric_service.py:419",
+    "backend_django/apps/simulation/services/rubric_service.py:442",
+    "backend_django/apps/simulation/models/rubric.py:58"
+   ]
+  },
+  {
+   "id": "RN-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El rechazo esta en el servidor: _require_published (403) en start_attempt y find_active_attempt; listado y catalogo filtran PUBLISHED y activo; asignar_caso a grupos exige publicado. El unico SimulationAttempt.objects.create es start_attempt, y world/decisiones operan por intento ya creado, asi que no hay camino alterno a un caso no publicado. Reserva: la siembra fija PUBLISHED sin compuertas (ya anotado) y no hay prueba directa del 403.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:58",
+    "backend_django/apps/simulation/services/game_service.py:162",
+    "backend_django/apps/simulation/services/game_service.py:126",
+    "backend_django/apps/grupos/services.py:571",
+    "backend_django/apps/progression/catalog.py:14"
+   ]
+  },
+  {
+   "id": "RNF-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Hay soporte real por diseno (controles tactiles por pointer: coarse, modo compacto, media queries en portal y editor, Konva con soporte tactil) y playtest manual de tableta 1024x768. Lo que falta es verificacion automatica de tableta y del portal docente/admin, que es un hueco de prueba y no una clausula incumplida; se mantiene cumple con la reserva de que la tableta y el portal solo estan respaldados por lectura de CSS y playtest manual. Deuda conocida: portatil tactil con raton como puntero principal no ve la cruceta.",
+   "evidencia": [
+    "frontend/src/app/features/simulator/game-world.component.ts:2559",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:92",
+    "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:771",
+    "docs/informes/2026-10-03-diagnostico-jugabilidad/playtest-touch.md:4",
+    "docs/pendientes/deudas/2026-09-29-ui-mes-99-pendientes.md:32"
+   ]
+  }
+ ],
+ "clausulas_omitidas": []
+}

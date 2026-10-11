@@ -1,0 +1,14 @@
+{
+  "RNF-01": {
+    "veredicto": "parcial",
+    "nota": "Resuelto leyendo el código. El almacenamiento es correcto (hash bcrypt con sal en todas las vías de alta), pero la segunda parte del texto —«no deben quedar almacenadas como texto visible»— no se cumple del todo: las contraseñas de las cuentas demo son literales en `frontend/src/app/features/login/login-role.config.ts:32,47,62` y viajan en el bundle, y la contraseña por defecto de los estudiantes importados es un literal con valor de respaldo en `backend_django/psychosim/settings/base.py:122-123`, visible para el docente. Los dos lentes coincidieron en parcial; el evaluador lo había tratado como «riesgo operativo fuera del texto»."
+  },
+  "RN-08": {
+    "veredicto": "conflicto",
+    "nota": "Se mantiene conflicto (evaluador y lente falso-cumple). El lente falso-incumple propuso parcial por entender que la regla no prohíbe mostrar antes del cierre. Verificado en `backend_django/apps/simulation/services/decision_effects.py:72-80`: tras cada decisión se devuelve la clasificación («Decisión adecuada / con riesgo / inadecuada») y la explicación autorada, y el reporte final no trae esa explicación por decisión (`backend_django/apps/simulation/serializers/game_dtos.py:154-180`). La regla pide dos momentos distintos; el sistema hace lo contrario de la cláusula «al terminar el intento» y tampoco la ofrece al final."
+  },
+  "RN-09": {
+    "veredicto": "conflicto",
+    "nota": "Se mantiene conflicto por mayoría (evaluador y lente falso-cumple), pero es un conflicto de INTERPRETACIÓN: el lente falso-incumple lo bajó a parcial porque el total no se declara «oficial» ni lo ve el estudiante. Verificado en `backend_django/apps/simulation/services/rubric_service.py:418-429`: cada criterio se valida entre 1.0 y 5.0 y el sistema calcula y guarda un total ponderado con dos decimales (`total_score`); la observación de la línea base difiere la calificación numérica a una fase posterior. Si el equipo y los docentes aceptan que un total interno de rúbrica del docente no es una «nota oficial», pasa a parcial sin cambios de código."
+  }
+}

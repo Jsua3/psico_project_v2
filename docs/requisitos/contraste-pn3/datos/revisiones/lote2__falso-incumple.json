@@ -1,0 +1,75 @@
+{
+ "grupo": "lote2",
+ "lente": "falso-incumple",
+ "revision": [
+  {
+   "id": "RF-15",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Intenté defender algo más leve y no pude. La ruta /portal/jugar existe, la guarda de rol la permite a ESTUDIANTE (app.routes.ts:28-31) y consume GET /api/simulation/catalog, cuyo build_catalog filtra solo por status PUBLISHED y caso activo, sin asignación (progression/catalog.py:13-17). Un estudiante sin grupo ve todos los casos con título y descripción. La única mitigación real es que la ruta no tiene enlace en la navegación (shell.component.ts:681-707 solo enlaza /portal/simulador), pero sigue siendo alcanzable por URL, así que la cláusula «únicamente» se contradice. El resto del veredicto (flujo principal correcto) es coherente.",
+   "evidencia": [
+    "frontend/src/app/app.routes.ts:28-31",
+    "backend_django/apps/progression/catalog.py:13-17",
+    "backend_django/apps/simulation/views/game_views.py:233-234",
+    "backend_django/apps/simulation/services/game_service.py:124-134 (listado del simulador sí filtra por asignación)",
+    "frontend/src/app/shared/layout/shell.component.ts:681"
+   ]
+  },
+  {
+   "id": "RF-19",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Buscué una guarda que impidiera la continuación desde el último punto y no la encontré en el camino normal: start_attempt sin force devuelve el intento abierto con su estado (game_service.py:166-179) y PAUSED cuenta como abierto. Las salvedades del evaluador (caso archivado o desactivado no reanudable; debounce de 550 ms en posición) no son requisitos del texto: el texto no excluye casos archivados y el debounce pierde posición, no decisiones ni el último nodo registrado. Se mantiene cumple; el caso archivado puede anotarse como observación, no como brecha de la cláusula.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:166-179",
+    "backend_django/apps/simulation/services/game_service.py:58-64,206-208 (restricción de versión PUBLISHED, solo para casos archivados)",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:3003-3023 (posición con debounce)"
+   ]
+  },
+  {
+   "id": "RF-20",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Las salvedades no obligan a bajar el veredicto. El texto pide escribir y guardar reflexiones sobre las decisiones durante el caso; el guardado persiste cifrado por nodo (game_service.py:425-449) y es visible al docente (instructor_service.py:125-133). Que no haya lectura propia, que la entrada sea única por escena (sobrescritura) y que la reflexión se ligue a la escena y no a la opción no están en el texto. El bloqueo en PAUSED sí es una restricción real (frontend deshabilita la bitácora si status !== IN_PROGRESS, simulation-play.component.ts:451; backend rechaza en game_service.py:428-429), pero el estudiante puede reanudar y escribir durante el mismo intento, así que la cláusula «durante el caso» se cumple.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:425-449",
+    "backend_django/apps/simulation/services/game_service.py:428-429 (bloqueo en pausa)",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:451 (disabled si status !== IN_PROGRESS)",
+    "backend_django/apps/simulation/services/instructor_service.py:125-133"
+   ]
+  },
+  {
+   "id": "CU-10",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Verificado: el flujo guardar-salir-retomar existe. Las pausas PAUSED son reanudables y start_attempt sin force devuelve el intento abierto (game_service.py:166-179). Las observaciones de UX (historial sin botón Reanudar para PAUSED, caso archivado) no son requisitos del texto de CU-10. Se mantiene cumple.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:166-179",
+    "backend_django/apps/simulation/services/game_service.py:452-467 (pausa, según evaluador)",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:2318-2325,2400-2432 (según evaluador)"
+   ]
+  },
+  {
+   "id": "CU-11",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Verificado: la bitácora se abre con J o botón, se guarda con confirmación «Bitácora guardada y cifrada.» (simulation-play.component.ts:2306) y se persiste cifrada por nodo (game_service.py:425-449). La restricción en PAUSED es coherente con «durante el intento» porque el intento deja de estar en juego solo al pausar y se reanuda. Sin brecha de texto. Se mantiene cumple.",
+   "evidencia": [
+    "frontend/src/app/features/simulator/simulation-play.component.ts:2299-2312",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:451",
+    "backend_django/apps/simulation/services/game_service.py:425-449"
+   ]
+  },
+  {
+   "id": "RF-24",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Verificado: el historial del estudiante no filtra por estado; lista todos sus intentos ordenados por inicio (game_service.py:241-245), y repetir crea una fila nueva con su propio token (game_service.py:187-189). Las salvedades (rúbrica del docente no visible, timeline no mostrado en «Ver resumen») no son cláusulas del texto de RF-24, que pide puntaje, decisiones por clasificación, estado y duración, y estos datos sí se devuelven. Se mantiene cumple.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:235-245",
+    "backend_django/apps/simulation/services/game_service.py:187-189"
+   ]
+  }
+ ],
+ "clausulas_omitidas": []
+}

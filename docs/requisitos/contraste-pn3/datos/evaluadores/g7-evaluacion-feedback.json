@@ -1,0 +1,285 @@
+{
+ "grupo": "g7-evaluacion-feedback",
+ "items": [
+  {
+   "id": "RF-22",
+   "veredicto": "parcial",
+   "resumen": "El cierre del intento al llegar a un nodo terminal esta completo y es automatico. La valoracion de las decisiones es automatica pero no usa la entidad Rubrica: usa la clasificacion y los puntajes que el profesor define en cada opcion, mas un reporte de cierre y un final canonico calculados al vuelo. La rubrica del caso (Rubric/RubricCriterion) solo la aplica el docente a mano y el resultado no se congela al cerrar.",
+   "clausulas": [
+    {
+     "texto": "Cuando el estudiante llegue a una conclusion (nodo terminal), el sistema cierra el intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:406-411 (si target_node.terminal_node: transicion COMPLETE, ended_at, locked_at y bloqueo de reflexiones)",
+      "backend_django/apps/simulation/services/game_service.py:415-419 (evento ATTEMPT_COMPLETED y senal attempt_completed)",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:68-72 (IN_PROGRESS a COMPLETED); choose_decision es el unico sitio que aplica COMPLETE",
+      "backend_django/apps/progression/receivers.py:5-7 (suscriptor que registra el caso terminado)"
+     ]
+    },
+    {
+     "texto": "El sistema valora las decisiones del estudiante de forma automatica",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/decision_effects.py:35-58 (clasificacion ADEQUATE/RISKY/INADEQUATE y score_delta por opcion)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:226-287 (conteos, competencias y recomendaciones del reporte de cierre)",
+      "backend_django/apps/simulation/services/case_effects.py:289-348 (compute_ending: final canonico segun severidades y flags)",
+      "frontend/src/app/features/simulator/outcome.util.ts:21-28 (nivel Excelente/Adecuado/En desarrollo/Requiere refuerzo calculado en el cliente, no guardado)"
+     ]
+    },
+    {
+     "texto": "La valoracion se hace con la rubrica definida para el caso",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/rubric_service.py:297-311 (rubric_for_case_version resuelve asignacion, rubrica propia de la version o la predeterminada)",
+      "backend_django/apps/simulation/services/rubric_service.py:401-461 (save_attempt_evaluation: la evaluacion por criterios la escribe el docente, no el sistema)",
+      "backend_django/apps/simulation/views/instructor_views.py:27-43 (endpoint solo PROFESOR/ADMIN)",
+      "backend_django/apps/simulation/models/case.py:99-122 (DecisionOption no tiene relacion con RubricCriterion: no hay mapeo opcion-criterio)"
+     ]
+    },
+    {
+     "texto": "El sistema guarda el resultado",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/models/attempt.py:51-63 (se guarda status, accumulated_score, metricas, ended_at)",
+      "backend_django/apps/simulation/services/case_effects.py:254-278 (flags y metricas del caso en AttemptWorldState.flags_json)",
+      "backend_django/apps/simulation/services/game_service.py:227-232 y 313-326 (el reporte y el final se recalculan desde los eventos en cada consulta; no hay instantanea)",
+      "backend_django/apps/simulation/services/rubric_service.py:390-398 y 432-460 (RubricEvaluation con snapshot_json solo si el docente guarda la evaluacion)"
+     ]
+    }
+   ],
+   "brecha": "(1) El sistema no valora con la entidad Rubrica: no existe mapeo entre opciones y criterios, y la evaluacion por rubrica es manual del docente. (2) El resultado de cierre no se persiste como valoracion: se recalcula de los eventos, de modo que un cambio de reglas altera retroactivamente intentos viejos. (3) El final canonico (compute_ending) esta cableado al caso PDF: un caso propio solo puede terminar en Final 3 o Final 4, aunque todas las decisiones sean adecuadas.",
+   "accion": "Minimo sin cambio de esquema: al completar (game_service.py:415-419) construir build_completion_report y guardar el JSON en el detalle del evento ATTEMPT_COMPLETED (o un evento ATTEMPT_EVALUATED) y leerlo desde get_completion_report/get_student_report; hacer compute_ending neutral para casos sin OPTION_EFFECTS (no mostrar final o derivarlo solo de severidades); documentar que la rubrica del caso es la clasificacion de opciones mas la Rubrica que aplica el docente. Si el equipo exige valoracion automatica por criterios de la Rubrica hay que agregar relacion opcion-criterio (cambia esquema, esfuerzo L).",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Que significa 'rubrica definida para el caso': (a) la clasificacion y puntajes que el profesor ya define por opcion (automatica, ya existe, falta congelarla) o (b) la Rubrica ponderada de 6 criterios (hoy manual del docente). Si es (b): mapear opciones a criterios (L, cambia esquema) o reformular el requisito como valoracion docente.",
+   "terminologia": "'conclusion' = nodo terminal (SimulationNode.terminal_node) y, como pantalla, el 'final' canonico (integral/brechas/riesgo/critico); 'cerrar el intento' = estado COMPLETED + ended_at + locked_at; 'valorar decisiones' = clasificacion de la opcion + score_delta + reporte de cierre (completionReport); 'rubrica definida para el caso' = Rubric/RubricCriterion asignada via SimulationRubricAssignment o la predeterminada, aplicada por el docente en rubric-evaluation; 'guardar el resultado' = accumulated_score y metricas en simulation_attempts_v2, eventos en attempt_events y RubricEvaluation.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:126-169 (recorrido completo hasta COMPLETED con completionReport)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py",
+    "backend_django/apps/simulation/tests/test_attempt_completed_signal.py:107-176",
+    "backend_django/apps/progression/tests/test_completion_hook.py",
+    "backend_django/apps/simulation/tests/test_completion_report_builder.py",
+    "backend_django/apps/simulation/tests/test_completion_report_contract.py",
+    "backend_django/apps/simulation/tests/test_caso_pdf.py:329-422 (finales del caso PDF)",
+    "backend_django/apps/simulation/tests/test_rubrics.py:87-110",
+    "backend_django/apps/simulation/tests/test_instructor.py:146-169 (guardar evaluacion por rubrica)"
+   ]
+  },
+  {
+   "id": "RF-23",
+   "veredicto": "parcial",
+   "resumen": "Al terminar, el estudiante ve un resultado con conteos por clasificacion, linea de tiempo, final, competencias y recomendaciones genericas, accesible tambien desde el historial. Pero el porque de cada decision (immediate_feedback y prohibition_reason, con su fundamento teorico o normativo) solo se muestra en el momento de decidir; el reporte final no lo trae y decisionReview no esta implementado.",
+   "clausulas": [
+    {
+     "texto": "Al finalizar el intento el estudiante dispone de la retroalimentacion",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/serializers/game_dtos.py:343-365 (completionReport viaja en la respuesta cuando el intento ya no esta en progreso)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2160-2171 y 2594-2607 (la supervision de la ultima decision se lee y despues se abre el resultado)",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:133-169 (Ver resumen del historial: sin linea de tiempo ni final)"
+     ]
+    },
+    {
+     "texto": "El estudiante puede ver su propio resultado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/game_views.py:85-89 (student-report, dueno o staff)",
+      "backend_django/apps/simulation/services/game_service.py:313-326 (get_student_report valida propietario)",
+      "backend_django/apps/simulation/views/game_views.py:69-75 (completion-report con token del intento)"
+     ]
+    },
+    {
+     "texto": "La retroalimentacion corresponde a las decisiones que tomo (explicacion por decision)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/serializers/game_dtos.py:154-180 (build_timeline: label = texto de la opcion; no incluye immediate_feedback ni prohibition_reason)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:270-287 (recomendaciones agregadas y genericas)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:293-327 (build no trae revision por decision)",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:149-180 (linea de tiempo con etiqueta, delta y tono; bloque Retroalimentacion del sistema = recomendaciones)",
+      "docs/diseno/orientacion-jugabilidad.md:747 (decisionReview propuesto; sin coincidencias en codigo fuera de docs)"
+     ]
+    }
+   ],
+   "brecha": "El reporte final no incluye, por decision tomada, el texto de retroalimentacion autorado (immediate_feedback), la razon de conducta prohibida ni el fundamento teorico; ese texto solo viaja en la respuesta posterior a cada decision. Tampoco hay forma de releerlo despues (recargar o historial). El comentario del docente en la rubrica no llega al estudiante (no existe endpoint de estudiante para RubricEvaluation).",
+   "accion": "Agregar decisionReview[] a CompletionReportBuilder.build (game_dtos.py:293-327): por cada evento de decision registrada, nodo, texto elegido, clasificacion, immediate_feedback y prohibition_reason; pintarlo en attempt-outcome.component.ts como lo que elegiste y por que; incluirlo tambien en el Ver resumen del historial; agregar pruebas en test_completion_report_contract.py. Sin cambio de esquema.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Si la retroalimentacion del docente por rubrica (RubricEvaluation.comment) debe mostrarse al estudiante y desde cuando; y si las respuestas reconsideradas (reintento) deben aparecer en la revision por decision. Los textos immediate_feedback hay que revisarlos para que se lean bien al final del intento.",
+   "terminologia": "'retroalimentacion' = en el sistema son cuatro cosas: immediate_feedback + prohibition_reason (mensaje de Supervision clinica), recommendations (bloque Retroalimentacion del sistema), el final canonico (ending) y la Retroalimentacion docente (RubricEvaluation.comment). 'finalizar el intento' = estado COMPLETED; pantalla app-attempt-outcome. 'decisiones que tomo' = eventos DECISION_SELECTED/PROHIBITED_DECISION_SELECTED (REGISTERED_DECISION_EVENT_TYPES).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:381-410 (linea de tiempo del reporte)",
+    "backend_django/apps/simulation/tests/test_game.py:479-500 (student-report y acceso ajeno)",
+    "backend_django/apps/simulation/tests/test_game.py:554-662 (reintentos y recomendaciones del reporte)",
+    "backend_django/apps/simulation/tests/test_completion_report_contract.py:233-308",
+    "frontend/src/app/features/simulator/attempt-outcome.component.spec.ts",
+    "frontend/src/app/core/api/simulation.service.spec.ts:78-87"
+   ]
+  },
+  {
+   "id": "CU-12",
+   "veredicto": "parcial",
+   "resumen": "El flujo existe de punta a punta hasta el cierre y la presentacion: la ultima decision lleva a un nodo terminal, el intento queda COMPLETED, se emite el hecho y el estudiante ve el reporte. Lo que falta es 'guardar la valoracion formativa': lo persistido son los insumos (eventos, puntaje, metricas, flags) y el reporte se recalcula; la evaluacion por rubrica es un paso posterior y manual del docente.",
+   "clausulas": [
+    {
+     "texto": "El intento se finaliza cuando se llega a una conclusion (Estudiante/Sistema)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:406-419",
+      "backend_django/apps/simulation/views/game_views.py:101-113 (DecisionsView, solo IsEstudianteOrAdmin)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2140-2171 (la decision cierra y abre supervision y resultado)"
+     ]
+    },
+    {
+     "texto": "Se guarda la valoracion formativa correspondiente",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:227-232 y 313-326 (valoracion recalculada de eventos en cada consulta)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:343-365",
+      "backend_django/apps/simulation/services/rubric_service.py:401-461 (valoracion por rubrica solo si el docente la guarda)"
+     ]
+    },
+    {
+     "texto": "RF relacionado RF-22 cubierto de punta a punta",
+     "estado": "parcial",
+     "evidencia": [
+      "Ver RF-22: cierre cumple; valoracion con rubrica y persistencia del resultado parciales"
+     ]
+    }
+   ],
+   "brecha": "Falta una valoracion formativa persistida al cerrar (congelada) y una definicion clara de si la valoracion es la automatica por clasificacion o la rubrica del docente. Sin eso 'guardar la valoracion' no es verificable como artefacto.",
+   "accion": "Igual que RF-22: congelar el reporte de cierre al completar (JSON en el detalle del evento ATTEMPT_COMPLETED) y consumirlo en completion-report/student-report; opcionalmente mostrar en la traza del docente el estado de la evaluacion por rubrica (ya muestra Aplicada/Pendiente).",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "La misma de RF-22: cual es la 'valoracion formativa' que debe quedar guardada (reporte automatico o evaluacion por rubrica del docente).",
+   "terminologia": "'Finalizar y evaluar intento' = decision que lleva a nodo terminal (COMPLETED) + reporte de cierre; 'valoracion formativa' = completionReport (conteos, competencias, recomendaciones, final) y, en el sistema, tambien RubricEvaluation del docente; 'conclusion' = nodo terminal.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:126-169",
+    "backend_django/apps/simulation/tests/test_attempt_completed_signal.py:107-176",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py",
+    "backend_django/apps/simulation/tests/test_caso_pdf.py:329-422",
+    "frontend/src/app/features/simulator/simulation-play.supervision.spec.ts:149-340"
+   ]
+  },
+  {
+   "id": "RN-08",
+   "veredicto": "conflicto",
+   "resumen": "El sistema hace lo contrario de lo que pide la regla en cuanto al momento: la retroalimentacion pedagogica (clasificacion, explicacion con fundamento y razon de conducta prohibida) se entrega inmediatamente despues de cada decision en 'Supervision clinica', y el cierre solo repite recomendaciones agregadas. No existe separacion entre consecuencia narrativa y retroalimentacion pedagogica: ambas salen del mismo campo immediate_feedback y del mismo DTO.",
+   "clausulas": [
+    {
+     "texto": "La consecuencia de una decision se muestra en el momento",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:401-404 (la decision mueve al nodo destino y el siguiente nodo/sala continua la historia)",
+      "backend_django/apps/simulation/services/game_service.py:361-384 (primera respuesta mala: no se aplica ni avanza; se devuelve un aviso evaluativo en lugar de consecuencia)",
+      "frontend/src/app/features/simulator/simulation-hud.component.ts:80-92 y 97-101 (barras de confianza y bienestar y marcador de puntos actualizados al decidir)"
+     ]
+    },
+    {
+     "texto": "Para poder continuar la historia",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:401-404 (current_node = target_node)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:57-77 (node_state con la narrativa del nodo)"
+     ]
+    },
+    {
+     "texto": "La retroalimentacion pedagogica se muestra al terminar el intento",
+     "estado": "conflicto",
+     "evidencia": [
+      "backend_django/apps/simulation/services/decision_effects.py:72-80 (format_feedback: prefijo 'Decision adecuada/con riesgo/inadecuada' o 'Alerta etica' + immediate_feedback)",
+      "backend_django/apps/simulation/services/game_service.py:393 y 421-422 (el mensaje evaluativo viaja en la respuesta de la propia decision)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:80-95 (feedback_dto: classification, prohibitedConduct, prohibitionReason, deltas)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2168-2171 y 2614-2644 (dialogo Supervision clinica tras cada decision, con message y prohibitionReason)",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:248-251 y 299-303 (los textos sembrados son explicaciones con fundamento normativo o teorico, no consecuencias narrativas)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:154-180 y 270-287 (al final no se repite la explicacion por decision)"
+     ]
+    },
+    {
+     "texto": "Se separa la consecuencia narrativa de la retroalimentacion pedagogica",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/models/case.py:99-122 (un solo campo immediate_feedback; no hay campo de consecuencia narrativa distinto)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:80-95 (un solo DTO mezcla efecto y evaluacion)"
+     ]
+    }
+   ],
+   "brecha": "(1) La retroalimentacion pedagogica se muestra en el momento y no al terminar. (2) No hay campo ni DTO para la consecuencia narrativa: lo unico narrativo es la narrativa del nodo destino. (3) La regla de segunda oportunidad dice a mitad del intento que la respuesta es riesgosa o inadecuada, y retiene la consecuencia. (4) El marcador de puntos del HUD es evaluacion visible en el momento.",
+   "accion": "Sin cambio de esquema: dejar de devolver en la respuesta de decisiones classification, prohibitedConduct, prohibitionReason, deltas y message evaluativo (feedback_dto y format_feedback); mostrar en el momento solo la consecuencia narrativa (narrativa del nodo destino o un texto neutro 'tu decision quedo registrada'); reemplazar buildSupervisionDialogue en simulation-play.component.ts:2614-2644; entregar immediate_feedback y prohibition_reason en el reporte de cierre (decisionReview de RF-23). Reescribir las pruebas que fijan el comportamiento actual y los e2e de supervision. Decidir la regla de reintento.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "(1) La regla de segunda oportunidad (game_service.py:361-384) delata al estudiante que su respuesta es mala antes del cierre: mantenerla (excepcion explicita a RN-08) o neutralizarla/quitarla. (2) Donde se autora la consecuencia narrativa: reutilizar la narrativa del nodo destino o agregar un campo propio (cambia esquema, el esquema Flyway esta congelado). (3) Si el marcador de puntos y las barras del HUD cuentan como consecuencia permitida o como evaluacion a ocultar.",
+   "terminologia": "'consecuencia de una decision' = efecto inmediato en el relato: nodo destino y su narrativa, cambio en barras (confianza, bienestar, estres); 'retroalimentacion pedagogica' = immediate_feedback + clasificacion + prohibition_reason (mensaje de 'Supervision clinica') y, al final, recommendations/ending; 'terminar el intento' = estado COMPLETED; 'historia' = recorrido del DAG de nodos.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:119-123 (feedback.message en la respuesta de la decision)",
+    "backend_django/apps/simulation/tests/test_game.py:164, 218, 278 (feedback presente; aviso de segunda oportunidad)",
+    "backend_django/apps/simulation/tests/test_game.py:318-324 (retryRequired true/false)",
+    "backend_django/apps/simulation/tests/test_game.py:527-535 (la clasificacion llega en el feedback posterior a decidir)",
+    "frontend/src/app/features/simulator/simulation-play.supervision.spec.ts:72-340",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py (immediateFeedback en autoria)"
+   ]
+  },
+  {
+   "id": "RN-09",
+   "veredicto": "conflicto",
+   "resumen": "El sistema si hace una valoracion formativa con criterios (reporte de cierre y rubrica basica de 6 criterios). Pero el motor de rubrica genera un total ponderado de 1.0 a 5.0, validado como 'calificacion', guardado en RubricEvaluation.total_score y mostrado al docente como Total y Puntaje total: es la escala que la regla dice que no se genera en esta fase. Mitigantes: lo aplica el docente a mano, no se llama 'nota oficial', el estudiante no lo ve y no sale en reportes ni CSV.",
+   "clausulas": [
+    {
+     "texto": "En esta fase el simulador hace una valoracion formativa con criterios o rubrica",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/serializers/game_dtos.py:189-195 y 226-327 (reporte de cierre cualitativo: conteos, competencias, recomendaciones)",
+      "backend_django/apps/simulation/services/rubric_service.py:25-62 (rubrica basica con 6 criterios y pesos que suman 100)",
+      "frontend/src/app/features/simulator/outcome.util.ts:21-28 (nivel cualitativo de desempeno)"
+     ]
+    },
+    {
+     "texto": "No genera una nota oficial de 0,0 a 5,0",
+     "estado": "conflicto",
+     "evidencia": [
+      "backend_django/apps/simulation/services/rubric_service.py:418-419 (valida cada calificacion entre 1.0 y 5.0)",
+      "backend_django/apps/simulation/services/rubric_service.py:425-430 (total ponderado con 2 decimales y estado EVALUATED)",
+      "backend_django/apps/simulation/services/rubric_service.py:366-373 (maxScore fijo en 5 por criterio)",
+      "backend_django/apps/simulation/models/rubric.py:58 (RubricEvaluation.total_score)",
+      "backend_django/apps/simulation/services/instructor_service.py:134-145 (totalScore expuesto al docente)",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:274, 436-439, 458-470 y 1711-1715 (Puntaje total, Total x/y, campos 0 a 5)"
+     ]
+    },
+    {
+     "texto": "El puntaje acumulado de la simulacion no es una nota 0-5",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/models/attempt.py:54 (accumulated_score entero sin tope ni escala fija)",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:111 (Puntaje total)",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:109 y 145 (pts y Puntaje)",
+      "backend_django/apps/reportes/services.py:204-207 y 244-245 (puntajePromedio en reportes: numerico, no es nota)"
+     ]
+    }
+   ],
+   "brecha": "El motor de rubrica produce una calificacion numerica 1.0 a 5.0 (por criterio y total ponderado), que es la 'calificacion numerica' que el texto base deja para una fase posterior. Ademas hay un puntaje acumulado con vocabulario de marcador (Puntaje, pts) que puede leerse como nota.",
+   "accion": "Minimo: dejar de calcular y mostrar el total 1.0 a 5.0. En rubric_service.save_attempt_evaluation (418-430) sustituir la calificacion numerica por niveles cualitativos por criterio (p. ej. Requiere refuerzo / En desarrollo / Adecuado / Destacado) y no computar total_score; en instructor-trace.component.ts quitar Total x/y y Puntaje total y los campos 0 a 5; actualizar test_instructor.py:146-169. Alternativa documental: mantener el valor, rotularlo 'indicador formativo, no es nota' y registrar la decision del equipo. Revisar el vocabulario Puntaje/pts del cierre.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Si un total de rubrica de 1 a 5, de uso interno del docente, sin valor oficial y no visible al estudiante, es aceptable como valoracion formativa bajo RN-09, o debe eliminarse la escala numerica. Y si el marcador Puntaje/pts del estudiante es aceptable.",
+   "terminologia": "'nota oficial de 0,0 a 5,0' = RubricEvaluation.total_score (1.0 a 5.0) y CriterionScore.score; 'valoracion formativa' = completionReport + evaluacion por rubrica del docente; 'criterios o rubrica' = Rubric/RubricCriterion; 'puntaje' en el sistema = accumulated_score, que no es la nota.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_instructor.py:146-169 (fija totalScore == 3.0 con puntajes 3)",
+    "backend_django/apps/simulation/tests/test_rubrics.py:51-110",
+    "backend_django/apps/simulation/tests/test_shared_helper_call_sites.py:160",
+    "frontend/src/app/core/api/simulation.service.contract.spec.ts:95"
+   ]
+  }
+ ],
+ "observaciones": [
+  "La carpeta de secciones verificadas wf1 estaba vacia; todo se verifico leyendo codigo directamente. No se ejecuto ninguna prueba ni se modifico el repositorio.",
+  "Terminologia: 'retroalimentacion' del texto base se reparte en el sistema entre immediate_feedback + prohibition_reason (Supervision clinica), recommendations (bloque Retroalimentacion del sistema), el final canonico (ending) y la Retroalimentacion docente (RubricEvaluation.comment). Conviene fijar un glosario antes de decidir RN-08, RF-23 y RF-22.",
+  "compute_ending esta cableado al caso PDF (flags como riesgo_feminicidio_valorado y OPTION_EFFECTS por option_key de seed_caso_pdf): un caso creado en el editor solo puede terminar en Final 3 (Riesgo Persistente) o Final 4 aunque todas sus decisiones sean adecuadas; Final 1 y Final 2 son inalcanzables. Las pruebas de finales solo cubren el caso PDF (test_caso_pdf.py:329-422). backend_django/apps/simulation/services/case_effects.py:289-348.",
+  "Desajuste interfaz-servidor en la rubrica del docente: la UI permite 0 a 5 y siembra 0 en cada criterio sin evaluar (instructor-trace.component.ts:1842-1850, 1330-1334), pero el servidor rechaza cualquier calificacion menor a 1.0 con 'Cada calificacion debe estar entre 1.0 y 5.0' (rubric_service.py:416-419). Un criterio dejado en 0 produce error 400. Inferido leyendo codigo, no ejecutado.",
+  "La asignacion de rubrica a una version (SimulationRubricAssignment) no se clona con clone_version (publication.py:181-185 solo clona rubricas con case_version_id): la version nueva vuelve en silencio a la rubrica predeterminada. Publicar tampoco exige que el caso tenga rubrica (publication.py:57-85).",
+  "La evaluacion por rubrica no tiene guarda de estado: el docente puede evaluar intentos IN_PROGRESS, PAUSED o REPLACED (rubric_service.py:401-461; instructor_service.recent_attempts lista todos los estados), mientras RF-22 habla de valorar al llegar a una conclusion.",
+  "El reporte de cierre y el final se calculan al vuelo desde attempt_events (game_service.py:227-232, 313-326): cualquier cambio de reglas modifica retroactivamente los resultados de intentos viejos. Esto afecta RF-22 ('guardar el resultado') y la trazabilidad de RF-21.",
+  "La regla de segunda oportunidad (game_service.py:361-384) no esta en la linea base: avisa a mitad del intento que la respuesta es riesgosa o inadecuada y retiene la consecuencia. Interactua con RN-08 y con RF-17 (el caso continua segun la opcion elegida); conviene que lo vea el grupo de ejecucion de la simulacion.",
+  "El comentario del docente en la rubrica nunca llega al estudiante: no hay endpoint de estudiante que lea RubricEvaluation; el historial dice 'Recomendaciones pendientes de retroalimentacion docente' (simulation-catalog.component.ts:167). Relevante para el alcance real de RF-23.",
+  "El propio equipo ya diagnostico la brecha de RF-23: docs/informes/2026-10-03-diagnostico-jugabilidad/code-dialogue.md:226-228 (DLG-19, el resultado no cierra el aprendizaje) y :285 (el porque es bueno pero esta mal ubicado), con propuesta decisionReview en docs/diseno/orientacion-jugabilidad.md:747; no esta implementada.",
+  "Cambios de esquema: ninguna de las acciones minimas lo requiere (se reutilizan immediate_feedback, el detalle de eventos y las columnas de rubrica). Solo lo exigirian un campo propio de consecuencia narrativa (RN-08) o un mapeo opcion-criterio para valoracion automatica por rubrica (RF-22 alternativa b)."
+ ]
+}

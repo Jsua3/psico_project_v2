@@ -1,0 +1,94 @@
+{
+ "grupo": "lote1",
+ "lente": "falso-cumple",
+ "revision": [
+  {
+   "id": "RF-01",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Login valida credenciales y cuenta activa en servidor; cierre de sesion existe y es alcanzable desde la UI. El logout es solo de cliente (JWT sigue valido hasta vencer) pero el texto base no exige revocacion.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:66-69",
+    "frontend/src/app/core/auth/auth.service.ts:64-80",
+    "frontend/src/app/shared/layout/shell.component.ts:145"
+   ]
+  },
+  {
+   "id": "RF-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Crear, actualizar (nombre, apellido, correo, rol, clave), activar/desactivar y asignar rol existen solo con IsAdmin en servidor y roleGuard('ADMIN') en la ruta. No encontre camino alterno ni funcion apagada. Riesgos (autodesactivacion, sin guarda de ultimo ADMIN) no contradicen el texto.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:193-231",
+    "backend_django/apps/users/serializers.py:52-86",
+    "frontend/src/app/app.routes.ts:86-91"
+   ]
+  },
+  {
+   "id": "CU-02",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El texto base solo lista crear, actualizar, activar/desactivar y asignar roles por el Administrador; todo existe con permiso ADMIN en servidor y pantalla alcanzable. Sin clausula omitida.",
+   "evidencia": [
+    "backend_django/apps/users/views.py:199-231",
+    "frontend/src/app/app.routes.ts:86-91"
+   ]
+  },
+  {
+   "id": "RN-10",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "Confirmado: el profesor (IsProfesor) crea cuentas ESTUDIANTE globales con create_user y fija/ve la contrasena (la de la fila o la compartida por defecto), contradiciendo 'el profesor no administra cuentas globales' y 'el administrador sera quien cree'. Veredicto no es generoso.",
+   "evidencia": [
+    "backend_django/apps/grupos/views.py:82-83",
+    "backend_django/apps/grupos/services.py:374",
+    "backend_django/apps/grupos/services.py:435-442",
+    "backend_django/apps/grupos/services.py:349",
+    "backend_django/psychosim/settings/base.py:122-123"
+   ]
+  },
+  {
+   "id": "RF-04",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Crear, agregar por correo (404 si no existe, 400 si no es ESTUDIANTE) y retirar existen, restringidos al profesor duenio (_require_grupo). La importacion Excel crea cuentas, extension que choca con 'ya registrados' pero ya esta contada en RN-10; el endpoint de agregar si impone la restriccion. Salvedad menor: agregar_estudiante no valida activo.",
+   "evidencia": [
+    "backend_django/apps/grupos/services.py:90-96",
+    "backend_django/apps/grupos/services.py:534-558",
+    "backend_django/apps/grupos/views.py:21-37",
+    "backend_django/apps/grupos/views.py:61-79"
+   ]
+  },
+  {
+   "id": "CU-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Flujo crear grupo y agregar estudiantes registrados existe, solo PROFESOR en ruta y API; texto base no pide mas. Misma salvedad de la importacion que RF-04.",
+   "evidencia": [
+    "frontend/src/app/app.routes.ts:74-79",
+    "backend_django/apps/grupos/views.py:21-37",
+    "backend_django/apps/grupos/services.py:544-558"
+   ]
+  },
+  {
+   "id": "RNF-01",
+   "acuerdo": false,
+   "veredicto_revisado": "parcial",
+   "motivo": "La BD guarda solo hash bcrypt con sal (cumple), pero la segunda parte, 'no deben quedar almacenadas como texto visible', se contradice: las claves reales de las cuentas demo ([contraseña demo ADMIN], [contraseña demo PROFESOR], [contraseña demo ESTUDIANTE]) estan como literales en el codigo del cliente (viajan en el bundle de produccion) y en el seed, y la clave por defecto '[contraseña por defecto de los importados]' esta fija en settings, es la clave real de todos los importados, se escribe en la plantilla Excel y se devuelve en claro por la API al docente. El evaluador vio estos hechos pero los trato como 'riesgo operativo fuera del texto'.",
+   "evidencia": [
+    "backend_django/apps/users/models.py:78-86",
+    "frontend/src/app/features/login/login-role.config.ts:32",
+    "frontend/src/app/features/login/login-role.config.ts:47",
+    "frontend/src/app/features/login/login-role.config.ts:62",
+    "backend_django/apps/users/management/commands/seed_demo_users.py:23",
+    "backend_django/psychosim/settings/base.py:122-123",
+    "backend_django/apps/grupos/services.py:246",
+    "backend_django/apps/grupos/services.py:349"
+   ]
+  }
+ ],
+ "clausulas_omitidas": [
+  "RF-04: la restriccion 'que ya esten registrados' no se aplica en el camino de importacion Excel (crea cuentas nuevas); agregar_estudiante tampoco exige cuenta activa (services.py:547-551).",
+  "RNF-01: la parte 'no deben quedar almacenadas como texto visible' se evaluo solo sobre la columna password_hash, sin considerar claves reales en literales de codigo/cliente, plantilla Excel y respuesta defaultPassword."
+ ]
+}

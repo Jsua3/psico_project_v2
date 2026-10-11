@@ -1,0 +1,323 @@
+{
+ "grupo": "g2-grupos",
+ "items": [
+  {
+   "id": "RF-04",
+   "veredicto": "cumple",
+   "resumen": "El profesor puede crear grupos, agregar estudiantes ya registrados (por correo) y retirarlos, con API, pantalla y pruebas. Solo el profesor dueño del grupo lo gestiona. La importación Excel además crea cuentas (extensión no pedida que choca con RN-10, no con RF-04).",
+   "clausulas": [
+    {
+     "texto": "El profesor puede crear grupos académicos.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:21-37 (POST /api/grupos solo con IsProfesor)",
+      "backend_django/apps/grupos/services.py:496-501 (crear: código único, el profesor queda como dueño)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:725-742 (formulario nombre + código)",
+      "backend_django/apps/grupos/tests/test_grupos.py:118-131 (201 y duplicado 400)"
+     ]
+    },
+    {
+     "texto": "El profesor puede agregar estudiantes que ya estén registrados (se busca por correo un usuario existente con rol ESTUDIANTE; si no existe o no es estudiante se rechaza).",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:61-71 (POST /api/grupos/{id}/estudiantes)",
+      "backend_django/apps/grupos/services.py:544-558 (404 si el correo no existe, 400 si el rol no es ESTUDIANTE, inserta en grupo_estudiante)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:880-908 (confirmarAgregar)",
+      "backend_django/apps/grupos/tests/test_grupos.py:134-141 y 305-318"
+     ]
+    },
+    {
+     "texto": "El profesor puede retirar estudiantes del grupo.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:74-79 (DELETE /api/grupos/{id}/estudiantes/{estudianteId})",
+      "backend_django/apps/grupos/services.py:533-541 (borra solo la fila de grupo_estudiante; cuenta e intentos se conservan)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:802-824 (confirmación y retiro)",
+      "backend_django/apps/grupos/tests/test_grupos.py:368-374"
+     ]
+    },
+    {
+     "texto": "Solo el profesor dueño del grupo puede agregar o retirar (el grupo es del profesor que lo crea).",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:90-96 (_require_grupo: 404 si no existe, 400 si no es suyo)",
+      "backend_django/apps/grupos/tests/test_grupos.py:296-302 (agregar a grupo ajeno 400)"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha frente al texto de RF-04. Extensión a vigilar: POST /api/grupos/{id}/estudiantes/import crea cuentas ESTUDIANTE nuevas con contraseña tomada de settings.IMPORTED_STUDENT_DEFAULT_PASSWORD cuando la fila no trae password (services.py:374 y 435-443); la línea base es un mínimo, pero RN-10 dice que el profesor no administra cuentas globales.",
+   "accion": "Ninguna requerida para RF-04. Opcional: limpiar mapAgregarEstudianteError (espera 409 e 'inactivo' que el backend no emite) y validar activo al agregar.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Ninguna bloqueante para RF-04. Vinculada a RN-10 (otro grupo): ¿la importación Excel puede seguir creando cuentas de estudiante?",
+   "terminologia": "grupo académico = Grupo (tabla grupos; en la UI 'grupo' o 'cohorte', con nombre y código único). Agregar estudiante = fila en grupo_estudiante por correo; retirar = DELETE de esa fila (no borra la cuenta). 'Ya registrado' = usuario existente con role ESTUDIANTE. Profesor = role PROFESOR.",
+   "pruebas_existentes": [
+    "backend_django/apps/grupos/tests/test_grupos.py::test_create_grupo_201",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_create_duplicate_codigo_400",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_add_student_increments_total",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_add_non_student_400",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_add_student_to_foreign_group_400",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_remove_student_from_group",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_list_students_in_group",
+    "frontend/src/app/features/grupos/grupo-list.feedback.spec.ts"
+   ]
+  },
+  {
+   "id": "RF-14",
+   "veredicto": "parcial",
+   "resumen": "El profesor asigna un caso publicado a un grupo propio (uno por llamada; varios grupos repitiendo) y eso lo hace visible y jugable para sus estudiantes. Faltan dos capacidades del texto: asignar a estudiantes individuales y definir fecha de apertura y de cierre (no existen en tabla, API, UI ni control de acceso). De 5 cláusulas, 3 cumplen y 2 no existen.",
+   "clausulas": [
+    {
+     "texto": "El profesor es quien asigna (solo sobre sus propios grupos).",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:119-131 (POST /api/grupos/{id}/casos con IsProfesor)",
+      "backend_django/apps/grupos/services.py:561-563 y 90-96 (grupo propio)",
+      "backend_django/apps/grupos/tests/test_grupos.py:282-293 (grupo ajeno 400)"
+     ]
+    },
+    {
+     "texto": "Debe ser un caso publicado.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:571-572 (exige versión PUBLISHED y caso activo)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:664-667 y 685-688 (el selector solo ofrece los publicados de listCases)",
+      "backend_django/apps/grupos/tests/test_grupos.py:267-279 (asignación feliz; no hay prueba del rechazo de no publicados)"
+     ]
+    },
+    {
+     "texto": "Asignarlo a uno o varios grupos.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19 (PK (grupo_id, case_version_id): relación muchos a muchos)",
+      "backend_django/apps/grupos/services.py:573-582 (una llamada = un grupo; varios grupos = repetir; no hay multiselección)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:1020-1038"
+     ]
+    },
+    {
+     "texto": "Asignarlo a estudiantes (individualmente, no por grupo).",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19 (la única tabla de asignación es por grupo; no hay tabla por estudiante)",
+      "backend_django/apps/grupos/urls.py:27-28 (solo /grupos/{id}/casos)",
+      "backend_django/apps/simulation/services/game_service.py:93-121 (el acceso del estudiante solo pasa por grupo_estudiante + grupo_case_version)",
+      "frontend/src/app/core/api/grupo.service.ts:115-123 (asignarCaso(grupoId, caseVersionId))"
+     ]
+    },
+    {
+     "texto": "Cuando sea necesario, definir una fecha de apertura y una fecha de cierre.",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19 (solo grupo_id, case_version_id, assigned_at)",
+      "backend_django/apps/grupos/serializers.py:33-34 (AsignarCasoSerializer solo acepta caseVersionId)",
+      "backend_django/apps/simulation/services/game_service.py:93-121 (el acceso no mira ninguna ventana de fechas)",
+      "backend_django/apps/grupos/services.py:488 (assigned_at solo ordena el listado)",
+      "Sin coincidencias de opens_at, closes_at, fecha_apertura, fecha_cierre, fechaApertura ni fechaCierre en backend_django ni frontend/src"
+     ]
+    }
+   ],
+   "brecha": "1) No hay asignación a estudiantes individuales (solo por grupo). 2) No hay fecha de apertura ni de cierre: ni columnas, ni campos en la API o la pantalla, ni validación al iniciar o continuar un intento. Con grupos y sin fechas, el caso queda disponible de inmediato y para siempre hasta que el profesor lo retire.",
+   "accion": "Fechas: migración RunSQL nueva en grupos (como 0002) con ALTER TABLE grupo_case_version ADD COLUMN IF NOT EXISTS opens_at y closes_at TIMESTAMP NULL (con CHECK closes_at > opens_at); AsignarCasoSerializer con opensAt/closesAt opcionales; asignar_caso con upsert (ON CONFLICT DO UPDATE) para poder reprogramar; exponerlas en listar_casos_asignados; aplicar la ventana en _assigned_case_version_ids y _student_can_access_case (game_service.py:93-121); dos campos de fecha en el formulario 'Asignar caso' de grupo-list y mostrarlas en la fila. Estudiantes individuales: tabla estudiante_case_version (estudiante_id, case_version_id, opens_at, closes_at, assigned_at) con endpoints y UNION en las dos consultas de acceso; o, sin esquema, aceptar 'grupo de un solo estudiante' (hoy ya es posible) con un atajo en la UI.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": true,
+   "decision_requerida": "1) Qué pasa con un intento en curso al llegar la fecha de cierre (bloquear decisiones, dejar terminar, o solo impedir nuevos intentos). 2) Zona horaria y si los límites son inclusivos. 3) Si 'a estudiantes' exige asignación individual real o se acepta un grupo de un solo estudiante. 4) Si un profesor puede asignar a cualquier estudiante registrado o solo a los de sus grupos.",
+   "terminologia": "'Asignar' = insertar fila en grupo_case_version (grupo_id, case_version_id, assigned_at). 'Caso publicado' = CaseVersion con status PUBLISHED y SimulationCase.active (se asigna la versión, caseVersionId, no el caso). 'Grupo' = Grupo. 'Estudiante' individual = sin equivalente. 'Fecha de apertura / cierre' = sin equivalente (assigned_at es solo cuándo se asignó). 'Habilitado' (RF-15, RN-04) = asignado a un grupo activo al que pertenece el estudiante.",
+   "pruebas_existentes": [
+    "backend_django/apps/grupos/tests/test_grupos.py::test_assign_case_to_group",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_assign_case_to_foreign_group_400",
+    "frontend/src/app/features/grupos/grupo-list.feedback.spec.ts (describe 'asignar y retirar casos', líneas 307-364)",
+    "backend_django/apps/simulation/tests/test_game.py::test_cases_lists_only_assigned_for_students"
+   ]
+  },
+  {
+   "id": "CU-03",
+   "veredicto": "cumple",
+   "resumen": "El flujo del caso de uso existe de punta a punta: el profesor entra a Grupos (ruta y menú solo PROFESOR), crea el grupo, agrega estudiantes registrados por correo, ve la lista y el conteo, y puede retirarlos. Solo cubre RF-04 y este está cumplido.",
+   "clausulas": [
+    {
+     "texto": "Actor principal: Profesor (la pantalla y la API de grupos son solo de profesor).",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:74-79 (roleGuard('PROFESOR'))",
+      "frontend/src/app/shared/layout/shell.component.ts:685 (menú 'Grupos' solo PROFESOR)",
+      "backend_django/apps/grupos/tests/test_grupos.py:98-99 y 113-115 (estudiante y admin reciben 403)"
+     ]
+    },
+    {
+     "texto": "Crear grupos.",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/grupos/grupo-list.component.ts:80-109 y 725-742",
+      "backend_django/apps/grupos/services.py:496-501"
+     ]
+    },
+    {
+     "texto": "Agregar estudiantes que ya estén registrados en el sistema.",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/grupos/grupo-list.component.ts:329-339 y 880-908",
+      "backend_django/apps/grupos/services.py:544-558"
+     ]
+    },
+    {
+     "texto": "Flujo completo: abrir Grupos, crear, agregar, ver estudiantes del grupo y conteo, retirar.",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/grupos/grupo-list.component.ts:862-878 (cargarDetalle lista estudiantes y casos)",
+      "backend_django/apps/grupos/services.py:319-335 (listar_estudiantes)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:802-824 (retirar)"
+     ]
+    }
+   ],
+   "brecha": "Ninguna frente al texto del caso de uso. Nota: el mismo formulario ofrece también importar por Excel, que crea cuentas nuevas (ver RN-10).",
+   "accion": "Ninguna requerida.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "'Gestionar grupos' = pantalla /portal/grupos (GrupoListComponent) y API /api/grupos. 'Agregar estudiantes registrados' = POST /api/grupos/{id}/estudiantes por correo. Actor 'Profesor' = role PROFESOR.",
+   "pruebas_existentes": [
+    "backend_django/apps/grupos/tests/test_grupos.py (test_create_grupo_201, test_add_student_increments_total, test_list_students_in_group, test_remove_student_from_group)",
+    "frontend/src/app/features/grupos/grupo-list.feedback.spec.ts",
+    "frontend/src/app/features/grupos/grupo-list.validation.dom.spec.ts"
+   ]
+  },
+  {
+   "id": "CU-06",
+   "veredicto": "parcial",
+   "resumen": "El flujo para grupos existe de punta a punta: el profesor abre un grupo propio, elige un caso publicado, lo asigna y los estudiantes del grupo lo ven en su catálogo y pueden iniciar el intento. Falta la mitad 'o estudiantes': no hay forma de asignar a un estudiante individual (RF-14).",
+   "clausulas": [
+    {
+     "texto": "Actor principal: Profesor, sobre sus grupos.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:119-131",
+      "backend_django/apps/grupos/services.py:90-96"
+     ]
+    },
+    {
+     "texto": "Asignar un caso publicado (solo PUBLISHED y activo).",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:571-572",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:288-302 y 1020-1038"
+     ]
+    },
+    {
+     "texto": "Asignarlo a grupos (varios, repitiendo por grupo).",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:573-582",
+      "backend_django/apps/grupos/tests/test_grupos.py:267-279"
+     ]
+    },
+    {
+     "texto": "Asignarlo a estudiantes (individualmente).",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19 (solo asignación por grupo)",
+      "frontend/src/app/core/api/grupo.service.ts:115-118",
+      "backend_django/apps/simulation/services/game_service.py:93-121"
+     ]
+    },
+    {
+     "texto": "Efecto de la asignación: el estudiante del grupo ve el caso y puede iniciarlo.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:124-139 (list_published_cases filtra por asignación)",
+      "backend_django/apps/simulation/services/game_service.py:160-164 (start_attempt exige la asignación)",
+      "backend_django/apps/simulation/tests/test_game.py:73-85"
+     ]
+    }
+   ],
+   "brecha": "Asignación a estudiantes individuales: no existe tabla, endpoint ni UI. Hoy el único camino es crear un grupo de un solo estudiante.",
+   "accion": "Igual que la parte 'estudiantes' de RF-14: tabla estudiante_case_version + endpoints + UNION en _assigned_case_version_ids y _student_can_access_case + selector de estudiante en la pantalla; o aceptar y facilitar el 'grupo de un solo estudiante' (S, sin esquema).",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": true,
+   "decision_requerida": "¿Se exige asignación individual real o se acepta un grupo de un solo estudiante como forma de cumplir 'a estudiantes'?",
+   "terminologia": "'Asignar caso' = fila en grupo_case_version; 'caso publicado' = CaseVersion PUBLISHED (con SimulationCase.active); 'grupos' = Grupo; 'estudiantes' individuales = sin equivalente.",
+   "pruebas_existentes": [
+    "backend_django/apps/grupos/tests/test_grupos.py::test_assign_case_to_group",
+    "backend_django/apps/grupos/tests/test_grupos.py::test_assign_case_to_foreign_group_400",
+    "backend_django/apps/simulation/tests/test_game.py::test_cases_lists_only_assigned_for_students",
+    "backend_django/apps/simulation/tests/test_game.py::test_start_attempt_requires_group_case_assignment",
+    "frontend/src/app/features/grupos/grupo-list.feedback.spec.ts"
+   ]
+  },
+  {
+   "id": "RN-04",
+   "veredicto": "parcial",
+   "resumen": "La entrada real está protegida en el servidor: un estudiante solo puede iniciar intentos de casos asignados a un grupo activo suyo (403 si no), y el catálogo principal /api/simulation/cases solo lista los asignados. Hay tres agujeros: el catálogo del lobby (/api/simulation/catalog) no filtra por asignación; un intento ya iniciado se puede continuar tras retirar al estudiante o el caso; y no existe otro modo de 'habilitar' ni ventana de fechas.",
+   "clausulas": [
+    {
+     "texto": "El estudiante solo puede entrar (iniciar intento) a casos asignados a un grupo activo al que pertenece.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:108-121 (_student_can_access_case: grupo_estudiante + grupos.activo + grupo_case_version)",
+      "backend_django/apps/simulation/services/game_service.py:160-164 (PermissionDenied 'El caso no ha sido asignado a tu grupo')",
+      "backend_django/apps/simulation/views/game_views.py:38-47",
+      "backend_django/apps/simulation/tests/test_game.py:83-85"
+     ]
+    },
+    {
+     "texto": "El catálogo principal del estudiante lista únicamente los casos publicados que tiene asignados.",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:124-139 (list_published_cases: sin asignados devuelve [])",
+      "backend_django/apps/simulation/views/game_views.py:31-35",
+      "frontend/src/app/core/api/simulation.service.ts:33-36 (listCases lo usa /portal/simulador)",
+      "backend_django/apps/simulation/tests/test_game.py:73-80"
+     ]
+    },
+    {
+     "texto": "Ningún otro listado de casos ofrece al estudiante casos que no tiene asignados.",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/progression/catalog.py:12-43 (build_catalog lista todos los PUBLISHED sin filtrar por grupo y marca 'unlocked' por orden lineal global)",
+      "backend_django/apps/simulation/views/game_views.py:229-234 (GET /api/simulation/catalog)",
+      "backend_django/apps/progression/tests/test_catalog.py:45-53 (un estudiante sin grupo ve 2 o más casos, el primero desbloqueado)",
+      "frontend/src/app/features/simulator/game-menu.component.ts:367-372 y 442-449 (el lobby entra al caso y recibe 403 al iniciar)",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:1603-1611 (error genérico 'Revisa tus permisos')"
+     ]
+    },
+    {
+     "texto": "Quien ya no tiene el caso asignado (retirado del grupo, caso retirado del grupo, grupo inactivo) deja de poder entrar, incluidos los intentos que ya había iniciado.",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:206-219 (find_active_attempt solo exige caso publicado y reemite el token, sin mirar la asignación)",
+      "backend_django/apps/simulation/services/game_service.py:67-83 (_require_attempt solo verifica dueño, sin mirar la asignación)",
+      "backend_django/apps/simulation/views/game_views.py:50-57",
+      "backend_django/apps/grupos/services.py:533-541 y 585-593 (retirar no cierra intentos ni avisa)"
+     ]
+    },
+    {
+     "texto": "'Habilitados': existe otro mecanismo de habilitación además de la asignación.",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:561-582 (única vía de habilitación: asignación a grupo)",
+      "backend_django/apps/progression/catalog.py:1-6 (el 'unlocked' es progresión lineal, no habilitación académica)"
+     ]
+    }
+   ],
+   "brecha": "1) /api/simulation/catalog (lobby /portal/jugar) enseña código, título y descripción de casos publicados no asignados y deja 'entrar' al primero; además, su desbloqueo lineal ignora la asignación (un estudiante asignado solo al caso 2 queda bloqueado en el lobby). 2) Retirar al estudiante o quitar el caso no corta intentos en curso (el estudiante puede reanudarlos y seguir decidiendo). 3) Sin ventana de fechas que también limite el acceso (ver RF-14).",
+   "accion": "(a) build_catalog: para rol ESTUDIANTE restringir a los asignados (reutilizando la consulta de game_service, movida a un helper compartido) y calcular el desbloqueo solo entre ellos, o retirar la ruta /portal/jugar si no se usa. (b) Aplicar _student_can_access_case en find_active_attempt y en _require_attempt (solo para quien es estudiante dueño del intento), o bien avisar al docente al retirar (hay intentos en curso). (c) Cuando existan fechas (RF-14), incluir la ventana en la misma consulta. Añadir pruebas: catálogo sin asignación, retiro con intento en curso, grupo inactivo.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Un estudiante retirado del grupo (o con el caso desasignado) puede terminar el intento en curso o se bloquea de inmediato? ¿Se conserva el lobby /portal/jugar (sin enlace en la navegación) y su desbloqueo lineal, y aplica solo entre casos asignados?",
+   "terminologia": "'Habilitado o asignado' = caso con fila en grupo_case_version para un grupo activo al que pertenece el estudiante (única vía real). 'Entrar' = crear o continuar un intento (POST /api/simulation/attempts, active-attempt). 'unlocked' del catálogo = progresión lineal, no es 'habilitado' en el sentido de la línea base. ADMIN inicia intentos sin asignación y PROFESOR no puede iniciar; la regla habla solo del estudiante.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py::test_cases_lists_only_assigned_for_students",
+    "backend_django/apps/simulation/tests/test_game.py::test_start_attempt_requires_group_case_assignment",
+    "backend_django/apps/progression/tests/test_catalog.py (fija el catálogo del lobby sin filtro de asignación)"
+   ]
+  }
+ ],
+ "observaciones": [
+  "Hay dos catálogos para el estudiante con criterios distintos: /api/simulation/cases (filtra por asignación; lo usan /portal/simulador, el panel y la pantalla de grupos) y /api/simulation/catalog (sin filtro, con desbloqueo lineal global por fecha de creación). Este último solo lo consume el lobby /portal/jugar, que no tiene enlace en el menú ni en el panel (solo aparece en app.routes.ts y game-route.util.ts) pero sigue accesible por URL y por API para cualquier usuario autenticado.",
+  "La asignación es por versión (case_version_id). No hay código que traslade asignaciones al publicar una versión nueva ni que las limpie al archivar: grupo_case_version solo se toca en grupos/services.py, game_service.py, seeds y pruebas. Relevante para RF-13 y RF-14; las versiones archivadas siguen listadas en los casos asignados del grupo aunque el estudiante ya no pueda iniciarlas.",
+  "La importación Excel (POST /api/grupos/{id}/estudiantes/import) crea cuentas ESTUDIANTE nuevas con una contraseña por defecto de settings (IMPORTED_STUDENT_DEFAULT_PASSWORD). RF-04 y CU-03 no se rompen (la línea base es mínimo), pero choca con RN-10 (el profesor no administra cuentas globales); conviene que el grupo que evalúa RN-10 lo cuente como conflicto.",
+  "Retirar un estudiante o quitar un caso solo borra la fila de unión: no cierra intentos en curso ni avisa. El spec grupo-list.feedback.spec.ts:354 simula un 400 'Hay estudiantes con este caso en curso' que el backend real no emite.",
+  "Pequeñas inconsistencias: mapAgregarEstudianteError espera 409 e 'inactivo' que el backend no genera (agregar es idempotente con ON CONFLICT DO NOTHING y no valida activo); GrupoEstudiantesImportView tiene un return inalcanzable (views.py:97); el código de grupo es único a nivel global, así que un profesor puede chocar con el de otro y el mensaje revela que existe (services.py:498-499).",
+  "Cualquier cambio de esquema (fechas, asignación individual) debe ir como migración RunSQL nueva en backend_django/apps/grupos/migrations (el modelo Grupo es managed=False y grupo_case_version se creó por RunSQL en 0002). El volcado deploy/db_seed.sql define grupo_case_version sin las columnas nuevas; las migraciones pendientes las añadirían al aplicarse.",
+  "Roles: ADMIN solo puede listar grupos (no crearlos ni gestionarlos); ADMIN inicia intentos sin asignación; PROFESOR no puede iniciar intentos, por lo que no puede probar un caso asignado salvo con una cuenta de estudiante. No es una violación de RN-04 (habla del estudiante) pero afecta la verificación de RF-14."
+ ]
+}

@@ -1,0 +1,539 @@
+{
+ "grupo": "g8-resultados-docente",
+ "items": [
+  {
+   "id": "RF-24",
+   "veredicto": "cumple",
+   "resumen": "El estudiante ve su historial completo (todos los estados, incluidos PAUSED y REPLACED) y el resumen de cada intento; repetir crea una fila nueva con UUID y token propios. Salvedad fuera del texto: la valoración con rúbrica que aplica el docente no llega al estudiante.",
+   "clausulas": [
+    {
+     "texto": "El estudiante puede consultar sus resultados (puntaje, decisiones por clasificación, estado y duración) de cada intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:235",
+      "backend_django/apps/simulation/services/game_service.py:288",
+      "backend_django/apps/simulation/views/game_views.py:78",
+      "backend_django/apps/simulation/urls.py:32",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:81",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:448"
+     ]
+    },
+    {
+     "texto": "El estudiante puede consultar los intentos anteriores (el historial no excluye intentos cerrados, pausados ni reemplazados)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:241",
+      "backend_django/apps/simulation/tests/test_game.py:438",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:463"
+     ]
+    },
+    {
+     "texto": "Si repite una simulación, el nuevo intento se guarda por separado",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:187",
+      "backend_django/apps/simulation/models/attempt.py:40",
+      "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:284"
+     ]
+    },
+    {
+     "texto": "Cada estudiante ve solo su propio historial y sus propios reportes (restricción implícita)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:242",
+      "backend_django/apps/simulation/services/game_service.py:323",
+      "backend_django/apps/simulation/tests/test_game.py:495"
+     ]
+    }
+   ],
+   "brecha": "Ninguna frente al texto. Salvedades: (1) el docente aplica la rúbrica (RubricEvaluation) y no existe lectura de estudiante para verla, así que el «resultado» formal del docente no se consulta; (2) el reporte «Ver resumen» del historial no muestra línea de tiempo ni final aunque el DTO los trae; (3) un intento PAUSED en el historial solo ofrece «Ver resumen», no reanudar.",
+   "accion": "Ninguna obligatoria. Opcional: en el historial, mostrar timeline y ending del reporte y ofrecer «Reanudar» para PAUSED.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "«Resultados» = puntaje acumulado (accumulatedScore), conteos de decisiones adecuadas/riesgosas/inadecuadas/prohibidas, estado y final del reporte de cierre (completionReport). «Historial / intentos anteriores» = GET /api/simulation/attempts/history (UI «Historial de intentos»). «Repite una simulación» = POST /api/simulation/attempts (botones «Reintentar caso» / «Iniciar nuevo intento», parámetro forceNew). «Guardarse por separado» = fila nueva en simulation_attempts_v2 con attemptId y token propios. No confundir con los RF-0NN de docs/requisitos del repo (numeración propia).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:413 test_attempt_history_lists_own_attempts",
+    "backend_django/apps/simulation/tests/test_game.py:438 historial con REPLACED y tiempo activo",
+    "backend_django/apps/simulation/tests/test_game.py:479 y :495 student-report propio y ajeno (403)",
+    "frontend/src/app/features/simulator/attempt-history-duration.util.spec.ts",
+    "frontend/src/app/features/simulator/simulation-catalog.component.spec.ts:32 etiquetas de estado"
+   ]
+  },
+  {
+   "id": "RF-25",
+   "veredicto": "parcial",
+   "resumen": "El profesor puede abrir la traza de un intento (respuestas, recorrido, tiempos, resultados, bitácora descifrada, rúbrica) y la propiedad por grupo se exige en /api/instructor. Pero la lista de revisión trae solo 20 intentos recientes con alias anónimo, la duración es ended_at-started_at, y otros caminos (student-report, tablero, reportes) no aplican «sus estudiantes».",
+   "clausulas": [
+    {
+     "texto": "Actor profesor (y admin) con acceso a la revisión",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/instructor_views.py:14",
+      "frontend/src/app/app.routes.ts:63",
+      "frontend/src/app/shared/layout/shell.component.ts:683"
+     ]
+    },
+    {
+     "texto": "Revisar las respuestas (decisión elegida y su clasificación, bitácora/reflexiones descifradas)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:123",
+      "backend_django/apps/simulation/services/instructor_service.py:125",
+      "backend_django/apps/simulation/services/instructor_service.py:161",
+      "backend_django/apps/simulation/tests/test_instructor.py:108"
+     ]
+    },
+    {
+     "texto": "Revisar el recorrido (línea de tiempo, nodos visitados, mundo)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:121",
+      "backend_django/apps/simulation/services/instructor_service.py:122",
+      "backend_django/apps/simulation/services/instructor_service.py:124",
+      "backend_django/apps/simulation/serializers/game_dtos.py:154"
+     ]
+    },
+    {
+     "texto": "Revisar los tiempos",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:96",
+      "backend_django/apps/simulation/services/instructor_service.py:120",
+      "backend_django/apps/simulation/serializers/game_dtos.py:320",
+      "backend_django/apps/simulation/services/attempt_duration.py:14",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:312",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:1765"
+     ]
+    },
+    {
+     "texto": "Revisar los resultados (estado, puntaje, métricas, conteos, evaluación de rúbrica)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:104",
+      "backend_django/apps/simulation/services/instructor_service.py:111",
+      "backend_django/apps/simulation/services/instructor_service.py:134",
+      "backend_django/apps/simulation/services/instructor_service.py:154"
+     ]
+    },
+    {
+     "texto": "Solo de «sus» estudiantes (propiedad por grupo)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:32",
+      "backend_django/apps/simulation/services/instructor_service.py:54",
+      "backend_django/apps/simulation/tests/test_instructor.py:123",
+      "backend_django/apps/simulation/services/game_service.py:323",
+      "backend_django/apps/simulation/views/game_views.py:86",
+      "backend_django/apps/reportes/services.py:111",
+      "frontend/src/app/features/dashboard/dashboard.component.html:211"
+     ]
+    },
+    {
+     "texto": "Poder revisar a cada uno de sus estudiantes (no solo una ventana reciente) e identificarlo",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:64",
+      "backend_django/apps/simulation/services/instructor_service.py:72",
+      "backend_django/apps/simulation/services/instructor_service.py:28",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:89"
+     ]
+    }
+   ],
+   "brecha": "(1) recent_attempts devuelve máx. 20 intentos, solo de versiones PUBLISHED y casos activos, sin filtro por grupo/estudiante/caso ni paginación: con 30 estudiantes no se alcanza a todos y los intentos de versiones archivadas desaparecen de la lista (la traza sí abre por id). (2) La identidad es un alias «Estudiante-<id>» que el docente no puede cruzar con la lista del grupo en la UI, mientras el tablero y los reportes sí muestran nombres reales (incoherente). (3) totalDurationSeconds es ended_at-started_at: un intento reemplazado cierra con ended_at del momento del reemplazo, así que puede mostrar días; active_duration_seconds existe pero solo lo usa el historial del estudiante. (4) «Tiempo por escenario» (phaseDurations) nunca se envía: sección muerta. (5) Propiedad: GET /api/simulation/attempts/<id>/student-report deja pasar a cualquier PROFESOR/ADMIN sin comprobar grupo; el tablero /api/reportes/dashboard es global y expone id de intento y nombre completo de los 10 intentos más recientes de todo el sistema.",
+   "accion": "(a) Nuevo GET /api/instructor/attempts con filtros grupoId/estudianteId/caseVersionId/estado y paginación, reutilizando _student_ids_for_instructor y sin el tope [:20] ni el filtro PUBLISHED. (b) Decidir identificación y aplicarla igual en traza, tablero y reportes. (c) Usar active_duration_seconds (y total) en la traza y enviar tiempo por escena o retirar la sección. (d) Reutilizar la comprobación de _require_attempt en game_service.get_student_report para PROFESOR y filtrar get_dashboard por los estudiantes del profesor. (e) Prueba de profesor ajeno para student-report y dashboard.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿El docente ve el nombre real de sus estudiantes en la revisión o se mantiene el alias anónimo (hoy la traza anonimiza pero el tablero y los reportes no)? ¿La revisión debe abarcar todos los intentos de sus grupos, con filtros? ¿El acceso se pierde al retirar al estudiante del grupo o eliminar el grupo (hoy sí)?",
+   "terminologia": "«Profesor» = rol PROFESOR (en UI «Docente», en API «instructor»). «Sus estudiantes» = estudiantes en grupos activos del profesor (grupo_estudiante + grupos.profesor_id, activo = TRUE). «Respuestas» = decisiones elegidas (AttemptEvent DECISION_SELECTED, DecisionOption.text) y reflexiones de bitácora (ReflectionJournal). «Recorrido» = timeline / visitedNodeTitles / eventos NODE_ENTERED. «Tiempos» = totalDurationSeconds y time/atSeconds por evento (activeDurationSeconds solo en historial). «Resultados» = status, accumulatedScore, metrics, contadores y rubricEvaluations. Pantalla «Revisión formativa del intento» / «Trazabilidad docente».",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_instructor.py:92 recent prohibido a estudiante",
+    "backend_django/apps/simulation/tests/test_instructor.py:96 recent con alias anónimo",
+    "backend_django/apps/simulation/tests/test_instructor.py:108 traza con eventos, mundo y reflexión descifrada",
+    "backend_django/apps/simulation/tests/test_instructor.py:123 profesor ajeno recibe 403 en traza",
+    "backend_django/apps/simulation/tests/test_instructor.py:172 reintentos en la traza",
+    "frontend/src/app/features/simulator/instructor-trace.reconsidered.spec.ts",
+    "No hay prueba de profesor ajeno para student-report, dashboard ni reportes"
+   ]
+  },
+  {
+   "id": "RF-26",
+   "veredicto": "parcial",
+   "resumen": "Existe reporte básico por grupo y caso (totales, promedio, decisiones, bitácoras, rúbricas, fila por estudiante) con exportación CSV. No hay reporte propio de un estudiante, la opción «Todos los casos asignados» devuelve vacío y el API no comprueba que el grupo sea del profesor.",
+   "clausulas": [
+    {
+     "texto": "El profesor puede generar reportes",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/reportes/views.py:29",
+      "backend_django/apps/reportes/views.py:37",
+      "frontend/src/app/app.routes.ts:80",
+      "frontend/src/app/shared/layout/shell.component.ts:686"
+     ]
+    },
+    {
+     "texto": "Reporte básico del desempeño de un grupo (por caso)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:155",
+      "backend_django/apps/reportes/services.py:187",
+      "backend_django/apps/reportes/services.py:278",
+      "backend_django/apps/reportes/tests/test_reportes.py:147",
+      "backend_django/apps/reportes/tests/test_reportes.py:185"
+     ]
+    },
+    {
+     "texto": "Reporte básico del desempeño de un estudiante",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:237",
+      "backend_django/apps/reportes/services.py:215",
+      "backend_django/apps/reportes/urls.py:7"
+     ]
+    },
+    {
+     "texto": "Restricción implícita (RN-10, RF-25): el profesor genera reportes solo de sus grupos y estudiantes",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:156",
+      "backend_django/apps/reportes/services.py:90",
+      "backend_django/apps/grupos/services.py:80",
+      "backend_django/apps/grupos/services.py:90",
+      "backend_django/apps/reportes/tests/test_reportes.py:133"
+     ]
+    },
+    {
+     "texto": "[No exigida por la línea base; la UI la promete] Reporte consolidado del grupo sin elegir caso",
+     "estado": "no_cumple",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:159",
+      "backend_django/apps/reportes/tests/test_reportes.py:137",
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:86",
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:110",
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:673"
+     ]
+    }
+   ],
+   "brecha": "(1) No hay endpoint ni pantalla de reporte de un estudiante (varios casos, todos sus intentos): solo una fila dentro del reporte de grupo, sin tiempos ni recorrido. (2) Propiedad: generar_reporte_grupo busca Grupo por pk y no compara grupo.profesor_id con el usuario; ReporteGrupoView y ReporteGrupoExportView solo exigen rol, así que cualquier PROFESOR lee y exporta el grupo de otro; solo la lista de la UI (listar_de_profesor) está acotada. El dashboard agrega todos los estudiantes del sistema. (3) Sin caseVersionId el servicio devuelve simulacion=None y la UI muestra «No hay reportes disponibles», aunque su texto dice que consolida todo el grupo. (4) El reporte de grupo no trae tiempos. (5) El CSV no escapa comas ni comillas del nombre ni prefijos de fórmula.",
+   "accion": "(1) En generar_reporte_grupo/exportar_csv exigir grupo.profesor_id == request.user.id (ADMIN exento) y responder 403; filtrar get_dashboard por los estudiantes del profesor; agregar prueba de profesor ajeno. (2) Sin caseVersionId, consolidar las versiones de grupo_case_version o quitar la opción de la UI. (3) GET /api/reportes/estudiante/<id>?caseVersionId= con pertenencia a un grupo del profesor, con intentos, estado, puntaje, decisiones y tiempo activo; o aceptar formalmente la fila por estudiante. (4) Escapar el CSV.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Basta la fila por estudiante del reporte de grupo para «reporte de un estudiante» o se quiere reporte propio multi-caso? ¿El reporte consolidado sin caso es requisito? ¿El tablero del profesor debe filtrarse a sus grupos?",
+   "terminologia": "«Reporte» = GET /api/reportes/grupo/<grupoId>?caseVersionId= (+ /export en CSV; UI «Reportes por grupo»); «grupo» = Grupo/grupos (UI «cohorte»); «desempeño» = puntajePromedio, decisiones adecuadas/riesgosas/inadecuadas, bitácoras, rúbricas aplicadas, estado EN_PROGRESO/EN_PAUSA/COMPLETADO/SAFE_EXITED/PENDIENTE; «estudiante» = fila de estudiantes[] del reporte. «Salida segura» = pausa reanudable (PAUSED), no confundir con REPLACED.",
+   "pruebas_existentes": [
+    "backend_django/apps/reportes/tests/test_reportes.py:81 y :85 reportes prohibidos a estudiante",
+    "backend_django/apps/reportes/tests/test_reportes.py:133 grupo inexistente 404",
+    "backend_django/apps/reportes/tests/test_reportes.py:147 bloque de simulación",
+    "backend_django/apps/reportes/tests/test_reportes.py:185 CSV",
+    "backend_django/apps/reportes/tests/test_estados_contract.py:73 contadores por estado",
+    "backend_django/apps/reportes/tests/test_reemplazo_vs_salida_segura.py:111",
+    "No hay prueba de profesor ajeno sobre reportes"
+   ]
+  },
+  {
+   "id": "CU-13",
+   "veredicto": "parcial",
+   "resumen": "El flujo existe de punta a punta: al terminar aparece la pantalla de resultado con métricas, línea de tiempo y recomendaciones; luego el historial y «Ver resumen». Es parcial porque RF-23 lo es: la retroalimentación pedagógica por decisión se muestra en el momento y no al final, y la evaluación del docente no llega al estudiante.",
+   "clausulas": [
+    {
+     "texto": "Consultar al final el resultado del intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:406",
+      "backend_django/apps/simulation/serializers/game_dtos.py:343",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:110"
+     ]
+    },
+    {
+     "texto": "Consultar la retroalimentación correspondiente a las decisiones tomadas (RF-23)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/serializers/game_dtos.py:154",
+      "backend_django/apps/simulation/serializers/game_dtos.py:270",
+      "backend_django/apps/simulation/services/decision_effects.py:72",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:149",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:175",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:133"
+     ]
+    },
+    {
+     "texto": "Consultar el historial de intentos (RF-24)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:235",
+      "frontend/src/app/features/simulator/simulation-catalog.component.ts:81",
+      "frontend/src/app/features/dashboard/dashboard.component.ts:536"
+     ]
+    },
+    {
+     "texto": "Flujo completo: terminar intento, ver resultado y reabrir un intento pasado",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:26",
+      "frontend/src/app/core/api/simulation.service.ts:157",
+      "backend_django/apps/simulation/services/game_service.py:313"
+     ]
+    }
+   ],
+   "brecha": "(1) La explicación autorada por opción (immediate_feedback) solo viaja en el mensaje de la decisión; en el reporte final la línea de tiempo usa decision.text, y lo que se rotula «Retroalimentación del sistema» son recomendaciones de plantilla según conteos. (2) «Ver resumen» del historial muestra métricas y recomendaciones, sin timeline ni final aunque el DTO los trae. (3) La rúbrica y el comentario del docente (RubricEvaluation) no tienen lectura para el estudiante; el texto «Recomendaciones pendientes de retroalimentación docente» es inalcanzable porque add_recommendations siempre devuelve al menos una. (4) Las secciones de tiempo por escenario están vacías porque el backend no envía phaseDurations.",
+   "accion": "Reutilizar el panel del outcome en «Ver resumen» (timeline, ending); decidir y mostrar al final la retroalimentación autorada por decisión (fundamento teórico); añadir lectura para estudiante de su evaluación (GET /api/simulation/attempts/<id>/evaluation, dueño o staff) sin exponer rúbrica de otros.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿La «retroalimentación» del estudiante es la del sistema (plantillas), la autorada por opción (RF-10) o la valoración del docente? Define también RN-08 (consecuencia en el momento vs retroalimentación pedagógica al terminar).",
+   "terminologia": "«Resultado» = completionReport (finalScore, métricas, contadores, ending); «retroalimentación» = recommendations + competencies (reporte) y feedback.message (en el momento) / RubricEvaluation.comment (docente); «historial de intentos» = /api/simulation/attempts/history; «al final» = cuando el intento deja IN_PROGRESS (COMPLETED, o PAUSED/REPLACED con su resumen); «conclusión» = nodo terminal (terminal_node).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:381 reporte con timeline",
+    "backend_django/apps/simulation/tests/test_game.py:479 student-report",
+    "backend_django/apps/simulation/tests/test_completion_report_contract.py",
+    "backend_django/apps/simulation/tests/test_completion_report_builder.py",
+    "frontend/src/app/features/simulator/attempt-outcome.component.spec.ts"
+   ]
+  },
+  {
+   "id": "CU-14",
+   "veredicto": "parcial",
+   "resumen": "El flujo existe: «Docente» en el menú, lista de intentos recientes de sus estudiantes, traza completa y evaluación con rúbrica. Es parcial por las limitaciones de RF-25: ventana de 20 intentos, alias sin identificación, duración inflada en reemplazados y propiedad no aplicada en student-report y tablero.",
+   "clausulas": [
+    {
+     "texto": "Acceder al panel docente (rol profesor)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:63",
+      "frontend/src/app/shared/layout/shell.component.ts:683",
+      "backend_django/apps/simulation/urls_instructor.py:11"
+     ]
+    },
+    {
+     "texto": "Revisar el recorrido de los estudiantes (traza por intento)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/instructor_views.py:20",
+      "backend_django/apps/simulation/services/instructor_service.py:87",
+      "frontend/src/app/features/simulator/instructor-trace.component.ts:337"
+     ]
+    },
+    {
+     "texto": "Revisar el desempeño de los estudiantes (cobertura, identificación y tiempos fiables)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:72",
+      "backend_django/apps/simulation/services/instructor_service.py:28",
+      "backend_django/apps/simulation/services/instructor_service.py:96",
+      "backend_django/apps/simulation/services/game_service.py:323"
+     ]
+    },
+    {
+     "texto": "Acción principal: valorar con rúbrica y guardar",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/instructor_views.py:27",
+      "backend_django/apps/simulation/services/rubric_service.py:402",
+      "backend_django/apps/simulation/tests/test_instructor.py:146"
+     ]
+    }
+   ],
+   "brecha": "Las mismas de RF-25. Además, el botón «Ver trazabilidad» de la tabla del tablero lleva a la lista general, no al intento de la fila, y esa tabla muestra intentos globales de otros docentes.",
+   "accion": "Resolver RF-25 (lista filtrable y paginada, identificación coherente, tiempo activo, propiedad en student-report y tablero) y enlazar las filas del tablero al intento concreto.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Las de RF-25 (alias o nombre real; alcance de la revisión).",
+   "terminologia": "«Revisar desempeño» = «Trazabilidad docente» / «Revisión formativa del intento» (ruta /portal/docente/trazabilidad, API /api/instructor/attempts/...). «Recorrido» = timeline y visitedNodeTitles. «Estudiantes» = alias Estudiante-<id>.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_instructor.py:96",
+    "backend_django/apps/simulation/tests/test_instructor.py:108",
+    "backend_django/apps/simulation/tests/test_instructor.py:123",
+    "backend_django/apps/simulation/tests/test_instructor.py:146",
+    "frontend/src/app/features/simulator/instructor-trace.reconsidered.spec.ts"
+   ]
+  },
+  {
+   "id": "CU-15",
+   "veredicto": "parcial",
+   "resumen": "El flujo existe para el grupo: Reportes, grupo y caso, generar, exportar CSV. Falta el reporte de un estudiante como tal, la opción sin caso devuelve vacío y el API no verifica que el grupo sea del profesor.",
+   "clausulas": [
+    {
+     "texto": "Generar un reporte básico de un grupo (selección de grupo y caso, vista y CSV)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:659",
+      "frontend/src/app/features/reportes/reporte-grupo.component.ts:684",
+      "backend_django/apps/reportes/views.py:28",
+      "backend_django/apps/reportes/views.py:36"
+     ]
+    },
+    {
+     "texto": "Generar un reporte básico de un estudiante",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:237",
+      "backend_django/apps/reportes/urls.py:7"
+     ]
+    },
+    {
+     "texto": "El flujo no expone grupos ajenos al profesor",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/reportes/services.py:156",
+      "backend_django/apps/grupos/services.py:80"
+     ]
+    }
+   ],
+   "brecha": "Las mismas de RF-26: sin reporte de estudiante, sin consolidado cuando no se elige caso (la UI ofrece «Todos los casos asignados») y sin control de propiedad en /api/reportes/grupo/<id> y /export. La ruta /portal/reportes solo admite PROFESOR aunque la pantalla se rotula «Vista administrativa».",
+   "accion": "Aplicar las acciones de RF-26.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Las de RF-26.",
+   "terminologia": "«Generar reporte» = botón «Generar reporte» y «Exportar CSV» en «Reportes por grupo»; «de un grupo» = grupoId; «de un estudiante» = fila de estudiantes[] (sin reporte propio).",
+   "pruebas_existentes": [
+    "backend_django/apps/reportes/tests/test_reportes.py:147",
+    "backend_django/apps/reportes/tests/test_reportes.py:185",
+    "backend_django/apps/reportes/tests/test_estados_contract.py:73"
+   ]
+  },
+  {
+   "id": "RN-06",
+   "veredicto": "cumple",
+   "resumen": "Cada intento es una fila independiente con su propio UUID, token, eventos, reflexiones y estado de mundo; ningún camino de ejecución sobrescribe o borra intentos anteriores. forceNew cierra el intento abierto como REPLACED y lo conserva, con evento y datos intactos. Hay colisión terminológica con la palabra «reemplazar».",
+   "clausulas": [
+    {
+     "texto": "Cada intento se guarda de manera independiente",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:187",
+      "backend_django/apps/simulation/models/attempt.py:40",
+      "backend_django/apps/simulation/models/attempt.py:111",
+      "deploy/db_seed.sql:3867"
+     ]
+    },
+    {
+     "texto": "Un intento nuevo no reemplaza a los anteriores (no se sobrescriben ni se borran; los cerrados quedan intactos)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:142",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:88",
+      "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:284",
+      "backend_django/apps/simulation/tests/test_game.py:438"
+     ]
+    },
+    {
+     "texto": "Los intentos anteriores (incluidos los REPLACED) siguen consultables por estudiante y docente",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:241",
+      "backend_django/apps/simulation/serializers/game_dtos.py:193",
+      "backend_django/apps/simulation/services/instructor_service.py:46"
+     ]
+    }
+   ],
+   "brecha": "Ninguna de datos. Riesgos de lectura y de operación: (1) el estado REPLACED y la etiqueta «Intento reemplazado» pueden leerse como contrarios a «no reemplazar»; en realidad es un cierre que conserva el intento. (2) El intento cerrado por forceNew se marca ended_at con la hora del reemplazo. (3) No hay restricción de BD contra borrado; el comando de siembra seed_caso_pdf elimina todos los intentos de la versión sembrada (solo dev/test, protegido por scripts/db-bootstrap.mjs).",
+   "accion": "Ninguna para cumplir. Recomendado: nombrar/explicar REPLACED como «cerrado por nuevo intento» y mantener la guarda del seed fuera de producción.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Confirmar que cerrar un intento abierto como REPLACED (conservado, no puntúa) satisface «no reemplazar intentos anteriores»; si no, renombrar el estado y la etiqueta, o resolver RN-07 prohibiendo forceNew sobre intentos abiertos.",
+   "terminologia": "«Intento» = SimulationAttempt (simulation_attempts_v2, attemptId UUID). «Guardarse de manera independiente» = fila, token y eventos propios. «Reemplazar» en el texto base = sobrescribir; en el sistema REPLACED = intento cerrado porque el estudiante empezó otro con forceNew (evento ATTEMPT_REPLACED), no es salida segura. «Historial» = /api/simulation/attempts/history.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:270 forceNew cierra el abierto como REPLACED",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:284 forceNew no toca los cerrados",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:214",
+    "backend_django/apps/reportes/tests/test_reemplazo_vs_salida_segura.py:94",
+    "backend_django/apps/simulation/tests/test_upgrade_attempt_replaced.py"
+   ]
+  },
+  {
+   "id": "RN-07",
+   "veredicto": "conflicto",
+   "resumen": "Repetir tras terminar y guardar cada repetición como intento nuevo funciona, y sin forceNew el sistema devuelve el intento abierto en lugar de crear otro. Pero el API acepta forceNew=true con un intento IN_PROGRESS o PAUSED y la UI ofrece «Iniciar nuevo intento» en ese caso (cierra el abierto como REPLACED y crea otro): contradice «no podrá iniciar otro si todavía tiene uno en progreso».",
+   "clausulas": [
+    {
+     "texto": "Puede repetir una simulación cuando haya terminado la anterior",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:166",
+      "backend_django/apps/simulation/services/game_service.py:187",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:75",
+      "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:284"
+     ]
+    },
+    {
+     "texto": "Cada repetición se guarda como intento nuevo",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:187",
+      "backend_django/apps/simulation/models/attempt.py:40"
+     ]
+    },
+    {
+     "texto": "No podrá iniciar otro si todavía tiene uno en progreso (camino sin forceNew)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:166",
+      "backend_django/apps/simulation/services/game_service.py:179",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:104",
+      "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:298",
+      "backend_django/apps/simulation/tests/test_safe_pause.py:200"
+     ]
+    },
+    {
+     "texto": "No podrá iniciar otro si todavía tiene uno en progreso (camino con forceNew)",
+     "estado": "conflicto",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:180",
+      "backend_django/apps/simulation/services/game_service.py:142",
+      "backend_django/apps/simulation/views/game_views.py:44",
+      "backend_django/apps/simulation/serializers/requests.py:6",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:183",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:1585",
+      "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:270"
+     ]
+    },
+    {
+     "texto": "La restricción se sostiene ante solicitudes simultáneas",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:160",
+      "backend_django/apps/simulation/services/game_service.py:169",
+      "deploy/db_seed.sql:4007",
+      "backend_django/apps/simulation/models/attempt.py:65"
+     ]
+    },
+    {
+     "texto": "Se conserva el historial de todos los intentos",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:241",
+      "backend_django/apps/simulation/tests/test_game.py:438"
+     ]
+    }
+   ],
+   "brecha": "(1) forceNew es una bandera que el cliente controla: start_attempt cierra todos los intentos abiertos (IN_PROGRESS y PAUSED) del estudiante en esa versión y crea otro; la tarjeta «Continuar simulación formativa» muestra «Iniciar nuevo intento» sin confirmación. Las pruebas test_un_intento_nuevo_forzado_reemplaza_al_abierto fijan ese comportamiento. (2) La comprobación es lectura y luego inserción sin select_for_update, sin índice único parcial: dos POST simultáneos pueden crear dos IN_PROGRESS (idx_attempts_student_status no es único). (3) Un intento abierto de una versión archivada queda huérfano: _require_published bloquea find_active_attempt y start_attempt, el historial muestra «Continuar» y falla.",
+   "accion": "Mínimo: que start_attempt rechace force_new si existe un intento abierto (409 o 400 «Tienes un intento en curso») y separar el cierre en una acción explícita del estudiante (POST /attempts/<id>/close que aplica la transición REPLACE ya existente) con confirmación; la UI llama a close y luego a start. Endurecimiento opcional: índice único parcial (student_id, case_version_id) WHERE status IN ('IN_PROGRESS','PAUSED') o select_for_update del estudiante dentro de start_attempt; el índice sí cambia el esquema (script en deploy/upgrades y bootstrap_dev_db).",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Se permite abandonar un intento abierto para empezar otro? Opción estricta: no (solo continuar). Opción recomendada: cierre explícito del anterior y luego inicio (así nunca hay dos en progreso). Si se mantiene forceNew tal cual, RN-07 queda incumplida por diseño y debe aceptarse como excepción documentada.",
+   "terminologia": "«En progreso» = IN_PROGRESS y PAUSED (OPEN_STATUSES; la pausa cuenta como abierto, más estricto que el texto). «Terminado» = COMPLETED (también SAFE_EXITED histórico y REPLACED son terminales). «Repetir» = «Reintentar caso» / «Iniciar nuevo intento» (forceNew). «Iniciar otro» = POST /api/simulation/attempts. «Historial» = /api/simulation/attempts/history.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:298 sin forzar devuelve el abierto (cumple)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:270 forceNew reemplaza al abierto (fija el conflicto)",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:200",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:214",
+    "backend_django/apps/simulation/tests/test_game.py:438",
+    "frontend/src/app/features/simulator/simulation-play.consent-gate.spec.ts:237",
+    "frontend/src/app/core/api/simulation.service.contract.spec.ts:170",
+    "No hay prueba de concurrencia"
+   ]
+  }
+ ],
+ "observaciones": [
+  "Propiedad inconsistente: /api/instructor aplica «sus estudiantes» por grupo activo (instructor_service.py:32-58, con prueba de 403), pero /api/simulation/attempts/<id>/student-report (game_service.py:323), /api/reportes/dashboard (reportes/services.py:90-151) y /api/reportes/grupo/<id> (+export) (reportes/services.py:155-168) solo exigen rol. El tablero publica id de intento y nombre completo de los 10 intentos más recientes del sistema; con ese id, cualquier PROFESOR lee el reporte de cierre. Ninguna prueba cubre profesor ajeno fuera de la traza.",
+  "Anonimización incoherente: la traza docente usa alias «Estudiante-<id>» (instructor_service.py:28), el tablero del profesor y los reportes muestran nombres reales (dashboard.component.html:211, reportes/services.py:259). Hay que decidir una política única.",
+  "forceNew es la fuente de la tensión RN-06/RN-07: no borra nada (RN-06 se cumple), pero permite iniciar otro con uno abierto y sin confirmación (RN-07 en conflicto). La UI ya distingue el estado con etiquetas honestas (REPLACED no es salida segura).",
+  "Tiempos: ended_at de un REPLACED es la hora del reemplazo, así que totalDurationSeconds (traza y reporte de cierre) puede inflarse; el historial del estudiante usa active_duration_seconds. phaseDurations no lo envía Django (simulation.service.ts:158) y sus secciones en catálogo e instructor-trace quedan muertas.",
+  "El alcance docente depende de la membresía vigente: quitar un estudiante o eliminar el grupo (grupos/services.py:523-541, borrado duro) hace que el profesor pierda acceso a esos intentos, aunque se conserven (RN-06). Solo ADMIN los alcanza.",
+  "recent_attempts excluye intentos de versiones no PUBLISHED o casos inactivos (instructor_service.py:64), aunque la traza por id sí los abre; un intento abierto de una versión archivada queda huérfano para el estudiante (_require_published bloquea reanudar).",
+  "Fuera del grupo pero relacionado con «resultados»: la rúbrica docente guarda un total ponderado 1.0-5.0 (rubric_service.py:418-445), lo que roza RN-09 (sin nota 0,0-5,0); el estudiante no puede ver esa evaluación.",
+  "Exportación CSV sin escape (reportes/services.py:288-300): nombres con comas o comillas rompen columnas y un nombre que empiece con = + - @ es inyección de fórmula en hojas de cálculo.",
+  "seed_caso_pdf.py:1159-1165 elimina todos los intentos de la versión que resiembra; solo lo invocan bootstrap_dev_db y seed_demo_access (scripts/db-bootstrap.mjs avisa y guarda), nunca el runtime. Conviene mantener esa guarda para no violar RN-06 en producción.",
+  "Colisión de numeración: docs/requisitos usa RF-0NN, RNF-0NN y RQ-NEG-0NN propios del repo (p. ej. RF-027 asistente IA); no equivalen a los RF-xx, RN-xx y CU-xx de la línea base académica.",
+  "La ruta /portal/reportes solo admite PROFESOR (app.routes.ts:83) aunque el API admite ADMIN y la pantalla se rotula «Vista administrativa»."
+ ]
+}

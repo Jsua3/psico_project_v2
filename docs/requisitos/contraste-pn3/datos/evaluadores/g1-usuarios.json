@@ -1,0 +1,453 @@
+{
+ "grupo": "g1-usuarios",
+ "items": [
+  {
+   "id": "RF-01",
+   "veredicto": "cumple",
+   "resumen": "Todo usuario con cuenta activa inicia sesion con correo y contrasena (o con Google si esta configurado) y la cierra desde el boton del portal. El servidor emite un JWT de 8 h con id, correo y rol; el cliente lo descarta al cerrar. El cierre es solo del cliente (no hay revocacion en servidor), cosa que el texto no exige.",
+   "clausulas": [
+    {
+     "texto": "El usuario puede iniciar sesion con sus credenciales (correo + contrasena)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:55-74",
+      "backend_django/apps/users/serializers.py:117-122",
+      "backend_django/apps/users/models.py:88-99",
+      "frontend/src/app/core/auth/auth.service.ts:32-37",
+      "frontend/src/app/features/login/login.component.ts:280-334",
+      "backend_django/apps/users/tests/test_auth.py:30-45"
+     ]
+    },
+    {
+     "texto": "Solo entra quien tiene credenciales validas y cuenta activa (credencial mala o cuenta inactiva = 401; un token de cuenta desactivada tambien se rechaza en cada peticion)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:66-69",
+      "backend_django/apps/users/models.py:70-76",
+      "backend_django/psychosim/settings/base.py:101-108 (SIMPLE_JWT no desactiva CHECK_USER_IS_ACTIVE)",
+      "dependencia djangorestframework-simplejwt 5.5.1: rest_framework_simplejwt/authentication.py:138 y settings.py:47 (backend_django/requirements.txt:5)",
+      "backend_django/apps/users/tests/test_auth.py:48-66"
+     ]
+    },
+    {
+     "texto": "La sesion identifica al usuario y su rol (token con userId, role, sub; resumen de usuario en la respuesta)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/serializers.py:93-102",
+      "backend_django/apps/users/views.py:71-74",
+      "backend_django/apps/users/tests/test_auth.py:69-78",
+      "backend_django/apps/users/tests/test_auth.py:99-111"
+     ]
+    },
+    {
+     "texto": "El usuario puede cerrar sesion",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/shared/layout/shell.component.ts:145 (boton Cerrar sesion)",
+      "frontend/src/app/shared/layout/shell.component.ts:780-784",
+      "frontend/src/app/core/auth/auth.service.ts:64-80 (borra el token de localStorage y va a /login)",
+      "nota: sin endpoint de logout ni lista de revocacion: backend_django/psychosim/settings/base.py:16-33 y :101-108"
+     ]
+    }
+   ],
+   "brecha": "Ninguna frente al texto. Salvedades de seguridad (no exigidas por RF-01): (1) cerrar sesion solo borra el token en el navegador; el JWT sigue valido hasta su vencimiento (JWT_EXPIRATION_HOURS, 8 h por defecto) y tampoco se revoca al cambiar la contrasena (CHECK_REVOKE_TOKEN en False por defecto de la libreria); (2) no hay limite de intentos de login (REST_FRAMEWORK sin throttling, base.py:90-99); (3) el usuario no puede cambiar su propia contrasena: «Olvidaste tu contrasena» es un mailto (login.component.html:153); (4) no hay prueba automatica del cierre de sesion ni del 401 con token de un usuario desactivado.",
+   "accion": "Nada para cumplir. Endurecimiento opcional: throttling en /api/auth/login, revocacion de tokens (blacklist o CHECK_REVOKE_TOKEN) y pruebas de logout y de token de usuario desactivado.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "«credenciales» = email + contrasena (users.password_hash, BCrypt) o cuenta Google cuyo correo ya existe y esta activo; «iniciar sesion» = POST /api/auth/login (y /api/auth/google) que devuelve JWT + resumen de usuario; «cerrar sesion» = boton «Cerrar sesion» del portal, que borra el token del navegador (AuthService.logout). La pantalla muestra «Ingresar».",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_auth.py (login ok, credenciales malas, inactivo, claims, /me con y sin token, correo normalizado, Google)",
+    "backend_django/apps/users/tests/test_google_login_contract.py",
+    "backend_django/apps/users/tests/test_models.py:8-33",
+    "scripts/api-e2e.mjs:104-134 y :182-188 (login por rol y 401)",
+    "frontend/src/app/core/auth/jwt.interceptor.spec.ts, token.utils.spec.ts, http-error-chain.spec.ts",
+    "frontend/src/app/features/login/login.a11y.spec.ts",
+    "frontend/e2e/full-case.e2e.ts:37-38 (login de estudiante por UI)",
+    "Sin prueba de cierre de sesion (logout) en frontend ni backend"
+   ]
+  },
+  {
+   "id": "RF-02",
+   "veredicto": "parcial",
+   "resumen": "El sistema reconoce los tres roles y los aplica en servidor (permisos DRF por vista, rol leido de la BD en cada peticion) y en cliente (roleGuard y menu filtrado). La matriz rol-funcion difiere de la linea base: el PROFESOR no puede crear ni editar casos (solo ADMIN) y el ADMIN recibe ademas funciones de estudiante y de docente. Hay un menu que se muestra completo si el rol es desconocido.",
+   "clausulas": [
+    {
+     "texto": "Reconoce si el usuario es estudiante, profesor o administrador",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/models.py:18-21 y :51-53",
+      "deploy/db_seed.sql:1563 (CHECK users_role_check)",
+      "backend_django/apps/simulation/tests/test_deploy_schema_contract.py:37",
+      "backend_django/apps/users/serializers.py:36-41 y :93-102",
+      "backend_django/apps/users/views.py:181-187",
+      "frontend/src/app/core/auth/auth.service.ts:125-145"
+     ]
+    },
+    {
+     "texto": "El servidor solo deja ejecutar las funciones del rol (403 para otro rol)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/shared/permissions.py:5-27",
+      "backend_django/apps/users/views.py:126,156,167,193,210,223 (IsAdmin)",
+      "backend_django/apps/grupos/views.py:22-26,41,62,75,83,101,108,120,135 (IsProfesor / IsProfesorOrAdmin)",
+      "backend_django/apps/simulation/views/game_views.py:39,51,79,102,117,130,143,165,182,192,206,216 (IsEstudianteOrAdmin)",
+      "backend_django/apps/simulation/views/instructor_views.py:14,21,28 y rubric_views.py:11-66 (IsProfesorOrAdmin)",
+      "backend_django/apps/simulation/views/authoring_views.py:23-24 (IsAdmin)",
+      "scripts/api-e2e.mjs:136-180"
+     ]
+    },
+    {
+     "texto": "El rol aplicado es el vigente: un cambio de rol o la desactivacion rigen en la sesion abierta",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/shared/permissions.py:5-8 (lee request.user.role cargado de la BD, no el claim)",
+      "dependencia simplejwt 5.5.1 authentication.py:120-139 (carga el usuario por id en cada peticion)",
+      "nota: la UI usa el rol del token hasta recargar/sincronizar /me: frontend/src/app/core/auth/auth.service.ts:120-141 y frontend/src/app/app.config.ts:20-26"
+     ]
+    },
+    {
+     "texto": "El cliente muestra solo las opciones y rutas que corresponden al rol (menu y guards)",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:27-91 (roleGuard por ruta)",
+      "frontend/src/app/core/auth/auth.guard.ts:30-45",
+      "frontend/src/app/shared/layout/shell.component.ts:679-695",
+      "salvedad: visibleNavItems devuelve el menu completo si el rol es desconocido: shell.component.ts:693",
+      "salvedad: /portal/simulador sin roleGuard (app.routes.ts:33-37), abierto a los tres roles por diseno",
+      "sin pruebas de roleGuard ni de menu por rol en frontend (no hay spec que los referencie)"
+     ]
+    },
+    {
+     "texto": "Las funciones que corresponden a cada rol son las de la linea base (profesor: casos, grupos, asignacion, seguimiento; estudiante: participar; administrador: usuarios)",
+     "estado": "parcial",
+     "evidencia": [
+      "Autoria de casos solo ADMIN: frontend/src/app/app.routes.ts:50-61 y shell.component.ts:687; backend_django/apps/simulation/views/authoring_views.py:23-24; scripts/api-e2e.mjs:156-160 (PROFESOR 403 en /admin/cases)",
+      "ADMIN juega y edita personaje: app.routes.ts:30,41,47; backend_django/shared/permissions.py:25-27",
+      "ADMIN con trazabilidad y rubricas docentes: app.routes.ts:65,71; permissions.py:20-22",
+      "ADMIN sin Grupos/Reportes en la UI (app.routes.ts:77,83) aunque el backend los admite: grupos/views.py:22-26 y reportes/views.py:22,29,37",
+      "la carencia del PROFESOR para autorar se juzga en RF-05 a RF-13; aqui solo cuenta como matriz distinta"
+     ]
+    }
+   ],
+   "brecha": "La mecanica de roles esta completa y probada en servidor, pero la matriz rol-funcion no coincide con la linea base: (a) crear/editar casos, escenas, decisiones y publicar/archivar (RF-05..RF-13, actor Profesor) es solo ADMIN; el PROFESOR recibe 403 y no ve esa opcion; (b) el ADMIN recibe funciones de estudiante (jugar, personaje) y de docente (trazabilidad, rubricas), y no tiene Grupos/Reportes en la UI aunque el backend se las permite; (c) el menu se muestra completo si el rol es desconocido; (d) no hay pruebas de roleGuard ni del menu por rol.",
+   "accion": "Fijar la matriz en un solo lugar y alinear: si el PROFESOR debe autorar, abrir authoring_views a IsProfesorOrAdmin con propiedad del caso (created_by), anadir PROFESOR a roleGuard de /portal/casos y al item «Editar casos». Corregir visibleNavItems para que devuelva [] sin rol, y agregar specs de roleGuard y menu por rol. Opcional: acotar get_student_report a los grupos del profesor.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Quien autora y publica casos: el PROFESOR (como dice la linea base) o el ADMIN (como esta hoy). Y si el ADMIN conserva funciones de estudiante (jugar para probar el caso) y de docente, o queda limitado a usuarios, casos y publicacion.",
+   "terminologia": "estudiante = ESTUDIANTE; profesor = PROFESOR (en la UI «Docente»); administrador = ADMIN. «funciones» = rutas /portal/... del frontend y endpoints /api/... del backend; «mostrarle solo las funciones» = items del menu (navItems) + roleGuard en rutas + permission_classes en DRF (IsAdmin, IsProfesor, IsProfesorOrAdmin, IsEstudianteOrAdmin).",
+   "pruebas_existentes": [
+    "scripts/api-e2e.mjs:136-180 (matriz 200/403 por rol: simulation/cases, reportes/dashboard, admin/cases, admin/users, instructor/attempts/recent)",
+    "backend_django/apps/users/tests/test_auth.py:114-137 (register 401 sin sesion y 403 para no admin)",
+    "backend_django/apps/grupos/tests/test_grupos.py:113-115 (ADMIN no crea grupos)",
+    "backend_django/apps/simulation/tests/test_authoring.py, test_instructor.py, test_rubrics.py (casos 403)",
+    "Sin pruebas de roleGuard/menu en frontend; sin prueba de 403 para PROFESOR/ESTUDIANTE en /api/admin/users*"
+   ]
+  },
+  {
+   "id": "RF-03",
+   "veredicto": "cumple",
+   "resumen": "El administrador crea usuarios, edita nombre, apellido, correo, rol y contrasena, y activa o desactiva cuentas, tanto por API (/api/admin/users*) como desde la pantalla «Usuarios». Todo es exclusivo del rol ADMIN en servidor y en rutas. La desactivacion impide el login y corta las sesiones abiertas.",
+   "clausulas": [
+    {
+     "texto": "El administrador puede crear usuarios",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:199-204",
+      "backend_django/apps/users/serializers.py:52-77",
+      "frontend/src/app/features/admin/users.component.ts:418-466",
+      "backend_django/apps/users/tests/test_auth.py:177-197 y :220-249"
+     ]
+    },
+    {
+     "texto": "El administrador puede actualizar los datos de un usuario",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:212-217",
+      "backend_django/apps/users/serializers.py:79-86",
+      "frontend/src/app/features/admin/users.component.ts:404-416",
+      "backend_django/apps/users/tests/test_auth.py:318-344"
+     ]
+    },
+    {
+     "texto": "El administrador puede activar o desactivar cuentas, con efecto real",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:225-231",
+      "frontend/src/app/features/admin/users.component.ts:468-494",
+      "backend_django/apps/users/views.py:67-69 (login rechazado)",
+      "backend_django/apps/users/models.py:70-76 (is_active = activo, usado por JWTAuthentication)",
+      "backend_django/apps/users/tests/test_auth.py:347-362 y :58-66"
+     ]
+    },
+    {
+     "texto": "El administrador puede asignar un rol (ADMIN, PROFESOR, ESTUDIANTE)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/serializers.py:57",
+      "backend_django/apps/users/models.py:18-21",
+      "deploy/db_seed.sql:1563",
+      "frontend/src/app/features/admin/users.component.ts:184-192 y :276",
+      "backend_django/apps/users/tests/test_auth.py:220-249 (rol asignado llega al token)"
+     ]
+    },
+    {
+     "texto": "Solo el administrador (actor) puede hacerlo",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:193,210,223 (IsAdmin)",
+      "backend_django/psychosim/urls.py:57-59",
+      "frontend/src/app/app.routes.ts:86-91",
+      "sin prueba de 403 para PROFESOR/ESTUDIANTE en /api/admin/users*"
+     ]
+    }
+   ],
+   "brecha": "Ninguna frente al texto. Riesgos menores: (1) nada impide que el ADMIN se desactive o se quite el rol a si mismo, o deje el sistema sin ADMIN activo (views.py:212-231); (2) no hay pruebas de permiso negativo en /api/admin/users*; (3) existen dos caminos de creacion (/api/auth/register y /api/admin/users) con comportamiento distinto: el primero no resuelve la solicitud de acceso pendiente (views.py:123-135 vs :203); (4) el selector de rol muestra los codigos ADMIN/PROFESOR/ESTUDIANTE.",
+   "accion": "Nada obligatorio. Opcional: guarda de ultimo ADMIN activo y de autodesactivacion, pruebas 403/401 para no admin y retirar o alinear /api/auth/register.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "«usuario» = fila de users (CustomUser); «actualizar sus datos» = PUT /api/admin/users/<id> (nombre, apellido, email, role, password opcional); «activar o desactivar» = campo activo (PATCH .../status); «rol» = columna role. La pantalla es «Usuarios» en Administracion (/portal/admin/usuarios).",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_auth.py:166-249, :318-362",
+    "backend_django/apps/users/tests/test_access_requests.py:86-103",
+    "frontend/src/app/features/admin/users.validation.spec.ts, users.validation.dom.spec.ts, users.feedback.spec.ts",
+    "frontend/src/app/features/admin/forms-validation.contract.spec.ts, portal-feedback.contract.spec.ts",
+    "scripts/api-e2e.mjs:166-170 (ADMIN GET /admin/users 200)"
+   ]
+  },
+  {
+   "id": "CU-01",
+   "veredicto": "parcial",
+   "resumen": "El flujo existe de punta a punta para los tres roles: pantalla de login, validacion en servidor, JWT, redireccion al panel, menu y rutas segun rol, y manejo de sesion vencida o usuario inactivo. La parte «funciones que correspondan a su rol» hereda la brecha de RF-02 (la matriz rol-funcion difiere de la linea base).",
+   "clausulas": [
+    {
+     "texto": "El usuario llega a una pantalla de acceso y envia sus credenciales",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:10-14",
+      "frontend/src/app/features/login/login.component.ts:280-334",
+      "frontend/src/app/features/login/login.component.html:153-163"
+     ]
+    },
+    {
+     "texto": "El sistema valida y abre sesion; el usuario entra al portal",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:55-74",
+      "frontend/src/app/core/auth/auth.service.ts:32-37 y :55-62",
+      "frontend/src/app/features/login/login.component.ts:322 (navega a /portal/dashboard)",
+      "frontend/src/app/app.routes.ts:15-20 y frontend/src/app/core/auth/auth.guard.ts:6-28"
+     ]
+    },
+    {
+     "texto": "El usuario accede a las funciones que corresponden a su rol",
+     "estado": "parcial",
+     "evidencia": [
+      "frontend/src/app/shared/layout/shell.component.ts:679-695",
+      "frontend/src/app/app.routes.ts:27-91",
+      "ver RF-02: autoria de casos solo ADMIN y ADMIN con funciones de estudiante y docente"
+     ]
+    },
+    {
+     "texto": "Casos alternos: credenciales invalidas, cuenta inactiva, token vencido, entrada por Google o por solicitud de acceso",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/login/login.component.ts:436-464",
+      "frontend/src/app/core/auth/http-error-chain.ts:51-95",
+      "frontend/src/app/core/auth/auth.guard.ts:16-25",
+      "backend_django/apps/users/views.py:91-120 y :138-150",
+      "nota: el login de una cuenta inactiva devuelve 401 (views.py:67-69), asi que la rama 403 «usuario inactivo» (login.component.ts:450-454) no se produce y el usuario ve «correo o contrasena incorrectos»"
+     ]
+    }
+   ],
+   "brecha": "El flujo funciona; la unica brecha es la de RF-02 (matriz rol-funcion). Detalles menores: el selector de rol de la pantalla de login es solo decorativo (el rol lo fija la cuenta, login.component.ts:115-143); «Recordar sesion» solo recuerda el correo, el token siempre queda en localStorage (login.component.ts:308-316).",
+   "accion": "Cerrar RF-02 (decidir y alinear la matriz de roles). Opcional: mensaje propio para cuenta inactiva si se acepta revelar ese estado.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "La misma de RF-02: quien autora casos y que funciones conserva el ADMIN.",
+   "terminologia": "«ingresar al sistema» = /login seguido de /portal/dashboard; «funciones que correspondan a su rol» = items del menu lateral (navItems) y rutas con roleGuard; «Todos» (actor) = ADMIN, PROFESOR y ESTUDIANTE.",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_auth.py:30-111",
+    "backend_django/apps/users/tests/test_google_login_contract.py",
+    "frontend/e2e/full-case.e2e.ts:37-38, lobby.e2e.ts:39, consent-gate.e2e.ts:58 (login de estudiante por UI)",
+    "frontend/src/app/features/login/login.a11y.spec.ts",
+    "scripts/api-e2e.mjs:116-134",
+    "Sin e2e de login de PROFESOR o ADMIN por UI ni de menu por rol"
+   ]
+  },
+  {
+   "id": "CU-02",
+   "veredicto": "cumple",
+   "resumen": "El flujo completo existe: el ADMIN entra a «Usuarios», ve la lista y la bandeja de solicitudes de acceso, crea (o crea desde una solicitud), edita, cambia el rol y activa o desactiva con confirmacion. Todo llega a /api/admin/users* y se refleja en el login. Cubre RF-03 sin brechas.",
+   "clausulas": [
+    {
+     "texto": "El administrador accede a la gestion de usuarios (ruta y menu exclusivos)",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/app.routes.ts:86-91",
+      "frontend/src/app/shared/layout/shell.component.ts:688",
+      "backend_django/apps/users/views.py:193"
+     ]
+    },
+    {
+     "texto": "Crear usuarios (con rol y contrasena inicial), tambien a partir de una solicitud de acceso",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/admin/users.component.ts:69-98, :332-344 y :418-466",
+      "backend_django/apps/users/views.py:199-204 (resuelve la solicitud pendiente)",
+      "backend_django/apps/users/services/access_request_service.py:85-90"
+     ]
+    },
+    {
+     "texto": "Actualizar datos y asignar roles",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/admin/users.component.ts:404-416 y :184-192",
+      "backend_django/apps/users/views.py:212-217",
+      "backend_django/apps/users/tests/test_auth.py:318-344"
+     ]
+    },
+    {
+     "texto": "Activar o desactivar cuentas con confirmacion y efecto inmediato",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/admin/users.component.ts:218-226, :295-301 y :468-494",
+      "backend_django/apps/users/views.py:225-231",
+      "frontend/src/app/core/auth/http-error-chain.ts:78-85 (sesion abierta de la cuenta desactivada: 401 y vuelta al login)"
+     ]
+    }
+   ],
+   "brecha": "Ninguna frente al texto. Sin forzar cambio de contrasena en el primer ingreso ni invitacion por correo: la contrasena inicial la fija el administrador.",
+   "accion": "Ninguna.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "",
+   "terminologia": "«Gestionar usuarios» = pantalla «Usuarios» (UsersComponent) + /api/admin/users; «cuentas» = users; «solicitud» = AccessRequest (tabla access_requests: PENDING, REVIEWED, DISMISSED).",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_auth.py:166-249, :318-362",
+    "backend_django/apps/users/tests/test_access_requests.py:50-103",
+    "frontend/src/app/features/admin/users.validation.spec.ts, users.validation.dom.spec.ts, users.feedback.spec.ts",
+    "frontend/src/app/features/admin/forms-validation.contract.spec.ts, portal-feedback.contract.spec.ts"
+   ]
+  },
+  {
+   "id": "RN-10",
+   "veredicto": "conflicto",
+   "resumen": "El administrador puede crear y administrar cuentas y asignar roles, pero no es el unico que crea cuentas: el PROFESOR, al importar un Excel de estudiantes, crea cuentas globales con rol ESTUDIANTE, define su contrasena (columna password o la contrasena por defecto compartida, que el sistema le muestra) y ningun usuario puede cambiarla por su cuenta. Eso contradice «el profesor no administra las cuentas globales».",
+   "clausulas": [
+    {
+     "texto": "El administrador crea cuentas de usuario",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:123-135 y :199-204",
+      "backend_django/apps/users/views.py:126,193 (IsAdmin)",
+      "backend_django/apps/users/tests/test_auth.py:124-151 y :177-197"
+     ]
+    },
+    {
+     "texto": "El administrador administra las cuentas (editar, activar/desactivar, restablecer contrasena)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/views.py:207-231",
+      "backend_django/apps/users/serializers.py:79-86",
+      "no existe cambio de contrasena propio: backend_django/apps/users/urls.py:12-19"
+     ]
+    },
+    {
+     "texto": "El administrador asigna los roles Administrador, Profesor o Estudiante",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/serializers.py:57",
+      "backend_django/apps/users/models.py:18-21",
+      "deploy/db_seed.sql:1563",
+      "ningun otro camino de la aplicacion permite elegir rol (el import fija ESTUDIANTE: backend_django/apps/grupos/services.py:440)"
+     ]
+    },
+    {
+     "texto": "Solo el administrador crea cuentas (ningun otro actor)",
+     "estado": "conflicto",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:82-97 (POST /api/grupos/<id>/estudiantes/import, IsProfesor)",
+      "backend_django/apps/grupos/services.py:422-465 (User.objects.create_user en :435-442, role=ESTUDIANTE, activo=True)",
+      "backend_django/apps/grupos/services.py:374 (password de la fila o IMPORTED_STUDENT_DEFAULT_PASSWORD)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:202-234 (UI «Cargar estudiantes por Excel»)",
+      "backend_django/apps/grupos/tests/test_grupos.py:144-175 y :200-239 (las pruebas fijan este comportamiento)"
+     ]
+    },
+    {
+     "texto": "El profesor administra sus grupos (crear, editar, eliminar, agregar y retirar estudiantes ya registrados)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/grupos/views.py:21-79",
+      "backend_django/apps/grupos/services.py:90-96 (solo el dueno del grupo)",
+      "backend_django/apps/grupos/services.py:496-558",
+      "backend_django/apps/grupos/tests/test_grupos.py:118-141"
+     ]
+    },
+    {
+     "texto": "El profesor no administra las cuentas globales",
+     "estado": "conflicto",
+     "evidencia": [
+      "backend_django/apps/grupos/services.py:349 (defaultPassword en la respuesta que ve el docente)",
+      "frontend/src/app/features/grupos/grupo-list.component.ts:234 (la UI muestra la contrasena por defecto)",
+      "backend_django/apps/grupos/services.py:241-247 (plantilla con columna password)",
+      "backend_django/psychosim/settings/base.py:118-124 (misma contrasena para todos los importados)",
+      "backend_django/apps/grupos/services.py:399-402 (revela si un correo existe con otro rol)",
+      "backend_django/apps/users/urls.py:12-19 (sin cambio de contrasena por el propio usuario)"
+     ]
+    },
+    {
+     "texto": "La solicitud de acceso y el login con Google no crean cuentas (el administrador decide)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/users/services/access_request_service.py:41-61 (solo guarda AccessRequest y avisa)",
+      "backend_django/apps/users/views.py:113-115 (Google solo entra a cuentas existentes y activas)",
+      "frontend/src/app/features/admin/users.component.ts:332-344"
+     ]
+    },
+    {
+     "texto": "En produccion no hay cuentas creadas por fuera del administrador (seeds y volcado)",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/users/management/commands/seed_demo_users.py:45-61",
+      "backend_django/apps/simulation/management/commands/seed_demo_access.py:56-67",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1106-1120",
+      "backend_django/apps/simulation/management/commands/seed_default_rubric.py:12-21",
+      "deploy/db_seed.sql:1554-1564 y :3128 (COPY users con cuentas de demo y de estudiantes)",
+      "Dockerfile:29 (la imagen solo arranca gunicorn; no ejecuta seeds)",
+      "depende de la practica de despliegue, no del codigo"
+     ]
+    }
+   ],
+   "brecha": "Conflicto: el import masivo del docente (grupos/services.py:422-465) crea cuentas globales y le da al docente la contrasena (la de la fila, o una compartida que la UI muestra), sin cambio de contrasena por el propio usuario; quien la conozca entra como cualquiera de esos estudiantes. Es un camino distinto del administrador y contradice la observacion «el profesor administrara sus grupos, pero no las cuentas globales». RF-04 de la propia linea base habla de estudiantes «que ya esten registrados». Los demas caminos (admin, solicitud de acceso, Google) son conformes. Las semillas y el volcado crean cuentas con credenciales fijas de demostracion fuera de la aplicacion (infraestructura).",
+   "accion": "Minimo: que importar_estudiantes no cree cuentas. Si el correo no existe, devolver la fila como «sin cuenta: pidela al administrador» (opcional: registrar una AccessRequest PENDING) y asociar solo a los ya registrados; retirar la columna password y defaultPassword del flujo del docente (plantilla, resultado y UI). Si se quiere conservar la carga masiva, moverla a un endpoint IsAdmin (p. ej. /api/admin/users/import) reutilizando _parse_student_import y _validate_import_rows, con su pantalla en «Usuarios». Reescribir test_grupos.py:144-239 y test_imported_password_setting.py.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Elegir entre (a) cumplir RN-10 a la letra: el profesor solo asocia estudiantes ya registrados y el administrador carga las cuentas, o (b) pedir a la carrera que RN-10/RF-04 admitan que el docente de de alta estudiantes de sus grupos, con contrasena individual y cambio obligatorio en el primer ingreso. La decision del 10 de octubre de dejar la contrasena por defecto «asi por ahora» (docs/diseñosistemas_docs/DECISIONES_SESION_NOCTURNA_2026-10-10.md:97) no resuelve quien crea la cuenta.",
+   "terminologia": "«administrador» = rol ADMIN; «cuentas de usuario» = filas de users (CustomUser); «administrar» = crear, editar datos, activar/desactivar (activo) y restablecer contrasena; «asignar roles» = columna users.role (ADMIN|PROFESOR|ESTUDIANTE); «cuentas globales» = cualquier usuario del sistema, no solo los de los grupos del profesor; «sus grupos» = grupos con profesor_id propio + grupo_estudiante; «importar estudiantes» = carga .xlsx que crea cuentas ESTUDIANTE y las asocia al grupo.",
+   "pruebas_existentes": [
+    "backend_django/apps/users/tests/test_auth.py:114-163 y :177-197 (solo ADMIN crea)",
+    "backend_django/apps/users/tests/test_access_requests.py:50-103",
+    "backend_django/apps/users/tests/test_auth.py:287-296 (Google no crea cuentas)",
+    "backend_django/apps/grupos/tests/test_grupos.py:144-175, :179-197, :200-239, :242-247 (fijan la creacion de cuentas por el docente)",
+    "backend_django/apps/grupos/tests/test_imported_password_setting.py:47-117",
+    "Sin prueba que afirme que el PROFESOR no crea cuentas"
+   ]
+  }
+ ],
+ "observaciones": [
+  "No existian secciones verificadas en scratchpad/wf1; todo se comprobo directamente en el codigo del worktree (master 9931599 + limpieza).",
+  "Hallazgo principal del grupo: RN-10 en conflicto. El docente crea cuentas globales por importacion de Excel (backend_django/apps/grupos/services.py:422-465, frontend/src/app/features/grupos/grupo-list.component.ts:202-234) y ve la contrasena por defecto compartida; sin cambio de contrasena propio, esa contrasena queda viva. Es el unico camino de la aplicacion, fuera del administrador, que crea usuarios.",
+  "Matriz de roles: la autoria de casos (RF-05..RF-13, actor Profesor) esta limitada a ADMIN (authoring_views.py:23-24; app.routes.ts:50-61; api-e2e.mjs:156-160). Afecta a los items de gestion de casos de otros grupos y a CU-04/CU-05; aqui se refleja como parcial en RF-02 y CU-01.",
+  "Credenciales de demostracion: frontend/src/app/features/login/login-role.config.ts:15,32,47,62 incluye el campo demoPassword por rol; isDev solo oculta el boton (login.component.html:99-104), pero el literal viaja en el bundle de produccion. Ademas seed_caso_pdf.py:1116-1120 restablece rol, activo y contrasena del admin demo cada vez que se ejecuta, y deploy/db_seed.sql:3128 trae cuentas ADMIN/PROFESOR/ESTUDIANTE de demostracion. Conviene que ningun despliegue real use el volcado sin rotar esas credenciales (relacion con RNF-01).",
+  "Sesion y tokens: JWT de 8 h firmado con DJANGO_SECRET_KEY (SIGNING_KEY por defecto de simplejwt; JWT_SECRET en base.py:112-115 no firma los tokens, solo sirve de clave de reflexiones). No hay revocacion en logout ni al cambiar la contrasena (CHECK_REVOKE_TOKEN False), no hay throttling en login ni en /api/auth/access-request (este ultimo envia correo), y el token vive en localStorage. Relevante para RNF-01/RNF-02.",
+  "Alcance de datos del PROFESOR: /api/simulation/attempts/<id>/student-report (game_service.py:313-326) deja a cualquier PROFESOR/ADMIN leer el reporte de cualquier intento por UUID, mientras que los endpoints de /api/instructor/* si limitan al profesor a sus grupos (instructor_service.py:32-58). Posible brecha para RF-25.",
+  "Autocierre del sistema: el ADMIN puede desactivarse o degradarse a si mismo (o al ultimo ADMIN) sin guarda (users/views.py:212-231).",
+  "Duplicidad: existen /api/auth/register y /api/admin/users para crear usuarios (ambos IsAdmin); solo el segundo resuelve la solicitud de acceso pendiente. El frontend usa solo el segundo.",
+  "Terminologia transversal: Administrador = ADMIN; Profesor = PROFESOR (la UI dice «Docente»); Estudiante = ESTUDIANTE; «credenciales» = email + contrasena; «cuenta activa» = users.activo; «solicitud de acceso» = AccessRequest.",
+  "Pruebas ausentes del grupo: roleGuard y menu por rol en frontend; 403 de PROFESOR/ESTUDIANTE en /api/admin/users*; cierre de sesion; 401 con token de usuario desactivado; e2e de login de PROFESOR y ADMIN por UI.",
+  "Datos personales: deploy/db_seed.sql contiene filas reales de users y access_requests (nombres y correos). Revisar frente a la Ley 1581 antes de publicar el repositorio o el volcado.",
+  "UX menor: el login muestra «correo o contrasena incorrectos» a una cuenta inactiva porque el backend responde 401 (la rama 403 del frontend no se activa); el selector de rol del login es solo visual."
+ ]
+}
