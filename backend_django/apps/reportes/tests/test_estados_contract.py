@@ -48,6 +48,7 @@ def _mixed_attempts(estudiante, case_version_id):
 
 
 def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_version_id):
+    _add_student(_grupo(profesor), estudiante)  # el tablero es del docente: sus estudiantes
     before = cl(profesor).get("/api/reportes/dashboard").data["data"]
 
     _mixed_attempts(estudiante, case_version_id)
@@ -59,9 +60,11 @@ def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_v
 
 
 def test_el_promedio_del_tablero_solo_usa_completados_y_salidas_seguras(profesor, estudiante, case_version_id):
+    _add_student(_grupo(profesor), estudiante)  # el tablero es del docente: sus estudiantes
     _mixed_attempts(estudiante, case_version_id)
     scores = list(
-        SimulationAttempt.objects.filter(status__in=SCORED).values_list("accumulated_score", flat=True)
+        SimulationAttempt.objects.filter(student_id=estudiante.id, status__in=SCORED)
+        .values_list("accumulated_score", flat=True)
     )
 
     data = cl(profesor).get("/api/reportes/dashboard").data["data"]

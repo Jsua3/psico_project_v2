@@ -25,6 +25,7 @@ from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
+from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
 
 
@@ -311,8 +312,9 @@ def list_attempt_history(actor):
 
 
 def get_student_report(attempt_id, actor):
-    """Reporte de finalización de un intento accedido por su dueño (o staff),
-    sin requerir el token del intento (se usa desde el historial del estudiante)."""
+    """Reporte de finalización de un intento accedido por su dueño, por el ADMIN o por el
+    profesor del estudiante, sin requerir el token del intento (se usa desde el historial
+    del estudiante)."""
     attempt = (
         SimulationAttempt.objects.filter(pk=attempt_id)
         .select_related("case_version__simulation_case", "current_node", "student")
@@ -320,8 +322,11 @@ def get_student_report(attempt_id, actor):
     )
     if not attempt:
         raise NotFound("Intento no encontrado")
-    if attempt.student_id != actor.id and actor.role not in ("ADMIN", "PROFESOR"):
-        raise PermissionDenied("No tiene acceso a este intento")
+    if attempt.student_id != actor.id:
+        # None = ADMIN (sin restricción); para el resto, solo los estudiantes de sus grupos.
+        alcance = student_ids_for_instructor(actor)
+        if alcance is not None and attempt.student_id not in alcance:
+            raise PermissionDenied("No tiene acceso a este intento")
     events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
     return dto.build_completion_report(attempt, events)
 
