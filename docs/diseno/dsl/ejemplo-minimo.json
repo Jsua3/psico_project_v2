@@ -1,0 +1,195 @@
+{
+  "$schema": "dsl-casos.schema.json",
+  "versionDsl": "1.0",
+
+  "caso": {
+    "id": "CASO-001",
+    "titulo": "Conflicto en una organización",
+    "tematica": "Psicología social",
+    "descripcion": "Situación de conflicto entre integrantes de un equipo de trabajo: la líder y un integrante discrepan sobre la distribución de tareas y el equipo espera que alguien intervenga.",
+    "version": "1.0.0",
+    "estado": "PUBLICADO",
+    "objetivosAprendizaje": [
+      "Identificar los actores involucrados en un conflicto y sus intereses.",
+      "Elegir una intervención coherente con el análisis previo de la situación."
+    ],
+    "escenaInicial": "E01",
+    "rubrica": "RUB-01"
+  },
+
+  "personajes": [
+    {
+      "id": "P01",
+      "nombre": "Laura",
+      "rol": "Líder del equipo",
+      "caracteristicas": "Orientada a resultados; suele decidir sin consultar al equipo."
+    },
+    {
+      "id": "P02",
+      "nombre": "Carlos",
+      "rol": "Integrante del equipo",
+      "caracteristicas": "Siente que su carga de trabajo es injusta y no la ha expresado."
+    }
+  ],
+
+  "herramientas": [
+    {
+      "id": "H01",
+      "nombre": "Mapa de actores",
+      "descripcion": "Herramienta para identificar actores e intereses",
+      "categoria": "evaluacion"
+    }
+  ],
+
+  "escenas": [
+    {
+      "id": "E01",
+      "titulo": "Reunión de equipo",
+      "orden": 1,
+      "descripcion": "El equipo presenta un conflicto durante una reunión. Laura le reprocha a Carlos un retraso y Carlos responde que nadie le preguntó por su carga de trabajo; el resto del equipo guarda silencio.",
+      "participantes": ["P01", "P02"],
+      "decision": {
+        "id": "D01",
+        "pregunta": "¿Qué debería hacer el estudiante inicialmente?",
+        "pistas": [
+          "Antes de intervenir, pregúntese quiénes están involucrados y qué interés tiene cada uno."
+        ],
+        "opciones": [
+          {
+            "id": "OP01",
+            "texto": "Analizar los actores involucrados",
+            "siguienteEscena": "E02",
+            "clasificacion": "ADECUADA",
+            "herramienta": "H01",
+            "consecuencia": "Con el mapa de actores a la vista, el estudiante distingue las posiciones de Laura y de Carlos y nota que el resto del equipo evita opinar."
+          },
+          {
+            "id": "OP02",
+            "texto": "Intervenir inmediatamente",
+            "siguienteEscena": "E03",
+            "clasificacion": "RIESGOSA",
+            "consecuencia": "La intervención calma la reunión por un momento, pero Carlos se siente señalado y Laura percibe que se le quitó autoridad."
+          }
+        ]
+      }
+    },
+    {
+      "id": "E02",
+      "titulo": "Mapa de actores",
+      "orden": 2,
+      "descripcion": "El estudiante ordena a los actores según su interés e influencia. Queda claro que el conflicto de fondo es la distribución de la carga de trabajo y que Laura y Carlos necesitan un espacio para conversarlo. Fin del caso: la intervención se apoya en el análisis.",
+      "participantes": ["P01", "P02"]
+    },
+    {
+      "id": "E03",
+      "titulo": "Intervención inmediata",
+      "orden": 3,
+      "descripcion": "El estudiante interviene sin conocer el contexto. El conflicto sale a la superficie, el equipo se polariza y la reunión termina sin acuerdos. Fin del caso: la intervención no atendió la causa del conflicto.",
+      "participantes": ["P01", "P02"]
+    }
+  ],
+
+  "retroalimentacion": [
+    {
+      "id": "R01",
+      "decision": "D01",
+      "mensaje": "La identificación de los actores permite comprender las diferentes posiciones presentes en el conflicto antes de intervenir.",
+      "fundamentoTeorico": "Psicología social"
+    },
+    {
+      "id": "R02",
+      "opcion": "OP02",
+      "mensaje": "Intervenir sin haber analizado a los actores tiende a reducir el conflicto a un problema entre dos personas y deja sin atender sus causas en el equipo.",
+      "fundamentoTeorico": "Psicología social: conflicto en grupos y equipos de trabajo"
+    }
+  ],
+
+  "rubricas": [
+    {
+      "id": "RUB-01",
+      "nombre": "Rúbrica formativa de intervención en conflictos de equipo",
+      "descripcion": "Valora el análisis de la situación y la elección de la intervención.",
+      "version": "1.0",
+      "activa": true,
+      "criterios": [
+        {
+          "id": "CR01",
+          "competencia": "ANALISIS_SITUACION",
+          "titulo": "Análisis de la situación y de los actores",
+          "descripcion": "Identifica actores, posiciones e intereses antes de intervenir.",
+          "orden": 1
+        },
+        {
+          "id": "CR02",
+          "competencia": "DECISION_INTERVENCION",
+          "titulo": "Elección de la intervención",
+          "descripcion": "Elige una intervención coherente con el análisis y con sus consecuencias.",
+          "orden": 2
+        }
+      ]
+    }
+  ],
+
+  "ejecucion": {
+    "estudiantes": [
+      {
+        "id": "EST-01",
+        "nombre": "Estudiante de ejemplo",
+        "correo": "estudiante01@example.org"
+      }
+    ],
+    "intentos": [
+      {
+        "id": "INT-01",
+        "estudiante": "EST-01",
+        "estado": "COMPLETADO",
+        "iniciadoEn": "2026-10-09T15:00:00-05:00",
+        "finalizadoEn": "2026-10-09T15:04:40-05:00",
+        "escenaActual": "E02",
+        "bitacora": {
+          "id": "BIT-01",
+          "creadaEn": "2026-10-09T15:00:00-05:00",
+          "bloqueada": true,
+          "decisiones": [
+            {
+              "orden": 1,
+              "momento": "2026-10-09T15:04:40-05:00",
+              "aplicada": true,
+              "opcionElegida": "OP01"
+            }
+          ],
+          "reflexiones": [
+            {
+              "escena": "E01",
+              "texto": "Voy a analizar a los actores primero porque no sé qué interés tiene cada uno. Sospecho que Laura y Carlos no discuten por el retraso sino por la carga de trabajo.",
+              "momento": "2026-10-09T15:04:10-05:00"
+            }
+          ]
+        }
+      }
+    ],
+    "evaluaciones": [
+      {
+        "id": "EV-01",
+        "intento": "INT-01",
+        "rubrica": "RUB-01",
+        "origen": "SISTEMA",
+        "estado": "EVALUADA",
+        "observacionGeneral": "Analizó a los actores antes de intervenir y llegó a una conclusión coherente con ese análisis.",
+        "evaluadaEn": "2026-10-09T15:04:41-05:00",
+        "valoraciones": [
+          {
+            "criterio": "CR01",
+            "nivel": "LOGRADO",
+            "observacion": "Eligió analizar a los actores antes de intervenir y usó el mapa de actores."
+          },
+          {
+            "criterio": "CR02",
+            "nivel": "EN_PROCESO",
+            "observacion": "Su reflexión no dice qué intervención seguiría después del análisis."
+          }
+        ]
+      }
+    ]
+  }
+}
