@@ -185,7 +185,7 @@ El enunciado histórico del proyecto usaba prefijos en español (`/api/simulacio
 
 El índice completo está en [`docs/README.md`](docs/README.md). Lo más consultado:
 
-- [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): mapa de endpoints, componentes y tablas (fecha de corte 2026-06-05; ver su aviso de vigencia).
+- [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): el documento maestro único y vigente (producto, stack, arquitectura, funcionamiento, reglas, seguridad, calidad y estado).
 - [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.

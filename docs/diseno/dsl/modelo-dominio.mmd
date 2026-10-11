@@ -1,0 +1,165 @@
+classDiagram
+    direction TB
+
+    %% Modelo de dominio del DSL de casos situacionales (SIEP) - Fase 1
+    %% 16 clases. Convenciones:
+    %%   "?" al final del nombre  = atributo opcional (0..1)
+    %%   "/" al inicio del nombre = atributo derivado (se calcula, no se escribe)
+    %%   *--  composicion: la parte no existe sin el todo
+    %%   o--  agregacion: la parte tiene vida propia y puede reutilizarse
+    %%   -->  asociacion con navegabilidad; el rotulo es el nombre de rol en el extremo de la punta
+    %% Tipos propios (enumeraciones): EstadoCaso, ClasificacionOpcion, EstadoIntento,
+    %%   OrigenEvaluacion, EstadoEvaluacion, NivelDesempeno. Sus valores estan en
+    %%   fase-1-modelo-dominio.md, seccion 4.
+    %% Una Escena sin Decision es una conclusion: es el atributo derivado /esConclusion.
+    %% En "A <-- B : rol" la clase B referencia a A; la punta queda en A y el rotulo es el rol en A.
+
+    %% ---------- Definicion del caso (lo que escribe el docente) ----------
+    class Caso {
+        +String id
+        +String titulo
+        +String descripcion
+        +String tematica?
+        +String version
+        +EstadoCaso estado
+        +List~String~ objetivosAprendizaje
+    }
+
+    class Escena {
+        +String id
+        +String titulo
+        +String descripcion
+        +Integer orden?
+        +Boolean contenidoSensible
+        +String advertencia?
+        +Boolean /esConclusion
+    }
+
+    class Personaje {
+        +String id
+        +String nombre
+        +String rol
+        +String caracteristicas?
+    }
+
+    class Decision {
+        +String id
+        +String pregunta
+        +List~String~ pistas
+    }
+
+    class OpcionDecision {
+        +String id
+        +String texto
+        +ClasificacionOpcion clasificacion
+        +Boolean conductaProhibida
+        +String motivoProhibicion?
+        +String consecuencia?
+    }
+
+    class Herramienta {
+        +String id
+        +String nombre
+        +String descripcion
+        +String categoria?
+    }
+
+    class Retroalimentacion {
+        +String id
+        +String mensaje
+        +String fundamentoTeorico
+    }
+
+    %% ---------- Rubrica del caso (criterios formativos) ----------
+    class Rubrica {
+        +String id
+        +String nombre
+        +String descripcion?
+        +String version
+        +Boolean activa
+    }
+
+    class CriterioRubrica {
+        +String id
+        +String competencia
+        +String titulo
+        +String descripcion?
+        +Integer orden
+    }
+
+    %% ---------- Ejecucion (lo que produce el estudiante) ----------
+    class Estudiante {
+        +String id
+        +String nombre
+        +String correo
+    }
+
+    class Intento {
+        +String id
+        +EstadoIntento estado
+        +DateTime iniciadoEn
+        +DateTime finalizadoEn?
+        +Integer /duracionActivaSegundos
+    }
+
+    class Bitacora {
+        +String id
+        +DateTime creadaEn
+        +Boolean bloqueada
+    }
+
+    class RegistroDecision {
+        +Integer orden
+        +DateTime momento
+        +Boolean aplicada
+    }
+
+    class Reflexion {
+        +String texto
+        +DateTime momento
+    }
+
+    class Evaluacion {
+        +String id
+        +OrigenEvaluacion origen
+        +EstadoEvaluacion estado
+        +String observacionGeneral?
+        +DateTime evaluadaEn?
+    }
+
+    class ValoracionCriterio {
+        +NivelDesempeno nivel
+        +String observacion?
+    }
+
+    %% ---------- Relaciones de la definicion del caso ----------
+    Caso "1" *-- "1..*" Escena : escenas
+    Caso "1" --> "1" Escena : escenaInicial
+    Caso "1" o-- "0..*" Personaje : personajes
+    Caso "1" o-- "0..*" Herramienta : herramientas
+    Caso "0..*" --> "0..1" Rubrica : rubrica
+    Escena "0..*" --> "0..*" Personaje : participantes
+    Escena "1" *-- "0..1" Decision : decision
+    Decision "1" *-- "2..*" OpcionDecision : opciones
+    Escena "1" <-- "0..*" OpcionDecision : escenaDestino
+    OpcionDecision "0..*" --> "0..1" Herramienta : herramientaUsada
+    Decision "0..1" <-- "0..*" Retroalimentacion : decision
+    OpcionDecision "0..1" <-- "0..*" Retroalimentacion : opcion
+    Rubrica "1" *-- "1..*" CriterioRubrica : criterios
+
+    %% ---------- Relaciones de la ejecucion y la valoracion ----------
+    Estudiante "1" --> "0..*" Intento : intentos
+    Caso "1" <-- "0..*" Intento : caso
+    Escena "1" <-- "0..*" Intento : escenaActual
+    Intento "1" *-- "1" Bitacora : bitacora
+    Bitacora "1" *-- "0..*" RegistroDecision : decisiones
+    Bitacora "1" *-- "0..*" Reflexion : reflexiones
+    OpcionDecision "1" <-- "0..*" RegistroDecision : opcionElegida
+    Escena "1" <-- "0..*" Reflexion : escena
+    Intento "1" <-- "0..*" Evaluacion : intento
+    Rubrica "1" <-- "0..*" Evaluacion : rubrica
+    Evaluacion "1" *-- "0..*" ValoracionCriterio : valoraciones
+    CriterioRubrica "1" <-- "0..*" ValoracionCriterio : criterio
+
+    %% ---------- Restricciones graficas ----------
+    note for Retroalimentacion "XOR (INV-06): decision u opcion, exactamente una no nula"
