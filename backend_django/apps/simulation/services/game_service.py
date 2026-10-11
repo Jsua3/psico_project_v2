@@ -91,7 +91,8 @@ def _reissue_token(attempt):
     return raw
 
 
-def _assigned_case_version_ids(student_id):
+def assigned_case_version_ids(student_id):
+    """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
     with connection.cursor() as cur:
         cur.execute(
             """
@@ -129,7 +130,7 @@ def list_published_cases(actor=None):
         .order_by("-published_at")
     )
     if actor is not None and getattr(actor, "role", None) == "ESTUDIANTE":
-        assigned_ids = _assigned_case_version_ids(actor.id)
+        assigned_ids = assigned_case_version_ids(actor.id)
         if not assigned_ids:
             return []
         versions = versions.filter(id__in=assigned_ids)
