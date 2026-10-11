@@ -436,7 +436,7 @@
      "estado": "parcial",
      "evidencia": [
       "backend_django/apps/simulation/services/world_validation.py:37-48 - reglas vigentes: grafo, extremos de decisión (:84-94), nodos sin salida (:115-130), sin mapa (:133-147), inalcanzables (:150-160), geometría, ética, salida segura y límites",
-      "docs/diseno/dsl/fase-3-sintaxis-concreta.md:679 - el sistema no valida OCL-02, OCL-04, OCL-05, OCL-07 (descripción vacía) ni OCL-08 del DSL diseñado",
+      "docs/diseno/dsl/fase-3-sintaxis-concreta.md:679 - el sistema no valida por completo OCL-02 (rechaza los nodos sin opciones, no los de una sola), OCL-04, OCL-05, OCL-07 (descripción vacía) ni OCL-08 del DSL diseñado",
       "backend_django/apps/simulation/services/world_service.py:467 - sigue fallando en juego un destino sin sala: la validación no lo anticipa"
      ]
     },
