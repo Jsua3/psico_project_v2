@@ -1,0 +1,670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:siep:dsl-casos:1.0.0",
+  "title": "DSL de casos situacionales de SIEP",
+  "description": "Sintaxis concreta (JSON) del DSL de casos situacionales de psicología social. Representa 1 a 1 el modelo de dominio de la Fase 1: cada clase tiene su objeto JSON y cada relación se expresa por anidamiento (composición) o por referencia de identificador (asociación). El esquema garantiza la forma: tipos, campos requeridos, enumeraciones, formato de identificadores y cardinalidades que dependen de un solo objeto. Lo que exige mirar otras partes del documento (que lo referenciado exista, que los identificadores no se repitan, que el grafo sea acíclico y alcanzable) es de las reglas semánticas OCL. Anotaciones propias, ignoradas por cualquier validador: x-regla indica la regla del dominio que el esquema hace cumplir en ese punto; x-referencia indica la relación del modelo (R-nn), el conjunto de destino y la regla semántica que comprueba que el identificador exista.",
+  "type": "object",
+  "required": ["versionDsl", "caso", "escenas"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Dirección de este esquema, para que los editores validen el documento mientras se escribe. Opcional."
+    },
+    "versionDsl": {
+      "const": "1.0",
+      "description": "Versión del lenguaje (no del caso). Permite que el DSL evolucione sin romper los documentos ya escritos."
+    },
+    "caso": {
+      "$ref": "#/$defs/Caso",
+      "description": "Atributos del caso. Sus partes (personajes, herramientas, escenas, retroalimentación y rúbricas) están en la raíz, como en el ejemplo del enunciado."
+    },
+    "personajes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Personaje" },
+      "default": [],
+      "description": "Personajes del caso (agregación Caso o-- Personaje, R-03). Una escena los referencia en `participantes`."
+    },
+    "herramientas": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Herramienta" },
+      "default": [],
+      "description": "Catálogo de herramientas profesionales del caso (agregación Caso o-- Herramienta, R-04). Solo estas pueden usarse en una opción (OCL-05)."
+    },
+    "escenas": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Escena" },
+      "description": "Escenas del caso (composición Caso *-- Escena, R-01). Una escena sin `decision` es una conclusión.",
+      "allOf": [
+        {
+          "minItems": 1,
+          "x-regla": "OCL-01",
+          "description": "OCL-01: un caso contiene al menos una escena."
+        },
+        {
+          "contains": { "type": "object", "required": ["decision"] },
+          "x-regla": "OCL-08",
+          "description": "OCL-08: un caso contiene al menos un punto de decisión (alguna escena con `decision`)."
+        }
+      ]
+    },
+    "retroalimentacion": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Retroalimentacion" },
+      "default": [],
+      "description": "Retroalimentaciones pedagógicas con su fundamento teórico. Cada una se asocia a una decisión o a una opción (R-11, R-12). Se muestran al terminar el intento (RN-08). La clave se mantiene en singular como en el ejemplo del enunciado, aunque es una lista."
+    },
+    "rubricas": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Rubrica" },
+      "default": [],
+      "description": "Rúbricas formativas. El caso elige una con `caso.rubrica` (R-05)."
+    },
+    "ejecucion": {
+      "$ref": "#/$defs/Ejecucion",
+      "description": "Registro de lo que produjo el estudiante al ejecutar el caso: estudiantes, intentos (con su bitácora) y evaluaciones. Opcional: una definición de caso es válida sin él."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["ejecucion"],
+        "properties": {
+          "ejecucion": {
+            "required": ["intentos"],
+            "properties": { "intentos": { "minItems": 1 } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "caso": {
+            "properties": { "estado": { "enum": ["PUBLICADO", "ARCHIVADO"] } }
+          }
+        }
+      },
+      "x-regla": "RN-03",
+      "description": "RN-03: solo un caso publicado se ejecuta; un documento con intentos no puede tener el caso en BORRADOR."
+    }
+  ],
+  "$defs": {
+    "textoNoVacio": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Texto con al menos un carácter que no sea espacio. Un campo opcional se omite; no se escribe vacío."
+    },
+    "fechaHora": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "Fecha y hora ISO 8601 con zona horaria, por ejemplo 2026-10-09T15:00:00-05:00."
+    },
+    "orden": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Posición, empezando en 1."
+    },
+    "idCaso": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9-]{1,39}$",
+      "description": "Identificador del caso: mayúsculas, dígitos y guiones, hasta 40 caracteres (la forma del código de caso de SIEP). Por convención CASO-001."
+    },
+    "idPersonaje": {
+      "type": "string",
+      "pattern": "^P[0-9]{2,6}$",
+      "description": "Identificador de personaje: P y al menos dos dígitos. Ejemplo: P01."
+    },
+    "idHerramienta": {
+      "type": "string",
+      "pattern": "^H[0-9]{2,6}$",
+      "description": "Identificador de herramienta: H y al menos dos dígitos. Ejemplo: H01."
+    },
+    "idEscena": {
+      "type": "string",
+      "pattern": "^E[0-9]{2,6}$",
+      "description": "Identificador de escena: E y al menos dos dígitos. Ejemplo: E01."
+    },
+    "idDecision": {
+      "type": "string",
+      "pattern": "^D[0-9]{2,6}$",
+      "description": "Identificador de decisión: D y al menos dos dígitos. Ejemplo: D01."
+    },
+    "idOpcion": {
+      "type": "string",
+      "pattern": "^OP[0-9]{2,6}$",
+      "description": "Identificador de opción de decisión: OP y al menos dos dígitos. Ejemplo: OP01."
+    },
+    "idRetroalimentacion": {
+      "type": "string",
+      "pattern": "^R[0-9]{2,6}$",
+      "description": "Identificador de retroalimentación: R y al menos dos dígitos. Ejemplo: R01."
+    },
+    "idRubrica": {
+      "type": "string",
+      "pattern": "^RUB-[0-9]{2,6}$",
+      "description": "Identificador de rúbrica: RUB- y al menos dos dígitos. Ejemplo: RUB-01."
+    },
+    "idCriterio": {
+      "type": "string",
+      "pattern": "^CR[0-9]{2,6}$",
+      "description": "Identificador de criterio de rúbrica: CR y al menos dos dígitos. Ejemplo: CR01."
+    },
+    "idEstudiante": {
+      "type": "string",
+      "pattern": "^EST-[0-9]{2,6}$",
+      "description": "Identificador de estudiante: EST- y al menos dos dígitos. Ejemplo: EST-01."
+    },
+    "idIntento": {
+      "type": "string",
+      "pattern": "^INT-[0-9]{2,6}$",
+      "description": "Identificador de intento: INT- y al menos dos dígitos. Ejemplo: INT-01."
+    },
+    "idBitacora": {
+      "type": "string",
+      "pattern": "^BIT-[0-9]{2,6}$",
+      "description": "Identificador de bitácora: BIT- y al menos dos dígitos. Ejemplo: BIT-01."
+    },
+    "idEvaluacion": {
+      "type": "string",
+      "pattern": "^EV-[0-9]{2,6}$",
+      "description": "Identificador de evaluación: EV- y al menos dos dígitos. Ejemplo: EV-01."
+    },
+
+    "Caso": {
+      "type": "object",
+      "required": ["id", "titulo", "descripcion", "version", "estado", "escenaInicial"],
+      "additionalProperties": false,
+      "description": "Clase Caso. La unidad que se valida, se publica y se ejecuta.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idCaso" },
+        "titulo": {
+          "$ref": "#/$defs/textoNoVacio",
+          "x-regla": "OCL-07",
+          "description": "Nombre del caso. OCL-07: un caso tiene título y descripción."
+        },
+        "descripcion": {
+          "$ref": "#/$defs/textoNoVacio",
+          "x-regla": "OCL-07",
+          "description": "Contexto de la situación. OCL-07: un caso tiene título y descripción."
+        },
+        "tematica": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Área temática. Ejemplo: Psicología social."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "description": "Versión del caso en formato mayor.menor.parche. Un caso se publica por versiones."
+        },
+        "estado": {
+          "enum": ["BORRADOR", "PUBLICADO", "ARCHIVADO"],
+          "description": "Estado de la versión del caso (RF-13). Solo uno PUBLICADO se ejecuta (RN-03)."
+        },
+        "objetivosAprendizaje": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/textoNoVacio" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Objetivos que el estudiante ve antes de empezar (RF-16)."
+        },
+        "escenaInicial": {
+          "$ref": "#/$defs/idEscena",
+          "description": "Escena por la que empieza el caso (R-02). Obligatoria y única; debe ser una de `escenas`.",
+          "x-regla": "INV-09",
+          "x-referencia": { "relacion": "R-02", "destino": "escenas[].id", "regla": "INV-09" }
+        },
+        "rubrica": {
+          "$ref": "#/$defs/idRubrica",
+          "description": "Rúbrica con la que se valora el caso (R-05). Opcional: 0..1.",
+          "x-referencia": { "relacion": "R-05", "destino": "rubricas[].id", "regla": "RI" }
+        }
+      }
+    },
+
+    "Personaje": {
+      "type": "object",
+      "required": ["id", "nombre", "rol"],
+      "additionalProperties": false,
+      "description": "Clase Personaje. Una persona de la situación, con rol determinado.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idPersonaje" },
+        "nombre": { "$ref": "#/$defs/textoNoVacio", "description": "Nombre del personaje. Ejemplo: Laura." },
+        "rol": { "$ref": "#/$defs/textoNoVacio", "description": "Papel en la situación. Ejemplo: Líder del equipo." },
+        "caracteristicas": { "$ref": "#/$defs/textoNoVacio", "description": "Rasgos relevantes para el análisis." }
+      }
+    },
+
+    "Herramienta": {
+      "type": "object",
+      "required": ["id", "nombre", "descripcion"],
+      "additionalProperties": false,
+      "description": "Clase Herramienta. Un instrumento profesional que el estudiante puede emplear.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idHerramienta" },
+        "nombre": { "$ref": "#/$defs/textoNoVacio", "description": "Ejemplo: Mapa de actores." },
+        "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Para qué sirve. Ejemplo: Herramienta para identificar actores e intereses." },
+        "categoria": { "$ref": "#/$defs/textoNoVacio", "description": "Agrupación libre: crisis, comunicación, evaluación, protección, reflexión." }
+      }
+    },
+
+    "Escena": {
+      "type": "object",
+      "required": ["id", "titulo", "descripcion"],
+      "additionalProperties": false,
+      "description": "Clase Escena. Un momento de la situación. Con `decision` presenta un punto de decisión; sin ella es una conclusión (atributo derivado /esConclusion, que no se escribe).",
+      "properties": {
+        "id": { "$ref": "#/$defs/idEscena" },
+        "titulo": { "$ref": "#/$defs/textoNoVacio", "description": "Nombre breve de la escena." },
+        "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Narración de lo que ocurre." },
+        "orden": {
+          "$ref": "#/$defs/orden",
+          "description": "Posición para listar y ordenar las escenas (RF-06). No define el flujo: el flujo lo define `siguienteEscena`."
+        },
+        "contenidoSensible": {
+          "type": "boolean",
+          "default": false,
+          "description": "Marca contenido que exige cuidado con el estudiante."
+        },
+        "advertencia": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Aviso que se muestra antes de un contenido sensible."
+        },
+        "participantes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/idPersonaje",
+            "x-referencia": { "relacion": "R-06", "destino": "personajes[].id", "regla": "INV-14" }
+          },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Personajes que intervienen en la escena (R-06). Cada uno debe estar en `personajes`."
+        },
+        "decision": {
+          "$ref": "#/$defs/Decision",
+          "description": "Punto de decisión de la escena (composición, R-07). Se omite en una conclusión; no se escribe como null."
+        }
+      }
+    },
+
+    "Decision": {
+      "type": "object",
+      "required": ["id", "pregunta", "opciones"],
+      "additionalProperties": false,
+      "description": "Clase Decision. La pregunta que el estudiante resuelve en una escena.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idDecision" },
+        "pregunta": { "$ref": "#/$defs/textoNoVacio", "description": "Ejemplo: ¿Qué debería hacer el estudiante inicialmente?" },
+        "pistas": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/textoNoVacio" },
+          "default": [],
+          "description": "Ayudas opcionales que el estudiante puede consultar (RF-11, RF-18). Orientan sin revelar la respuesta."
+        },
+        "opciones": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpcionDecision" },
+          "description": "Alternativas de intervención (composición, R-08). Sin máximo: tantas como la situación necesite (RN-11).",
+          "allOf": [
+            {
+              "minItems": 2,
+              "x-regla": "OCL-02",
+              "description": "OCL-02: una decisión tiene como mínimo dos opciones."
+            }
+          ]
+        }
+      }
+    },
+
+    "OpcionDecision": {
+      "type": "object",
+      "required": ["id", "texto", "siguienteEscena", "clasificacion"],
+      "additionalProperties": false,
+      "description": "Clase OpcionDecision. Una alternativa de intervención; determina a qué escena continúa el caso.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idOpcion" },
+        "texto": { "$ref": "#/$defs/textoNoVacio", "description": "Ejemplo: Analizar los actores involucrados." },
+        "siguienteEscena": {
+          "$ref": "#/$defs/idEscena",
+          "description": "Escena a la que conduce la opción (R-09, rol `escenaDestino` del modelo). Obligatoria: toda opción lleva a otra escena o a una conclusión (RN-02). El esquema exige que esté y que tenga forma de escena; que exista es la regla OCL-03.",
+          "x-regla": "OCL-03",
+          "x-referencia": { "relacion": "R-09", "destino": "escenas[].id", "regla": "OCL-03" }
+        },
+        "clasificacion": {
+          "enum": ["ADECUADA", "RIESGOSA", "INADECUADA"],
+          "description": "Valoración pedagógica de la opción; base de la valoración formativa automática."
+        },
+        "conductaProhibida": {
+          "type": "boolean",
+          "default": false,
+          "description": "true si la opción vulnera un principio ético de la intervención."
+        },
+        "motivoProhibicion": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Razón de la prohibición. Obligatoria si `conductaProhibida` es true (INV-12)."
+        },
+        "consecuencia": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Efecto narrativo que el estudiante ve en el momento de elegir (RN-08). No es la retroalimentación pedagógica."
+        },
+        "herramienta": {
+          "$ref": "#/$defs/idHerramienta",
+          "description": "Herramienta que se emplea al elegir la opción (R-10, rol `herramientaUsada` del modelo). Opcional: 0..1. Debe estar definida en `herramientas` (OCL-05).",
+          "x-referencia": { "relacion": "R-10", "destino": "herramientas[].id", "regla": "OCL-05" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["conductaProhibida"],
+            "properties": { "conductaProhibida": { "const": true } }
+          },
+          "then": { "required": ["motivoProhibicion"] },
+          "x-regla": "INV-12",
+          "description": "INV-12: una opción marcada como conducta prohibida documenta el motivo."
+        }
+      ]
+    },
+
+    "Retroalimentacion": {
+      "type": "object",
+      "required": ["id", "mensaje", "fundamentoTeorico"],
+      "additionalProperties": false,
+      "description": "Clase Retroalimentacion. Explicación pedagógica, con fundamento teórico, de por qué una decisión u opción es adecuada o no. Se presenta al terminar el intento.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idRetroalimentacion" },
+        "decision": {
+          "$ref": "#/$defs/idDecision",
+          "description": "Decisión a la que se asocia (R-11). Excluyente con `opcion`.",
+          "x-referencia": { "relacion": "R-11", "destino": "escenas[].decision.id", "regla": "OCL-06" }
+        },
+        "opcion": {
+          "$ref": "#/$defs/idOpcion",
+          "description": "Opción a la que se asocia (R-12). Excluyente con `decision`.",
+          "x-referencia": { "relacion": "R-12", "destino": "escenas[].decision.opciones[].id", "regla": "OCL-06" }
+        },
+        "mensaje": { "$ref": "#/$defs/textoNoVacio", "description": "Explicación para el estudiante." },
+        "fundamentoTeorico": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Marco, concepto o autor que respalda el mensaje (RF-10). Ejemplo: Psicología social."
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            { "required": ["decision"] },
+            { "required": ["opcion"] }
+          ],
+          "x-regla": "OCL-06",
+          "description": "OCL-06: una retroalimentación está asociada a una decisión o a una opción, y solo a una (XOR). Que el destino exista es semántico."
+        }
+      ]
+    },
+
+    "Rubrica": {
+      "type": "object",
+      "required": ["id", "nombre", "version", "activa", "criterios"],
+      "additionalProperties": false,
+      "description": "Clase Rubrica. Criterios formativos con que se valora el desempeño en un caso (RF-22).",
+      "properties": {
+        "id": { "$ref": "#/$defs/idRubrica" },
+        "nombre": { "$ref": "#/$defs/textoNoVacio" },
+        "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Qué evalúa en conjunto." },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+          "description": "Versión de la rúbrica. Ejemplo: 1.0."
+        },
+        "activa": { "type": "boolean", "description": "Solo una rúbrica activa se puede aplicar." },
+        "criterios": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/CriterioRubrica" },
+          "description": "Criterios que la componen (composición, R-13). Al menos uno."
+        }
+      }
+    },
+
+    "CriterioRubrica": {
+      "type": "object",
+      "required": ["id", "competencia", "titulo", "orden"],
+      "additionalProperties": false,
+      "description": "Clase CriterioRubrica. Un aspecto o competencia que se observa en el desempeño.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idCriterio" },
+        "competencia": { "$ref": "#/$defs/textoNoVacio", "description": "Competencia que se observa, en texto libre. Ejemplo: CONTENCION." },
+        "titulo": { "$ref": "#/$defs/textoNoVacio" },
+        "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Qué se espera ver." },
+        "orden": { "$ref": "#/$defs/orden", "description": "Posición dentro de la rúbrica." }
+      }
+    },
+
+    "Ejecucion": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Lo que produce la ejecución del caso. Apunta hacia la definición; la definición nunca apunta hacia aquí.",
+      "properties": {
+        "estudiantes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Estudiante" },
+          "default": []
+        },
+        "intentos": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Intento" },
+          "default": []
+        },
+        "evaluaciones": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Evaluacion" },
+          "default": [],
+          "description": "Evaluaciones de los intentos (asociación Evaluacion -> Intento, R-22; no es composición)."
+        }
+      }
+    },
+
+    "Estudiante": {
+      "type": "object",
+      "required": ["id", "nombre", "correo"],
+      "additionalProperties": false,
+      "description": "Clase Estudiante. La persona que ejecuta los casos y escribe su bitácora.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idEstudiante" },
+        "nombre": { "$ref": "#/$defs/textoNoVacio", "description": "Nombre completo." },
+        "correo": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+          "description": "Correo institucional."
+        }
+      }
+    },
+
+    "Intento": {
+      "type": "object",
+      "required": ["id", "estudiante", "estado", "iniciadoEn", "escenaActual", "bitacora"],
+      "additionalProperties": false,
+      "description": "Clase Intento. El recorrido de un estudiante por el caso del documento (R-15, implícita). Cada repetición es un intento nuevo e independiente (RN-06, RN-07). /duracionActivaSegundos es derivado y no se escribe.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idIntento" },
+        "estudiante": {
+          "$ref": "#/$defs/idEstudiante",
+          "description": "Quien realiza el intento (R-14, rol inverso de `intentos`).",
+          "x-referencia": { "relacion": "R-14", "destino": "ejecucion.estudiantes[].id", "regla": "RI" }
+        },
+        "estado": {
+          "enum": ["EN_CURSO", "PAUSADO", "COMPLETADO", "REEMPLAZADO"],
+          "description": "Estado del intento. COMPLETADO y REEMPLAZADO son terminales."
+        },
+        "iniciadoEn": { "$ref": "#/$defs/fechaHora" },
+        "finalizadoEn": {
+          "$ref": "#/$defs/fechaHora",
+          "description": "Obligatorio si el estado es COMPLETADO o REEMPLAZADO; se omite mientras el intento esté abierto."
+        },
+        "escenaActual": {
+          "$ref": "#/$defs/idEscena",
+          "description": "Escena en que está el intento; allí se reanuda (R-16).",
+          "x-referencia": { "relacion": "R-16", "destino": "escenas[].id", "regla": "RI" }
+        },
+        "bitacora": {
+          "$ref": "#/$defs/Bitacora",
+          "description": "Bitácora del intento (composición, R-17). Exactamente una."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["estado"],
+            "properties": { "estado": { "enum": ["COMPLETADO", "REEMPLAZADO"] } }
+          },
+          "then": {
+            "required": ["finalizadoEn"],
+            "properties": { "bitacora": { "properties": { "bloqueada": { "const": true } } } }
+          },
+          "else": {
+            "not": { "required": ["finalizadoEn"] },
+            "properties": { "bitacora": { "properties": { "bloqueada": { "const": false } } } }
+          },
+          "x-regla": "INV-19",
+          "description": "INV-19: la bitácora se bloquea cuando el intento termina o es reemplazado, y no antes."
+        }
+      ]
+    },
+
+    "Bitacora": {
+      "type": "object",
+      "required": ["id", "creadaEn", "bloqueada"],
+      "additionalProperties": false,
+      "description": "Clase Bitacora. El registro del intento: decisiones tomadas y reflexiones del estudiante.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idBitacora" },
+        "creadaEn": { "$ref": "#/$defs/fechaHora" },
+        "bloqueada": {
+          "type": "boolean",
+          "description": "true cuando el intento terminó o fue reemplazado (INV-19)."
+        },
+        "decisiones": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RegistroDecision" },
+          "default": [],
+          "description": "Registro de decisiones (composición, R-18), en el orden en que ocurrieron."
+        },
+        "reflexiones": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Reflexion" },
+          "default": [],
+          "description": "Reflexiones del estudiante (composición, R-19). A lo sumo una por escena (INV-17)."
+        }
+      }
+    },
+
+    "RegistroDecision": {
+      "type": "object",
+      "required": ["orden", "momento", "opcionElegida"],
+      "additionalProperties": false,
+      "description": "Clase RegistroDecision. Constancia de una opción elegida durante el intento. No tiene identificador: la identifican su bitácora y su orden.",
+      "properties": {
+        "orden": { "$ref": "#/$defs/orden", "description": "Posición en el recorrido. No se repite dentro de una bitácora." },
+        "momento": { "$ref": "#/$defs/fechaHora", "description": "Cuándo se eligió." },
+        "aplicada": {
+          "type": "boolean",
+          "default": true,
+          "description": "false si la elección quedó registrada pero no hizo avanzar el caso (primera respuesta riesgosa o inadecuada de una escena, que el simulador pide reconsiderar)."
+        },
+        "opcionElegida": {
+          "$ref": "#/$defs/idOpcion",
+          "description": "Opción que se eligió (R-20). Debe ser una opción del caso (INV-18).",
+          "x-referencia": { "relacion": "R-20", "destino": "escenas[].decision.opciones[].id", "regla": "INV-18" }
+        }
+      }
+    },
+
+    "Reflexion": {
+      "type": "object",
+      "required": ["escena", "texto", "momento"],
+      "additionalProperties": false,
+      "description": "Clase Reflexion. La nota del estudiante donde justifica o analiza lo que decidió en una escena (RF-20). No tiene identificador: la identifican su bitácora y su escena.",
+      "properties": {
+        "escena": {
+          "$ref": "#/$defs/idEscena",
+          "description": "Escena a la que se refiere (R-21).",
+          "x-referencia": { "relacion": "R-21", "destino": "escenas[].id", "regla": "RI" }
+        },
+        "texto": { "$ref": "#/$defs/textoNoVacio", "description": "Contenido de la reflexión; no puede ser vacío (INV-17)." },
+        "momento": { "$ref": "#/$defs/fechaHora", "description": "Cuándo se guardó por última vez." }
+      }
+    },
+
+    "Evaluacion": {
+      "type": "object",
+      "required": ["id", "intento", "rubrica", "origen", "estado"],
+      "additionalProperties": false,
+      "description": "Clase Evaluacion. Valoración formativa de un intento con una rúbrica. No existe nota numérica oficial (RN-09): el esquema no tiene ningún campo para ella y rechaza cualquier clave desconocida.",
+      "properties": {
+        "id": { "$ref": "#/$defs/idEvaluacion" },
+        "intento": {
+          "$ref": "#/$defs/idIntento",
+          "description": "Intento que se valora (R-22).",
+          "x-referencia": { "relacion": "R-22", "destino": "ejecucion.intentos[].id", "regla": "RI" }
+        },
+        "rubrica": {
+          "$ref": "#/$defs/idRubrica",
+          "description": "Rúbrica que se aplica (R-23). Debe ser la rúbrica del caso.",
+          "x-referencia": { "relacion": "R-23", "destino": "rubricas[].id", "regla": "INV-20" }
+        },
+        "origen": {
+          "enum": ["SISTEMA", "DOCENTE"],
+          "description": "SISTEMA: valoración automática al cerrar el intento (RF-22). DOCENTE: revisión del profesor (RF-25)."
+        },
+        "estado": {
+          "enum": ["PENDIENTE", "EVALUADA"],
+          "description": "PENDIENTE mientras falten criterios por valorar."
+        },
+        "observacionGeneral": { "$ref": "#/$defs/textoNoVacio", "description": "Comentario global sobre el desempeño." },
+        "evaluadaEn": {
+          "$ref": "#/$defs/fechaHora",
+          "description": "Cuándo se completó. Obligatorio si el estado es EVALUADA."
+        },
+        "valoraciones": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ValoracionCriterio" },
+          "default": [],
+          "description": "Valoración de cada criterio (composición, R-24)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["estado"],
+            "properties": { "estado": { "const": "EVALUADA" } }
+          },
+          "then": {
+            "required": ["evaluadaEn", "valoraciones"],
+            "properties": { "valoraciones": { "minItems": 1 } }
+          },
+          "x-regla": "INV-20",
+          "description": "INV-20 (parte de forma): una evaluación EVALUADA tiene fecha y al menos una valoración. Que cubra todos los criterios de la rúbrica es semántico."
+        }
+      ]
+    },
+
+    "ValoracionCriterio": {
+      "type": "object",
+      "required": ["criterio", "nivel"],
+      "additionalProperties": false,
+      "description": "Clase ValoracionCriterio. Nivel de desempeño en un criterio de la rúbrica, con su observación. Una por criterio y evaluación.",
+      "properties": {
+        "criterio": {
+          "$ref": "#/$defs/idCriterio",
+          "description": "Criterio valorado (R-25). Debe ser un criterio de la rúbrica de la evaluación (INV-20).",
+          "x-referencia": { "relacion": "R-25", "destino": "rubricas[].criterios[].id", "regla": "INV-20" }
+        },
+        "nivel": {
+          "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"],
+          "description": "Nivel de desempeño cualitativo."
+        },
+        "observacion": { "$ref": "#/$defs/textoNoVacio", "description": "Justificación del nivel." }
+      }
+    }
+  }
+}
