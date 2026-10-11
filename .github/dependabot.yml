@@ -26,6 +26,11 @@ updates:
         patterns: ['@angular/*', '@angular-devkit/*']
       frontend-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # @angular/build 22 exige typescript >=6.0 <6.1: subir a 7.x rompe `npm ci` (ERESOLVE) y el CI.
+      # Se reabre cuando Angular admita la versión nueva.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
 
   - package-ecosystem: docker
     directory: /
@@ -38,6 +43,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      # El volumen de desarrollo es PostgreSQL 16: una imagen de otra versión mayor no arranca sobre
+      # sus datos. Un salto de mayor es una migración deliberada (dump/restore), no una actualización.
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
