@@ -56,7 +56,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/Retroalimentacion" },
       "default": [],
-      "description": "Retroalimentaciones pedagógicas con su fundamento teórico. Cada una se asocia a una decisión o a una opción (R-11, R-12). Se muestran al terminar el intento (RN-08). La clave se mantiene en singular como en el ejemplo del enunciado, aunque es una lista."
+      "description": "Retroalimentaciones pedagógicas con su fundamento teórico. Cada una se asocia a una decisión o a una opción (R-11, R-12). El momento en que se muestran (al terminar el intento, RN-08) es un contrato del motor, no del formato: la consecuencia inmediata va en `consecuencia` de cada opción. La clave se mantiene en singular como en el ejemplo del enunciado, aunque es una lista."
     },
     "rubricas": {
       "type": "array",
@@ -378,7 +378,7 @@
       "type": "object",
       "required": ["id", "mensaje", "fundamentoTeorico"],
       "additionalProperties": false,
-      "description": "Clase Retroalimentacion. Explicación pedagógica, con fundamento teórico, de por qué una decisión u opción es adecuada o no. Se presenta al terminar el intento.",
+      "description": "Clase Retroalimentacion. Explicación pedagógica, con fundamento teórico, de por qué una decisión u opción es adecuada o no. El motor la presenta al terminar el intento (el formato no fija el momento).",
       "properties": {
         "id": { "$ref": "#/$defs/idRetroalimentacion" },
         "decision": {

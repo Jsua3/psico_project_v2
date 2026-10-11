@@ -553,7 +553,7 @@ Por eso `minItems`, `required`, `enum`, `pattern`, `if/then` entre campos de un 
 | INV-18 | Un registro corresponde a una opción del caso | **Semántica** | `opcionElegida` está en `opciones[].id` |
 | INV-19 | Bitácora bloqueada exactamente cuando el intento terminó o fue reemplazado | **Esquema** | `if estado en COMPLETADO, REEMPLAZADO then bloqueada = true else false` |
 | INV-20 | Se valoran criterios de la rúbrica; `EVALUADA` los cubre; sin nota numérica | Esquema + **semántica** | Esquema: sin campo de nota, `EVALUADA` exige fecha y valoraciones. Semántica: criterios de la rúbrica, cobertura completa |
-| RN-03 | Solo un caso publicado se ejecuta | **Esquema** | `if hay intentos then caso.estado en PUBLICADO, ARCHIVADO` |
+| RN-03 (parcial) | Solo un caso publicado se ejecuta. El documento solo puede garantizar que no traiga intentos de un caso en `BORRADOR`; **publicar y ejecutar es decisión del motor**, no del formato | **Esquema** | `if hay intentos then caso.estado en PUBLICADO, ARCHIVADO` |
 | RN-09 | Valoración formativa, sin nota oficial | **Esquema** | No existe el campo y las claves desconocidas se rechazan |
 
 **Resumen.** De las 22 reglas, 8 las hace cumplir solo el esquema, 7 se reparten entre esquema y semántica y 7 son solo semánticas. De las ocho del enunciado, siete tienen al menos una parte en el esquema; la excepción es OCL-04, que es de unicidad de clave y JSON Schema no la expresa. INV-10 e INV-11 miran el grafo completo y tampoco tienen forma en el esquema.
@@ -563,7 +563,7 @@ Por eso `minItems`, `required`, `enum`, `pattern`, `if/then` entre campos de un 
 ```
 documento.json ──► capa 1: esquema    ──► errores de forma      (regla + ruta)
                └─► capa 2: semántica  ──► errores de significado (regla + ruta)
-                                           └─► informe único; si hay errores, no se publica (RN-05)
+                                           └─► informe único; con errores, el motor no debe publicar ni ejecutar (RN-05)
 ```
 
 - **Las dos capas se ejecutan siempre**, aunque la primera falle. Un documento con una decisión de una sola opción y una herramienta no definida informa OCL-02 (capa 1) y OCL-05 (capa 2) en la misma pasada.
@@ -777,7 +777,7 @@ El enunciado dice que su estructura es solo una referencia. Se conservaron las c
 | RN-06, RN-07 Intentos independientes, sin dos abiertos | `ejecucion.intentos`, INV-16 (SIEP permite reemplazar un intento abierto: estado `REEMPLAZADO`, Fase 1 §7.4) |
 | RN-08 Consecuencia en el momento, retroalimentación al final | `opciones[].consecuencia` frente a `retroalimentacion` (§5.4) |
 | RN-09 Valoración formativa sin nota oficial | `evaluaciones[].valoraciones[].nivel`; sin campo numérico |
-| RN-11 Opciones necesarias por decisión | `opciones` con `minItems: 2` y sin máximo |
+| RN-11 Opciones necesarias por decisión | `opciones` sin máximo. El mínimo de dos (`minItems: 2`, OCL-02) es del enunciado del taller, no de RN-11 |
 | RF-01 a RF-04, RF-14, RF-15, RF-26; RN-01, RN-04, RN-10 | Fuera del DSL: usuarios, grupos, asignación y reportes |
 
 ---
@@ -819,3 +819,14 @@ print(len(errores))  # 0
 - **`format` es informativo.** El esquema impone la forma de fechas y correos con `pattern`; no comprueba que una fecha exista en el calendario (por ejemplo, `2026-02-31T10:00:00Z` cumple el patrón, también con el verificador de formatos de `jsonschema` activo, que en este entorno no incluye `date-time`). El validador de la Fase 4 no puede interpretar una fecha imposible y, en ese caso, omite en silencio las comprobaciones de tiempo de PROP-05 y PROP-07 para ese valor.
 - **No se ejecutó SIEP.** La sección 7 se leyó del código de la rama `docs/documento-maestro-unificado` (commit `46b7206`); las restricciones de base de datos que cita provienen del volcado `deploy/db_seed.sql` y no de una base viva.
 - **No se construyó importador ni exportador.** La sección 7 dice cómo se hará, no lo hace.
+
+**Límites señalados en la revisión de cobertura frente a la línea base (11 de octubre de 2026).** El DSL expresa bien RF-05, RF-07, RF-09, RF-10, RF-11, RF-12, RN-02 y RN-09; quedan parciales los siguientes puntos, conocidos y aceptados para esta fase:
+
+- **RN-08 y RF-10 (momento de la retroalimentación).** El formato no tiene un campo ni una regla de «cuándo»: separa la consecuencia inmediata (`consecuencia` de cada opción) de la retroalimentación pedagógica (`retroalimentacion`), pero **mostrar la segunda al terminar el intento es un contrato del motor**. SIEP hoy la devuelve al decidir (§7).
+- **RN-03 y RN-05.** Publicar y ejecutar son del motor; el documento solo trae el informe de incumplimientos. Una regla «un caso `PUBLICADO` exige informe sin incumplimientos» queda como mejora (PROP futura).
+- **RF-08 («las decisiones de cada escena»).** Se lee como «una decisión por escena» (S-03 de la Fase 1). Si se confirman varias, `decision` pasa a lista y OCL-04 cambia de alcance: sería un cambio de esquema.
+- **RF-22 y RN-09 (criterios).** Ninguna opción referencia un `CriterioRubrica`: la valoración formativa se registra por intento (PROP-07 solo comprueba coherencia). Asociar opciones a criterios es una ampliación futura.
+- **`orden` de la escena.** Es solo de presentación y opcional; la secuencia real la dan las ramificaciones. No tiene regla de unicidad.
+- **Borrador incompleto.** Un caso en `BORRADOR` incumple igual las reglas estructurales (`minItems`, `siguienteEscena`, PROP-02 y PROP-06); el validador no distingue estados. Una exigencia por estado (estricta solo con `PUBLICADO`) es una decisión pendiente.
+- **Principio 1 («nada en el JSON fuera del modelo»).** Tiene tres excepciones declaradas: `versionDsl`, `$schema` y `ejecucion` (esta última modela la Bitácora, el Intento y la Evaluación).
+- **`fundamentoTeorico`.** Es texto libre. Convención recomendada: marco o autor y obra (por ejemplo, «Tajfel y Turner (1979), identidad social»), no solo la disciplina.

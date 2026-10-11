@@ -1,0 +1,4 @@
+Documentos alterados: 4000 (semilla 20261010)
+Comparados con jsonschema: 4000; discrepancias: 0
+Errores internos de las reglas: 0
+Combinaciones distintas de reglas incumplidas: 198

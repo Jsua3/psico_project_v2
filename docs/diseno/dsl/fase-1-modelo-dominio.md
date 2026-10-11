@@ -615,7 +615,7 @@ El grupo A son las ocho reglas que el enunciado propone para la Fase 2 (INV-01 a
 |---|---|---|---|---|---|
 | **A. Reglas del enunciado** | | | | | |
 | INV-01 | Un caso contiene al menos una escena | Caso | Enunciado (ejemplo); RF-06 | OCL-01 | **Sí**: `NO_NODES` (`sim/services/world_validation.py:53-55`) |
-| INV-02 | Una decisión tiene como mínimo dos opciones | Decision | Enunciado (ejemplo); RF-08; RN-11 | OCL-02 | **No**: SIEP no revisa los nodos sin opciones ni con una sola |
+| INV-02 | Una decisión tiene como mínimo dos opciones | Decision | Enunciado (ejemplo); RF-08 (opciones de cada decisión); RN-11 solo respalda que no haya máximo | OCL-02 | **No**: SIEP no revisa los nodos sin opciones ni con una sola |
 | INV-03 | Toda opción conduce a una escena que existe y pertenece al mismo caso | OpcionDecision | Enunciado (ejemplo); RF-09; RN-02 | OCL-03 | **Parcial**: el destino es obligatorio (`sim/models/case.py:107-110`) pero no se comprueba que sea de la misma versión (`sim/services/authoring/graph.py:87-92`) |
 | INV-04 | Los identificadores de decisión no se repiten (en la escena ni en el caso) | Caso | Enunciado (Fase 2) | OCL-04 | **Parcial**: SIEP no tiene identificador de decisión; la clave de opción es única por versión solo en el volcado de despliegue (`deploy/db_seed.sql:3575`) |
 | INV-05 | Toda herramienta usada por una opción está definida en el caso | OpcionDecision | Enunciado (Fase 2) | OCL-05 | **Parcial**: en ejecución `use_tool` exige que exista en la versión (`sim/services/world_service.py:271-275`); al autorar no se comprueba |
@@ -873,7 +873,7 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 |---|---|
 | S-01 | Un documento del DSL describe una versión de caso; pertenece a un solo caso. |
 | S-02 | Un caso tiene como máximo una rúbrica (RF-22: «la rúbrica definida para el caso»). |
-| S-03 | Una escena presenta una sola decisión (ejemplo del enunciado). |
+| S-03 | Una escena presenta una sola decisión (ejemplo del enunciado). RF-08 habla de «las decisiones de cada escena» en plural; se lee como «una decisión por escena» y queda como supuesto a confirmar: si se admiten varias, `Escena.decision` pasa a lista (0..*) y OCL-04 cambia de alcance. |
 | S-04 | El mínimo de dos opciones es el del enunciado; la línea base (RN-11) no fija máximo. |
 | S-05 | La retroalimentación de una decisión explica la decisión en general; la de una opción, esa opción. |
 | S-06 | Un estudiante tiene como máximo un intento abierto por caso (RN-07). |
@@ -912,7 +912,7 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 | RN-06, RN-07 Intentos independientes y sin dos abiertos | `Intento` compone su `Bitacora`; INV-16. SIEP permite reemplazar un intento abierto (`REEMPLAZADO`, §7.4) |
 | RN-08 Consecuencia en el momento, retroalimentación al final | `OpcionDecision.consecuencia` frente a `Retroalimentacion`; RP-01 |
 | RN-09 Valoración formativa sin nota oficial | `Evaluacion` y `ValoracionCriterio` sin atributo numérico; INV-20 |
-| RN-11 Opciones necesarias por decisión | INV-02 (mínimo 2, sin máximo) |
+| RN-11 Opciones necesarias por decisión | INV-02 (sin máximo; el mínimo de 2 es del enunciado) |
 | RN-01, RN-04, RN-10 | Alcance, acceso y usuarios: fuera del modelo |
 
 ---
