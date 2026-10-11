@@ -3,7 +3,7 @@
 # (WhiteNoise para los estáticos), así todo vive en un solo dominio sin CORS.
 
 # ---------- Stage 1: build del frontend (Angular) ----------
-FROM node:24-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /fe
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
