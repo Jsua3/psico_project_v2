@@ -1,0 +1,39 @@
+Línea base, sin romper nada: 46 pruebas, 0 fallan.
+
+Regla    Rotura          Pruebas que fallan  Detectada
+-------- --------------- ------------------  ---------
+OCL-01   siempre-cumple                   1  sí
+OCL-01   siempre-falla                   60  sí
+OCL-02   siempre-cumple                  11  sí
+OCL-02   siempre-falla                   58  sí
+OCL-03   siempre-cumple                  11  sí
+OCL-03   siempre-falla                   58  sí
+OCL-04   siempre-cumple                   1  sí
+OCL-04   siempre-falla                   60  sí
+OCL-05   siempre-cumple                   8  sí
+OCL-05   siempre-falla                   59  sí
+OCL-06   siempre-cumple                  10  sí
+OCL-06   siempre-falla                   58  sí
+OCL-07   siempre-cumple                   9  sí
+OCL-07   siempre-falla                   58  sí
+OCL-08   siempre-cumple                   2  sí
+OCL-08   siempre-falla                   61  sí
+PROP-01  siempre-cumple                   2  sí
+PROP-01  siempre-falla                   60  sí
+PROP-02  siempre-cumple                   6  sí
+PROP-02  siempre-falla                   61  sí
+PROP-03  siempre-cumple                   1  sí
+PROP-03  siempre-falla                   60  sí
+PROP-04  siempre-cumple                   2  sí
+PROP-04  siempre-falla                   60  sí
+PROP-05  siempre-cumple                  10  sí
+PROP-05  siempre-falla                   60  sí
+PROP-06  siempre-cumple                   3  sí
+PROP-06  siempre-falla                   63  sí
+PROP-07  siempre-cumple                   5  sí
+PROP-07  siempre-falla                   60  sí
+PROP-08  siempre-cumple                   2  sí
+PROP-08  siempre-falla                   60  sí
+
+Validador restaurado: 46 pruebas, 0 fallan.
+Roturas detectadas: 32 de 32.

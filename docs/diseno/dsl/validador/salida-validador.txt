@@ -1,0 +1,105 @@
+Validador del DSL de casos situacionales de SIEP (Fase 4)
+============================================================================
+Archivo : ..\simulador_psicologia_social.json
+Formato : lista de escenarios (2) - DSL «DSL de casos situacionales de SIEP» versión 1.0
+Esquema : ..\dsl-casos.schema.json
+Jsonschema: 4.25.1 - comprobación cruzada de la forma: coincide en todos los escenarios
+Reglas  : FORMA + 8 OCL del enunciado + 8 PROPUESTAS por el equipo
+
+============================================================================
+ESCENARIO-1: Escenario 1. Caso válido: convivencia en un apartamento compartido
+Esperado: valido
+Caso CASO-001 «Convivencia en un apartamento compartido» (PUBLICADO): 3
+personajes, 5 escenas (2 con decisión), 5 opciones, 2 herramientas, 4
+retroalimentaciones, 1 intento
+----------------------------------------------------------------------------
+Regla    Tipo       Estado      Eval.  Descripción
+-------- ---------- ----------- -----  ----------------------------------------------------
+FORMA    FORMA      CUMPLE          -  Forma del documento según dsl-casos.schema.json
+OCL-01   OCL        CUMPLE          1  Un caso debe contener al menos una escena.
+OCL-02   OCL        CUMPLE          2  Una decisión debe tener como mínimo dos opciones.
+OCL-03   OCL        CUMPLE          5  Una opción de decisión debe referenciar una escena existente.
+OCL-04   OCL        CUMPLE          2  Una escena no puede tener dos decisiones con el mismo identificador.
+OCL-05   OCL        CUMPLE          2  Una herramienta utilizada dentro de una escena debe estar previamente
+                                       definida en el caso.
+OCL-06   OCL        CUMPLE          4  Una retroalimentación debe estar asociada a una decisión u opción de
+                                       decisión.
+OCL-07   OCL        CUMPLE          2  Un caso debe tener un título y una descripción.
+OCL-08   OCL        CUMPLE          1  Un caso debe contener al menos un punto de decisión.
+PROP-01  PROPUESTA  CUMPLE         28  Ningún identificador se repite en el documento (unicidad global).
+PROP-02  PROPUESTA  CUMPLE          5  La escena inicial existe y toda escena es alcanzable desde ella.
+PROP-03  PROPUESTA  CUMPLE         15  Los personajes que participan en una escena están definidos en el caso.
+PROP-04  PROPUESTA  CUMPLE          3  La opción elegida en la bitácora pertenece a la decisión de la escena en
+                                       que estaba el intento.
+PROP-05  PROPUESTA  CUMPLE          1  El registro de la bitácora es coherente con el caso y con el intento.
+PROP-06  PROPUESTA  CUMPLE          5  El flujo del caso no contiene ciclos.
+PROP-07  PROPUESTA  CUMPLE          2  La rúbrica del caso existe y las evaluaciones la aplican de forma
+                                       coherente.
+PROP-08  PROPUESTA  CUMPLE          1  Los intentos son de estudiantes del documento y ninguno tiene dos
+                                       abiertos.
+----------------------------------------------------------------------------
+Resultado: VÁLIDO. Ninguna regla se incumple.
+Expectativa (valido): se cumple.
+
+============================================================================
+ESCENARIO-2: Escenario 2. Caso con errores: reproches en un equipo de trabajo por un informe atrasado
+Esperado: con-errores
+Caso CASO-002 «Reproches en un equipo de trabajo por un informe atrasado»
+(BORRADOR): 2 personajes, 3 escenas (2 con decisión), 3 opciones, 1
+herramienta, 3 retroalimentaciones, 0 intentos
+----------------------------------------------------------------------------
+Regla    Tipo       Estado      Eval.  Descripción
+-------- ---------- ----------- -----  ----------------------------------------------------
+FORMA    FORMA      CUMPLE          -  Forma del documento según dsl-casos.schema.json
+OCL-01   OCL        CUMPLE          1  Un caso debe contener al menos una escena.
+OCL-02   OCL        INCUMPLE        2  Una decisión debe tener como mínimo dos opciones.
+         - Elemento: Decisión D01
+           Mensaje: La decisión de la escena E01 tiene una sola opción; se exigen al menos 2.
+           Ruta:    escenas[0].decision.opciones
+OCL-03   OCL        INCUMPLE        3  Una opción de decisión debe referenciar una escena existente.
+         - Elemento: Opción OP03
+           Mensaje: La opción conduce a la escena «E09», que no existe en el caso.
+           Ruta:    escenas[1].decision.opciones[1].siguienteEscena
+OCL-04   OCL        CUMPLE          2  Una escena no puede tener dos decisiones con el mismo identificador.
+OCL-05   OCL        INCUMPLE        2  Una herramienta utilizada dentro de una escena debe estar previamente
+                                       definida en el caso.
+         - Elemento: Opción OP02
+           Mensaje: La herramienta «H02» que usa la opción (decisión D02, escena E02) no está
+           definida en las herramientas del caso.
+           Ruta:    escenas[1].decision.opciones[0].herramienta
+OCL-06   OCL        INCUMPLE        3  Una retroalimentación debe estar asociada a una decisión u opción de
+                                       decisión.
+         - Elemento: Retroalimentación R02
+           Mensaje: No está asociada a ninguna decisión ni opción; se exige exactamente una de las
+           dos.
+           Ruta:    retroalimentacion[1]
+OCL-07   OCL        INCUMPLE        2  Un caso debe tener un título y una descripción.
+         - Elemento: Caso CASO-002
+           Mensaje: La descripción del caso falta o está vacía.
+           Ruta:    caso.descripcion
+OCL-08   OCL        CUMPLE          1  Un caso debe contener al menos un punto de decisión.
+PROP-01  PROPUESTA  CUMPLE         13  Ningún identificador se repite en el documento (unicidad global).
+PROP-02  PROPUESTA  CUMPLE          3  La escena inicial existe y toda escena es alcanzable desde ella.
+PROP-03  PROPUESTA  CUMPLE          6  Los personajes que participan en una escena están definidos en el caso.
+PROP-04  PROPUESTA  NO_APLICA       -  La opción elegida en la bitácora pertenece a la decisión de la escena en
+                                       que estaba el intento.
+                                       (no aplica: el documento no trae decisiones registradas en una bitácora)
+PROP-05  PROPUESTA  NO_APLICA       -  El registro de la bitácora es coherente con el caso y con el intento.
+                                       (no aplica: el documento no trae intentos (ejecucion))
+PROP-06  PROPUESTA  CUMPLE          3  El flujo del caso no contiene ciclos.
+PROP-07  PROPUESTA  NO_APLICA       -  La rúbrica del caso existe y las evaluaciones la aplican de forma
+                                       coherente.
+                                       (no aplica: el caso no declara rúbrica y no trae evaluaciones)
+PROP-08  PROPUESTA  NO_APLICA       -  Los intentos son de estudiantes del documento y ninguno tiene dos
+                                       abiertos.
+                                       (no aplica: el documento no trae intentos (ejecucion))
+----------------------------------------------------------------------------
+Resultado: CON ERRORES. 5 incumplimiento(s) en 5 regla(s): OCL-02, OCL-03, OCL-05, OCL-06, OCL-07.
+Expectativa (con-errores): se cumple.
+
+============================================================================
+RESUMEN
+Escenario      Esperado     Obtenido     Incumpl.  Reglas incumplidas / expectativa
+ESCENARIO-1    valido       valido              0  - -> OK
+ESCENARIO-2    con-errores  con-errores         5  OCL-02, OCL-03, OCL-05, OCL-06, OCL-07 -> OK
+Código de salida: 0

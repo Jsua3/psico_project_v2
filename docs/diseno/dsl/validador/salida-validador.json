@@ -1,0 +1,425 @@
+{
+  "archivo": "..\\simulador_psicologia_social.json",
+  "formato": "lista-de-escenarios",
+  "dsl": {
+    "nombre": "DSL de casos situacionales de SIEP",
+    "version": "1.0",
+    "esquema": "dsl-casos.schema.json"
+  },
+  "esquema": {
+    "ruta": "..\\dsl-casos.schema.json",
+    "encontrado": true
+  },
+  "jsonschema": {
+    "solicitado": true,
+    "disponible": true,
+    "version": "4.25.1"
+  },
+  "escenarios": [
+    {
+      "id": "ESCENARIO-1",
+      "nombre": "Escenario 1. Caso válido: convivencia en un apartamento compartido",
+      "esperado": "valido",
+      "caso": {
+        "id": "CASO-001",
+        "titulo": "Convivencia en un apartamento compartido",
+        "estado": "PUBLICADO",
+        "personajes": 3,
+        "herramientas": 2,
+        "escenas": 5,
+        "decisiones": 2,
+        "opciones": 5,
+        "retroalimentaciones": 4,
+        "intentos": 1
+      },
+      "reglas": [
+        {
+          "regla": "FORMA",
+          "tipo": "FORMA",
+          "titulo": "Forma del documento según dsl-casos.schema.json",
+          "estado": "CUMPLE",
+          "evaluados": null,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-01",
+          "tipo": "OCL",
+          "titulo": "Un caso debe contener al menos una escena.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-02",
+          "tipo": "OCL",
+          "titulo": "Una decisión debe tener como mínimo dos opciones.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-03",
+          "tipo": "OCL",
+          "titulo": "Una opción de decisión debe referenciar una escena existente.",
+          "estado": "CUMPLE",
+          "evaluados": 5,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-04",
+          "tipo": "OCL",
+          "titulo": "Una escena no puede tener dos decisiones con el mismo identificador.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-05",
+          "tipo": "OCL",
+          "titulo": "Una herramienta utilizada dentro de una escena debe estar previamente definida en el caso.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-06",
+          "tipo": "OCL",
+          "titulo": "Una retroalimentación debe estar asociada a una decisión u opción de decisión.",
+          "estado": "CUMPLE",
+          "evaluados": 4,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-07",
+          "tipo": "OCL",
+          "titulo": "Un caso debe tener un título y una descripción.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-08",
+          "tipo": "OCL",
+          "titulo": "Un caso debe contener al menos un punto de decisión.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-01",
+          "tipo": "PROPUESTA",
+          "titulo": "Ningún identificador se repite en el documento (unicidad global).",
+          "estado": "CUMPLE",
+          "evaluados": 28,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-02",
+          "tipo": "PROPUESTA",
+          "titulo": "La escena inicial existe y toda escena es alcanzable desde ella.",
+          "estado": "CUMPLE",
+          "evaluados": 5,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-03",
+          "tipo": "PROPUESTA",
+          "titulo": "Los personajes que participan en una escena están definidos en el caso.",
+          "estado": "CUMPLE",
+          "evaluados": 15,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-04",
+          "tipo": "PROPUESTA",
+          "titulo": "La opción elegida en la bitácora pertenece a la decisión de la escena en que estaba el intento.",
+          "estado": "CUMPLE",
+          "evaluados": 3,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-05",
+          "tipo": "PROPUESTA",
+          "titulo": "El registro de la bitácora es coherente con el caso y con el intento.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-06",
+          "tipo": "PROPUESTA",
+          "titulo": "El flujo del caso no contiene ciclos.",
+          "estado": "CUMPLE",
+          "evaluados": 5,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-07",
+          "tipo": "PROPUESTA",
+          "titulo": "La rúbrica del caso existe y las evaluaciones la aplican de forma coherente.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-08",
+          "tipo": "PROPUESTA",
+          "titulo": "Los intentos son de estudiantes del documento y ninguno tiene dos abiertos.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        }
+      ],
+      "reglasIncumplidas": [],
+      "incumplimientos": 0,
+      "obtenido": "valido",
+      "comprobacionCruzada": {
+        "version": "4.25.1",
+        "coincide": true,
+        "soloInterprete": [],
+        "soloJsonschema": []
+      },
+      "expectativaCumplida": true
+    },
+    {
+      "id": "ESCENARIO-2",
+      "nombre": "Escenario 2. Caso con errores: reproches en un equipo de trabajo por un informe atrasado",
+      "esperado": "con-errores",
+      "caso": {
+        "id": "CASO-002",
+        "titulo": "Reproches en un equipo de trabajo por un informe atrasado",
+        "estado": "BORRADOR",
+        "personajes": 2,
+        "herramientas": 1,
+        "escenas": 3,
+        "decisiones": 2,
+        "opciones": 3,
+        "retroalimentaciones": 3,
+        "intentos": 0
+      },
+      "reglas": [
+        {
+          "regla": "FORMA",
+          "tipo": "FORMA",
+          "titulo": "Forma del documento según dsl-casos.schema.json",
+          "estado": "CUMPLE",
+          "evaluados": null,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-01",
+          "tipo": "OCL",
+          "titulo": "Un caso debe contener al menos una escena.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-02",
+          "tipo": "OCL",
+          "titulo": "Una decisión debe tener como mínimo dos opciones.",
+          "estado": "INCUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": [
+            {
+              "elemento": "Decisión D01",
+              "ruta": "escenas[0].decision.opciones",
+              "mensaje": "La decisión de la escena E01 tiene una sola opción; se exigen al menos 2."
+            }
+          ]
+        },
+        {
+          "regla": "OCL-03",
+          "tipo": "OCL",
+          "titulo": "Una opción de decisión debe referenciar una escena existente.",
+          "estado": "INCUMPLE",
+          "evaluados": 3,
+          "motivo": null,
+          "hallazgos": [
+            {
+              "elemento": "Opción OP03",
+              "ruta": "escenas[1].decision.opciones[1].siguienteEscena",
+              "mensaje": "La opción conduce a la escena «E09», que no existe en el caso."
+            }
+          ]
+        },
+        {
+          "regla": "OCL-04",
+          "tipo": "OCL",
+          "titulo": "Una escena no puede tener dos decisiones con el mismo identificador.",
+          "estado": "CUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "OCL-05",
+          "tipo": "OCL",
+          "titulo": "Una herramienta utilizada dentro de una escena debe estar previamente definida en el caso.",
+          "estado": "INCUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": [
+            {
+              "elemento": "Opción OP02",
+              "ruta": "escenas[1].decision.opciones[0].herramienta",
+              "mensaje": "La herramienta «H02» que usa la opción (decisión D02, escena E02) no está definida en las herramientas del caso."
+            }
+          ]
+        },
+        {
+          "regla": "OCL-06",
+          "tipo": "OCL",
+          "titulo": "Una retroalimentación debe estar asociada a una decisión u opción de decisión.",
+          "estado": "INCUMPLE",
+          "evaluados": 3,
+          "motivo": null,
+          "hallazgos": [
+            {
+              "elemento": "Retroalimentación R02",
+              "ruta": "retroalimentacion[1]",
+              "mensaje": "No está asociada a ninguna decisión ni opción; se exige exactamente una de las dos."
+            }
+          ]
+        },
+        {
+          "regla": "OCL-07",
+          "tipo": "OCL",
+          "titulo": "Un caso debe tener un título y una descripción.",
+          "estado": "INCUMPLE",
+          "evaluados": 2,
+          "motivo": null,
+          "hallazgos": [
+            {
+              "elemento": "Caso CASO-002",
+              "ruta": "caso.descripcion",
+              "mensaje": "La descripción del caso falta o está vacía."
+            }
+          ]
+        },
+        {
+          "regla": "OCL-08",
+          "tipo": "OCL",
+          "titulo": "Un caso debe contener al menos un punto de decisión.",
+          "estado": "CUMPLE",
+          "evaluados": 1,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-01",
+          "tipo": "PROPUESTA",
+          "titulo": "Ningún identificador se repite en el documento (unicidad global).",
+          "estado": "CUMPLE",
+          "evaluados": 13,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-02",
+          "tipo": "PROPUESTA",
+          "titulo": "La escena inicial existe y toda escena es alcanzable desde ella.",
+          "estado": "CUMPLE",
+          "evaluados": 3,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-03",
+          "tipo": "PROPUESTA",
+          "titulo": "Los personajes que participan en una escena están definidos en el caso.",
+          "estado": "CUMPLE",
+          "evaluados": 6,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-04",
+          "tipo": "PROPUESTA",
+          "titulo": "La opción elegida en la bitácora pertenece a la decisión de la escena en que estaba el intento.",
+          "estado": "NO_APLICA",
+          "evaluados": 0,
+          "motivo": "el documento no trae decisiones registradas en una bitácora",
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-05",
+          "tipo": "PROPUESTA",
+          "titulo": "El registro de la bitácora es coherente con el caso y con el intento.",
+          "estado": "NO_APLICA",
+          "evaluados": 0,
+          "motivo": "el documento no trae intentos (ejecucion)",
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-06",
+          "tipo": "PROPUESTA",
+          "titulo": "El flujo del caso no contiene ciclos.",
+          "estado": "CUMPLE",
+          "evaluados": 3,
+          "motivo": null,
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-07",
+          "tipo": "PROPUESTA",
+          "titulo": "La rúbrica del caso existe y las evaluaciones la aplican de forma coherente.",
+          "estado": "NO_APLICA",
+          "evaluados": 0,
+          "motivo": "el caso no declara rúbrica y no trae evaluaciones",
+          "hallazgos": []
+        },
+        {
+          "regla": "PROP-08",
+          "tipo": "PROPUESTA",
+          "titulo": "Los intentos son de estudiantes del documento y ninguno tiene dos abiertos.",
+          "estado": "NO_APLICA",
+          "evaluados": 0,
+          "motivo": "el documento no trae intentos (ejecucion)",
+          "hallazgos": []
+        }
+      ],
+      "reglasIncumplidas": [
+        "OCL-02",
+        "OCL-03",
+        "OCL-05",
+        "OCL-06",
+        "OCL-07"
+      ],
+      "incumplimientos": 5,
+      "obtenido": "con-errores",
+      "comprobacionCruzada": {
+        "version": "4.25.1",
+        "coincide": true,
+        "soloInterprete": [],
+        "soloJsonschema": []
+      },
+      "expectativaCumplida": true
+    }
+  ],
+  "resumen": {
+    "escenarios": 2,
+    "expectativasCumplidas": 2,
+    "codigoSalida": 0
+  }
+}
