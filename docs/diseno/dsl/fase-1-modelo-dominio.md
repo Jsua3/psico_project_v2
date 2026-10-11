@@ -6,8 +6,8 @@
 | **Asignatura** | Ingeniería de Software II |
 | **Equipo** | Juan José Sua Gómez y Emerson Ángel Gómez (fases 1, 3 y 4) |
 | **Entregable** | 1 — Modelo UML de clases del dominio del simulador |
-| **Archivos** | `modelo-dominio.mmd` (diagrama editable en Mermaid) y este documento |
-| **Versión** | 10 de octubre de 2026 |
+| **Archivos** | `modelo-dominio.png` (imagen del diagrama), `modelo-dominio.mmd` (diagrama editable en Mermaid) y este documento |
+| **Versión** | 11 de octubre de 2026 |
 
 ---
 
@@ -15,7 +15,7 @@
 
 | Lo que pide la Fase 1 del enunciado | Dónde está |
 |---|---|
-| Diagrama UML de clases con Caso, Escena, Personaje, Decisión, OpciónDecisión, Herramienta, Retroalimentación, Bitácora y Evaluación | §2 y `modelo-dominio.mmd` |
+| Diagrama UML de clases con Caso, Escena, Personaje, Decisión, OpciónDecisión, Herramienta, Retroalimentación, Bitácora y Evaluación | §2, `modelo-dominio.png` y `modelo-dominio.mmd` |
 | Para cada clase: atributos, relaciones, cardinalidades y responsabilidades | §3 (clases), §4 (enumeraciones), §5 (relaciones) |
 | Al menos 3 reglas o invariantes del dominio | §6: 20 invariantes; INV-01 a INV-03 son los tres ejemplos del enunciado |
 | Correspondencia con el simulador real (SIEP) | §7 |
@@ -56,6 +56,10 @@
 ---
 
 ## 2. Diagrama UML de clases
+
+![Diagrama UML de clases del dominio del simulador](modelo-dominio.png)
+
+La imagen y el bloque siguiente son el mismo diagrama: el PNG se generó de `modelo-dominio.mmd`, cuyo contenido es idéntico a este bloque.
 
 ```mermaid
 classDiagram
@@ -240,7 +244,7 @@ classDiagram
 
 **Dos bloques.** `Caso`, `Escena`, `Personaje`, `Decision`, `OpcionDecision`, `Herramienta`, `Retroalimentacion`, `Rubrica` y `CriterioRubrica` forman la *definición*. `Estudiante`, `Intento`, `Bitacora`, `RegistroDecision`, `Reflexion`, `Evaluacion` y `ValoracionCriterio` forman la *ejecución* y apuntan hacia la definición, nunca al revés: un caso no sabe quién lo ejecutó.
 
-**Para ver el diagrama.** Pegue el contenido de `modelo-dominio.mmd` en <https://mermaid.live> o abra este archivo en una vista previa de Markdown que renderice Mermaid.
+**Para ver el diagrama.** La imagen es `modelo-dominio.png`; la fuente editable es `modelo-dominio.mmd` (pegue su contenido en <https://mermaid.live> o abra este archivo en una vista previa de Markdown que renderice Mermaid).
 
 ---
 
@@ -257,7 +261,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | `id` | String | Sí | Identificador único y legible. Ejemplo: `CASO-001` |
 | `titulo` | String | Sí | Nombre del caso (INV-07). Ejemplo: «Conflicto en una organización» |
 | `descripcion` | String | Sí | Contexto de la situación (INV-07) |
-| `tematica` | String | No | Área temática. Ejemplo: «Psicologia social» |
+| `tematica` | String | No | Área temática. Ejemplo: «Psicología social» |
 | `version` | String | Sí | Versión del caso (`1.0.0`). Un caso se publica por versiones |
 | `estado` | EstadoCaso | Sí | `BORRADOR`, `PUBLICADO` o `ARCHIVADO` (RF-13) |
 | `objetivosAprendizaje` | `List<String>` | No (0..*) | Objetivos que el estudiante ve antes de empezar (RF-16) |
@@ -375,7 +379,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | `id` | String | Sí | Identificador único en el caso. Ejemplo: `H01` |
 | `nombre` | String | Sí | Ejemplo: «Mapa de actores» |
 | `descripcion` | String | Sí | Ejemplo: «Herramienta para identificar actores e intereses» |
-| `categoria` | String | No | Agrupación libre (crisis, comunicación, evaluación, protección, reflexión) |
+| `categoria` | String | No | Agrupación en texto libre; se recomienda en minúsculas y sin tildes (crisis, comunicacion, evaluacion, proteccion, reflexion). `global` tiene significado en SIEP: herramienta aplicable sin objetivo |
 
 **Relaciones.** Es agregada por 1 `Caso` (rol inverso `caso`); la usan 0..* `OpcionDecision`.
 
@@ -389,7 +393,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 |---|---|---|---|
 | `id` | String | Sí | Identificador único en el caso |
 | `mensaje` | String | Sí | Explicación para el estudiante |
-| `fundamentoTeorico` | String | Sí | Marco o autor que respalda el mensaje (RF-10). Ejemplo: «Psicologia social» |
+| `fundamentoTeorico` | String | Sí | Marco o autor que respalda el mensaje (RF-10). Ejemplo: «Psicología social» |
 
 **Relaciones.** Se asocia a `Decision` (`decision`, 0..1) **o** a `OpcionDecision` (`opcion`, 0..1): exactamente una de las dos (INV-06). Desde `Decision` y `OpcionDecision` se ve como 0..* retroalimentaciones.
 
@@ -405,7 +409,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | `nombre` | String | Sí | Ejemplo: «Rúbrica formativa de intervención» |
 | `descripcion` | String | No | Qué evalúa en conjunto |
 | `version` | String | Sí | Versión de la rúbrica |
-| `activa` | Boolean | Sí | Solo una rúbrica activa se puede aplicar |
+| `activa` | Boolean | Sí | Solo una rúbrica activa se puede aplicar: una evaluación con una rúbrica inactiva incumple PROP-07 |
 
 **Relaciones.** Compone 1..* `CriterioRubrica` (`criterios`); se asigna a 0..* `Caso`s; la aplican 0..* `Evaluacion`es.
 
@@ -450,7 +454,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | `id` | String | Sí | Identificador único |
 | `estado` | EstadoIntento | Sí | `EN_CURSO`, `PAUSADO`, `COMPLETADO` o `REEMPLAZADO` (§4) |
 | `iniciadoEn` | DateTime | Sí | Momento de inicio |
-| `finalizadoEn` | DateTime | No | Vacío mientras el intento esté abierto |
+| `finalizadoEn` | DateTime | No | Vacío mientras el intento esté abierto. No es anterior a `iniciadoEn`; en un intento `COMPLETADO` coincide con el momento de la decisión que llega a la conclusión, porque en ese instante el intento se cierra y la bitácora se bloquea |
 | `/duracionActivaSegundos` | Integer (derivado) | — | Tiempo efectivamente utilizado, calculado a partir de los registros (RF-21) |
 
 **Relaciones.**
@@ -463,7 +467,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 
 - Conservar el avance para continuar desde el último punto (RF-19).
 - Conservar el recorrido y el tiempo (RF-21).
-- Cerrarse al llegar a una conclusión (RF-22).
+- Cerrarse al llegar a una conclusión (RF-22), en el momento de la decisión que llega a ella.
 
 ### 3.12 Bitacora
 
@@ -504,7 +508,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | Atributo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `texto` | String | Sí | Contenido de la reflexión; no puede ser vacío (INV-17) |
-| `momento` | DateTime | Sí | Cuándo se guardó por última vez |
+| `momento` | DateTime | Sí | Cuándo se guardó por última vez. Dentro del intervalo del intento: la bitácora se bloquea al cerrarse (INV-19) |
 
 **Relaciones.** Pertenece a 1 `Bitacora` (rol inverso `bitacora`); se refiere a 1 `Escena` (`escena`).
 
@@ -517,7 +521,7 @@ Convenciones de las tablas: «Obligatorio» indica si el atributo debe tener val
 | Atributo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `id` | String | Sí | Identificador único |
-| `origen` | OrigenEvaluacion | Sí | `SISTEMA` (valoración automática al cerrar, RF-22) o `DOCENTE` (revisión del profesor, RF-25) |
+| `origen` | OrigenEvaluacion | Sí | `SISTEMA` (valoración automática al cerrar, RF-22) o `DOCENTE` (valoración del profesor con la rúbrica, que SIEP ya guarda; RF-25 deja leerla). Una valoración del `SISTEMA` no es anterior al cierre del intento |
 | `estado` | EstadoEvaluacion | Sí | `PENDIENTE` o `EVALUADA` |
 | `observacionGeneral` | String | No | Comentario global sobre el desempeño |
 | `evaluadaEn` | DateTime | No | Cuándo se completó |
@@ -622,7 +626,7 @@ El grupo A son las ocho reglas que el enunciado propone para la Fase 2 (INV-01 a
 | INV-09 | Un caso tiene exactamente una escena inicial y es una de sus escenas | Caso | RF-17; SIEP | — | **Sí**: `NO_START_NODE`, `MULTIPLE_START_NODES` (`sim/services/world_validation.py:57-67`) |
 | INV-10 | El flujo es acíclico: ninguna secuencia de opciones vuelve a una escena ya recorrida | Escena | SIEP | — | **Sí**: `GRAPH_CYCLE` (`sim/services/world_validation.py:79-104`) |
 | INV-11 | Toda escena es alcanzable desde la inicial | Caso | Propuesta de este modelo | — | **No**: no se revisan nodos inalcanzables; el caso sembrado tiene un nodo-sala al que ninguna opción conduce (`sim/management/commands/seed_caso_pdf.py:216-224`) |
-| INV-12 | Una opción marcada como conducta prohibida documenta el motivo | OpcionDecision | SIEP (ética); RN-01 | — | **Sí**: `PROHIBITED_WITHOUT_REASON` (`sim/services/world_validation.py:144-152`) |
+| INV-12 | Una opción marcada como conducta prohibida documenta el motivo | OpcionDecision | SIEP (ética) | — | **Sí**: `PROHIBITED_WITHOUT_REASON` (`sim/services/world_validation.py:144-152`) |
 | INV-13 | Los identificadores de escenas, personajes, herramientas, decisiones y opciones no se repiten dentro del caso | Caso | SIEP; necesario para referenciar en JSON | — | **Parcial**: únicos por versión solo en el volcado (`deploy/db_seed.sql:3903,3575,3527`) |
 | INV-14 | Los personajes que participan en una escena pertenecen al caso | Escena | RF-07 | — | **No aplica**: en SIEP el personaje es un objeto de la sala |
 | INV-15 | Un caso PUBLICADO cumple INV-01 a INV-14 y su contenido no se edita: los cambios van en una versión nueva | Caso | RN-03; RN-05; RF-12; RF-13 | — | **Parcial**: publicar exige checklist al 100 % y cero errores de validación (`sim/services/authoring/publication.py:68-80`); solo se edita un borrador (`sim/services/authoring/guards.py:28-36`) |
@@ -633,7 +637,7 @@ El grupo A son las ocho reglas que el enunciado propone para la Fase 2 (INV-01 a
 | INV-19 | La bitácora se bloquea cuando el intento termina o es reemplazado, y no antes | Bitacora | RN-06 | — | **Sí**: `sim/services/game_service.py:52-55,142-157,406-411` |
 | INV-20 | Una evaluación solo valora criterios de la rúbrica del caso; está `EVALUADA` solo si cubre todos; no existe nota numérica oficial | Evaluacion | RF-22; RN-09 | — | **Parcial**: el estado `EVALUATED` exige todos los criterios (`sim/services/rubric_service.py:430`); pero SIEP calcula un `total_score` ponderado sobre 1,0 a 5,0 (`sim/services/rubric_service.py:418-430`), tensión con RN-09 que el equipo debe resolver |
 
-**Nota sobre INV-04.** Como una escena presenta como máximo una decisión (R-07), «dos decisiones con el mismo identificador en una escena» es imposible por la propia cardinalidad. La regla conserva su sentido a nivel de caso: la retroalimentación y los registros citan las decisiones por su identificador, así que no puede repetirse en ninguna escena.
+**Nota sobre INV-04.** Como una escena presenta como máximo una decisión (R-07), «dos decisiones con el mismo identificador en una escena» es imposible por la propia cardinalidad. La regla conserva su sentido a nivel de caso: la retroalimentación y los registros citan las decisiones por su identificador, así que no puede repetirse en ninguna escena. **Acuerdo para la Fase 2:** OCL-04 se formula en `context Caso`, sobre `self.escenas`, porque el modelo no tiene `Escena.decisiones`; la expresión está en §6.2. Quien redacte la regla en `context Escena` no podrá navegar este modelo.
 
 **Regla de presentación RP-01 (no estructural).** La consecuencia de una opción (`OpcionDecision.consecuencia` y la escena destino) se presenta en el momento de elegir, para poder continuar la historia. La `Retroalimentacion` pedagógica se presenta solo cuando el intento termina (`COMPLETADO`). Origen: RN-08, RF-10, RF-23.
 
@@ -641,10 +645,18 @@ El grupo A son las ocho reglas que el enunciado propone para la Fase 2 (INV-01 a
 
 Son esbozos que usan los nombres de rol del §5. La redacción definitiva, la explicación y los ejemplos de cada regla son de la Fase 2 (INV-01 a INV-08 ↔ OCL-01 a OCL-08).
 
+Una nota sobre las navegaciones: `Escena.decision` es 0..1. Según la herramienta, `self.escenas.decision` puede incluir valores nulos (una escena sin decisión), y entonces `->notEmpty()` sería verdadero aunque ninguna escena tuviera decisión. Por eso las expresiones preguntan por escena (`e.decision->notEmpty()`) y la navegación del flujo pasa por la definición auxiliar `siguientes`, que devuelve el conjunto vacío para una conclusión.
+
 ```ocl
 -- Atributo derivado
 context Escena::esConclusion : Boolean
 derive: self.decision->isEmpty()
+
+-- Definición auxiliar: las escenas a las que conducen las opciones de una escena
+context Escena
+def: siguientes : Set(Escena) =
+    if self.decision->isEmpty() then Set{}
+    else self.decision.opciones.escenaDestino->asSet() endif
 
 -- A. Reglas del enunciado
 context Caso
@@ -657,7 +669,8 @@ context OpcionDecision
 inv INV03: self.decision.escena.caso.escenas->includes(self.escenaDestino)
 
 context Caso
-inv INV04: self.escenas.decision->isUnique(id)
+inv INV04: self.escenas->select(e | e.decision->notEmpty())
+    ->collect(e | e.decision)->isUnique(id)
 
 context OpcionDecision
 inv INV05: self.herramientaUsada->notEmpty() implies
@@ -667,23 +680,22 @@ context Retroalimentacion
 inv INV06: self.decision->notEmpty() xor self.opcion->notEmpty()
 
 context Caso
-inv INV07: self.titulo.size() > 0 and self.descripcion.size() > 0
+inv INV07: self.titulo.trim().size() > 0 and self.descripcion.trim().size() > 0
+    -- trim(): un texto de solo espacios cuenta como vacío (decisión V-06 de la Fase 4)
 
 context Caso
-inv INV08: self.escenas.decision->notEmpty()
+inv INV08: self.escenas->exists(e | e.decision->notEmpty())
 
 -- B. Reglas estructurales adicionales
 context Caso
 inv INV09: self.escenas->includes(self.escenaInicial)
 
 context Escena
-inv INV10: not self.decision.opciones.escenaDestino
-    ->closure(e | e.decision.opciones.escenaDestino)->includes(self)
+inv INV10: not self.siguientes->closure(siguientes)->includes(self)
 
 context Caso
 inv INV11: self.escenas->forAll(e | e = self.escenaInicial or
-    self.escenaInicial.decision.opciones.escenaDestino
-        ->closure(x | x.decision.opciones.escenaDestino)->includes(e))
+    self.escenaInicial.siguientes->closure(siguientes)->includes(e))
 
 context OpcionDecision
 inv INV12: self.conductaProhibida implies
@@ -692,15 +704,20 @@ inv INV12: self.conductaProhibida implies
 context Caso
 inv INV13: self.escenas->isUnique(id) and self.personajes->isUnique(id)
     and self.herramientas->isUnique(id)
-    and self.escenas.decision->isUnique(id)
-    and self.escenas.decision.opciones->isUnique(id)
+    and self.escenas->select(e | e.decision->notEmpty())
+        ->collect(e | e.decision)->isUnique(id)
+    and self.escenas->select(e | e.decision->notEmpty())
+        ->collect(e | e.decision.opciones)->flatten()->isUnique(id)
 
 context Escena
 inv INV14: self.caso.personajes->includesAll(self.participantes)
 
--- INV-15 no agrega una expresión nueva: es la precondición de publicar
-context Caso::publicar()
-pre: self.estado = EstadoCaso::BORRADOR   -- y se cumplen INV01 a INV14
+-- INV-15 no es un invariante de estado sino una regla de proceso: cambiar de
+-- BORRADOR a PUBLICADO exige que se cumplan INV01 a INV14. El diagrama no
+-- declara una operación publicar(); si se declarara, la regla sería su
+-- precondición:
+--   context Caso::publicar()
+--   pre: self.estado = EstadoCaso::BORRADOR   -- y se cumplen INV01 a INV14
 
 -- C. Ejecución y valoración
 context Estudiante
@@ -739,13 +756,13 @@ SIEP es el simulador real del que sale el dominio. Hoy **no tiene un DSL, ni un 
 | `Caso` | Caso + versión del caso | `SimulationCase` (`simulation_cases`: `code`, `title`, `description`, `active`) + `CaseVersion` (`case_versions`: `semantic_version`, `status`, `narrative_context`, `published_at`) | `sim/models/case.py:23-71` | Parcial: dos tablas se aplanan en una clase; SIEP no tiene temática ni objetivos de aprendizaje |
 | `Escena` | Nodo del grafo + sala | `SimulationNode` (`simulation_nodes`: `node_key`, `title`, `narrative`, `sensitive_content`, `warning_message`, `start_node`, `terminal_node`) + `SceneMap` (`scene_maps`) | `sim/models/case.py:74-96`; `sim/models/world.py:11-29` | Parcial: SIEP une narrativa y espacio; el modelo toma solo la narrativa |
 | `Personaje` | Objeto de tipo `PERSON` del mapa de una sala (NPC) y su diálogo | `MapObject` con `object_type='PERSON'`; `DialogueTree.speaker_name` | `sim/models/world.py:32-65,84-99`; `deploy/db_seed.sql:979`; plantilla en `frontend/src/app/features/simulator/authoring-catalog.config.ts:57-71` | Sin clase propia; SIEP no tiene rol ni características |
-| `Decision` | Grupo de opciones que salen del mismo nodo | No hay tabla: son los `DecisionOption` con el mismo `source_node` | `sim/models/case.py:99-125`; `sim/services/authoring/editor_view.py:23-28,91-107`; `sim/serializers/game_dtos.py:57-64` | Implícita |
+| `Decision` | Grupo de opciones que salen del mismo nodo | No hay tabla: son los `DecisionOption` con el mismo `source_node` | `sim/models/case.py:99-125`; `sim/services/authoring/editor_view.py:23-28,91-107`; `sim/serializers/game_dtos.py:57-64` | Implícita: no tiene identificador; el enunciado del dilema vive en las líneas de diálogo del objeto que presenta las opciones (§7.2) |
 | `OpcionDecision` | Opción de decisión (arista del grafo) | `DecisionOption` (`decision_options`: `option_key`, `text`, `classification`, `prohibited_conduct`, `prohibition_reason`, `immediate_feedback`, `target_node`) | `sim/models/case.py:99-125`; `sim/services/authoring/graph.py:86-110` | Directa |
 | `Herramienta` | Herramienta clínica de la versión | `ClinicalTool` (`clinical_tools`: `tool_code`, `label`, `description`, `category`) | `sim/models/world.py:137-151`; `sim/services/authoring/tools.py:36-42` | Directa en el catálogo; el uso no cuelga de una opción |
 | `Retroalimentacion` | Texto de retroalimentación de la opción | Campo `DecisionOption.immediate_feedback` (+ `prohibition_reason`) | `sim/models/case.py:116-118`; `sim/services/decision_effects.py:72-80` | Sin clase: no hay fundamento teórico estructurado ni retroalimentación a nivel de decisión |
-| `Rubrica` | Rúbrica y su asignación a la versión | `Rubric` (`rubrics`) + `SimulationRubricAssignment` | `sim/models/rubric.py:9-28,88-103`; `sim/services/rubric_service.py:297-311` | Directa |
+| `Rubrica` | Rúbrica y su asignación a la versión | `Rubric` (`rubrics`) + `SimulationRubricAssignment` | `sim/models/rubric.py:9-28,88-103`; `sim/services/rubric_service.py:297-311` | Parcial: SIEP resuelve la rúbrica en cadena (asignación activa, rúbrica de la versión, rúbrica predeterminada `is_default`) y falla si no hay ninguna; un caso sin rúbrica en el DSL no significa «sin rúbrica» en SIEP |
 | `CriterioRubrica` | Criterio de la rúbrica | `RubricCriterion` (`competency`, `title`, `description`, `weight`, `display_order`) | `sim/models/rubric.py:31-46` | Directa (SIEP añade peso) |
-| `Estudiante` | Usuario con rol `ESTUDIANTE` | `CustomUser` (`users`: `nombre`, `apellido`, `email`, `role`) | `backend_django/apps/users/models.py:18-21,41-67` | Directa |
+| `Estudiante` | Usuario con rol `ESTUDIANTE` | `CustomUser` (`users`: `nombre`, `apellido`, `email`, `role`) | `backend_django/apps/users/models.py:18-21,41-67` | Parcial: SIEP guarda nombre y apellido por separado |
 | `Intento` | Intento | `SimulationAttempt` (`simulation_attempts_v2`: `status`, `current_node`, `started_at`, `ended_at`) | `sim/models/attempt.py:15-67`; `sim/services/attempt_lifecycle.py:13-21,64-81` | Directa; SIEP añade métricas del intento |
 | `Bitacora` | No hay entidad: es el conjunto de reflexiones y eventos de un intento | `ReflectionJournal` + `AttemptEvent` del intento | `sim/models/attempt.py:70-107` | Sin clase |
 | `RegistroDecision` | Evento del intento | `AttemptEvent` con `event_type` `DECISION_SELECTED`, `PROHIBITED_DECISION_SELECTED` o `*_RETRY_REQUIRED` (no aplicada) | `sim/models/attempt.py:70-90`; `sim/services/game_service.py:359-422` | Parcial: un subconjunto de los tipos de evento |
@@ -771,14 +788,14 @@ Sirve de base para importar y exportar casos entre el DSL y SIEP (Fase 3).
 | `Escena.advertencia` | `SimulationNode.warning_message` | Ídem |
 | `Caso.escenaInicial` | `SimulationNode.start_node = true` | |
 | `Escena./esConclusion` | `SimulationNode.terminal_node` | En SIEP es una bandera independiente de las opciones |
-| `Decision.pistas` | `SimulationNode.support_resources_json` | En SIEP las ayudas son del nodo, no de una decisión |
-| `Decision.pregunta` | — | SIEP no tiene pregunta de decisión |
+| `Decision.pistas` | — (no existe; el campo más cercano, `SimulationNode.support_resources_json`, tiene otro propósito) | `support_resources_json` es del nodo y la interfaz lo rotula «Apoyo profesional», mezclado con los recursos de salida segura (`sim/serializers/game_dtos.py:16-20,364`; `frontend/src/app/features/simulator/journal-panel.component.ts:82-89`); el caso sembrado lo deja en `[]` (`sim/management/commands/seed_caso_pdf.py:1186`). Lo más cercano a una pista para decidir son los objetos `RESOURCE` (`frontend/src/app/features/simulator/authoring-catalog.config.ts:109-120`) y el diálogo del personaje. El importador no debe volcar pistas en `support_resources_json` salvo decisión del equipo |
+| `Decision.pregunta` | Texto de las `DialogueLine` del objeto que presenta las opciones (`DialogueTree`) | SIEP no tiene un campo de pregunta; el enunciado del dilema es una línea del diálogo, por ejemplo «Define el foco inmediato de tu intervención» (`sim/management/commands/seed_caso_pdf.py:753`). El exportador debe derivarla de ahí y el importador escribirla ahí |
 | `OpcionDecision.id` | `DecisionOption.option_key` | |
 | `OpcionDecision.texto` | `DecisionOption.text` | |
 | `OpcionDecision.escenaDestino` | `DecisionOption.target_node` | |
 | `OpcionDecision.clasificacion` | `DecisionOption.classification` | |
 | `OpcionDecision.conductaProhibida` / `motivoProhibicion` | `prohibited_conduct` / `prohibition_reason` | |
-| `OpcionDecision.consecuencia` y `Retroalimentacion.mensaje` | `DecisionOption.immediate_feedback` | Un solo campo cumple los dos papeles (§7.4) |
+| `OpcionDecision.consecuencia` y `Retroalimentacion.mensaje` | `DecisionOption.immediate_feedback` | Un solo campo cumple los dos papeles (§7.4). **Exportación DSL → SIEP:** `immediate_feedback` = `consecuencia`, que es lo que RN-08 manda mostrar en el momento. La retroalimentación pedagógica (`mensaje` + `fundamentoTeorico`) no tiene destino en SIEP: concatenarla en `immediate_feedback` la mostraría al decidir e incumpliría RN-08, así que solo se hace por decisión del equipo. **Importación SIEP → DSL:** `immediate_feedback` pasa a `consecuencia` y no se genera retroalimentación |
 | `Herramienta.id` / `nombre` / `descripcion` / `categoria` | `ClinicalTool.tool_code` / `label` / `description` / `category` | |
 | `Personaje.nombre` | `MapObject.label` (objeto `PERSON`) | |
 | `Personaje.rol`, `caracteristicas` | — | No existen en SIEP |
@@ -791,11 +808,11 @@ Nota honesta: varios conceptos del enunciado existen en SIEP, pero **no como cla
 |---|---|
 | **Escena** | Es un nodo del grafo (`SimulationNode`) **más** una sala (`SceneMap`) con objetos, colisiones y diálogos. El modelo toma solo el nodo narrativo. Además, SIEP tiene nodos-sala sin decisiones propias, solo para navegación espacial (`comisaria-recepcion`, `sim/management/commands/seed_caso_pdf.py:216-224`), que el DSL no representa. |
 | **Personaje** | Es un objeto de tipo `PERSON` del mapa de una sala. No tiene identidad a nivel de caso ni rol: el mismo personaje en dos salas son dos objetos. |
-| **Decision** | No existe. Es el conjunto de `DecisionOption` que comparten nodo de origen; no tiene identificador, pregunta ni retroalimentación propia. |
+| **Decision** | No existe. Es el conjunto de `DecisionOption` que comparten nodo de origen; no tiene identificador, campo de pregunta ni retroalimentación propia. El enunciado del dilema vive como línea de diálogo del objeto que presenta las opciones (§7.2). |
 | **Retroalimentacion** | Es un texto libre (`immediate_feedback`) dentro de la opción. No hay campo de fundamento teórico ni de pista por opción; el fundamento va dentro del texto (`sim/management/commands/seed_caso_pdf.py:248-251`). |
 | **Bitacora** | No hay entidad. Son filas sueltas de `ReflectionJournal` (una por intento y nodo) y de `AttemptEvent`. |
 | **RegistroDecision** | Es un tipo de evento de la tabla `attempt_events`, mezclado con movimientos y herramientas. |
-| **Consecuencia** | No existe como concepto. Lo más cercano es la narrativa del nodo destino más el efecto en los indicadores del intento. |
+| **Consecuencia** | Parcial: `immediate_feedback` es lo que se muestra en el momento de elegir; el resto de la consecuencia es la narrativa del nodo destino y el efecto en los indicadores del intento. |
 | **Conclusión** | Es la bandera `terminal_node` del nodo, que el autor marca a mano. |
 | **Caso** | Son dos tablas: el caso y sus versiones; un intento apunta a una versión, no al caso. |
 
@@ -805,7 +822,7 @@ El modelo sigue la línea base. En estos puntos SIEP hoy se comporta distinto:
 
 | Tema | Línea base | SIEP hoy | Qué hace el modelo |
 |---|---|---|---|
-| Momento de la retroalimentación | RN-08, RF-10, RF-23: la pedagógica al terminar el intento; la consecuencia, en el momento | El texto `immediate_feedback` llega en la respuesta de la misma decisión (`sim/services/game_service.py:393,421`); el reporte de cierre no lo repite (`sim/serializers/game_dtos.py:154-180`) | Separa `consecuencia` de `Retroalimentacion` y fija RP-01 |
+| Momento de la retroalimentación | RN-08, RF-10, RF-23: la pedagógica al terminar el intento; la consecuencia, en el momento | El texto `immediate_feedback` llega en la respuesta de la misma decisión (`sim/services/game_service.py:393,421`); el reporte de cierre no lo repite (`sim/serializers/game_dtos.py:154-180`). SIEP también revela en el acto la clasificación, los deltas de los indicadores y un veredicto por prefijo («Decisión adecuada», «con riesgo», «inadecuada», «Alerta ética»), es decir, el juicio pedagógico que la línea base difiere al final (`sim/services/decision_effects.py:72-80`; `sim/serializers/game_dtos.py:80-95`) | Separa `consecuencia` de `Retroalimentacion` y fija RP-01 |
 | Evaluación numérica | RN-09: valoración formativa, sin nota oficial de 0,0 a 5,0 | Cada criterio se puntúa de 1,0 a 5,0 y se calcula un total ponderado (`sim/services/rubric_service.py:418-430`) | `Evaluacion` sin nota; nivel cualitativo por criterio. Queda por resolver cómo presenta SIEP ese total |
 | Descripción del caso | Obligatoria (enunciado, Fase 2) | Opcional | INV-07 la exige |
 | Opciones por decisión | Mínimo 2 (enunciado) y «las necesarias» (RN-11) | Sin mínimo ni validación | INV-02: mínimo 2, sin máximo |
@@ -813,12 +830,15 @@ El modelo sigue la línea base. En estos puntos SIEP hoy se comporta distinto:
 | Autoría del caso | RF-05: la crea el profesor | Solo el rol administrador autora; un profesor recibe 403 (`sim/views/authoring_views.py:23-24`) | No modela al autor |
 | Herramienta en la decisión | El ejemplo del enunciado ata la herramienta a la opción | El uso de una herramienta es una acción del mundo (`use_tool`) independiente de la decisión (`sim/services/world_service.py:262-331`) | `herramientaUsada` en la opción |
 | Valoración del sistema | RF-22: el sistema valora al cerrar | El reporte de cierre se calcula al vuelo y no se guarda (`sim/serializers/game_dtos.py:206-340`); solo se guarda la evaluación del docente | `Evaluacion.origen = SISTEMA` |
+| Reemplazo de un intento abierto | RN-07: no podrá iniciar otro si todavía tiene uno en progreso | `forceNew = true` cierra el intento abierto (en curso o pausado) como `REPLACED` y crea otro (`sim/services/game_service.py:142-157,180-181`) | El modelo conserva `REEMPLAZADO` e INV-16 exige que no haya dos abiertos a la vez |
+| Reconsiderar la primera respuesta mala | RF-17, RN-02: según la opción que elija, el caso continúa en otra escena o llega a una conclusión | La primera respuesta riesgosa, inadecuada o prohibida de cada escena se registra pero no se aplica ni hace avanzar el caso; solo la segunda lo hace (`sim/services/game_service.py:360-384`) | `RegistroDecision.aplicada`; es política del motor, no del DSL (el validador no la impone) |
 
 ### 7.5 Lo que el modelo omite de SIEP
 
 Se deja fuera a propósito; no forma parte del DSL de casos.
 
-- **Mundo explorable**: `SceneMap`, `MapObject`, `CollisionZone`, `DialogueTree`, `DialogueLine`, `DialogueChoice`, posición del jugador, inventario y puertas.
+- **Mundo explorable**: `SceneMap`, `MapObject`, `CollisionZone`, `DialogueTree`, `DialogueLine`, `DialogueChoice`, posición del jugador, inventario y puertas. Que el DSL no lo describa no lo hace opcional para quien importa: en el juego, una opción solo llega al estudiante si algún `DialogueChoice` de un objeto de la sala la enlaza (`decision_option`), y la publicación no lo comprueba. La importación debe crear ese diálogo (Fase 3, §7.4).
+- **Tablas heredadas del volcado**: `deploy/db_seed.sql` conserva seis tablas de un modelo de quiz anterior (`casos`, `escenarios`, `preguntas`, `opciones`, `respuestas`, `sesiones_juego`). No tienen modelo ni código y no ramifican (`opciones.es_correcta`, sin escena destino). No son la estructura viva y esta correspondencia no las usa.
 - **Indicadores y efectos del intento**: puntaje acumulado, estrés, confianza, riesgo de la víctima, `score_delta`, `stress_delta`, `prohibited_penalty` y el «efecto mariposa» de banderas y métricas del caso sembrado.
 - **Gestión académica**: usuarios, roles, grupos, asignación de casos a grupos (RF-01 a RF-04, RF-14, RF-15, RN-04, RN-10).
 - **Operación**: token del intento, auditoría, checklist de publicación, cifrado de la bitácora (`encryption_key_ref`), asistente de IA.
@@ -857,7 +877,7 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 | S-04 | El mínimo de dos opciones es el del enunciado; la línea base (RN-11) no fija máximo. |
 | S-05 | La retroalimentación de una decisión explica la decisión en general; la de una opción, esa opción. |
 | S-06 | Un estudiante tiene como máximo un intento abierto por caso (RN-07). |
-| S-07 | Las categorías de herramienta y las competencias de la rúbrica son texto libre. |
+| S-07 | Las categorías de herramienta y las competencias de la rúbrica son texto libre, salvo `global` en la categoría de una herramienta, que en SIEP significa «aplicable sin objetivo». Se recomienda escribirlas en minúsculas y sin tildes (`comunicacion`, `evaluacion`), como las siembra SIEP. |
 | S-08 | El acceso del estudiante a un caso (grupos y asignaciones) lo resuelve la gestión académica y no forma parte del DSL. |
 | S-09 | Los niveles de desempeño (`EN_INICIO`, `EN_PROCESO`, `LOGRADO`, `DESTACADO`) los acuerda el equipo; la línea base solo fija que la valoración es formativa. |
 
@@ -870,14 +890,14 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 | RF-05 Crear y gestionar casos | `Caso` |
 | RF-06 Gestionar escenas | `Caso.escenas`, `Escena.orden` |
 | RF-07 Gestionar personajes | `Personaje`, `Escena.participantes`, INV-14 |
-| RF-08 Gestionar decisiones y opciones | `Decision`, `OpcionDecision`, INV-02, INV-08 |
+| RF-08 Gestionar decisiones y opciones | `Decision`, `OpcionDecision`, INV-02, INV-08. «Las decisiones de cada escena» se lee como una decisión por escena (S-03) |
 | RF-09 Configurar ramificaciones | `OpcionDecision.escenaDestino`, `Escena./esConclusion`, INV-03, INV-10, INV-11 |
 | RF-10 Configurar retroalimentaciones | `Retroalimentacion`, INV-06, RP-01 |
 | RF-11 Gestionar ayudas | `Decision.pistas` |
-| RF-12 Validar estructura del caso | Invariantes INV-01 a INV-14 (la Fase 2 las formaliza en OCL) |
+| RF-12 Validar estructura del caso | INV-01 a INV-08 (la Fase 2 las formaliza como OCL-01 a OCL-08); INV-09 a INV-20 las comprueban el esquema de la Fase 3 y las reglas PROP-01 a PROP-08 de la Fase 4 |
 | RF-13 Publicar y archivar casos | `Caso.estado`, INV-15 |
 | RF-16 Consultar introducción del caso | `Caso.descripcion`, `Caso.objetivosAprendizaje`, `Caso.personajes` |
-| RF-17 Ejecutar simulación ramificada | `Intento.escenaActual`, `RegistroDecision`, `OpcionDecision.escenaDestino` |
+| RF-17 Ejecutar simulación ramificada | `Intento.escenaActual`, `RegistroDecision`, `OpcionDecision.escenaDestino`. SIEP añade la reconsideración de la primera respuesta mala (§7.4): `RegistroDecision.aplicada` |
 | RF-18 Consultar ayudas | `Decision.pistas` |
 | RF-19 Guardar progreso | `Intento.estado`, `Intento.escenaActual`, estado `PAUSADO` |
 | RF-20 Registrar bitácora reflexiva | `Bitacora`, `Reflexion`, INV-17 |
@@ -889,7 +909,7 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 | RF-01 a RF-04, RF-14, RF-15 | Fuera del modelo del DSL (usuarios, grupos y asignación; S-08) |
 | RN-02 Cada opción lleva a una escena válida o a una conclusión | INV-03 |
 | RN-03, RN-05 Publicado y válido antes de usarse | INV-15 |
-| RN-06, RN-07 Intentos independientes y sin dos abiertos | `Intento` compone su `Bitacora`; INV-16 |
+| RN-06, RN-07 Intentos independientes y sin dos abiertos | `Intento` compone su `Bitacora`; INV-16. SIEP permite reemplazar un intento abierto (`REEMPLAZADO`, §7.4) |
 | RN-08 Consecuencia en el momento, retroalimentación al final | `OpcionDecision.consecuencia` frente a `Retroalimentacion`; RP-01 |
 | RN-09 Valoración formativa sin nota oficial | `Evaluacion` y `ValoracionCriterio` sin atributo numérico; INV-20 |
 | RN-11 Opciones necesarias por decisión | INV-02 (mínimo 2, sin máximo) |
@@ -901,8 +921,8 @@ Se deja fuera a propósito; no forma parte del DSL de casos.
 
 **Qué se verificó.**
 
-- **Diagrama**: `modelo-dominio.mmd` se analiza y se dibuja sin errores con Mermaid 10.9.3, 11.4.1 y 11.12.0 (renderizado en un navegador). Tiene 16 clases, 25 relaciones y una nota.
-- **Código de SIEP**: las rutas y líneas citadas se leyeron en la rama `docs/documento-maestro-unificado`, commit `46b7206`, el 10 de octubre de 2026. El caso sembrado (`SIM-VBG-001`) se contó analizando el archivo: 8 nodos, 6 bloques de decisión con 19 opciones y 5 herramientas.
+- **Diagrama**: `modelo-dominio.mmd` se analiza y se dibuja sin errores con Mermaid 10.9.3, 11.4.1 y 11.12.0 (renderizado en un navegador); `modelo-dominio.png` se generó de ese mismo `.mmd`. Tiene 16 clases, 25 relaciones y una nota. El bloque de §2 es idéntico al archivo `.mmd`.
+- **Código de SIEP**: las rutas y líneas citadas se leyeron en la rama `docs/documento-maestro-unificado`, commit `46b7206`, el 10 y el 11 de octubre de 2026. El caso sembrado (`SIM-VBG-001`) se contó analizando el archivo: 8 nodos, 6 bloques de decisión con 19 opciones y 5 herramientas.
 - **Línea base**: los requisitos citados se leyeron de `docs/requisitos/baseline-pn3/RequisitosPN3.xlsx`.
 
 **Qué no se verificó.**

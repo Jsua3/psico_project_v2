@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:siep:dsl-casos:1.0.0",
   "title": "DSL de casos situacionales de SIEP",
-  "description": "Sintaxis concreta (JSON) del DSL de casos situacionales de psicología social. Representa 1 a 1 el modelo de dominio de la Fase 1: cada clase tiene su objeto JSON y cada relación se expresa por anidamiento (composición) o por referencia de identificador (asociación). El esquema garantiza la forma: tipos, campos requeridos, enumeraciones, formato de identificadores y cardinalidades que dependen de un solo objeto. Lo que exige mirar otras partes del documento (que lo referenciado exista, que los identificadores no se repitan, que el grafo sea acíclico y alcanzable) es de las reglas semánticas OCL. Anotaciones propias, ignoradas por cualquier validador: x-regla indica la regla del dominio que el esquema hace cumplir en ese punto; x-referencia indica la relación del modelo (R-nn), el conjunto de destino y la regla semántica que comprueba que el identificador exista.",
+  "description": "Sintaxis concreta (JSON) del DSL de casos situacionales de psicología social. Representa 1 a 1 el modelo de dominio de la Fase 1: cada clase tiene su objeto JSON y cada relación se expresa por anidamiento (composición) o por referencia de identificador (asociación). El esquema garantiza la forma: tipos, campos requeridos, enumeraciones, formato de identificadores y cardinalidades que dependen de un solo objeto. Lo que exige mirar otras partes del documento (que lo referenciado exista, que los identificadores no se repitan, que el grafo sea acíclico y alcanzable) es de las reglas semánticas OCL. Anotaciones propias, ignoradas por cualquier validador: x-regla indica la regla del dominio que el esquema hace cumplir en ese punto; x-referencia indica la relación del modelo (R-nn), el conjunto de destino y la regla semántica que comprueba que el identificador exista. Los formatos de texto terminan en (?![\\s\\S]) en lugar de $: es el mismo «fin del texto», pero un salto de línea final tampoco pasa (en Python, $ lo admite).",
   "type": "object",
   "required": ["versionDsl", "caso", "escenas"],
   "additionalProperties": false,
@@ -42,9 +42,13 @@
           "description": "OCL-01: un caso contiene al menos una escena."
         },
         {
-          "contains": { "type": "object", "required": ["decision"] },
+          "contains": {
+            "type": "object",
+            "required": ["decision"],
+            "properties": { "decision": { "type": "object" } }
+          },
           "x-regla": "OCL-08",
-          "description": "OCL-08: un caso contiene al menos un punto de decisión (alguna escena con `decision`)."
+          "description": "OCL-08: un caso contiene al menos un punto de decisión (alguna escena con `decision`, y con un objeto: `decision: null` no cuenta)."
         }
       ]
     },
@@ -97,7 +101,7 @@
     "fechaHora": {
       "type": "string",
       "format": "date-time",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})(?![\\s\\S])",
       "description": "Fecha y hora ISO 8601 con zona horaria, por ejemplo 2026-10-09T15:00:00-05:00."
     },
     "orden": {
@@ -107,67 +111,67 @@
     },
     "idCaso": {
       "type": "string",
-      "pattern": "^[A-Z0-9][A-Z0-9-]{1,39}$",
+      "pattern": "^[A-Z0-9][A-Z0-9-]{1,39}(?![\\s\\S])",
       "description": "Identificador del caso: mayúsculas, dígitos y guiones, hasta 40 caracteres (la forma del código de caso de SIEP). Por convención CASO-001."
     },
     "idPersonaje": {
       "type": "string",
-      "pattern": "^P[0-9]{2,6}$",
+      "pattern": "^P[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de personaje: P y al menos dos dígitos. Ejemplo: P01."
     },
     "idHerramienta": {
       "type": "string",
-      "pattern": "^H[0-9]{2,6}$",
+      "pattern": "^H[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de herramienta: H y al menos dos dígitos. Ejemplo: H01."
     },
     "idEscena": {
       "type": "string",
-      "pattern": "^E[0-9]{2,6}$",
+      "pattern": "^E[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de escena: E y al menos dos dígitos. Ejemplo: E01."
     },
     "idDecision": {
       "type": "string",
-      "pattern": "^D[0-9]{2,6}$",
+      "pattern": "^D[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de decisión: D y al menos dos dígitos. Ejemplo: D01."
     },
     "idOpcion": {
       "type": "string",
-      "pattern": "^OP[0-9]{2,6}$",
+      "pattern": "^OP[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de opción de decisión: OP y al menos dos dígitos. Ejemplo: OP01."
     },
     "idRetroalimentacion": {
       "type": "string",
-      "pattern": "^R[0-9]{2,6}$",
+      "pattern": "^R[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de retroalimentación: R y al menos dos dígitos. Ejemplo: R01."
     },
     "idRubrica": {
       "type": "string",
-      "pattern": "^RUB-[0-9]{2,6}$",
+      "pattern": "^RUB-[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de rúbrica: RUB- y al menos dos dígitos. Ejemplo: RUB-01."
     },
     "idCriterio": {
       "type": "string",
-      "pattern": "^CR[0-9]{2,6}$",
+      "pattern": "^CR[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de criterio de rúbrica: CR y al menos dos dígitos. Ejemplo: CR01."
     },
     "idEstudiante": {
       "type": "string",
-      "pattern": "^EST-[0-9]{2,6}$",
+      "pattern": "^EST-[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de estudiante: EST- y al menos dos dígitos. Ejemplo: EST-01."
     },
     "idIntento": {
       "type": "string",
-      "pattern": "^INT-[0-9]{2,6}$",
+      "pattern": "^INT-[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de intento: INT- y al menos dos dígitos. Ejemplo: INT-01."
     },
     "idBitacora": {
       "type": "string",
-      "pattern": "^BIT-[0-9]{2,6}$",
+      "pattern": "^BIT-[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de bitácora: BIT- y al menos dos dígitos. Ejemplo: BIT-01."
     },
     "idEvaluacion": {
       "type": "string",
-      "pattern": "^EV-[0-9]{2,6}$",
+      "pattern": "^EV-[0-9]{2,6}(?![\\s\\S])",
       "description": "Identificador de evaluación: EV- y al menos dos dígitos. Ejemplo: EV-01."
     },
 
@@ -194,7 +198,7 @@
         },
         "version": {
           "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "description": "Versión del caso en formato mayor.menor.parche. Un caso se publica por versiones."
         },
         "estado": {
@@ -244,7 +248,10 @@
         "id": { "$ref": "#/$defs/idHerramienta" },
         "nombre": { "$ref": "#/$defs/textoNoVacio", "description": "Ejemplo: Mapa de actores." },
         "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Para qué sirve. Ejemplo: Herramienta para identificar actores e intereses." },
-        "categoria": { "$ref": "#/$defs/textoNoVacio", "description": "Agrupación libre: crisis, comunicación, evaluación, protección, reflexión." }
+        "categoria": {
+          "$ref": "#/$defs/textoNoVacio",
+          "description": "Agrupación en texto libre; se recomienda en minúsculas y sin tildes: crisis, comunicacion, evaluacion, proteccion, reflexion. El valor global tiene significado en SIEP: marca una herramienta aplicable sin objetivo."
+        }
       }
     },
 
@@ -304,7 +311,8 @@
         "opciones": {
           "type": "array",
           "items": { "$ref": "#/$defs/OpcionDecision" },
-          "description": "Alternativas de intervención (composición, R-08). Sin máximo: tantas como la situación necesite (RN-11).",
+          "description": "Alternativas de intervención (composición, R-08). Sin máximo: tantas como la situación necesite (RN-11). Que falte la clave, no sea una lista o tenga menos de dos elementos es OCL-02.",
+          "x-regla": "OCL-02",
           "allOf": [
             {
               "minItems": 2,
@@ -412,10 +420,10 @@
         "descripcion": { "$ref": "#/$defs/textoNoVacio", "description": "Qué evalúa en conjunto." },
         "version": {
           "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?(?![\\s\\S])",
           "description": "Versión de la rúbrica. Ejemplo: 1.0."
         },
-        "activa": { "type": "boolean", "description": "Solo una rúbrica activa se puede aplicar." },
+        "activa": { "type": "boolean", "description": "Solo una rúbrica activa se puede aplicar: una evaluación que aplica una rúbrica inactiva incumple PROP-07." },
         "criterios": {
           "type": "array",
           "minItems": 1,
@@ -474,7 +482,7 @@
         "correo": {
           "type": "string",
           "format": "email",
-          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+(?![\\s\\S])",
           "description": "Correo institucional."
         }
       }
@@ -499,7 +507,7 @@
         "iniciadoEn": { "$ref": "#/$defs/fechaHora" },
         "finalizadoEn": {
           "$ref": "#/$defs/fechaHora",
-          "description": "Obligatorio si el estado es COMPLETADO o REEMPLAZADO; se omite mientras el intento esté abierto."
+          "description": "Obligatorio si el estado es COMPLETADO o REEMPLAZADO; se omite mientras el intento esté abierto. No es anterior a iniciadoEn y, en un intento COMPLETADO, coincide con el momento de la decisión que llega a la conclusión (PROP-05)."
         },
         "escenaActual": {
           "$ref": "#/$defs/idEscena",
@@ -569,7 +577,7 @@
         "aplicada": {
           "type": "boolean",
           "default": true,
-          "description": "false si la elección quedó registrada pero no hizo avanzar el caso (primera respuesta riesgosa o inadecuada de una escena, que el simulador pide reconsiderar)."
+          "description": "false si la elección quedó registrada pero no hizo avanzar el caso (primera respuesta riesgosa o inadecuada de una escena, que el simulador pide reconsiderar). Es política del motor: el validador reconstruye el recorrido con lo que el documento declara y no comprueba que el valor siga esa regla."
         },
         "opcionElegida": {
           "$ref": "#/$defs/idOpcion",
@@ -591,7 +599,10 @@
           "x-referencia": { "relacion": "R-21", "destino": "escenas[].id", "regla": "RI" }
         },
         "texto": { "$ref": "#/$defs/textoNoVacio", "description": "Contenido de la reflexión; no puede ser vacío (INV-17)." },
-        "momento": { "$ref": "#/$defs/fechaHora", "description": "Cuándo se guardó por última vez." }
+        "momento": {
+          "$ref": "#/$defs/fechaHora",
+          "description": "Cuándo se guardó por última vez. Dentro del intervalo del intento: la bitácora se bloquea al cerrarse (INV-19, PROP-05)."
+        }
       }
     },
 
@@ -614,7 +625,7 @@
         },
         "origen": {
           "enum": ["SISTEMA", "DOCENTE"],
-          "description": "SISTEMA: valoración automática al cerrar el intento (RF-22). DOCENTE: revisión del profesor (RF-25)."
+          "description": "SISTEMA: valoración automática al cerrar el intento (RF-22). DOCENTE: valoración del profesor con la rúbrica, que SIEP ya guarda; RF-25 deja leerla."
         },
         "estado": {
           "enum": ["PENDIENTE", "EVALUADA"],
@@ -623,7 +634,7 @@
         "observacionGeneral": { "$ref": "#/$defs/textoNoVacio", "description": "Comentario global sobre el desempeño." },
         "evaluadaEn": {
           "$ref": "#/$defs/fechaHora",
-          "description": "Cuándo se completó. Obligatorio si el estado es EVALUADA."
+          "description": "Cuándo se completó. Obligatorio si el estado es EVALUADA. Una valoración del SISTEMA no es anterior al cierre del intento que valora (PROP-07)."
         },
         "valoraciones": {
           "type": "array",

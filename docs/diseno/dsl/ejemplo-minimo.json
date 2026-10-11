@@ -37,7 +37,7 @@
       "id": "H01",
       "nombre": "Mapa de actores",
       "descripcion": "Herramienta para identificar actores e intereses",
-      "categoria": "evaluación"
+      "categoria": "evaluacion"
     }
   ],
 
@@ -144,7 +144,7 @@
         "estudiante": "EST-01",
         "estado": "COMPLETADO",
         "iniciadoEn": "2026-10-09T15:00:00-05:00",
-        "finalizadoEn": "2026-10-09T15:08:25-05:00",
+        "finalizadoEn": "2026-10-09T15:04:40-05:00",
         "escenaActual": "E02",
         "bitacora": {
           "id": "BIT-01",
@@ -161,8 +161,8 @@
           "reflexiones": [
             {
               "escena": "E01",
-              "texto": "Elegí analizar a los actores primero porque no sabía qué interés tenía cada uno. El mapa me mostró que Laura y Carlos no discuten por el retraso sino por la carga de trabajo.",
-              "momento": "2026-10-09T15:06:10-05:00"
+              "texto": "Voy a analizar a los actores primero porque no sé qué interés tiene cada uno. Sospecho que Laura y Carlos no discuten por el retraso sino por la carga de trabajo.",
+              "momento": "2026-10-09T15:04:10-05:00"
             }
           ]
         }
@@ -176,7 +176,7 @@
         "origen": "SISTEMA",
         "estado": "EVALUADA",
         "observacionGeneral": "Analizó a los actores antes de intervenir y llegó a una conclusión coherente con ese análisis.",
-        "evaluadaEn": "2026-10-09T15:08:26-05:00",
+        "evaluadaEn": "2026-10-09T15:04:41-05:00",
         "valoraciones": [
           {
             "criterio": "CR01",

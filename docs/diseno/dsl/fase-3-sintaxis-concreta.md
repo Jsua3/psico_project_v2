@@ -7,8 +7,8 @@
 | **Equipo** | Juan José Sua Gómez y Emerson Ángel Gómez (fases 1, 3 y 4) |
 | **Entregable** | 3 — DSL: estructura y sintaxis concreta en JSON |
 | **Archivos** | `fase-3-sintaxis-concreta.md` (este documento), `dsl-casos.schema.json` (JSON Schema), `ejemplo-minimo.json` (documento válido) y `verificar-fase-3.py` (comprobación) |
-| **Parte de** | `fase-1-modelo-dominio.md` y `modelo-dominio.mmd` (la sintaxis abstracta) |
-| **Versión** | 10 de octubre de 2026 |
+| **Parte de** | `fase-1-modelo-dominio.md`, `modelo-dominio.png` y `modelo-dominio.mmd` (la sintaxis abstracta) |
+| **Versión** | 11 de octubre de 2026 |
 
 ---
 
@@ -211,7 +211,7 @@ Convenciones de las tablas. **Tipo**: «texto» es una cadena con al menos un ca
 | `id` | id de herramienta `H01` | Sí | Identificador único | Lo cita `opciones[].herramienta` (R-10, OCL-05) |
 | `nombre` | texto | Sí | Nombre (`Mapa de actores`) | — |
 | `descripcion` | texto | Sí | Para qué sirve | — |
-| `categoria` | texto | No | Agrupación libre: crisis, comunicación, evaluación, protección, reflexión | — |
+| `categoria` | texto | No | Agrupación en texto libre; se recomienda en minúsculas y sin tildes: `crisis`, `comunicacion`, `evaluacion`, `proteccion`, `reflexion`. `global` tiene significado en SIEP: herramienta aplicable sin objetivo | — |
 
 ### 3.4 `escenas[]` (clase `Escena`)
 
@@ -266,7 +266,7 @@ Convenciones de las tablas. **Tipo**: «texto» es una cadena con al menos un ca
 | `nombre` | texto | Sí | Nombre de la rúbrica | — |
 | `descripcion` | texto | No | Qué evalúa en conjunto | — |
 | `version` | cadena `mayor.menor` o `mayor.menor.parche` | Sí | Versión de la rúbrica (`1.0`) | — |
-| `activa` | booleano | Sí | Solo una rúbrica activa se puede aplicar | — |
+| `activa` | booleano | Sí | Solo una rúbrica activa se puede aplicar | PROP-07: una evaluación con una rúbrica inactiva incumple |
 | `criterios` | lista de objetos, al menos 1 | Sí | Criterios que la componen | R-13 |
 
 ### 3.9 `rubricas[].criterios[]` (clase `CriterioRubrica`)
@@ -295,7 +295,7 @@ Convenciones de las tablas. **Tipo**: «texto» es una cadena con al menos un ca
 | `estudiante` | id de estudiante | Sí | Quien realiza el intento | R-14; INV-16: no tiene dos intentos abiertos del caso |
 | `estado` | `EN_CURSO`, `PAUSADO`, `COMPLETADO`, `REEMPLAZADO` | Sí | Estado del intento. `COMPLETADO` y `REEMPLAZADO` son terminales | RN-06, RN-07 |
 | `iniciadoEn` | fecha-hora | Sí | Momento de inicio | — |
-| `finalizadoEn` | fecha-hora | Condicional: sí si el estado es `COMPLETADO` o `REEMPLAZADO`; se omite si no | Momento de cierre | — |
+| `finalizadoEn` | fecha-hora | Condicional: sí si el estado es `COMPLETADO` o `REEMPLAZADO`; se omite si no | Momento de cierre. No es anterior a `iniciadoEn`; en un intento `COMPLETADO` coincide con el momento de la decisión que llega a la conclusión, porque en ese instante el intento se cierra y la bitácora se bloquea | PROP-05 |
 | `escenaActual` | id de escena | Sí | Escena en que está el intento; allí se reanuda (RF-19) | R-16 |
 | `bitacora` | objeto | Sí | Bitácora del intento | R-17; INV-19 |
 
@@ -328,7 +328,7 @@ No tiene identificador: la identifican su bitácora y su `escena`.
 |---|---|---|---|---|
 | `escena` | id de escena | Sí | Escena a la que se refiere | R-21; INV-17: a lo sumo una reflexión por escena |
 | `texto` | texto | Sí | Justificación o análisis del estudiante (RF-20). No puede ser vacío | INV-17 |
-| `momento` | fecha-hora | Sí | Cuándo se guardó por última vez | — |
+| `momento` | fecha-hora | Sí | Cuándo se guardó por última vez. Dentro del intervalo del intento: la bitácora se bloquea al cerrarse | INV-19; PROP-05 |
 
 ### 3.15 `ejecucion.evaluaciones[]` (clase `Evaluacion`)
 
@@ -336,11 +336,11 @@ No tiene identificador: la identifican su bitácora y su `escena`.
 |---|---|---|---|---|
 | `id` | id de evaluación `EV-01` | Sí | Identificador único | — |
 | `intento` | id de intento | Sí | Intento que se valora | R-22 |
-| `rubrica` | id de rúbrica | Sí | Rúbrica que se aplica; debe ser la del caso | R-23; INV-20 |
-| `origen` | `SISTEMA`, `DOCENTE` | Sí | `SISTEMA`: valoración automática al cerrar el intento (RF-22). `DOCENTE`: revisión del profesor (RF-25) | — |
+| `rubrica` | id de rúbrica | Sí | Rúbrica que se aplica; debe ser la del caso (un caso sin `caso.rubrica` no tiene cuál aplicar) y estar activa | R-23; INV-20; PROP-07 |
+| `origen` | `SISTEMA`, `DOCENTE` | Sí | `SISTEMA`: valoración automática al cerrar el intento (RF-22). `DOCENTE`: valoración del profesor con la rúbrica, que SIEP ya guarda (`sim/services/rubric_service.py:401-461`); RF-25 deja leerla | — |
 | `estado` | `PENDIENTE`, `EVALUADA` | Sí | `PENDIENTE` mientras falten criterios por valorar | INV-20 |
 | `observacionGeneral` | texto | No | Comentario global sobre el desempeño | — |
-| `evaluadaEn` | fecha-hora | Condicional: sí si el estado es `EVALUADA` | Cuándo se completó | — |
+| `evaluadaEn` | fecha-hora | Condicional: sí si el estado es `EVALUADA` | Cuándo se completó. Una valoración del `SISTEMA` no es anterior al cierre del intento que valora | PROP-07 |
 | `valoraciones` | lista de objetos | Condicional: al menos 1 si el estado es `EVALUADA` | Valoración de cada criterio | R-24; INV-20 |
 
 No existe un campo de nota numérica y el esquema rechaza cualquiera que se agregue: la valoración es formativa y no produce una nota oficial de 0,0 a 5,0 (RN-09).
@@ -384,6 +384,7 @@ No tiene identificador: la identifican su evaluación y su `criterio`.
 5. **Los números no significan orden.** El flujo lo da `siguienteEscena`; el orden de lista lo da `orden`. Se pueden renumerar piezas sin cambiar el flujo siempre que se actualicen las referencias.
 6. **Un identificador no se reutiliza entre versiones del mismo caso con otro significado**, para que los intentos guardados sigan apuntando a lo que apuntaban. El esquema no puede comprobarlo (necesita dos versiones).
 7. **Sin identificador propio:** `RegistroDecision` (su bitácora y su `orden`), `Reflexion` (su bitácora y su `escena`) y `ValoracionCriterio` (su evaluación y su `criterio`), igual que en el modelo.
+8. **Los formatos de esta sección se escriben con `$` al final por legibilidad.** En `dsl-casos.schema.json` terminan en `(?![\s\S])` (el mismo «fin del texto»), porque en Python `$` admite un salto de línea final y `CASO-001⏎` pasaría como válido según el motor. Con `(?![\s\S])` el veredicto no depende del motor de expresiones regulares.
 
 ---
 
@@ -461,6 +462,8 @@ La retroalimentación de una **decisión** explica la decisión en general (R01)
 ]
 ```
 
+SIEP no tiene hoy una pista por decisión: el campo más parecido de un nodo, `support_resources_json`, es el «Apoyo profesional» de la interfaz (recursos de bienestar), no una ayuda para razonar la decisión. Un importador no debe volcar `pistas` ahí (§7.1 y §7.3, punto 6).
+
 ### 5.6 Bitácora o registro de decisiones
 
 La bitácora es del intento (`ejecucion.intentos[].bitacora`) y tiene dos partes con ciclo de vida distinto (D-10 de la Fase 1): `decisiones`, que escribe el sistema y no se edita, y `reflexiones`, que escribe el estudiante mientras el intento esté en juego.
@@ -475,12 +478,12 @@ La bitácora es del intento (`ejecucion.intentos[].bitacora`) y tiene dos partes
     { "orden": 2, "momento": "2026-10-09T15:04:40-05:00", "aplicada": true,  "opcionElegida": "OP01" }
   ],
   "reflexiones": [
-    { "escena": "E01", "texto": "Elegí analizar a los actores primero porque ...", "momento": "2026-10-09T15:06:10-05:00" }
+    { "escena": "E01", "texto": "Voy a analizar a los actores primero porque ...", "momento": "2026-10-09T15:04:10-05:00" }
   ]
 }
 ```
 
-El primer registro muestra una decisión **no aplicada**: la primera respuesta riesgosa o inadecuada de una escena queda registrada pero no hace avanzar el caso, y el simulador pide reconsiderar. La bitácora queda `bloqueada` cuando el intento termina o es reemplazado (INV-19) y desde entonces no admite cambios.
+El primer registro muestra una decisión **no aplicada**: la primera respuesta riesgosa o inadecuada de una escena queda registrada pero no hace avanzar el caso, y el simulador pide reconsiderar. La bitácora queda `bloqueada` cuando el intento termina o es reemplazado (INV-19) y desde entonces no admite cambios: por eso ninguna reflexión es posterior a `finalizadoEn`, que en un intento `COMPLETADO` coincide con el momento de la decisión que llega a la conclusión (aquí, el segundo registro).
 
 ### 5.7 Evaluación formativa
 
@@ -491,7 +494,7 @@ Se separa lo que se define (la rúbrica) de lo que se mide (la evaluación de un
 
 ```json
 { "id": "EV-01", "intento": "INT-01", "rubrica": "RUB-01", "origen": "SISTEMA", "estado": "EVALUADA",
-  "evaluadaEn": "2026-10-09T15:08:26-05:00",
+  "evaluadaEn": "2026-10-09T15:04:41-05:00",
   "valoraciones": [
     { "criterio": "CR01", "nivel": "LOGRADO",    "observacion": "Eligió analizar a los actores antes de intervenir." },
     { "criterio": "CR02", "nivel": "EN_PROCESO", "observacion": "Su reflexión no dice qué intervención seguiría después del análisis." }
@@ -567,7 +570,7 @@ documento.json ──► capa 1: esquema    ──► errores de forma      (reg
 - **El número de regla viaja con el error.** El esquema lleva `x-regla` en cada punto donde hace cumplir una regla; el validador lo lee del error. Una referencia que no existe se informa con la regla de su `x-referencia`; las que no tienen regla numerada (R-05, R-14, R-16, R-21 y R-22) se informan como `RI`, integridad referencial.
 - **La capa semántica no necesita código por campo.** Recorre el documento junto al esquema, toma cada campo con `x-referencia` y comprueba que su valor esté en el conjunto de destino. Las demás comprobaciones (unicidad, ciclos, alcanzabilidad, un intento abierto por estudiante, cobertura de criterios) son propias de cada regla.
 
-`verificar-fase-3.py` implementa las dos capas y las ejercita con 30 alteraciones del ejemplo (§10).
+`verificar-fase-3.py` implementa las dos capas y las ejercita con 32 alteraciones del ejemplo (§10).
 
 ### 6.4 Los tres errores del enunciado, vistos desde las capas
 
@@ -608,7 +611,7 @@ SIEP no tiene hoy un DSL, ni un JSON Schema, ni importación o exportación de c
 | `caso.estado` | Botones de publicar y clonar | `CaseVersion.status` (`sim/models/case.py:10-14,49-51`); `BORRADOR`↔`DRAFT`, `PUBLICADO`↔`PUBLISHED`, `ARCHIVADO`↔`ARCHIVED`. Desde la API solo se asigna `DRAFT`→`PUBLISHED` (`auth/publication.py:82-84`); `IN_REVIEW` no tiene equivalente | Parcial: no hay forma de archivar |
 | `caso.objetivosAprendizaje` | — | — | No existe |
 | `caso.escenaInicial` | Casilla «Nodo inicial» (`fe/case-editor.component.ts:304`) | `SimulationNode.start_node` (`sim/models/case.py:86`); exactamente uno (`sim/services/world_validation.py:57-67`) | Directa, como bandera del nodo y no como referencia del caso |
-| `caso.rubrica` | Asignar rúbrica a la versión (`frontend/src/app/features/admin/rubrics.component.ts:380`) | `SimulationRubricAssignment` (`sim/models/rubric.py:88-103`) por `sim/services/rubric_service.py:278-294`; o `Rubric.case_version` (`sim/models/rubric.py:10-13`) | Directa |
+| `caso.rubrica` | Asignar rúbrica a la versión (`frontend/src/app/features/admin/rubrics.component.ts:380`) | `SimulationRubricAssignment` (`sim/models/rubric.py:88-103`) por `sim/services/rubric_service.py:278-294`; o `Rubric.case_version` (`sim/models/rubric.py:10-13`) | Parcial: SIEP resuelve la rúbrica en cadena (asignación activa, rúbrica de la versión y, si no hay, la predeterminada `is_default`, o falla con «No existe rubrica activa»; `sim/services/rubric_service.py:297-311`). Un caso sin `caso.rubrica` en el DSL no significa «sin rúbrica» en SIEP. La asignación no pasa al clonar una versión (solo se clonan las rúbricas con `case_version`; `auth/publication.py:181-185`): el importador debe asignarla de nuevo |
 | `personajes[].id` | «Clave del objeto *» del objeto tipo Persona (`fe/case-editor.component.ts:452`) | `MapObject.object_key` con `object_type='PERSON'` (`sim/models/world.py:36,38`) | Parcial: el personaje es un objeto de una sala; en dos salas son dos objetos |
 | `personajes[].nombre` | «Etiqueta *» (`fe/case-editor.component.ts:453`) | `MapObject.label` (`sim/models/world.py:37`) y `DialogueTree.speaker_name` (`sim/models/world.py:92`) | Parcial |
 | `personajes[].rol`, `.caracteristicas` | — | — | No existe |
@@ -616,7 +619,7 @@ SIEP no tiene hoy un DSL, ni un JSON Schema, ni importación o exportación de c
 | `herramientas[].id` | «Código *» (`fe/case-editor.component.ts:510`) | `ClinicalTool.tool_code` (`sim/models/world.py:142`; `auth/tools.py:37`), máximo 50 caracteres | Directa |
 | `herramientas[].nombre` | «Etiqueta *» (`fe/case-editor.component.ts:511`) | `ClinicalTool.label` (`sim/models/world.py:143`) | Directa |
 | `herramientas[].descripcion` | «Descripción *» (`fe/case-editor.component.ts:514`) | `ClinicalTool.description` (`sim/models/world.py:146`) | Directa |
-| `herramientas[].categoria` | «Categoría» (`fe/case-editor.component.ts:512`) | `ClinicalTool.category` (`sim/models/world.py:145`); por defecto `clinical` (`auth/tools.py:39`) | Directa |
+| `herramientas[].categoria` | «Categoría» (`fe/case-editor.component.ts:512`) | `ClinicalTool.category` (`sim/models/world.py:145`); por defecto `clinical` (`auth/tools.py:39`). El valor `global` tiene significado: la herramienta es pertinente sin objetivo solo si su categoría es `global` (`sim/services/world_service.py:501-509`); el caso sembrado usa códigos sin tildes (`sim/management/commands/seed_caso_pdf.py:1082-1093`) | Directa; el exportador debe escribir minúsculas y sin tildes para que el valor viaje intacto |
 | `escenas[].id` | «Clave del nodo *» (`fe/case-editor.component.ts:287-290`) | `SimulationNode.node_key` (`sim/models/case.py:78`) | Directa; SIEP admite claves libres (`inicio`) y el DSL exige `E01` |
 | `escenas[].titulo` | «Título *» (`fe/case-editor.component.ts:291-294`) | `SimulationNode.title` (`sim/models/case.py:79`) | Directa |
 | `escenas[].descripcion` | «Narrativa *» (`fe/case-editor.component.ts:295-298`) | `SimulationNode.narrative` (`sim/models/case.py:80`) | Directa |
@@ -624,17 +627,18 @@ SIEP no tiene hoy un DSL, ni un JSON Schema, ni importación o exportación de c
 | `escenas[].contenidoSensible` | «Contenido sensible» (`fe/case-editor.component.ts:306`) | `SimulationNode.sensitive_content` (`sim/models/case.py:83`) | Directa, pero solo viaja al cliente (`sim/serializers/game_dtos.py:72`) |
 | `escenas[].advertencia` | «Mensaje de advertencia» (`fe/case-editor.component.ts:299-302`) | `SimulationNode.warning_message` (`sim/models/case.py:85`) | Directa, pero solo viaja al cliente (`sim/serializers/game_dtos.py:74`) |
 | escena sin `decision` (conclusión) | «Nodo terminal» (`fe/case-editor.component.ts:305`) | `SimulationNode.terminal_node` (`sim/models/case.py:87`) | Parcial: bandera manual, independiente de si hay opciones |
-| `decision.id`, `decision.pregunta` | — | No hay entidad: la decisión es el conjunto de `DecisionOption` con el mismo `source_node` (`sim/serializers/game_dtos.py:57-64`) | No existe |
-| `decision.pistas` | El editor no las ofrece y al guardar un nodo envía `supportResources: []` (`fe/case-editor.component.ts:914`) | `SimulationNode.support_resources_json` (`sim/models/case.py:81`), que el cliente muestra como ayudas (`sim/serializers/game_dtos.py:70`; `fe/simulation-play.component.ts:2490-2494`) | Parcial: existen, son del nodo y no se pueden escribir desde el editor |
+| `decision.id` | — | No hay entidad: la decisión es el conjunto de `DecisionOption` con el mismo `source_node` (`sim/serializers/game_dtos.py:57-64`) | No existe |
+| `decision.pregunta` | El texto va en las líneas del diálogo del objeto que presenta las opciones (`DialogueLine`) | No hay campo de pregunta. El enunciado del dilema es una línea de diálogo, por ejemplo «Define el foco inmediato de tu intervención» (`sim/management/commands/seed_caso_pdf.py:753`), y el hablante es el personaje (`DialogueTree.speaker_name`, `sim/models/world.py:92`) | Parcial: el exportador debe derivarla de ese diálogo y el importador escribirla ahí |
+| `decision.pistas` | El editor no las ofrece y al guardar un nodo envía `supportResources: []` (`fe/case-editor.component.ts:914`) | No existen. `SimulationNode.support_resources_json` (`sim/models/case.py:81`) es del nodo y la interfaz lo rotula «Apoyo profesional», mezclado con los recursos de salida segura (`sim/serializers/game_dtos.py:16-20,70,364`; `fe/journal-panel.component.ts:82-89`; `fe/attempt-outcome.component.ts:50-56`; `fe/simulation-play.component.ts:2490-2497`); el caso sembrado lo deja en `[]` (`sim/management/commands/seed_caso_pdf.py:1186`) | No existe (aproximación con un campo de otro propósito). Lo más cercano a una pista para decidir son los objetos `RESOURCE` («Información de apoyo para tomar la decisión», `fe/authoring-catalog.config.ts:109-120`) y el diálogo del personaje. El importador no debe volcar pistas en `support_resources_json` salvo decisión del equipo |
 | `opciones[].id` | Sin campo en el formulario; si falta, SIEP genera `origen->destino-<marca de tiempo>` (`auth/graph.py:93-96`) | `DecisionOption.option_key` (`sim/models/case.py:103`) | Directa |
 | `opciones[].texto` | «Texto de la decisión *» (`fe/case-editor.component.ts:349-352`) | `DecisionOption.text` (`sim/models/case.py:111`) | Directa |
 | `opciones[].siguienteEscena` | «Nodo destino *» (`fe/case-editor.component.ts:341-348`) | `DecisionOption.target_node` (`sim/models/case.py:107-110`); SIEP no comprueba que el destino sea de la misma versión (`auth/graph.py:87-92`) | Directa |
 | `opciones[].clasificacion` | «Clasificación *» (`fe/case-editor.component.ts:353-360`) | `DecisionOption.classification` (`sim/models/case.py:112`; `auth/graph.py:14`); `ADECUADA`↔`ADEQUATE`, `RIESGOSA`↔`RISKY`, `INADECUADA`↔`INADEQUATE` | Directa |
 | `opciones[].conductaProhibida` | «Conducta prohibida» (`fe/case-editor.component.ts:375-378`) | `DecisionOption.prohibited_conduct` (`sim/models/case.py:117`) | Directa |
 | `opciones[].motivoProhibicion` | «Razón de prohibición *» (`fe/case-editor.component.ts:380-383`) | `DecisionOption.prohibition_reason` (`sim/models/case.py:118`); exigido por `PROHIBITED_WITHOUT_REASON` (`sim/services/world_validation.py:144-152`) | Directa |
-| `opciones[].consecuencia` | «Feedback inmediato» (`fe/case-editor.component.ts:371-374`) | `DecisionOption.immediate_feedback` (`sim/models/case.py:116`) | Parcial: el mismo campo hace de retroalimentación |
+| `opciones[].consecuencia` | «Feedback inmediato» (`fe/case-editor.component.ts:371-374`) | `DecisionOption.immediate_feedback` (`sim/models/case.py:116`) | Parcial: el mismo campo hace de retroalimentación. **Regla de exportación:** `immediate_feedback` = `consecuencia` (RN-08: se muestra en el momento). **Importación:** `immediate_feedback` pasa a `consecuencia` y no se genera retroalimentación |
 | `opciones[].herramienta` | «Herramienta vinculada», en un objeto del mapa (`fe/case-editor.component.ts:485-493`) | La opción no tiene columna de herramienta. El vínculo existe en `MapObject.tool_code` + `decision_option` (`sim/models/world.py:50-54`) y en `DialogueChoice.required_tool_code` + `decision_option` (`sim/models/world.py:123-127`; `auth/scenes.py:190-199`) | Parcial |
-| `retroalimentacion[]` de una opción: `mensaje` | «Feedback inmediato» (`fe/case-editor.component.ts:371-374`) | `DecisionOption.immediate_feedback` (`sim/models/case.py:116`); se muestra al decidir (`sim/services/game_service.py:393,421`; `sim/services/decision_effects.py:72-80`) | Parcial: SIEP la muestra en el acto, no al terminar |
+| `retroalimentacion[]` de una opción: `mensaje` | «Feedback inmediato» (`fe/case-editor.component.ts:371-374`) | `DecisionOption.immediate_feedback` (`sim/models/case.py:116`); se muestra al decidir (`sim/services/game_service.py:393,421`; `sim/services/decision_effects.py:72-80`) | Parcial: SIEP la muestra en el acto, no al terminar; la respuesta de la decisión trae además la clasificación, los deltas y un veredicto por prefijo (`sim/serializers/game_dtos.py:80-95`). La retroalimentación pedagógica (`mensaje` + `fundamentoTeorico`) no tiene destino: concatenarla en `immediate_feedback` la mostraría al decidir e incumpliría RN-08, así que solo se hace por decisión del equipo |
 | `retroalimentacion[]` de una decisión | — | — | No existe |
 | `retroalimentacion[].fundamentoTeorico` | — (hoy va dentro del texto: `sim/management/commands/seed_caso_pdf.py:248-251`) | — | No existe como campo |
 | `rubricas[]`: `nombre`, `descripcion`, `version`, `activa` | Pantalla de rúbricas (`frontend/src/app/features/admin/rubrics.component.ts`) | `Rubric.name`, `description`, `version`, `active` (`sim/models/rubric.py:14-17`) | Directa |
@@ -644,7 +648,7 @@ SIEP no tiene hoy un DSL, ni un JSON Schema, ni importación o exportación de c
 
 | Clave del DSL | BD y archivo:línea | Cobertura |
 |---|---|---|
-| `estudiantes[].id`, `.nombre`, `.correo` | `CustomUser.id`; `nombre` y `apellido`, dos campos; `email` (`backend_django/apps/users/models.py:41-67`) | Parcial: el nombre se parte en dos |
+| `estudiantes[].id`, `.nombre`, `.correo` | `CustomUser.id`; `nombre` y `apellido`, dos campos; `email` (`backend_django/apps/users/models.py:41-67`) | Parcial: el nombre se parte en dos. El correo viaja en claro en el DSL (dato personal) |
 | `intentos[].id` | `SimulationAttempt.id`, un UUID (`sim/models/attempt.py:40`) | Directa, con otro formato de identificador |
 | `intentos[].estudiante` | `SimulationAttempt.student` (`sim/models/attempt.py:45-47`) | Directa |
 | `intentos[].estado` | `SimulationAttempt.status` (`sim/models/attempt.py:15-25,51-53`): `EN_CURSO`↔`IN_PROGRESS`, `PAUSADO`↔`PAUSED`, `COMPLETADO`↔`COMPLETED`, `REEMPLAZADO`↔`REPLACED`; `SAFE_EXITED` es histórico y no tiene equivalente | Directa |
@@ -652,7 +656,7 @@ SIEP no tiene hoy un DSL, ni un JSON Schema, ni importación o exportación de c
 | `intentos[].escenaActual` | `SimulationAttempt.current_node` (`sim/models/attempt.py:48-50`) | Directa |
 | `bitacora` (`id`, `creadaEn`, `bloqueada`) | No hay entidad. `bloqueada` corresponde a `ReflectionJournal.locked` por reflexión (`sim/models/attempt.py:101`) y a `SimulationAttempt.locked_at` (`sim/models/attempt.py:63`); `id` y `creadaEn` no tienen equivalente | Parcial: sin clase |
 | `bitacora.decisiones[]` | `AttemptEvent` (`sim/models/attempt.py:70-90`) con `event_type` `DECISION_SELECTED` o `PROHIBITED_DECISION_SELECTED` (aplicada) y `DECISION_RETRY_REQUIRED` o `PROHIBITED_DECISION_RETRY_REQUIRED` (no aplicada) (`sim/services/game_service.py:376-382,391`); `momento` es `occurred_at` (`:85`), `opcionElegida` es `decision_option` (`:78-81`) y `orden` se deduce de `occurred_at, id` (`:90`) | Parcial: un subconjunto de los tipos de evento |
-| `bitacora.reflexiones[]` | `ReflectionJournal` (`sim/models/attempt.py:93-107`): `escena` es `node` (`:98`), `texto` es `encrypted_text` cifrado (`:99`; `sim/services/crypto_service.py`), `momento` es `updated_at` (`:103`); una por (intento, nodo) | Directa |
+| `bitacora.reflexiones[]` | `ReflectionJournal` (`sim/models/attempt.py:93-107`): `escena` es `node` (`:98`), `texto` es `encrypted_text` cifrado (`:99`; `sim/services/crypto_service.py`), `momento` es `updated_at` (`:103`); una por (intento, nodo) | Directa en la estructura; el texto viaja sin cifrar en el DSL, mientras que SIEP lo guarda cifrado en reposo y solo lo descifra para el docente de ese estudiante (`sim/services/instructor_service.py:46-58,125-133`) |
 | `evaluaciones[]` | `RubricEvaluation` (`sim/models/rubric.py:49-68`): `intento`→`attempt`, `rubrica`→`rubric`, `estado`→`status` (`PENDING`/`EVALUATED`; `sim/services/rubric_service.py:430`), `observacionGeneral`→`comment`, `evaluadaEn`→`evaluated_at` | Parcial: `origen` no tiene lugar; SIEP solo guarda la del docente (`instructor` es obligatorio, `:55-57`) |
 | `valoraciones[]` | `CriterionScore` (`sim/models/rubric.py:71-85`): `criterio`→`rubric_criterion`, `nivel`→`score` decimal de 1,0 a 5,0 (`:79`; rango en `sim/services/rubric_service.py:418-419`), `observacion`→`comment` | Parcial: nivel cualitativo frente a puntaje numérico |
 
@@ -663,20 +667,22 @@ Cada punto está verificado en el código de la rama `docs/documento-maestro-uni
 | N.º | Lo que falta en SIEP | Evidencia | Efecto sobre el DSL |
 |---|---|---|---|
 | 1 | **No hay DSL, JSON Schema ni importación o exportación de casos.** El contrato son diccionarios copiados a mano en TypeScript | `auth/editor_view.py:73-179`; `frontend/src/app/core/models/simulation.model.ts` | El DSL llena ese hueco; falta construir importador, exportador y validador |
-| 2 | **No existe la decisión como entidad:** sin identificador, pregunta ni retroalimentación propia | `sim/serializers/game_dtos.py:57-64` | `decision.id` y `decision.pregunta` se pierden al importar; al exportar hay que inventarlos |
+| 2 | **No existe la decisión como entidad:** sin identificador, campo de pregunta ni retroalimentación propia | `sim/serializers/game_dtos.py:57-64` | `decision.id` se pierde al importar y al exportar hay que inventarlo; `decision.pregunta` solo existe como texto de las líneas de diálogo del objeto que presenta las opciones (§7.1) |
 | 3 | **Consecuencia y retroalimentación son el mismo campo, y se muestra al decidir, no al terminar** | `sim/models/case.py:116`; `sim/services/game_service.py:393,421` | RN-08 no se puede cumplir tal como la define la línea base |
 | 4 | **No hay campo de fundamento teórico** | `sim/management/commands/seed_caso_pdf.py:248-251` | `fundamentoTeorico` va dentro del texto |
 | 5 | **No hay personaje a nivel de caso, ni rol ni características** | `sim/models/world.py:32-65` | `personajes` se reconstruye a partir de objetos de sala |
-| 6 | **Las ayudas no se pueden escribir desde el editor, y guardar un nodo las borra** | `fe/case-editor.component.ts:914` envía `supportResources: []`; el guardado reemplaza (`auth/graph.py:48-49`, `auth/request_utils.py:9-10`) | `decision.pistas` solo se puede cargar por API o por siembra, y el editor la pierde en el siguiente guardado |
+| 6 | **Las ayudas no se pueden escribir desde el editor, y guardar un nodo las borra** | `fe/case-editor.component.ts:914` envía `supportResources: []`; el guardado reemplaza (`auth/graph.py:48-49`, `auth/request_utils.py:9-10`) | `decision.pistas` no tiene destino propio: el campo del nodo es el «Apoyo profesional» de la interfaz (§7.1), y lo que se cargue ahí por API o por siembra el editor lo pierde en el siguiente guardado |
 | 7 | **No hay tema ni objetivos de aprendizaje del caso** | `sim/models/case.py:23-71` | `tematica` y `objetivosAprendizaje` se pierden |
 | 8 | **No hay herramienta ligada a la opción.** El uso de una herramienta es una acción del mundo independiente de la decisión; `required_tools_json` se guarda y no se aplica | `sim/services/world_service.py:262-331`; `sim/models/case.py:82`; `sim/serializers/game_dtos.py:71` | `opciones[].herramienta` se aproxima con `DialogueChoice` o `MapObject` |
 | 9 | **No hay bitácora como entidad ni evaluación del sistema guardada.** Solo se guarda la evaluación del docente | `sim/models/attempt.py:93-107`; `sim/models/rubric.py:55-57` | `bitacora` se reconstruye de eventos y reflexiones; `origen: SISTEMA` no se persiste |
 | 10 | **La evaluación es numérica:** 1,0 a 5,0 por criterio y total ponderado, en tensión con RN-09 | `sim/services/rubric_service.py:418-430` | `nivel` necesita una regla de conversión que el equipo debe decidir (D-09 de la Fase 1) |
-| 11 | **No se validan OCL-02, OCL-05 ni INV-11**, y el destino de una opción no se comprueba contra la versión | `sim/services/world_validation.py:52-76`; `auth/graph.py:87-92` | Un caso importado con esos errores pasaría la validación de SIEP |
+| 11 | **No se validan OCL-02, OCL-04, OCL-05, OCL-07 (la descripción puede ir vacía), OCL-08 ni INV-11**, y el destino de una opción no se comprueba contra la versión | `sim/services/world_validation.py:52-76`; `auth/cases.py:36-39`; `auth/graph.py:87-92` | Un caso importado con esos errores pasaría la validación de SIEP |
 | 12 | **Los cuerpos de autoría no se validan:** un campo obligatorio ausente (la descripción de una herramienta, el texto de interacción de un objeto) termina en error 500 | `sim/tests/test_authoring_operations_contract.py:324-346` | El importador debe validar antes de llamar a la API |
 | 13 | **Contenido sensible, advertencia y salida segura obligatoria solo viajan al cliente**, sin efecto en servidor | `sim/serializers/game_dtos.py:68-74` | `contenidoSensible` y `advertencia` no cambian el comportamiento |
 | 14 | **No hay revisión por pares ni forma de archivar** (`IN_REVIEW` y `ARCHIVED` existen en el enum, ninguna ruta los asigna) | `sim/models/case.py:10-14`; `auth/publication.py:82-84` | `ARCHIVADO` no se puede conseguir desde SIEP |
 | 15 | **Claves libres frente a identificadores con prefijo** | `sim/models/case.py:78,103` | Un exportador debe renumerar (`inicio` → `E01`) y conservar una tabla de correspondencia |
+| 16 | **El juego solo ofrece una opción si algún diálogo la enlaza, y la publicación no lo valida.** Una opción llega al estudiante como `DialogueChoice` con `decision_option` en el árbol de un objeto de la sala; `currentNode.options` solo sirve para validar y el evento de ejecución lo emite únicamente una elección de diálogo. La validación de publicación ve nodos, decisiones, geometría, salida y límites, no los diálogos | `fe/simulation-play.component.ts:2113`; `fe/dialogue-panel.component.ts:817-818`; `sim/management/commands/seed_caso_pdf.py:698-720,744-780,1278-1299`; `sim/services/world_validation.py:37-48`; `auth/world_definition.py:310-366` | Un caso importado con una sala mínima y una salida segura se podría publicar y no se podría jugar: el importador debe crear el diálogo (§7.4) |
+| 17 | **El volcado conserva seis tablas de un modelo de quiz anterior** (`casos`, `escenarios`, `preguntas`, `opciones`, `respuestas`, `sesiones_juego`), sin modelo ni código y sin ramificación (`opciones.es_correcta`, sin escena destino) | `deploy/db_seed.sql:516,848,1006,1039,1175,1360`; `docs/informes/2026-10-10-mapa-del-sistema/secciones/contenido-y-caso-sembrado.md:49` | Ninguno: no son la estructura viva y no se usan en esta correspondencia; quien lea el volcado no debe tomar `preguntas.enunciado` ni `opciones.normativa_ref` por equivalentes de `decision.pregunta` ni de `fundamentoTeorico` |
 
 ### 7.4 Lo que SIEP guarda y el DSL no transporta
 
@@ -685,10 +691,10 @@ El DSL describe el caso, no su mundo explorable ni su motor de puntaje (Fase 1, 
 | SIEP | Archivo | Qué hace un importador |
 |---|---|---|
 | `score_delta`, `stress_delta` y `prohibited_penalty` de cada opción (el editor propone `scoreDelta` 10 por defecto) | `sim/models/case.py:113-115`; `fe/case-editor.component.ts:843-845` | Fijar un valor explícito. Propuesta: 0, porque un caso autorado recibe de todos modos severidad por clasificación (`sim/services/case_effects.py:215-222`) |
-| Sala (`SceneMap`), objetos, colisiones y diálogos | `sim/models/world.py:11-134` | Crear una sala mínima por escena. **Sin un objeto de salida segura, SIEP rechaza publicar el caso** (`NO_SAFE_EXIT`, `sim/services/world_validation.py:156-161`), así que un caso importado queda en borrador hasta que un docente complete la sala |
+| Sala (`SceneMap`), objetos, colisiones y diálogos | `sim/models/world.py:11-134` | Por cada escena con decisión, una sala con: (1) un objeto `PERSON` u `OBJECT` (el personaje que presenta la decisión) con un `DialogueTree` cuyo `speaker_name` sea ese personaje y cuyas `DialogueLine` incluyan `decision.pregunta`; (2) una `DialogueChoice` por opción, con `choice_key` = `opciones[].id`, `text` = `texto` y `decision_option` = la opción importada; (3) un objeto `EXIT`, porque **sin un objeto de salida segura SIEP rechaza publicar el caso** (`NO_SAFE_EXIT`, `sim/services/world_validation.py:156-161`); y (4) un `SceneMap` por nodo, porque sin sala el juego responde 404 (`sim/services/world_service.py:467-469`). Sin el diálogo la opción no llega al estudiante y la publicación no lo detecta (§7.3, punto 16) |
 | `safe_exit_required`, `position_x`, `position_y` del nodo | `sim/models/case.py:84,88-89` | Valores por defecto (`false`, posición automática) |
 | Checklist ético de seis casillas | `auth/publication.py:34-53` | No se importa; el docente lo completa antes de publicar |
-| `weight` y `max_score` de cada criterio; `is_default` de la rúbrica | `sim/models/rubric.py:38-39`, `:18` | Repartir el peso en partes iguales, como ya hace SIEP cuando no suman 100 (`sim/services/rubric_service.py:79-90`) |
+| `weight` y `max_score` de cada criterio; `is_default` de la rúbrica | `sim/models/rubric.py:38-39`, `:18` | Repartir el peso en partes iguales, como ya hace SIEP cuando no suman 100 (`sim/services/rubric_service.py:79-90`). `is_default` no se importa, pero SIEP la usa como respaldo cuando un caso no tiene rúbrica asignada (`sim/services/rubric_service.py:308-311`) |
 | `icon` y `active` de la herramienta | `sim/models/world.py:144,147` | Valores por defecto (`psychology`, activa: `auth/tools.py:39-42`) |
 
 ---
@@ -738,7 +744,7 @@ El enunciado dice que su estructura es solo una referencia. Se conservaron las c
 | S-F3-03 | El texto de los casos puede escribirse con cualquier carácter; solo las claves y los valores de enumeración son ASCII. |
 | S-F3-04 | Los estudiantes del ejemplo (`EST-01`) y su correo (`example.org`) son ficticios. |
 | S-F3-05 | Los niveles de desempeño los acuerda el equipo (S-09 de la Fase 1). |
-| S-F3-06 | Un documento con `ejecucion` es una exportación de un caso ya ejecutado; escribir intentos a mano no es el uso previsto. |
+| S-F3-06 | Un documento con `ejecucion` es una exportación de un caso ya ejecutado; escribir intentos a mano no es el uso previsto. Contiene datos personales (el correo del estudiante) y reflexiones sin cifrar: no se publica junto con la definición del caso, y un exportador puede omitir `correo` y `texto`. |
 
 ---
 
@@ -756,7 +762,7 @@ El enunciado dice que su estructura es solo una referencia. Se conservaron las c
 | RF-12 Validar estructura del caso | Esquema y reglas semánticas (§6) |
 | RF-13 Publicar y archivar casos | `caso.estado`, `caso.version` |
 | RF-16 Consultar introducción del caso | `caso.descripcion`, `caso.objetivosAprendizaje`, `personajes` |
-| RF-17 Ejecutar simulación ramificada | `intentos[].escenaActual`, `bitacora.decisiones` |
+| RF-17 Ejecutar simulación ramificada | `intentos[].escenaActual`, `bitacora.decisiones` (SIEP añade la reconsideración de la primera respuesta mala: `aplicada`, Fase 1 §7.4) |
 | RF-18 Consultar ayudas | `decision.pistas` |
 | RF-19 Guardar progreso | `intentos[].estado`, `intentos[].escenaActual` |
 | RF-20 Registrar bitácora reflexiva | `bitacora.reflexiones` |
@@ -768,7 +774,7 @@ El enunciado dice que su estructura es solo una referencia. Se conservaron las c
 | RN-02 Cada opción lleva a una escena válida o a una conclusión | `siguienteEscena` obligatoria (OCL-03) |
 | RN-03 Publicado antes de usarse | `caso.estado` y regla del esquema |
 | RN-05 Si no cumple el DSL, no se publica ni se ejecuta | Las dos capas de validación (§6.3) |
-| RN-06, RN-07 Intentos independientes, sin dos abiertos | `ejecucion.intentos`, INV-16 |
+| RN-06, RN-07 Intentos independientes, sin dos abiertos | `ejecucion.intentos`, INV-16 (SIEP permite reemplazar un intento abierto: estado `REEMPLAZADO`, Fase 1 §7.4) |
 | RN-08 Consecuencia en el momento, retroalimentación al final | `opciones[].consecuencia` frente a `retroalimentacion` (§5.4) |
 | RN-09 Valoración formativa sin nota oficial | `evaluaciones[].valoraciones[].nivel`; sin campo numérico |
 | RN-11 Opciones necesarias por decisión | `opciones` con `minItems: 2` y sin máximo |
@@ -778,17 +784,19 @@ El enunciado dice que su estructura es solo una referencia. Se conservaron las c
 
 ## 10. Verificación y límites
 
-**Qué se verificó.** `verificar-fase-3.py` (solo biblioteca estándar y `jsonschema` 4.25.1, Python 3.13) hizo, el 10 de octubre de 2026:
+**Qué se verificó.** `verificar-fase-3.py` (solo biblioteca estándar y `jsonschema` 4.25.1, Python 3.13) hizo, el 11 de octubre de 2026:
 
 1. `dsl-casos.schema.json` es un esquema válido del *draft* 2020-12 (`Draft202012Validator.check_schema`).
-2. `ejemplo-minimo.json` valida contra el esquema sin errores (también con el verificador de formatos activo) y no infringe ninguna regla semántica. Tiene 2 personajes, 3 escenas (1 con decisión y 2 conclusiones), 1 decisión con 2 opciones, 1 herramienta, 2 retroalimentaciones (una a una decisión y otra a una opción), 1 rúbrica con 2 criterios, 1 estudiante, 1 intento con bitácora (1 decisión y 1 reflexión) y 1 evaluación con 2 valoraciones.
-3. **30 alteraciones del ejemplo**, cada una introduce una infracción, se detecta en la capa que dice §6.2 y con el número de regla esperado. Cubren OCL-01 a OCL-08, INV-09 a INV-14, INV-16 a INV-20, RN-03, RN-09 y errores de forma (clave derivada escrita, `decision: null`, referencia con prefijo equivocado), más una combinación de los tres errores del enunciado (OCL-02, OCL-05 y OCL-03 a la vez).
+2. `ejemplo-minimo.json` valida contra el esquema sin errores (también con el verificador de formatos de `jsonschema` activo; de los dos formatos que usa el esquema, `date-time` y `email`, ese verificador solo conoce `email`, así que las fechas se comprueban por `pattern`) y no infringe ninguna regla semántica. Tiene 2 personajes, 3 escenas (1 con decisión y 2 conclusiones), 1 decisión con 2 opciones, 1 herramienta, 2 retroalimentaciones (una a una decisión y otra a una opción), 1 rúbrica con 2 criterios, 1 estudiante, 1 intento con bitácora (1 decisión y 1 reflexión) y 1 evaluación con 2 valoraciones.
+3. **32 alteraciones del ejemplo**, cada una introduce una infracción, se detecta en la capa que dice §6.2 y con el número de regla esperado. Cubren OCL-01 a OCL-08, INV-09 a INV-14, INV-16 a INV-20, RN-03, RN-09 y errores de forma (clave derivada escrita, `decision: null` en una conclusión y en la única escena con decisión, referencia con prefijo equivocado), más una combinación de los tres errores del enunciado (OCL-02, OCL-05 y OCL-03 a la vez).
 
 Para repetirlo:
 
 ```
-C:/Python313/python.exe -I -X utf8 verificar-fase-3.py
+C:/Python313/python.exe -I -B verificar-fase-3.py
 ```
+
+`C:/Python313/python.exe` es la instalación del equipo donde se ejecutó; en otro equipo se usa `python` o `python3`. `-B` evita que Python escriba una carpeta `__pycache__` junto a los archivos.
 
 Resultado: `RESULTADO: TODO CORRECTO`, código de salida 0.
 
@@ -808,6 +816,6 @@ print(len(errores))  # 0
 
 - **Las reglas OCL de la Fase 2 no se ejecutaron con una herramienta OCL.** La capa semántica de `verificar-fase-3.py` es una implementación de referencia en Python de lo que esas reglas dicen; no sustituye a una evaluación OCL sobre el modelo.
 - **No se probó con otro validador de JSON Schema** (por ejemplo Ajv). El esquema usa solo palabras clave estándar del *draft* 2020-12 (`$defs`, `$ref` con vecinas, `if/then/else`, `contains`, `oneOf`, `allOf`, `const`, `enum`, `pattern`, `uniqueItems`); `x-regla` y `x-referencia` son anotaciones que cualquier validador ignora.
-- **`format` es informativo.** El esquema impone la forma de fechas y correos con `pattern`; no comprueba que una fecha exista en el calendario (por ejemplo, `2026-02-31T10:00:00Z` cumple el patrón).
+- **`format` es informativo.** El esquema impone la forma de fechas y correos con `pattern`; no comprueba que una fecha exista en el calendario (por ejemplo, `2026-02-31T10:00:00Z` cumple el patrón, también con el verificador de formatos de `jsonschema` activo, que en este entorno no incluye `date-time`). El validador de la Fase 4 no puede interpretar una fecha imposible y, en ese caso, omite en silencio las comprobaciones de tiempo de PROP-05 y PROP-07 para ese valor.
 - **No se ejecutó SIEP.** La sección 7 se leyó del código de la rama `docs/documento-maestro-unificado` (commit `46b7206`); las restricciones de base de datos que cita provienen del volcado `deploy/db_seed.sql` y no de una base viva.
 - **No se construyó importador ni exportador.** La sección 7 dice cómo se hará, no lo hace.
