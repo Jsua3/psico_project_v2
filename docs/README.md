@@ -6,7 +6,7 @@
 
 | Carpeta o archivo | Qué contiene |
 |---|---|
-| [`PROMPT_MAESTRO.md`](PROMPT_MAESTRO.md) | Mapa de endpoints, componentes y tablas. Fecha de corte 2026-06-05: lee primero su aviso de vigencia |
+| [`PROMPT_MAESTRO.md`](PROMPT_MAESTRO.md) | **Documento maestro único y vigente**: producto, stack, arquitectura, cómo funciona hoy, reglas, seguridad, calidad, estado y cómo trabajar (corte 2026-10-11) |
 | [`PLAN_MAESTRO_TOTAL.md`](PLAN_MAESTRO_TOTAL.md) | Plan maestro por bloques, con las reglas de oro del proyecto (REGLA-00x), la auditoría de estado y el orden de ejecución |
 | [`arquitectura/`](arquitectura) | Estrategia de stack, dueño del esquema de la base de datos y despliegue |
 | [`requisitos/`](requisitos) | Requisitos de negocio (`RQ-NEG`), funcionales (`RF`) y no funcionales (`RNF`) y las técnicas de elicitación aplicadas, con su CSV de cada grupo. [`baseline-pn3/`](requisitos/baseline-pn3) es la **línea base académica unificada** de la carrera (26 RF, 8 RNF, 11 RN, 15 CU) y [`PROMPT_SESION_REQUISITOS_PN3.md`](requisitos/PROMPT_SESION_REQUISITOS_PN3.md) el prompt de la sesión que la contrasta con el sistema |
