@@ -2,7 +2,7 @@
 
 > **Qué es.** El documento único para entender SIEP **como funciona hoy**, con el stack de hoy. Sirve a personas y a sesiones de IA sin contexto previo.
 >
-> - **Corte:** 2026-10-11, sobre `master` @ `985d9a5`.
+> - **Corte:** 2026-10-11 (tarde), sobre `master` @ `2dadc45`. Recoge el contraste con la línea base PN3 y su re-medición (#59, #71), las propuestas como requisitos (#60), la trazabilidad (#61), la ola 0 de código (#64–#67) y el taller de DSL completo (#63, #72). La primera versión de este documento era de `985d9a5`.
 > - **Reemplaza** a `PROMPT_MAESTRO.md` de junio (Django 5.1, Angular 21, Spring «congelado»), a `PROMPT_MAESTRO_SIEP_PROFESIONAL.md` (julio, sin versionar) y a lo vigente de `PLAN_MAESTRO_TOTAL.md` (que sigue como plan por bloques).
 > - **Complementa** a `docs/CONTEXTO_COMPLETO_SIEP.md` (sin versionar, edición 1, corte `92354c2`), la referencia exhaustiva.
 > - **Evidencia fina** (`ruta:línea` por afirmación) en `docs/informes/2026-10-10-mapa-del-sistema/secciones/`: son borradores de lectores con verificación adversarial incompleta; lo que sigue aquí es su síntesis, con las cifras recontrastadas.
@@ -33,7 +33,7 @@
 7. **No hay DSL ni JSON Schema ni import/export de casos.** El taller de DSL (`docs/diseno/dsl/`) lo propone y trae validador; aún no está integrado al producto.
 8. **CI:** 6 jobs (secretos, vulnerabilidades, scripts, backend, frontend, e2e). El e2e de recorrido completo y orientación corre de noche, no en el PR.
 
-**Cinco riesgos mayores:** (a) los reportes por grupo no comprueban propiedad: cualquier profesor ve cualquier grupo; (b) secretos de desarrollo por defecto (`JWT_SECRET`, clave de cifrado, contraseña de importados, contraseñas demo versionadas) y producción no rechaza secretos débiles; (c) el consentimiento ETH-01 vive solo en el navegador; (d) sin límite de intentos en login ni en la solicitud de acceso, sin revocación de tokens; (e) sin salud ni observabilidad en producción y esquema con upgrades manuales de orden frágil.
+**Cinco riesgos mayores:** (a) el alcance del docente es de autoservicio: cualquier profesor agrega por correo a cualquier estudiante registrado y desde entonces lee su traza con la bitácora descifrada (D-14); los reportes ya se limitan a sus grupos (#64), pero los GET de juego con token de intento no acotan por grupo (D-11); (b) secretos de desarrollo por defecto (`JWT_SECRET`, clave de cifrado, contraseña de importados, contraseñas demo versionadas) y producción no rechaza secretos débiles; (c) el consentimiento ETH-01 vive solo en el navegador; (d) sin límite de intentos en login ni en la solicitud de acceso, sin revocación de tokens; (e) sin salud ni observabilidad en producción y esquema con upgrades manuales de orden frágil.
 
 ---
 
@@ -47,7 +47,7 @@ Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos,
 | Rol | Puede | No puede |
 |---|---|---|
 | **ESTUDIANTE** | Ver su catálogo (casos publicados asignados a un grupo activo suyo), jugar, pausar y reanudar, escribir bitácora, ver su historial y reporte propio, editar su avatar | Autorar, ver rúbricas ni comentarios docentes, ver reportes |
-| **PROFESOR** | Crear y administrar **sus** grupos, agregar estudiantes por correo o importación `.xlsx` (crea cuentas de estudiante), asignar/retirar versiones publicadas, revisar trazas de **sus** estudiantes, evaluar con rúbrica, gestionar rúbricas, reportes y CSV | Autorar casos, crear profesores o admins, jugar (no inicia intentos) |
+| **PROFESOR** | Crear y administrar **sus** grupos, agregar estudiantes por correo o importación `.xlsx` (crea cuentas de estudiante), asignar/retirar versiones publicadas, revisar trazas de **sus** estudiantes, evaluar con rúbrica, gestionar rúbricas (son globales: cualquier profesor edita cualquiera, D-17), reportes y CSV **de sus grupos** | Autorar casos, crear profesores o admins, jugar (no inicia intentos) |
 | **ADMIN** | Todo lo de autoría (casos, versiones, mundo, herramientas, checklist, publicar, clonar), usuarios (crear, editar, activar/desactivar, asignar rol), solicitudes de acceso, juego, trazas y reportes de todos | Administrar grupos de un profesor (solo lista) |
 
 ### Límites éticos y clínicos
@@ -125,7 +125,7 @@ Settings en `psychosim/settings/`: `base`, `local` (copia gitignored de `local.e
 ## 4. Cómo funciona hoy
 
 ### Ciclo de vida del caso (autoría, solo ADMIN)
-`DRAFT → PUBLISHED` es la única transición por API (`IN_REVIEW` y `ARCHIVED` existen en el enum y el CHECK, sin ruta; no hay archivar ni borrar). Toda mutación exige `DRAFT`; una versión publicada es inmutable y se **clona** (siguiente menor, copia declarativa en transacción). Publicar exige: checklist de 6 casillas al 100 % **y** validación del mundo sin errores (un nodo inicial, ≥ 1 terminal, sin ciclos, geometría dentro del mapa, ≥ 1 objeto `EXIT`, conducta prohibida con razón, límites de tamaño). Publicar **no** archiva la versión anterior: coexisten varias PUBLISHED.
+`DRAFT → PUBLISHED` es la única transición por API (`IN_REVIEW` y `ARCHIVED` existen en el enum y el CHECK, sin ruta; no hay archivar ni borrar). Toda mutación exige `DRAFT`; una versión publicada es inmutable y se **clona** (siguiente menor, copia declarativa en transacción). Publicar exige: checklist de 6 casillas al 100 % **y** validación del mundo sin errores (un nodo inicial, ≥ 1 terminal, sin ciclos, geometría dentro del mapa, ≥ 1 objeto `EXIT`, conducta prohibida con razón, límites de tamaño y, desde #67, que las decisiones solo unan nodos de su propia versión, que todo nodo alcanzable que no es final tenga opciones y que todo nodo que no es final tenga mapa; un nodo al que no se llega es solo una advertencia). Publicar **no** archiva la versión anterior: coexisten varias PUBLISHED.
 
 ### Ciclo de vida del intento (estudiante)
 ```mermaid
@@ -148,7 +148,7 @@ stateDiagram-v2
 Catálogo → aviso de contenido (ETH-01) → introducción (solo en `hospital-urgencias`) → mundo con HUD, tarjeta «Qué hacer», diálogos con opciones sin clasificación → «Supervisión clínica» tras decidir (mensaje del servidor, sin cifras) → resultado al cerrar. Salida segura desde cualquier superposición (Esc encadena ayuda → bitácora → diálogo → pausa).
 
 ### Qué ve el docente
-Hasta 20 intentos recientes de **sus** grupos (alias `Estudiante-N`), traza completa (eventos, línea de tiempo, nodos, reintentos, bitácoras descifradas), evaluación con rúbrica (nota por criterio 1,0–5,0, total ponderado), reportes por grupo y CSV (12 columnas; con nombre y apellido).
+Hasta 20 intentos recientes de **sus** grupos (alias `Estudiante-N`), traza completa (eventos, línea de tiempo, nodos, reintentos, bitácoras descifradas), evaluación con rúbrica (nota por criterio 1,0–5,0, total ponderado), tablero, reportes por grupo y CSV solo de **sus** grupos (un grupo ajeno responde 403; CSV de 12 columnas, con nombre y apellido).
 
 ### Rutas de la API (`/api`, JWT salvo lo público)
 | Grupo | Rol | Notas |
@@ -158,8 +158,8 @@ Hasta 20 intentos recientes de **sus** grupos (alias `Estudiante-N`), traza comp
 | `admin/users`, `admin/access-requests` | ADMIN | crear, editar, activar/desactivar |
 | `admin/cases/**` | ADMIN | autoría, mundo, validar, publicar, clonar |
 | `grupos/**` | PROFESOR (lista: +ADMIN) | membresías, importación, casos |
-| `simulation/cases`, `attempts`, `…/decisions`, `…/reflections`, `…/safe-exit`, `…/resume`, `…/world`, `…/world-state`, `catalog`, `ai-assistant` | ESTUDIANTE/ADMIN | `ai-assistant` responde 404 salvo bandera |
-| `instructor/**`, `rubrics/**`, `reportes/**` | PROFESOR/ADMIN | traza y evaluación por grupo; reportes **sin** control de propiedad |
+| `simulation/cases`, `attempts`, `…/decisions`, `…/reflections`, `…/safe-exit`, `…/resume`, `…/world`, `…/world-state`, `catalog`, `ai-assistant` | ESTUDIANTE/ADMIN | `catalog` lista solo lo asignado al estudiante; `ai-assistant` responde 404 salvo bandera |
+| `instructor/**`, `rubrics/**`, `reportes/**` | PROFESOR/ADMIN | traza, evaluación, tablero y reportes limitados a los grupos activos del profesor (el ADMIN ve todo); las rúbricas son globales |
 | `/schema/`, `/swagger-ui.html` | público | también en producción |
 
 Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 403 con rol incorrecto, 500 genérico.
@@ -171,8 +171,8 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | Regla | Dónde se impone | Estado |
 |---|---|---|
 | Solo ADMIN autora; toda mutación exige `DRAFT` | `authoring/guards.py` | Cumplida |
-| Publicar exige checklist al 100 % y validación limpia | `authoring/publication.py` | Cumplida (validación incompleta: no revisa nodos sin salida ni alcanzabilidad) |
-| El estudiante solo inicia casos asignados a su grupo | `game_service.start_attempt` | Cumplida al iniciar; el lobby `/catalog` no filtra por asignación |
+| Publicar exige checklist al 100 % y validación limpia | `authoring/publication.py`, `world_validation.py` | Cumplida; desde #67 rechaza nodos sin opciones o sin mapa y decisiones que salen de la versión. Sin cubrir: referencias de mapas, objetos y diálogos (D-12) y un nodo final sin mapa que rompe la traza (D-15) |
+| El estudiante solo inicia casos asignados a su grupo | `game_service.start_attempt`, `progression/catalog.py` | Cumplida al iniciar y en el lobby `/catalog` (#66); un intento ya abierto se puede reanudar tras retirar al estudiante o el caso (RN-04) |
 | Un intento abierto por (estudiante, caso) | `game_service` (sin índice único) | Parcial: sin bloqueo, dos peticiones simultáneas pueden duplicar |
 | Segunda oportunidad por nodo | `game_service.choose_decision` | Cumplida |
 | Una versión publicada no se muta | `ensure_draft`, `clone_version` | Cumplida en la API; la rompe `seed_caso_pdf` |
@@ -180,7 +180,7 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | Las opciones solo viajan con `id` y `text` antes de decidir | `game_dtos` | Cumplida |
 | La bitácora se cifra en reposo | `crypto_service` | Cumplida (clave única, sin rotación) |
 | La auditoría nunca interrumpe la operación | `@auditable` | Cumplida; solo escribe, nada la lee; retención 360 días |
-| Un profesor ve solo a sus estudiantes en traza y evaluación | `instructor_service` | Cumplida; **no** en reportes ni en `student-report` |
+| Un profesor ve solo a sus estudiantes en traza, evaluación, tablero, reportes y `student-report` | `instructor_service`, `instructor_scope`, `reportes/services.py` | Cumplida desde #64; salvedades: los GET de juego con token de intento no acotan por grupo (D-11) y el docente agrega estudiantes sin aceptación (D-14) |
 | Salida segura siempre alcanzable (REGLA-004) | cliente + `safe_exit` | Cumplida en todos los estados jugables (Playwright + axe); sin lector de pantalla real |
 
 **Reglas de oro del plan** (`PLAN_MAESTRO_TOTAL.md`): 001 no tocar Spring (sin objeto: ya no existe) · 002 «sin migraciones Django» (rota en la práctica: `progression` y `AccessRequest` son gestionados) · 003 `ScenarioConfig` coexiste con lo BD-driven · **004 salida segura** · **005 `PUBLISHED` no se muta** · 006 auditoría no interrumpe · 007 repo privado · 008 avatar solo en `localStorage` · 009 Phaser `pixelArt`/`roundPixels` · 010 CSS del juego acotado · 011 bloqueo optimista con 409 (nominal: nada incrementa `version`) · 012 publicar solo con validación limpia. **No cites `RNF-010` como «cambio de esquema»**: en el catálogo del equipo es *gestión ética de contenidos sensibles*.
@@ -190,14 +190,14 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 ## 6. Seguridad, ética y privacidad
 
 - **Autenticación:** JWT HS256 de 8 h, sin refresh ni revocación; «cerrar sesión» solo borra el token del cliente. El rol y `activo` se releen de la BD en cada petición (desactivar corta el token al instante). Contraseñas con bcrypt (10 rondas); mínimo 8 solo en el formulario del admin y en `register`.
-- **Autorización:** matriz por rol en `shared/permissions.py`; alcance por objeto en grupos (400 «No tiene permiso» en vez de 403) y en la traza docente.
+- **Autorización:** matriz por rol en `shared/permissions.py`; alcance por objeto en grupos (400 «No tiene permiso» en vez de 403) y, desde #64, en la traza docente, el tablero, los reportes y `student-report` (el reporte de un grupo ajeno responde 403).
 - **Cifrado:** bitácoras con AES-GCM (clave SHA-256 de `REFLECTION_ENCRYPTION_KEY`, por defecto `JWT_SECRET`); `encryption_key_ref` fijo; cambiar la clave rompe el reporte docente (500).
 - **Red:** CORS por lista blanca; sin CSRF ni sesiones (Bearer); redirección HTTPS solo con `DJANGO_SECURE_SSL_REDIRECT`; sin HSTS ni `X-Frame-Options`.
 - **Auditoría:** 28 acciones (juego, autoría, asistente); **no** se audita login, usuarios, grupos, importaciones, evaluaciones ni lectura de trazas/bitácoras.
 - **Asistente de IA (RF-027):** apagado por defecto (404) y sin pantalla; con la bandera, la pregunta (≤ 500 car.) queda en claro en auditoría; sin límites de uso; un proveedor mal escrito cae a OpenAI.
 - **Datos personales:** el volcado versionado trae correos reales (al menos uno `@gmail.com`) con hashes; las credenciales demo están publicadas en `docs/operacion/despliegue-railway.md` y en el bundle del login (solo `isDevMode`).
 - **Consentimiento y pausa:** ETH-01 en `sessionStorage` (el servidor no lo registra); la pausa de la salida segura es reanudable e idempotente. Recursos de apoyo sin verificación externa (`BLOCKED_EXTERNAL`).
-- **Brechas abiertas:** sin throttling en login/solicitud/importación; membresía a un grupo sin consentimiento del estudiante (el profesor ve sus intentos y reflexiones); enumeración de cuentas por mensajes de error; el ADMIN puede quedarse fuera; `/schema/` y Swagger públicos con Swagger UI desde un CDN `@latest`.
+- **Brechas abiertas:** sin throttling en login/solicitud/importación; membresía a un grupo sin consentimiento del estudiante (el profesor ve sus intentos y reflexiones); enumeración de cuentas por mensajes de error; el ADMIN puede quedarse fuera; `/schema/` y Swagger públicos con Swagger UI desde un CDN `@latest`; rúbricas globales (D-17); lecturas del mundo que escriben (D-16). La lista completa (D-1 a D-17, con su estado) está en `docs/requisitos/contraste-pn3/conflictos-y-decisiones.md`.
 
 ---
 
@@ -206,15 +206,15 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | Familia | Cantidad (estática) | Comando |
 |---|---|---|
 | Scripts de entorno | 82 casos en 4 archivos | `npm run test:scripts` |
-| Backend (pytest + BD desechable) | 52 archivos, 857 pruebas en la última corrida del CI | `npm run check:backend`, `npm run test:backend` |
-| Frontend unitario (Vitest) | 179 archivos, 2.383 pruebas en la última corrida (64 specs leen código fuente por regex) | `npm run test:frontend` |
+| Backend (pytest + BD desechable) | 52 archivos al 10/10; 889 pruebas en la corrida conjunta de #64–#67 (antes 857) | `npm run check:backend`, `npm run test:backend` |
+| Frontend unitario (Vitest) | 179 archivos al 10/10; 2.385 pruebas en la corrida de #65 (64 specs leen código fuente por regex) | `npm run test:frontend` |
 | Activos y kit | 13 archivos, 114 casos | en `frontend/`: `test:visual-assets`, `test:kit`, `kit:check`, `test:world-art` |
 | Matriz API | 16 comprobaciones, 3 roles | `npm run test:api:e2e` |
 | E2E Playwright | 10 archivos, 35 instancias | `npm run test:e2e` |
 
 **CI** (`ci.yml`, en PR y push a `master`): `secrets` (gitleaks, historial completo), `scripts`, `audit` (pip-audit sin umbral, `npm audit` alto/crítico), `backend`, `frontend` (Vitest, assets, kit, world-art, build con presupuestos 1,4 MB / 22 kB) y `e2e` (21 pruebas; excluye `@full-case` y `@orientation`). **Nocturno** `e2e-full-case.yml` (07:00 UTC): caso completo en 4 viewports y orientación.
 
-**Huecos:** sin cobertura medida ni linter; `production` y `check --deploy` no se ejercitan; sin e2e de docente y admin; guards sin spec; Axe sin `wcag22aa`; sin pruebas de carga ni medición de rendimiento; 64 specs frágiles por leer texto de fuentes; Postgres 16 en dev vs 18 en pruebas. **Trazabilidad:** solo `RF-027` se cita en código; ninguna prueba cita RNF-nn ni RQ-NEG-nn (una propuesta de marcadores `req` está en revisión, §8).
+**Huecos:** sin cobertura medida ni linter; `production` y `check --deploy` no se ejercitan; sin e2e de docente y admin; guards sin spec; Axe sin `wcag22aa`; sin pruebas de carga ni medición de rendimiento; 64 specs frágiles por leer texto de fuentes; Postgres 16 en dev vs 18 en pruebas. **Trazabilidad:** solo `RF-027` se cita en código; ninguna prueba cita RNF-nn ni RQ-NEG-nn (el plan de marcadores `req` está en `docs/requisitos/trazabilidad/`: 300 pruebas por marcar y 10 huecos; sin adoptar).
 
 ---
 
@@ -245,16 +245,20 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | G | Ayuda curada (30–50 entradas); IA opcional solo tras decidir y con concepto jurídico (Ley 1581/2012) | reinterpretar RF-027; sin IA sin concepto escrito | 22,5–38 d |
 | J | Consultorio de primera escucha como 2.º caso; antes generalizar finales, métricas, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
 
-C, E y F comparten una Fase 0 de 6–10 d; 0a (movimiento reducido en el panel) y 0b (botón único de salida segura) ya están. Las preguntas que más bloquean están en `propuestas-c-e-f-resumen.md`.
+C, E y F comparten una Fase 0 de 6–10 d; 0a (movimiento reducido en el panel) y 0b (botón único de salida segura) ya están. Las preguntas que más bloquean están en `propuestas-c-e-f-resumen.md`. Las mismas propuestas están redactadas como **162 requisitos** (47 RF, 41 RNF, 46 RN, 28 CU), con criterios de aceptación y 58 preguntas para Psicología, en `docs/requisitos/propuestas/` (PR #60); ninguno es obligación hasta que el equipo los apruebe.
 
-### Línea base académica PN3 (nueva, 2026-10-09)
-La carrera unificó requisitos entre todos los equipos: **26 RF, 8 RNF, 11 RN y 15 CU** (`docs/requisitos/baseline-pn3/`, «versión académica inicial»). Es el **mínimo**; SIEP puede tener más. El contraste con el sistema (PR #59) da: 14 cumplen, 38 parciales, 1 no cumple, 2 no verificables y **5 conflictos**: RF-15 (el lobby y `/catalog` no filtran por asignación), **RN-07** (`forceNew` reemplaza el intento en curso), **RN-08** (la retroalimentación se devuelve al decidir), **RN-09** (puntaje numérico acumulado sin tope) y **RN-10** (el profesor da de alta estudiantes por importación). RF-12 y RN-05 salen parciales porque no hay DSL ni validación al ejecutar. Los requisitos propios de SIEP se tratarán como **extensiones** con otro esquema de IDs.
+### Línea base académica PN3 (2026-10-09; contrastada y re-medida el 2026-10-11)
+La carrera unificó requisitos entre todos los equipos: **26 RF, 8 RNF, 11 RN y 15 CU** (`docs/requisitos/baseline-pn3/`, «versión académica inicial»). Es el **mínimo**; SIEP tiene más: 36 extensiones propias con IDs `SIEP-*` y el catálogo previo del equipo con su tabla de equivalencias (`docs/requisitos/contraste-pn3/extensiones-siep.md`); las propuestas C/E/F/G/J están en `docs/requisitos/propuestas/`.
+
+La matriz de cumplimiento (`docs/requisitos/contraste-pn3/matriz-cumplimiento.md`, re-medida tras la ola 0 en el PR #71) da: **15 cumplen, 38 parciales, 1 no cumple, 2 no verificables (RNF-05, RNF-06) y 4 conflictos**: **RN-07** (`forceNew` reemplaza el intento en curso), **RN-08** (la retroalimentación se devuelve al decidir), **RN-09** (el total de rúbrica 1,0–5,0 es una nota numérica) y **RN-10** (el profesor da de alta estudiantes por importación). RF-15 pasó de conflicto a parcial (#66) y RN-02 a cumple (#67); RF-12 y RN-05 siguen parciales porque no hay DSL integrado ni validación al ejecutar.
+
+La re-medición añadió los defectos **D-11 a D-17** (alcance de los GET de juego, referencias del editor de escenas, reporte de grupo inactivo, alcance docente de autoservicio, nodo final sin mapa, lecturas que escriben y rúbricas globales) y la **decisión 22** (si un docente puede agregar estudiantes sin su aceptación); son 22 decisiones con valor por defecto en `conflictos-y-decisiones.md`. La **ola 0 de código** está fusionada: #64 (alcance del docente en reportes, tablero y `student-report`), #65 (el editor conserva `requiredTools` y `supportResources` al guardar un nodo), #66 (el lobby solo lista casos asignados) y #67 (validación estructural del caso). **Falta:** las olas 1–5, el marcador `req` y D-11, D-12 y D-15 en código. El informe de cierre es `docs/informes/2026-10-11-cierre-requisitos-pn3.md`.
 
 ### Taller de DSL (Ingeniería de Software II)
 `docs/diseno/dsl/`: modelo UML de 16 clases, sintaxis JSON con JSON Schema, `simulador_psicologia_social.json` (escenario válido y con errores) y un validador con 46 pruebas. Reglas `OCL-01…08` en el orden del enunciado. La Fase 2 (OCL) la entregan otros integrantes del equipo.
 
 ### Deudas y decisiones abiertas
-Esquema (Django dueño, Hetzner, imagen sin Compose ni health), reportes sin propiedad, secretos por defecto, T9.12 (decisión en dos tiempos), reintentos en el informe de grupo y CSV (L-02), H-T11/T13/T15, contraseña por defecto de importados («así por ahora»), `docker build` con Node 26 sin probar, 13 preguntas del informe de jugabilidad y 18 del backlog con valor por defecto ya aplicado.
+Esquema (Django dueño, Hetzner, imagen sin Compose ni health), alcance del docente (D-11, D-14, D-17), secretos por defecto, T9.12 (decisión en dos tiempos), reintentos en el informe de grupo y CSV (L-02), H-T11/T13/T15, contraseña por defecto de importados («así por ahora»), `docker build` con Node 26 sin probar, 13 preguntas del informe de jugabilidad y 18 del backlog con valor por defecto ya aplicado.
 
 ---
 
@@ -275,7 +279,8 @@ Esquema (Django dueño, Hetzner, imagen sin Compose ni health), reportes sin pro
 |---|---|
 | Arrancar o entender el entorno | `README.md` |
 | Saber qué hay en `docs/` y cómo se mantiene | `docs/README.md` |
-| La línea base PN3, su contraste y las propuestas como requisitos | `docs/requisitos/`: `baseline-pn3/` (en `master`); `contraste-pn3/` y `propuestas/` llegan con los PR #59 y #60 |
+| La línea base PN3, su contraste y las propuestas como requisitos | `docs/requisitos/`: `baseline-pn3/` (línea base), `contraste-pn3/` (matriz de cumplimiento, detalle, conflictos y decisiones, extensiones `SIEP-*`), `propuestas/` (C/E/F/G/J como requisitos) y `trazabilidad/` (plan de marcado `req`) |
+| Lo que cerró la sesión de requisitos y lo que queda | `docs/informes/2026-10-11-cierre-requisitos-pn3.md` |
 | El diseño vigente (personajes unificados, orientación, DSL, consentimiento) | `docs/diseno/` |
 | Decisiones de stack, esquema y despliegue | `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md` |
 | Desplegar en Railway y aplicar upgrades | `docs/operacion/despliegue-railway.md` |
