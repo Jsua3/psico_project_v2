@@ -1,0 +1,76 @@
+{
+ "grupo": "lote2",
+ "lente": "falso-cumple",
+ "revision": [
+  {
+   "id": "RF-15",
+   "acuerdo": true,
+   "veredicto_revisado": "conflicto",
+   "motivo": "El veredicto es el más severo posible, no es generoso. Confirmado: build_catalog devuelve todos los casos PUBLISHED y activos sin mirar la asignación del estudiante y la ruta /portal/jugar lo expone; contradice «únicamente los que tenga habilitados». list_published_cases y start_attempt sí filtran por grupo activo.",
+   "evidencia": [
+    "backend_django/apps/progression/catalog.py:13-24",
+    "backend_django/apps/progression/catalog.py:32-40",
+    "backend_django/apps/simulation/services/game_service.py:130-134",
+    "backend_django/apps/simulation/services/game_service.py:163-164",
+    "frontend/src/app/app.routes.ts:28"
+   ]
+  },
+  {
+   "id": "RF-19",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El avance se persiste en servidor (nodo actual, métricas, estado del mundo). La pausa es reanudable con el mismo attemptId y resume_attempt no exige publicación ni asignación, solo dueño y token. No encontré un camino que viole el texto; las salvedades (caso archivado, SAFE_EXITED históricos) son bordes fuera del texto base.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:206-219",
+    "backend_django/apps/simulation/services/game_service.py:452-486",
+    "backend_django/apps/simulation/services/game_service.py:67-83"
+   ]
+  },
+  {
+   "id": "RF-20",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Sin restricción de rol ni bandera apagada: tecla J o botón abre el panel, el guardado va al servidor cifrado, solo con el intento en juego y ligado al nodo. Que el estudiante no pueda releer, la sobrescritura silenciosa y el bloqueo al terminar son calidad, no cláusula del texto base.",
+   "evidencia": [
+    "frontend/src/app/features/simulator/simulation-play.component.ts:1714-1717",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:2299-2316",
+    "backend_django/apps/simulation/services/game_service.py:426-449"
+   ]
+  },
+  {
+   "id": "CU-10",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El flujo guardar y continuar cumple con RF-19. El historial no ofrece «Reanudar» para PAUSED (solo «Ver resumen»), pero la reanudación sigue accesible desde la tarjeta del caso y el panel; es un defecto menor de UX, no incumple el texto.",
+   "evidencia": [
+    "frontend/src/app/features/simulator/simulation-catalog.component.ts:115-125",
+    "backend_django/apps/simulation/services/game_service.py:206-219",
+    "backend_django/apps/simulation/services/game_service.py:470-486"
+   ]
+  },
+  {
+   "id": "CU-11",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Depende de RF-20 y se comprueba de punta a punta: abre, escribe, guarda con mensaje de confirmación «Bitácora guardada y cifrada», durante el intento. No hay cláusula omitida; la lectura posterior del estudiante no se pide.",
+   "evidencia": [
+    "frontend/src/app/features/simulator/simulation-play.component.ts:2299-2316",
+    "backend_django/apps/simulation/services/game_service.py:425-449"
+   ]
+  },
+  {
+   "id": "RF-24",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "Historial filtrado por student_id=actor.id con todos los estados, puntaje y conteos; el informe propio rechaza ajenos (403); repetir crea una fila nueva, y con forceNew la anterior queda REPLACED sin borrarse. Solo es visible para ESTUDIANTE en la interfaz. La rúbrica del docente no llega al estudiante, pero el texto no la menciona.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:241-245",
+    "backend_django/apps/simulation/services/game_service.py:288-308",
+    "backend_django/apps/simulation/services/game_service.py:323-324",
+    "backend_django/apps/simulation/services/game_service.py:181-188",
+    "frontend/src/app/features/simulator/simulation-catalog.component.ts:81-131"
+   ]
+  }
+ ],
+ "clausulas_omitidas": []
+}

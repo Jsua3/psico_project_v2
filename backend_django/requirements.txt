@@ -1,14 +1,14 @@
 # backend_django/requirements.txt
 # Pins ajustados para Python 3.13 (wheels disponibles). Revisados el 2026-10-04.
-Django==6.1.1
-djangorestframework==3.18.1
+Django==6.1.2
+djangorestframework==3.18.3
 djangorestframework-simplejwt==5.5.1
 django-cors-headers==4.9.0
 psycopg[binary]==3.3.6
 cryptography==50.0.2
 drf-spectacular==0.30.0
 bcrypt==5.0.0
-google-auth==2.59.1
+google-auth==2.61.0
 # google.auth.transport.requests (inicio de sesión con Google) exige `requests` y google-auth no lo instala solo (A-10)
 requests==2.34.2
 # Producción / despliegue

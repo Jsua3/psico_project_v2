@@ -1,0 +1,22 @@
+{
+ "grupo": "g3-autoria",
+ "lente": "falso-cumple",
+ "revision": [
+  {
+   "id": "RN-11",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El texto base solo exige que el autor defina la cantidad de opciones segun la situacion; no pide un minimo. No hay tope ni minimo en servidor ni en interfaz: la validacion de publicacion solo limita objetos, colisiones y triggers por mapa; la creacion de opciones no cuenta ni limita; el runtime no trunca (solo los atajos de teclado 1-9 son una comodidad, el clic sirve para todas). Lo unico que falta (nodo no terminal sin opciones) es una clausula inferida por el evaluador, no del texto base; el matiz declarado es honesto y no convierte el veredicto en parcial.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/authoring/graph.py:60-66",
+    "backend_django/apps/simulation/services/authoring/graph.py:86-99",
+    "backend_django/apps/simulation/services/world_validation.py:17-19",
+    "backend_django/apps/simulation/services/world_validation.py:52-76",
+    "backend_django/apps/simulation/services/authoring/publication.py:58-85",
+    "backend_django/apps/simulation/models/case.py:99-125",
+    "frontend/src/app/features/simulator/dag-editor.component.ts:426"
+   ]
+  }
+ ],
+ "clausulas_omitidas": []
+}

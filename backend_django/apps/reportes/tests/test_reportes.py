@@ -1,7 +1,8 @@
 """T3.2 — Reportes sim-only (extraídos de sesiones, sin mezcla legacy).
 
 Corren contra la BD real psychosim (rollback por test). Los agregados del
-dashboard son GLOBALES; se asertan estructura, permisos y deltas deterministas
+dashboard son los de los estudiantes del docente (el ADMIN ve todos: ver
+test_alcance_docente.py); se asertan estructura, permisos y deltas deterministas
 de estudiantes recién creados (sin intentos previos).
 """
 import uuid
@@ -118,6 +119,7 @@ def test_dashboard_simulaciones_completadas_excluye_salida_segura(
     profesor, estudiante, case_version_id
 ):
     """Un intento interrumpido (SAFE_EXITED) no es una simulación completada."""
+    _add_student(_grupo(profesor), estudiante)  # el tablero es del docente: sus estudiantes
     before = cl(profesor).get("/api/reportes/dashboard").data["data"]
     _closed_attempt(estudiante, case_version_id, "COMPLETED")
     _closed_attempt(estudiante, case_version_id, "SAFE_EXITED")

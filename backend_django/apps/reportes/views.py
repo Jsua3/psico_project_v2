@@ -22,7 +22,7 @@ class DashboardView(APIView):
     permission_classes = [IsProfesorOrAdmin]
 
     def get(self, request):
-        return api_ok(services.get_dashboard())
+        return api_ok(services.get_dashboard(request.user))
 
 
 class ReporteGrupoView(APIView):
@@ -30,7 +30,7 @@ class ReporteGrupoView(APIView):
 
     def get(self, request, grupo_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
-        return api_ok(services.generar_reporte_grupo(grupo_id, case_version_id))
+        return api_ok(services.generar_reporte_grupo(grupo_id, case_version_id, request.user))
 
 
 class ReporteGrupoExportView(APIView):
@@ -38,7 +38,7 @@ class ReporteGrupoExportView(APIView):
 
     def get(self, request, grupo_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
-        csv = services.exportar_csv(grupo_id, case_version_id)
+        csv = services.exportar_csv(grupo_id, case_version_id, request.user)
         response = HttpResponse(csv.encode("utf-8"), content_type="text/csv;charset=UTF-8")
         response["Content-Disposition"] = (
             f'attachment; filename="reporte-grupo-{grupo_id}.csv"'

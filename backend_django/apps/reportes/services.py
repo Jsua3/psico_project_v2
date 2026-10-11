@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.models import Avg
 from django.utils import timezone
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.grupos.models import Grupo
 from apps.simulation.models.attempt import (
@@ -21,6 +21,7 @@ from apps.simulation.models.attempt import (
     SimulationAttempt,
 )
 from apps.simulation.models.rubric import RubricEvaluation
+from apps.simulation.services.instructor_scope import student_ids_for_instructor
 
 User = get_user_model()
 
@@ -87,22 +88,30 @@ def _count_rubrics(attempt_ids):
 
 
 # --- Dashboard -------------------------------------------------------------
-def get_dashboard():
+def get_dashboard(usuario):
+    """Tablero del docente: solo los estudiantes de sus grupos (RF-25). El ADMIN ve todo."""
+    student_ids = student_ids_for_instructor(usuario)
+    attempts = SimulationAttempt.objects.all()
+    events = AttemptEvent.objects.all()
+    if student_ids is not None:
+        attempts = attempts.filter(student_id__in=student_ids)
+        events = events.filter(attempt__student_id__in=student_ids)
+
     start_of_day = datetime.combine(timezone.now().date(), time.min)
 
     # «Completada» es solo COMPLETED: SAFE_EXITED es una interrupción y la UI la
     # rotula «Interrumpido». Los promedios usan SCORED_STATUSES.
-    simulaciones_completadas_hoy = SimulationAttempt.objects.filter(
+    simulaciones_completadas_hoy = attempts.filter(
         status=AttemptStatus.COMPLETED, ended_at__gte=start_of_day
     ).count()
-    simulaciones_en_progreso = SimulationAttempt.objects.filter(
+    simulaciones_en_progreso = attempts.filter(
         status=AttemptStatus.IN_PROGRESS
     ).count()
-    simulaciones_completadas = SimulationAttempt.objects.filter(
+    simulaciones_completadas = attempts.filter(
         status=AttemptStatus.COMPLETED
     ).count()
     avg_sim = float(
-        SimulationAttempt.objects.filter(status__in=SCORED_STATUSES).aggregate(
+        attempts.filter(status__in=SCORED_STATUSES).aggregate(
             a=Avg("accumulated_score")
         )["a"]
         or 0
@@ -116,7 +125,7 @@ def get_dashboard():
             "puntaje": a.accumulated_score,
             "estado": a.status,
         }
-        for a in SimulationAttempt.objects.select_related(
+        for a in attempts.select_related(
             "case_version__simulation_case", "student"
         ).order_by("-started_at")[:10]
     ]
@@ -131,19 +140,19 @@ def get_dashboard():
         "simulacionesCompletadas": simulaciones_completadas,
         "simulacionesEnProgreso": simulaciones_en_progreso,
         "puntajePromedioSimulacion": avg_sim,
-        "decisionesAdecuadas": AttemptEvent.objects.filter(
+        "decisionesAdecuadas": events.filter(
             event_type__in=DECISION_EVENT_TYPES,
             decision_option__classification="ADEQUATE",
         ).count(),
-        "decisionesRiesgosas": AttemptEvent.objects.filter(
+        "decisionesRiesgosas": events.filter(
             event_type__in=DECISION_EVENT_TYPES,
             decision_option__classification="RISKY",
         ).count(),
-        "decisionesInadecuadas": AttemptEvent.objects.filter(
+        "decisionesInadecuadas": events.filter(
             event_type__in=DECISION_EVENT_TYPES,
             decision_option__classification="INADEQUATE",
         ).count(),
-        "decisionesProhibidas": AttemptEvent.objects.filter(
+        "decisionesProhibidas": events.filter(
             event_type="PROHIBITED_DECISION_SELECTED"
         ).count(),
         "ultimosIntentos": ultimos_intentos,
@@ -152,10 +161,13 @@ def get_dashboard():
 
 
 # --- Group report ----------------------------------------------------------
-def generar_reporte_grupo(grupo_id, case_version_id):
+def generar_reporte_grupo(grupo_id, case_version_id, usuario):
     grupo = Grupo.objects.filter(pk=grupo_id).first()
     if not grupo:
         raise NotFound(f"Grupo no encontrado: {grupo_id}")
+    # Un docente solo reporta sus grupos (RF-25); el ADMIN reporta cualquiera.
+    if getattr(usuario, "role", None) != "ADMIN" and grupo.profesor_id != usuario.id:
+        raise PermissionDenied("No tienes permiso para ver el reporte de este grupo")
     simulacion = (
         _build_simulation_report(grupo, case_version_id)
         if case_version_id is not None
@@ -275,8 +287,8 @@ def _estudiante_sim_dto(student, attempts, safe_exit_ids=None):
 
 
 # --- CSV export ------------------------------------------------------------
-def exportar_csv(grupo_id, case_version_id):
-    reporte = generar_reporte_grupo(grupo_id, case_version_id)
+def exportar_csv(grupo_id, case_version_id, usuario):
+    reporte = generar_reporte_grupo(grupo_id, case_version_id, usuario)
     parts = []
     if reporte["simulacion"] is not None:
         parts.append(

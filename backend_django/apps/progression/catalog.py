@@ -1,21 +1,22 @@
 """Builds the per-actor case catalog with linear unlock state.
 
-Published cases ordered by created_at form the linear sequence. Case i is
-unlocked iff the student completed case i-1 (case 0 always unlocked).
-PROFESOR/ADMIN see everything unlocked.
+Published cases ordered by created_at form the linear sequence. A student sees only
+the cases assigned to them by their active groups (RF-15, RN-04); within that
+sequence, case i is unlocked iff the student completed case i-1 (the first is always
+unlocked). PROFESOR/ADMIN see everything unlocked.
 """
 from apps.simulation.models import CaseVersion
+from apps.simulation.services.game_service import assigned_case_version_ids
 
 from .models import StudentCaseCompletion
 
 
 def build_catalog(actor):
-    versions = list(
-        CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
-        .select_related("simulation_case")
-        .order_by("created_at", "id")
-    )
+    versions = CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
     is_staff = getattr(actor, "role", None) in ("PROFESOR", "ADMIN")
+    if not is_staff:
+        versions = versions.filter(id__in=assigned_case_version_ids(actor.id))
+    versions = list(versions.select_related("simulation_case").order_by("created_at", "id"))
     completed_ids = set()
     if not is_staff:
         completed_ids = set(

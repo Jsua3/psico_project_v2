@@ -19,6 +19,7 @@ from ..models import (
 )
 from . import crypto_service, world_service
 from . import rubric_service
+from .instructor_scope import student_ids_for_instructor
 
 
 def _dt(value):
@@ -27,20 +28,6 @@ def _dt(value):
 
 def _anonymize(attempt):
     return f"Estudiante-{attempt.student_id if attempt.student_id is not None else 0}"
-
-
-def _student_ids_for_instructor(instructor):
-    if getattr(instructor, "role", None) == "ADMIN":
-        return None
-    with connection.cursor() as cur:
-        cur.execute(
-            "SELECT DISTINCT ge.estudiante_id "
-            "FROM grupo_estudiante ge "
-            "JOIN grupos g ON g.id = ge.grupo_id "
-            "WHERE g.profesor_id = %s AND g.activo = TRUE",
-            [instructor.id],
-        )
-        return [row[0] for row in cur.fetchall()]
 
 
 def _require_attempt(attempt_id, instructor=None):
@@ -52,7 +39,7 @@ def _require_attempt(attempt_id, instructor=None):
     if not attempt:
         raise NotFound("Intento no encontrado")
     if instructor is not None and getattr(instructor, "role", None) != "ADMIN":
-        student_ids = _student_ids_for_instructor(instructor)
+        student_ids = student_ids_for_instructor(instructor)
         if attempt.student_id not in student_ids:
             raise PermissionDenied("No tienes permiso para revisar este intento")
     return attempt
@@ -64,7 +51,7 @@ def recent_attempts(instructor):
         .filter(case_version__status="PUBLISHED", case_version__simulation_case__active=True)
         .order_by("-started_at")
     )
-    student_ids = _student_ids_for_instructor(instructor)
+    student_ids = student_ids_for_instructor(instructor)
     if student_ids is not None:
         if not student_ids:
             return []

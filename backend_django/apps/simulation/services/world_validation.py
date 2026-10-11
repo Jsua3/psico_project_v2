@@ -6,7 +6,7 @@ Snapshot shape (all coords/sizes are ints):
     {
       "nodes":      [{"id", "startNode", "terminalNode", "x", "y"}],
       "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason"}],
-      "maps":       [{"id", "width", "height", "spawnX", "spawnY"}],
+      "maps":       [{"id", "nodeId", "width", "height", "spawnX", "spawnY"}],
       "objects":    [{"id", "mapId", "x", "y", "width", "height", "type"}],
       "collisions": [{"id", "mapId", "x", "y", "width", "height"}],
       "dialogues":  [{"id", "mapId"}],
@@ -37,7 +37,7 @@ def _warn(code, message, ref=None):
 def validate(snapshot):
     """Return a WorldValidationState dict: {errors, warnings, canPublish}."""
     issues = []
-    _validate_graph(snapshot["nodes"], snapshot["decisions"], issues)
+    _validate_graph(snapshot["nodes"], snapshot["decisions"], snapshot.get("maps", []), issues)
     _validate_geometry(snapshot, issues)
     _validate_ethics(snapshot["decisions"], issues)
     _validate_safe_exit(snapshot["hasSafeExit"], issues)
@@ -49,7 +49,7 @@ def validate(snapshot):
 
 
 # ─── DAG ───────────────────────────────────────────────────────────────────
-def _validate_graph(nodes, decisions, issues):
+def _validate_graph(nodes, decisions, maps, issues):
     if not nodes:
         issues.append(_err("NO_NODES", "El caso debe tener al menos un nodo"))
         return
@@ -74,6 +74,90 @@ def _validate_graph(nodes, decisions, issues):
         ))
 
     _detect_cycle(nodes, decisions, issues)
+    _validate_decision_endpoints(nodes, decisions, issues)
+    reached = _reachable_node_ids(nodes, decisions)
+    _validate_dead_ends(nodes, decisions, reached, issues)
+    _validate_node_maps(nodes, maps, issues)
+    _validate_reachability(nodes, reached, issues)
+
+
+def _validate_decision_endpoints(nodes, decisions, issues):
+    """RN-02: cada opción lleva a un nodo válido del caso (y sale de uno)."""
+    node_ids = {n["id"] for n in nodes}
+    for d in decisions:
+        if d["sourceNodeId"] not in node_ids or d["targetNodeId"] not in node_ids:
+            issues.append(_err(
+                "DECISION_NODE_NOT_IN_CASE",
+                f"La decisión id={d['id']} une un nodo que no pertenece a este caso "
+                f"(origen={d['sourceNodeId']}, destino={d['targetNodeId']})",
+                f"decision:{d['id']}",
+            ))
+
+
+def _reachable_node_ids(nodes, decisions):
+    """Nodos a los que se llega desde el nodo inicial; ``None`` si no hay un único inicio
+    (ya es un error aparte y la alcanzabilidad no tiene sentido)."""
+    starts = [n["id"] for n in nodes if n["startNode"]]
+    if len(starts) != 1:
+        return None
+    adjacency = {}
+    for d in decisions:
+        adjacency.setdefault(d["sourceNodeId"], []).append(d["targetNodeId"])
+    reached, pending = {starts[0]}, [starts[0]]
+    while pending:
+        for nxt in adjacency.get(pending.pop(), []):
+            if nxt not in reached:
+                reached.add(nxt)
+                pending.append(nxt)
+    return reached
+
+
+def _validate_dead_ends(nodes, decisions, reached, issues):
+    """Un nodo alcanzable que no es final y no tiene opciones deja al estudiante sin salida.
+
+    Un nodo al que no se llega no se marca aquí: solo es una advertencia de alcanzabilidad.
+    """
+    with_options = {d["sourceNodeId"] for d in decisions}
+    for n in nodes:
+        if reached is not None and n["id"] not in reached:
+            continue
+        if not n["terminalNode"] and n["id"] not in with_options:
+            issues.append(_err(
+                "NODE_WITHOUT_OPTIONS",
+                f"El nodo id={n['id']} no es terminal y no tiene opciones de decisión: "
+                "el estudiante quedaría sin salida",
+                f"node:{n['id']}",
+            ))
+
+
+def _validate_node_maps(nodes, maps, issues):
+    """Un nodo que no es final necesita un mapa para poder explorarse.
+
+    Si la instantánea no declara el nodo de cada mapa (formato antiguo) no se evalúa.
+    """
+    if not all("nodeId" in m for m in maps):
+        return
+    with_map = {m["nodeId"] for m in maps}
+    for n in nodes:
+        if not n["terminalNode"] and n["id"] not in with_map:
+            issues.append(_err(
+                "NODE_WITHOUT_MAP",
+                f"El nodo id={n['id']} no tiene mapa: el estudiante no podría explorarlo",
+                f"node:{n['id']}",
+            ))
+
+
+def _validate_reachability(nodes, reached, issues):
+    """Advertencia: nodos a los que no se llega desde el nodo inicial."""
+    if reached is None:
+        return
+    for n in nodes:
+        if n["id"] not in reached:
+            issues.append(_warn(
+                "UNREACHABLE_NODE",
+                f"El nodo id={n['id']} no se puede alcanzar desde el nodo inicial",
+                f"node:{n['id']}",
+            ))
 
 
 def _detect_cycle(nodes, decisions, issues):

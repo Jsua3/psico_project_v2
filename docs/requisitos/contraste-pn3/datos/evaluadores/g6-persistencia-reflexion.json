@@ -1,0 +1,321 @@
+{
+ "grupo": "g6-persistencia-reflexion",
+ "items": [
+  {
+   "id": "RF-19",
+   "veredicto": "cumple",
+   "resumen": "El avance se guarda de forma continua en servidor (nodo actual, métricas, sala, posición, inventario, interacciones). El estudiante puede pausar (PAUSED) y reanudar el MISMO intento; una recarga o un regreso posterior retoman desde el último punto (pruebas de contrato y e2e full-case). Casos límite fuera del texto: no se reanuda si la versión del caso se archiva o el caso se desactiva, y los intentos históricos SAFE_EXITED no son reanudables.",
+   "clausulas": [
+    {
+     "texto": "El sistema guarda el avance del estudiante sin depender de una acción manual",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:187-203",
+      "backend_django/apps/simulation/services/game_service.py:401-413",
+      "backend_django/apps/simulation/services/world_service.py:202-206",
+      "backend_django/apps/simulation/models/attempt.py:110-130",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:76,3003-3023"
+     ]
+    },
+    {
+     "texto": "El estudiante puede dejar el intento guardado a voluntad (pausa segura reanudable)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:452-467",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:64-81",
+      "backend_django/apps/simulation/views/game_views.py:129-139",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2400-2432,3035-3058"
+     ]
+    },
+    {
+     "texto": "El estudiante puede continuar después el mismo intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/game_views.py:50-57",
+      "backend_django/apps/simulation/services/game_service.py:166-179,206-219,470-486",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:165-190,1525-1554",
+      "frontend/src/app/features/dashboard/dashboard.component.ts:144-155"
+     ]
+    },
+    {
+     "texto": "La continuación es desde el último punto registrado (misma escena, mismo estado del mundo y métricas)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/serializers/game_dtos.py:343-365",
+      "backend_django/apps/simulation/services/world_service.py:466-493",
+      "backend_django/apps/simulation/tests/test_safe_pause.py:138-156",
+      "frontend/e2e/full-case.e2e.ts:87-115"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha frente al texto. Casos límite: (1) find_active_attempt y start_attempt exigen versión PUBLISHED y caso activo (game_service.py:58-64,206-208): un intento abierto o pausado de un caso archivado o desactivado no se puede retomar (403). (2) Los SAFE_EXITED históricos son terminales (attempt_lifecycle.py:20-22) y no hay migración que los convierta. (3) La posición se persiste con debounce de 550 ms y el error se traga (simulation-play.component.ts:3021): al cerrar sin pausar puede perderse el último tramo de movimiento, nunca decisiones. (4) visitedRooms, consentimiento e introducción leída viven solo en sessionStorage y se piden de nuevo en otra sesión.",
+   "accion": "Nada obligatorio. Opcional: permitir retomar intentos abiertos aunque la versión se archive (solo dueño) según la decisión de producto, y mostrar «Reanudar» para PAUSED en el historial (ver CU-10).",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿Un intento abierto o pausado debe poder reanudarse cuando la versión del caso se archiva o el caso se desactiva? ¿Qué se hace con los SAFE_EXITED históricos (dejarlos terminales o reabrirlos como PAUSED)?",
+   "terminologia": "«Guardar progreso» = persistencia continua del SimulationAttempt (simulation_attempts_v2) más AttemptWorldState; «avance» = current_node, accumulated_score, stress_index, métricas clínicas y estado del mundo; «último punto registrado» = nodo actual + sala + posición; «continuar» = reanudar (POST /resume), «active-attempt» o «Continuar intento en progreso»; el guardado explícito se llama «Salida segura» (pausa reanudable, estado PAUSED).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_safe_pause.py (pausa sin cierre, idempotencia, resume conserva nodo y métricas, active-attempt incluye pausado, start sin force devuelve el pausado)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:206-238,270-334",
+    "backend_django/apps/simulation/tests/test_caso_pdf.py:207-218 (sala por puerta persiste tras recargar)",
+    "backend_django/apps/simulation/tests/test_world.py:307 (enter_room persiste)",
+    "frontend/e2e/full-case.e2e.ts:87-115 (recarga IN_PROGRESS y PAUSED conserva intento, nodo, posición, inventario, herramientas, objetos y NPC vistos)",
+    "frontend/e2e/safe-exit.e2e.ts:64-105 (pausar y reanudar en todos los estados jugables)"
+   ]
+  },
+  {
+   "id": "RF-20",
+   "veredicto": "cumple",
+   "resumen": "El estudiante escribe en la bitácora reflexiva (tecla J o botón) y la guarda: el texto se cifra con AES-GCM y se persiste por escena (nodo) del intento mientras este está en juego; el docente la ve descifrada en la traza. Cumple el texto; riesgos de calidad: el estudiante no puede releer lo guardado, hay una sola entrada por escena que se sobrescribe sin aviso, y la reflexión se liga a la escena y no a una opción concreta.",
+   "clausulas": [
+    {
+     "texto": "El estudiante puede escribir reflexiones o justificaciones",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/journal-panel.component.ts:48-60,271-277",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:447-456,1714-1717",
+      "backend_django/apps/simulation/views/game_views.py:116-126",
+      "backend_django/apps/simulation/serializers/requests.py:21-24"
+     ]
+    },
+    {
+     "texto": "…y guardarlas de forma persistente",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:425-449",
+      "backend_django/apps/simulation/services/crypto_service.py:20-30",
+      "backend_django/apps/simulation/models/attempt.py:93-107",
+      "deploy/db_seed.sql:3779-3783",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2299-2316"
+     ]
+    },
+    {
+     "texto": "…sobre las decisiones que toma durante el caso",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:432-446 (la reflexión se liga al nodo donde está el estudiante, sin FK a la opción elegida)",
+      "backend_django/apps/simulation/services/instructor_service.py:125-133 (el docente la ve por escena junto a las decisiones)",
+      "frontend/src/app/features/simulator/journal-panel.component.ts:271-277 (preguntas guía sobre decisiones y ética)"
+     ]
+    },
+    {
+     "texto": "…durante el caso (mientras el intento está activo)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:426-429",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:64-72",
+      "backend_django/apps/simulation/tests/test_safe_pause.py:79-102",
+      "backend_django/apps/simulation/services/game_service.py:406-411"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha frente al texto. Riesgos de calidad: (1) no existe GET de reflexiones para el estudiante (urls.py:38 solo POST; el texto solo se descifra en instructor_service.py:129), y el textarea arranca vacío tras recargar; (2) UNIQUE(attempt_id,node_id) y upsert: guardar de nuevo en la misma escena sobrescribe sin aviso ni historial; (3) ReflectionRequest.text sin max_length; (4) en PAUSED se rechaza con «La bitácora ya está bloqueada» aunque no esté bloqueada (game_service.py:429); (5) al llegar a un nodo terminal la bitácora se bloquea, así que la última decisión solo se reflexiona antes de tomarla.",
+   "accion": "Nada obligatorio. Recomendado: GET /attempts/{id}/reflections para el dueño y precargar el textarea con el texto de la escena; aviso antes de sobrescribir; max_length; mensaje propio para PAUSED. Un historial de ediciones o varias entradas por escena exigiría quitar el UNIQUE o una tabla de versiones.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "¿La bitácora es una entrada editable por escena o admite varias entradas con historial? ¿El estudiante debe poder releerla? ¿Debe ligarse a una decisión concreta o basta la escena?",
+   "terminologia": "«Bitácora reflexiva» = ReflectionJournal (reflection_journals) y panel «Bitácora reflexiva» (tecla J); «reflexiones o justificaciones» = texto libre cifrado por escena (nodo); «decisiones» = DecisionOption elegidas en los nodos; el docente la revisa en la traza del intento (descifrada).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:66-70,126-189 (cifrado en reposo, bloqueo al terminar, rechazo posterior)",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:79-102,105-135",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:37-41,104,241-267",
+    "backend_django/apps/simulation/tests/test_instructor.py:108-120 (reflexión descifrada en la traza)",
+    "backend_django/shared/tests/test_dependency_compat.py:29-46",
+    "frontend/src/app/features/simulator/journal-panel.component.spec.ts (solo salida segura y trazabilidad; ningún e2e escribe y guarda una bitácora por la interfaz)"
+   ]
+  },
+  {
+   "id": "RF-21",
+   "veredicto": "parcial",
+   "resumen": "El sistema registra por intento los eventos con marca de tiempo: escenas (NODE_ENTERED, ROOM_ENTERED), decisiones y reintentos con la opción elegida, herramientas, pausas y reanudaciones. No existe tiempo máximo. El tiempo utilizado es correcto solo en algunos caminos: el historial del estudiante usa tiempo activo estimado, pero el reporte de cierre, el resumen del estudiante y la traza docente muestran reloj (fin menos inicio) que incluye pausas y abandono, y el tiempo por escena que espera el frontend no lo emite el backend.",
+   "clausulas": [
+    {
+     "texto": "Guarda, para cada intento, las escenas recorridas",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:201-202,404",
+      "backend_django/apps/simulation/services/world_service.py:432",
+      "backend_django/apps/simulation/serializers/game_dtos.py:229-233",
+      "backend_django/apps/simulation/services/game_service.py:489-510",
+      "backend_django/apps/simulation/models/attempt.py:70-90"
+     ]
+    },
+    {
+     "texto": "…las decisiones tomadas",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:382-384,391-403",
+      "backend_django/apps/simulation/services/case_effects.py:29-30",
+      "backend_django/apps/simulation/services/instructor_service.py:161-172"
+     ]
+    },
+    {
+     "texto": "…las respuestas elegidas",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/models/attempt.py:78-81",
+      "backend_django/apps/simulation/services/game_service.py:403",
+      "backend_django/apps/simulation/services/instructor_service.py:163-166",
+      "backend_django/apps/simulation/serializers/game_dtos.py:165-176"
+     ]
+    },
+    {
+     "texto": "…y el tiempo utilizado",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/models/attempt.py:61-63,85 (started_at, ended_at y occurred_at por evento: los datos base existen)",
+      "backend_django/apps/simulation/serializers/game_dtos.py:320-323 y instructor_service.py:96-100 (totalDurationSeconds = ended_at menos started_at: reloj con pausas y abandono)",
+      "backend_django/apps/simulation/services/attempt_duration.py:1-31 y game_service.py:299-305 (tiempo activo estimado con tope de 300 s, solo en el historial del estudiante)",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:114 y frontend/src/app/features/simulator/instructor-trace.component.ts:192-194,1589-1597 (muestran el reloj)",
+      "frontend/src/app/features/simulator/attempt-history-duration.util.ts:3-12 (reconoce cifras como «134340 min»)",
+      "frontend/src/app/core/api/simulation.service.ts:157-161 y frontend/src/app/features/simulator/instructor-trace.component.ts:312-335 (phaseDurations nunca llega: secciones «Tiempo por escenario» muertas)"
+     ]
+    },
+    {
+     "texto": "En esta fase no se maneja un tiempo máximo obligatorio",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:166-203 (ninguna ruta cierra por tiempo; sin campos ni lógica de límite en apps/)",
+      "frontend/src/app/features/simulator/game-help.content.ts:129",
+      "backend_django/apps/simulation/services/attempt_duration.py:10 (el tope de 300 s es de medición, no limita al estudiante)",
+      "backend_django/psychosim/settings/base.py:103 (solo la sesión JWT de 8 h; no cierra el intento)"
+     ]
+    }
+   ],
+   "brecha": "Hay dos definiciones de tiempo que conviven: reloj (ended_at menos started_at, incluye pausas de días y abandonos cerrados al iniciar otro intento) y activo estimado (tope de 300 s por intervalo, solo intentos terminados, solo historial y panel). La pantalla de resultado, el resumen del estudiante y la traza docente muestran el reloj. El tiempo por escena (phaseDurations, heredado de Spring) lo espera el frontend y el backend no lo envía. Las salas visitadas por puerta guardan el destino solo en detail de texto (world_service.py:432,539-545), sin FK al nodo.",
+   "accion": "Calcular activeDurationSeconds con active_duration_seconds dentro de build_completion_report y de instructor_service.trace (los eventos ya están cargados), tomar el último evento como fin en intentos PAUSED o en curso, y mostrarlo en attempt-outcome, simulation-catalog e instructor-trace dejando el reloj como dato secundario. Opcional: emitir phaseDurations agrupando NODE_ENTERED y ROOM_ENTERED por intervalos.",
+   "esfuerzo": "S",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Definir qué es tiempo utilizado para evaluar: reloj total o tiempo activo (sin pausas y con tope por inactividad, hoy 300 s). ¿Se exige tiempo por escena? ¿Se conservan los eventos de posición en la trazabilidad?",
+   "terminologia": "«Recorrido del intento» = AttemptEvent (attempt_events) y la traza docente; «escenas recorridas» = nodos (NODE_ENTERED, visitedNodeTitles, «Escenarios» en la UI) y salas por puerta (ROOM_ENTERED); «decisiones tomadas» = DECISION_SELECTED y PROHIBITED_DECISION_SELECTED, más los reintentos DECISION_RETRY_REQUIRED; «respuestas elegidas» = la DecisionOption con su texto y clasificación; «tiempo utilizado» = occurred_at por evento, totalDurationSeconds (reloj) y activeDurationSeconds (activo).",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_attempt_duration.py:12-39",
+    "backend_django/apps/simulation/tests/test_game.py:438-476 (tiempo activo solo en intentos terminados)",
+    "backend_django/apps/simulation/tests/test_completion_report_contract.py:170,315,336",
+    "backend_django/apps/simulation/tests/test_progress_map_order_contract.py:149-162",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:236-246",
+    "backend_django/apps/simulation/tests/test_instructor.py:108-120",
+    "backend_django/apps/simulation/tests/test_game.py:88-123 (detalle del evento de decisión)"
+   ]
+  },
+  {
+   "id": "CU-10",
+   "veredicto": "cumple",
+   "resumen": "El flujo Guardar y continuar existe de punta a punta con RF-19: guardado continuo, salida segura (PAUSED), regreso por el catálogo, el panel o el aviso de reanudar, y retoma del mismo intento en la misma sala y posición. Defecto menor de UX: el historial del estudiante rotula «En pausa (reanudable)» pero solo ofrece «Ver resumen», sin «Reanudar».",
+   "clausulas": [
+    {
+     "texto": "Estudiante y sistema: el sistema guarda y el estudiante decide pausar y volver",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/game_views.py:129-151",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2318-2325,2400-2432"
+     ]
+    },
+    {
+     "texto": "Guardar el avance del intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:452-467",
+      "backend_django/apps/simulation/services/world_service.py:202-206",
+      "frontend/src/app/features/simulator/game-help.content.ts:144"
+     ]
+    },
+    {
+     "texto": "Continuar después (otra sesión) con el mismo intento",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/views/game_views.py:50-57",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:165-190,1525-1554",
+      "frontend/src/app/features/simulator/attempt-outcome.component.ts:42-47"
+     ]
+    },
+    {
+     "texto": "Desde el último punto registrado",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/e2e/full-case.e2e.ts:87-115",
+      "backend_django/apps/simulation/tests/test_safe_pause.py:138-156"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha en el flujo. Defectos menores: (1) el historial muestra «Continuar» solo para IN_PROGRESS y «Ver resumen» para PAUSED (simulation-catalog.component.ts:115-125,470); el caso se retoma igual desde la tarjeta del caso o el panel (dashboard.component.ts:144-155). (2) Un caso archivado o desactivado no permite retomar (game_service.py:58-64,206-208).",
+   "accion": "Nada obligatorio. Opcional: en el historial, mostrar «Reanudar» para PAUSED con el mismo continueAttempt.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Misma política de RF-19 para casos archivados o desactivados con intento abierto.",
+   "terminologia": "«Guardar y continuar intento» = guardado continuo del servidor más «Salida segura» (pausa reanudable) y «Reanudar este intento» o «Continuar intento en progreso»; «último punto registrado» = nodo actual, sala y posición del AttemptWorldState.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_safe_pause.py",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle_contract.py:206-238,298-334",
+    "frontend/e2e/full-case.e2e.ts:87-115",
+    "frontend/e2e/safe-exit.e2e.ts:64-105",
+    "frontend/src/app/features/simulator/simulation-play.safe-exit.spec.ts",
+    "frontend/src/app/features/simulator/simulation-catalog.component.spec.ts:32-39 (solo la etiqueta del estado)"
+   ]
+  },
+  {
+   "id": "CU-11",
+   "veredicto": "cumple",
+   "resumen": "El flujo Registrar bitácora existe de punta a punta con RF-20: abrir la bitácora (J o botón), escribir con preguntas guía, guardar con confirmación «Bitácora guardada y cifrada», persistencia cifrada por escena y lectura descifrada por el docente. Solo opera con el intento en juego y se bloquea al completarlo, como pide «durante el intento».",
+   "clausulas": [
+    {
+     "texto": "El estudiante abre la bitácora durante el intento",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/simulation-play.component.ts:447-456,1714-1717",
+      "frontend/src/app/features/simulator/journal-panel.component.ts:20-27"
+     ]
+    },
+    {
+     "texto": "Escribe reflexiones o justificaciones",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/journal-panel.component.ts:42-60,271-277"
+     ]
+    },
+    {
+     "texto": "Las guarda con confirmación",
+     "estado": "cumple",
+     "evidencia": [
+      "frontend/src/app/features/simulator/simulation-play.component.ts:2299-2316",
+      "backend_django/apps/simulation/services/game_service.py:425-449",
+      "backend_django/apps/simulation/views/game_views.py:116-126"
+     ]
+    },
+    {
+     "texto": "Queda disponible para la revisión (flujo completo con RF-20)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/instructor_service.py:125-133",
+      "backend_django/apps/simulation/serializers/game_dtos.py:255-257,312"
+     ]
+    }
+   ],
+   "brecha": "Sin brecha frente al texto. Mismas observaciones de RF-20: sin lectura propia, sobrescritura silenciosa, mensaje engañoso en PAUSED y ningún e2e que escriba y guarde una bitácora por la interfaz.",
+   "accion": "Nada obligatorio; ver acciones recomendadas de RF-20 y añadir un e2e que escriba y guarde.",
+   "esfuerzo": "n/a",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Misma decisión de RF-20 sobre entrada única o con historial y sobre releer la bitácora.",
+   "terminologia": "«Registrar bitácora» = «Guardar bitácora» en el panel «Bitácora reflexiva» (POST /attempts/{id}/reflections); «reflexiones o justificaciones» = texto libre cifrado asociado a la escena.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py:126-189",
+    "backend_django/apps/simulation/tests/test_instructor.py:108-120",
+    "backend_django/apps/simulation/tests/test_safe_pause.py:79-102",
+    "frontend/e2e/living-world.e2e.ts:83-94 (la bitácora atrapa el foco)",
+    "frontend/e2e/vertical-quality.e2e.ts:52-59 (solo abre y cierra)"
+   ]
+  }
+ ],
+ "observaciones": [
+  "Dos medidas de tiempo conviven (reloj y activo) y se muestran en pantallas distintas del mismo intento: attempt-outcome, simulation-catalog (resumen) e instructor-trace usan reloj; historial y panel usan activo. Los reportes docentes de backend_django/apps/reportes/services.py no incluyen tiempos (afecta a RF-25 y RF-26).",
+  "Cada sincronización de posición crea un evento WORLD_POSITION_UPDATED (world_service.py:206): crece sin tope en attempt_events, ensucia la traza y el historial carga todos los eventos de los intentos terminados (game_service.py:278-286). Conviene filtrarlos o no registrarlos como evento.",
+  "REFLECTION_ENCRYPTION_KEY cae a JWT_SECRET (settings/base.py:116, production.py:11-12): una misma clave firma sesiones y cifra bitácoras. key_ref es fijo (crypto_service.py:12) y no hay rotación: si la clave cambia, instructor_service.trace falla al descifrar (instructor_service.py:129, sin captura) y devuelve error en toda la traza.",
+  "El token del intento se reemite en cada active-attempt o start (game_service.py:86-90,179,219): abrir el caso en una segunda pestaña o dispositivo invalida el token de la primera (404 «Intento no encontrado»). Es sesión única de hecho; conviene documentarlo.",
+  "En apps/simulation solo seed_caso_pdf.py archiva versiones (líneas 1412-1428); no se vio endpoint de archivado en autoría. El bloqueo de reanudación por caso archivado hoy solo se dispara con ese comando de siembra.",
+  "apply_case_effects es un no-op si no existe world state (case_effects.py:263-265): flags y métricas del caso no se guardan si se decide sin haber pedido /world antes. El frontend siempre lo pide primero, pero es una dependencia de orden implícita.",
+  "El UNIQUE(attempt_id,node_id) de reflection_journals existe en deploy/db_seed.sql:3779-3783 pero no en bootstrap_dev_db.py:127-136 ni en el modelo (managed=False): save_reflection hace get-then-create y en dev o ante doble envío concurrente puede duplicar o dar IntegrityError.",
+  "Además de attempt_events existe una traza de auditoría aparte (audit_logs, retención de 12 meses: audit_service.py:28) escrita por @auditable en inicio, decisión, bitácora, salida segura y reanudación (game_service.py:514-518); no se encontró purga de attempt_events.",
+  "Terminología base a sistema: escena = nodo (SimulationNode) o sala (SceneMap, cambia por puerta sin avanzar el DAG); conclusión = nodo terminal y final canónico (cuatro finales); ayuda = pista o herramienta clínica; bitácora reflexiva = ReflectionJournal; guardar progreso = intento persistido más pausa segura; tiempo máximo = no existe.",
+  "Los e2e de UI cubren recarga, pausa y reanudación (full-case.e2e.ts:87-115, safe-exit.e2e.ts) pero ninguno escribe y guarda una bitácora; la cobertura de RF-20 y CU-11 descansa en pruebas de contrato del backend."
+ ]
+}

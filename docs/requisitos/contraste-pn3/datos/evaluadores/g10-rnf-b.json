@@ -1,0 +1,343 @@
+{
+ "grupo": "g10-rnf-b",
+ "items": [
+  {
+   "id": "RNF-05",
+   "veredicto": "no_verificable",
+   "resumen": "No existe ninguna medición de latencia ni de carga en el repositorio (ni herramienta de carga, ni umbral automatizado, ni instrumentación de tiempos en servidor o cliente), y la propia línea base lo deja «Por medir posteriormente». Las únicas cifras son un playtest local de un solo usuario contra el backend de desarrollo y con WebGL por software (puerta 826 ms, herramienta 357 ms). En el código se ven riesgos concretos de lentitud bajo carga: consultas N+1 por objeto al armar el mundo en cada sala y en cada sincronización de posición, escrituras en lecturas y solo 3 workers síncronos.",
+   "clausulas": [
+    {
+     "texto": "El sistema debe responder con fluidez cuando el estudiante pase de una escena a otra (avance del DAG por decisión y cruce de puerta entre salas)",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:338 — choose_decision avanza current_node; luego el cliente recarga el mundo (frontend/src/app/features/simulator/simulation-play.component.ts:2670, loadWorld → GET /world)",
+      "backend_django/apps/simulation/services/world_service.py:393 — enter_room (cruce de puerta sin avanzar el DAG)",
+      "backend_django/apps/simulation/services/world_service.py:568 — _to_world_state recorre los objetos de la sala y llama _to_dialogue por cada uno (world_service.py:610, 641-664): 1 consulta de DialogueTree por objeto y 2 más (líneas y opciones) si tiene diálogo",
+      "backend_django/apps/simulation/services/world_service.py:466 — require_world_state hace state.save() en cada lectura (línea 492), incluso en GET /world",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:70 y :2649 — espera fija de 340 ms de fundido antes de llamar a la API (latencia percibida deliberada)",
+      "docs/informes/2026-10-03-diagnostico-jugabilidad/playtest-feel.md:32 — única medición: E → sala nueva visible 826 ms, un usuario, backend local (línea 12), sin p95 ni carga",
+      "Búsqueda de herramientas de carga/latencia (k6, locust, artillery, jmeter, p95, performance.mark) en el repo, sin node_modules: sin resultados fuera de documentos"
+     ]
+    },
+    {
+     "texto": "...o tome una decisión (POST /attempts/{id}/decisions)",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:338-422 — por decisión: consulta del intento con select_related, consulta de la opción, conteo de reintentos si es mala, efectos del caso (lee y guarda world state), 2 inserts de evento, save del intento, y reporte completo al finalizar",
+      "backend_django/apps/simulation/serializers/game_dtos.py:343-365 — attempt_state arma además node_state con otra consulta de opciones (línea 61) y clinical_state (otra consulta al world state)",
+      "docs/informes/2026-10-03-diagnostico-jugabilidad/playtest-feel.md:28 y :37 — se midió E → diálogo (94 ms) y uso de herramienta (357 ms), pero no POST /decisions",
+      "scripts/api-e2e.mjs — la matriz API comprueba códigos de estado, no tiempos (sin aserciones de duración)"
+     ]
+    },
+    {
+     "texto": "Fluidez de la interfaz gráfica (cuadros por segundo del mundo Phaser) al cambiar de sala y jugar",
+     "estado": "no_verificable",
+     "evidencia": [
+      "docs/informes/2026-10-03-diagnostico-jugabilidad/playtest-feel.md:13 y :82 — 22 fps con CPU (SwiftShader); el presupuesto de 59 FPS «NO es verificable en esta máquina»",
+      "frontend/src/app/features/simulator/game-world.frame-budget.spec.ts:6-39 — el «presupuesto» se prueba leyendo el texto del código (regex), no midiendo cuadros",
+      "frontend/src/app/features/simulator/game-world.orientation.contract.spec.ts:52-81 — idem: contrato de código sobre update() sin asignaciones por cuadro",
+      "frontend/angular.json:30-33 — único presupuesto real: bundle inicial 850 kB aviso / 1,4 MB error (docs/arquitectura/estrategia-stack-esquema-y-despliegue.md:354 reporta 487 kB)"
+     ]
+    },
+    {
+     "texto": "Condición de aceptación de la línea base: la fluidez debe medirse (estado «Por medir posteriormente»)",
+     "estado": "no_verificable",
+     "evidencia": [
+      "docs/requisitos/baseline-pn3/02-requisitos-no-funcionales.md:11 — RNF-05, estado «Por medir posteriormente», sin umbral numérico",
+      "docs/requisitos/no-funcionales/RNF-005.md:4 — el repositorio propone p95 ≤ 2 s en carga nominal, ≤ 4 s con 2× concurrencia y error ≤ 1 %, estado «Propuesto», sin ninguna medición asociada",
+      "backend_django/psychosim/settings/base.py (completo) y Dockerfile:29 — sin LOGGING, sin --access-logfile de gunicorn, sin APM: tampoco se podría extraer un p95 de producción"
+     ]
+    }
+   ],
+   "brecha": "Falta (1) un umbral numérico aceptado, (2) cualquier medición reproducible de latencia p50/p95 y tasa de error bajo carga de aula, (3) instrumentación de tiempos en servidor y cliente. Hallazgos de código que probablemente degradan la latencia bajo carga: N+1 por objeto en _to_world_state (se ejecuta también en cada PATCH de posición, cada ≥ 550 ms por estudiante: simulation-play.component.ts:76 y :2454), un INSERT de evento WORLD_POSITION_UPDATED por sincronización (world_service.py:206), UPDATE del world state en cada lectura (world_service.py:492), list_published_cases con un COUNT por caso (game_service.py:136-138), y gunicorn con 3 workers síncronos (Dockerfile:29).",
+   "accion": "1) Aceptar un umbral (p. ej. el del repo: p95 ≤ 2 s). 2) Escribir un script de carga reproducible (pytest o Node) que, sobre el caso sembrado SIM-VBG-001, simule N estudiantes (p. ej. 30) y reporte p50/p95/errores de POST /decisions, GET /world, POST /enter-room y PATCH /world-state; correrlo en el workflow nocturno. 3) Activar --access-logfile - y un middleware de duración. 4) Reducir el N+1 de _to_world_state cargando árboles, líneas y opciones de la sala en 3 consultas y no guardar el world state en lecturas. 5) Medir en navegador con performance.mark entre el clic de decisión/puerta y «sala lista».",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Umbral de «fluidez» y carga nominal (estudiantes simultáneos por aula): ¿se adopta el criterio de docs/requisitos/no-funcionales/RNF-005.md (p95 ≤ 2 s; ≤ 4 s con 2× carga; error ≤ 1 %)?",
+   "terminologia": "«Escena» = nodo del grafo (SimulationNode) con su sala (SceneMap); «pasar de una escena a otra» = decisión que mueve current_node (POST /api/simulation/attempts/{id}/decisions) y/o cruce de puerta entre salas (POST .../enter-room) que no avanza el DAG; «tomar una decisión» = elegir una DecisionOption; «estudiante» = usuario con rol ESTUDIANTE; «con fluidez» = latencia de la API más cuadros por segundo del mundo Phaser (la línea base no da cifra). Nota: el RNF-005 de docs/requisitos es la contraparte de este RNF-05.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_game.py (flujo funcional de decisiones, sin medir tiempos)",
+    "backend_django/apps/simulation/tests/test_world.py (mundo y puertas, sin medir tiempos)",
+    "frontend/src/app/features/simulator/game-world.frame-budget.spec.ts (contrato de texto, no mide)",
+    "frontend/src/app/features/simulator/game-world.orientation.contract.spec.ts:52-81 (contrato de texto de update())",
+    "frontend/src/app/features/simulator/intro-audio.budget.spec.ts (peso del audio largo ≤ 2,8 MB)",
+    "frontend/src/app/app.config.spec.ts:15 (AUTH_SYNC_BUDGET_MS = 1500)",
+    "frontend/src/app/features/simulator/player-motion.util.spec.ts (velocidad independiente de los fps)"
+   ]
+  },
+  {
+   "id": "RNF-06",
+   "veredicto": "no_verificable",
+   "resumen": "La disponibilidad es una propiedad operativa que el código no puede demostrar, y la línea base la marca «Por validar». El repositorio no tiene endpoint de salud, monitoreo, alertas, respaldos programados, registro de peticiones ni el concepto de ventana académica. Sí hay piezas que la sostienen en parte: imagen única reproducible, reinicio automático con 3 reintentos, intentos persistidos en BD con pausa y reanudación, y JWT sin estado. Según la documentación el despliegue es Railway en plan gratuito/Trial y el cambio a Hetzner con healthcheck y respaldos sigue solo propuesto.",
+   "clausulas": [
+    {
+     "texto": "La plataforma debe estar disponible",
+     "estado": "no_verificable",
+     "evidencia": [
+      "Dockerfile:27-29 — un solo contenedor: gunicorn con 3 workers síncronos y timeout 120, sin instrucción HEALTHCHECK",
+      "railway.json:7-10 — restartPolicyType ON_FAILURE con 3 reintentos máximo; sin healthcheckPath; tras 3 fallos el servicio queda caído",
+      "backend_django/psychosim/urls.py:39-69 — no hay ruta de salud/readiness; solo API, schema/swagger y el catch-all del SPA",
+      "backend_django/psychosim/settings/base.py:62-67 — conn_max_age=600 sin conn_health_checks: tras un reinicio de la BD la primera petición por worker puede dar 500",
+      "docs/operacion/despliegue-railway.md:19 — «el plan gratuito/Trial sirve»",
+      "docs/arquitectura/estrategia-stack-esquema-y-despliegue.md:305-308 — Hetzner con healthcheck, respaldos y CI/CD: propuesto, «pendiente» (líneas 3 y 405)",
+      ".github/workflows/ci.yml (completo) — no hay job de despliegue ni de prueba contra el entorno desplegado"
+     ]
+    },
+    {
+     "texto": "...durante las actividades académicas en las que se vaya a utilizar (ventanas de clase)",
+     "estado": "no_verificable",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:93-121 — lo más cercano a una «actividad»: caso asignado a un grupo (grupo_case_version); no hay fechas, horarios ni ventanas",
+      "docs/operacion/despliegue-railway.md:120-139 — cada push redepliega; los scripts SQL de deploy/upgrades se aplican a mano ANTES del push: un despliegue en horario de clase puede interrumpir el servicio",
+      "Búsqueda de pruebas de capacidad o de carga en el repo: sin resultados (no se sabe cuántos estudiantes simultáneos soporta una instancia de 3 workers)",
+      "docs/requisitos/no-funcionales/RNF-006.md:4 — criterio propuesto en el repo (99,5 % mensual, RTO ≤ 4 h, aviso ≤ 30 min, mantenimiento con 48 h): ningún mecanismo lo mide ni lo hace cumplir"
+     ]
+    },
+    {
+     "texto": "Soporte no literal: un intento en curso sobrevive a un reinicio o a un corte del servidor (continuidad)",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:206-219 — find_active_attempt devuelve el intento abierto y reemite el token",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:75-81 — PAUSED es reanudable (resume) con el mismo attemptId",
+      "backend_django/apps/simulation/services/game_service.py:470-486 — resume_attempt idempotente",
+      "backend_django/psychosim/settings/base.py:101-108 — JWT de 8 h sin estado en servidor: un reinicio de gunicorn no cierra sesiones",
+      "backend_django/psychosim/settings/production.py:56-64 — falla rápida al arrancar si falta un secreto crítico"
+     ]
+    }
+   ],
+   "brecha": "No hay forma de saber ni de garantizar la disponibilidad: sin endpoint de salud ni healthcheckPath, sin monitor externo ni alertas, sin logs de acceso ni de errores agregados, sin respaldo programado de PostgreSQL con restauración probada, sin runbook ni política de despliegue para jornadas de clase, y alojamiento en un plan gratuito/Trial. El concepto de «actividad académica» no existe en el sistema.",
+   "accion": "Mínimo: (1) añadir GET /api/health con ping a la BD y declarar healthcheckPath en railway.json; restartPolicyType ALWAYS; conn_health_checks=True en dj_database_url.parse. (2) monitor externo con alerta (UptimeRobot o equivalente) sobre /api/health. (3) --access-logfile - y logs de error visibles. (4) respaldo diario con pg_dump y una restauración probada. (5) runbook de jornada académica: congelar despliegues y aplicar deploy/upgrades antes de la clase; calendario de ventanas acordado con los docentes.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Nivel de disponibilidad objetivo y ventanas académicas (el repo propone 99,5 % mensual y RTO ≤ 4 h); proveedor para el semestre (Railway de pago o Hetzner) y quién atiende incidentes en clase.",
+   "terminologia": "«Plataforma» = el servicio único Django+gunicorn que sirve la API (/api) y el SPA Angular, con PostgreSQL; «disponible» = el servicio responde y la BD es alcanzable; «actividades académicas» = sesiones en las que un docente (PROFESOR) asignó un caso a un grupo (grupo_case_version) y sus estudiantes juegan; no existe en el sistema un calendario ni ventana. Nota: el RNF-006 de docs/requisitos (Disponibilidad en periodos académicos) es la contraparte de este RNF-06.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_safe_pause.py (pausa y reanudación con el mismo attemptId: continuidad del intento)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle.py y test_attempt_lifecycle_contract.py (transiciones de estado)",
+    "scripts/test-runner-support.test.mjs (readiness del stack de pruebas, no del despliegue)",
+    ".github/workflows/e2e-full-case.yml (nocturno contra stack efímero de CI, no contra producción)"
+   ]
+  },
+  {
+   "id": "RNF-07",
+   "veredicto": "parcial",
+   "resumen": "Los cinco componentes existen en módulos distintos, pero solo la validación está realmente aislada (función pura sobre un snapshot, sin BD ni framework). No hay un «DSL» como componente: la definición del caso es un modelo de autoría más un JSON de mundo v2, y parte de ella vive en código del motor (OPTION_EFFECTS) y en JSON del cliente. La simulación, la persistencia y la interfaz están separadas por carpetas, pero con acoplamientos cruzados: excepciones de DRF dentro de las reglas, servicios y DTO que se importan entre sí, consultas dentro de constructores de DTO y SQL crudo disperso. El frontend tiene dos archivos de más de 2.600 líneas que mezclan interfaz, orquestación y red.",
+   "clausulas": [
+    {
+     "texto": "El DSL (definición declarativa del caso y del mundo) se mantiene organizado de forma separada",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/__init__.py:1-26 — subsistema de autoría en paquete propio (guards, graph, scenes, tools, publication, world_definition) con dependencias documentadas sin ciclos",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:62-94 — WorldDefinition v2 (schemaVersion 2) como contrato de lectura/guardado del mundo",
+      "backend_django/apps/simulation/services/case_cloning.py:35-91 — copia declarativa por CopySpec",
+      "backend_django/apps/simulation/services/case_effects.py:51 — OPTION_EFFECTS: efectos pedagógicos del caso PDF escritos en código dentro del motor, no en datos del caso",
+      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1103 — el caso completo se define en un comando de ~1.100+ líneas de Python",
+      "frontend/src/app/features/simulator/patient-state.util.ts:10 — espejo en el cliente de assets/game/scenarios/intervention-rules.json; mapas en frontend/src/assets/game/maps/*.json (game-world.component.ts:320): tres lugares donde vive la definición",
+      "Búsqueda de «DSL» en el repo, sin node_modules: sin resultados; no hay gramática, parser ni módulo con ese nombre"
+     ]
+    },
+    {
+     "texto": "La validación se mantiene organizada de forma separada",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/world_validation.py:1-15 y :37-48 — lógica pura, sin BD ni framework, sobre un snapshot dict; devuelve {errors, warnings, canPublish}",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:293-367 — único punto que arma el snapshot desde la BD",
+      "backend_django/apps/simulation/services/authoring/publication.py:73-80 — la publicación consume la validación como compuerta",
+      "backend_django/apps/simulation/services/authoring/guards.py:21-90 — guardas de pertenencia y de borrador, aparte"
+     ]
+    },
+    {
+     "texto": "La simulación (motor de intentos y mundo) se mantiene organizada de forma separada",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:64-118 — tabla de estados/transiciones propia (State)",
+      "backend_django/apps/simulation/services/door_chain.py y node_iterator.py y decision_effects.py — reglas en módulos pequeños (Chain, Iterator, calculadora)",
+      "backend_django/apps/simulation/tests/test_attempt_completed_signal.py:192-201 — game_service no importa la app de progresión (señal attempt_completed)",
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:23 y door_chain.py:15 — las reglas del dominio importan excepciones de rest_framework (acoplamiento a HTTP)",
+      "backend_django/apps/simulation/services/game_service.py:22 y backend_django/apps/simulation/serializers/game_dtos.py:14 — el servicio importa los DTO y los DTO importan servicios (dependencia en ambos sentidos)",
+      "backend_django/apps/simulation/services/world_service.py:172, 183, 212, 267, 369, 408 — usa game_service._require_attempt (función privada de otro módulo)"
+     ]
+    },
+    {
+     "texto": "La persistencia se mantiene organizada de forma separada",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/models/__init__.py:1-41 — modelos agrupados en un paquete (attempt, case, rubric, world), todos managed=False",
+      "backend_django/apps/simulation/services/world_service.py:641-664 y backend_django/apps/simulation/serializers/game_dtos.py:57-64 — consultas ORM dentro de constructores de DTO",
+      "backend_django/apps/grupos/services.py:67, 325, 486, 527-528, 538, 590 — SQL crudo sobre grupo_estudiante y grupo_case_version (sin modelo); también game_service.py:93-121 y reportes/services.py:40-43",
+      "backend_django/apps/grupos/services.py:18-20 — servicio de grupos importa modelos y DTO de simulación",
+      "docs/arquitectura/estrategia-stack-esquema-y-despliegue.md:79-96 — tres fuentes de verdad del esquema (db_seed.sql, bootstrap_dev_db, modelos); backend_django/psychosim/settings/base.py:1-4 sigue diciendo que Flyway es dueño del esquema",
+      "Búsqueda de una capa de repositorios o de import-linter/eslint-boundaries: no existe"
+     ]
+    },
+    {
+     "texto": "La interfaz se mantiene organizada de forma separada",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/views/game_views.py:31-234 — vistas delgadas: validan el request y delegan en game_service/world_service",
+      "frontend/src/app/core/api/api-boundaries.contract.spec.ts:22-61 — APIs por rol segregadas (AuthoringApi, InstructorApi, SimulationService) con contrato de quién puede inyectarlas",
+      "frontend/src/app/features/simulator/simulation-play.component.ts (2.870 líneas no vacías) y game-world.component.ts (2.646) — orquestación, red, estado y escena Phaser en un solo archivo cada uno",
+      "docs/diseñosistemas_docs/INFORME_ANTIPATRONES_Y_SOLID.md:21 — ambos «documentado, no tocado»: sin red de seguridad suficiente",
+      "backend_django/apps/simulation/services/world_service.py:88 y frontend/src/app/features/simulator/player-motion.util.ts — regla de hitbox duplicada en servidor y cliente («shared with frontend»)"
+     ]
+    }
+   ],
+   "brecha": "(1) Ningún componente se llama ni se comporta como un DSL: la definición del caso está repartida entre el modelo de autoría, OPTION_EFFECTS en el motor, un seed de Python y JSON del cliente. (2) La capa de dominio depende de DRF y las capas servicio↔DTO se importan en ambos sentidos. (3) No hay frontera de persistencia: ORM y SQL crudo en servicios y DTO. (4) No hay prueba o linter de arquitectura en CI que impida que las fronteras se erosionen (solo dos pruebas puntuales). (5) Los dos archivos centrales del frontend mezclan interfaz y lógica.",
+   "accion": "Mínimo para declarar la separación: (a) fijar por escrito la correspondencia (DSL = WorldDefinition v2 + modelo de autoría) en docs/arquitectura; (b) mover OPTION_EFFECTS a un módulo de reglas del caso fuera del motor (o a datos del caso); (c) añadir una prueba de arquitectura por AST o import-linter en CI: models ← services ← views, serializers/DTO sin importar services, grupos sin importar serializers de simulation; (d) excepciones de dominio propias mapeadas en shared/exceptions.py en vez de importar rest_framework en las reglas; (e) sacar de game_dtos y world_service las consultas ORM a funciones de consulta. Dividir los dos componentes gigantes del frontend queda como segunda fase.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Qué significa «DSL» para el equipo: ¿basta con la definición del caso/mundo v2 como lenguaje declarativo, o se exige un lenguaje textual con gramática? Si es lo segundo, es una funcionalidad nueva (esfuerzo XL), no una reorganización.",
+   "terminologia": "DSL ≈ definición del caso y del mundo (WorldDefinition v2, modelo de autoría de nodos/decisiones/salas/objetos/diálogos/herramientas); validación ≈ world_validation + guards + serializers de request; simulación ≈ motor de intentos y mundo (game_service, world_service, attempt_lifecycle, decision_effects, case_effects, door_chain, node_iterator); persistencia ≈ modelos Django managed=False + deploy/db_seed.sql + SQL crudo; interfaz ≈ vistas DRF y DTO en el backend y SPA Angular + Phaser en frontend/. Aviso de numeración: el RNF-007 de docs/requisitos es Auditoría y el RNF-008 es Contenido modular y versionado; ninguno equivale a este RNF-07.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_attempt_completed_signal.py:192-201 (AST: game_service no importa progresión)",
+    "frontend/src/app/core/api/api-boundaries.contract.spec.ts (fronteras de las APIs por rol)",
+    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py (45 pruebas de caracterización de la fachada de autoría)",
+    "backend_django/apps/simulation/tests/test_clone_version_contract.py (contrato del CopySpec)",
+    "backend_django/apps/simulation/tests/test_shared_helper_call_sites.py",
+    "backend_django/apps/simulation/tests/test_ai_provider_lsp_contract.py y frontend/src/app/features/simulator/scene-renderer.lsp.spec.ts (contratos de registros intercambiables)",
+    "No hay import-linter, eslint-boundaries ni prueba de arquitectura general en .github/workflows/ci.yml"
+   ]
+  },
+  {
+   "id": "RNF-08",
+   "veredicto": "parcial",
+   "resumen": "La integridad está bien cuidada en lo estructural: versiones publicadas inmutables, tabla de transiciones del intento, operaciones atómicas, autoridad del servidor sobre el mundo y, en producción, 6 CHECK, ~26 UNIQUE y FK. Pero hay huecos reales: sin cerrojos (cero select_for_update) ni escritura parcial, el doble clic o dos pestañas pueden duplicar efectos o perder actualizaciones; el «bloqueo optimista» del editor compara una revisión que nunca se incrementa; las referencias de nodos no se acotan a la versión; la validación de publicación no detecta nodos sin salida ni sin mapa; y la BD de pruebas no replica los CHECK ni las cascadas de producción.",
+   "clausulas": [
+    {
+     "texto": "La información de los casos se mantiene correcta: una versión publicada no cambia",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/guards.py:28-36 — ensure_draft rechaza toda mutación si la versión no es DRAFT",
+      "backend_django/apps/simulation/services/authoring/graph.py:20, 29, 38, 62, 71, 80 y scenes.py:31, 43, 57, 78, 88, 97 y world_definition.py:116 y publication.py:36 — todas las mutaciones de autoría pasan por ensure_draft",
+      "backend_django/apps/simulation/services/authoring/publication.py:89-111 — para cambiar un caso publicado se clona a un borrador nuevo",
+      "backend_django/apps/simulation/services/game_service.py:58-64 — solo se inician intentos sobre versiones PUBLISHED y caso activo"
+     ]
+    },
+    {
+     "texto": "...y es consistente al publicarse (el grafo y el mundo se validan antes de publicar)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/publication.py:68-80 — compuerta: checklist al 100 % y validación sin errores",
+      "backend_django/apps/simulation/services/world_validation.py:37-44 — valida un solo nodo inicial, ≥ 1 terminal, ciclos, geometría, conducta prohibida con razón, salida segura y límites",
+      "backend_django/apps/simulation/services/world_validation.py:52-104 — no valida nodos no terminales sin decisiones salientes, nodos inalcanzables ni nodos sin mapa",
+      "backend_django/apps/simulation/services/world_service.py:466-469 — en juego, un nodo sin mapa da 404 «La escena no tiene mapa configurado»: un caso publicado podría quedar atascado",
+      "Búsqueda de NO_MAP, DEAD_END, UNREACHABLE en backend_django: sin resultados fuera de node_iterator (solo orden de visualización)"
+     ]
+    },
+    {
+     "texto": "...y consistente entre versiones: las referencias no cruzan de una versión de caso a otra",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/graph.py:87-92 — _apply_decision_request busca origen y destino con SimulationNode.objects.filter(pk=...) sin acotar a la versión",
+      "backend_django/apps/simulation/services/authoring/scenes.py:32 y :46 — create_map/update_map buscan el nodo sin acotar a la versión",
+      "deploy/db_seed.sql:4278-4286 — las FK de decision_options a simulation_nodes no incluyen la versión: la BD tampoco lo impide",
+      "docs/diseñosistemas_docs/INFORME_ANTIPATRONES_Y_SOLID.md:62-66 — hallazgo equivalente ya documentado para decisionOptionId y mapObjectId (solo alcanzable por API directa; la interfaz ofrece solo nodos de la versión)"
+     ]
+    },
+    {
+     "texto": "...y se mantiene consistente mientras se usa el sistema: dos editores no se pisan (bloqueo optimista)",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/authoring/world_definition.py:118-120 — save_world compara la revisión recibida con version.version y lanza 409",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:152-153 — comentario explícito: la revisión «se deja sin cambios»; ningún código incrementa case_versions.version (búsqueda de .version/F('version') en backend_django: solo lecturas)",
+      "backend_django/apps/simulation/models/case.py:62-63 — columna version BigInteger default 0, sin lógica de incremento",
+      "backend_django/apps/simulation/services/authoring/world_definition.py:110-115 y :145-146 — el guardado reemplaza listas completas y borra lo ausente: la última escritura gana",
+      "backend_django/apps/simulation/tests/test_authoring.py:195-215 — solo prueba una revisión inventada (+999), nunca dos sesiones reales",
+      "docs/historico/PROMPT_MIGRACION_DJANGO.md:125 — el diseño original prometía select_for_update y campo de versión; no está implementado"
+     ]
+    },
+    {
+     "texto": "Los intentos se mantienen correctos: estados y transiciones válidos, y cada operación es atómica",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/attempt_lifecycle.py:64-118 — tabla de estados, capacidades y transiciones; apply lanza InvalidAttemptTransition",
+      "backend_django/apps/simulation/services/game_service.py:344-345, 461-465, 477-485 — cada operación consulta el estado antes de actuar; safe_exit y resume son idempotentes",
+      "backend_django/apps/simulation/services/game_service.py:160, 338, 425, 452, 470 y world_service.py:170, 177, 210, 261, 366, 393 — @transaction.atomic en cada operación que escribe",
+      "deploy/db_seed.sql:1410 — CHECK de estado del intento con los 5 valores; backend_django/apps/simulation/tests/test_deploy_schema_contract.py:31-48 lo contrasta con AttemptStatus",
+      "backend_django/apps/simulation/services/world_service.py:178-207, 261-331, 393-433 — posición, herramientas y puertas validadas por el servidor; game_service.py:31-33 y :67-83 — token del intento por hash y dueño/staff"
+     ]
+    },
+    {
+     "texto": "...y consistentes bajo concurrencia (doble clic, dos pestañas, peticiones en paralelo)",
+     "estado": "parcial",
+     "evidencia": [
+      "Búsqueda de select_for_update en backend_django excluyendo pruebas: 0 resultados; tampoco hay pruebas de concurrencia",
+      "backend_django/apps/simulation/services/game_service.py:166-203 — start_attempt consulta «¿hay intento abierto?» y crea otro sin cerrojo; deploy/db_seed.sql:4007 solo tiene un índice no único (student_id, status): dos peticiones simultáneas crean dos intentos abiertos",
+      "backend_django/apps/simulation/services/decision_effects.py:61-69 y case_effects.py:263-278 — lectura-modificación-escritura en Python (score += delta, flags_json) sobre un intento cargado sin cerrojo; game_service.py:413 hace attempt.save() de toda la fila",
+      "backend_django/apps/simulation/services/world_service.py:205 y :492 — world_state.save() completo puede pisar los caseFlags que escribió case_effects.py:277-278 (update_fields) en una petición paralela",
+      "frontend/src/app/features/simulator/simulation-play.component.ts:3027-3031 — la carrera de posición solo está cubierta en el cliente",
+      "backend_django/apps/simulation/services/game_service.py:366-384 — dos primeras respuestas malas simultáneas pasan ambas la regla de reintento (prior_retries == 0)"
+     ]
+    },
+    {
+     "texto": "...y la bitácora (reflexiones) del intento queda íntegra y legible",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/crypto_service.py:12 y :15-17 — clave derivada de REFLECTION_ENCRYPTION_KEY (por defecto JWT_SECRET, settings/base.py:112-116) con referencia fija «local-aes-gcm-v1»: sin rotación",
+      "backend_django/apps/simulation/services/instructor_service.py:125-133 — decrypt sin manejo de error: una sola reflexión indescifrable rompe toda la traza del instructor con 500",
+      "docs/operacion/despliegue-railway.md:140-143 — reconoce que las reflexiones del volcado pueden no descifrarse con otro JWT_SECRET",
+      "deploy/db_seed.sql:3783 — UNIQUE (attempt_id, node_id); game_service.py:438-446 — buscar-y-guardar sin cerrojo: un doble envío paralelo da IntegrityError → 500"
+     ]
+    },
+    {
+     "texto": "Los resultados (puntaje, estrés, métricas, final y reportes) se mantienen correctos y consistentes",
+     "estado": "cumple",
+     "evidencia": [
+      "backend_django/apps/simulation/services/decision_effects.py:63-65 y world_service.py:311 — estrés, confianza y riesgo acotados a 0-100 en cada actualización",
+      "backend_django/apps/simulation/serializers/game_dtos.py:206-340 — el reporte de cierre y el final se construyen desde el registro de eventos del intento",
+      "backend_django/apps/reportes/tests/test_estados_contract.py:50-118 — fija qué cuenta cada contador por estado (completados, pausa, reemplazados, histórico)",
+      "backend_django/apps/simulation/services/game_service.py:366-384 y reportes/services.py:27-31 — los reintentos y los reemplazados no puntúan"
+     ]
+    },
+    {
+     "texto": "...y el registro de caso completado (progresión) es consistente con los intentos completados",
+     "estado": "parcial",
+     "evidencia": [
+      "backend_django/apps/simulation/services/game_service.py:419 — attempt_completed.send_robust: un suscriptor que falla no rompe la decisión",
+      "backend_django/apps/progression/services.py:20-25 — IntegrityError y cualquier excepción se tragan; el único rastro es un log de advertencia",
+      "backend_django/apps/simulation/signals.py:8-18 — documenta que capturar la excepción no repara una transacción rota por la BD",
+      "backend_django/apps/progression/models.py:20-25 — UNIQUE (student_id, simulation_case_id) evita duplicados, pero no garantiza que exista el registro"
+     ]
+    },
+    {
+     "texto": "Garantías de la base de datos: integridad referencial, unicidad y CHECK en todos los entornos",
+     "estado": "parcial",
+     "evidencia": [
+      "deploy/db_seed.sql:489, 667, 979, 1113, 1410, 1563 — 6 CHECK de enumeraciones; :3511-3943 — UNIQUE (token, versión semántica, node_key, option_key, reflexión por nodo, …); :4134-4614 — FK con ON DELETE CASCADE donde corresponde",
+      "backend_django/apps/simulation/tests/test_deploy_schema_contract.py:3-6 — admite que bootstrap_dev_db NO replica los CHECK de producción; las pruebas corren con --nomigrations (pytest.ini:6)",
+      "backend_django/apps/simulation/management/commands/bootstrap_dev_db.py:14-136 — DDL de desarrollo con otras cascadas y sin CHECK; docs/diseñosistemas_docs/INFORME_ANTIPATRONES_Y_SOLID.md:72 «Dos DDL distintas»",
+      "deploy/db_seed.sql:1394-1411 — sin CHECK de rango para stress_index, victim_risk, user_trust (0-100): solo se acota en la aplicación",
+      "docs/arquitectura/estrategia-stack-esquema-y-despliegue.md:79-96 — tres fuentes de verdad del esquema; la opción A (Django dueño) sigue pendiente"
+     ]
+    }
+   ],
+   "brecha": "Cinco huecos concretos: (1) sin cerrojos ni escrituras parciales, el doble envío y las peticiones paralelas pueden duplicar efectos, perder actualizaciones o abrir dos intentos; (2) el bloqueo optimista del editor es inerte porque la revisión nunca cambia; (3) las referencias de nodos del editor no se acotan a la versión; (4) la validación de publicación no detecta nodos sin salida, inalcanzables ni sin mapa; (5) la BD de desarrollo/pruebas no replica CHECK ni cascadas, así que la integridad de producción solo se contrasta con una prueba de regex. Además, una reflexión indescifrable rompe la traza del instructor y el registro de progresión puede quedar sin crearse sin aviso.",
+   "accion": "Mínimo, sin cambiar esquema: (1) select_for_update sobre el intento dentro de las operaciones que lo mutan (choose_decision, use_tool, update_position, open_interaction, enter_room, safe_exit, resume, save_reflection) y sobre la fila del estudiante en start_attempt para serializar inicios; (2) incrementar case_versions.version (F('version') + 1) en cada mutación de autoría y exigir revision con 409; (3) acotar a la versión las búsquedas de nodos en graph.py y scenes.py; (4) añadir a world_validation: nodo no terminal sin decisiones salientes, nodo sin mapa, nodo inalcanzable desde el inicio; (5) capturar el fallo de descifrado en instructor_service.trace y mostrar «no disponible». Endurecimiento opcional (sí cambia esquema, con script en deploy/upgrades y bootstrap_dev_db): índice único parcial (student_id, case_version_id) WHERE status IN ('IN_PROGRESS','PAUSED') y CHECK 0-100 en los indicadores; la solución de raíz es que Django sea dueño del esquema.",
+   "esfuerzo": "M",
+   "cambia_esquema_bd": false,
+   "decision_requerida": "Si se adopta Django como dueño del esquema (docs/arquitectura §4) para declarar CHECK/UNIQUE en migraciones y en la BD de pruebas; y si se aceptan dos cambios de comportamiento: el editor empezará a devolver 409 reales entre sesiones y publicar rechazará casos con nodos sin salida o sin mapa.",
+   "terminologia": "«Casos» = SimulationCase y sus CaseVersion (borrador/publicada) con su grafo de nodos, decisiones, salas, objetos, diálogos y herramientas; «intentos» = SimulationAttempt con AttemptEvent, AttemptWorldState y ReflectionJournal; «resultados» = puntaje acumulado, estrés y métricas, final (ending), reporte de cierre, StudentCaseCompletion y evaluaciones de rúbrica; «correcta» = datos válidos (CHECK, FK, validación); «consistente» = sin referencias cruzadas ni actualizaciones perdidas; «mientras se usa el sistema» = bajo uso concurrente de estudiantes y editores. Aviso de numeración: el RNF-008 de docs/requisitos es Contenido modular y versionado, no esta integridad.",
+   "pruebas_existentes": [
+    "backend_django/apps/simulation/tests/test_deploy_schema_contract.py (valores de los TextChoices contra los CHECK del volcado)",
+    "backend_django/apps/simulation/tests/test_upgrade_attempt_replaced.py (script de upgrade y CHECK contra Postgres real)",
+    "backend_django/apps/simulation/tests/test_attempt_lifecycle.py y test_attempt_lifecycle_contract.py (matriz operación × estado)",
+    "backend_django/apps/simulation/tests/test_world_authority.py (matriz negativa de autoridad del servidor)",
+    "backend_django/apps/simulation/tests/test_world_save_persistence.py y test_authoring.py:195-215 (guardado de mundo; revisión inventada)",
+    "backend_django/apps/simulation/tests/test_clone_version_contract.py y test_completion_report_contract.py",
+    "backend_django/apps/reportes/tests/test_estados_contract.py",
+    "backend_django/apps/progression/tests/test_models.py (UNIQUE de completado)",
+    "Sin pruebas de concurrencia ni de transacciones con transaction=True (prohibido por settings/test.py:9)"
+   ]
+  }
+ ],
+ "observaciones": [
+  "Numeración distinta: los RNF de docs/requisitos/no-funcionales (RNF-001..010, estado «Propuesto») no son los de la línea base. Equivalen RNF-05 ≈ RNF-005 (rendimiento, p95 ≤ 2 s) y RNF-06 ≈ RNF-006 (disponibilidad, 99,5 % mensual, RTO ≤ 4 h). RNF-07 (separación de componentes) y RNF-08 (integridad) no tienen contraparte: el RNF-007 del repo es Auditoría y el RNF-008 es Contenido modular y versionado. Los umbrales del repo sirven como candidatos para «medir posteriormente».",
+  "RNF-05 y RNF-06 comparten el mismo hueco de fondo: no hay instrumentación (sin LOGGING en settings/base.py, sin --access-logfile en el CMD de gunicorn en Dockerfile:29, sin APM ni seguimiento de errores). Aunque se escribiera una prueba de carga, hoy no habría forma de obtener un p95 ni un uptime de producción. Con una sola mejora (logs de acceso con duración y un monitor sobre /api/health) se resuelve la mitad de ambos.",
+  "Hay comentarios y documentos desactualizados que contradicen al código: backend_django/psychosim/settings/base.py:1-4 y case_effects.py:10-11 dicen que Flyway/Spring es dueño del esquema (Spring ya no existe; el esquema vive en deploy/db_seed.sql); docs/historico/PROMPT_MIGRACION_DJANGO.md:125 promete select_for_update y campo de versión que no están implementados; la docstring del optimistic-lock (authoring_service.py:13) sugiere un 409 que en la práctica no ocurre entre sesiones.",
+  "Los «presupuestos» de rendimiento del frontend (game-world.frame-budget.spec.ts, game-world.orientation.contract.spec.ts) son pruebas de contrato que leen el texto del código con regex: protegen decisiones de implementación, no miden cuadros ni tiempos. No deben presentarse como evidencia de medición.",
+  "Varios hallazgos de RNF-08 (referencias cruzadas de versión, nodos sin salida) solo se alcanzan llamando a la API a mano o por un caso mal autorado; la interfaz de autoría ofrece solo nodos de la versión. Eso los hace «parcial» y no «no_cumple», pero la BD tampoco los impide.",
+  "La BD de pruebas se siembra con bootstrap_dev_db (scripts/test-backend.mjs:109) y no con deploy/db_seed.sql, y pytest corre con --nomigrations: toda garantía de nivel de BD (CHECK, cascadas, índices) de producción queda sin ejercitar salvo por test_deploy_schema_contract.py (regex) y test_upgrade_attempt_replaced.py. Que Django sea dueño del esquema (docs/arquitectura §4, opción A) elimina esa clase de riesgo.",
+  "Cambios de comportamiento a avisar si se aplican las acciones: 409 reales en el editor al editar a la vez, publicación que rechaza casos con nodos sin salida o sin mapa, y una traza de instructor que degrada en vez de fallar cuando una reflexión no se descifra.",
+  "Alcance de la lectura: solo lectura del worktree limpieza-repositorio (master 9931599 + limpieza de docs). No se ejecutaron pruebas, servidores ni mediciones; todo veredicto no_verificable lo es por falta de datos medibles, no por falta de lectura. Las rutas son relativas a la raíz de ese worktree; los TSV de la línea base están en el scratchpad de la sesión."
+ ]
+}

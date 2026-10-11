@@ -1,489 +1,289 @@
-# PROMPT MAESTRO — SIEP (Django + Angular)
+# SIEP — Documento maestro (estado vigente)
 
-> **Fuente de verdad viva del proyecto.** Última actualización completa: **2026-06-05**.  
-> El changelog Java-era detallado vive en el historial git de este archivo y en `historico/PLAN_MAESTRO_EJECUCION_V3.md` / `historico/PROMPT_MIGRACION_DJANGO.md` (marcados HISTÓRICOS).  
-> Toda transformación importante debe registrarse en la sección **Historial** al final.
+> **Qué es.** El documento único para entender SIEP **como funciona hoy**, con el stack de hoy. Sirve a personas y a sesiones de IA sin contexto previo.
+>
+> - **Corte:** 2026-10-11, sobre `master` @ `985d9a5`.
+> - **Reemplaza** a `PROMPT_MAESTRO.md` de junio (Django 5.1, Angular 21, Spring «congelado»), a `PROMPT_MAESTRO_SIEP_PROFESIONAL.md` (julio, sin versionar) y a lo vigente de `PLAN_MAESTRO_TOTAL.md` (que sigue como plan por bloques).
+> - **Complementa** a `docs/CONTEXTO_COMPLETO_SIEP.md` (sin versionar, edición 1, corte `92354c2`), la referencia exhaustiva.
+> - **Evidencia fina** (`ruta:línea` por afirmación) en `docs/informes/2026-10-10-mapa-del-sistema/secciones/`: son borradores de lectores con verificación adversarial incompleta; lo que sigue aquí es su síntesis, con las cifras recontrastadas.
+> - **Mantenimiento:** el PR que cambie comportamiento, stack o reglas actualiza la sección afectada. Manda el código; si este documento y el código discrepan, el documento está mal.
 
-> **Aviso de vigencia (2026-10-10).** Este documento conserva su fecha de corte del 2026-06-05, y desde entonces cambió lo que dice del stack (aquí Django 5.1, Angular 21 y Phaser 3; hoy Django 6.1, Angular 22 y Phaser 4), del repositorio (`psico_project_v2`, ramas, «repos públicos»: hoy son privados) y del backend Spring «congelado» (ya no está en el repo). Sigue siendo útil como **mapa de endpoints, componentes y tablas**. Para lo vigente: [`../README.md`](../README.md) (arranque, stack y rutas), [`arquitectura/estrategia-stack-esquema-y-despliegue.md`](arquitectura/estrategia-stack-esquema-y-despliegue.md) (esquema y despliegue) y el [índice de la documentación](README.md). Los planes y specs que cita por nombre se retiraron del árbol en la limpieza del 2026-10-10 y se recuperan con `git show 9931599:<ruta>`.
+## Índice
 
----
-
-## 1. Producto
-
-**SIEP — Sistema de Entrenamiento Psicosocial.**  
-Plataforma web académica de la **Corporación Universitaria Empresarial Alexander Von Humboldt** (Programa de Psicología, Armenia, SNIES 101645). Simulación formativa tipo **RPG clínico top-down**: el estudiante explora mapas de casos psicosociales (VBG, feminicidio, NNA, crisis, rutas de protección), dialoga con NPCs, toma decisiones clínicas y es evaluado por competencias — entrenamiento **ético**, no un examen.
-
-> **Marca vs. identificadores técnicos:** la marca visible es **SIEP**; el código conserva `psychosim` / `PsychoSim` por compatibilidad con el esquema Flyway y el frontend (tokens CSS, configuración, seeds).
-
-### Dominio sensible
-Contenido clínico real de VBG / feminicidio / NNA. Los repos **deben ser privados** (actualmente son públicos — pendiente corregir). No sembrar datos reales de pacientes en ningún entorno. Reflexiones cifradas en reposo.
+0. [En dos minutos](#0-en-dos-minutos) · 1. [Producto, roles y límites](#1-producto-roles-y-límites) · 2. [Stack y entorno](#2-stack-y-entorno) · 3. [Arquitectura](#3-arquitectura) · 4. [Cómo funciona hoy](#4-cómo-funciona-hoy) · 5. [Reglas que el sistema impone](#5-reglas-que-el-sistema-impone) · 6. [Seguridad, ética y privacidad](#6-seguridad-ética-y-privacidad) · 7. [Calidad y verificación](#7-calidad-y-verificación) · 8. [Estado y hoja de ruta](#8-estado-y-hoja-de-ruta) · 9. [Cómo trabajar en el repo](#9-cómo-trabajar-en-el-repo) · 10. [Mapa de documentos](#10-mapa-de-documentos)
 
 ---
 
-## 2. Monorepo — estructura real
+## 0. En dos minutos
 
-**Un único repositorio activo:** `Jsua3/psico_project_v2`  
-Directorio local: `D:/Sua_Files/IdeaProjects/psico_project_v2/`
+**SIEP — Sistema de Entrenamiento Psicosocial** es un simulador formativo de casos de psicología social (RPG clínico 2.5D) de la Corporación Universitaria Empresarial Alexander von Humboldt (Programa de Psicología, Armenia). El estudiante explora salas, dialoga con NPC, decide y recibe retroalimentación; el docente revisa y evalúa con rúbrica. Es **formativo, no diagnóstico ni examen**.
 
-> El repo `Jsua3/Proyecto_psicologia` permanece en GitHub como archivo histórico (historial git del frontend pre-monorepo). El backend Spring (`backend/`) allí está CONGELADO y no se toca.
+**Stack:** Django 6.1 + DRF 3.18 (JWT) · Angular 22 (Signals) + Phaser 4 · PostgreSQL · Node 24 en CI · una sola imagen en Railway.
 
-### Árbol de directorios clave
+**Estado:** ALPHA cerrada (2026-10-02); un único caso jugable, `SIM-VBG-001`. Todo lo que depende de decisiones del equipo de Psicología (propuestas C, E, F, G y J) está en BETA, sin implementar.
 
-```
-psico_project_v2/          ← MONOREPO — único repo activo
-  backend_django/           ← código Python activo
-    psychosim/settings/     ← base / local / test / production
-    apps/                   ← ver §6
-    shared/                 ← response.py, permissions.py, exceptions.py, jsonutils.py
-    .venv/                  ← entorno virtual (gitignored)
-  frontend/                 ← Angular 21 (antes en Proyecto_psicologia/admin-panel/)
-    src/app/
-      core/                 ← auth, api services, models, guards, config
-      features/             ← ver §9
-      shared/layout/        ← shell.component, layout base
-    src/assets/
-      game/maps/            ← Tiled JSON (14 mapas)
-      game/scenarios/       ← ScenarioConfig JSON (7 escenas hardcodeadas)
-      images/institution/   ← logos, hero images
-    proxy.conf.json         ← apunta a Django :8091
-  docker-compose.yml        ← solo el servicio `db` se usa (Postgres :5433)
-  .env.example              ← plantilla de secretos (POSTGRES_PASSWORD, JWT_SECRET…)
-  docs/
-    README.md               ← índice de la documentación
-    PROMPT_MAESTRO.md       ← este archivo
-    PLAN_MAESTRO_TOTAL.md   ← plan maestro por bloques
-    arquitectura/ diseno/ historico/ informes/ operacion/ pendientes/ requisitos/ visual/
-```
+**Ocho hechos que hay que saber antes de tocar nada**
 
-### Principio arquitectónico clave
+1. **Un solo caso** (`SIM-VBG-001`: 8 nodos, 6 bloques de decisión, 19 opciones, 5 herramientas). Finales, métricas y orientación están atados a él; un segundo caso exige generalizar (bloque J).
+2. **Solo ADMIN autora, valida y publica casos.** El profesor recibe 403 en autoría; solo asigna versiones publicadas a sus grupos y revisa.
+3. **El esquema de BD tiene tres definiciones** sin sincronía automática: `deploy/db_seed.sql` (producción), `bootstrap_dev_db` (dev y pruebas) y los modelos (25 de 27 son `managed=False`). Los cambios para BDs ya restauradas van a `deploy/upgrades/*.sql` a mano; el despliegue no corre `migrate`.
+4. **Intento:** estados `IN_PROGRESS`, `PAUSED`, `COMPLETED`, `REPLACED` (más `SAFE_EXITED`, solo histórico). La primera respuesta mala de cada nodo no se aplica (segunda oportunidad). `forceNew` reemplaza el intento abierto.
+5. **Retroalimentación:** el texto autorado de la opción se devuelve **en la respuesta de cada decisión**; el informe completo (final, métricas, línea de tiempo, competencias) llega al cerrar el intento.
+6. **Bitácora reflexiva cifrada en reposo** (AES-GCM); el docente de ese estudiante la lee descifrada en la traza.
+7. **No hay DSL ni JSON Schema ni import/export de casos.** El taller de DSL (`docs/diseno/dsl/`) lo propone y trae validador; aún no está integrado al producto.
+8. **CI:** 6 jobs (secretos, vulnerabilidades, scripts, backend, frontend, e2e). El e2e de recorrido completo y orientación corre de noche, no en el PR.
 
-Django **mapea** las tablas Flyway con `managed = False` y **nunca muta el esquema**.  
-El contrato HTTP es **idéntico** al de Spring para que el frontend no requiera cambios.  
-**Flyway (Spring) es dueño del esquema** y está congelado — cualquier cambio de esquema es RNF-010 (requiere discusión explícita antes de tocar).
+**Cinco riesgos mayores:** (a) los reportes por grupo no comprueban propiedad: cualquier profesor ve cualquier grupo; (b) secretos de desarrollo por defecto (`JWT_SECRET`, clave de cifrado, contraseña de importados, contraseñas demo versionadas) y producción no rechaza secretos débiles; (c) el consentimiento ETH-01 vive solo en el navegador; (d) sin límite de intentos en login ni en la solicitud de acceso, sin revocación de tokens; (e) sin salud ni observabilidad en producción y esquema con upgrades manuales de orden frágil.
 
 ---
 
-## 3. Stack backend (Django)
+## 1. Producto, roles y límites
 
-| Capa | Tecnología |
-|---|---|
-| Lenguaje | Python 3.12 |
-| Framework | Django 5.1 + Django REST Framework 3.15 |
-| Auth | `djangorestframework-simplejwt` — claims `userId` (int) + `role` (`ADMIN|PROFESOR|ESTUDIANTE`); expiración 8 h |
-| CORS | `django-cors-headers` |
-| DB driver | `psycopg2-binary` → PostgreSQL 16 (`psychosim` en `localhost:5433`) |
-| Cifrado | `cryptography` — AES-GCM para bitácoras (`reflection_journals`) en reposo |
-| Docs API | `drf-spectacular` → OpenAPI 3 + Swagger UI en `/swagger-ui.html` |
-| Tests | `pytest` + `pytest-django` contra la BD real (rollback por test; settings `psychosim.settings.test`) |
-| Hashers | BCryptSHA256 primero (compatible con Spring/Spring Security) |
+### Modelo pedagógico
+Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos, diálogos). Una **decisión** pertenece a un nodo y tiene opciones clasificadas `ADEQUATE | RISKY | INADEQUATE` (con marca de **conducta prohibida** y su razón). Hablar con un NPC y elegir una respuesta *es* decidir. El backend es la única autoridad del puntaje; el cliente solo presenta. Evaluación **por competencias y rúbrica**, no por acierto único.
 
-### Settings por entorno
+### Roles (la autoridad es el servidor, que lee el rol de la BD en cada petición)
 
-- `base.py` — configuración compartida; defaults de desarrollo (rechazados en prod).
-- `local.py` — `DEBUG=True`, CORS open.
-- `test.py` — usa BD real con `DATABASES["TEST"]`.
-- `production.py` — exige `DJANGO_SECRET_KEY`, `DB_PASSWORD`, `JWT_SECRET` por env; rechaza defaults; `DEBUG=False`; CORS/HTTPS duros.
-
----
-
-## 4. Stack frontend (Angular)
-
-| Capa | Tecnología |
-|---|---|
-| Framework | Angular 21 — componentes standalone + Signals |
-| UI kit | Angular Material (tema personalizado) |
-| Estilo | SCSS; tokens CSS `--psy-*` (paleta azul/teal/lavanda); estética **liquid-glass**; `prefers-reduced-motion` |
-| Editor visual | **Konva.js** — canvas del world-editor (`world-editor/`) |
-| Runtime juego | **Phaser 3** — mundo jugable (`game-world.component.ts`) |
-| HTTP | `HttpClient` + proxy → Django `:8091` (vía `proxy.conf.json`) |
-| Tests unitarios | Jest + ts-jest (55–64 specs) |
-| Build | ng build (Angular CLI) |
-| Escenas Tiled | Tiled JSON cargados por Phaser (tileset Kenney) |
-
----
-
-## 5. Base de datos (PostgreSQL — Flyway)
-
-BD `psychosim` en `localhost:5433`. Esquema creado y mantenido por Flyway (dentro del Spring FROZEN). Migraciones V1–V8 ya aplicadas en el volumen Docker `postgres_data`.
-
-### Tablas Flyway mapeadas (managed=False en Django)
-
-**Usuarios y grupos**
-- `users` — `CustomUser` (id, email, nombre, apellido, role, password_hash BCrypt)
-- `grupos` — cohortes académicas (nombre, codigo, profesor_id)
-- `grupo_estudiante` — M2M grupos↔usuarios
-
-**Simulación — estructura del caso**
-- `simulation_cases` — caso clínico (code `SIM-VBG-001`, title, description)
-- `case_versions` — versión jugable (`status`: DRAFT→IN_REVIEW→PUBLISHED→ARCHIVED; `version` int para optimistic-lock; `semantic_version`)
-- `simulation_nodes` — nodo del DAG (title, narrative, type, terminal, sensitiveContent, warningMessage, safeExitRequired)
-- `decision_options` — aristas del DAG (text, classification: `ADEQUATE|RISKY|INADEQUATE`; prohibitedConduct + prohibitionReason)
-
-**Simulación — runtime del jugador**
-- `simulation_attempts_v2` — intento (UUID id, student_id, case_version_id, status: `IN_PROGRESS|COMPLETED|SAFE_EXITED|ABANDONED`, current_node_id, accumulated_score, stress_index, attempt_token, started_at, ended_at)
-- `attempt_events` — log de eventos del intento (event_type, node_id, detail, timestamp)
-- `reflection_journals` — bitácoras del estudiante (AES-GCM, cifradas en reposo)
-- `attempt_world_states` — estado del mundo para el intento (scene_map_id, player_x/y, inventory_json, inspected/viewed/used keys JSON, **flags_json** incl. `syncedNodeId`)
-
-**Mundo explorable**
-- `scene_maps` — mapa por nodo (`map_key` apunta a Tiled JSON, title, width, height, theme, spawn_x/y, **ambient_json**: `{cameraZoom, backgroundImage}`)
-- `map_objects` — objetos interactuables (type: `PERSON|OBJECT|ROUTE|TOOL|WARNING|EXIT`; x/y/w/h, icon, color, interaction_prompt/text, **decision_option_id**, **tool_code**, **movement_pattern_json** `{pattern, waypoints}`, **metadata_json** `{targetNodeKey, entryX, entryY}` para puertas EXIT, facing)
-- `collision_zones` — zonas sólidas (x/y/w/h)
-- `dialogue_trees` — árbol de diálogo por objeto (speaker_name, portrait_key, emotion)
-- `dialogue_lines` — líneas en orden (display_order, text, emotion, speaker_name)
-- `dialogue_choices` — opciones de respuesta (text, **decision_option_id** → ramifica DAG, required_tool_code, effect_json)
-- `clinical_tools` — herramientas clínicas del caso (tool_code, label, icon, category, description)
-
-**Evaluación y auditoría**
-- `rubrics`, `rubric_criteria`, `rubric_evaluations`, `criterion_scores` — rúbricas instructor
-- `publication_checklists` — checklist previo a publicar versión
-- `audit_logs` — log de auditoría (Django signals → retención 12 meses; nunca interrumpe operación)
-
-**Legacy (tablas existentes, apps Python removidas en T3.2)**
-- `casos`, `escenarios`, `preguntas`, `opciones`, `sesiones_juego`, `respuestas` — quiz ABCD original. **Las tablas existen** (retención de datos) pero **el código Python fue eliminado**. No recrear las apps sin decisión explícita.
-
----
-
-## 6. Apps Django activas
-
-Post-T3.2 (ramas `feat/retire-legacy-quiz` + `master`):
-
-| App | Descripción |
-|---|---|
-| `apps.users` | Modelo `CustomUser` (managed=False sobre `users`), login JWT, register, /me |
-| `apps.grupos` | Cohortes: listar, crear, agregar/remover estudiantes |
-| `apps.simulation` | **Núcleo.** Catálogo de casos, intentos, decisiones, reflexiones, mundo, autoría, trazabilidad instructor |
-| `apps.reportes` | Dashboard + reporte de grupo + export CSV — **solo-simulador** (extraído de legacy en T3.2) |
-| `apps.progression` | Catálogo de casos publicados para el estudiante; progreso/desbloqueo |
-
-> **`apps.casos` y `apps.sesiones`:** los directorios existen en disco (con `__pycache__/` y `migrations/`) como artefactos de git-rm, pero **no están en `INSTALLED_APPS`** y no tienen archivos Python activos.
-
----
-
-## 7. Endpoints API (Django master)
-
-```
-POST  /api/auth/login
-POST  /api/auth/register
-GET   /api/auth/me
-
-GET   /api/grupos
-POST  /api/grupos
-GET   /api/grupos/<id>
-POST  /api/grupos/<id>/agregar-estudiante
-POST  /api/grupos/<id>/remover-estudiante
-
-GET   /api/reportes/dashboard
-GET   /api/reportes/grupo/<id>?caseVersionId=<n>
-GET   /api/reportes/grupo/<id>/export?caseVersionId=<n>   ← CSV attachment
-
-# --- Simulación: estudiante ---
-GET   /api/simulation/cases
-POST  /api/simulation/attempts                  ← iniciar intento
-GET   /api/simulation/attempts/<uuid>
-POST  /api/simulation/attempts/<uuid>/decisions
-GET   /api/simulation/attempts/<uuid>/world
-POST  /api/simulation/attempts/<uuid>/world/position
-POST  /api/simulation/attempts/<uuid>/world/interact/<key>
-POST  /api/simulation/attempts/<uuid>/world/tool
-POST  /api/simulation/attempts/<uuid>/enter-room    ← Fase 5 puertas espaciales
-POST  /api/simulation/attempts/<uuid>/reflection
-GET   /api/simulation/attempts/<uuid>/reflection
-POST  /api/simulation/attempts/<uuid>/safe-exit
-POST  /api/simulation/attempts/<uuid>/complete
-
-# --- Autoría: admin ---
-GET   /api/admin/cases
-POST  /api/admin/cases
-GET   /api/admin/cases/<id>
-PUT   /api/admin/cases/<id>
-GET   /api/admin/cases/<id>/versions
-POST  /api/admin/cases/<id>/versions
-POST  /api/admin/cases/<id>/versions/<vid>/clone
-POST  /api/admin/cases/<id>/versions/<vid>/publish
-GET/POST/PUT/DELETE  /api/admin/cases/<id>/versions/<vid>/nodes
-GET/POST/PUT/DELETE  /api/admin/cases/<id>/versions/<vid>/decisions
-GET/POST/PUT/DELETE  /api/admin/cases/<id>/versions/<vid>/maps
-GET/POST/PUT/DELETE  /api/admin/cases/<id>/versions/<vid>/objects
-GET/POST/PUT/DELETE  /api/admin/cases/<id>/versions/<vid>/tools
-POST  /api/admin/cases/<id>/versions/<vid>/world-editor   ← save_world
-GET   /api/admin/cases/<id>/versions/<vid>/world          ← world_editor (rooms + availableDecisions)
-GET   /api/admin/cases/<id>/versions/<vid>/validate
-
-# --- Instructor ---
-GET   /api/instructor/attempts
-GET   /api/instructor/attempts/<uuid>/trace
-POST  /api/instructor/attempts/<uuid>/rubric-evaluation
-```
-
-**Envoltorio estándar:** `{"data": <payload|null>, "message": "<texto>"}`.
-
----
-
-## 8. Frontend — mapa completo de componentes
-
-### Core
-
-| Archivo | Propósito |
-|---|---|
-| `core/auth/auth.service.ts` | JWT login/logout/refresh; `currentUser()` signal |
-| `core/auth/auth.guard.ts` | Guard de rutas autenticadas |
-| `core/auth/token.utils.ts` | Parse/validación de JWT |
-| `core/auth/jwt.interceptor.ts` | Adjunta Bearer token a requests |
-| `core/api/simulation.service.ts` | Todas las llamadas al simulador (intentos, mundo, decisiones, etc.) |
-| `core/api/reporte.service.ts` | Dashboard + reporte de grupo + CSV (sim-only; sin `casoId` desde T3.2) |
-| `core/api/grupo.service.ts` | CRUD grupos + enrolamiento |
-| `core/api/user-admin.service.ts` | Admin: listar/crear/editar usuarios |
-| `core/models/sesion.model.ts` | Tipos TS del reporting (Dashboard, ReporteGrupo, etc.) — sim-only desde T3.2 |
-| `core/models/simulation.model.ts` | Tipos del simulador (SimulationAttempt, WorldState, MapObject…) |
-| `core/config/brand.config.ts` | Constantes de marca (shortName, fullName, formalName) |
-| `core/notifications/notification.service.ts` | Notificaciones toast globales |
-| `shared/layout/shell.component.ts` | Shell del portal autenticado (sidenav + topbar + nav por rol) |
-
-### Features
-
-| Ruta | Componente | Acceso |
+| Rol | Puede | No puede |
 |---|---|---|
-| `/` | `features/public/landing.component` | Público (sin auth) |
-| `/login` | `features/login/login.component` | Público |
-| `/portal/dashboard` | `features/dashboard/dashboard.component` | Todos los roles |
-| `/portal/jugar` | `features/simulator/game-menu.component` | ESTUDIANTE / ADMIN |
-| `/portal/simulador` | `features/simulator/simulation-catalog.component` | Todos |
-| `/portal/simulador/:caseVersionId` | `features/simulator/simulation-play.component` | ESTUDIANTE / ADMIN |
-| `/portal/personaje` | `features/character/character-editor.component` | ESTUDIANTE / ADMIN |
-| `/portal/casos/:caseVersionId/editor` | `features/simulator/case-editor.component` | ADMIN |
-| `/portal/docente/trazabilidad` | `features/simulator/instructor-trace.component` | PROFESOR / ADMIN |
-| `/portal/grupos` | `features/grupos/grupo-list.component` | PROFESOR / ADMIN |
-| `/portal/reportes` | `features/reportes/reporte-grupo.component` | PROFESOR / ADMIN |
-| `/portal/admin/usuarios` | `features/admin/users.component` | ADMIN |
+| **ESTUDIANTE** | Ver su catálogo (casos publicados asignados a un grupo activo suyo), jugar, pausar y reanudar, escribir bitácora, ver su historial y reporte propio, editar su avatar | Autorar, ver rúbricas ni comentarios docentes, ver reportes |
+| **PROFESOR** | Crear y administrar **sus** grupos, agregar estudiantes por correo o importación `.xlsx` (crea cuentas de estudiante), asignar/retirar versiones publicadas, revisar trazas de **sus** estudiantes, evaluar con rúbrica, gestionar rúbricas, reportes y CSV | Autorar casos, crear profesores o admins, jugar (no inicia intentos) |
+| **ADMIN** | Todo lo de autoría (casos, versiones, mundo, herramientas, checklist, publicar, clonar), usuarios (crear, editar, activar/desactivar, asignar rol), solicitudes de acceso, juego, trazas y reportes de todos | Administrar grupos de un profesor (solo lista) |
 
-> ⚠️ **Deuda conocida — Landing page:** el componente `features/public/landing.component` **existe** como archivo y está ruteado en `path: ''` (público, sin auth), pero **no está implementado como landing institucional real**. Actualmente es una estructura básica. **Pendiente: construir la landing pública de SIEP** (presentación del programa, acceso al simulador, info institucional).
+### Límites éticos y clínicos
+- Contenido sobre violencia basada en género (casos ficticios). **Formativo**: nada se usa para diagnóstico. Repo y despliegue de datos sensibles: repo privado desde 2026-09-29; sin datos reales de pacientes.
+- **ETH-01** (consentimiento antes de contenido sensible) y **ETH-02 / REGLA-004** (la salida segura siempre alcanzable y es una **pausa reanudable**, no un abandono) son invariantes del producto.
+- La **línea base académica PN3** (§8) exige además RN-01: casos de psicología social con fines educativos, sin diagnóstico clínico.
 
-### Componentes del simulador (detalle)
+---
 
-| Componente | Descripción |
+## 2. Stack y entorno
+
+| Pieza | Versión / detalle |
 |---|---|
-| `simulation-play.component` | Wrapper del juego completo: HUD + canvas Phaser + paneles laterales + diálogos + journal. Orquesta todo el ciclo de un intento. |
-| `game-world.component` | Runtime **Phaser 3**: carga mapa Tiled, renderiza NPCs/objetos/colisiones, aplica zoom + fondo autoriado, detecta puertas EXIT → emite `enterRoom`, proximity `E`. |
-| `simulation-hud.component` | HUD: progreso, stress, nodo actual, inventario de herramientas. |
-| `dialogue-panel.component` | Panel de diálogo NPC: typewriter, opciones de respuesta, cierre. |
-| `journal-panel.component` | Bitácora de reflexión del estudiante. |
-| `minimap.component` | Minimapa del mapa Tiled actual. |
-| `outcome-screen.component` | Pantalla de resultado al completar/salir del intento. |
-| `tool-inventory.component` | Inventario de herramientas clínicas desbloqueadas. |
-| `supervision-feedback.component` | Panel de retroalimentación del supervisor. |
-| `game-menu.component` | Menú de selección de escenario para el estudiante (ScenarioConfig). |
-| `simulation-catalog.component` | Catálogo de versiones publicadas para jugar o editar. |
-| `instructor-trace.component` | Trazabilidad: intentos, decisiones, rúbricas por instructor. |
-| `dag-editor.component` | Editor visual del DAG (nodos + aristas); pestaña "DAG" del case-editor. |
-| `case-editor.component` | Shell del editor: tabs DAG / Mundo. Wrapea `dag-editor` + `world-editor`. |
-| `world-editor/world-editor.component` | Editor visual Konva del mundo: lienzo, inspector, sidebar. |
-| `world-editor/world-editor.store.ts` | Estado del editor: comandos (`UpsertDialogueCommand`, `SetMapAmbientCommand`, etc.), `rooms`, `availableDecisions`, `pathEditMode`. |
-| `world-editor/path-edit.util.ts` | Helpers puros de edición de waypoints NPC. |
-| `world-editor/room-edit.util.ts` | Helpers puros de edición de salas/puertas. |
-| `world-preview.component` | Preview Phaser del mundo en el editor. |
-| `audio.service.ts` | Audio: footsteps + UI blips (Kenney CC0). |
-| `hud-dock.util.ts` | Utilidades del dock HUD. |
-| `scene-motion.util.ts` | Utilidades de movimiento de escena. |
+| Python | 3.14 en imagen y CI; `npm run up` acepta 3.12–3.14 |
+| Django · DRF · simplejwt | 6.1.1 · 3.18.1 · 5.5.1 |
+| Backend (resto) | psycopg 3.3.6, cors-headers 4.9.0, cryptography 50.0.2, drf-spectacular 0.30.0, bcrypt 5.0.0, google-auth 2.59.1, requests 2.34.2, gunicorn 26.2.0, whitenoise 6.12.0, dj-database-url 3.1.2 |
+| Angular (core, cdk, material, build, cli) | 22.2.1 (zoneless por defecto; `zone.js` sigue como polyfill) |
+| Phaser · Konva · Howler | 4.2.1 · 10.7.0 (solo editor de mundo) · 2.2.4 |
+| TypeScript · RxJS | 6.0.3 (Angular 22 exige `>=6.0 <6.1`; no subir a 7) · 7.8.2 |
+| Pruebas | pytest 9.1.1 + pytest-django (`--reuse-db --nomigrations`); Vitest 5.0.3 + jsdom (no hay Jest); Playwright 1.63.0 (1 worker) |
+| PostgreSQL | **dev 16-alpine** (volumen `psychosim-db`; no subir de mayor), pruebas 18-alpine en tmpfs, producción gestionada por Railway (volcado de 16.13) |
+| Node | **24** en CI; el Dockerfile quedó en `node:26-alpine` por Dependabot (#20) y **no tiene prueba** (Angular declara `^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0`) |
 
-### Configs hardcodeados (ScenarioConfig — coexistencia)
+**Comandos de la raíz** (`package.json`): `npm run up` (BD + venv + guarda de esquema + Django :8091 + Angular :4200) · `npm run down` (para la BD, conserva el volumen) · `db:bootstrap -- --yes` (siembra esquema, `SIM-VBG-001` y grupo `DEMO1`) · `test:scripts` · `check:backend` · `test:backend` · `test:api:e2e` (stack aislado, matriz de 16 comprobaciones) · `test:e2e` (matriz + Playwright) · `test:frontend` (Vitest) · `build:frontend`.
 
-Los siguientes archivos **existen a propósito** y NO se eliminan (ver T3.1 en §13):
+**Puertos:** BD dev 5433 (`SIEP_DB_PORT`) · Django 8091 · Angular 4200 (4300 en la vista previa) · BD de pruebas 5544 (`SIEP_TEST_DB_PORT`) · e2e: API 8093 y web 4315 · contenedor `$PORT` o 8000.
 
-```
-comisaria-map.config.ts      hospital-map.config.ts
-risky-interaction.config.ts  scene-guide.config.ts
-scene-objectives.config.ts   scene-map-display.util.ts
-kenney-frames.constants.ts
-assets/game/scenarios/*.json  (7 JSON: comisaria-familia, urgencias-crisis, etc.)
-assets/game/maps/*.json       (14 mapas Tiled)
-```
+**Reglas de entorno:** la BD de desarrollo es propia de cada checkout (labels de Compose y `working_dir`); `npm run up` **nunca** hace bootstrap por su cuenta y se detiene si faltan las tablas centinela. Las pruebas usan una BD desechable con nombre, contraseña y nonce aleatorios y se niegan a correr contra la de desarrollo. **Windows:** Bash tiene el PATH roto (usar PowerShell); Python de la Microsoft Store crea venvs rotos (usar `C:\Python313\python.exe`); fin de línea LF por `.gitattributes`.
+
+**Despliegue:** Railway construye el `Dockerfile` (Angular compilado + gunicorn, 3 workers, `psychosim.settings.production`); cada push a la rama conectada redepliega; **no corre `migrate`**; la BD se restaura a mano con `deploy/db_seed.sql` y los upgrades de `deploy/upgrades/` (3 scripts idempotentes) en orden. Producción exige `DJANGO_SECRET_KEY` (rechaza el valor por defecto), `JWT_SECRET`, hosts y `DB_PASSWORD` sin `DATABASE_URL`.
 
 ---
 
-## 9. Editor de casos — Fases 1–5 ✅ COMPLETO
+## 3. Arquitectura
 
-Sub-proyecto E: autoría visual + runtime del mundo del caso. Cada fase tuvo su spec → plan → TDD → verify → rama propia.
-
-| Fase | Descripción | Ramas |
-|---|---|---|
-| 1 — Diálogos + decisiones | Inspector NPC: líneas + opciones de respuesta cableadas a aristas del DAG. `save_world` persiste árboles/líneas/choices; `world_editor` expone `availableDecisions`. | `feat/case-editor-dialogues` |
-| 2 — Paths de NPC | Waypoints en lienzo Konva (`movementPattern`: idle/wander/patrol). Runtime ya los reproduce (`AmbientMover`). Sin cambios backend. | `feat/case-editor-npc-paths` |
-| 3 — Multi-sala + puertas + zoom + fondo | Salas = nodos; puertas como objetos EXIT con `metadata_json={targetNodeKey,entryX,entryY}`; zoom/fondo en `ambient_json`; switcher de sala en el editor. Sin migración. | `feat/case-editor-multiroom` |
-| 4 — Runtime aplica zoom + fondo | `renderWorld` lee `world.map.ambient.cameraZoom` (default 2) y `backgroundImage`. | `feat/case-editor-runtime-ambient` |
-| 5 — Puertas espaciales en runtime | Caminar a un EXIT carga la sala destino (no puntuado); desacoplado del nodo DAG vía `flags.syncedNodeId`; `POST /attempts/<id>/enter-room`. Las decisiones siguen rigiendo el DAG y sobrescriben la puerta. | `feat/case-editor-spatial-doors` |
-
----
-
-## 10. Dos sistemas de mundo (coexistencia)
-
-El runtime tiene **dos caminos** que coexisten **a propósito**:
-
-| Sistema | Descripción | Usado por |
-|---|---|---|
-| **BD-driven** (`/world` → `renderWorld`) | Autorado con el editor Konva; multi-sala; decisiones; puertas Fase 5. | Casos `SIM-VBG-001` y todos los creados con el editor |
-| **ScenarioConfig** (hardcodeado) | `simulation-play` hace `fetch('/assets/game/scenarios/<key>.json')` y `gameWorld.setScenarioConfig(...)`; usa `renderRoom`/`transitionToRoom`/`checkExitTriggers`. | Escenas comisaría/hospital/urgencias (multi-sala intra-nodo) |
-
-**¿Por qué coexisten?** Las escenas ScenarioConfig tienen **varias salas espaciales dentro de UN nodo clínico** (ej. comisaría: sala-espera → consultorio → supervisor). El modelo BD es **1 `scene_map` por nodo (UNIQUE)**. Converger exigiría (a) cambiar el esquema (Flyway, Spring FROZEN, RNF-010) o (b) romper el grafo clínico. → **T3.1 cerrado como coexistencia justificada.** No eliminar sin decisión explícita de modelo multi-sala-por-nodo.
-
----
-
-## 11. Cómo correr (Windows — monorepo)
-
-```powershell
-# 1. Levantar BD (desde raíz del monorepo) — requiere Docker Desktop
-cd D:/Sua_Files/IdeaProjects/psico_project_v2
-docker compose up -d db
-# → Postgres en localhost:5433, BD psychosim; volumen postgres_data ya tiene Flyway V1-V8 + seeds
-
-# 2. Backend Django (desde backend_django/)
-cd D:/Sua_Files/IdeaProjects/psico_project_v2/backend_django
-./.venv/Scripts/python.exe -m pytest -q          # suite completa (rollback por test)
-./.venv/Scripts/python.exe manage.py check       # verificar config
-./.venv/Scripts/python.exe manage.py runserver 8091   # servidor dev (DJANGO_SETTINGS_MODULE=psychosim.settings.local)
-
-# 3. Frontend Angular (desde frontend/)
-cd D:/Sua_Files/IdeaProjects/psico_project_v2/frontend
-npm install              # primera vez o tras cambios en package.json
-npm start                # ng serve → http://localhost:4200 (proxy a :8091)
-npm run build            # build de producción
-npm test -- --watch=false    # jest unit tests
+```mermaid
+flowchart LR
+  subgraph Cliente
+    SPA[Angular 22 SPA\nportal por rol]
+    PH[Phaser 4\nmundo 2.5D]
+  end
+  SPA --- PH
+  SPA -->|HTTP JSON + JWT| API
+  subgraph Servidor [Django 6.1 + DRF · gunicorn]
+    API[/api/*/]
+    SVC[servicios de dominio]
+    API --> SVC
+  end
+  SVC --> DB[(PostgreSQL)]
+  SVC -.->|apagado por defecto| IA[Asistente IA externo]
 ```
 
-### Credenciales demo (sembradas por Flyway)
+**Monorepo** `psico_project_v3/`: `backend_django/` · `frontend/` · `deploy/` (volcado y upgrades) · `scripts/` (entorno y pruebas, `.mjs`) · `tools/` (arte de puertas y mobiliario) · `docs/`.
 
-| Rol | Email | Contraseña |
-|---|---|---|
-| ADMIN | `admin@psychosim.edu.co` | `Admin123!` |
-| PROFESOR | `profesora@psychosim.edu.co` | `Profesor123!` |
-| ESTUDIANTE | `estudiante@psychosim.edu.co` | `Estudiante123!` |
-
-### Caso jugable de referencia
-
-`SIM-VBG-001` → `caseVersionId = 1` (6 nodos, 12 decisiones, 6 salas, caso comisaría).
-
-### Proxy alternativo
-
-Para usar Spring en lugar de Django: cambiar `proxy.conf.json` por el contenido de `proxy.spring.json` (apunta a `:8090`).
-
-### gh CLI
-
-**No está instalado** → crear PRs por URL web de GitHub.
-
----
-
-## 12. Seguridad (estado verificado 2026-06-05)
-
-✅ **Sin secretos reales en git.** `.gitignore` cubre `.env`, `*.log`, `.venv`, `node_modules`, `dist`, `.angular`. Logs de servidor no versionados.
-
-✅ **`production.py` exige y rechaza defaults de desarrollo.** `DJANGO_SECRET_KEY`, `DB_PASSWORD`, `JWT_SECRET` deben ser provistas por variable de entorno; debug off; CORS/HTTPS endurecidos.
-
-✅ **Defaults de dev en `base.py`** son intencionalmente débiles para que el dev funcione sin `.env`; `production.py` los rechaza. `.env.example` documenta las variables necesarias.
-
-✅ **Cifrado de bitácoras AES-GCM** en `reflection_journals`. Clave = `REFLECTION_ENCRYPTION_KEY` (cae al `JWT_SECRET` si no se provee). En producción debe ser clave distinta, fuerte y privada.
-
-⚠️ **Repos `Jsua3/*` actualmente PÚBLICOS** (`"private": false` confirmado). **Deben volverse privados** (Settings → Danger Zone → Make private) — dominio clínico sensible.
-
-⚠️ **Cuentas demo** sembradas por Flyway: nunca usar/mantener en producción.
-
----
-
-## 13. Estado de ramas (2026-06-05)
-
-### Backend — `Jsua3/psico_project_v2`
-
-| Rama | Estado |
+### Backend (`backend_django/`)
+| App | Responsabilidad |
 |---|---|
-| `master` | **Rama principal.** Incluye: docs completos (specs/plans/prompts), T3.2 (retiro quiz), cleanup Tier 1+2, `shared/jsonutils`. **No tiene código de features** (código va en ramas feature). |
-| `feat/case-editor-*` (5 ramas) | Código del editor Fases 1-5 — pusheadas, mergeadas a master (la PR #1 ya está mergeada; las demás por hacer). |
-| `feat/retire-legacy-quiz` | T3.2: extracción `apps.reportes` + borrado `apps.casos`/`sesiones`. **Mergeada en `origin/master`.** |
-| `chore/cleanup-django` | Cleanup Tier 1+2: borrado `client/`, `engine/`, `desktop.ini`, dedupe jsonutils. Mergeada. |
+| `users` | Identidad (`CustomUser`, roles, bcrypt), login con correo/clave y Google, JWT HS256 de 8 h, solicitudes de acceso, gestión por el admin |
+| `grupos` | Grupos del profesor, membresías (SQL crudo), importación `.xlsx`, asignación de versiones publicadas |
+| `simulation` | El núcleo: modelos de caso/mundo/intento/rúbrica, autoría (`services/authoring/*`), motor del intento (`game_service`, `attempt_lifecycle`, `decision_effects`, `case_effects`), runtime del mundo (`world_service`, `door_chain`), validación (`world_validation`), cifrado, auditoría, asistente IA |
+| `reportes` | Dashboard, reporte por grupo y CSV (solo simulador) |
+| `progression` | Casos completados y catálogo con desbloqueo lineal (tabla gestionada por Django) |
+| `shared` | Sobre de respuesta `{success,message,data}`, excepciones, permisos por rol |
 
-### Frontend — `Jsua3/Proyecto_psicologia`
+Settings en `psychosim/settings/`: `base`, `local` (copia gitignored de `local.example.py`), `test` (aislada, con atestación) y `production` (aborta si faltan secretos). JWT firmado con el `SECRET_KEY` de Django; `JWT_SECRET` solo es la clave por defecto del cifrado.
 
-| Rama | Estado |
-|---|---|
-| `origin/main` | Línea **ACT1-4**: auth overhaul, gestión usuarios admin, dashboard rediseñado (html/scss/ts separados), instructor-trace grande (~1242 líneas), notificaciones, login Phaser. **Rama canónica del usuario.** |
-| `feat/case-editor-*` (5 ramas) | Código del editor Fases 1-5 — pusheadas. |
-| `feat/retire-legacy-quiz` | T3.2 del frontend (quiz UI removido, sim-only). Pusheada como PR. |
-| `integrate/case-editor-into-main` | **PR de integración** (pusheada, PR abierta). Une la línea del editor + cleanup + T3.2 **con `origin/main` (ACT) como base**. Verificado: ng build OK, jest 64/64. Conflictos resueltos. Fast-forward cuando el usuario la mergee. |
-| `chore/cleanup-django` | Cleanup Tier 1+2 del frontend. Pusheada. |
-| `main` (local) | 16 commits "living-world" sin pushear (feat: camera-follow, audio, multi-room, NPCs, etc.) — **no incluidos en la integración**, pendiente de reconciliar por separado. |
+### Frontend (`frontend/src/app/`)
+`core/` (auth, guardas, API por rol, modelos), `shared/` (shell, avisos, confirmaciones), `features/`: `login`, `public` (portada), `dashboard`, `admin` (usuarios y solicitudes), `grupos`, `reportes`, `character` (editor del avatar y kit por código) y `simulator` (catálogo, juego, editor de casos, traza docente; el 80 % del código). Rutas en `app.routes.ts`: portada `/`, `/login`, portal `/portal/**` con `authGuard` y `roleGuard`. **Dos componentes enormes** concentran el runtime: `simulation-play.component.ts` (~3.060 líneas) y `game-world.component.ts` (~2.840, escena Phaser).
+
+### Datos y esquema
+27 modelos, 25 `managed=False`; gestionados por Django: `access_requests` y `student_case_completion`. El volcado (`pg_dump` 16.13, 41 tablas, 6 CHECK, 61 FK) manda en producción; hay una prueba de contrato que cruza 4 de los 6 CHECK con los `TextChoices`. Columnas JSON son TEXT. La estrategia de esquema (Django dueño, despliegue en Hetzner) está en `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md` y **no se ha ejecutado**.
 
 ---
 
-## 14. Cleanup Tier 3 (decisiones tomadas)
+## 4. Cómo funciona hoy
 
-| Sub-proyecto | Estado | Notas |
+### Ciclo de vida del caso (autoría, solo ADMIN)
+`DRAFT → PUBLISHED` es la única transición por API (`IN_REVIEW` y `ARCHIVED` existen en el enum y el CHECK, sin ruta; no hay archivar ni borrar). Toda mutación exige `DRAFT`; una versión publicada es inmutable y se **clona** (siguiente menor, copia declarativa en transacción). Publicar exige: checklist de 6 casillas al 100 % **y** validación del mundo sin errores (un nodo inicial, ≥ 1 terminal, sin ciclos, geometría dentro del mapa, ≥ 1 objeto `EXIT`, conducta prohibida con razón, límites de tamaño). Publicar **no** archiva la versión anterior: coexisten varias PUBLISHED.
+
+### Ciclo de vida del intento (estudiante)
+```mermaid
+stateDiagram-v2
+  [*] --> IN_PROGRESS: POST /attempts
+  IN_PROGRESS --> PAUSED: safe-exit
+  PAUSED --> IN_PROGRESS: resume
+  IN_PROGRESS --> COMPLETED: llega a un nodo terminal
+  IN_PROGRESS --> REPLACED: forceNew
+  PAUSED --> REPLACED: forceNew
+```
+- **Iniciar:** versión PUBLISHED de un caso activo y, para estudiantes, asignada a un grupo activo suyo. Sin `forceNew`, si hay un intento abierto lo devuelve (y reemite su token).
+- **Token del intento:** 32 bytes aleatorios (se guarda el SHA-256); viaja en `X-SIEP-Attempt-Token` (GET) o en el cuerpo. Un token rotado anula a la otra pestaña.
+- **Decisión:** solo desde el nodo actual. La **primera** respuesta RISKY/INADEQUATE/prohibida de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos: puntaje (`score_delta` + penalización), estrés, confianza y riesgo (acotados 0–100; conducta prohibida +40 estrés, −20 confianza, +15 riesgo). 19 opciones canónicas del caso 1 activan banderas y 7 métricas; al completar se resuelve uno de **4 finales** (integral, brechas, riesgo persistente, crítico).
+- **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo y métricas; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
+- **Bitácora:** una nota por (intento, nodo), editable mientras se juega; se bloquea al completar o reemplazar.
+- **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni el puntaje.
+
+### Qué ve el estudiante
+Catálogo → aviso de contenido (ETH-01) → introducción (solo en `hospital-urgencias`) → mundo con HUD, tarjeta «Qué hacer», diálogos con opciones sin clasificación → «Supervisión clínica» tras decidir (mensaje del servidor, sin cifras) → resultado al cerrar. Salida segura desde cualquier superposición (Esc encadena ayuda → bitácora → diálogo → pausa).
+
+### Qué ve el docente
+Hasta 20 intentos recientes de **sus** grupos (alias `Estudiante-N`), traza completa (eventos, línea de tiempo, nodos, reintentos, bitácoras descifradas), evaluación con rúbrica (nota por criterio 1,0–5,0, total ponderado), reportes por grupo y CSV (12 columnas; con nombre y apellido).
+
+### Rutas de la API (`/api`, JWT salvo lo público)
+| Grupo | Rol | Notas |
 |---|---|---|
-| **T3.1** ScenarioConfig → BD | **Coexistencia justificada — no se converge.** | Muro del modelo: salas intra-nodo vs. 1 `scene_map`/nodo (UNIQUE). Ver §10. |
-| **T3.2** Quiz legacy `casos`/`sesiones` | **✅ HECHO** (`feat/retire-legacy-quiz`, mergeado en backend master). | Extraído `apps.reportes` sim-only; borradas apps quiz; tablas intactas. pytest 107, jest 55/64, ng build, smoke. |
-| **T3.3** Retiro Spring backend | **DIFERIDO** hasta validar Django en PRODUCCIÓN. | Flyway (dueño del esquema) vive en Spring. Requiere plan de ownership de esquema antes de tocar. **NO tocar `psicologia_proyecto/backend/`.** |
+| `auth/login`, `auth/google`, `auth/google/config`, `auth/access-request` | público | Google solo reconoce cuentas existentes |
+| `auth/me`, `auth/register` | sesión / ADMIN | |
+| `admin/users`, `admin/access-requests` | ADMIN | crear, editar, activar/desactivar |
+| `admin/cases/**` | ADMIN | autoría, mundo, validar, publicar, clonar |
+| `grupos/**` | PROFESOR (lista: +ADMIN) | membresías, importación, casos |
+| `simulation/cases`, `attempts`, `…/decisions`, `…/reflections`, `…/safe-exit`, `…/resume`, `…/world`, `…/world-state`, `catalog`, `ai-assistant` | ESTUDIANTE/ADMIN | `ai-assistant` responde 404 salvo bandera |
+| `instructor/**`, `rubrics/**`, `reportes/**` | PROFESOR/ADMIN | traza y evaluación por grupo; reportes **sin** control de propiedad |
+| `/schema/`, `/swagger-ui.html` | público | también en producción |
 
-El roadmap completo del Tier 3 se retiró en la limpieza del 2026-10-10 (`git show 9931599:docs/superpowers/2026-06-05-cleanup-tier3-roadmap.md`); lo único abierto, la propiedad del esquema, está en [`arquitectura/estrategia-stack-esquema-y-despliegue.md`](arquitectura/estrategia-stack-esquema-y-despliegue.md).
+Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 403 con rol incorrecto, 500 genérico.
 
 ---
 
-## 15. Deudas conocidas y próximos pasos
+## 5. Reglas que el sistema impone
 
-| Prioridad | Ítem | Estado |
+| Regla | Dónde se impone | Estado |
 |---|---|---|
-| ✅ Resuelta | **Landing page** — implementada completamente en `frontend/src/app/features/public/` (HTML + SCSS + TS) | HECHO |
-| ✅ Resuelta | **Monorepo** — frontend consolidado en `psico_project_v2/frontend/` | HECHO |
-| 🔴 Alta | **Repos privados** — `Jsua3/psico_project_v2` y `Jsua3/Proyecto_psicologia` actualmente públicos (`"private": false`). Hacer privados en GitHub Settings → Danger Zone. | PENDIENTE (manual) |
-| 🟡 Media | **Reconciliar commits `main` local** del frontend (16 commits "living-world": camera-follow, audio, multi-room, NPCs) con `origin/main` del repo archivado. Ahora se gestiona desde el monorepo. | PENDIENTE |
-| 🟡 Media | **T3.3** (retiro Spring): diferido; retomar cuando Django esté en producción + plan de schema-ownership. | DIFERIDO |
-| 🟢 Baja | Carpetas huérfanas `apps/casos/` y `apps/sesiones/` en disco (solo tienen `__pycache__/` y `migrations/`). Pueden eliminarse con `git rm -r`. | BAJA |
-| 🟢 Baja | Warnings NG8107 pre-existentes en `dialogue-panel.component.ts` (no bloquean build). | BAJA |
+| Solo ADMIN autora; toda mutación exige `DRAFT` | `authoring/guards.py` | Cumplida |
+| Publicar exige checklist al 100 % y validación limpia | `authoring/publication.py` | Cumplida (validación incompleta: no revisa nodos sin salida ni alcanzabilidad) |
+| El estudiante solo inicia casos asignados a su grupo | `game_service.start_attempt` | Cumplida al iniciar; el lobby `/catalog` no filtra por asignación |
+| Un intento abierto por (estudiante, caso) | `game_service` (sin índice único) | Parcial: sin bloqueo, dos peticiones simultáneas pueden duplicar |
+| Segunda oportunidad por nodo | `game_service.choose_decision` | Cumplida |
+| Una versión publicada no se muta | `ensure_draft`, `clone_version` | Cumplida en la API; la rompe `seed_caso_pdf` |
+| El servidor es dueño del mundo (posición, puertas, herramientas) | `world_service`, `door_chain` | Cumplida |
+| Las opciones solo viajan con `id` y `text` antes de decidir | `game_dtos` | Cumplida |
+| La bitácora se cifra en reposo | `crypto_service` | Cumplida (clave única, sin rotación) |
+| La auditoría nunca interrumpe la operación | `@auditable` | Cumplida; solo escribe, nada la lee; retención 360 días |
+| Un profesor ve solo a sus estudiantes en traza y evaluación | `instructor_service` | Cumplida; **no** en reportes ni en `student-report` |
+| Salida segura siempre alcanzable (REGLA-004) | cliente + `safe_exit` | Cumplida en todos los estados jugables (Playwright + axe); sin lector de pantalla real |
+
+**Reglas de oro del plan** (`PLAN_MAESTRO_TOTAL.md`): 001 no tocar Spring (sin objeto: ya no existe) · 002 «sin migraciones Django» (rota en la práctica: `progression` y `AccessRequest` son gestionados) · 003 `ScenarioConfig` coexiste con lo BD-driven · **004 salida segura** · **005 `PUBLISHED` no se muta** · 006 auditoría no interrumpe · 007 repo privado · 008 avatar solo en `localStorage` · 009 Phaser `pixelArt`/`roundPixels` · 010 CSS del juego acotado · 011 bloqueo optimista con 409 (nominal: nada incrementa `version`) · 012 publicar solo con validación limpia. **No cites `RNF-010` como «cambio de esquema»**: en el catálogo del equipo es *gestión ética de contenidos sensibles*.
 
 ---
 
-## 16. Reglas de oro (invariantes)
+## 6. Seguridad, ética y privacidad
 
-1. **Spring `backend/` CONGELADO.** No se toca, no se modifica, no se elimina. Es el respaldo de seguridad y dueño de Flyway.
-2. **RNF-010.** Cualquier cambio de esquema se discute **antes** de implementarse. Django usa `managed=False`. No crear migraciones Django que alteren tablas de dominio.
-3. **No romper el flujo del estudiante ni los tests verdes.** Extender, no reescribir lo que funciona.
-4. **Versiones publicadas** no se modifican destructivamente — se clonan y versionan.
-5. **Bitácoras cifradas** en reposo. No persistir contenido sensible en claro ni en `localStorage`.
-6. **Salida segura** siempre alcanzable para el estudiante.
-7. **Auditoría persistente** (Django signals → `audit_logs`; 12 meses; nunca interrumpe la operación).
-
----
-
-## 17. Disciplina de trabajo
-
-**Loop por slice (una rama por trabajo):**
-1. `superpowers:brainstorming` — intent + diseño + spec (`docs/diseno/`)
-2. `superpowers:writing-plans` — plan de implementación (temporal: vive en la rama y se retira del árbol al ejecutarlo; ver el ciclo de vida en [`README.md`](README.md))
-3. `superpowers:executing-plans` — TDD: test falla → mínima impl → verde → commit
-4. Verificar: `pytest -q` + `ng build` + jest + smoke en vivo
-5. `superpowers:finishing-a-development-branch` — PR o merge
-
-**TDD estricto.** Test que falla → mínima implementación → verde → commit. Verificar siempre antes de declarar algo hecho. `pytest` + `ng build` + jest como gates.
-
-**Commits:** descriptivos, co-author `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Docs a `master`; código en rama feature.
-
-**Ante cambios de esquema o contrato API: detenerse y consultar** (RNF-010).
+- **Autenticación:** JWT HS256 de 8 h, sin refresh ni revocación; «cerrar sesión» solo borra el token del cliente. El rol y `activo` se releen de la BD en cada petición (desactivar corta el token al instante). Contraseñas con bcrypt (10 rondas); mínimo 8 solo en el formulario del admin y en `register`.
+- **Autorización:** matriz por rol en `shared/permissions.py`; alcance por objeto en grupos (400 «No tiene permiso» en vez de 403) y en la traza docente.
+- **Cifrado:** bitácoras con AES-GCM (clave SHA-256 de `REFLECTION_ENCRYPTION_KEY`, por defecto `JWT_SECRET`); `encryption_key_ref` fijo; cambiar la clave rompe el reporte docente (500).
+- **Red:** CORS por lista blanca; sin CSRF ni sesiones (Bearer); redirección HTTPS solo con `DJANGO_SECURE_SSL_REDIRECT`; sin HSTS ni `X-Frame-Options`.
+- **Auditoría:** 28 acciones (juego, autoría, asistente); **no** se audita login, usuarios, grupos, importaciones, evaluaciones ni lectura de trazas/bitácoras.
+- **Asistente de IA (RF-027):** apagado por defecto (404) y sin pantalla; con la bandera, la pregunta (≤ 500 car.) queda en claro en auditoría; sin límites de uso; un proveedor mal escrito cae a OpenAI.
+- **Datos personales:** el volcado versionado trae correos reales (al menos uno `@gmail.com`) con hashes; las credenciales demo están publicadas en `docs/operacion/despliegue-railway.md` y en el bundle del login (solo `isDevMode`).
+- **Consentimiento y pausa:** ETH-01 en `sessionStorage` (el servidor no lo registra); la pausa de la salida segura es reanudable e idempotente. Recursos de apoyo sin verificación externa (`BLOCKED_EXTERNAL`).
+- **Brechas abiertas:** sin throttling en login/solicitud/importación; membresía a un grupo sin consentimiento del estudiante (el profesor ve sus intentos y reflexiones); enumeración de cuentas por mensajes de error; el ADMIN puede quedarse fuera; `/schema/` y Swagger públicos con Swagger UI desde un CDN `@latest`.
 
 ---
 
-## 18. Historial (compacto)
+## 7. Calidad y verificación
 
-> Changelog Java-era detallado (V1–V8, hexagonal, Tiled, Testcontainers, etc.) en git history de este archivo y en `historico/PLAN_MAESTRO_EJECUCION_V3.md` (HISTÓRICO).
+| Familia | Cantidad (estática) | Comando |
+|---|---|---|
+| Scripts de entorno | 82 casos en 4 archivos | `npm run test:scripts` |
+| Backend (pytest + BD desechable) | 52 archivos, 857 pruebas en la última corrida del CI | `npm run check:backend`, `npm run test:backend` |
+| Frontend unitario (Vitest) | 179 archivos, 2.383 pruebas en la última corrida (64 specs leen código fuente por regex) | `npm run test:frontend` |
+| Activos y kit | 13 archivos, 114 casos | en `frontend/`: `test:visual-assets`, `test:kit`, `kit:check`, `test:world-art` |
+| Matriz API | 16 comprobaciones, 3 roles | `npm run test:api:e2e` |
+| E2E Playwright | 10 archivos, 35 instancias | `npm run test:e2e` |
 
-| Fecha | Evento |
+**CI** (`ci.yml`, en PR y push a `master`): `secrets` (gitleaks, historial completo), `scripts`, `audit` (pip-audit sin umbral, `npm audit` alto/crítico), `backend`, `frontend` (Vitest, assets, kit, world-art, build con presupuestos 1,4 MB / 22 kB) y `e2e` (21 pruebas; excluye `@full-case` y `@orientation`). **Nocturno** `e2e-full-case.yml` (07:00 UTC): caso completo en 4 viewports y orientación.
+
+**Huecos:** sin cobertura medida ni linter; `production` y `check --deploy` no se ejercitan; sin e2e de docente y admin; guards sin spec; Axe sin `wcag22aa`; sin pruebas de carga ni medición de rendimiento; 64 specs frágiles por leer texto de fuentes; Postgres 16 en dev vs 18 en pruebas. **Trazabilidad:** solo `RF-027` se cita en código; ninguna prueba cita RNF-nn ni RQ-NEG-nn (una propuesta de marcadores `req` está en revisión, §8).
+
+---
+
+## 8. Estado y hoja de ruta
+
+### Bloques del plan maestro (medición del 2026-10-02 con actualizaciones del 03 y 04)
+| Bloque | Estado |
 |---|---|
-| 2026-05 (Java) | Landing institucional, login, portal; motor DAG hexagonal V4–V6; MVP jugable top-down Phaser; editor admin + DAG SVG; auditoría AOP; WorldValidationService + WorldDefinition v2 V7; Testcontainers Fase 8; motor Kenney + Tiled. |
-| 2026-05-30 → 06-03 | **Migración Django.** `backend_django` construido replicando 1:1 el contrato Spring (auth, casos, grupos, sesiones, reportes, simulación, autoría, instructor, auditoría signals). Frontend intacto; proxy re-apuntado a `:8091`. |
-| 2026-06-03 → 06-05 | **Editor de casos Fases 1–5** completas: diálogos+decisiones inline; paths NPC; multi-sala+puertas+zoom+fondo; runtime zoom+fondo; puertas espaciales jugables (`enter-room`). pytest 129/129, jest, ng build, smokes. |
-| 2026-06-05 | **Seguridad de git** auditada (sin filtraciones). **PROMPT_MAESTRO** re-escrito a Django (primer borrador). **Cleanup Tier 1+2** ejecutado (borrado `client/` JavaFX, `engine/` muerto, dedupe `shared/jsonutils`, assets huérfanos). |
-| 2026-06-05 | **Cleanup Tier 3:** T3.1 cerrado como coexistencia justificada; **T3.2** ejecutado (retiro quiz, extracción `apps.reportes` sim-only, frontend sim-only); T3.3 diferido. pytest 107, jest 64, ng build, smoke. |
-| 2026-06-05 | **Integración frontend** `integrate/case-editor-into-main`: línea del editor + T3.2 integrada sobre `origin/main` (ACT); conflictos resueltos; PR abierta. ng build OK, jest 64/64. |
-| 2026-06-05 | **Este PROMPT_MAESTRO** reescrito con mapa completo del sistema (componentes, rutas, apps, endpoints, deudas, ramas). Deuda de landing identificada por el usuario. |
-| 2026-06-06 | **Consolidación monorepo.** Frontend Angular (`Proyecto_psicologia/admin-panel/`) movido a `psico_project_v2/frontend/`. Docker-compose y .env.example en raíz. `Jsua3/Proyecto_psicologia` permanece como archivo histórico. Landing page marcada como completada. PROMPT_MAESTRO actualizado para reflejar estructura monorepo. |
-| 2026-06-05 | **Iniciativa SIEP 2.5D pixel-art** (`docs/PROMPT_SIEP_2_5D_PIXEL_ART_COMPLETO.md`, ~7 rebanadas). **Rebanada 1 — Motor de profundidad** HECHA (rama `feat/game-2_5d-depth-engine`, mergeada a master): `depth-sort.util.ts` (Y-sort por eje Y + bandas de las 9 capas Tiled), actores dinámicos ordenados con `actorDepth(y)`, `buildTiledLayers()` compartido (soporta `props_back/front`, `lighting`, `overlay`; retrocompatible `Floor`/`Walls`), viñeta de iluminación procedural según `ambientTone`, `roundPixels`. Sin backend/migración. jest 70/70, ng build, smoke en vivo (`SIM-VBG-001`) sin regresión. Pendientes: arte pixel-art real, editor de personaje, rediseño HUD, escenarios; Y-sort de NPCs decorativos hardcodeados de hospital/comisaría (depth fijo 7/8). |
-| 2026-06-05 | **Rebanada 2 — HUD liquid-glass morado SIEP** HECHA (rama `feat/game-hud-liquid-glass`, mergeada a master): tema scoped de `.game-container` (vars `--sim-*` + clases `pixel-*`) volteado de claro/azul a **oscuro liquid-glass morado/lavanda** (paleta doc §5.3); estrés mostrado como **corazones** (`stress-hearts.util.ts`, render SVG inline con escala de color viva); **marca SIEP** (cerebro SVG) en el strip; dock de herramientas con **badges numéricos** 1..n. Solo frontend, sin tocar el portal claro (tema scoped al juego). jest 76/76, ng build, smoke en vivo. **Hallazgo:** la app **no carga fuente de iconos** — `.mat-icon::before` (styles.scss) dibuja un rombo placeholder para *todos* los `<mat-icon>`; los corazones se hicieron SVG por eso. Cargar Material Symbols mejoraría la fidelidad a los mockups (follow-up app-wide). |
-| 2026-06-05 | **Rebanada 5 — Panel de diálogo** HECHA (rama `feat/game-dialogue-panel`, mergeada a master). `dialogue-panel.component.ts` rediseñado a identidad **morada/lavanda**: opciones con **badge numérico** 1..n + **selección por teclado** (teclas 1-9, `dialogue-keys.util.ts` `digitIndex`, TDD + `@HostListener('document:keydown')`), **retrato NPC como SVG** (silueta, la app no tiene fuente de iconos), restyle teal→morado (strip, retrato, nombre, cursor, opciones), `recomendada` en teal suave / `contraindicada` en rojo. **Fix NG8107** preexistente (línea 70) + retira `MatIconModule`/`portraitIcon` sin uso. jest 92/92 (excluye un spec externo en progreso — ver nota), ng build sin el NG8107 del panel, smoke en vivo (panel morado, opciones numeradas, tecla 1 selecciona). **Nota:** durante esta rebanada apareció trabajo paralelo del usuario (chip de extracción de la pantalla de resultados): `attempt-outcome.component.{ts,spec}` **untracked**, con 3 tests rojos en progreso — no forman parte de esta rama. |
-| 2026-06-05 | **Rebanada 4 — Pantalla de resultados** HECHA (rama `feat/game-outcome-screen`, mergeada a master). Rediseño del fin de partida (`end-state-overlay` → tarjeta `.outcome` liquid-glass morada, mockup §24) en `simulation-play.component.ts`: cabecera con **avatar del estudiante** (retrato, reusa `AvatarFigureComponent` con nuevo input `portrait`) + `summaryMessage`; grid de métricas (Puntaje, Escenarios, Estrés, Tiempo, **Desempeño**); barras de decisiones Adecuadas/Riesgosas/Inadecuadas + chips; tags de competencias; retroalimentación; acciones Reintentar/Volver al simulador/Volver al portal; variante salida segura. `outcome.util.ts` (desempeño + % adecuación, TDD). jest 90/90, ng build, smoke en vivo (salida segura). **Deuda:** el CSS de `simulation-play` (god-component ~1300 líneas) supera el budget por ~445 bytes (no bloquea) → spawn_task para extraer la pantalla a su propio componente. (Existe `outcome-screen.component.ts` pero usa OTRO modelo `SimulationOutcome`/crisis del paciente — no reutilizable aquí.) |
-| 2026-06-05 | **Rebanada 3 — Editor de personaje** HECHA (rama `feat/character-editor`, mergeada a master). Ruta `/portal/personaje` (ESTUDIANTE/ADMIN) + item de nav "Mi personaje". `frontend/src/app/features/character/`: `avatar.model.ts` (tipos + catálogos), `avatar-config.util.ts` (default/coerce/parse, TDD), `avatar.store.ts` (Signals sobre **localStorage** clave `psychosim_avatar`, `@Optional()` storage para DI, TDD), `avatar-figure.component.ts` (**avatar SVG vectorial por capas** reemplazables por arte real: sombra→torso/uniforme→piel→bata→rostro→cabello→accesorio; poses front/3-4), `character-editor.component.ts` (pantalla liquid-glass de 3 columnas: apariencia / avatar en vivo / uniforme+resumen; presets; guardar/restablecer/continuar). Persistencia en localStorage (**sin BD → RNF-010 intacto**). jest 86/86, ng build, smoke en vivo (cambios live + persistencia tras recarga). **Bug atrapado por el smoke:** NG0201 'No provider for Storage' (DI intentaba inyectar el param del constructor) → corregido con `@Optional()`. Pendiente: arte pixel-art real del avatar + renderizarlo dentro del runtime Phaser (hoy el jugador en el mapa sigue siendo sprite Kenney). |
-| 2026-07-08 | **Auditoría integral v3 + estabilización.** Entorno local reparado (venv recreado con `C:\Python313` — el alias Python de MS Store genera venvs rotos; esquema de BD legacy reconciliado con `migrate --fake` selectivo + `bootstrap_dev_db`). Git reconectado: historial de `Jsua3/psico_project_v2` + snapshot v3 en rama `integracion/v3-snapshot`. `docker-compose.yml` limpiado (servicios Spring muertos), check de esquema de `dev-up.mjs` endurecido (3 tablas jalonadoras), fix NG8102, docs actualizadas. Verificado: pytest 177/177, jest 203/203, ng build, `npm run test:api:e2e` PASS, smoke completo login→juego. |
+| A Audio adaptativo | Parcial: 1 de 4 capas |
+| B Viñeta y game feel | Hecho con Graphics (sin PostFX) |
+| C Diálogo-síntoma | Parcial: solo retrato por emoción |
+| D Avatar | Hecho por otra vía: kit de personajes por código |
+| **E Social Mapping** | **No existe** (propuesta lista) |
+| **F Verbal Tension Box** | **No existe** (propuesta lista) |
+| G RF-027 asistente IA | Parcial: backend apagado, sin pantalla |
+| H WCAG 2.2 AA | Parcial: faltan atajos, anuncios de estrés y foco/`wcag22aa` |
+| I CI | Hecho (distinto del plan) |
+| J Escenarios | Parcial: un solo caso |
+| K Landing y onboarding | Hecho |
+| L Seguridad | Hecho con riesgos |
+
+### Propuestas para la BETA (`docs/pendientes/propuestas/`; hay que elaborarlas lo antes posible)
+| Bloque | Recomendación | Bloqueos (valor por defecto) | Esfuerzo orientativo |
+|---|---|---|---|
+| C | «Señal sobria»: 7 emociones canónicas, 3 perfiles de ritmo, sin color, temblor ni cuenta atrás | tres estilos agitada/afligida/aliviada; sin etiqueta de emoción | 6,5–12 d |
+| E | Ecomapa guiado, lista primero, 4 etiquetas, sin «afinidad» ni puntos | solo lectura primero; la niña y la persona agresora no aparecen | 12–21 d + Psicología |
+| F | Entrevista por turnos (2–4 intercambios) en M1 y M9, sin tiempo ni reflejos | por turnos; Psicología redacta M1 y M9 | 20–31 d + Psicología |
+| G | Ayuda curada (30–50 entradas); IA opcional solo tras decidir y con concepto jurídico (Ley 1581/2012) | reinterpretar RF-027; sin IA sin concepto escrito | 22,5–38 d |
+| J | Consultorio de primera escucha como 2.º caso; antes generalizar finales, métricas, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
+
+C, E y F comparten una Fase 0 de 6–10 d; 0a (movimiento reducido en el panel) y 0b (botón único de salida segura) ya están. Las preguntas que más bloquean están en `propuestas-c-e-f-resumen.md`.
+
+### Línea base académica PN3 (nueva, 2026-10-09)
+La carrera unificó requisitos entre todos los equipos: **26 RF, 8 RNF, 11 RN y 15 CU** (`docs/requisitos/baseline-pn3/`, «versión académica inicial»). Es el **mínimo**; SIEP puede tener más. El contraste con el sistema (PR #59) da: 14 cumplen, 38 parciales, 1 no cumple, 2 no verificables y **5 conflictos**: RF-15 (el lobby y `/catalog` no filtran por asignación), **RN-07** (`forceNew` reemplaza el intento en curso), **RN-08** (la retroalimentación se devuelve al decidir), **RN-09** (puntaje numérico acumulado sin tope) y **RN-10** (el profesor da de alta estudiantes por importación). RF-12 y RN-05 salen parciales porque no hay DSL ni validación al ejecutar. Los requisitos propios de SIEP se tratarán como **extensiones** con otro esquema de IDs.
+
+### Taller de DSL (Ingeniería de Software II)
+`docs/diseno/dsl/`: modelo UML de 16 clases, sintaxis JSON con JSON Schema, `simulador_psicologia_social.json` (escenario válido y con errores) y un validador con 46 pruebas. Reglas `OCL-01…08` en el orden del enunciado. La Fase 2 (OCL) la entregan otros integrantes del equipo.
+
+### Deudas y decisiones abiertas
+Esquema (Django dueño, Hetzner, imagen sin Compose ni health), reportes sin propiedad, secretos por defecto, T9.12 (decisión en dos tiempos), reintentos en el informe de grupo y CSV (L-02), H-T11/T13/T15, contraseña por defecto de importados («así por ahora»), `docker build` con Node 26 sin probar, 13 preguntas del informe de jugabilidad y 18 del backlog con valor por defecto ya aplicado.
+
+---
+
+## 9. Cómo trabajar en el repo
+
+- **Git:** una rama por tema desde `master`, en un *worktree* bajo `.worktrees/`; PR pequeños; fusión **con merge commit, nunca squash**; nunca `--force` ni `--no-verify`; nada directo a `master`; fusionar solo con el «sí» explícito del usuario. Commits en español (Conventional Commits) que terminan en `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. El repo es privado y sin protección de rama ni auto-merge.
+- **Código con TDD:** una prueba que falle por la razón correcta, mínima implementación, y la suite completa antes de dar algo por hecho. Cambios de esquema por `deploy/upgrades/` + volcado + prueba de contrato (**decídelos con el usuario**).
+- **Docs:** ciclo de vida en `docs/README.md` (plan en la rama, spec en `diseno/`, propuesta en `pendientes/`, informe en `informes/`); diagramas en Mermaid.
+- **Agentes y workflows:** solo `claude-sonnet-5-5` y `claude-haiku-5-5`; ahorrar tokens (reutilizar lo producido, pocos agentes, scripts para lo mecánico).
+- **No tocar:** los documentos sin versionar del usuario (`CONTEXTO_COMPLETO_SIEP.md`, `PROMPT_MAESTRO_SIEP_PROFESIONAL.md`, `RequisitosPN3.xlsx` original), ni los worktrees de otras sesiones (`.claude/worktrees/*`, `.worktrees/actualizar-stack`).
+- **Trampas:** worktrees sin `.venv` ni `node_modules` (enlázalos con *junction*); `data-player-x/y` es contrato del e2e; Vitest recoge `*.spec.ts` locales sin versionar; Dependabot ya ignora TypeScript mayor/menor y PostgreSQL mayor.
+
+---
+
+## 10. Mapa de documentos
+
+| Si quieres… | Ve a |
+|---|---|
+| Arrancar o entender el entorno | `README.md` |
+| Saber qué hay en `docs/` y cómo se mantiene | `docs/README.md` |
+| La línea base PN3, su contraste y las propuestas como requisitos | `docs/requisitos/`: `baseline-pn3/` (en `master`); `contraste-pn3/` y `propuestas/` llegan con los PR #59 y #60 |
+| El diseño vigente (personajes unificados, orientación, DSL, consentimiento) | `docs/diseno/` |
+| Decisiones de stack, esquema y despliegue | `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md` |
+| Desplegar en Railway y aplicar upgrades | `docs/operacion/despliegue-railway.md` |
+| Lo pendiente: propuestas C/E/F/G/J y deudas | `docs/pendientes/` |
+| Las auditorías y el mapa del sistema con evidencia | `docs/informes/` |
+| El plan por bloques y las reglas de oro | `docs/PLAN_MAESTRO_TOTAL.md` |
+| El material de la materia de patrones y SOLID | `docs/diseñosistemas_docs/` |
+| La biblia visual y las láminas del arte | `docs/visual/` |
+| El origen histórico de requisitos (Java/Spring) | `docs/historico/` |
+
+**Glosario mínimo:** *caso/versión* (`SimulationCase`/`CaseVersion`), *nodo* (escena clínica del grafo), *sala* (`SceneMap`, espacio dentro de un nodo), *decisión/opción* (`DecisionOption`), *intento* (`SimulationAttempt`), *bitácora* (`ReflectionJournal`), *traza* (eventos del intento), *rúbrica* (`Rubric` con criterios ponderados), *kit* (personajes por código), *ETH-01/02* (consentimiento y pausa segura), *RQ-NEG/RNF-nnn* (catálogo previo del equipo, con colisiones de numeración) frente a *RF-nn/RNF-nn/RN-nn/CU-nn* (línea base PN3).

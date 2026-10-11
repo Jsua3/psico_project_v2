@@ -45,8 +45,13 @@ def _apply_node_request(node, request):
     node.node_key = request.get("nodeKey")
     node.title = request.get("title")
     node.narrative = request.get("narrative")
-    node.required_tools_json = write_string_list(request.get("requiredTools"))
-    node.support_resources_json = write_string_list(request.get("supportResources"))
+    # Una lista presente (aunque vacía) reemplaza; una ausente significa «no tocar»: el
+    # formulario del editor no las edita y antes las enviaba vacías, borrándolas. En un
+    # nodo nuevo, ausente es lista vacía.
+    if node.pk is None or "requiredTools" in request:
+        node.required_tools_json = write_string_list(request.get("requiredTools"))
+    if node.pk is None or "supportResources" in request:
+        node.support_resources_json = write_string_list(request.get("supportResources"))
     node.sensitive_content = flag(request, "sensitiveContent")
     node.safe_exit_required = flag(request, "safeExitRequired")
     node.warning_message = request.get("warningMessage")
@@ -61,7 +66,7 @@ def _apply_node_request(node, request):
 def create_decision(case_version_id, request):
     version = ensure_draft(case_version_id)
     decision = DecisionOption(case_version=version)
-    _apply_decision_request(decision, request)
+    _apply_decision_request(decision, request, case_version_id)
     decision.save()
     return editor(case_version_id)
 
@@ -70,7 +75,7 @@ def create_decision(case_version_id, request):
 def update_decision(case_version_id, decision_id, request):
     ensure_draft(case_version_id)
     decision = require_decision_in_version(decision_id, case_version_id)
-    _apply_decision_request(decision, request)
+    _apply_decision_request(decision, request, case_version_id)
     decision.save()
     return editor(case_version_id)
 
@@ -83,13 +88,17 @@ def delete_decision(case_version_id, decision_id):
     return editor(case_version_id)
 
 
-def _apply_decision_request(decision, request):
+def _apply_decision_request(decision, request, case_version_id):
     src = SimulationNode.objects.filter(pk=request.get("sourceNodeId")).first()
     if not src:
         raise NotFound(f"Nodo origen: {request.get('sourceNodeId')}")
     tgt = SimulationNode.objects.filter(pk=request.get("targetNodeId")).first()
     if not tgt:
         raise NotFound(f"Nodo destino: {request.get('targetNodeId')}")
+    # RN-02: una decisión solo une nodos de su propia versión del caso.
+    for node in (src, tgt):
+        if node.case_version_id != case_version_id:
+            raise ValidationError(f"El nodo {node.id} no pertenece a la versión {case_version_id}")
     option_key = request.get("optionKey")
     decision.option_key = option_key if option_key is not None else (
         f"{src.node_key}->{tgt.node_key}-{int(time.time() * 1000)}"

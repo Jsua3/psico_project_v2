@@ -331,6 +331,7 @@ def run_world_validation(version):
         "maps": [
             {
                 "id": m.id,
+                "nodeId": m.node_id,
                 "width": m.width,
                 "height": m.height,
                 "spawnX": m.spawn_x,

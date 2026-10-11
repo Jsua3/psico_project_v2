@@ -1,0 +1,115 @@
+{
+ "grupo": "Grupos y asignación",
+ "lente": "Falsos incumple: intentar demostrar que lo marcado no_cumple, conflicto o no_verificable está cubierto por otro módulo, nombre, pantalla o prueba, y revisar si la cláusula del texto base fue bien interpretada.",
+ "revision": [
+  {
+   "id": "RF-04",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "No encontré ninguna cláusula faltante. Verifiqué en código las cuatro: crear grupos (solo PROFESOR), agregar por correo a un usuario ya registrado con rol ESTUDIANTE (404 si no existe, 400 si no es estudiante), retirar (borra solo la fila de grupo_estudiante) y propiedad del grupo (_require_grupo rechaza al profesor ajeno). Hay API, ruta y menú solo PROFESOR, pantalla y pruebas. La importación Excel que crea cuentas no cae bajo RF-04 sino bajo RN-10; no baja este veredicto.",
+   "evidencia": [
+    "backend_django/apps/grupos/views.py:21-37",
+    "backend_django/apps/grupos/views.py:61-79",
+    "backend_django/apps/grupos/services.py:90-96",
+    "backend_django/apps/grupos/services.py:496-501",
+    "backend_django/apps/grupos/services.py:533-541",
+    "backend_django/apps/grupos/services.py:544-558",
+    "backend_django/psychosim/urls.py:41-44",
+    "backend_django/apps/grupos/tests/test_grupos.py:118-124",
+    "backend_django/apps/grupos/tests/test_grupos.py:134-141",
+    "backend_django/apps/grupos/tests/test_grupos.py:296-311",
+    "backend_django/apps/grupos/tests/test_grupos.py:368-374",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:725-742",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:802-824",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:880-908",
+    "frontend/src/app/app.routes.ts:74-79",
+    "frontend/src/app/shared/layout/shell.component.ts:685"
+   ]
+  },
+  {
+   "id": "RF-14",
+   "acuerdo": true,
+   "veredicto_revisado": "parcial",
+   "motivo": "Confirmo parcial. Busqué en todo backend_django y frontend/src cualquier ventana temporal (apertura, cierre, opens_at, closes_at, available_from, due_date, deadline, vigencia...) y no existe ninguna en asignaciones: la tabla grupo_case_version solo tiene grupo_id, case_version_id y assigned_at (que solo ordena), CaseVersion no tiene fechas, AsignarCasoSerializer solo acepta caseVersionId, el formulario no tiene selector de fecha y el acceso (start_attempt) no mira ninguna ventana. Retirar el caso a mano no es 'definir una fecha' ni corta intentos abiertos. Matiz a favor del sistema: 'a estudiantes' no tiene tabla ni endpoint propios, pero se puede emular creando un grupo de un solo estudiante y asignándole el caso; esa cláusula se califica mejor como parcial (emulable) que como no_cumple duro. Eso no cambia el veredicto del ítem porque las fechas siguen sin existir. 'Cuando sea necesario' vuelve opcional su uso, no la capacidad de definirlas ('debe poder').",
+   "evidencia": [
+    "backend_django/apps/grupos/services.py:561-582",
+    "backend_django/apps/grupos/serializers.py:33-34",
+    "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19",
+    "deploy/db_seed.sql:899-903",
+    "backend_django/apps/simulation/models/case.py:43-64",
+    "backend_django/apps/simulation/services/game_service.py:108-121",
+    "backend_django/apps/simulation/services/game_service.py:160-164",
+    "frontend/src/app/core/api/grupo.service.ts:115-118",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:664-667",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:1020-1038",
+    "backend_django/apps/grupos/tests/test_grupos.py:267-293"
+   ]
+  },
+  {
+   "id": "CU-03",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El caso de uso pide solo crear grupos y agregar estudiantes ya registrados, con actor Profesor. Todo existe de punta a punta (ruta con roleGuard PROFESOR, menú, formulario de grupo, alta por correo, lista de estudiantes con conteo, retiro) y está cubierto por pruebas. No hay cláusula del texto que quede sin cubrir; la importación que crea cuentas es un exceso que choca con RN-10, no con CU-03.",
+   "evidencia": [
+    "frontend/src/app/app.routes.ts:74-79",
+    "frontend/src/app/shared/layout/shell.component.ts:685",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:725-742",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:862-878",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:880-908",
+    "backend_django/apps/grupos/services.py:319-335",
+    "backend_django/apps/grupos/services.py:496-501",
+    "backend_django/apps/grupos/services.py:544-558",
+    "backend_django/apps/grupos/tests/test_grupos.py:98-99",
+    "backend_django/apps/grupos/tests/test_grupos.py:113-115"
+   ]
+  },
+  {
+   "id": "CU-06",
+   "acuerdo": true,
+   "veredicto_revisado": "parcial",
+   "motivo": "Acuerdo con parcial, pero es el juicio más discutible del grupo. El flujo para grupos funciona completo (profesor sobre grupo propio, solo caso PUBLISHED y activo, varios grupos repitiendo, efecto real: el caso aparece en /api/simulation/cases del estudiante y puede iniciarlo; probado en test_game). Lo único que falta es la mitad 'o estudiantes': no hay tabla, endpoint ni UI de asignación individual; solo se emula con un grupo de un estudiante. Si el comité leyera 'grupos o estudiantes' como alternativas excluyentes (el nombre de RF-14 es 'Asignar caso a grupo'), el veredicto subiría a cumple; con la lectura natural de que el profesor elige entre ambos tipos de destinatario, el sistema cubre solo uno. CU-06 no menciona fechas, así que la ausencia de ventana temporal no cuenta aquí.",
+   "evidencia": [
+    "backend_django/apps/grupos/views.py:119-131",
+    "backend_django/apps/grupos/services.py:561-582",
+    "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13-19",
+    "backend_django/apps/simulation/services/game_service.py:124-139",
+    "backend_django/apps/simulation/services/game_service.py:160-164",
+    "backend_django/apps/simulation/tests/test_game.py:73-85",
+    "frontend/src/app/core/api/grupo.service.ts:115-118",
+    "frontend/src/app/features/grupos/grupo-list.component.ts:1020-1038"
+   ]
+  },
+  {
+   "id": "RN-04",
+   "acuerdo": true,
+   "veredicto_revisado": "parcial",
+   "motivo": "Confirmo parcial, pero con dos correcciones al razonamiento del evaluador. (1) Lo que sostiene el parcial es solo el camino de reanudación: la asignación se comprueba únicamente en list_published_cases (línea 131) y en start_attempt (163); find_active_attempt (206-219) y _require_attempt (67-83, usado por decisiones, mundo, reflexiones, pausa) solo validan publicación, token y dueño. El frontend llama primero a active-attempt, así que un estudiante retirado del grupo (o con el caso retirado) con un intento abierto recibe el aviso de reanudar y puede seguir y terminar. quitar_estudiante y quitar_caso no cierran intentos. (2) La cláusula del catálogo del lobby (/api/simulation/catalog) está mal atribuida a RN-04: la regla dice 'entrar', y desde el lobby la entrada sigue terminando en 403 en start_attempt (el front navega a /portal/simulador/:id, active-attempt devuelve 204 y beginAttempt falla). Que el lobby muestre título y descripción de casos no asignados, y que su desbloqueo lineal ignore la asignación, es un defecto de RF-15 ('ver únicamente los casos que tenga habilitados'), no de RN-04. Además existe una vía correcta (/portal/simulador usa listCases, solo asignados). La cláusula 'otro mecanismo de habilitación' marcada no_verificable no es una condición real: 'habilitados o asignados' es disyuntivo y basta la asignación; debería descartarse o contarse como cumple.",
+   "evidencia": [
+    "backend_django/apps/simulation/services/game_service.py:67-83",
+    "backend_django/apps/simulation/services/game_service.py:93-121",
+    "backend_django/apps/simulation/services/game_service.py:124-139",
+    "backend_django/apps/simulation/services/game_service.py:160-164",
+    "backend_django/apps/simulation/services/game_service.py:206-219",
+    "backend_django/apps/simulation/views/game_views.py:50-57",
+    "backend_django/apps/simulation/services/world_service.py:171-183",
+    "backend_django/apps/grupos/services.py:533-541",
+    "backend_django/apps/grupos/services.py:585-593",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:1525-1536",
+    "frontend/src/app/features/simulator/simulation-play.component.ts:1603-1611",
+    "frontend/src/app/features/simulator/game-menu.component.ts:368-371",
+    "frontend/src/app/features/simulator/game-menu.component.ts:438-448",
+    "frontend/src/app/features/simulator/simulation-catalog.component.ts:421",
+    "backend_django/apps/progression/catalog.py:12-43",
+    "backend_django/apps/progression/tests/test_catalog.py:45-53",
+    "backend_django/apps/simulation/tests/test_game.py:73-85"
+   ]
+  }
+ ],
+ "clausulas_omitidas": [
+  "RF-14: el nombre del requisito es 'Asignar caso a grupo' y la épica 'Grupos y programación'; el evaluador no discutió que 'grupos o estudiantes' pueda leerse como alternativa (afecta RF-14 y CU-06, ver motivo de CU-06).",
+  "RF-14: 'Profesor' como único actor. Se cumple y no figuraba como cláusula: POST /api/grupos/{id}/casos usa IsProfesor y el ADMIN recibe 403 (backend_django/apps/grupos/views.py:119-131).",
+  "RN-04: 'habilitados' puede leerse como el flag unlocked (desbloqueo lineal por completitud) de build_catalog; solo se aplica en el cliente (frontend/src/app/features/simulator/game-menu.component.ts:438,446) y el servidor no lo exige en start_attempt (backend_django/apps/simulation/services/game_service.py:160-164). No es un mecanismo de acceso académico; no cambia el veredicto.",
+  "RN-04: el sujeto es 'el estudiante'. El ADMIN queda exento de la asignación (game_service.py:163 solo valida el rol ESTUDIANTE) y el PROFESOR no puede iniciar (IsEstudianteOrAdmin, game_views.py:39). Es compatible con el texto, pero no se evaluó.",
+  "RN-04: la regla se aplica al ENTRAR, y el evaluador la extendió a 'ver listados' (cláusula del catálogo del lobby); esa condición pertenece a RF-15, que debe evaluarse en su propio grupo."
+ ]
+}

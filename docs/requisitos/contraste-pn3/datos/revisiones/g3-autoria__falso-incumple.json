@@ -1,0 +1,26 @@
+{
+ "grupo": "g3-autoria",
+ "lente": "falso-incumple",
+ "revision": [
+  {
+   "id": "RN-11",
+   "acuerdo": true,
+   "veredicto_revisado": "cumple",
+   "motivo": "El texto base (03-reglas-de-negocio.md, fila RN-11) solo exige que cada decision tenga la cantidad de opciones necesaria para representar la situacion. El sistema no pone tope ni minimo: create_decision no valida cantidad (graph.py:60-66, sin CHECK en el modelo) y la validacion de mundo solo revisa nodo inicial, terminal, ciclos, geometria, etica y salida segura (world_validation.py:52-76). El autor define las opciones libremente, lo que cumple la clausula esencial. La clausula 'al menos una salida en escenas no terminales' del evaluador NO aparece en el texto base: es una exigencia adicional inferida, no una clausula de RN-11, por lo que no debe bajar el veredicto a parcial. Salvedad real (no es incumplimiento de RN-11, sino riesgo de calidad): un nodo no terminal sin opciones puede publicarse, porque world_validation no lo detecta; la unica advertencia es local al editor (dag-editor.component.ts:425-426) y no bloquea. node_state solo devuelve opciones si el nodo no es terminal (game_dtos.py:58-61), asi que el estudiante quedaria sin salida. Se recomienda registrar esto como hallazgo aparte, no como brecha de RN-11.",
+   "evidencia": [
+    "docs/requisitos/baseline-pn3/03-reglas-de-negocio.md:17 (texto RN-11: 'cantidad de opciones de respuesta que sea necesaria', estado Definido, 'Regla adoptada para esta fase del DSL')",
+    "backend_django/apps/simulation/services/authoring/graph.py:60-66 (create_decision sin tope de cantidad, verificado)",
+    "backend_django/apps/simulation/services/authoring/graph.py:86-99 (_apply_decision_request sin validacion de cantidad, verificado)",
+    "backend_django/apps/simulation/services/world_validation.py:52-76 (_validate_graph: solo inicio, terminal y ciclo; no hay chequeo de nodo no terminal sin salidas, verificado)",
+    "backend_django/apps/simulation/serializers/game_dtos.py:57-64 (node_state devuelve opciones solo si el nodo no es terminal, verificado)",
+    "frontend/src/app/features/simulator/dag-editor.component.ts:415-433 (advertencia local 'nodo(s) sin decisiones salientes', no bloquea publicar, verificado)",
+    "backend_django/apps/simulation/services/authoring/world_definition.py:55-60 (validation se calcula pero canPublish solo depende de errores; ver world_validation.py:46-48)"
+   ]
+  }
+ ],
+ "clausulas_omitidas": [
+  "Alcance del texto base: 'Regla adoptada para esta fase del DSL' limita la regla al DSL de la fase academica, no a todo SIEP; el evaluador no lo considero.",
+  "Ambigüedad de terminos: en SIEP una DecisionOption es una arista (origen-destino) y las opciones que ve el estudiante son las salientes del nodo. La lectura 'cada decision = cada nodo' del evaluador es una interpretacion posible, no la unica; no cambia el veredicto porque el sistema no limita la cantidad en ninguna lectura.",
+  "No verificado: case-editor.component.ts:330-397 y bootstrap_dev_db.py:78-92 citados por el evaluador no fueron releidos por este verificador; la conclusion de ausencia de tope se apoya en graph.py y en la ausencia de restricciones en world_validation.py."
+ ]
+}

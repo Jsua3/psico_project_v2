@@ -25,6 +25,7 @@ from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from .audit_service import auditable
+from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
 
 
@@ -90,7 +91,8 @@ def _reissue_token(attempt):
     return raw
 
 
-def _assigned_case_version_ids(student_id):
+def assigned_case_version_ids(student_id):
+    """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
     with connection.cursor() as cur:
         cur.execute(
             """
@@ -128,7 +130,7 @@ def list_published_cases(actor=None):
         .order_by("-published_at")
     )
     if actor is not None and getattr(actor, "role", None) == "ESTUDIANTE":
-        assigned_ids = _assigned_case_version_ids(actor.id)
+        assigned_ids = assigned_case_version_ids(actor.id)
         if not assigned_ids:
             return []
         versions = versions.filter(id__in=assigned_ids)
@@ -311,8 +313,9 @@ def list_attempt_history(actor):
 
 
 def get_student_report(attempt_id, actor):
-    """Reporte de finalización de un intento accedido por su dueño (o staff),
-    sin requerir el token del intento (se usa desde el historial del estudiante)."""
+    """Reporte de finalización de un intento accedido por su dueño, por el ADMIN o por el
+    profesor del estudiante, sin requerir el token del intento (se usa desde el historial
+    del estudiante)."""
     attempt = (
         SimulationAttempt.objects.filter(pk=attempt_id)
         .select_related("case_version__simulation_case", "current_node", "student")
@@ -320,8 +323,11 @@ def get_student_report(attempt_id, actor):
     )
     if not attempt:
         raise NotFound("Intento no encontrado")
-    if attempt.student_id != actor.id and actor.role not in ("ADMIN", "PROFESOR"):
-        raise PermissionDenied("No tiene acceso a este intento")
+    if attempt.student_id != actor.id:
+        # None = ADMIN (sin restricción); para el resto, solo los estudiantes de sus grupos.
+        alcance = student_ids_for_instructor(actor)
+        if alcance is not None and attempt.student_id not in alcance:
+            raise PermissionDenied("No tiene acceso a este intento")
     events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
     return dto.build_completion_report(attempt, events)
 

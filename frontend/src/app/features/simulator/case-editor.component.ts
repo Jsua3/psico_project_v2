@@ -909,16 +909,20 @@ export class CaseEditorComponent implements OnInit {
     if (!this.nodeForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.nodeForm.value;
+    const editing = p?.kind === 'node-edit' ? (p as { node: NodeEditorState }).node : null;
     const body = {
       nodeKey: v.nodeKey, title: v.title, narrative: v.narrative,
-      requiredTools: [], supportResources: [],
+      // El formulario no edita estas listas: al editar se devuelven las del nodo (antes
+      // se enviaban vacías y guardar el título las borraba); un nodo nuevo parte vacío.
+      requiredTools: editing?.requiredTools ?? [],
+      supportResources: editing?.supportResources ?? [],
       sensitiveContent: v.sensitiveContent, safeExitRequired: v.safeExitRequired,
       warningMessage: v.warningMessage || null,
       terminal: v.terminal, startNode: v.startNode,
       positionX: v.positionX, positionY: v.positionY,
     };
-    const call = p?.kind === 'node-edit'
-      ? this.authoringApi.updateNode(caseVersionId, (p as { node: NodeEditorState }).node.id, body)
+    const call = editing
+      ? this.authoringApi.updateNode(caseVersionId, editing.id, body)
       : this.authoringApi.createNode(caseVersionId, body);
     this.runAction(call, 'Nodo guardado.', 'No fue posible guardar el nodo.');
   }

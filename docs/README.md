@@ -6,10 +6,10 @@
 
 | Carpeta o archivo | Qué contiene |
 |---|---|
-| [`PROMPT_MAESTRO.md`](PROMPT_MAESTRO.md) | Mapa de endpoints, componentes y tablas. Fecha de corte 2026-06-05: lee primero su aviso de vigencia |
+| [`PROMPT_MAESTRO.md`](PROMPT_MAESTRO.md) | **Documento maestro único y vigente**: producto, stack, arquitectura, cómo funciona hoy, reglas, seguridad, calidad, estado y cómo trabajar (corte 2026-10-11) |
 | [`PLAN_MAESTRO_TOTAL.md`](PLAN_MAESTRO_TOTAL.md) | Plan maestro por bloques, con las reglas de oro del proyecto (REGLA-00x), la auditoría de estado y el orden de ejecución |
 | [`arquitectura/`](arquitectura) | Estrategia de stack, dueño del esquema de la base de datos y despliegue |
-| [`requisitos/`](requisitos) | Requisitos de negocio (`RQ-NEG`), funcionales (`RF`) y no funcionales (`RNF`) y las técnicas de elicitación aplicadas, con su CSV de cada grupo. [`baseline-pn3/`](requisitos/baseline-pn3) es la **línea base académica unificada** de la carrera (26 RF, 8 RNF, 11 RN, 15 CU) y [`PROMPT_SESION_REQUISITOS_PN3.md`](requisitos/PROMPT_SESION_REQUISITOS_PN3.md) el prompt de la sesión que la contrasta con el sistema |
+| [`requisitos/`](requisitos) | Requisitos de negocio (`RQ-NEG`), funcionales (`RF`) y no funcionales (`RNF`) y las técnicas de elicitación aplicadas, con su CSV de cada grupo. [`baseline-pn3/`](requisitos/baseline-pn3) es la **línea base académica unificada** de la carrera (26 RF, 8 RNF, 11 RN, 15 CU) y [`PROMPT_SESION_REQUISITOS_PN3.md`](requisitos/PROMPT_SESION_REQUISITOS_PN3.md) el prompt de la sesión que la contrasta con el sistema. [`contraste-pn3/`](requisitos/contraste-pn3) es ese contraste: matriz de cumplimiento de los 60 ítems con evidencia, conflictos y decisiones, glosario y catálogo de extensiones propias de SIEP con su tabla de equivalencias. [`propuestas/`](requisitos/propuestas) desarrolla las propuestas C, E, F, G y J como requisitos formales, con su ubicación frente a la línea base, criterios de aceptación, riesgos y decisiones que bloquean. [`trazabilidad/`](requisitos/trazabilidad) propone los marcadores `req` y trae la matriz requisito → pruebas y el plan de marcado |
 | [`diseno/`](diseno) | Diseños vigentes: personajes unificados, orientación y jugabilidad, arte de las puertas y consentimiento antes de contenido sensible (ETH-01) |
 | [`visual/`](visual) | Biblia visual y láminas de revisión del arte (las genera `npm run kit:laminas` y `npm run world-art:laminas`) |
 | [`operacion/`](operacion) | Despliegue en Railway |
