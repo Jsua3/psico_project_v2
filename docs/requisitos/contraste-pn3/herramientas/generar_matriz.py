@@ -9,6 +9,10 @@ Entradas
     datos/evaluadores/*.json   salida de cada evaluador: {grupo, items[], observaciones[]}
     datos/revisiones/*.json    salida de cada lente de contraste: {grupo, lente, revision[], clausulas_omitidas[]}
     datos/resoluciones.json    (opcional) {"RF-15": {"veredicto": "conflicto", "nota": "..."}}
+    datos/remediciones/*.json  (opcional) {fecha, codigo, motivo, items[]}: ítems vueltos a evaluar sobre un código
+                               posterior; cada item trae el mismo formato que un evaluador más `revisiones[]`
+                               ({lente, acuerdo, veredicto_revisado, motivo, evidencia}). Sustituyen al evaluador y a
+                               las revisiones previas de ese ID
     baseline-pn3/0[1-4]-*.md   línea base (texto fiel al Excel; no se edita a mano)
 
 Salidas
@@ -92,6 +96,14 @@ def consolidar(datos: Path, base: Path):
             )
     resol_f = datos / "resoluciones.json"
     resoluciones = json.loads(resol_f.read_text(encoding="utf-8")) if resol_f.exists() else {}
+    # Re-mediciones: ítems que se volvieron a evaluar sobre un código posterior. Sustituyen al evaluador y a las
+    # revisiones previas de ese ítem (los archivos originales se conservan como historial).
+    remediciones = {}
+    if (datos / "remediciones").exists():
+        for f, d in cargar_json(datos / "remediciones"):
+            meta = {k: d.get(k, "") for k in ("fecha", "codigo", "motivo")}
+            for it in d.get("items", []):
+                remediciones[it["id"]] = dict(item=it, meta=meta)
 
     faltan = sorted(set(linea_base) - set(evaluados), key=clave)
     sobran = sorted(set(evaluados) - set(linea_base), key=clave)
@@ -106,8 +118,23 @@ def consolidar(datos: Path, base: Path):
                        revisiones=[], resolucion=None)
             salida.append(reg)
             continue
+        remedicion = None
+        rem = remediciones.get(id_)
+        if rem:
+            previo = resoluciones.get(id_, {}).get("veredicto", ev["veredicto"])
+            grupo_previo = ev.get("grupo", "")
+            ev = dict(rem["item"])
+            ev["grupo"] = grupo_previo
+            remedicion = dict(rem["meta"], anterior=previo)
+            if rem["item"].get("motivo"):
+                remedicion["motivo"] = rem["item"]["motivo"]
         v = ev["veredicto"]
-        revs = revisiones.get(id_, [])
+        if rem:
+            revs = [dict(fuente="remedicion", lente=r.get("lente", ""), acuerdo=r["acuerdo"],
+                         veredicto_revisado=r["veredicto_revisado"], motivo=r["motivo"], evidencia=r.get("evidencia", []))
+                    for r in rem["item"].get("revisiones", [])]
+        else:
+            revs = revisiones.get(id_, [])
         if v in EN_ALCANCE_CONTRASTE:
             if len(revs) == 0:
                 verif = "pendiente"
@@ -122,10 +149,14 @@ def consolidar(datos: Path, base: Path):
             else:
                 ok = all(r["acuerdo"] and r["veredicto_revisado"] == v for r in revs)
                 verif = "revisado por 1 lente, de acuerdo" if ok else "disputado"
-        res = resoluciones.get(id_)
+        res = None if rem else resoluciones.get(id_)
         final = res["veredicto"] if res else v
         if res and verif == "disputado":
             verif = "disputado, resuelto"
+        if rem:
+            verif = "re-medido; " + verif
+        if remedicion:
+            reg.update(remedicion=remedicion)
         reg.update(
             grupo=ev["grupo"], veredicto_evaluador=v, veredicto_final=final, verificacion=verif,
             resumen=ev.get("resumen", ""), clausulas=ev.get("clausulas", []), brecha=ev.get("brecha", ""),
@@ -178,10 +209,14 @@ def escribir_matriz(salida, omitidas, faltan, sobran, destino: Path, fecha, sha)
     verif = Counter(r["verificacion"] for r in salida)
     L = []
     L += ["# Matriz de cumplimiento: línea base PN3 ↔ SIEP", ""]
+    remedidos = [r for r in salida if r.get("remedicion")]
     L += [f"> Generada el {fecha} por `herramientas/generar_matriz.py` a partir de `datos/` (no se edita a mano; "
-          f"para cambiar un veredicto se añade una resolución en `datos/resoluciones.json` y se regenera).",
+          f"para cambiar un veredicto se añade una resolución en `datos/resoluciones.json`, o una re-medición en "
+          f"`datos/remediciones/`, y se regenera).",
           f"> Línea base: `docs/requisitos/baseline-pn3/` (SHA-256 del `.xlsx`: `{sha}`). Código evaluado: `master` "
-          f"(sin diferencias en `backend_django/`, `frontend/src/` ni `deploy/` respecto del árbol donde se evaluó).", ""]
+          f"(sin diferencias en `backend_django/`, `frontend/src/` ni `deploy/` respecto del árbol donde se evaluó"
+          + (f"; los {len(remedidos)} ítems marcados «re-medido» se volvieron a evaluar sobre un `master` posterior, "
+             f"ver la sección «Re-mediciones»)." if remedidos else ")."), ""]
     L += ["## Resumen", "", "| Tipo | Cumple | Parcial | No cumple | Conflicto | No verificable | Total |", "|---|---:|---:|---:|---:|---:|---:|"]
     tot = Counter()
     for t in TIPOS:
@@ -209,10 +244,25 @@ def escribir_matriz(salida, omitidas, faltan, sobran, destino: Path, fecha, sha)
             if res and r["veredicto_final"] != r["veredicto_evaluador"]:
                 # el contraste cambió el veredicto: la brecha del evaluador ya no lo describe
                 brecha = "*Resuelto tras el contraste:* " + celda(res.get("nota", ""), 230)
+            veredicto = f"**{r['veredicto_final']}**"
+            rem = r.get("remedicion")
+            if rem and rem.get("anterior") != r["veredicto_final"]:
+                veredicto += f" (antes: {rem['anterior']})"
             L.append("| " + " | ".join([
-                r["id"], celda(r["nombre"], 60), f"**{r['veredicto_final']}**", celda(r["verificacion"], 40),
+                r["id"], celda(r["nombre"], 60), veredicto, celda(r["verificacion"], 60),
                 evidencia_principal(r), brecha, r.get("esfuerzo", ""),
                 "sí" if r.get("cambia_esquema_bd") else "—"]) + " |")
+        L.append("")
+    if remedidos:
+        L += ["## Re-mediciones", "",
+              "Ítems que se volvieron a evaluar sobre un código posterior al de la medición original. Sustituyen al "
+              "veredicto, las cláusulas y las revisiones anteriores (que se conservan en `datos/evaluadores/` y "
+              "`datos/revisiones/` como historial).", "",
+              "| ID | Fecha | Código | Antes | Ahora | Motivo |", "|---|---|---|---|---|---|"]
+        for r in remedidos:
+            m = r["remedicion"]
+            L.append(f"| {r['id']} | {m.get('fecha', '')} | {celda(m.get('codigo', ''), 40)} | {m.get('anterior', '')} | "
+                     f"**{r['veredicto_final']}** | {celda(m.get('motivo', ''), 160)} |")
         L.append("")
     disputados = [r for r in salida if r["verificacion"].startswith("disputado")]
     L += ["## Disputados y su resolución", ""]
@@ -245,6 +295,10 @@ def escribir_detalle(salida, omitidas, destino: Path):
             if r.get("rf_relacionados"):
                 L += [f"- **RF relacionados:** {r['rf_relacionados']}"]
             L += [f"- **Veredicto:** **{r['veredicto_final']}** (evaluador: {r['veredicto_evaluador']}) · **Verificación:** {r['verificacion']}"]
+            if r.get("remedicion"):
+                m = r["remedicion"]
+                L += [f"- **Re-medición ({m.get('fecha', '')}, {m.get('codigo', '')}):** antes **{m.get('anterior', '')}**, "
+                      f"ahora **{r['veredicto_final']}**. {celda(m.get('motivo', ''))}"]
             if r["veredicto_final"] == "sin_evaluar":
                 L += [""]
                 continue
