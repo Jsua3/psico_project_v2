@@ -14,7 +14,7 @@
 | [`visual/`](visual) | Biblia visual y láminas de revisión del arte (las genera `npm run kit:laminas` y `npm run world-art:laminas`) |
 | [`operacion/`](operacion) | Despliegue en Railway |
 | [`pendientes/`](pendientes) | Lo que quedó sin decidir o sin hacer: las propuestas C, E, F, G y J para la BETA (`propuestas/`) y las deudas abiertas (`deudas/`) |
-| [`informes/`](informes) | Informes y auditorías de las sesiones de octubre: brechas del plan maestro, diagnóstico de jugabilidad, revisión adversarial, pase visual |
+| [`informes/`](informes) | Informes y auditorías de las sesiones de octubre: brechas del plan maestro, diagnóstico de jugabilidad, revisión adversarial, pase visual y [cierre de la sesión de requisitos PN3](informes/2026-10-11-cierre-requisitos-pn3.md) |
 | [`historico/`](historico) | Documentos de la era Java/Spring que `PLAN_MAESTRO_TOTAL.md` y los informes citan como origen de requisitos y de la numeración `RQ-NEG` |
 | [`diseñosistemas_docs/`](diseñosistemas_docs) | Material de la materia «Análisis y diseño de sistemas»: serie de patrones, antipatrones y SOLID, con su evidencia. Tiene su propio [índice](diseñosistemas_docs/README.md) |
 

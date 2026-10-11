@@ -2,11 +2,13 @@
 
 > Síntesis del contraste de los 60 ítems de la línea base (detalle en [`matriz-cumplimiento.md`](matriz-cumplimiento.md) y [`detalle-por-requisito.md`](detalle-por-requisito.md)). Evaluación: 2026-10-10; redacción: 2026-10-11. Todo lo que aquí se afirma sale de leer el código de `master`; nada se ejecutó. Los valores por defecto de las decisiones son **supuestos de trabajo para que el usuario los revise**, no decisiones tomadas por el equipo.
 
-**Lectura rápida.** 14 ítems cumplen, 38 cumplen en parte, 1 no se cumple, 5 están en conflicto y 2 no se pueden verificar leyendo código. Casi todo lo «parcial» se explica por cuatro causas: (1) el actor —la línea base dice «profesor» y SIEP deja autorar y publicar solo al administrador—, (2) no hay DSL ni validación al ejecutar, (3) la retroalimentación pedagógica llega en el momento y no al final, (4) faltan pistas, fechas y asignación individual. Lo más urgente no es de la línea base: dos agujeros de acceso a datos de otros docentes y un defecto que borra datos de un nodo al guardarlo (sección 3).
+> **Actualización (2026-10-11, tras la ola 0):** las filas 0.1 a 0.4 y los defectos D-1 a D-4 ya tienen su PR (#64 a #67): ver «Estado de la ola 0» en la sección 2 y «Corregidos» en la sección 3. Los 14 ítems que esos PR tocan se **re-midieron** sobre `master` de430a7 (ver «Re-mediciones» en la matriz): RF-15 pasó de conflicto a parcial y RN-02 de parcial a cumple. Lo que sigue en este documento conserva el texto de la medición original salvo donde lo indica.
+
+**Lectura rápida (tras la re-medición).** 15 ítems cumplen, 38 cumplen en parte, 1 no se cumple, 4 están en conflicto y 2 no se pueden verificar leyendo código (antes: 14, 38, 1, 5 y 2). Casi todo lo «parcial» se explica por cuatro causas: (1) el actor —la línea base dice «profesor» y SIEP deja autorar y publicar solo al administrador—, (2) el DSL existe como diseño pero no está integrado y no hay validación al ejecutar, (3) la retroalimentación pedagógica llega en el momento y no al final, (4) faltan pistas, fechas y asignación individual. Lo que más urgía fuera de la línea base (acceso a datos de otros docentes y un guardado de nodo que borraba datos) ya está corregido; quedan los defectos de la sección 3.
 
 ---
 
-## 1. Conflictos (5)
+## 1. Conflictos (4 vigentes y 1 resuelto)
 
 Un conflicto es una cláusula que el sistema contradice activamente. Cada uno trae el texto, lo que hace SIEP, las opciones y una recomendación.
 
@@ -62,7 +64,9 @@ Un conflicto es una cláusula que el sistema contradice activamente. Cada uno tr
 
 **Recomendación:** (b), como en el prompt (§8 #4), y retirar la contraseña compartida (cada cuenta nace con contraseña temporal propia o con enlace de activación).
 
-### 1.5 RF-15 · El estudiante ve únicamente los casos habilitados — esfuerzo S, sin esquema
+### 1.5 RF-15 · El estudiante ve únicamente los casos habilitados — esfuerzo S, sin esquema — **resuelto en [#66](https://github.com/Jsua3/psico_project_v2/pull/66) (opción a)**
+
+> **Resuelto (2026-10-11).** `build_catalog` ya filtra por asignación para el estudiante y calcula el desbloqueo solo entre los asignados (`backend_django/apps/progression/catalog.py:14-18`). RF-15 queda **parcial**: falta lo de RF-14 (fechas y asignación individual) y, para RN-04, cortar la reanudación de un intento tras perder la asignación. El texto de abajo es el de la medición original.
 
 - **Texto:** «El estudiante debe poder ver únicamente los casos que tenga habilitados para participar» (y RN-04: «solo podrá entrar a los casos que tenga habilitados o asignados»).
 - **Qué hace SIEP:** hay dos catálogos con criterios distintos. `GET /api/simulation/cases` filtra por asignación; `GET /api/simulation/catalog` (el lobby `/portal/jugar`) **no** filtra: pinta una puerta por cada caso publicado, con título y descripción, y entrar acaba en 403 de `start_attempt`. El desbloqueo lineal («completa el anterior») se calcula sobre todos los publicados (`backend_django/apps/progression/catalog.py:13,18`).
@@ -107,11 +111,13 @@ Prioridad = impacto sobre la línea base, riesgo de datos y esfuerzo; el orden r
 
 Notas de orden: la ola 0 se puede ejecutar ya y en paralelo; la 1 espera #2 y #6; la 2.1 desbloquea el segundo caso (propuesta J) y la 3.2 comparte decisión con la propuesta G (asistente y ayuda).
 
+**Estado de la ola 0 (2026-10-11).** Las cuatro filas se hicieron con la prueba primero, cada una en su PR y sin tocar el esquema: 0.1 → [#64](https://github.com/Jsua3/psico_project_v2/pull/64), 0.2 → [#65](https://github.com/Jsua3/psico_project_v2/pull/65), 0.3 → [#66](https://github.com/Jsua3/psico_project_v2/pull/66) y 0.4 → [#67](https://github.com/Jsua3/psico_project_v2/pull/67). La 0.4 quedó **a medias a propósito**: se añadieron las reglas estructurales a la validación de publicación (`NODE_WITHOUT_OPTIONS`, `NODE_WITHOUT_MAP`, `DECISION_NODE_NOT_IN_CASE`, `UNREACHABLE_NODE`) y el guardián «una decisión solo une nodos de su versión», pero la siembra (`seed_caso_pdf`, `bootstrap_dev_db`) sigue escribiendo `PUBLISHED` sin pasar por la compuerta. El caso sembrado trae además un nodo huérfano (`comisaria-recepcion`, sin opciones y sin entradas): por eso «sin opciones» solo es error en nodos alcanzables y el huérfano sale como advertencia `UNREACHABLE_NODE`. Los 14 ítems de la línea base que estos PR tocan se **re-midieron** sobre `master` de430a7 (sección «Re-mediciones» de la matriz); los otros 46 conservan la medición original, cuyas citas `ruta:línea` son del árbol evaluado el 10 de octubre.
+
 ---
 
 ## 3. Defectos hallados fuera de la línea base
 
-Estado: **verificado** = leído en el código por quien redactó este documento; **reportado** = lo señaló un evaluador con evidencia, sin releer.
+Estado: **verificado** = leído en el código por quien redactó este documento; **verificado (revisor independiente)** = lo halló un revisor que leyó el código sin conocer las conclusiones previas y se releyó después; **reportado** = lo señaló un evaluador con evidencia, sin releer.
 
 | # | Defecto | Dónde | Estado |
 |---|---|---|---|
@@ -125,8 +131,17 @@ Estado: **verificado** = leído en el código por quien redactó este documento;
 | D-8 | La exportación CSV no escapa comas ni comillas y un nombre que empiece por `=`, `+`, `-` o `@` es inyección de fórmula en hojas de cálculo. | `backend_django/apps/reportes/services.py:288-300` | reportado |
 | D-9 | Borrar un nodo con decisiones entrantes probablemente falla con error de integridad (500): la FK no tiene `ON DELETE`. | `backend_django/apps/simulation/services/authoring/graph.py:37-41` | reportado |
 | D-10 | La siembra `seed_caso_pdf` borra los intentos de la versión que resiembra: solo la invocan comandos de desarrollo, pero rompe REGLA-005 y RN-06 si se corriera en producción. | `backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1144-1176` | reportado |
+| D-11 | **Los GET de juego no acotan al profesor por grupo**: `_require_attempt` autoriza a cualquier PROFESOR o ADMIN sobre un intento si presenta su token, sin comprobar que el estudiante sea de uno de sus grupos. Al PROFESOR le llegan cuatro GET (intento, reporte de cierre, mapa de progreso y mundo); las escrituras de juego son de ESTUDIANTE o ADMIN. Mitigante: el token (256 bits) solo se entrega al dueño, en la base solo hay su hash y las pantallas del docente no lo exponen. Defensa en profundidad pendiente. | `backend_django/apps/simulation/services/game_service.py:68-84`; `backend_django/apps/simulation/views/game_views.py:61,70,93,156` | verificado (revisor independiente, 2026-10-11) |
+| D-12 | **Referencias del editor de escenas sin acotar a la versión:** `create_map` y `update_map` buscan el nodo por clave primaria global (un borrador puede colgar un mapa de un nodo de una versión **publicada**, contra REGLA-005), `create_dialogue` toma cualquier `mapObjectId`, el enlace de un objeto con una decisión (`decisionOptionId`) no se acota a la versión y se ignora en silencio si no existe, y `tool_code` nunca se coteja con el catálogo de herramientas. La validación de publicación no tiene regla equivalente a `DECISION_NODE_NOT_IN_CASE` para mapas, objetos ni diálogos. Solo alcanzable por la API de autoría (ADMIN). | `backend_django/apps/simulation/services/authoring/scenes.py:32,46,121-125,136-137`; `backend_django/apps/simulation/services/authoring/world_definition.py:203-208` | verificado (revisor independiente, 2026-10-11) |
+| D-13 | El reporte de grupo y su CSV solo comprueban `profesor_id`, no que el grupo esté activo, a diferencia del alcance del tablero. Hoy es latente: ningún código marca `activo = FALSE` (eliminar borra el grupo). Menor. | `backend_django/apps/reportes/services.py:164-180`; `backend_django/apps/simulation/services/instructor_scope.py:16-26` | verificado (revisor independiente, 2026-10-11) |
+| D-14 | **El alcance docente es de autoservicio:** cualquier PROFESOR agrega por correo a cualquier ESTUDIANTE registrado a su grupo (y la importación masiva también) sin que el estudiante lo acepte ni el administrador lo apruebe; desde ese momento lee su traza con la bitácora reflexiva descifrada. Los mensajes 404 y 400 de agregar permiten además enumerar cuentas. Es lo que RF-04 pide («estudiantes que ya estén registrados»), pero es una decisión de privacidad que no se tomó (decisión 22). | `backend_django/apps/grupos/services.py:545-558,399-455`; `backend_django/apps/simulation/services/instructor_service.py:112-120` | verificado (revisor independiente, 2026-10-11) |
+| D-15 | **Un nodo final sin mapa pasa la validación y rompe la traza del docente:** `NODE_WITHOUT_MAP` exime a los nodos finales (#67), pero `world_for_attempt` exige mapa para el nodo actual, así que la traza de todo intento que termina en ese nodo (y `GET /world`) responde 404. Acción mínima: exigir mapa también a los finales, o que `trace` tolere la ausencia. | `backend_django/apps/simulation/services/world_validation.py:133-147`; `backend_django/apps/simulation/services/world_service.py:466-469`; `backend_django/apps/simulation/services/instructor_service.py:111` | verificado (revisor independiente, releído) |
+| D-16 | **Lecturas que escriben:** `GET /world` y la traza del docente llaman a `require_world_state`, que re-sincroniza y guarda el estado del mundo del intento (posición y sala) si el nodo cambió. | `backend_django/apps/simulation/services/world_service.py:466-493`; `backend_django/apps/simulation/services/instructor_service.py:111` | verificado (revisor independiente, 2026-10-11) |
+| D-17 | **Las rúbricas son globales:** cualquier PROFESOR edita, activa, fija como predeterminada o reasigna rúbricas a cualquier versión de caso; no hay propiedad. | `backend_django/apps/simulation/services/rubric_service.py:197-294`; `backend_django/apps/simulation/views/rubric_views.py:11-66` | reportado (revisor independiente, sin releer) |
 
 D-1 a D-4 no dependen de ninguna decisión de producto y son los primeros candidatos de la ola 0.
+
+**Corregidos (2026-10-11):** D-1, D-2 y D-3 en [#64](https://github.com/Jsua3/psico_project_v2/pull/64) (alcance por docente: el nuevo módulo `apps/simulation/services/instructor_scope.py` calcula los estudiantes de cada docente y el ADMIN sigue viendo todo); D-4 en [#65](https://github.com/Jsua3/psico_project_v2/pull/65) (guardar un nodo conserva sus herramientas y apoyos si el formulario no los trae). Las referencias `ruta:línea` de D-1 a D-4 describen el código **anterior** a esas correcciones: se ven con `git show 700904f:<ruta>`.
 
 ---
 
@@ -157,6 +172,7 @@ Cada una con pregunta cerrada y valor por defecto recomendado. Las ocho primeras
 | 19 | ¿Criterio de accesibilidad WCAG 2.1 AA o 2.2 AA (RNF-04)? | 2.1 AA, como el RNF-004 del equipo | 5.2 | abierta |
 | 20 | ¿Umbrales de rendimiento y disponibilidad (RNF-05, RNF-06)? | p95 ≤ 2 s y 99,5 % mensual, los del catálogo del equipo | 5.3 | abierta |
 | 21 | En la revisión docente, ¿nombre real o alias (RF-25)? | Alias en la traza (se mantiene) y nombre en los reportes de sus grupos | RF-25 | abierta |
+| 22 | ¿Un docente puede agregar a su grupo a cualquier estudiante registrado sin su aceptación ni la aprobación del administrador (D-14)? | No: el estudiante acepta la inclusión, o el administrador la aprueba al importar | RF-04, RF-25 | abierta (nueva, 2026-10-11) |
 
 ---
 
@@ -171,4 +187,4 @@ Cada una con pregunta cerrada y valor por defecto recomendado. Las ocho primeras
 | RNF-04 | Lector de pantalla real | Recorrido con NVDA o VoiceOver de los flujos de estudiante y docente |
 | RN-01 | Que el aviso de alcance sea el que Psicología aprueba | Revisión del texto por Psicología |
 
-**Alcance del contraste.** El método (prompt §6.4) somete a dos lentes opuestos solo los veredictos «cumple» y «conflicto»: son 20 ítems (17 confirmados por ambos lentes y 3 con desacuerdo que se resolvió leyendo el código). Otros 37 ítems («parcial», «no cumple» y «no verificable») tienen **una sola evaluación**, y 3 «parcial» fueron revisados por un lente. La columna «Verificación» de la matriz lo marca ítem por ítem. Ninguna prueba ni servidor se ejecutó.
+**Alcance del contraste.** El método (prompt §6.4) somete a dos lentes opuestos solo los veredictos «cumple» y «conflicto»: son 20 ítems en la medición original (17 confirmados por ambos lentes y 3 con desacuerdo que se resolvió leyendo el código). Otros 37 («parcial», «no cumple» y «no verificable») tenían **una sola evaluación**, y 3 «parcial» fueron revisados por un lente. En la re-medición del 2026-10-11 de 14 ítems, 13 pasaron por un revisor independiente (RN-02 y RN-11, que son «cumple», con un solo lente de dos) y RN-05 quedó sin revisar; hoy quedan **27** ítems con una sola evaluación. La columna «Verificación» de la matriz lo marca ítem por ítem. Ninguna prueba ni servidor se ejecutó (la suite de backend sobre `master` sí corre en el CI de cada PR).

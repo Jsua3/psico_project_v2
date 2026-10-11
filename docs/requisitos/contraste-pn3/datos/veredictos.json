@@ -813,11 +813,17 @@
   "estado_base": "Definido",
   "epica": "Gestión de casos",
   "tipo": "RF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#65: guardar un nodo ya no vacía supportResources; sigue sin haber pistas por decisión.",
+   "anterior": "no_cumple"
+  },
   "grupo": "g3-autoria",
   "veredicto_evaluador": "no_cumple",
   "veredicto_final": "no_cumple",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "No existe ninguna ayuda o pista opcional autorable por decision. Los campos parecidos (warningMessage, supportResources) tienen otro proposito y el editor ni siquiera conserva supportResources.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "No existe ninguna ayuda o pista opcional autorable por decisión. Los campos parecidos (warningMessage, supportResources) tienen otro propósito; desde #65 el editor ya no vacía supportResources al guardar un nodo, pero tampoco lo ofrece.",
   "clausulas": [
    {
     "texto": "Agregar ayudas o pistas opcionales a las decisiones",
@@ -839,20 +845,36 @@
     "texto": "Campos parecidos: supportResources del nodo",
     "estado": "no_cumple",
     "evidencia": [
-     "models/case.py:81; graph.py:49 lo escribe desde el request",
-     "case-editor.component.ts:914 envia siempre supportResources: [], asi que no es autorable en el editor y cada guardado de nodo lo vacia",
-     "attempt-outcome.component.ts:50-54 lo muestra como recursos de apoyo del desenlace, no como pista de una decision"
+     "backend_django/apps/simulation/models/case.py:81 - supportResources es del nodo, no de la decisión",
+     "backend_django/apps/simulation/services/authoring/graph.py:51-54 - desde #65 la actualización de un nodo conserva requiredTools y supportResources si la petición no los trae",
+     "frontend/src/app/features/simulator/case-editor.component.ts:912-918 - el formulario reenvía los valores del nodo en edición; sigue sin ofrecer el campo, así que no es autorable en el editor",
+     "frontend/src/app/features/simulator/attempt-outcome.component.ts:50-54 - lo muestra como recursos de apoyo del desenlace, no como pista de una decisión"
     ]
    }
   ],
-  "brecha": "Sin entidad ni campo de pista; el editor tampoco ofrece los campos parecidos. Defecto adicional: guardar un nodo desde el editor sobreescribe supportResources con lista vacia.",
-  "accion": "Anadir campo hint (texto opcional) por opcion o por escena, con su control en el editor, incluirlo en el DTO de la decision y mostrarlo opcionalmente al estudiante (coordinar con RF-18). Corregir saveNode para no vaciar supportResources.",
+  "brecha": "Sin entidad ni campo de pista; el editor tampoco ofrece los campos parecidos. El defecto de guardar un nodo que vaciaba supportResources se corrigió en #65.",
+  "accion": "Añadir campo hint (texto opcional) por opción o por escena, con su control en el editor, incluirlo en el DTO de la decisión y mostrarlo opcionalmente al estudiante (coordinar con RF-18).",
   "esfuerzo": "M",
   "cambia_esquema_bd": true,
   "decision_requerida": "Si la ayuda es por opcion o por escena, si se muestra bajo demanda y si cuesta puntaje (esta ligada a RF-18).",
   "terminologia": "Ayuda/pista = sin equivalente en el modelo; el mas cercano es SimulationNode.support_resources_json (recursos de apoyo/contencion), que no es lo mismo.",
-  "pruebas_existentes": [],
-  "revisiones": [],
+  "pruebas_existentes": [
+   "backend_django/apps/simulation/tests/test_guardar_nodo_conserva_datos.py:31 test_actualizar_un_nodo_sin_listas_conserva_herramientas_y_apoyos",
+   "frontend/src/app/features/simulator/case-editor.feedback.spec.ts:217 guardar un nodo existente conserva sus herramientas y sus apoyos"
+  ],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "no_cumple",
+    "motivo": "El servidor solo reemplaza requiredTools y supportResources si la petición los trae o el nodo es nuevo; el único cliente que llama a nodos reenvía los del nodo en edición. Sigue sin existir ninguna pista autorable por decisión.",
+    "evidencia": [
+     "backend_django/apps/simulation/services/authoring/graph.py:51-54",
+     "frontend/src/app/features/simulator/case-editor.component.ts:913-927"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -864,11 +886,17 @@
   "estado_base": "Definido",
   "epica": "DSL y validación",
   "tipo": "RF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67 añade las reglas estructurales; el DSL (#63) existe como diseño pero no está integrado en el sistema.",
+   "anterior": "parcial"
+  },
   "grupo": "g4-dsl-publicacion",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "La compuerta de validación existe y funciona: bloquea publicar y nombra cada error. Pero no hay un DSL formal; son 14 errores y 1 advertencia codificados a mano en world_validation.py. Esas reglas omiten condiciones estructurales de la línea base (destino de otra versión, nodo sin mapa, nodo sin salida o inalcanzable) y solo el ADMIN puede ejecutar la validación, no el profesor.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "La compuerta de validación existe y funciona: bloquea publicar y nombra cada error. Desde #67 incluye las reglas estructurales que faltaban (decisión ajena al caso, nodo sin salida, nodo sin mapa, nodo inalcanzable). Sigue sin haber un DSL en el sistema: el DSL está diseñado y validado en documentos (docs/diseno/dsl) pero SIEP no lo usa, y solo el ADMIN puede ejecutar la validación, no el profesor.",
   "clausulas": [
    {
     "texto": "Antes de usar un caso, el sistema debe revisar el caso",
@@ -878,28 +906,25 @@
      "backend_django/apps/simulation/urls_admin.py:47 - POST /api/admin/cases/<id>/world/validate, validación bajo demanda",
      "backend_django/apps/simulation/services/authoring/world_definition.py:55 - world_editor() incluye la validación en cada lectura (clave validation en :77)",
      "frontend/src/app/features/simulator/world-editor/world-editor.component.ts:148 - botón Validar",
-     "backend_django/apps/simulation/services/game_service.py:160 - al iniciar un intento NO se revalida, solo se exige PUBLISHED; equivale porque lo publicado es inmutable (backend_django/apps/simulation/services/authoring/guards.py:28)"
+     "backend_django/apps/simulation/services/game_service.py:162 - al iniciar un intento NO se revalida, solo se exige PUBLISHED; equivale porque lo publicado es inmutable (backend_django/apps/simulation/services/authoring/guards.py:28)"
     ]
    },
    {
     "texto": "...que cumpla la estructura definida en el DSL",
     "estado": "parcial",
     "evidencia": [
-     "Búsqueda de DSL sin resultados en backend_django/ ni frontend/src/: no existe gramática, JSON Schema ni documento que lo defina",
-     "frontend/src/app/core/models/simulation.model.ts:574 - único equivalente: WorldDefinition v2, contrato canónico entre editor y juego (interfaces TypeScript)",
-     "backend_django/apps/simulation/services/authoring/world_definition.py:62 - el mundo se arma como dict con schemaVersion 2 a partir de tablas",
-     "backend_django/apps/simulation/services/authoring/graph.py:100 - la forma de los datos se valida al escribir (clasificación enum), no contra un esquema",
-     "backend_django/apps/simulation/services/authoring/graph.py:87 - origen y destino de una decisión se buscan por id sin filtrar por versión (contraste: guards.py:39 require_node_in_version)"
+     "docs/diseno/dsl/dsl-casos.schema.json - JSON Schema del DSL y validador docs/diseno/dsl/validador/validar_dsl.py: el DSL existe como diseño, fuera del sistema",
+     "frontend/src/app/core/models/simulation.model.ts:574 - único equivalente en el sistema: WorldDefinition v2, contrato canónico entre editor y juego (interfaces TypeScript)",
+     "backend_django/apps/simulation/services/authoring/world_definition.py:62 - el mundo se arma como dict con schemaVersion 2 a partir de tablas; no hay importación ni exportación de casos en el formato del DSL"
     ]
    },
    {
     "texto": "...que cumpla las reglas definidas en el DSL",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/world_validation.py:37 - reglas vigentes: grafo (un inicial, al menos un terminal, sin ciclos, :52-104), geometría (:112), ética (:144), salida segura (:156), límites (:165)",
-     "backend_django/apps/simulation/services/world_validation.py:52 - no revisa nodo sin mapa, nodo no terminal sin opciones, nodo inalcanzable desde el inicial, decisión sin texto ni destino de otra versión",
-     "backend_django/apps/simulation/services/world_service.py:467 - en juego falla con 'La escena no tiene mapa configurado': error que la validación no anticipa",
-     "docs/informes/2026-10-03-diagnostico-jugabilidad/code-wayfinding.md:383 - WAY-17: tampoco valida referencias requires* ni destinos sin mapa"
+     "backend_django/apps/simulation/services/world_validation.py:37-48 - reglas vigentes: grafo, extremos de decisión (:84-94), nodos sin salida (:115-130), sin mapa (:133-147), inalcanzables (:150-160), geometría, ética, salida segura y límites",
+     "docs/diseno/dsl/fase-3-sintaxis-concreta.md:679 - el sistema no valida por completo OCL-02 (rechaza los nodos sin opciones, no los de una sola), OCL-04, OCL-05, OCL-07 (descripción vacía) ni OCL-08 del DSL diseñado",
+     "backend_django/apps/simulation/services/world_service.py:467 - sigue fallando en juego un destino sin sala: la validación no lo anticipa"
     ]
    },
    {
@@ -923,11 +948,11 @@
     ]
    }
   ],
-  "brecha": "(1) No existe un DSL formal ni un documento de reglas citable. (2) Faltan reglas estructurales que hoy solo fallan en juego: nodo sin mapa, nodo no terminal sin opciones, nodo inalcanzable, decisión con origen o destino de otra versión, referencias requires* desconocidas. (3) El profesor no puede validar: solo el ADMIN. (4) En el editor de casos el botón Publicar no refleja la validación.",
-  "accion": "1) Añadir a world_validation.validate las reglas estructurales (nodo sin mapa, no terminal sin opciones, inalcanzable, destino de otra versión; advertencia para requires* desconocidas) y exigir la versión en graph._apply_decision_request. 2) Documentar la lista de reglas con código, severidad y mensaje como especificación del DSL. 3) Mostrar los errores en la cabecera del editor y deshabilitar Publicar si canPublish es false. 4) Si el profesor autora, abrir world/validate a PROFESOR con control de propiedad. 5) Una prueba unitaria por código (hoy solo NO_SAFE_EXIT se ejercita).",
+  "brecha": "(1) El DSL no está integrado en el sistema: ni importación y exportación de casos ni validación contra su esquema; las reglas del sistema (17 errores y 2 advertencias) no son las del DSL diseñado (OCL-01 a OCL-08). (2) Quedan reglas sin cubrir: referencias requires* desconocidas, opciones que ningún diálogo ofrece, decisión sin texto, y un nodo final sin mapa pasa la validación aunque rompe la traza del docente (D-15). (3) El profesor no puede validar: solo el ADMIN. (4) En el editor de casos el botón Publicar no refleja la validación.",
+  "accion": "1) Decidir si el DSL de docs/diseno/dsl es el formato de intercambio (importador, exportador y validador del esquema) o solo documentación. 2) Mostrar los errores en la cabecera del editor y deshabilitar Publicar si canPublish es false. 3) Si el profesor autora, abrir world/validate a PROFESOR con control de propiedad. 4) Una prueba por código de validación.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
-  "decision_requerida": "¿La línea base exige un DSL formal (gramática o JSON Schema versionado) o basta documentar las reglas de WorldDefinition v2? ¿Quién valida: solo ADMIN (hoy) o también PROFESOR? ¿Qué reglas nuevas bloquean (error) y cuáles solo avisan (advertencia)?",
+  "decision_requerida": "¿La línea base exige un DSL formal integrado en el sistema o basta con el diseño documentado en docs/diseno/dsl? ¿Quién valida: solo ADMIN (hoy) o también PROFESOR?",
   "terminologia": "caso = versión de caso (CaseVersion en DRAFT) dentro de un SimulationCase. DSL = no existe como lenguaje; equivale al contrato WorldDefinition v2 (JSON, schemaVersion 2) más las reglas de world_validation.py. Estructura = grafo de nodos y decisiones (escena = nodo con su mapa o sala; conclusión = nodo terminal) más mapas y objetos. Reglas = códigos NO_START_NODE, GRAPH_CYCLE, NO_SAFE_EXIT, etc. Señalar qué hace falta = lista {severity, code, message, entityRef}. Usar = publicar o iniciar un intento. Profesor = hoy rol ADMIN en el editor.",
   "pruebas_existentes": [
    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_la_validacion_del_mundo_exige_una_salida_segura (:598)",
@@ -937,7 +962,21 @@
    "backend_django/apps/simulation/tests/test_authoring.py::test_editor_forbidden_for_profesor (:55)",
    "frontend/src/app/features/simulator/world-editor/world-editor.store.commands.spec.ts (validate)"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "Las reglas estructurales nuevas se sostienen en el flujo real de publicación. Siguen sin validarse: referencias requires*, targetNodeKey y entryX/Y (JSON opaco, comprobado solo al jugar), create_map/update_map, mapObjectId de diálogos, decisionOptionId de objetos, tool_code contra el catálogo; un nodo final sin mapa pasa y rompe la traza; el DSL no está integrado.",
+    "evidencia": [
+     "backend_django/apps/simulation/services/world_validation.py:52-81",
+     "backend_django/apps/simulation/services/authoring/scenes.py:32",
+     "backend_django/apps/simulation/services/authoring/scenes.py:123",
+     "backend_django/apps/simulation/services/world_service.py:466-469"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -1138,11 +1177,17 @@
   "estado_base": "Definido",
   "epica": "Participación",
   "tipo": "RF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#66: el lobby (/api/simulation/catalog) ya filtra por asignación y desaparece el conflicto con «únicamente». Queda lo de RF-14: fechas y asignación individual.",
+   "anterior": "conflicto"
+  },
   "grupo": "g5-participacion",
-  "veredicto_evaluador": "conflicto",
-  "veredicto_final": "conflicto",
-  "verificacion": "confirmado (2 lentes)",
-  "resumen": "La ruta principal (/portal/simulador, GET /api/simulation/cases) muestra al estudiante solo casos publicados, activos y asignados a un grupo activo suyo, y start_attempt lo vuelve a exigir. Pero el lobby /portal/jugar usa GET /api/simulation/catalog, que devuelve TODOS los casos publicados a cualquier estudiante sin mirar la asignación, y un test lo fija así. Además no existe ventana de fechas ni asignación individual (RF-14).",
+  "veredicto_evaluador": "parcial",
+  "veredicto_final": "parcial",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "Tras #66 tanto la ruta principal (GET /api/simulation/cases) como el lobby (GET /api/simulation/catalog) muestran al estudiante solo casos publicados, activos y asignados a un grupo activo suyo, y start_attempt lo vuelve a exigir. Queda lo de RF-14: ventana de apertura y cierre y asignación individual, así que «habilitado» se reduce a «asignado a mi grupo activo».",
   "clausulas": [
    {
     "texto": "El estudiante dispone de una pantalla/lista donde ver casos.",
@@ -1158,32 +1203,31 @@
     "texto": "Solo aparecen casos habilitados en el sentido de publicados (versión PUBLISHED y caso activo).",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:125",
-     "backend_django/apps/simulation/services/game_service.py:58",
-     "backend_django/apps/progression/catalog.py:14"
+     "backend_django/apps/simulation/services/game_service.py:127",
+     "backend_django/apps/simulation/services/game_service.py:59",
+     "backend_django/apps/progression/catalog.py:15"
     ]
    },
    {
     "texto": "Solo aparecen los casos asignados al estudiante a través de un grupo activo del que es miembro (ruta GET /api/simulation/cases).",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:93",
-     "backend_django/apps/simulation/services/game_service.py:130",
-     "backend_django/apps/simulation/services/game_service.py:163",
+     "backend_django/apps/simulation/services/game_service.py:94",
+     "backend_django/apps/simulation/services/game_service.py:132",
+     "backend_django/apps/simulation/services/game_service.py:165",
      "backend_django/apps/simulation/tests/test_game.py:73"
     ]
    },
    {
     "texto": "«únicamente»: ninguna otra pantalla o endpoint del estudiante debe mostrar casos no habilitados.",
-    "estado": "conflicto",
+    "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/progression/catalog.py:13",
-     "backend_django/apps/progression/catalog.py:18",
-     "backend_django/apps/simulation/views/game_views.py:229",
-     "backend_django/apps/progression/tests/test_catalog.py:45",
-     "frontend/src/app/features/simulator/game-menu.component.ts:368",
-     "frontend/src/app/features/simulator/game-menu.component.ts:442",
-     "frontend/src/app/app.routes.ts:27"
+     "backend_django/apps/progression/catalog.py:14-18 - build_catalog filtra por assigned_case_version_ids(actor.id) para quien no es PROFESOR ni ADMIN",
+     "backend_django/apps/progression/catalog.py:28-43 - el desbloqueo lineal se calcula solo entre los casos asignados",
+     "backend_django/apps/progression/tests/test_catalog.py:98-128 - lista solo asignados, sin asignación ve vacío, desbloqueo solo entre asignados y grupo inactivo no ve nada",
+     "backend_django/apps/simulation/views/game_views.py:229-234 - GET /api/simulation/catalog consume build_catalog",
+     "backend_django/apps/simulation/services/game_service.py:68-84 - salvedad: un intento ya iniciado sigue devolviendo título, mapa y escenas aunque se retire la asignación (_require_attempt no la reconsulta)",
+     "frontend/src/app/core/api/simulation.service.ts:68-71 - salvedad: el contenido del caso semilla viaja como JSON estático del cliente (frontend/src/assets/game/scenarios/), legible sin asignación"
     ]
    },
    {
@@ -1192,59 +1236,47 @@
     "evidencia": [
      "backend_django/apps/grupos/migrations/0002_grupo_case_version.py:13",
      "backend_django/apps/grupos/services.py:562",
-     "backend_django/apps/simulation/services/game_service.py:93"
+     "backend_django/apps/simulation/services/game_service.py:94"
     ]
    },
    {
     "texto": "Si no tiene casos habilitados, el estudiante ve una lista vacía con mensaje claro.",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:132",
+     "backend_django/apps/simulation/services/game_service.py:134",
      "frontend/src/app/features/simulator/simulation-catalog.component.ts:71"
     ]
    }
   ],
-  "brecha": "(1) GET /api/simulation/catalog no filtra por asignación para estudiantes y el lobby /portal/jugar pinta una puerta por cada caso publicado (título y descripción incluidos); entrar acaba en 403 de start_attempt. El desbloqueo lineal «completa el caso anterior» se calcula sobre todos los publicados, así que un estudiante con solo el caso 2 asignado lo ve bloqueado en el lobby aunque esté habilitado. (2) Sin fechas de apertura/cierre ni asignación individual: «habilitado» se reduce a «asignado a mi grupo activo». /portal/jugar no tiene enlace en la navegación (solo por URL y en todos los e2e), por eso el defecto pasa desapercibido.",
-  "accion": "Filtrar build_catalog para rol ESTUDIANTE con la misma función de asignación que usa list_published_cases (_assigned_case_version_ids) y calcular el desbloqueo lineal solo sobre los casos asignados; actualizar test_catalog.py para asignar casos antes de listar. Cuando RF-14 añada fechas, aplicar la misma condición en list_published_cases y _student_can_access_case.",
-  "esfuerzo": "S",
-  "cambia_esquema_bd": false,
-  "decision_requerida": "Mantener o retirar el lobby /portal/jugar y su desbloqueo lineal (no está en la línea base). Y si «habilitado» debe incluir ventana de fechas y asignación por estudiante (depende de la decisión de RF-14).",
+  "brecha": "Sin fechas de apertura y cierre ni asignación individual (RF-14): «habilitado» se reduce a «asignado a mi grupo activo». La fuga del lobby (/api/simulation/catalog) se corrigió en #66; quedan dos salvedades a «únicamente»: el intento ya iniciado sigue accesible tras perder la asignación (RN-04) y la configuración del caso semilla es un JSON estático del cliente.",
+  "accion": "Cuando RF-14 añada fechas y asignación individual, aplicar la misma condición en list_published_cases (game_service.py:126-136), en _student_can_access_case (game_service.py:110-123) y en build_catalog (catalog.py:14-18).",
+  "esfuerzo": "M",
+  "cambia_esquema_bd": true,
+  "decision_requerida": "Si «habilitado» debe incluir ventana de fechas y asignación por estudiante (depende de la decisión de RF-14). El lobby /portal/jugar se conserva y su desbloqueo lineal ahora solo cuenta entre los casos asignados.",
   "terminologia": "«caso habilitado» no es un estado del sistema: se deriva de CaseVersion con status PUBLISHED y SimulationCase.active, asignada por fila en grupo_case_version a un Grupo activo en el que el estudiante figura en grupo_estudiante. «Ver» = pantalla «Catálogo de casos» / Simulador (GET /api/simulation/cases) o, en el lobby, puertas de «Sala de simulación» (GET /api/simulation/catalog). «Participar» = iniciar un intento (POST /api/simulation/attempts). La UI llama «escenas» a nodeCount (nodos del grafo).",
   "pruebas_existentes": [
    "backend_django/apps/simulation/tests/test_game.py:73 (test_cases_lists_only_assigned_for_students)",
    "backend_django/apps/simulation/tests/test_game.py:83 (test_start_attempt_requires_group_case_assignment)",
-   "backend_django/apps/progression/tests/test_catalog.py:45 (fija que un estudiante sin grupo ve los publicados: contradice RF-15)",
+   "backend_django/apps/progression/tests/test_catalog.py:67 (fija que un estudiante sin grupo ve los publicados: contradice RF-15)",
    "frontend/src/app/core/api/cached-simulation.service.spec.ts (clave de caché por usuario y rol)",
    "frontend/src/app/features/simulator/simulation-catalog.component.spec.ts (solo rótulos en español)",
-   "frontend/src/app/features/simulator/game-menu.component.spec.ts"
+   "frontend/src/app/features/simulator/game-menu.component.spec.ts",
+   "backend_django/apps/progression/tests/test_catalog.py:98 test_student_catalog_lists_only_assigned_cases",
+   "backend_django/apps/progression/tests/test_catalog.py:107 test_student_without_assignment_sees_an_empty_catalog",
+   "backend_django/apps/progression/tests/test_catalog.py:122 test_student_in_an_inactive_group_sees_nothing"
   ],
   "revisiones": [
    {
-    "fuente": "lote2__falso-cumple",
-    "lente": "falso-cumple",
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
     "acuerdo": true,
-    "veredicto_revisado": "conflicto",
-    "motivo": "El veredicto es el más severo posible, no es generoso. Confirmado: build_catalog devuelve todos los casos PUBLISHED y activos sin mirar la asignación del estudiante y la ruta /portal/jugar lo expone; contradice «únicamente los que tenga habilitados». list_published_cases y start_attempt sí filtran por grupo activo.",
+    "veredicto_revisado": "parcial",
+    "motivo": "Catálogo y listado filtran por asignación solo para ESTUDIANTE y el asistente de IA solo atiende intentos propios. Salvedades a «únicamente»: tras perder la asignación el intento iniciado sigue devolviendo título, mapa y escenas (A4b); la configuración del caso semilla es un JSON estático servido por el cliente; active-attempt distingue 404, 403 y 204. El conflicto ya no se sostiene.",
     "evidencia": [
-     "backend_django/apps/progression/catalog.py:13-24",
-     "backend_django/apps/progression/catalog.py:32-40",
-     "backend_django/apps/simulation/services/game_service.py:130-134",
-     "backend_django/apps/simulation/services/game_service.py:163-164",
-     "frontend/src/app/app.routes.ts:28"
-    ]
-   },
-   {
-    "fuente": "lote2__falso-incumple",
-    "lente": "falso-incumple",
-    "acuerdo": true,
-    "veredicto_revisado": "conflicto",
-    "motivo": "Intenté defender algo más leve y no pude. La ruta /portal/jugar existe, la guarda de rol la permite a ESTUDIANTE (app.routes.ts:28-31) y consume GET /api/simulation/catalog, cuyo build_catalog filtra solo por status PUBLISHED y caso activo, sin asignación (progression/catalog.py:13-17). Un estudiante sin grupo ve todos los casos con título y descripción. La única mitigación real es que la ruta no tiene enlace en la navegación (shell.component.ts:681-707 solo enlaza /portal/simulador), pero sigue siendo alcanzable por URL, así que la cláusula «únicamente» se contradice. El resto del veredicto (flujo principal correcto) es coherente.",
-    "evidencia": [
-     "frontend/src/app/app.routes.ts:28-31",
-     "backend_django/apps/progression/catalog.py:13-17",
-     "backend_django/apps/simulation/views/game_views.py:233-234",
-     "backend_django/apps/simulation/services/game_service.py:124-134 (listado del simulador sí filtra por asignación)",
-     "frontend/src/app/shared/layout/shell.component.ts:681"
+     "backend_django/apps/progression/catalog.py:14-19",
+     "backend_django/apps/simulation/services/game_service.py:126-141",
+     "backend_django/apps/simulation/services/game_service.py:68-84",
+     "frontend/src/app/core/api/simulation.service.ts:68-71"
     ]
    }
   ],
@@ -2015,11 +2047,17 @@
   "estado_base": "Definido",
   "epica": "Seguimiento docente",
   "tipo": "RF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#64: student-report, tablero y reportes se acotan a los estudiantes del profesor.",
+   "anterior": "parcial"
+  },
   "grupo": "g8-resultados-docente",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "El profesor puede abrir la traza de un intento (respuestas, recorrido, tiempos, resultados, bitácora descifrada, rúbrica) y la propiedad por grupo se exige en /api/instructor. Pero la lista de revisión trae solo 20 intentos recientes con alias anónimo, la duración es ended_at-started_at, y otros caminos (student-report, tablero, reportes) no aplican «sus estudiantes».",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "El profesor puede abrir la traza de un intento (respuestas, recorrido, tiempos, resultados, bitácora descifrada, rúbrica) y, desde #64, la propiedad por grupo se exige también en student-report, el tablero y los reportes. Quedan límites de cobertura y de tiempos: la lista trae solo 20 intentos con alias anónimo y la duración es ended_at-started_at.",
   "clausulas": [
    {
     "texto": "Actor profesor (y admin) con acceso a la revisión",
@@ -2034,9 +2072,9 @@
     "texto": "Revisar las respuestas (decisión elegida y su clasificación, bitácora/reflexiones descifradas)",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:123",
-     "backend_django/apps/simulation/services/instructor_service.py:125",
-     "backend_django/apps/simulation/services/instructor_service.py:161",
+     "backend_django/apps/simulation/services/instructor_service.py:110",
+     "backend_django/apps/simulation/services/instructor_service.py:112",
+     "backend_django/apps/simulation/services/instructor_service.py:148",
      "backend_django/apps/simulation/tests/test_instructor.py:108"
     ]
    },
@@ -2044,9 +2082,9 @@
     "texto": "Revisar el recorrido (línea de tiempo, nodos visitados, mundo)",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:121",
-     "backend_django/apps/simulation/services/instructor_service.py:122",
-     "backend_django/apps/simulation/services/instructor_service.py:124",
+     "backend_django/apps/simulation/services/instructor_service.py:108",
+     "backend_django/apps/simulation/services/instructor_service.py:109",
+     "backend_django/apps/simulation/services/instructor_service.py:111",
      "backend_django/apps/simulation/serializers/game_dtos.py:154"
     ]
    },
@@ -2054,8 +2092,8 @@
     "texto": "Revisar los tiempos",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:96",
-     "backend_django/apps/simulation/services/instructor_service.py:120",
+     "backend_django/apps/simulation/services/instructor_service.py:83",
+     "backend_django/apps/simulation/services/instructor_service.py:107",
      "backend_django/apps/simulation/serializers/game_dtos.py:320",
      "backend_django/apps/simulation/services/attempt_duration.py:14",
      "frontend/src/app/features/simulator/instructor-trace.component.ts:312",
@@ -2066,38 +2104,38 @@
     "texto": "Revisar los resultados (estado, puntaje, métricas, conteos, evaluación de rúbrica)",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:104",
-     "backend_django/apps/simulation/services/instructor_service.py:111",
-     "backend_django/apps/simulation/services/instructor_service.py:134",
-     "backend_django/apps/simulation/services/instructor_service.py:154"
+     "backend_django/apps/simulation/services/instructor_service.py:91",
+     "backend_django/apps/simulation/services/instructor_service.py:98",
+     "backend_django/apps/simulation/services/instructor_service.py:121",
+     "backend_django/apps/simulation/services/instructor_service.py:141"
     ]
    },
    {
     "texto": "Solo de «sus» estudiantes (propiedad por grupo)",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:32",
-     "backend_django/apps/simulation/services/instructor_service.py:54",
-     "backend_django/apps/simulation/tests/test_instructor.py:123",
-     "backend_django/apps/simulation/services/game_service.py:323",
-     "backend_django/apps/simulation/views/game_views.py:86",
-     "backend_django/apps/reportes/services.py:111",
-     "frontend/src/app/features/dashboard/dashboard.component.html:211"
+     "backend_django/apps/simulation/services/instructor_scope.py:10-26 - student_ids_for_instructor: estudiantes de los grupos activos del profesor (None para ADMIN); un profesor sin grupos obtiene lista vacía",
+     "backend_django/apps/simulation/services/instructor_service.py:42 y :54 - la traza, la rúbrica y la lista reciente usan ese alcance",
+     "backend_django/apps/simulation/services/game_service.py:326-330 - student-report exige que el intento sea de un estudiante del profesor",
+     "backend_django/apps/reportes/services.py:93-98 - el tablero se acota a sus estudiantes",
+     "backend_django/apps/reportes/tests/test_alcance_docente.py:83-162 - tablero y reporte de intento acotados; test_instructor.py:123 traza de un ajeno da 403",
+     "backend_django/apps/simulation/services/game_service.py:68-84 - salvedad: _require_attempt deja leer a cualquier PROFESOR/ADMIN un intento con su token, sin comprobar el grupo; el PROFESOR solo alcanza cuatro GET de juego (game_views.py:61,70,93,156: intento, reporte de cierre, mapa de progreso y mundo) y el token no se obtiene desde las pantallas de revisión",
+     "backend_django/apps/grupos/services.py:545-558 - salvedad: la pertenencia a un grupo la fija el propio profesor al agregar por correo a cualquier ESTUDIANTE registrado, sin aceptación del estudiante (D-14)"
     ]
    },
    {
     "texto": "Poder revisar a cada uno de sus estudiantes (no solo una ventana reciente) e identificarlo",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:64",
-     "backend_django/apps/simulation/services/instructor_service.py:72",
-     "backend_django/apps/simulation/services/instructor_service.py:28",
+     "backend_django/apps/simulation/services/instructor_service.py:51",
+     "backend_django/apps/simulation/services/instructor_service.py:59",
+     "backend_django/apps/simulation/services/instructor_service.py:29",
      "frontend/src/app/features/simulator/instructor-trace.component.ts:89"
     ]
    }
   ],
-  "brecha": "(1) recent_attempts devuelve máx. 20 intentos, solo de versiones PUBLISHED y casos activos, sin filtro por grupo/estudiante/caso ni paginación: con 30 estudiantes no se alcanza a todos y los intentos de versiones archivadas desaparecen de la lista (la traza sí abre por id). (2) La identidad es un alias «Estudiante-<id>» que el docente no puede cruzar con la lista del grupo en la UI, mientras el tablero y los reportes sí muestran nombres reales (incoherente). (3) totalDurationSeconds es ended_at-started_at: un intento reemplazado cierra con ended_at del momento del reemplazo, así que puede mostrar días; active_duration_seconds existe pero solo lo usa el historial del estudiante. (4) «Tiempo por escenario» (phaseDurations) nunca se envía: sección muerta. (5) Propiedad: GET /api/simulation/attempts/<id>/student-report deja pasar a cualquier PROFESOR/ADMIN sin comprobar grupo; el tablero /api/reportes/dashboard es global y expone id de intento y nombre completo de los 10 intentos más recientes de todo el sistema.",
-  "accion": "(a) Nuevo GET /api/instructor/attempts con filtros grupoId/estudianteId/caseVersionId/estado y paginación, reutilizando _student_ids_for_instructor y sin el tope [:20] ni el filtro PUBLISHED. (b) Decidir identificación y aplicarla igual en traza, tablero y reportes. (c) Usar active_duration_seconds (y total) en la traza y enviar tiempo por escena o retirar la sección. (d) Reutilizar la comprobación de _require_attempt en game_service.get_student_report para PROFESOR y filtrar get_dashboard por los estudiantes del profesor. (e) Prueba de profesor ajeno para student-report y dashboard.",
+  "brecha": "(1) recent_attempts devuelve máx. 20 intentos, solo de versiones PUBLISHED y casos activos, sin filtro por grupo/estudiante/caso ni paginación: con 30 estudiantes no se alcanza a todos y los intentos de versiones archivadas desaparecen de la lista (la traza sí abre por id). (2) La identidad es un alias «Estudiante-<id>» que el docente no puede cruzar con la lista del grupo en la UI, mientras el tablero y los reportes sí muestran nombres reales (incoherente). (3) totalDurationSeconds es ended_at-started_at: un intento reemplazado cierra con ended_at del momento del reemplazo, así que puede mostrar días; active_duration_seconds existe pero solo lo usa el historial del estudiante. (4) «Tiempo por escenario» (phaseDurations) nunca se envía: sección muerta. (5) Defensa en profundidad: los GET de juego que alcanza el profesor (_require_attempt) solo exigen el token del intento y rol ADMIN/PROFESOR, sin comprobar el grupo (D-11). (6) El grupo lo arma el propio profesor, que puede agregar por correo a cualquier estudiante registrado y leer su traza con la bitácora descifrada sin que el estudiante lo acepte (D-14).",
+  "accion": "(a) Nuevo GET /api/instructor/attempts con filtros grupoId/estudianteId/caseVersionId/estado y paginación, reutilizando student_ids_for_instructor y sin el tope [:20] ni el filtro PUBLISHED. (b) Decidir identificación y aplicarla igual en traza, tablero y reportes. (c) Usar active_duration_seconds (y total) en la traza y enviar tiempo por escena o retirar la sección. (d) En _require_attempt, cuando el actor es PROFESOR y no es dueño, exigir que el estudiante esté en student_ids_for_instructor. (e) Decidir si agregar a un estudiante a un grupo requiere su aceptación o la aprobación del administrador (D-14).",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
   "decision_requerida": "¿El docente ve el nombre real de sus estudiantes en la revisión o se mantiene el alias anónimo (hoy la traza anonimiza pero el tablero y los reportes no)? ¿La revisión debe abarcar todos los intentos de sus grupos, con filtros? ¿El acceso se pierde al retirar al estudiante del grupo o eliminar el grupo (hoy sí)?",
@@ -2111,7 +2149,22 @@
    "frontend/src/app/features/simulator/instructor-trace.reconsidered.spec.ts",
    "No hay prueba de profesor ajeno para student-report, dashboard ni reportes"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "Acotados a grupos activos: recent_attempts, traza, rúbrica, student-report y tablero (profesor sin grupos obtiene vacío o 403). Sin acotar: _require_attempt deja leer al PROFESOR cuatro GET de juego con el token del intento, que el docente no obtiene por la API (solo se guarda el hash); y la pertenencia a un grupo la fija el propio profesor al agregar por correo a cualquier estudiante registrado, sin su aceptación, tras lo cual lee su traza con la bitácora descifrada.",
+    "evidencia": [
+     "backend_django/apps/reportes/services.py:91-98",
+     "backend_django/apps/simulation/services/instructor_service.py:33-58",
+     "backend_django/apps/simulation/services/instructor_scope.py:16-26",
+     "backend_django/apps/simulation/services/game_service.py:68-84",
+     "backend_django/apps/grupos/services.py:545-558"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -2123,11 +2176,17 @@
   "estado_base": "Definido",
   "epica": "Seguimiento docente",
   "tipo": "RF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#64: el reporte de grupo y el CSV exigen que el grupo sea del profesor.",
+   "anterior": "parcial"
+  },
   "grupo": "g8-resultados-docente",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "Existe reporte básico por grupo y caso (totales, promedio, decisiones, bitácoras, rúbricas, fila por estudiante) con exportación CSV. No hay reporte propio de un estudiante, la opción «Todos los casos asignados» devuelve vacío y el API no comprueba que el grupo sea del profesor.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "Existe reporte básico por grupo y caso (totales, promedio, decisiones, bitácoras, rúbricas, fila por estudiante) con exportación CSV, y desde #64 el profesor solo reporta sus grupos. No hay reporte propio de un estudiante y la opción «Todos los casos asignados» devuelve vacío.",
   "clausulas": [
    {
     "texto": "El profesor puede generar reportes",
@@ -2143,61 +2202,72 @@
     "texto": "Reporte básico del desempeño de un grupo (por caso)",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:155",
-     "backend_django/apps/reportes/services.py:187",
-     "backend_django/apps/reportes/services.py:278",
-     "backend_django/apps/reportes/tests/test_reportes.py:147",
-     "backend_django/apps/reportes/tests/test_reportes.py:185"
+     "backend_django/apps/reportes/services.py:164",
+     "backend_django/apps/reportes/services.py:199",
+     "backend_django/apps/reportes/services.py:290",
+     "backend_django/apps/reportes/tests/test_reportes.py:149",
+     "backend_django/apps/reportes/tests/test_reportes.py:187"
     ]
    },
    {
     "texto": "Reporte básico del desempeño de un estudiante",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:237",
-     "backend_django/apps/reportes/services.py:215",
+     "backend_django/apps/reportes/services.py:249",
+     "backend_django/apps/reportes/services.py:227",
      "backend_django/apps/reportes/urls.py:7"
     ]
    },
    {
     "texto": "Restricción implícita (RN-10, RF-25): el profesor genera reportes solo de sus grupos y estudiantes",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:156",
-     "backend_django/apps/reportes/services.py:90",
-     "backend_django/apps/grupos/services.py:80",
-     "backend_django/apps/grupos/services.py:90",
-     "backend_django/apps/reportes/tests/test_reportes.py:133"
+     "backend_django/apps/reportes/services.py:164-170 - generar_reporte_grupo rechaza (403) si el grupo no es del profesor; el ADMIN queda exento",
+     "backend_django/apps/reportes/services.py:290-291 - el CSV pasa por la misma comprobación",
+     "backend_django/apps/reportes/services.py:93-98 - el tablero solo cuenta a sus estudiantes",
+     "backend_django/apps/reportes/tests/test_alcance_docente.py:49-80 - grupo ajeno 403, CSV ajeno 403, ADMIN lee cualquiera, inexistente 404"
     ]
    },
    {
     "texto": "[No exigida por la línea base; la UI la promete] Reporte consolidado del grupo sin elegir caso",
     "estado": "no_cumple",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:159",
-     "backend_django/apps/reportes/tests/test_reportes.py:137",
+     "backend_django/apps/reportes/services.py:171",
+     "backend_django/apps/reportes/tests/test_reportes.py:139",
      "frontend/src/app/features/reportes/reporte-grupo.component.ts:86",
      "frontend/src/app/features/reportes/reporte-grupo.component.ts:110",
      "frontend/src/app/features/reportes/reporte-grupo.component.ts:673"
     ]
    }
   ],
-  "brecha": "(1) No hay endpoint ni pantalla de reporte de un estudiante (varios casos, todos sus intentos): solo una fila dentro del reporte de grupo, sin tiempos ni recorrido. (2) Propiedad: generar_reporte_grupo busca Grupo por pk y no compara grupo.profesor_id con el usuario; ReporteGrupoView y ReporteGrupoExportView solo exigen rol, así que cualquier PROFESOR lee y exporta el grupo de otro; solo la lista de la UI (listar_de_profesor) está acotada. El dashboard agrega todos los estudiantes del sistema. (3) Sin caseVersionId el servicio devuelve simulacion=None y la UI muestra «No hay reportes disponibles», aunque su texto dice que consolida todo el grupo. (4) El reporte de grupo no trae tiempos. (5) El CSV no escapa comas ni comillas del nombre ni prefijos de fórmula.",
-  "accion": "(1) En generar_reporte_grupo/exportar_csv exigir grupo.profesor_id == request.user.id (ADMIN exento) y responder 403; filtrar get_dashboard por los estudiantes del profesor; agregar prueba de profesor ajeno. (2) Sin caseVersionId, consolidar las versiones de grupo_case_version o quitar la opción de la UI. (3) GET /api/reportes/estudiante/<id>?caseVersionId= con pertenencia a un grupo del profesor, con intentos, estado, puntaje, decisiones y tiempo activo; o aceptar formalmente la fila por estudiante. (4) Escapar el CSV.",
+  "brecha": "(1) No hay endpoint ni pantalla de reporte de un estudiante (varios casos, todos sus intentos): solo una fila dentro del reporte de grupo, sin tiempos ni recorrido. (2) Sin caseVersionId el servicio devuelve simulacion=None y la UI muestra «No hay reportes disponibles», aunque su texto dice que consolida todo el grupo. (3) El reporte de grupo no trae tiempos. (4) El CSV no escapa comas ni comillas del nombre ni prefijos de fórmula.",
+  "accion": "(1) Sin caseVersionId, consolidar las versiones de grupo_case_version o quitar la opción de la UI. (2) GET /api/reportes/estudiante/<id>?caseVersionId= con pertenencia a un grupo del profesor, con intentos, estado, puntaje, decisiones y tiempo activo; o aceptar formalmente la fila por estudiante. (3) Escapar el CSV.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
   "decision_requerida": "¿Basta la fila por estudiante del reporte de grupo para «reporte de un estudiante» o se quiere reporte propio multi-caso? ¿El reporte consolidado sin caso es requisito? ¿El tablero del profesor debe filtrarse a sus grupos?",
   "terminologia": "«Reporte» = GET /api/reportes/grupo/<grupoId>?caseVersionId= (+ /export en CSV; UI «Reportes por grupo»); «grupo» = Grupo/grupos (UI «cohorte»); «desempeño» = puntajePromedio, decisiones adecuadas/riesgosas/inadecuadas, bitácoras, rúbricas aplicadas, estado EN_PROGRESO/EN_PAUSA/COMPLETADO/SAFE_EXITED/PENDIENTE; «estudiante» = fila de estudiantes[] del reporte. «Salida segura» = pausa reanudable (PAUSED), no confundir con REPLACED.",
   "pruebas_existentes": [
-   "backend_django/apps/reportes/tests/test_reportes.py:81 y :85 reportes prohibidos a estudiante",
-   "backend_django/apps/reportes/tests/test_reportes.py:133 grupo inexistente 404",
-   "backend_django/apps/reportes/tests/test_reportes.py:147 bloque de simulación",
-   "backend_django/apps/reportes/tests/test_reportes.py:185 CSV",
-   "backend_django/apps/reportes/tests/test_estados_contract.py:73 contadores por estado",
+   "backend_django/apps/reportes/tests/test_reportes.py:82 y :85 reportes prohibidos a estudiante",
+   "backend_django/apps/reportes/tests/test_reportes.py:135 grupo inexistente 404",
+   "backend_django/apps/reportes/tests/test_reportes.py:149 bloque de simulación",
+   "backend_django/apps/reportes/tests/test_reportes.py:187 CSV",
+   "backend_django/apps/reportes/tests/test_estados_contract.py:76 contadores por estado",
    "backend_django/apps/reportes/tests/test_reemplazo_vs_salida_segura.py:111",
    "No hay prueba de profesor ajeno sobre reportes"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "El reporte de grupo y el CSV exigen grupo.profesor_id (ADMIN exento) y el tablero se acota a sus estudiantes. Matiz menor: no se comprueba grupo.activo (hoy latente: ningún código marca activo=False).",
+    "evidencia": [
+     "backend_django/apps/reportes/services.py:164-180",
+     "backend_django/apps/reportes/services.py:91-98"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -2803,11 +2873,17 @@
   "estado_base": "Definido",
   "epica": "Datos",
   "tipo": "RNF",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67: la validación de publicación es completa y las decisiones se acotan a la versión; los mapas siguen sin acotar.",
+   "anterior": "parcial"
+  },
   "grupo": "g10-rnf-b",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "La integridad está bien cuidada en lo estructural: versiones publicadas inmutables, tabla de transiciones del intento, operaciones atómicas, autoridad del servidor sobre el mundo y, en producción, 6 CHECK, ~26 UNIQUE y FK. Pero hay huecos reales: sin cerrojos (cero select_for_update) ni escritura parcial, el doble clic o dos pestañas pueden duplicar efectos o perder actualizaciones; el «bloqueo optimista» del editor compara una revisión que nunca se incrementa; las referencias de nodos no se acotan a la versión; la validación de publicación no detecta nodos sin salida ni sin mapa; y la BD de pruebas no replica los CHECK ni las cascadas de producción.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "La integridad está bien cuidada en lo estructural: versiones publicadas inmutables, tabla de transiciones del intento, operaciones atómicas, autoridad del servidor sobre el mundo y, en producción, 6 CHECK, ~26 UNIQUE y FK. Desde #67 la publicación detecta nodos sin salida, sin mapa e inalcanzables y el editor acota las decisiones a la versión. Siguen los huecos de concurrencia (cero select_for_update), el bloqueo optimista inerte, las referencias de mapas sin acotar y la BD de pruebas sin los CHECK de producción.",
   "clausulas": [
    {
     "texto": "La información de los casos se mantiene correcta: una versión publicada no cambia",
@@ -2816,28 +2892,26 @@
      "backend_django/apps/simulation/services/authoring/guards.py:28-36 — ensure_draft rechaza toda mutación si la versión no es DRAFT",
      "backend_django/apps/simulation/services/authoring/graph.py:20, 29, 38, 62, 71, 80 y scenes.py:31, 43, 57, 78, 88, 97 y world_definition.py:116 y publication.py:36 — todas las mutaciones de autoría pasan por ensure_draft",
      "backend_django/apps/simulation/services/authoring/publication.py:89-111 — para cambiar un caso publicado se clona a un borrador nuevo",
-     "backend_django/apps/simulation/services/game_service.py:58-64 — solo se inician intentos sobre versiones PUBLISHED y caso activo"
+     "backend_django/apps/simulation/services/game_service.py:59-65 — solo se inician intentos sobre versiones PUBLISHED y caso activo"
     ]
    },
    {
     "texto": "...y es consistente al publicarse (el grafo y el mundo se validan antes de publicar)",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/authoring/publication.py:68-80 — compuerta: checklist al 100 % y validación sin errores",
-     "backend_django/apps/simulation/services/world_validation.py:37-44 — valida un solo nodo inicial, ≥ 1 terminal, ciclos, geometría, conducta prohibida con razón, salida segura y límites",
-     "backend_django/apps/simulation/services/world_validation.py:52-104 — no valida nodos no terminales sin decisiones salientes, nodos inalcanzables ni nodos sin mapa",
-     "backend_django/apps/simulation/services/world_service.py:466-469 — en juego, un nodo sin mapa da 404 «La escena no tiene mapa configurado»: un caso publicado podría quedar atascado",
-     "Búsqueda de NO_MAP, DEAD_END, UNREACHABLE en backend_django: sin resultados fuera de node_iterator (solo orden de visualización)"
+     "backend_django/apps/simulation/services/authoring/publication.py:68-80 - compuerta: checklist al 100 % y validación sin errores",
+     "backend_django/apps/simulation/services/world_validation.py:52-81 - un solo nodo inicial, al menos un terminal, ciclos, extremos de decisión, nodos sin salida, sin mapa e inalcanzables",
+     "backend_django/apps/simulation/services/world_validation.py:196-292 - geometría, conducta prohibida con razón, salida segura y límites"
     ]
    },
    {
     "texto": "...y consistente entre versiones: las referencias no cruzan de una versión de caso a otra",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/authoring/graph.py:87-92 — _apply_decision_request busca origen y destino con SimulationNode.objects.filter(pk=...) sin acotar a la versión",
-     "backend_django/apps/simulation/services/authoring/scenes.py:32 y :46 — create_map/update_map buscan el nodo sin acotar a la versión",
-     "deploy/db_seed.sql:4278-4286 — las FK de decision_options a simulation_nodes no incluyen la versión: la BD tampoco lo impide",
-     "docs/diseñosistemas_docs/INFORME_ANTIPATRONES_Y_SOLID.md:62-66 — hallazgo equivalente ya documentado para decisionOptionId y mapObjectId (solo alcanzable por API directa; la interfaz ofrece solo nodos de la versión)"
+     "backend_django/apps/simulation/services/authoring/graph.py:91-101 - desde #67 _apply_decision_request exige que origen y destino sean de la versión",
+     "backend_django/apps/simulation/services/authoring/scenes.py:32 y :46 - create_map y update_map buscan el nodo por pk sin acotar a la versión (un borrador puede colgar un mapa de un nodo de una versión PUBLICADA)",
+     "backend_django/apps/simulation/services/authoring/scenes.py:123 y backend_django/apps/simulation/services/authoring/world_definition.py:204 - la decisión enlazada a un objeto tampoco se acota a la versión (save_dialogue_choices sí, scenes.py:191-193)",
+     "deploy/db_seed.sql:4278-4286 - las FK de decision_options a simulation_nodes no incluyen la versión: la BD tampoco lo impide"
     ]
    },
    {
@@ -2857,10 +2931,10 @@
     "estado": "cumple",
     "evidencia": [
      "backend_django/apps/simulation/services/attempt_lifecycle.py:64-118 — tabla de estados, capacidades y transiciones; apply lanza InvalidAttemptTransition",
-     "backend_django/apps/simulation/services/game_service.py:344-345, 461-465, 477-485 — cada operación consulta el estado antes de actuar; safe_exit y resume son idempotentes",
-     "backend_django/apps/simulation/services/game_service.py:160, 338, 425, 452, 470 y world_service.py:170, 177, 210, 261, 366, 393 — @transaction.atomic en cada operación que escribe",
+     "backend_django/apps/simulation/services/game_service.py:350-351, 461-465, 477-485 — cada operación consulta el estado antes de actuar; safe_exit y resume son idempotentes",
+     "backend_django/apps/simulation/services/game_service.py:162, 338, 425, 452, 470 y world_service.py:170, 177, 210, 261, 366, 393 — @transaction.atomic en cada operación que escribe",
      "deploy/db_seed.sql:1410 — CHECK de estado del intento con los 5 valores; backend_django/apps/simulation/tests/test_deploy_schema_contract.py:31-48 lo contrasta con AttemptStatus",
-     "backend_django/apps/simulation/services/world_service.py:178-207, 261-331, 393-433 — posición, herramientas y puertas validadas por el servidor; game_service.py:31-33 y :67-83 — token del intento por hash y dueño/staff"
+     "backend_django/apps/simulation/services/world_service.py:178-207, 261-331, 393-433 — posición, herramientas y puertas validadas por el servidor; game_service.py:32-34 y :67-83 — token del intento por hash y dueño/staff"
     ]
    },
    {
@@ -2868,11 +2942,11 @@
     "estado": "parcial",
     "evidencia": [
      "Búsqueda de select_for_update en backend_django excluyendo pruebas: 0 resultados; tampoco hay pruebas de concurrencia",
-     "backend_django/apps/simulation/services/game_service.py:166-203 — start_attempt consulta «¿hay intento abierto?» y crea otro sin cerrojo; deploy/db_seed.sql:4007 solo tiene un índice no único (student_id, status): dos peticiones simultáneas crean dos intentos abiertos",
-     "backend_django/apps/simulation/services/decision_effects.py:61-69 y case_effects.py:263-278 — lectura-modificación-escritura en Python (score += delta, flags_json) sobre un intento cargado sin cerrojo; game_service.py:413 hace attempt.save() de toda la fila",
+     "backend_django/apps/simulation/services/game_service.py:168-205 — start_attempt consulta «¿hay intento abierto?» y crea otro sin cerrojo; deploy/db_seed.sql:4007 solo tiene un índice no único (student_id, status): dos peticiones simultáneas crean dos intentos abiertos",
+     "backend_django/apps/simulation/services/decision_effects.py:61-69 y case_effects.py:263-278 — lectura-modificación-escritura en Python (score += delta, flags_json) sobre un intento cargado sin cerrojo; game_service.py:419 hace attempt.save() de toda la fila",
      "backend_django/apps/simulation/services/world_service.py:205 y :492 — world_state.save() completo puede pisar los caseFlags que escribió case_effects.py:277-278 (update_fields) en una petición paralela",
      "frontend/src/app/features/simulator/simulation-play.component.ts:3027-3031 — la carrera de posición solo está cubierta en el cliente",
-     "backend_django/apps/simulation/services/game_service.py:366-384 — dos primeras respuestas malas simultáneas pasan ambas la regla de reintento (prior_retries == 0)"
+     "backend_django/apps/simulation/services/game_service.py:372-390 — dos primeras respuestas malas simultáneas pasan ambas la regla de reintento (prior_retries == 0)"
     ]
    },
    {
@@ -2880,9 +2954,9 @@
     "estado": "parcial",
     "evidencia": [
      "backend_django/apps/simulation/services/crypto_service.py:12 y :15-17 — clave derivada de REFLECTION_ENCRYPTION_KEY (por defecto JWT_SECRET, settings/base.py:112-116) con referencia fija «local-aes-gcm-v1»: sin rotación",
-     "backend_django/apps/simulation/services/instructor_service.py:125-133 — decrypt sin manejo de error: una sola reflexión indescifrable rompe toda la traza del instructor con 500",
+     "backend_django/apps/simulation/services/instructor_service.py:112-120 — decrypt sin manejo de error: una sola reflexión indescifrable rompe toda la traza del instructor con 500",
      "docs/operacion/despliegue-railway.md:140-143 — reconoce que las reflexiones del volcado pueden no descifrarse con otro JWT_SECRET",
-     "deploy/db_seed.sql:3783 — UNIQUE (attempt_id, node_id); game_service.py:438-446 — buscar-y-guardar sin cerrojo: un doble envío paralelo da IntegrityError → 500"
+     "deploy/db_seed.sql:3783 — UNIQUE (attempt_id, node_id); game_service.py:444-452 — buscar-y-guardar sin cerrojo: un doble envío paralelo da IntegrityError → 500"
     ]
    },
    {
@@ -2891,15 +2965,15 @@
     "evidencia": [
      "backend_django/apps/simulation/services/decision_effects.py:63-65 y world_service.py:311 — estrés, confianza y riesgo acotados a 0-100 en cada actualización",
      "backend_django/apps/simulation/serializers/game_dtos.py:206-340 — el reporte de cierre y el final se construyen desde el registro de eventos del intento",
-     "backend_django/apps/reportes/tests/test_estados_contract.py:50-118 — fija qué cuenta cada contador por estado (completados, pausa, reemplazados, histórico)",
-     "backend_django/apps/simulation/services/game_service.py:366-384 y reportes/services.py:27-31 — los reintentos y los reemplazados no puntúan"
+     "backend_django/apps/reportes/tests/test_estados_contract.py:50-121 — fija qué cuenta cada contador por estado (completados, pausa, reemplazados, histórico)",
+     "backend_django/apps/simulation/services/game_service.py:372-390 y reportes/services.py:28-32 — los reintentos y los reemplazados no puntúan"
     ]
    },
    {
     "texto": "...y el registro de caso completado (progresión) es consistente con los intentos completados",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:419 — attempt_completed.send_robust: un suscriptor que falla no rompe la decisión",
+     "backend_django/apps/simulation/services/game_service.py:425 — attempt_completed.send_robust: un suscriptor que falla no rompe la decisión",
      "backend_django/apps/progression/services.py:20-25 — IntegrityError y cualquier excepción se tragan; el único rastro es un log de advertencia",
      "backend_django/apps/simulation/signals.py:8-18 — documenta que capturar la excepción no repara una transacción rota por la BD",
      "backend_django/apps/progression/models.py:20-25 — UNIQUE (student_id, simulation_case_id) evita duplicados, pero no garantiza que exista el registro"
@@ -2917,8 +2991,8 @@
     ]
    }
   ],
-  "brecha": "Cinco huecos concretos: (1) sin cerrojos ni escrituras parciales, el doble envío y las peticiones paralelas pueden duplicar efectos, perder actualizaciones o abrir dos intentos; (2) el bloqueo optimista del editor es inerte porque la revisión nunca cambia; (3) las referencias de nodos del editor no se acotan a la versión; (4) la validación de publicación no detecta nodos sin salida, inalcanzables ni sin mapa; (5) la BD de desarrollo/pruebas no replica CHECK ni cascadas, así que la integridad de producción solo se contrasta con una prueba de regex. Además, una reflexión indescifrable rompe la traza del instructor y el registro de progresión puede quedar sin crearse sin aviso.",
-  "accion": "Mínimo, sin cambiar esquema: (1) select_for_update sobre el intento dentro de las operaciones que lo mutan (choose_decision, use_tool, update_position, open_interaction, enter_room, safe_exit, resume, save_reflection) y sobre la fila del estudiante en start_attempt para serializar inicios; (2) incrementar case_versions.version (F('version') + 1) en cada mutación de autoría y exigir revision con 409; (3) acotar a la versión las búsquedas de nodos en graph.py y scenes.py; (4) añadir a world_validation: nodo no terminal sin decisiones salientes, nodo sin mapa, nodo inalcanzable desde el inicio; (5) capturar el fallo de descifrado en instructor_service.trace y mostrar «no disponible». Endurecimiento opcional (sí cambia esquema, con script en deploy/upgrades y bootstrap_dev_db): índice único parcial (student_id, case_version_id) WHERE status IN ('IN_PROGRESS','PAUSED') y CHECK 0-100 en los indicadores; la solución de raíz es que Django sea dueño del esquema.",
+  "brecha": "Cuatro huecos concretos: (1) sin cerrojos ni escrituras parciales, el doble envío y las peticiones paralelas pueden duplicar efectos, perder actualizaciones o abrir dos intentos; (2) el bloqueo optimista del editor es inerte porque la revisión nunca cambia; (3) las referencias de los mapas a nodos no se acotan a la versión (las de las decisiones sí, desde #67); (4) la BD de desarrollo y pruebas no replica CHECK ni cascadas, así que la integridad de producción solo se contrasta con una prueba de regex. Además, una reflexión indescifrable rompe la traza del instructor y el registro de progresión puede quedar sin crearse sin aviso.",
+  "accion": "Mínimo, sin cambiar esquema: (1) select_for_update sobre el intento dentro de las operaciones que lo mutan y sobre la fila del estudiante en start_attempt; (2) incrementar case_versions.version (F('version') + 1) en cada mutación de autoría y exigir revision con 409; (3) acotar a la versión las búsquedas de nodos en scenes.py; (4) capturar el fallo de descifrado en instructor_service.trace y mostrar «no disponible». Endurecimiento opcional (sí cambia esquema): índice único parcial (student_id, case_version_id) WHERE status IN ('IN_PROGRESS','PAUSED') y CHECK 0-100 en los indicadores.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
   "decision_requerida": "Si se adopta Django como dueño del esquema (docs/arquitectura §4) para declarar CHECK/UNIQUE en migraciones y en la BD de pruebas; y si se aceptan dos cambios de comportamiento: el editor empezará a devolver 409 reales entre sesiones y publicar rechazará casos con nodos sin salida o sin mapa.",
@@ -2934,7 +3008,21 @@
    "backend_django/apps/progression/tests/test_models.py (UNIQUE de completado)",
    "Sin pruebas de concurrencia ni de transacciones con transaction=True (prohibido por settings/test.py:9)"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "La validación de publicación detecta nodos sin salida, sin mapa e inalcanzables y las decisiones se acotan a la versión. Siguen sin acotarse a la versión los mapas (scenes.py:32,46; incluso un nodo de una versión publicada), el mapObjectId de los diálogos (:136-137) y el decisionOptionId de objetos (scenes.py:121-125; world_definition.py:203-208); tool_code no se coteja con el catálogo; en desarrollo target_node_id no tiene CASCADE y en producción sí.",
+    "evidencia": [
+     "backend_django/apps/simulation/services/authoring/scenes.py:32",
+     "backend_django/apps/simulation/services/authoring/scenes.py:46",
+     "backend_django/apps/simulation/services/authoring/scenes.py:123",
+     "backend_django/apps/simulation/services/authoring/world_definition.py:204"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -3030,49 +3118,74 @@
   "epica": "Ramificación",
   "observacion": "Base del flujo ramificado.",
   "tipo": "RN",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67: la decisión solo une nodos de su versión y la publicación rechaza destinos ajenos, nodos sin salida y nodos sin mapa.",
+   "anterior": "parcial"
+  },
   "grupo": "g3-autoria",
-  "veredicto_evaluador": "parcial",
-  "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "Toda opcion tiene destino existente por esquema (target_node_id NOT NULL con FK), la API devuelve 404 si el nodo no existe y el editor lo exige; no se puede guardar ni publicar una opcion sin destino. Lo que no se garantiza es que el destino sea una escena valida (misma version, con mapa, alcanzable).",
+  "veredicto_evaluador": "cumple",
+  "veredicto_final": "cumple",
+  "verificacion": "re-medido; 1 de 2 lentes",
+  "resumen": "Toda opción tiene destino por esquema (target_node_id NOT NULL con FK) y, desde #67, el editor rechaza una decisión cuyo origen o destino sea de otra versión, y la validación de publicación rechaza decisiones que unan un nodo ajeno al caso, nodos no finales sin opciones (si son alcanzables) y nodos no finales sin mapa; un nodo al que no se llega avisa. Se mantiene la exigencia de que el grafo sea acíclico, más estricta que el texto.",
   "clausulas": [
    {
     "texto": "Toda opcion lleva a un destino (escena o conclusion)",
     "estado": "cumple",
     "evidencia": [
      "backend_django/apps/simulation/management/commands/bootstrap_dev_db.py:83 (target_node_id NOT NULL REFERENCES simulation_nodes)",
-     "graph.py:90-92 (404 'Nodo destino')",
+     "graph.py:95-97 (404 'Nodo destino')",
      "case-editor.component.ts:837 (targetNodeId required)"
     ]
    },
    {
     "texto": "El destino es una escena valida del caso",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "hecho 2: no se valida destino de otra version, nodo sin mapa ni nodo inalcanzable",
-     "graph.py:87-98 busca el nodo por pk sin filtrar por case_version",
-     "world_validation.py:52-76 no revisa las aristas contra los nodos de la version"
+     "backend_django/apps/simulation/services/authoring/graph.py:91-101 - _apply_decision_request exige que origen y destino sean de la versión (400 «El nodo N no pertenece a la versión V»)",
+     "backend_django/apps/simulation/services/world_validation.py:84-94 - DECISION_NODE_NOT_IN_CASE (error) para datos heredados",
+     "backend_django/apps/simulation/services/world_validation.py:115-130 y :133-147 - NODE_WITHOUT_OPTIONS (si es alcanzable) y NODE_WITHOUT_MAP son errores; UNREACHABLE_NODE avisa (:150-160)",
+     "backend_django/apps/simulation/tests/test_decision_misma_version.py:17-51 y backend_django/apps/simulation/tests/test_world_validation_estructura.py:56-125"
     ]
    },
    {
     "texto": "Se impone en validacion/publicacion",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "se impone en esquema y API (creacion), no en la compuerta de publicar; ver world_validation.py completo (14 errores, ninguno de arista sin destino porque no puede existir)"
+     "backend_django/apps/simulation/services/authoring/publication.py:73 - publish() corre run_world_validation antes de cambiar el estado",
+     "backend_django/apps/simulation/services/authoring/world_definition.py:293-368 - arma el snapshot (con nodeId de cada mapa, :334) y llama world_validation.validate",
+     "backend_django/apps/simulation/services/world_validation.py:76-81 - detección de ciclos, extremos, sin salida, sin mapa e inalcanzables"
     ]
    }
   ],
-  "brecha": "Falta validar integridad entre versiones (source/target del mismo case_version), existencia de mapa por nodo y alcanzabilidad; ademas la regla aciclica es mas estricta que el texto.",
-  "accion": "En _apply_decision_request filtrar nodos por case_version_id y anadir reglas de validacion: nodo sin mapa, nodo inalcanzable, nodo no terminal sin opciones, opcion cuyo origen/destino es de otra version.",
-  "esfuerzo": "S",
+  "brecha": "Ninguna frente al texto. Observación: el sistema exige además que el grafo sea acíclico (más estricto que la regla).",
+  "accion": "—",
+  "esfuerzo": "n/a",
   "cambia_esquema_bd": false,
   "decision_requerida": "",
   "terminologia": "Opcion de una decision = DecisionOption; escena valida = SimulationNode de la misma CaseVersion con mapa; conclusion = nodo terminal.",
   "pruebas_existentes": [
    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_las_decisiones_invalidas_se_rechazan_con_su_mensaje",
-   "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra"
+   "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_publicar_con_errores_de_validacion_se_rechaza_y_los_nombra",
+   "backend_django/apps/simulation/tests/test_decision_misma_version.py:17 test_una_decision_no_puede_llevar_a_un_nodo_de_otra_version",
+   "backend_django/apps/simulation/tests/test_world_validation_estructura.py:101 test_una_decision_hacia_un_nodo_que_no_es_del_caso_es_un_error"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "cumple",
+    "motivo": "Intentó refutar y no pudo, en los caminos de la aplicación: el único escritor de opciones exige origen y destino existentes y de la versión (graph.py:92-101); save_world no toca decisiones; la siembra usa ids de la misma corrida; el clonado mapea con node_copies y un extremo ajeno fallaría por NOT NULL; la compuerta rechaza DECISION_NODE_NOT_IN_CASE y el snapshot trae nodeId por mapa. Contrapeso: la BD no lo impide (solo NOT NULL y FK, sin FK compuesta) y el seed publica sin compuerta; el volcado está limpio (50 decisiones, 0 ajenas).",
+    "evidencia": [
+     "backend_django/apps/simulation/services/authoring/graph.py:91-101",
+     "backend_django/apps/simulation/services/world_validation.py:84-94",
+     "backend_django/apps/simulation/services/authoring/publication.py:73-80",
+     "backend_django/apps/simulation/services/authoring/world_definition.py:331-341"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -3181,18 +3294,24 @@
   "epica": "Acceso",
   "observacion": "",
   "tipo": "RN",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#66 corrige el lobby; sigue abierta la reanudación de un intento tras retirar al estudiante o el caso.",
+   "anterior": "parcial"
+  },
   "grupo": "g2-grupos",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "revisado por 1 lente, de acuerdo",
-  "resumen": "La entrada real está protegida en el servidor: un estudiante solo puede iniciar intentos de casos asignados a un grupo activo suyo (403 si no), y el catálogo principal /api/simulation/cases solo lista los asignados. Hay tres agujeros: el catálogo del lobby (/api/simulation/catalog) no filtra por asignación; un intento ya iniciado se puede continuar tras retirar al estudiante o el caso; y no existe otro modo de 'habilitar' ni ventana de fechas.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "La entrada real está protegida en el servidor: un estudiante solo puede iniciar intentos de casos asignados a un grupo activo suyo (403 si no), y los dos catálogos (/api/simulation/cases y, desde #66, /api/simulation/catalog) solo listan los asignados. Quedan dos agujeros: un intento ya iniciado se puede continuar tras retirar al estudiante o el caso, y no existe otro modo de «habilitar» ni ventana de fechas.",
   "clausulas": [
    {
     "texto": "El estudiante solo puede entrar (iniciar intento) a casos asignados a un grupo activo al que pertenece.",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:108-121 (_student_can_access_case: grupo_estudiante + grupos.activo + grupo_case_version)",
-     "backend_django/apps/simulation/services/game_service.py:160-164 (PermissionDenied 'El caso no ha sido asignado a tu grupo')",
+     "backend_django/apps/simulation/services/game_service.py:110-123 (_student_can_access_case: grupo_estudiante + grupos.activo + grupo_case_version)",
+     "backend_django/apps/simulation/services/game_service.py:162-166 (PermissionDenied 'El caso no ha sido asignado a tu grupo')",
      "backend_django/apps/simulation/views/game_views.py:38-47",
      "backend_django/apps/simulation/tests/test_game.py:83-85"
     ]
@@ -3201,7 +3320,7 @@
     "texto": "El catálogo principal del estudiante lista únicamente los casos publicados que tiene asignados.",
     "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:124-139 (list_published_cases: sin asignados devuelve [])",
+     "backend_django/apps/simulation/services/game_service.py:126-141 (list_published_cases: sin asignados devuelve [])",
      "backend_django/apps/simulation/views/game_views.py:31-35",
      "frontend/src/app/core/api/simulation.service.ts:33-36 (listCases lo usa /portal/simulador)",
      "backend_django/apps/simulation/tests/test_game.py:73-80"
@@ -3209,21 +3328,19 @@
    },
    {
     "texto": "Ningún otro listado de casos ofrece al estudiante casos que no tiene asignados.",
-    "estado": "no_cumple",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/progression/catalog.py:12-43 (build_catalog lista todos los PUBLISHED sin filtrar por grupo y marca 'unlocked' por orden lineal global)",
-     "backend_django/apps/simulation/views/game_views.py:229-234 (GET /api/simulation/catalog)",
-     "backend_django/apps/progression/tests/test_catalog.py:45-53 (un estudiante sin grupo ve 2 o más casos, el primero desbloqueado)",
-     "frontend/src/app/features/simulator/game-menu.component.ts:367-372 y 442-449 (el lobby entra al caso y recibe 403 al iniciar)",
-     "frontend/src/app/features/simulator/simulation-play.component.ts:1603-1611 (error genérico 'Revisa tus permisos')"
+     "backend_django/apps/progression/catalog.py:14-18 - build_catalog (lobby) solo lista los casos asignados a un grupo activo del estudiante",
+     "backend_django/apps/progression/tests/test_catalog.py:98-128 - catálogo solo con asignados, vacío sin asignación, desbloqueo entre asignados, grupo inactivo",
+     "backend_django/apps/simulation/views/game_views.py:229-234 - GET /api/simulation/catalog"
     ]
    },
    {
     "texto": "Quien ya no tiene el caso asignado (retirado del grupo, caso retirado del grupo, grupo inactivo) deja de poder entrar, incluidos los intentos que ya había iniciado.",
     "estado": "no_cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:206-219 (find_active_attempt solo exige caso publicado y reemite el token, sin mirar la asignación)",
-     "backend_django/apps/simulation/services/game_service.py:67-83 (_require_attempt solo verifica dueño, sin mirar la asignación)",
+     "backend_django/apps/simulation/services/game_service.py:208-221 (find_active_attempt solo exige caso publicado y reemite el token, sin mirar la asignación)",
+     "backend_django/apps/simulation/services/game_service.py:68-84 (_require_attempt solo verifica dueño, sin mirar la asignación)",
      "backend_django/apps/simulation/views/game_views.py:50-57",
      "backend_django/apps/grupos/services.py:533-541 y 585-593 (retirar no cierra intentos ni avisa)"
     ]
@@ -3233,15 +3350,15 @@
     "estado": "no_verificable",
     "evidencia": [
      "backend_django/apps/grupos/services.py:561-582 (única vía de habilitación: asignación a grupo)",
-     "backend_django/apps/progression/catalog.py:1-6 (el 'unlocked' es progresión lineal, no habilitación académica)"
+     "backend_django/apps/progression/catalog.py:1-7 (el 'unlocked' es progresión lineal, no habilitación académica)"
     ]
    }
   ],
-  "brecha": "1) /api/simulation/catalog (lobby /portal/jugar) enseña código, título y descripción de casos publicados no asignados y deja 'entrar' al primero; además, su desbloqueo lineal ignora la asignación (un estudiante asignado solo al caso 2 queda bloqueado en el lobby). 2) Retirar al estudiante o quitar el caso no corta intentos en curso (el estudiante puede reanudarlos y seguir decidiendo). 3) Sin ventana de fechas que también limite el acceso (ver RF-14).",
-  "accion": "(a) build_catalog: para rol ESTUDIANTE restringir a los asignados (reutilizando la consulta de game_service, movida a un helper compartido) y calcular el desbloqueo solo entre ellos, o retirar la ruta /portal/jugar si no se usa. (b) Aplicar _student_can_access_case en find_active_attempt y en _require_attempt (solo para quien es estudiante dueño del intento), o bien avisar al docente al retirar (hay intentos en curso). (c) Cuando existan fechas (RF-14), incluir la ventana en la misma consulta. Añadir pruebas: catálogo sin asignación, retiro con intento en curso, grupo inactivo.",
+  "brecha": "1) Retirar al estudiante o quitar el caso no corta intentos en curso: find_active_attempt y _require_attempt no comprueban la asignación y todo el bucle de exploración (mover, interactuar, usar herramienta, hablar, decidir, pausar) sigue funcionando tras perderla. 2) Sin ventana de fechas que también limite el acceso (ver RF-14). El defecto del lobby se corrigió en #66.",
+  "accion": "(a) Aplicar _student_can_access_case en find_active_attempt y en _require_attempt (solo para quien es estudiante dueño del intento), o bien avisar al docente al retirar (hay intentos en curso). (b) Cuando existan fechas (RF-14), incluir la ventana en la misma consulta. Añadir pruebas: retiro con intento en curso y grupo inactivo.",
   "esfuerzo": "S",
   "cambia_esquema_bd": false,
-  "decision_requerida": "¿Un estudiante retirado del grupo (o con el caso desasignado) puede terminar el intento en curso o se bloquea de inmediato? ¿Se conserva el lobby /portal/jugar (sin enlace en la navegación) y su desbloqueo lineal, y aplica solo entre casos asignados?",
+  "decision_requerida": "¿Un estudiante retirado del grupo (o con el caso desasignado) puede terminar el intento en curso o se bloquea de inmediato?",
   "terminologia": "'Habilitado o asignado' = caso con fila en grupo_case_version para un grupo activo al que pertenece el estudiante (única vía real). 'Entrar' = crear o continuar un intento (POST /api/simulation/attempts, active-attempt). 'unlocked' del catálogo = progresión lineal, no es 'habilitado' en el sentido de la línea base. ADMIN inicia intentos sin asignación y PROFESOR no puede iniciar; la regla habla solo del estudiante.",
   "pruebas_existentes": [
    "backend_django/apps/simulation/tests/test_game.py::test_cases_lists_only_assigned_for_students",
@@ -3250,29 +3367,15 @@
   ],
   "revisiones": [
    {
-    "fuente": "g2-grupos__falso-incumple",
-    "lente": "Falsos incumple: intentar demostrar que lo marcado no_cumple, conflicto o no_verificable está cubierto por otro módulo, nombre, pantalla o prueba, y revisar si la cláusula del texto base fue bien interpretada.",
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
     "acuerdo": true,
     "veredicto_revisado": "parcial",
-    "motivo": "Confirmo parcial, pero con dos correcciones al razonamiento del evaluador. (1) Lo que sostiene el parcial es solo el camino de reanudación: la asignación se comprueba únicamente en list_published_cases (línea 131) y en start_attempt (163); find_active_attempt (206-219) y _require_attempt (67-83, usado por decisiones, mundo, reflexiones, pausa) solo validan publicación, token y dueño. El frontend llama primero a active-attempt, así que un estudiante retirado del grupo (o con el caso retirado) con un intento abierto recibe el aviso de reanudar y puede seguir y terminar. quitar_estudiante y quitar_caso no cierran intentos. (2) La cláusula del catálogo del lobby (/api/simulation/catalog) está mal atribuida a RN-04: la regla dice 'entrar', y desde el lobby la entrada sigue terminando en 403 en start_attempt (el front navega a /portal/simulador/:id, active-attempt devuelve 204 y beginAttempt falla). Que el lobby muestre título y descripción de casos no asignados, y que su desbloqueo lineal ignore la asignación, es un defecto de RF-15 ('ver únicamente los casos que tenga habilitados'), no de RN-04. Además existe una vía correcta (/portal/simulador usa listCases, solo asignados). La cláusula 'otro mecanismo de habilitación' marcada no_verificable no es una condición real: 'habilitados o asignados' es disyuntivo y basta la asignación; debería descartarse o contarse como cumple.",
+    "motivo": "(a) iniciar un intento exige asignación para el ESTUDIANTE y bloquea forceNew; (b) sigue viva: find_active_attempt y _require_attempt no comprueban asignación y tras perderla siguen funcionando reanudar, mundo, puertas, herramientas, decisiones (incluso completar y registrar progresión), bitácora, pausa, mapa y reporte; solo falla POST /attempts y la presencia en catálogo y lista.",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:67-83",
-     "backend_django/apps/simulation/services/game_service.py:93-121",
-     "backend_django/apps/simulation/services/game_service.py:124-139",
-     "backend_django/apps/simulation/services/game_service.py:160-164",
-     "backend_django/apps/simulation/services/game_service.py:206-219",
-     "backend_django/apps/simulation/views/game_views.py:50-57",
-     "backend_django/apps/simulation/services/world_service.py:171-183",
-     "backend_django/apps/grupos/services.py:533-541",
-     "backend_django/apps/grupos/services.py:585-593",
-     "frontend/src/app/features/simulator/simulation-play.component.ts:1525-1536",
-     "frontend/src/app/features/simulator/simulation-play.component.ts:1603-1611",
-     "frontend/src/app/features/simulator/game-menu.component.ts:368-371",
-     "frontend/src/app/features/simulator/game-menu.component.ts:438-448",
-     "frontend/src/app/features/simulator/simulation-catalog.component.ts:421",
-     "backend_django/apps/progression/catalog.py:12-43",
-     "backend_django/apps/progression/tests/test_catalog.py:45-53",
-     "backend_django/apps/simulation/tests/test_game.py:73-85"
+     "backend_django/apps/simulation/services/game_service.py:163-166",
+     "backend_django/apps/simulation/services/game_service.py:208-221",
+     "backend_django/apps/simulation/services/game_service.py:68-84"
     ]
    }
   ],
@@ -3288,10 +3391,16 @@
   "epica": "Validez",
   "observacion": "",
   "tipo": "RN",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67 amplía las reglas que bloquean publicar; sigue sin haber verificación al ejecutar ni en la siembra.",
+   "anterior": "parcial"
+  },
   "grupo": "g4-dsl-publicacion",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
+  "verificacion": "re-medido; fuera del método (una sola evaluación)",
   "resumen": "Un caso con errores de validación no puede publicarse (rechazo 400 en el backend, con prueba). No hay verificación al ejecutar: depende de que el estado PUBLISHED solo se alcance por publish(), y la siembra y la vista previa del editor ejecutan sin pasar la compuerta. Las reglas validadas son además incompletas.",
   "clausulas": [
    {
@@ -3307,7 +3416,7 @@
     "texto": "Si no cumple las reglas, no podrá ejecutarse",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:58 - la ejecución solo comprueba el estado PUBLISHED; no hay revalidación al iniciar (:160)",
+     "backend_django/apps/simulation/services/game_service.py:59 - la ejecución solo comprueba el estado PUBLISHED; no hay revalidación al iniciar (:160)",
      "backend_django/apps/simulation/services/authoring/guards.py:28 - lo publicado es inmutable: lo ejecutado es lo validado (prueba test_authoring_operations_contract.py:557)",
      "backend_django/apps/simulation/management/commands/seed_caso_pdf.py:1141 - la siembra escribe PUBLISHED sin validar (también bootstrap_dev_db.py:452)",
      "frontend/src/app/features/simulator/world-preview.component.ts:603 - la vista previa del editor ejecuta un borrador inválido solo con advertencia"
@@ -3317,9 +3426,9 @@
     "texto": "...las reglas definidas en el DSL (alcance del conjunto validado)",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/world_validation.py:37 - 14 errores y 1 advertencia; sin DSL formal",
-     "backend_django/apps/simulation/services/world_service.py:467 - pasan la validación y fallan en juego: nodo sin mapa ('La escena no tiene mapa configurado'), destino sin sala (:421), puerta sin entrada autorada (:458)",
-     "backend_django/apps/simulation/services/authoring/graph.py:87 - decisión con origen o destino de otra versión no se rechaza"
+     "backend_django/apps/simulation/services/world_validation.py:37-48 - reglas vigentes: grafo (un inicial, al menos un terminal, sin ciclos), extremos de decisión, nodos sin salida o sin mapa, geometría, ética, salida segura y límites; desde #67 cubre lo estructural que antes solo fallaba en juego",
+     "docs/diseno/dsl/dsl-casos.schema.json - el DSL formal existe como diseño y como validador independiente, pero SIEP no lo usa: no hay importación ni validación contra el esquema",
+     "backend_django/apps/simulation/services/world_service.py:467 - siguen pasando la validación y fallan en juego: destino sin sala (:421) y puerta sin entrada autorada (:458)"
     ]
    },
    {
@@ -3331,7 +3440,7 @@
     ]
    }
   ],
-  "brecha": "(1) Ninguna verificación al ejecutar ni en los comandos de siembra. (2) El conjunto de reglas no cubre todo lo que rompe en juego ni la estructura base (RN-02). (3) La vista previa ejecuta borradores inválidos. (4) Compuerta sin bloqueo de fila.",
+  "brecha": "(1) Ninguna verificación al ejecutar ni en los comandos de siembra. (2) El conjunto de reglas del sistema no es el del DSL diseñado (docs/diseno/dsl): sigue sin haber validación contra ese esquema y todavía hay casos que pasan la validación y fallan en juego (referencias requires*, opciones que ningún diálogo ofrece). (3) La vista previa ejecuta borradores inválidos. (4) Compuerta sin bloqueo de fila.",
   "accion": "Extraer ensure_publishable(version) (checklist + validación) en publication.py y usarla desde publish() y desde seed_caso_pdf y bootstrap_dev_db, de modo que ningún camino marque PUBLISHED sin pasar. Añadir una prueba que recorra todas las versiones PUBLISHED sembradas y exija canPublish. Completar las reglas faltantes (ver RF-12). Opcional: select_for_update de la versión en publish() y mostrar el error de validación al ejecutar la vista previa.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
@@ -3905,34 +4014,40 @@
   "epica": "Decisiones",
   "observacion": "Regla adoptada para esta fase del DSL.",
   "tipo": "RN",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67: un nodo alcanzable que no es final y no tiene opciones ya es error de publicación.",
+   "anterior": "cumple"
+  },
   "grupo": "g3-autoria",
   "veredicto_evaluador": "cumple",
   "veredicto_final": "cumple",
-  "verificacion": "confirmado (2 lentes)",
-  "resumen": "La cantidad de opciones por escena es libre: no hay minimo ni maximo en validacion, esquema ni interfaz, por lo que el autor pone las que la situacion requiera. Matiz: tampoco se exige al menos una opcion en un nodo no terminal.",
+  "verificacion": "re-medido; 1 de 2 lentes",
+  "resumen": "La cantidad de opciones por escena es libre: no hay mínimo ni máximo en la validación, el esquema ni la interfaz, así que el autor pone las que la situación requiera. Desde #67, un nodo alcanzable que no es final y no tiene opciones es un error de publicación (el estudiante quedaría sin salida).",
   "clausulas": [
    {
     "texto": "La cantidad de opciones la define el autor segun la situacion",
     "estado": "cumple",
     "evidencia": [
      "bootstrap_dev_db.py:78-92 sin CHECK/UNIQUE de cantidad",
-     "graph.py:60-66 sin tope",
+     "graph.py:65-71 sin tope",
      "world_validation.py:17-22 los limites son de objetos/colisiones/triggers, no de opciones",
      "case-editor.component.ts:330-397 sin tope en la interfaz"
     ]
    },
    {
     "texto": "La cantidad es suficiente para representar la situacion (al menos una salida en escenas no terminales)",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "hecho 2: la validacion omite nodo no terminal sin opciones",
-     "dag-editor.component.ts:422-426 solo muestra advertencia local 'nodo(s) sin decisiones salientes', no bloquea publicar"
+     "backend_django/apps/simulation/services/world_validation.py:115-130 - NODE_WITHOUT_OPTIONS: nodo alcanzable, no final y sin opciones es un error de publicación",
+     "backend_django/apps/simulation/tests/test_world_validation_estructura.py:56-86 - el error, la advertencia para el huérfano y el nodo final sin opciones correcto"
     ]
    }
   ],
-  "brecha": "Un nodo no terminal sin opciones puede publicarse (el estudiante quedaria sin salida); no hay minimo de 1 opcion fuera de terminales.",
-  "accion": "Anadir regla de validacion que exija al menos una opcion saliente en todo nodo no terminal (no imponer maximo).",
-  "esfuerzo": "S",
+  "brecha": "Ninguna frente al texto.",
+  "accion": "—",
+  "esfuerzo": "n/a",
   "cambia_esquema_bd": false,
   "decision_requerida": "",
   "terminologia": "Cantidad de opciones de una decision = numero de DecisionOption con el mismo source_node; no existe limite configurado.",
@@ -3941,35 +4056,14 @@
   ],
   "revisiones": [
    {
-    "fuente": "g3-autoria__falso-cumple",
-    "lente": "falso-cumple",
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
     "acuerdo": true,
     "veredicto_revisado": "cumple",
-    "motivo": "El texto base solo exige que el autor defina la cantidad de opciones segun la situacion; no pide un minimo. No hay tope ni minimo en servidor ni en interfaz: la validacion de publicacion solo limita objetos, colisiones y triggers por mapa; la creacion de opciones no cuenta ni limita; el runtime no trunca (solo los atajos de teclado 1-9 son una comodidad, el clic sirve para todas). Lo unico que falta (nodo no terminal sin opciones) es una clausula inferida por el evaluador, no del texto base; el matiz declarado es honesto y no convierte el veredicto en parcial.",
+    "motivo": "NODE_WITHOUT_OPTIONS es error solo para nodos alcanzables y no finales; el huérfano legítimo del caso sembrado solo avisa (UNREACHABLE_NODE). La regla de mapa se evalúa en producción porque el snapshot siempre incluye nodeId por mapa.",
     "evidencia": [
-     "backend_django/apps/simulation/services/authoring/graph.py:60-66",
-     "backend_django/apps/simulation/services/authoring/graph.py:86-99",
-     "backend_django/apps/simulation/services/world_validation.py:17-19",
-     "backend_django/apps/simulation/services/world_validation.py:52-76",
-     "backend_django/apps/simulation/services/authoring/publication.py:58-85",
-     "backend_django/apps/simulation/models/case.py:99-125",
-     "frontend/src/app/features/simulator/dag-editor.component.ts:426"
-    ]
-   },
-   {
-    "fuente": "g3-autoria__falso-incumple",
-    "lente": "falso-incumple",
-    "acuerdo": true,
-    "veredicto_revisado": "cumple",
-    "motivo": "El texto base (03-reglas-de-negocio.md, fila RN-11) solo exige que cada decision tenga la cantidad de opciones necesaria para representar la situacion. El sistema no pone tope ni minimo: create_decision no valida cantidad (graph.py:60-66, sin CHECK en el modelo) y la validacion de mundo solo revisa nodo inicial, terminal, ciclos, geometria, etica y salida segura (world_validation.py:52-76). El autor define las opciones libremente, lo que cumple la clausula esencial. La clausula 'al menos una salida en escenas no terminales' del evaluador NO aparece en el texto base: es una exigencia adicional inferida, no una clausula de RN-11, por lo que no debe bajar el veredicto a parcial. Salvedad real (no es incumplimiento de RN-11, sino riesgo de calidad): un nodo no terminal sin opciones puede publicarse, porque world_validation no lo detecta; la unica advertencia es local al editor (dag-editor.component.ts:425-426) y no bloquea. node_state solo devuelve opciones si el nodo no es terminal (game_dtos.py:58-61), asi que el estudiante quedaria sin salida. Se recomienda registrar esto como hallazgo aparte, no como brecha de RN-11.",
-    "evidencia": [
-     "docs/requisitos/baseline-pn3/03-reglas-de-negocio.md:17 (texto RN-11: 'cantidad de opciones de respuesta que sea necesaria', estado Definido, 'Regla adoptada para esta fase del DSL')",
-     "backend_django/apps/simulation/services/authoring/graph.py:60-66 (create_decision sin tope de cantidad, verificado)",
-     "backend_django/apps/simulation/services/authoring/graph.py:86-99 (_apply_decision_request sin validacion de cantidad, verificado)",
-     "backend_django/apps/simulation/services/world_validation.py:52-76 (_validate_graph: solo inicio, terminal y ciclo; no hay chequeo de nodo no terminal sin salidas, verificado)",
-     "backend_django/apps/simulation/serializers/game_dtos.py:57-64 (node_state devuelve opciones solo si el nodo no es terminal, verificado)",
-     "frontend/src/app/features/simulator/dag-editor.component.ts:415-433 (advertencia local 'nodo(s) sin decisiones salientes', no bloquea publicar, verificado)",
-     "backend_django/apps/simulation/services/authoring/world_definition.py:55-60 (validation se calcula pero canPublish solo depende de errores; ver world_validation.py:46-48)"
+     "backend_django/apps/simulation/services/world_validation.py:115-130",
+     "backend_django/apps/simulation/services/authoring/world_definition.py:331-341"
     ]
    }
   ],
@@ -4332,19 +4426,25 @@
   "epica": "",
   "rf_relacionados": "RF-12, RF-13",
   "tipo": "CU",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#67: la validación estructural queda completa.",
+   "anterior": "parcial"
+  },
   "grupo": "g4-dsl-publicacion",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "Revisar reglas y publicar existen de punta a punta en la interfaz del ADMIN, con checklist, validación y confirmación. Faltan archivar y volver a borrador, la validación solo cubre parte de las reglas y el profesor no participa.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "Revisar reglas y publicar existen de punta a punta en la interfaz del ADMIN, con checklist, validación y confirmación; la validación estructural es completa desde #67. Faltan archivar y volver a borrador y el profesor no participa.",
   "clausulas": [
    {
     "texto": "Revisar que el caso cumpla las reglas definidas (RF-12)",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/urls_admin.py:47 - endpoint de validación",
+     "backend_django/apps/simulation/urls_admin.py:47 - endpoint de validación bajo demanda",
      "backend_django/apps/simulation/services/authoring/publication.py:73 - validación como compuerta",
-     "backend_django/apps/simulation/services/world_validation.py:52 - reglas estructurales incompletas (ver RF-12)"
+     "backend_django/apps/simulation/services/world_validation.py:52-81 - desde #67 incluye las reglas estructurales (extremos, nodos sin salida, sin mapa, inalcanzables)"
     ]
    },
    {
@@ -4404,7 +4504,18 @@
    "backend_django/apps/simulation/tests/test_authoring_operations_contract.py::test_el_checklist_completo_queda_completo_y_el_parcial_pendiente (:697)",
    "frontend/src/app/features/simulator/case-editor.feedback.spec.ts"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "La compuerta de publicación bloquea con errores y nombra cada uno (publish es el único llamador de validate); el flujo sigue siendo solo del ADMIN y no hay archivar ni volver a borrador.",
+    "evidencia": [
+     "backend_django/apps/simulation/services/authoring/publication.py:73-80"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -4510,20 +4621,25 @@
   "epica": "",
   "rf_relacionados": "RF-15, RF-16",
   "tipo": "CU",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#66: la lista de casos del lobby solo muestra los asignados.",
+   "anterior": "parcial"
+  },
   "grupo": "g5-participacion",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
   "resumen": "El estudiante entra al portal, llega al catálogo, ve sus casos asignados y pulsa «Iniciar simulación»; la información inicial llega después, ya con intento creado, y solo para el caso semilla. No hay pantalla de detalle previa ni personajes ni objetivos. El lobby alterno muestra casos no asignados.",
   "clausulas": [
    {
     "texto": "Ver los casos disponibles (RF-15).",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/simulation/services/game_service.py:124",
-     "frontend/src/app/features/simulator/simulation-catalog.component.ts:42",
-     "backend_django/apps/progression/catalog.py:12",
-     "frontend/src/app/features/simulator/game-menu.component.ts:368"
+     "backend_django/apps/simulation/services/game_service.py:126-136 - list_published_cases devuelve solo los asignados al estudiante",
+     "backend_django/apps/progression/catalog.py:14-18 - el lobby también filtra por asignación desde #66",
+     "frontend/src/app/features/simulator/simulation-catalog.component.ts:42"
     ]
    },
    {
@@ -4541,15 +4657,15 @@
     "evidencia": [
      "frontend/src/app/features/simulator/simulation-catalog.component.ts:436",
      "frontend/src/app/features/simulator/simulation-play.component.ts:1522",
-     "backend_django/apps/simulation/services/game_service.py:160"
+     "backend_django/apps/simulation/services/game_service.py:162"
     ]
    }
   ],
-  "brecha": "Heredadas de RF-15 y RF-16: el lobby /portal/jugar expone casos no asignados; no hay detalle del caso antes de crear el intento; personajes y objetivos de aprendizaje no existen; el contexto solo está para el caso semilla.",
-  "accion": "Corregir el filtro de /catalog (RF-15, S) y añadir el detalle previo con contexto, personajes y objetivos (RF-16, M), enlazado desde la tarjeta del catálogo.",
+  "brecha": "Heredadas de RF-16: no hay detalle del caso antes de crear el intento; personajes y objetivos de aprendizaje no existen; el contexto solo está para el caso semilla. El lobby /portal/jugar dejó de exponer casos no asignados (#66).",
+  "accion": "Añadir el detalle previo con contexto, personajes y objetivos (RF-16, M), enlazado desde la tarjeta del catálogo.",
   "esfuerzo": "M",
   "cambia_esquema_bd": true,
-  "decision_requerida": "Las de RF-15 y RF-16: destino del lobby /portal/jugar con desbloqueo lineal, redacción de objetivos de aprendizaje y qué personajes se muestran antes de jugar.",
+  "decision_requerida": "Las de RF-16: redacción de objetivos de aprendizaje y qué personajes se muestran antes de jugar.",
   "terminologia": "«caso habilitado» = CaseVersion publicada y asignada al grupo activo del estudiante; «información inicial» = tarjeta del catálogo + aviso de contenido + escena «Antes de comenzar» + «Contexto inicial del caso». «Comenzar» hoy equivale a abrir /portal/simulador/:id, que crea el intento.",
   "pruebas_existentes": [
    "backend_django/apps/simulation/tests/test_game.py:73",
@@ -4558,7 +4674,19 @@
    "frontend/src/app/features/simulator/intro-gate.util.spec.ts",
    "frontend/e2e/lobby.e2e.ts"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "La lista de casos (catálogo y listado) ya solo muestra los asignados; no hay ruta de detalle por id para el estudiante; el detalle previo con objetivos y personajes sigue sin existir.",
+    "evidencia": [
+     "backend_django/apps/progression/catalog.py:14-19",
+     "backend_django/apps/simulation/services/game_service.py:126-141"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -5023,11 +5151,17 @@
   "epica": "",
   "rf_relacionados": "RF-25",
   "tipo": "CU",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#64: el tablero ya no muestra intentos de otros docentes.",
+   "anterior": "parcial"
+  },
   "grupo": "g8-resultados-docente",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "El flujo existe: «Docente» en el menú, lista de intentos recientes de sus estudiantes, traza completa y evaluación con rúbrica. Es parcial por las limitaciones de RF-25: ventana de 20 intentos, alias sin identificación, duración inflada en reemplazados y propiedad no aplicada en student-report y tablero.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "El flujo existe: «Docente» en el menú, lista de intentos recientes de sus estudiantes, traza completa y evaluación con rúbrica. Es parcial por las limitaciones de RF-25: ventana de 20 intentos, alias sin identificación y duración inflada en reemplazados; el acceso a datos de otros docentes se cerró en #64.",
   "clausulas": [
    {
     "texto": "Acceder al panel docente (rol profesor)",
@@ -5043,7 +5177,7 @@
     "estado": "cumple",
     "evidencia": [
      "backend_django/apps/simulation/views/instructor_views.py:20",
-     "backend_django/apps/simulation/services/instructor_service.py:87",
+     "backend_django/apps/simulation/services/instructor_service.py:74",
      "frontend/src/app/features/simulator/instructor-trace.component.ts:337"
     ]
    },
@@ -5051,10 +5185,10 @@
     "texto": "Revisar el desempeño de los estudiantes (cobertura, identificación y tiempos fiables)",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/simulation/services/instructor_service.py:72",
-     "backend_django/apps/simulation/services/instructor_service.py:28",
-     "backend_django/apps/simulation/services/instructor_service.py:96",
-     "backend_django/apps/simulation/services/game_service.py:323"
+     "backend_django/apps/simulation/services/instructor_service.py:59",
+     "backend_django/apps/simulation/services/instructor_service.py:29",
+     "backend_django/apps/simulation/services/instructor_service.py:83",
+     "backend_django/apps/simulation/services/game_service.py:326"
     ]
    },
    {
@@ -5067,8 +5201,8 @@
     ]
    }
   ],
-  "brecha": "Las mismas de RF-25. Además, el botón «Ver trazabilidad» de la tabla del tablero lleva a la lista general, no al intento de la fila, y esa tabla muestra intentos globales de otros docentes.",
-  "accion": "Resolver RF-25 (lista filtrable y paginada, identificación coherente, tiempo activo, propiedad en student-report y tablero) y enlazar las filas del tablero al intento concreto.",
+  "brecha": "Las mismas de RF-25 (cobertura, identificación y tiempos). Además, el botón «Ver trazabilidad» de la tabla del tablero lleva a la lista general, no al intento de la fila.",
+  "accion": "Resolver RF-25 (lista filtrable y paginada, identificación coherente, tiempo activo) y enlazar las filas del tablero al intento concreto.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
   "decision_requerida": "Las de RF-25 (alias o nombre real; alcance de la revisión).",
@@ -5080,7 +5214,19 @@
    "backend_django/apps/simulation/tests/test_instructor.py:146",
    "frontend/src/app/features/simulator/instructor-trace.reconsidered.spec.ts"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "Las pantallas y endpoints de revisión del docente quedan acotados a sus estudiantes; persisten las limitaciones de cobertura, identificación y tiempos de RF-25, y la traza de un intento que termina en un nodo final sin mapa falla con 404.",
+    "evidencia": [
+     "backend_django/apps/simulation/services/instructor_service.py:48-58",
+     "backend_django/apps/simulation/services/instructor_service.py:111"
+    ]
+   }
+  ],
   "resolucion": null
  },
  {
@@ -5093,11 +5239,17 @@
   "epica": "",
   "rf_relacionados": "RF-26",
   "tipo": "CU",
+  "remedicion": {
+   "fecha": "2026-10-11",
+   "codigo": "master de430a7, tras los PR #64 a #67",
+   "motivo": "#64: el reporte de grupo ya no expone grupos ajenos.",
+   "anterior": "parcial"
+  },
   "grupo": "g8-resultados-docente",
   "veredicto_evaluador": "parcial",
   "veredicto_final": "parcial",
-  "verificacion": "fuera del método (una sola evaluación)",
-  "resumen": "El flujo existe para el grupo: Reportes, grupo y caso, generar, exportar CSV. Falta el reporte de un estudiante como tal, la opción sin caso devuelve vacío y el API no verifica que el grupo sea del profesor.",
+  "verificacion": "re-medido; revisado por 1 lente, de acuerdo",
+  "resumen": "El flujo existe para el grupo: Reportes, grupo y caso, generar, exportar CSV, y desde #64 solo expone grupos del profesor. Falta el reporte de un estudiante como tal y la opción sin caso devuelve vacío.",
   "clausulas": [
    {
     "texto": "Generar un reporte básico de un grupo (selección de grupo y caso, vista y CSV)",
@@ -5113,31 +5265,43 @@
     "texto": "Generar un reporte básico de un estudiante",
     "estado": "parcial",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:237",
+     "backend_django/apps/reportes/services.py:249",
      "backend_django/apps/reportes/urls.py:7"
     ]
    },
    {
     "texto": "El flujo no expone grupos ajenos al profesor",
-    "estado": "parcial",
+    "estado": "cumple",
     "evidencia": [
-     "backend_django/apps/reportes/services.py:156",
-     "backend_django/apps/grupos/services.py:80"
+     "backend_django/apps/reportes/services.py:164-170 - un profesor no obtiene el reporte ni el CSV de un grupo ajeno (403)",
+     "backend_django/apps/grupos/services.py:80 - la lista de la UI ya estaba acotada al profesor",
+     "backend_django/apps/reportes/tests/test_alcance_docente.py:49-67"
     ]
    }
   ],
-  "brecha": "Las mismas de RF-26: sin reporte de estudiante, sin consolidado cuando no se elige caso (la UI ofrece «Todos los casos asignados») y sin control de propiedad en /api/reportes/grupo/<id> y /export. La ruta /portal/reportes solo admite PROFESOR aunque la pantalla se rotula «Vista administrativa».",
+  "brecha": "Las mismas de RF-26: sin reporte de estudiante y sin consolidado cuando no se elige caso (la UI ofrece «Todos los casos asignados»). La ruta /portal/reportes solo admite PROFESOR aunque la pantalla se rotula «Vista administrativa».",
   "accion": "Aplicar las acciones de RF-26.",
   "esfuerzo": "M",
   "cambia_esquema_bd": false,
   "decision_requerida": "Las de RF-26.",
   "terminologia": "«Generar reporte» = botón «Generar reporte» y «Exportar CSV» en «Reportes por grupo»; «de un grupo» = grupoId; «de un estudiante» = fila de estudiantes[] (sin reporte propio).",
   "pruebas_existentes": [
-   "backend_django/apps/reportes/tests/test_reportes.py:147",
-   "backend_django/apps/reportes/tests/test_reportes.py:185",
-   "backend_django/apps/reportes/tests/test_estados_contract.py:73"
+   "backend_django/apps/reportes/tests/test_reportes.py:149",
+   "backend_django/apps/reportes/tests/test_reportes.py:187",
+   "backend_django/apps/reportes/tests/test_estados_contract.py:76"
   ],
-  "revisiones": [],
+  "revisiones": [
+   {
+    "fuente": "remedicion",
+    "lente": "revisor independiente claude-sonnet-5-5 (re-medición 2026-10-11)",
+    "acuerdo": true,
+    "veredicto_revisado": "parcial",
+    "motivo": "El reporte de grupo y su CSV ya no exponen grupos ajenos; sigue sin existir el reporte de un estudiante.",
+    "evidencia": [
+     "backend_django/apps/reportes/services.py:164-180"
+    ]
+   }
+  ],
   "resolucion": null
  }
 ]
