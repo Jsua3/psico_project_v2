@@ -1,6 +1,6 @@
 # Cierre de la sesión «Requisitos, reglas de negocio y taller de DSL»
 
-Sesiones: «Requisitos PN3» (Claude Sonnet 5.5) y su sesión hermana «Local Claude code prompt session», a pedido de Juan José Sua. Periodo: 2026-10-10 a 2026-10-11. Estado al cerrar: todo lo producido está en `master` (`de430a7`) salvo lo marcado como abierto en la sección 7.
+Sesiones: «Requisitos PN3» (Claude Sonnet 5.5) y su sesión hermana «Local Claude code prompt session», a pedido de Juan José Sua. Periodo: 2026-10-10 a 2026-10-11. Estado al cerrar: lo producido está en `master` (el código de la ola 0 desde `de430a7`; después entraron #68 y #72) salvo lo marcado como abierto en la sección 7.
 
 ## 1. Qué se pidió
 
@@ -22,6 +22,7 @@ Sesiones: «Requisitos PN3» (Claude Sonnet 5.5) y su sesión hermana «Local Cl
 | Ola 0 de código: el lobby solo muestra casos asignados | `apps/progression/catalog.py` | [#66](https://github.com/Jsua3/psico_project_v2/pull/66) · `8824cb6` |
 | Ola 0 de código: validación estructural antes de publicar | `authoring/graph.py`, `world_validation.py` | [#67](https://github.com/Jsua3/psico_project_v2/pull/67) · `de430a7` |
 | Taller de DSL (UML, sintaxis JSON, escenarios y validador con 46 pruebas) | [`docs/diseno/dsl/`](../diseno/dsl) | [#63](https://github.com/Jsua3/psico_project_v2/pull/63) · `8541b1b` |
+| Deriva del DSL tras la ola 0 (citas y afirmaciones sobre SIEP puestas al día) | [`docs/diseno/dsl/`](../diseno/dsl) | [#72](https://github.com/Jsua3/psico_project_v2/pull/72) · `6b45279` |
 | Documento maestro único y vigente | [`docs/PROMPT_MAESTRO.md`](../PROMPT_MAESTRO.md) | [#70](https://github.com/Jsua3/psico_project_v2/pull/70) · `31246e7` |
 | Línea base PN3 en Markdown y prompt de la sesión | [`docs/requisitos/baseline-pn3/`](../requisitos/baseline-pn3) | [#58](https://github.com/Jsua3/psico_project_v2/pull/58) · `adbdf60` |
 
@@ -93,8 +94,7 @@ Las olas 1 a 5 y los cambios de esquema (marcados «BD» en la tabla de brechas)
 | Qué | Dónde | Quién |
 |---|---|---|
 | Esta nota de cierre y la re-medición de la matriz | [#71](https://github.com/Jsua3/psico_project_v2/pull/71) | Requisitos PN3 |
-| Correcciones de la deriva de `docs/diseno/dsl/` tras la ola 0 | [#72](https://github.com/Jsua3/psico_project_v2/pull/72) | Sesión hermana |
-| Actualizaciones menores de dependencias de Dependabot | [#68](https://github.com/Jsua3/psico_project_v2/pull/68), [#69](https://github.com/Jsua3/psico_project_v2/pull/69) | Usuario: ya hubo dos roturas con Dependabot |
+| Actualizaciones menores de dependencias del frontend de Dependabot | [#69](https://github.com/Jsua3/psico_project_v2/pull/69) | Usuario: ya hubo dos roturas con Dependabot (el #68, de Python, entró) |
 | `docker build` de prueba con Node 26 antes del próximo despliegue | `Dockerfile` | Usuario |
 | Fase 2 del taller (reglas OCL-01 a OCL-08) | Esteban Bonilla y Santiago Leyton | Equipo |
 | Adopción de la trazabilidad (marcador `req` en pytest y ~300 pruebas por marcar) | `docs/requisitos/trazabilidad/plan-de-marcado.md` | Decisión del usuario |
@@ -102,7 +102,7 @@ Las olas 1 a 5 y los cambios de esquema (marcados «BD» en la tabla de brechas)
 
 ## 8. Cómo se trabajó
 
-- Subagentes `claude-sonnet-5-5` y `claude-haiku-5-5`; lo mecánico (rutas, tablas, citas) con scripts, sin modelo.
+- Subagentes `claude-sonnet-5-5` y `claude-haiku-5-5`; lo mecánico (rutas, tablas, citas) con scripts, sin modelo. Una corrida del revisor de la re-medición salió en `claude-sonnet-5` por no fijar el modelo; se descartó como fuente y se repitió en `claude-sonnet-5-5`.
 - Contraste: ~1,3 M de tokens de subagentes, tras recuperar 50 de 60 veredictos de una corrida abortada (la corrida completa había costado ~5,7 M). Propuestas: ~0,7 M.
 - Cada cambio de código se hizo con la prueba primero y se verificó con la suite de backend (889 pruebas con los cuatro PR juntos) y el CI de cada PR (6 de 6, con E2E).
 - Trampas útiles: GitHub puede dar un PR por «conflictivo» cuando hay dos bases de fusión aunque `git merge` salga limpio (se arregla metiendo la punta de la base en la rama); cerrar y reabrir un PR genera un CI nuevo contra la base actual, un «re-run» reutiliza el viejo; el alias `sonnet` del tool `Agent` resuelve a Sonnet 5.5 pero omitirlo hereda Sonnet 5.
