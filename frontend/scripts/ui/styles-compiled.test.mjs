@@ -130,3 +130,11 @@ test('la fila de la tabla de intentos del dashboard conserva su hover (revisión
   assert.ok(hover.ats.some(at => at.includes('(hover: hover) and (pointer: fine)')), 'solo con puntero fino');
   assert.equal(hover.value, 'var(--ds-primary-subtle)');
 });
+
+// ── F2-1: utilidad global .ds-sr-only (la usan los componentes de shared/ui y sus consumidores) ───────────────
+test('la hoja global expone .ds-sr-only con el mixin del lenguaje visual', () => {
+  const rule = parsed.decls.filter(d => d.selector === '.ds-sr-only');
+  const props = new Map(rule.map(d => [d.prop, d.value]));
+  assert.equal(props.get('position'), 'absolute');
+  assert.equal(props.get('clip-path'), 'inset(50%)');
+});

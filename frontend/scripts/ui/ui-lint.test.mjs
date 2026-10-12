@@ -59,6 +59,9 @@ test('clickableNoActive: botones y enlaces sin :active en su ámbito; Material n
   assert.equal(count('clickableNoActive', component('', '<button mat-button>A</button><a href="/x" role="button" class="k">B</a>')), 1);
   const globalActive = [{ path: 'src/styles/styles.scss', text: '.psy-button:active { transform: scale(.97); }' }];
   assert.equal(count('clickableNoActive', [...globalActive, ...component('', '<a class="psy-button" href="/">A</a>')]), 0, 'la regla global de styles.scss vale');
+  // F2-1: los componentes de shared/ui traen su propio :active (como Material).
+  assert.equal(count('clickableNoActive', component('', '<button ui-button>A</button><button ui-icon-button icon="close" label="Cerrar"></button><a ui-link href="/x">B</a><a class="z" ui-button variant="ghost" href="/">C</a>')), 0);
+  assert.equal(count('clickableNoActive', component('', '<button data-ui-button-like>A</button>')), 1, 'solo los atributos exactos de la biblioteca');
 });
 
 test('inlineStyleAttr y bodyGameMode', () => {

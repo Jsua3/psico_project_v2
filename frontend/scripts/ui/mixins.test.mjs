@@ -63,3 +63,17 @@ test('ds-press no encoge un control deshabilitado (sigue siendo enfocable por di
   assert.equal(propsFor(decls, ".x:active:not([aria-disabled='true'], :disabled)").get('scale'), '0.97');
   assert.equal(propsFor(decls, '.x:active').has('scale'), false);
 });
+
+// ── F2-1: texto solo para lectores de pantalla ────────────────────────────────────────────────────────────────
+test('ds-sr-only: fuera de la vista pero en el árbol de accesibilidad, sin !important', () => {
+  const { decls, css } = use('.x { @include m.ds-sr-only; }');
+  const hidden = propsFor(decls, '.x');
+  assert.equal(hidden.get('position'), 'absolute');
+  assert.equal(hidden.get('inline-size'), '1px');
+  assert.equal(hidden.get('block-size'), '1px');
+  assert.equal(hidden.get('overflow'), 'hidden');
+  assert.equal(hidden.get('clip-path'), 'inset(50%)');
+  assert.equal(hidden.get('white-space'), 'nowrap');
+  assert.equal(hidden.has('display'), false, 'display: none lo sacaría del árbol de accesibilidad');
+  assert.doesNotMatch(css, /!important/);
+});

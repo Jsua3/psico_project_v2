@@ -46,6 +46,14 @@ export function iconNamesIn(files) {
         for (const [, fn] of expr.matchAll(/\b([A-Za-z_]\w*)\s*\(/g)) iconFunctions.add(fn);
       }
     }
+    // Atributos de los componentes de shared/ui (F2-1): icon="save", iconEnd="arrow_forward", [icon]="'x'" o un
+    // ternario de literales en la vinculación.
+    for (const [, name] of text.matchAll(/\s(?:icon|iconEnd)="([a-z0-9]+(?:_[a-z0-9]+)*)"/g)) out.add(name);
+    for (const [, expr] of text.matchAll(/\s\[(?:icon|iconEnd)\]="([^"]*)"/g)) {
+      const literal = /^\s*'([a-z0-9]+(?:_[a-z0-9]+)*)'\s*$/.exec(expr);
+      if (literal) out.add(literal[1]);
+      addQuoted(expr, out);
+    }
     if (path.endsWith('.ts')) {
       // Sin alias de tipo (`type PatientIconKind = 'crisis' | …`): son claves, no nombres de icono.
       for (const [, name] of text.matchAll(/(?<!\btype\s+)\b\w*[iI]con\w*\s*[:=]\s*['"]([a-z0-9]+(?:_[a-z0-9]+)*)['"]/g)) out.add(name);

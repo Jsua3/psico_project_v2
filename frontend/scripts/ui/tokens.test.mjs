@@ -15,7 +15,7 @@ const PORTAL_COLORS = {
   '--ds-text-1': '#14202E', '--ds-text-2': '#4A5A6A', '--ds-text-3': '#7A8794',
   '--ds-primary': '#004876', '--ds-primary-hover': '#003B63', '--ds-primary-active': '#002F50',
   '--ds-primary-subtle': '#E6F0F7', '--ds-on-primary': '#FFFFFF',
-  '--ds-accent-sim': '#5B3FD1', '--ds-danger': '#A12C3B', '--ds-success': '#1E7A4F',
+  '--ds-accent-sim': '#5B3FD1', '--ds-danger': '#A12C3B', '--ds-danger-hover': '#8A2532', '--ds-success': '#1E7A4F',
   '--ds-warning-text': '#7A4F00', '--ds-warning-bg': '#FFF4D6', '--ds-info': '#0B5A8A',
   '--ds-focus': '#004876', '--ds-focus-halo': '#FFFFFF',
 };
@@ -73,7 +73,7 @@ const GAME_COLORS = {
   '--ds-text-1': '#E8ECF8', '--ds-text-2': '#A9B3CC', '--ds-text-3': '#6E7894',
   '--ds-primary': '#B69CFF', '--ds-primary-hover': '#C9B3FF', '--ds-primary-active': '#A58AF5',
   '--ds-primary-subtle': '#1D2540', '--ds-on-primary': '#0E1322',
-  '--ds-accent-sim': '#B69CFF', '--ds-danger': '#FF8A93', '--ds-success': '#7DE0A8',
+  '--ds-accent-sim': '#B69CFF', '--ds-danger': '#FF8A93', '--ds-danger-hover': '#FFA3AA', '--ds-success': '#7DE0A8',
   '--ds-warning-text': '#F2C46D', '--ds-warning-bg': '#2B2410', '--ds-info': '#7FB7E6',
   '--ds-focus': '#C9B3FF', '--ds-focus-halo': '#0E1322',
 };
@@ -104,6 +104,9 @@ for (const [skin, selector] of [['portal', ROOT], ['juego', GAME]]) {
     const s1 = t.get('--ds-surface-1');
     for (const name of ['--ds-primary', '--ds-danger', '--ds-success', '--ds-info', '--ds-accent-sim']) atLeast(t.get(name), s1, 4.5, `${name} sobre surface-1`);
     atLeast(t.get('--ds-on-primary'), t.get('--ds-primary'), 4.5, 'on-primary sobre primary');
+    // F2-1: el botón de peligro lleva el texto de on-primary en reposo y en hover.
+    atLeast(t.get('--ds-on-primary'), t.get('--ds-danger'), 4.5, 'on-primary sobre danger');
+    atLeast(t.get('--ds-on-primary'), t.get('--ds-danger-hover'), 4.5, 'on-primary sobre danger-hover');
     atLeast(t.get('--ds-warning-text'), t.get('--ds-warning-bg'), 4.5, 'warning-text sobre warning-bg');
   });
 }

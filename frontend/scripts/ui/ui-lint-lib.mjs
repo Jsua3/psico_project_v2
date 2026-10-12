@@ -255,6 +255,8 @@ function scanTags(text) {
 }
 
 const MAT_BUTTON = /\b(mat-button|mat-raised-button|mat-flat-button|mat-stroked-button|mat-icon-button|mat-fab|mat-mini-fab|mat-menu-item|matMenuItem|mat-list-item)\b/;
+/** Componentes de shared/ui (F2): traen su propio :active (m.ds-press), como Material. */
+const UI_CLICKABLE = /(?:^|\s)ui-(?:button|icon-button|link|card)(?=[\s=>/]|$)/;
 
 // ---------- texto visible sin tilde ------------------------------------------------------------------
 
@@ -426,7 +428,7 @@ export function countMetrics({ css, templates, scripts }) {
       if (/(?:^|\s)style\s*=\s*["']/.test(tag.attrs)) add('inlineStyleAttr', block.file, line, `<${tag.name} ${tag.attrs}>`);
       const roleButton = /\brole="button"/.test(tag.attrs);
       if (tag.name !== 'button' && tag.name !== 'a' && !roleButton) continue;
-      if (MAT_BUTTON.test(tag.attrs)) continue;
+      if (MAT_BUTTON.test(tag.attrs) || UI_CLICKABLE.test(tag.attrs)) continue;
       const classAttr = (tag.attrs.match(/(?:^|\s)class="([^"]*)"/) || [])[1] || '';
       const classes = classAttr.split(/\s+/).filter(name => name && !name.includes('{{'));
       for (const m of tag.attrs.matchAll(/\[class\.([\w-]+)\]/g)) classes.push(m[1]);

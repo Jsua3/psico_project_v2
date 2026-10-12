@@ -33,6 +33,16 @@ test('extrae los nombres de <mat-icon>, de ternarios, de propiedades *icon* y de
   assert.deepEqual([...iconNamesIn(files)].sort(), ['check', 'groups', 'healing', 'help', 'home', 'hourglass_empty', 'menu_book', 'psychology', 'save']);
 });
 
+test('extrae los iconos que se pasan como atributo a los componentes de shared/ui (F2-1)', () => {
+  const files = [{ path: 'src/app/x/x.component.ts', text: [
+    'template: `<button ui-button icon="save" iconEnd="arrow_forward">Guardar</button>',
+    `<button ui-icon-button icon="close" label="Cerrar"></button><button ui-button [icon]="'logout'">Salir</button>`,
+    `<button ui-button [icon]="busy() ? 'hourglass_empty' : 'check'">A</button><p title="icon">x</p>\`,`,
+  ].join('\n') }];
+  const names = iconNamesIn(files);
+  for (const name of ['save', 'arrow_forward', 'close', 'logout', 'hourglass_empty', 'check']) assert.ok(names.has(name), name);
+});
+
 test('sigue las funciones que llaman a otras y los parámetros llamados *icon* (revisión de F1, C2)', () => {
   const files = [{ path: 'src/app/x/x.component.ts', text: [
     'template: `<mat-icon>{{ timelineIcon(entry) }}</mat-icon><mat-icon>{{ metric.icon }}</mat-icon>`,',
