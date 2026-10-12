@@ -45,35 +45,52 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
   }), undefined, { timeout: scaled(10_000) });
 }
 
-async function assertNoBlockingAxeViolations(
-  page: Page,
-  testInfo: TestInfo,
-  stateLabel: string,
-): Promise<void> {
+export interface AxeAuditOptions {
+  tags: string[];
+  resultTypes: Array<'violations' | 'incomplete' | 'passes' | 'inapplicable'>;
+}
+
+/**
+ * Corre Axe sobre el documento con las etiquetas pedidas. Lo usan la puerta de calidad (solo violaciones
+ * `serious`/`critical` de WCAG 2.1) y la línea base de F0-9 (WCAG 2.2 + best-practice, con `incomplete`).
+ */
+export async function runAxe(page: Page, options: AxeAuditOptions): Promise<AxeResults> {
   const installed = await page.evaluate(() => Boolean((window as typeof window & { axe?: unknown }).axe));
   if (!installed) await page.addScriptTag({ content: axe.source });
 
-  let results: AxeResults | null = null;
-  for (let attempt = 0; attempt < 3 && results === null; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     await page.waitForFunction(() => {
       const axeApi = (window as typeof window & { axe?: { _running?: boolean } }).axe;
       return axeApi !== undefined && axeApi._running !== true;
     }, undefined, { timeout: scaled(30_000) });
     try {
-      results = await page.evaluate(async tags => {
+      return await page.evaluate(async ({ tags, resultTypes }) => {
         const axeApi = (window as typeof window & {
           axe: { run(root: Document, options: unknown): Promise<AxeResults> };
         }).axe;
         return axeApi.run(document, {
           runOnly: { type: 'tag', values: tags },
-          resultTypes: ['violations'],
+          resultTypes,
         });
-      }, WCAG_TAGS);
+      }, options);
     } catch (error) {
       if (!String(error).includes('Axe is already running') || attempt === 2) throw error;
     }
   }
-  if (results === null) throw new Error(`${stateLabel}: Axe no devolvió resultados`);
+  throw new Error('Axe no devolvió resultados');
+}
+
+async function assertNoBlockingAxeViolations(
+  page: Page,
+  testInfo: TestInfo,
+  stateLabel: string,
+): Promise<void> {
+  let results: AxeResults;
+  try {
+    results = await runAxe(page, { tags: WCAG_TAGS, resultTypes: ['violations'] });
+  } catch (error) {
+    throw new Error(`${stateLabel}: ${String(error)}`);
+  }
 
   const blocking = results.violations.filter(violation =>
     violation.impact !== null && BLOCKING_IMPACTS.has(violation.impact),
