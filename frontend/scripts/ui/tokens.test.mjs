@@ -62,3 +62,65 @@ test('los espacios de nombres heredados resuelven por alias a los tokens nuevos'
   };
   for (const [name, value] of Object.entries(expected)) assert.equal(props.get(name), value, name);
 });
+
+// ── F1-2: pieles portal y juego, contraste derivado de los tokens, contraste forzado y reducido ─────────────
+import { contrastRatio } from '../../src/styles/contrast.util.ts';
+
+const GAME = "[data-skin='game']";
+const GAME_COLORS = {
+  '--ds-surface-page': '#0E1322', '--ds-surface-1': '#151B2E', '--ds-surface-2': '#1D2540',
+  '--ds-border': '#3A456B', '--ds-border-strong': '#6070A0',
+  '--ds-text-1': '#E8ECF8', '--ds-text-2': '#A9B3CC', '--ds-text-3': '#6E7894',
+  '--ds-primary': '#B69CFF', '--ds-primary-hover': '#C9B3FF', '--ds-primary-active': '#A58AF5',
+  '--ds-primary-subtle': '#1D2540', '--ds-on-primary': '#0E1322',
+  '--ds-accent-sim': '#B69CFF', '--ds-danger': '#FF8A93', '--ds-success': '#7DE0A8',
+  '--ds-warning-text': '#F2C46D', '--ds-warning-bg': '#2B2410', '--ds-info': '#7FB7E6',
+  '--ds-focus': '#C9B3FF', '--ds-focus-halo': '#0E1322',
+};
+
+function skinTokens(selector, media = null) {
+  return propsFor(compileScss("@use 'skins';").decls, selector, media);
+}
+
+test('la piel juego redefine todos los colores en [data-skin="game"] y declara color-scheme oscuro', () => {
+  const game = skinTokens(GAME);
+  for (const [name, value] of Object.entries(GAME_COLORS)) assert.equal(game.get(name)?.toUpperCase(), value, name);
+  assert.equal(game.get('color-scheme'), 'dark');
+  assert.equal(skinTokens(ROOT).get('color-scheme'), 'light');
+});
+
+// req: RNF-04, RNF-004 (contraste derivado de los tokens, en las dos pieles)
+for (const [skin, selector] of [['portal', ROOT], ['juego', GAME]]) {
+  test(`contraste de la piel ${skin}: texto ≥ 4,5:1 y componentes y foco ≥ 3:1 sobre sus superficies`, () => {
+    const t = skinTokens(selector);
+    const surfaces = ['--ds-surface-page', '--ds-surface-1', '--ds-surface-2'].map(name => t.get(name));
+    const atLeast = (fg, bg, min, label) => assert.ok(contrastRatio(fg, bg) >= min, `${label}: ${contrastRatio(fg, bg).toFixed(2)} < ${min}`);
+    for (const bg of surfaces) {
+      atLeast(t.get('--ds-text-1'), bg, 4.5, `text-1 sobre ${bg}`);
+      atLeast(t.get('--ds-text-2'), bg, 4.5, `text-2 sobre ${bg}`);
+      atLeast(t.get('--ds-border-strong'), bg, 3, `border-strong sobre ${bg}`);
+      atLeast(t.get('--ds-focus'), bg, 3, `focus sobre ${bg}`);
+    }
+    const s1 = t.get('--ds-surface-1');
+    for (const name of ['--ds-primary', '--ds-danger', '--ds-success', '--ds-info', '--ds-accent-sim']) atLeast(t.get(name), s1, 4.5, `${name} sobre surface-1`);
+    atLeast(t.get('--ds-on-primary'), t.get('--ds-primary'), 4.5, 'on-primary sobre primary');
+    atLeast(t.get('--ds-warning-text'), t.get('--ds-warning-bg'), 4.5, 'warning-text sobre warning-bg');
+  });
+}
+
+test('contraste forzado: superficies Canvas, texto CanvasText, enlace LinkText y foco Highlight', () => {
+  const forced = skinTokens('[data-skin]', 'forced-colors: active');
+  assert.equal(forced.get('--ds-surface-1'), 'Canvas');
+  assert.equal(forced.get('--ds-text-1'), 'CanvasText');
+  assert.equal(forced.get('--ds-primary'), 'LinkText');
+  assert.equal(forced.get('--ds-focus'), 'Highlight');
+  assert.equal(forced.get('--ds-shadow-e1'), 'none');
+  assert.equal(propsFor(compileScss("@use 'skins';").decls, ROOT, 'forced-colors: active').get('--ds-focus'), 'Highlight');
+});
+
+test('más contraste sube el borde y transparencia reducida quita velo y desenfoque', () => {
+  assert.equal(skinTokens('[data-skin]', 'prefers-contrast: more').get('--ds-border'), 'var(--ds-border-strong)');
+  const reduced = skinTokens('[data-skin]', 'prefers-reduced-transparency: reduce');
+  assert.equal(reduced.get('--ds-veil'), 'var(--ds-surface-1)');
+  assert.equal(reduced.get('--ds-glass-blur'), 'none');
+});

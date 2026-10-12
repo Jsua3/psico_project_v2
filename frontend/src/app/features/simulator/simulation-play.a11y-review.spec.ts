@@ -43,7 +43,7 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
   const reduceRule = source.slice(source.indexOf(selectors[0]), source.indexOf('}', source.indexOf(selectors[3])) + 1);
 
   it('el contenedor lleva la clase mientras el interruptor (reduceMotion) está activo', () => {
-    expect(source).toMatch(/<div class="game-container" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)">/);
+    expect(source).toMatch(/<div class="game-container" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)">/);
   });
 
   it('la regla alcanza al contenedor y a todos sus descendientes, también a los componentes hijos', () => {

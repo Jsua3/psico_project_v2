@@ -19,7 +19,7 @@
     "kit:laminas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/character-kit/laminas.mjs",
     "kit:retoque": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/character-kit/retoque.mjs",
     "ui:lint": "node scripts/ui/ui-lint.mjs",
-    "test:ui": "node --test \"scripts/ui/*.test.mjs\""
+    "test:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"scripts/ui/*.test.mjs\""
   },
   "private": true,
   "dependencies": {

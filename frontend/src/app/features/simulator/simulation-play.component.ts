@@ -118,7 +118,7 @@ const CASE_INTRO_PARAGRAPHS = [
     SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent
   ],
   template: `
-    <div class="game-container" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
+    <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
       [class.game-container--reduce-motion]="reduceMotion()">
       <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
 
@@ -484,13 +484,13 @@ const CASE_INTRO_PARAGRAPHS = [
   styles: [`
     :host { display: block; }
     .game-container {
-      --sim-purple: #7C4DFF;
-      --sim-lavender: #B69CFF;
+      --sim-purple: #7C4DFF; /* legado sin token (como --sim-blue, superficies, borde y brillo): lo retira F6-1 */
+      --sim-lavender: var(--ds-primary);
       --sim-blue: #6CC0C7;
-      --sim-green: #6EC67A;
-      --sim-orange: #F5B84B;
-      --sim-red: #E25A4F;
-      --sim-ink: #F4F7FB;
+      --sim-green: var(--ds-success);
+      --sim-orange: var(--ds-warning-text);
+      --sim-red: var(--ds-danger);
+      --sim-ink: var(--ds-text-1);
       --sim-ink-soft: rgba(244,247,251,.74);
       --sim-ink-mute: rgba(244,247,251,.5);
       --sim-surface: rgba(27,33,51,.72);

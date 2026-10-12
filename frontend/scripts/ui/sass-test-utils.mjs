@@ -34,7 +34,8 @@ export function compileStylesFile(relativePath) {
   return { css, decls, rules };
 }
 
-const norm = text => text.replace(/\s+/g, ' ').trim();
+// Sass quita las comillas de los selectores de atributo: [data-skin='game'] sale como [data-skin=game].
+const norm = text => text.replace(/\s+/g, ' ').replace(/(\[[\w-]+=)(['"])([^'"\]]*)\2\]/g, '$1$3]').trim();
 
 /** Valores declarados bajo un selector (uno de los de su lista) y, si se pide, dentro de un @media que contenga `media`. */
 export function propsFor(decls, selector, media = null) {

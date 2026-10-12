@@ -16,8 +16,12 @@ $game: (
   e3: (inset 0 1px 0 rgba(255, 255, 255, 0.11), 0 24px 48px rgba(0, 0, 0, 0.45)),
 );
 
+// Material de vidrio (plan visual §2.4): desenfoque y saturación de la receta de la barra de vidrio.
+$glass-blur: blur(20px) saturate(180%);
+
 @mixin emit($map) {
   @each $level, $value in $map {
     --ds-shadow-#{$level}: #{$value};
   }
+  --ds-glass-blur: #{$glass-blur};
 }
