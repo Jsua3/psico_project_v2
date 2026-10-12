@@ -8,8 +8,8 @@ import { UiToastHost } from './ui-toast-host';
 /**
  * ui-toast-host (plan visual §2.5 y §2.7, F2-7): pinta los avisos de NotificationService con el lenguaje visual. El
  * servicio ya limita a 4, deduplica y deja los errores hasta que se cierran; el anfitrión NO roba el foco, anuncia
- * los avisos corteses una vez (región viva) y los errores con role="alert", y pausa el cierre con el puntero o el
- * foco encima.
+ * cada aviso una vez por la región viva del CDK (los errores en modo assertive: un role="alert" dentro de la app
+ * queda oculto cuando hay un diálogo abierto), vive en la capa superior y pausa el cierre con el puntero o el foco.
  */
 // req: RNF-004 (mensajes de estado anunciados sin mover el foco, WCAG 4.1.3)
 describe('ui-toast-host', () => {
@@ -56,13 +56,13 @@ describe('ui-toast-host', () => {
     other.remove();
   });
 
-  it('los errores llevan role="alert" y no se van solos; los demás se anuncian una vez, con cortesía', () => {
+  it('los errores se anuncian en modo assertive y no se van solos; los demás, una vez y con cortesía', () => {
     service.error('No se pudo guardar');
     service.success('Guardado');
     fixture.detectChanges();
-    expect(toasts()[0].getAttribute('role')).toBe('alert');
-    expect(toasts()[1].hasAttribute('role')).toBe(false);
-    expect(announce).toHaveBeenCalledTimes(1);
+    expect(toasts().every(toast => !toast.hasAttribute('role'))).toBe(true);
+    expect(announce).toHaveBeenCalledTimes(2);
+    expect(announce).toHaveBeenCalledWith('No se pudo guardar', 'assertive');
     expect(announce).toHaveBeenCalledWith('Guardado', 'polite');
     vi.advanceTimersByTime(60_000);
     fixture.detectChanges();
@@ -96,5 +96,58 @@ describe('ui-toast-host', () => {
     for (let i = 1; i <= MAX_NOTIFICATIONS + 2; i++) service.info(`Aviso ${i}`);
     fixture.detectChanges();
     expect(toasts().length).toBe(MAX_NOTIFICATIONS);
+  });
+});
+
+describe('ui-toast-host: capa superior y retorno del foco (revisión de F2, I7)', () => {
+  let fixture: ComponentFixture<UiToastHost>;
+  let service: NotificationService;
+  const shown: string[] = [];
+  const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
+  const original = { show: proto['showPopover'], hide: proto['hidePopover'] };
+
+  beforeEach(() => {
+    shown.length = 0;
+    proto['showPopover'] = function (this: HTMLElement) { shown.push('show'); this.dataset['open'] = 'true'; };
+    proto['hidePopover'] = function (this: HTMLElement) { shown.push('hide'); delete this.dataset['open']; };
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), { provide: LiveAnnouncer, useValue: { announce: vi.fn().mockResolvedValue(undefined) } }],
+    });
+    service = TestBed.inject(NotificationService);
+    fixture = TestBed.createComponent(UiToastHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    (fixture.nativeElement as HTMLElement).remove();
+    proto['showPopover'] = original.show;
+    proto['hidePopover'] = original.hide;
+  });
+
+  it('la región es un popover que se muestra con el primer aviso y se oculta con el último', async () => {
+    const region = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ui-toast-host__region')!;
+    expect(region.getAttribute('popover')).toBe('manual');
+    service.error('No se pudo guardar');
+    await fixture.whenStable();
+    expect(region.dataset['open']).toBe('true');
+    service.clear();
+    await fixture.whenStable();
+    expect(region.dataset['open']).toBeUndefined();
+  });
+
+  it('cerrar un aviso con el teclado devuelve el foco a donde estaba', async () => {
+    const before = document.createElement('button');
+    document.body.appendChild(before);
+    before.focus();
+    service.error('No se pudo guardar');
+    await fixture.whenStable();
+    const close = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.ui-toast button')!;
+    close.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: before }));
+    close.focus();
+    close.click();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(before);
+    before.remove();
   });
 });

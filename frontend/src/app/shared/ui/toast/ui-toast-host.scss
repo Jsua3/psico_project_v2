@@ -1,17 +1,24 @@
 // Avisos (plan visual §2.5 y §2.7): pila abajo a la derecha (arriba del todo en móvil sería tapar la barra), con el
-// color del tono en el icono y en el filo; entrada 200 ms desde abajo, salida 160 ms.
-:host {
-  position: fixed;
-  inset-block-end: calc(var(--ds-space-4) + env(safe-area-inset-bottom));
-  inset-inline-end: var(--ds-space-4);
-  z-index: var(--ds-z-aviso);
-  pointer-events: none;
-}
-
+// color del tono en el icono y en el filo; entrada 200 ms desde abajo, salida 160 ms. La región es un popover en la
+// capa superior: se le quitan los estilos por defecto del navegador (centrado, borde, fondo).
 .ui-toast-host__region {
+  position: fixed;
+  inset: auto var(--ds-space-4) calc(var(--ds-space-4) + env(safe-area-inset-bottom)) auto;
+  z-index: var(--ds-z-aviso);
   display: grid;
   gap: var(--ds-space-2);
   justify-items: end;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  pointer-events: none;
+
+  &:not(:popover-open) {
+    display: none;
+  }
 }
 
 .ui-toast {
