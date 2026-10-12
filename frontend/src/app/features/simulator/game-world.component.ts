@@ -68,6 +68,7 @@ import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from '.
 import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
+import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
@@ -228,6 +229,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Claves de los rótulos visibles cuyo dueño se desplaza: son los únicos que se recolocan por cuadro. */
   private readonly followLabels: string[] = [];
   private ready = false;
+  /** Vértices al píxel con zoom de cámara (PHA-1) y resolución de los textos (PHA-2). */
+  private pixelRender?: PixelRender;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
   /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
@@ -350,6 +353,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   create() {
+    this.pixelRender = new PixelRender(this).attach();
     this.ready = true;
     // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
     // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
@@ -2806,7 +2810,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         parent: this.gameHost!.nativeElement,
         backgroundColor: '#0e141a',
         pixelArt: true,    // vecino más cercano: el pixel art no se suaviza
-        roundPixels: true, // 2.5D: evita el temblor sub-píxel con el y-sort y el seguimiento
+        // Cámaras con roundPixels; en Phaser 4 eso solo redondea traslaciones puras, así que con zoom de
+        // cámara ≥ 2 los vértices los alinea PixelRender (vertexRoundMode 'fullAuto', F0-7).
+        roundPixels: true,
         scale: pixelScaleConfig(this.gameHost!.nativeElement),
         scene: this.scene
       });

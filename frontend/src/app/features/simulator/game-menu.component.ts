@@ -16,6 +16,7 @@ import { LOBBY_DOOR_Y, lobbyDoorLayout } from './lobby-door-layout.util';
 import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
+import { PixelRender } from './pixel-render';
 import { GameHelpComponent } from './game-help.component';
 import { HelpModality } from './game-help.content';
 import { SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
@@ -62,6 +63,8 @@ class ClinicMenuScene extends Phaser.Scene {
   }
 
   create() {
+    // Vértices al píxel también con zoom de cámara ≥ 2 (PHA-1, F0-7).
+    new PixelRender(this).attach();
     const W = this.worldW, H = LOBBY_ROOM.height;
     // ── Layered clinic façade ────────────────────────────────────────────────
     // El cielo es el color de fondo del juego. Las franjas sangran más allá de la sala: con
@@ -395,7 +398,7 @@ export class GameMenuComponent implements OnDestroy {
             parent: this.host!.nativeElement,
             backgroundColor: '#0e141a',
             pixelArt: true,
-            roundPixels: true,
+            roundPixels: true, // con zoom ≥ 2 lo completa PixelRender en create() (F0-7)
             scale: pixelScaleConfig(this.host!.nativeElement),
             scene,
           });
