@@ -62,4 +62,21 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('input[role="switch"]')).not.toBeNull();
     }
   });
+
+  it('contenido (F2-3): la cabecera lleva el único h1; tarjetas, cifras e insignias de cada tono', async () => {
+    const host = await render();
+    expect(host.querySelector('ui-page-header h1')?.textContent).toContain('Galería de componentes');
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelector('ui-card:not(.ui-card--interactive)')).not.toBeNull();
+      expect(panel.querySelector('a.ui-card--interactive')).not.toBeNull();
+      expect(panel.querySelector('button.ui-card--interactive')).not.toBeNull();
+      expect(panel.querySelectorAll('ui-stat').length).toBeGreaterThanOrEqual(2);
+      for (const tone of ['neutral', 'info', 'success', 'warning', 'danger']) {
+        expect(panel.querySelector(`ui-badge.ui-badge--${tone}`)).not.toBeNull();
+      }
+      expect(panel.querySelectorAll('ui-section').length).toBeGreaterThanOrEqual(3);
+    }
+  });
 });

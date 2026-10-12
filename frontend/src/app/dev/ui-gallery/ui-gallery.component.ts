@@ -1,11 +1,16 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton, UiButtonSize, UiButtonVariant } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
+import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiLink } from '../../shared/ui/link/ui-link';
+import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiStat } from '../../shared/ui/stat/ui-stat';
 
 /**
  * Galería de la biblioteca `shared/ui` (plan visual F0-4 y F2-9; VD-11): cada componente en todos sus estados y en
@@ -16,12 +21,15 @@ import { UiLink } from '../../shared/ui/link/ui-link';
 @Component({
   selector: 'app-ui-gallery',
   standalone: true,
-  imports: [NgTemplateOutlet, UiButton, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiSwitch],
+  imports: [
+    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiPageHeader, UiSection,
+    UiStat, UiSwitch,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main id="main-content" class="ui-gallery" tabindex="-1">
-      <h1>Galería de componentes</h1>
-      <p>Solo en desarrollo. Aquí se ve cada componente de <code>shared/ui</code> en todos sus estados y en las dos pieles.</p>
+      <ui-page-header eyebrow="Solo en desarrollo" title="Galería de componentes"
+        description="Cada componente de shared/ui en todos sus estados y en las dos pieles." />
       @for (skin of skins; track skin.id) {
         <section class="ui-gallery__skin" [attr.data-skin]="skin.id" [attr.aria-labelledby]="'piel-' + skin.id">
           <h2 [id]="'piel-' + skin.id">Piel {{ skin.label }}</h2>
@@ -31,8 +39,7 @@ import { UiLink } from '../../shared/ui/link/ui-link';
     </main>
 
     <ng-template #matrix let-skin>
-      <section class="ui-gallery__block" [attr.aria-labelledby]="skin + '-botones'">
-        <h3 [id]="skin + '-botones'">Botones</h3>
+      <ui-section title="Botones" [level]="3">
         <div class="ui-gallery__row">
           @for (variant of variants; track variant.id) {
             <button ui-button type="button" [variant]="variant.id" icon="save">{{ variant.label }}</button>
@@ -59,10 +66,9 @@ import { UiLink } from '../../shared/ui/link/ui-link';
           Lee la <a ui-link href="#main-content">ayuda del simulador</a> o llama a la
           <a ui-link external href="https://www.minsalud.gov.co">línea de atención</a>.
         </p>
-      </section>
+      </ui-section>
 
-      <section class="ui-gallery__block" [attr.aria-labelledby]="skin + '-campos'">
-        <h3 [id]="skin + '-campos'">Campos</h3>
+      <ui-section title="Campos" [level]="3">
         <div class="ui-gallery__grid">
           <ui-field label="Correo institucional" hint="El que te dio la universidad" required>
             <input uiControl type="email" autocomplete="off" placeholder="nombre@unal.edu.co" />
@@ -91,7 +97,33 @@ import { UiLink } from '../../shared/ui/link/ui-link';
           <label ui-check><input type="checkbox" uiSwitch checked /> Sonido</label>
           <label ui-check><input type="checkbox" uiSwitch /> Subtítulos</label>
         </div>
-      </section>
+      </ui-section>
+
+      <ui-section title="Contenido" [level]="3">
+        <div class="ui-gallery__grid">
+          <ui-card>
+            <ui-stat label="Intentos completados" [value]="1234" hint="Últimos 30 días" />
+          </ui-card>
+          <ui-card>
+            <ui-stat label="Mejor puntaje" value="9,5 / 10" />
+          </ui-card>
+          <a ui-card href="#main-content">
+            <strong>Caso 3 · Crisis en urgencias</strong>
+            <p>Tarjeta clicable como enlace.</p>
+          </a>
+          <button ui-card type="button">
+            <strong>Retomar intento</strong>
+            <p>Tarjeta clicable como botón.</p>
+          </button>
+        </div>
+        <div class="ui-gallery__row">
+          <ui-badge>Borrador</ui-badge>
+          <ui-badge tone="info">En revisión</ui-badge>
+          <ui-badge tone="success">Publicado</ui-badge>
+          <ui-badge tone="warning">Por vencer</ui-badge>
+          <ui-badge tone="danger">Cerrado</ui-badge>
+        </div>
+      </ui-section>
     </ng-template>
   `,
   styles: [`
@@ -105,7 +137,6 @@ import { UiLink } from '../../shared/ui/link/ui-link';
       background: var(--ds-surface-page);
       color: var(--ds-text-1);
     }
-    .ui-gallery__block + .ui-gallery__block { margin-block-start: var(--ds-space-6); }
     .ui-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--ds-space-4); }
     .ui-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); margin-block: var(--ds-space-3); }
   `],

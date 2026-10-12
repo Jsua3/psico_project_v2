@@ -17,6 +17,7 @@ const PORTAL_COLORS = {
   '--ds-primary-subtle': '#E6F0F7', '--ds-on-primary': '#FFFFFF',
   '--ds-accent-sim': '#5B3FD1', '--ds-danger': '#A12C3B', '--ds-danger-hover': '#8A2532', '--ds-success': '#1E7A4F',
   '--ds-warning-text': '#7A4F00', '--ds-warning-bg': '#FFF4D6', '--ds-info': '#0B5A8A',
+  '--ds-success-bg': '#E6F4EC', '--ds-danger-bg': '#FBE9EB', '--ds-info-bg': '#E5F0F8',
   '--ds-focus': '#004876', '--ds-focus-halo': '#FFFFFF',
 };
 
@@ -75,6 +76,7 @@ const GAME_COLORS = {
   '--ds-primary-subtle': '#1D2540', '--ds-on-primary': '#0E1322',
   '--ds-accent-sim': '#B69CFF', '--ds-danger': '#FF8A93', '--ds-danger-hover': '#FFA3AA', '--ds-success': '#7DE0A8',
   '--ds-warning-text': '#F2C46D', '--ds-warning-bg': '#2B2410', '--ds-info': '#7FB7E6',
+  '--ds-success-bg': '#13291F', '--ds-danger-bg': '#2E1519', '--ds-info-bg': '#12243A',
   '--ds-focus': '#C9B3FF', '--ds-focus-halo': '#0E1322',
 };
 
@@ -108,6 +110,8 @@ for (const [skin, selector] of [['portal', ROOT], ['juego', GAME]]) {
     atLeast(t.get('--ds-on-primary'), t.get('--ds-danger'), 4.5, 'on-primary sobre danger');
     atLeast(t.get('--ds-on-primary'), t.get('--ds-danger-hover'), 4.5, 'on-primary sobre danger-hover');
     atLeast(t.get('--ds-warning-text'), t.get('--ds-warning-bg'), 4.5, 'warning-text sobre warning-bg');
+    // F2-3: insignias y avisos tonales (texto del tono sobre su fondo).
+    for (const tone of ['success', 'danger', 'info']) atLeast(t.get(`--ds-${tone}`), t.get(`--ds-${tone}-bg`), 4.5, `${tone} sobre ${tone}-bg`);
   });
 }
 
