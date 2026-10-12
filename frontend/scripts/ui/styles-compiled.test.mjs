@@ -82,14 +82,17 @@ test('movimiento: los resortes de la barra de vidrio usan linear() donde existe 
 
 test('movimiento reducido: la geometría se anula por tokens y la opacidad conserva su fundido corto', () => {
   const reduced = rootProps('prefers-reduced-motion: reduce');
-  for (const name of ['press', 'move', 'glass']) assert.equal(reduced.get(`--ds-dur-${name}`), '0.01ms', name);
+  // Revisión de F1 (I1): todas las duraciones colapsan salvo el fundido de opacidad.
+  for (const name of ['press', 'fast', 'base', 'slow', 'move', 'glass']) assert.equal(reduced.get(`--ds-dur-${name}`), '0.01ms', name);
   assert.equal(reduced.has('--ds-dur-fade'), false, 'el fundido de opacidad sigue (≤ 160 ms)');
 });
 
 test('movimiento reducido: la red de seguridad para lo que no usa tokens excluye .ds-motion', () => {
   const net = parsed.decls.filter(d => d.ats.some(at => at.includes('prefers-reduced-motion: reduce')) && d.prop === 'animation-iteration-count');
   assert.equal(net.length, 1);
-  assert.match(net[0].selector, /:not\(\.ds-motion, \.ds-motion \*\)/);
+  // Revisión de F1 (I1): solo el elemento .ds-motion queda fuera; su contenido proyectado sigue cubierto.
+  assert.match(net[0].selector, /:where\(:not\(\.ds-motion\)\)/);
+  assert.doesNotMatch(net[0].selector, /\.ds-motion \*/);
   const props = new Map(parsed.decls.filter(d => d.selector === net[0].selector).map(d => [d.prop, d.value]));
   assert.equal(props.get('animation-duration'), '1ms !important');
   assert.equal(props.get('transition-duration'), '1ms !important');

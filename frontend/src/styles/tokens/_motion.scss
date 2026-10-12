@@ -1,7 +1,7 @@
 // Movimiento (plan visual §2.3 y §2.7): duración y curva SEPARADAS; nunca ease-in; salida más rápida que entrada.
 // Convención: las transformaciones (desplazar, escalar) usan --ds-dur-move o --ds-dur-press; la opacidad y el
-// color, --ds-dur-fade o --ds-dur-fast. Con «movimiento reducido» la geometría vale 0,01 ms y los fundidos
-// cortos siguen (base/_motion.scss).
+// color, --ds-dur-fade o --ds-dur-fast. Con «movimiento reducido» todo vale 0,01 ms salvo --ds-dur-fade (el
+// fundido corto de opacidad sigue; base/_motion.scss).
 @use 'sass:string';
 
 $durations: (press: 100ms, fast: 160ms, base: 200ms, slow: 300ms, glass: 620ms, move: 200ms, fade: 160ms);
