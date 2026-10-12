@@ -6,7 +6,7 @@ import { AfterViewInit, Component, ElementRef, computed, inject, isDevMode, sign
 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { MatIconModule } from '@angular/material/icon';
 
@@ -19,6 +19,8 @@ import { APP_BRAND } from '../../core/config/brand.config';
 import { LOGIN_ASSETS, LOGIN_PEDAGOGY_PILLARS, LOGIN_REMEMBER_EMAIL_KEY } from './login-assets.config';
 
 import { findLoginRole, LOGIN_ROLES, LoginRole } from './login-role.config';
+
+import { PublicBarComponent } from '../../shared/layout/public-bar.component';
 
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 
@@ -33,7 +35,7 @@ declare const google: any;
 
   standalone: true,
 
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, MatIconModule, MatProgressBarModule, SiepParticleLayerComponent],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MatProgressBarModule, PublicBarComponent, SiepParticleLayerComponent],
 
   templateUrl: './login.component.html',
 

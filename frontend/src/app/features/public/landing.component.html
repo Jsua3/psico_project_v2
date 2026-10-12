@@ -1,38 +1,5 @@
 <div class="landing">
-  <header class="landing-nav" aria-label="Navegación pública">
-    <a class="landing-nav__brand" href="#inicio" [attr.aria-label]="brand.formalName">
-      <span class="landing-nav__icon" aria-hidden="true">
-        <mat-icon>psychology</mat-icon>
-      </span>
-      <span class="landing-nav__text">
-        <strong>{{ brand.shortName }}</strong>
-        <small>{{ brand.fullName }}</small>
-      </span>
-    </a>
-
-    <button
-      class="landing-nav__toggle"
-      type="button"
-      aria-label="Menú de navegación"
-      aria-controls="landing-nav-links"
-      [attr.aria-expanded]="menuOpen()"
-      (click)="menuOpen.set(!menuOpen())"
-    >
-      <mat-icon>{{ menuOpen() ? 'close' : 'menu' }}</mat-icon>
-    </button>
-
-    <nav id="landing-nav-links" class="landing-nav__links" [class.landing-nav__links--open]="menuOpen()">
-      <a href="#simulador" (click)="closeMenu()">Simulador</a>
-      <a href="#casos" (click)="closeMenu()">Casos</a>
-      <a href="#como-funciona" (click)="closeMenu()">Cómo funciona</a>
-      <a href="#roles" (click)="closeMenu()">Roles</a>
-      <a href="#etica" (click)="closeMenu()">Ética</a>
-      <a class="landing-btn landing-btn--sm landing-btn--outline" routerLink="/login">
-        Ingresar
-        <mat-icon>arrow_forward</mat-icon>
-      </a>
-    </nav>
-  </header>
+  <app-public-bar [anchors]="anchors" />
 
   <main id="inicio">
     <section class="landing-hero" id="simulador" aria-labelledby="hero-title">

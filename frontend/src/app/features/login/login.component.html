@@ -1,11 +1,8 @@
+<app-public-bar mode="acceso" />
+
 <main class="siep-login">
   <app-siep-particle-layer density="medium" [interactive]="true" mode="background"></app-siep-particle-layer>
   <div class="siep-login__glow" aria-hidden="true"></div>
-
-  <a href="/" routerLink="/" class="siep-login__back" [attr.aria-label]="'Volver al inicio, ' + brand.institution">
-    <mat-icon aria-hidden="true">arrow_back</mat-icon>
-    <span>{{ brand.institution }}</span>
-  </a>
 
   <div
     class="auth-container"

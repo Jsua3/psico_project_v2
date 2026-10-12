@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { APP_BRAND } from '../../core/config/brand.config';
+import { PUBLIC_ANCHORS, PublicBarComponent } from '../../shared/layout/public-bar.component';
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 
 interface TrainingCase {
@@ -40,14 +41,15 @@ interface EthicsItem {
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, SiepParticleLayerComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, PublicBarComponent, SiepParticleLayerComponent],
   templateUrl: './landing.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './landing.component.scss'
 })
 export class LandingComponent {
   readonly brand = APP_BRAND;
-  readonly menuOpen = signal(false);
+  /** Anclas de la barra pública (plan visual F3-4): las secciones de esta página. */
+  readonly anchors = PUBLIC_ANCHORS;
 
   readonly simulatorSceneSrc = '/assets/images/institution/landing1.png';
 
@@ -159,7 +161,4 @@ export class LandingComponent {
     { icon: 'grading', title: 'Evaluación formativa', text: 'Sin diagnósticos ni decisiones automáticas.' }
   ];
 
-  closeMenu(): void {
-    this.menuOpen.set(false);
-  }
 }

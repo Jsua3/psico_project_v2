@@ -22,10 +22,12 @@ describe('login: accesibilidad de los paneles', () => {
 });
 
 describe('login: nombres accesibles y roles', () => {
-  it('el enlace «Volver al inicio» conserva en su nombre el texto visible', () => {
-    expect(html).toContain(`[attr.aria-label]="'Volver al inicio, ' + brand.institution"`);
-    expect(html).toContain('<span>{{ brand.institution }}</span>');
-    expect(html).not.toContain('aria-label="Volver al inicio"');
+  // F3-4: el enlace fijo propio dejó paso a la barra pública compartida (app-public-bar, modo «acceso»), cuyo
+  // «Volver al inicio» se nombra por su texto visible (WCAG 2.5.3; probado en DOM en public-bar.component.spec.ts).
+  it('la cabecera del acceso es la barra pública compartida, fuera del <main>', () => {
+    expect(html.indexOf('<app-public-bar mode="acceso" />')).toBeGreaterThanOrEqual(0);
+    expect(html.indexOf('<app-public-bar mode="acceso" />')).toBeLessThan(html.indexOf('<main'));
+    expect(html).not.toContain('siep-login__back');
   });
 
   it('el selector de perfil es un grupo de botones, no un radiogroup sin radios', () => {

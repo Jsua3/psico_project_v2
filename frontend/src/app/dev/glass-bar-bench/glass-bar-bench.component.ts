@@ -52,8 +52,8 @@ const ACCOUNT_MENU: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', i
     <header ui-glass-bar label="Navegación principal">
       <a class="modulo modulo-logo pulsable ds-motion" href="/dev/barra" aria-label="SIEP: ir al panel">
         <span class="logo-doble ds-motion">
-          <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca">S</span><span class="logo-doble__nombre">SIEP</span></span>
-          <span class="logo-doble__isotipo ds-motion" aria-hidden="true"><span class="logo-doble__marca">S</span></span>
+          <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca" aria-hidden="true"></span><span class="logo-doble__nombre">SIEP</span></span>
+          <span class="logo-doble__isotipo ds-motion" aria-hidden="true"><span class="logo-doble__marca" aria-hidden="true"></span></span>
         </span>
       </a>
       <div class="modulo modulo-principal ds-motion">

@@ -329,6 +329,12 @@ $corte-tope: 82.499rem;
   font-size: var(--ds-type-lead-size);
   font-weight: 800;
   line-height: 1;
+
+  // El monograma es decorativo y se pinta aquí, no como texto del enlace: el texto visible del logo es «SIEP», que
+  // está dentro de su nombre accesible («SIEP: ir al …»; WCAG 2.5.3, Axe label-content-name-mismatch).
+  &::before {
+    content: 'S';
+  }
 }
 
 :where(.cromo) .logo-doble__nombre {

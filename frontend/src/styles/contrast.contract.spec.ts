@@ -77,14 +77,18 @@ describe('contraste: portada', () => {
     expect(contrast('#a78bfa', '#151d32')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('la cabecera tiene fondo sólido y el enlace Ingresar es visible', () => {
+  it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
+    // F3-4: «Ingresar» vive en app-public-bar (ui-button en el módulo de cuenta; probado en public-bar.component.spec.ts).
     expect(scss).not.toContain('rgba(12, 18, 34, 0.72) 70%, transparent 100%');
-    expect(html).toContain('class="landing-btn landing-btn--sm landing-btn--outline" routerLink="/login"');
+    expect(html).toContain('<app-public-bar [anchors]="anchors" />');
+    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a ui-button size="md" routerLink="/login">Ingresar</a>');
   });
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {
     // Revisión de F1 (C1): el token que mueve el anillo es --ds-focus (+ halo), no el alias --psy-focus.
-    expect(scss).toMatch(/\.landing-nav,\s*\.landing-hero,\s*\.landing-cta__inner \{\s*--ds-focus: var\(--ds-focus-on-dark\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);/);
+    // F3-4: la cabecera oscura dejó paso a la barra de vidrio clara (anillo global); siguen oscuros el héroe y el cierre.
+    expect(scss).toMatch(/\.landing-hero,\s*\.landing-cta__inner \{\s*--ds-focus: var\(--ds-focus-on-dark\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);/);
+    expect(scss).not.toContain('.landing-nav');
     expect(scss).not.toContain('--siep-primary-glow');
     for (const bg of ['#151d32', '#0c1222', '#1a1040']) {
       expect(contrast('#C9B3FF', bg)).toBeGreaterThanOrEqual(3);

@@ -24,10 +24,17 @@ async function tabUntil(page: Page, selector: string, max = 40): Promise<void> {
 }
 
 // req: RNF-04, RNF-004 (foco visible ≥ 3:1 sobre su fondo, WCAG 2.4.7 y 1.4.11)
-test('@focus-ring el foco es claro en la cabecera oscura de la portada', async ({ page }) => {
+test('@focus-ring la barra pública de la portada usa el anillo global azul marino (F3-4)', async ({ page }) => {
   await page.goto('/');
-  await page.locator('.landing-nav').waitFor({ state: 'visible' });
-  await tabUntil(page, '.landing-nav a, .landing-nav button');
+  await page.locator('header.cromo').waitFor({ state: 'visible' });
+  await tabUntil(page, 'header.cromo a');
+  expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(0, 72, 118)', width: '3px' });
+});
+
+test('@focus-ring el foco sigue claro en el héroe oscuro de la portada', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.landing-hero').waitFor({ state: 'visible' });
+  await tabUntil(page, '.landing-hero a, .landing-hero button');
   expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(201, 179, 255)', width: '3px' });
 });
 

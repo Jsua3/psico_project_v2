@@ -33,33 +33,6 @@
   z-index: 0;
 }
 
-.siep-login__back {
-  position: fixed;
-  z-index: 20;
-  top: 16px;
-  left: 16px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: rgba(12, 18, 34, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-decoration: none;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(8px);
-}
-
-.siep-login__back mat-icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
-}
-
 .auth-container {
   position: relative;
   z-index: 2;

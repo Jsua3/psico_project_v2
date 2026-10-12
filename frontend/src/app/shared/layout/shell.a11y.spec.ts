@@ -36,9 +36,14 @@ describe('shell: barra accesible', () => {
     expect(host.querySelectorAll('nav[aria-label="Navegación principal"]')).toHaveLength(1);
   });
 
-  it('el logo es un enlace con nombre propio (su texto visual es solo la marca)', async () => {
+  it('el logo es un enlace con nombre propio que contiene su texto visible (WCAG 2.5.3; el monograma es decorativo)', async () => {
     const host = await render();
-    expect(host.querySelector('a.modulo-logo')!.getAttribute('aria-label')).toBe('SIEP: ir al panel');
+    const logo = host.querySelector('a.modulo-logo')!;
+    expect(logo.getAttribute('aria-label')).toBe('SIEP: ir al panel');
+    // Axe mide el texto VISIBLE del DOM (aria-hidden no lo quita): el monograma va por CSS, no como texto.
+    const text = (logo.textContent ?? '').replace(/\s+/g, ' ').trim();
+    expect(text).toBe('SIEP');
+    expect(logo.getAttribute('aria-label')).toContain(text);
   });
 
   it('el «···» es decorativo y los plegados siguen en el árbol accesible (los alcanza Tab)', async () => {
