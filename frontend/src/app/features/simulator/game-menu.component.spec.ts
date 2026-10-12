@@ -27,7 +27,7 @@ import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { GameHelpComponent } from './game-help.component';
-import { GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
+import { ClinicMenuScene, GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
 import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import type { Mock } from 'vitest';
 
@@ -320,5 +320,24 @@ describe('GameMenuComponent: el observador del contenedor', () => {
     expect(order).toEqual(['detach', 'destroy']);
     component.ngOnDestroy();
     expect(detach).toHaveBeenCalledTimes(1);
+  });
+});
+
+// req: REGLA-009 (F0-8, PHA-2: rótulos nítidos con zoom de cámara)
+describe('lobby: rótulos de Phaser nítidos con zoom (PHA-2)', () => {
+  it('al fijar el zoom entero, los textos de la sala toman la resolución de ese zoom', () => {
+    const scene = Object.create(ClinicMenuScene.prototype) as {
+      cameras: { main: Record<string, unknown> };
+      worldW: number;
+      pixelRender: { refreshTexts: ReturnType<typeof vi.fn> };
+      applyCamera(): void;
+    };
+    const cam = { width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }), setBounds: vi.fn() };
+    scene.cameras = { main: cam };
+    scene.worldW = 960;
+    scene.pixelRender = { refreshTexts: vi.fn() };
+    scene.applyCamera();
+    expect(cam.setZoom).toHaveBeenCalledWith(2);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
   });
 });

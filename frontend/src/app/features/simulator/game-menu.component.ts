@@ -32,8 +32,10 @@ export function lobbyKeyboardHint(coarsePointer: boolean): string | null {
   return coarsePointer ? null : '← → / A D  mover · E entrar';
 }
 
-class ClinicMenuScene extends Phaser.Scene {
+export class ClinicMenuScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
+  /** Vértices al píxel (PHA-1) y resolución de los textos (PHA-2) con zoom de cámara. */
+  private pixelRender?: PixelRender;
   private playerSprite?: Phaser.GameObjects.Sprite;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
@@ -64,7 +66,7 @@ class ClinicMenuScene extends Phaser.Scene {
 
   create() {
     // Vértices al píxel también con zoom de cámara ≥ 2 (PHA-1, F0-7).
-    new PixelRender(this).attach();
+    this.pixelRender = new PixelRender(this).attach();
     const W = this.worldW, H = LOBBY_ROOM.height;
     // ── Layered clinic façade ────────────────────────────────────────────────
     // El cielo es el color de fondo del juego. Las franjas sangran más allá de la sala: con
@@ -152,6 +154,7 @@ class ClinicMenuScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const k = integerZoom(cam.width, cam.height, LOBBY_ROOM.width, LOBBY_ROOM.height);
     cam.setZoom(k);
+    this.pixelRender?.refreshTexts(k);
     const bounds = cameraBounds(this.worldW, LOBBY_ROOM.height, cam.width / k, cam.height / k);
     cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
     if (this.player) {

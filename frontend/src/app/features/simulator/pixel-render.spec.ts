@@ -1,4 +1,4 @@
-import { ADDED_TO_SCENE_EVENT, PIXEL_VERTEX_ROUND_MODE, PixelRender } from './pixel-render';
+import { ADDED_TO_SCENE_EVENT, PIXEL_VERTEX_ROUND_MODE, PixelRender, TEXTURE_FILTER_LINEAR, textResolutionFor } from './pixel-render';
 
 /**
  * PHA-1 (plan visual F0-7; REGLA-009): en Phaser 4 `roundPixels` solo redondea objetos cuya matriz final es
@@ -74,5 +74,67 @@ describe('PixelRender: vértices al píxel con zoom de cámara (PHA-1)', () => {
     expect(scene.listenerCount(ADDED_TO_SCENE_EVENT)).toBe(1);
     render.detach();
     expect(scene.listenerCount(ADDED_TO_SCENE_EVENT)).toBe(0);
+  });
+});
+
+/**
+ * PHA-2 (plan visual F0-8; REGLA-009): los rótulos de 11 px se dibujan en su propio lienzo y se agrandan con
+ * el zoom de cámara y su propia escala; con `pixelArt` se ampliaban por vecino más cercano y se veían en
+ * bloques. La resolución del texto sigue a escala × zoom y su textura se filtra en lineal (el texto no es
+ * pixel art).
+ */
+describe('PixelRender: rótulos nítidos con zoom (PHA-2)', () => {
+  class FakeText extends FakeObject {
+    readonly type = 'Text';
+    style = { resolution: 0 };
+    scaleX = 1;
+    setResolution = vi.fn((value: number) => { this.style.resolution = value; return this; });
+    texture = { setFilter: vi.fn() };
+  }
+
+  it('textResolutionFor cubre escala × zoom en píxeles enteros, entre 1 y 4', () => {
+    expect(textResolutionFor(1, 1)).toBe(1);
+    expect(textResolutionFor(1, 2)).toBe(2);
+    expect(textResolutionFor(1, 3)).toBe(3);
+    expect(textResolutionFor(2.39, 1)).toBe(3);
+    expect(textResolutionFor(1, 6)).toBe(4);
+    expect(textResolutionFor(0, 2)).toBe(1);
+    expect(textResolutionFor(Number.NaN, 2)).toBe(1);
+  });
+
+  it('refreshTexts sube la resolución de cada texto según su escala y el zoom, con filtro lineal', () => {
+    const plain = new FakeText();
+    const scaled = new FakeText();
+    scaled.scaleX = 2.39;
+    const scene = fakeScene([plain, scaled, new FakeObject()]);
+    const render = new PixelRender(scene).attach();
+    expect(render.refreshTexts(2)).toBe(2);
+    expect(plain.setResolution).toHaveBeenLastCalledWith(2);
+    expect(scaled.setResolution).toHaveBeenLastCalledWith(4);
+    expect(plain.texture.setFilter).toHaveBeenCalledWith(TEXTURE_FILTER_LINEAR);
+  });
+
+  it('no vuelve a pintar un texto cuya resolución ya es la correcta', () => {
+    const text = new FakeText();
+    const render = new PixelRender(fakeScene([text])).attach();
+    render.refreshTexts(3);
+    expect(render.refreshTexts(3)).toBe(0);
+    expect(text.setResolution).toHaveBeenCalledTimes(1);
+  });
+
+  it('un texto añadido después nace con la resolución del último zoom conocido', () => {
+    const scene = fakeScene();
+    const render = new PixelRender(scene).attach();
+    render.refreshTexts(3);
+    const later = new FakeText();
+    scene.emit(ADDED_TO_SCENE_EVENT, later);
+    expect(later.setResolution).toHaveBeenCalledWith(3);
+  });
+
+  it('encuentra los textos dentro de contenedores', () => {
+    const inner = new FakeText();
+    const render = new PixelRender(fakeScene([new FakeContainer([inner])])).attach();
+    render.refreshTexts(2);
+    expect(inner.setResolution).toHaveBeenCalledWith(2);
   });
 });

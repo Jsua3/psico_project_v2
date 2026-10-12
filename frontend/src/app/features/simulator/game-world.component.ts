@@ -1161,6 +1161,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
     cam.setZoom(k);
+    this.pixelRender?.refreshTexts(k);
     const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
     cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
     if (this.player) {
@@ -2357,7 +2358,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!displayScale) return false;
     const zoom = this.cameras?.main?.zoom ?? 1;
     const next = labelScaleFor(displayScale, zoom);
-    if (Math.abs(next - this.labelScale) < 0.01) return false;
+    if (Math.abs(next - this.labelScale) < 0.01) {
+      // La escala no cambió, pero el zoom de la sala sí pudo: la resolución de los textos lo sigue (PHA-2).
+      this.pixelRender?.refreshTexts(zoom);
+      return false;
+    }
     this.labelScale = next;
     // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
@@ -2368,6 +2373,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
       (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
     });
+    this.pixelRender?.refreshTexts(zoom);
     return true;
   }
 
