@@ -18,7 +18,7 @@ import { plural, statusLabel } from '../../shared/ui/labels';
         <div>
           <p class="psy-eyebrow">Modalidad administrador</p>
           <h1>Edición de casos</h1>
-          <p>Construye escenarios, NPCs, puertas, articulos, conversaciones y cuestionarios para estudiantes.</p>
+          <p>Construye escenarios, NPCs, puertas, artículos, conversaciones y cuestionarios para estudiantes.</p>
         </div>
         <button class="psy-button psy-button--primary" type="button" (click)="toggleCreate()">
           <mat-icon>{{ creating() ? 'close' : 'add_circle' }}</mat-icon>
@@ -37,7 +37,7 @@ import { plural, statusLabel } from '../../shared/ui/labels';
         <section class="new-case-panel">
           <div>
             <h2>Nuevo caso editable</h2>
-            <p>Se creara en borrador con una escena inicial para que puedas editar NPCs, articulos, puertas y cuestionarios.</p>
+            <p>Se creará en borrador con una escena inicial para que puedas editar NPCs, artículos, puertas y cuestionarios.</p>
           </div>
           <form [formGroup]="newCaseForm" (ngSubmit)="createCase()">
             <label>

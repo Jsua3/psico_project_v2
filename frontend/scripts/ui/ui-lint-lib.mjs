@@ -271,7 +271,7 @@ companero companera companeros diseno espanol menu raton aqui todavia dia dias c
 autenticacion sincronizacion notificacion notificaciones duracion puntuacion calificacion asignacion participacion
 visualizacion animacion orientacion exploracion observacion proteccion victima victimas fisico fisica juridico juridica
 etico etica eticos eticas academico academica grafico graficos grafica historico historica pedagogico pedagogica teorico
-teorica dinamico dinamica medico medica bitacora actuacion contencion psicologa psicologo
+teorica dinamico dinamica medico medica bitacora actuacion contencion psicologa psicologo articulo articulos
 `.trim().split(/\s+/));
 
 function unaccentedWords(text) {

@@ -83,7 +83,7 @@ export const AUTHORING_OBJECT_TEMPLATES: AuthoringObjectTemplate[] = [
   },
   {
     id: 'tool',
-    label: 'Articulo / herramienta',
+    label: 'Artículo / herramienta',
     type: 'TOOL',
     icon: 'inventory_2',
     colorHex: '#6A8E5E',
