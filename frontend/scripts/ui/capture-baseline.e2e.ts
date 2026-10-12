@@ -55,3 +55,23 @@ for (const role of ROLES) {
     }
   });
 }
+
+// Galería de shared/ui (F2-9): cada piel por separado (portal y juego), a página completa, en los tres anchos.
+test('capturas · galería /dev/ui', async ({ page }) => {
+  mkdirSync(OUT_DIR, { recursive: true });
+  for (const viewport of VIEWPORTS) {
+    const label = `${viewport.width}x${viewport.height}`;
+    try {
+      await page.setViewportSize(viewport);
+      await page.goto('/dev/ui');
+      await page.locator('.ui-gallery__skin[data-skin="game"] ui-table').last().waitFor({ state: 'visible', timeout: 30_000 });
+      for (const skin of ['portal', 'game']) {
+        const file = `dev__galeria-${skin}__${label}.png`;
+        await page.locator(`.ui-gallery__skin[data-skin="${skin}"]`).screenshot({ path: join(OUT_DIR, file) });
+        manifest.push({ role: 'publico', screen: `galeria-${skin}`, viewport: label, file, path: '/dev/ui' });
+      }
+    } catch (error) {
+      manifest.push({ role: 'publico', screen: 'galeria', viewport: label, error: String(error).slice(0, 400) });
+    }
+  }
+});
