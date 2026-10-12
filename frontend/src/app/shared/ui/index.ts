@@ -37,3 +37,6 @@ export type {
 export { UiToastHost } from './toast/ui-toast-host';
 export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './table/ui-table';
 export { SCOPE_NOTICE_DRAFT_TEXT, UiScopeNotice } from './scope-notice/ui-scope-notice';
+export { UiGlassBar } from './glass-bar/ui-glass-bar';
+export { GLASS_BAR_GRACE_MS, GLASS_BAR_THRESHOLD_PX, GlassBarMachine } from './glass-bar/glass-bar-machine';
+export type { GlassBarModality, GlassBarSignals, GlassBarState, GlassBarTimers } from './glass-bar/glass-bar-machine';
