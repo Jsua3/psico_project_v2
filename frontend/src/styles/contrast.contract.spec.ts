@@ -118,16 +118,26 @@ describe('contraste: portal', () => {
 });
 
 describe('contraste: navegación lateral', () => {
+  // F3-3: el menú lateral morado desapareció (VD-1). La barra de vidrio es clara: hereda el anillo global y su
+  // texto usa los tokens propios de la barra. El velo es el 72 % del fondo de la página sobre lo que pase debajo.
   const shell = source('../app/shared/layout/shell.component.ts');
+  const barTokens = source('./tokens/_glass-bar.scss');
+  const page = '#F5F7FA';
+  const veilOver = (under: string) => blend(page, 0.72, under);
+  const underneath = [page, '#FFFFFF', '#004876', '#14202E']; // fondo, tarjeta, primario y el texto más oscuro
 
-  it('el menú lateral morado define un foco blanco propio, no el azul marino global', () => {
-    expect(shell).toMatch(/\.portal-sidenav \{\s*--ds-focus: var\(--ds-focus-on-primary\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);\s*\}/);
+  it('la barra no redefine el foco: vale el anillo global azul marino de la piel portal', () => {
+    expect(shell).not.toMatch(/--ds-focus\s*:/);
   });
 
-  it('el foco blanco supera 3:1 sobre cada tramo del degradado del menú lateral', () => {
-    const stops = ['#2a006b', '#4b00b5', '#3a0090'];
-    stops.forEach(stop => expect(shell).toContain(stop));
-    stops.forEach(stop => expect(contrast('#FFFFFF', stop)).toBeGreaterThanOrEqual(3));
+  it('el anillo global (#004876) supera 3:1 sobre el velo de la barra con cualquier contenido debajo', () => {
+    underneath.forEach(under => expect(contrastRatio('#004876', veilOver(under)), under).toBeGreaterThanOrEqual(3));
+  });
+
+  it('el texto tenue de la barra supera 4,5:1 sobre el velo encima del fondo y de las superficies claras', () => {
+    const tenue = barTokens.match(/--asb-cromo-tinta-tenue:\s*(#[0-9A-Fa-f]{6});/)?.[1] ?? '';
+    expect(tenue).toBe('#3D4B59');
+    [page, '#FFFFFF', '#E6F0F7'].forEach(under => expect(contrastRatio(tenue, veilOver(under)), under).toBeGreaterThanOrEqual(4.5));
   });
 });
 

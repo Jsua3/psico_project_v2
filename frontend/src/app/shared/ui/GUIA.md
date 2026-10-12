@@ -51,7 +51,7 @@ mixins de `src/styles/mixins` (`@use 'mixins' as m;`).
 | `UiDialog`, `UiDialogFrame`, `UiDialogActions`, `UiConfirmDialog` | `inject(UiDialog).open(MiDialogo, { data })`, `.confirm({ title, message, confirmLabel, tone: 'danger' })`, `.sheet(MiHoja, { side: 'end' })` | el contenido usa `<ui-dialog-frame title="…">` y `uiDialogActions` en los botones del pie. |
 | `UiDialog.consequence`, `UiConsequenceDialog` | `inject(UiDialog).consequence({ title, consequence, continueLabel, proceedLabel })` → `'continue' | 'proceed'` | nombra lo que se pierde; «Continuar» es primaria, tiene el foco y es lo que devuelve Esc (RN-07). **Nunca** para la Salida segura (REGLA-004). |
 | `UiScopeNotice`, `SCOPE_NOTICE_DRAFT_TEXT` | `<ui-scope-notice />` en acceso, aviso previo y resultado (F4-2, F6-2, F6-6) | frase de RN-01 en **borrador** visible hasta que Psicología fije el texto (decisión 17); fuera de los textos validados. |
-| `UiToastHost` | `<ui-toast-host />` una vez en la app (F3) | pinta `NotificationService`; nunca roba el foco. |
+| `UiToastHost` | `<ui-toast-host />` una vez en la app (F6-1) | pinta `NotificationService`; nunca roba el foco. Entra en F6-1 y no en F3: abajo a la derecha choca con las pestañas inferiores del portal en móvil y con la cruceta del juego, y F6-1 es la tarea que coloca los avisos del juego. |
 | `UiTable`, `UiTableTable`, `UiTableRow`, `UiTableEmpty`, `UiTableError` | `<ui-table label="Intentos" [state]="estado()"><table ui-table>…<tr uiRow [selected]="…">…</table><ui-empty-state uiTableEmpty … /><ui-error-state uiTableError … /></ui-table>` | densidad `compact`; desborde señalizado y desplazable con teclado. |
 | `UiGlassBar`, `GlassBarMachine` | `<header ui-glass-bar label="Navegación principal">` con tres módulos proyectados: `<a class="modulo modulo-logo">`, `<div class="modulo modulo-principal">` (enlaces `a.nav-enlace`; los secundarios con `control-plegable`) y `<div class="modulo modulo-cuenta">`; lo fijo (pestañas inferiores) como hijo directo | la barra de vidrio modular (réplica Recomendada de `/barra-de-vidrio-modular`); estilos globales en `src/styles/components/_glass-bar.scss` y tokens `--asb-*` en `.cromo`. Todo elemento con transición lleva `ds-motion`. Banco y arnés: `/dev/barra` + `medir-barra.cjs` con `scripts/ui/barra.config.json`. |
 | `describeHostWith` | `describeHostWith(() => this.motivo() ? this.motivoId : null)` | suma un id a `aria-describedby` sin borrar los ajenos (para componentes nuevos). |
@@ -73,7 +73,7 @@ mixins de `src/styles/mixins` (`@use 'mixins' as m;`).
 | `mat-form-field`, `mat-select` | `ui-field` + `uiControl` sobre `<input>`/`<select>` nativos | F4, F7, F8 |
 | `mat-table` | `ui-table` sobre `<table>` nativa | F7 |
 | `app-confirm-dialog` | `UiDialog.confirm()` | F5–F8 |
-| `app-notification-host` (`.siep-notification`) | `ui-toast-host` | F3 |
+| `app-notification-host` (`.siep-notification`) | `ui-toast-host` | F6-1 (con los avisos del juego y sobre las pestañas móviles) |
 | `<p>` sueltos de «no hay datos» o «error» | `ui-empty-state` / `ui-error-state` con `uiDataState()` | F5, F7 |
 
 Al migrar una pantalla: se borra la clase heredada en el mismo cambio (si nadie más la usa) y `npm run ui:lint` debe

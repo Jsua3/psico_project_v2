@@ -31,11 +31,11 @@ test('@focus-ring el foco es claro en la cabecera oscura de la portada', async (
   expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(201, 179, 255)', width: '3px' });
 });
 
-test('@focus-ring el foco es blanco en el menú lateral morado del portal', async ({ page }) => {
+test('@focus-ring la barra de vidrio del portal usa el anillo global azul marino (F3-3; antes, menú lateral morado)', async ({ page }) => {
   await loginStudent(page);
-  await page.locator('.portal-sidenav').waitFor({ state: 'visible' });
-  await tabUntil(page, '.portal-sidenav a');
-  expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(255, 255, 255)', width: '3px' });
+  await page.locator('header.cromo').waitFor({ state: 'visible' });
+  await tabUntil(page, 'header.cromo .modulo-principal a');
+  expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(0, 72, 118)', width: '3px' });
 });
 
 /**
@@ -67,10 +67,10 @@ test.describe('@focus-ring colores forzados', () => {
     expect(ring.color).not.toBe(await canvasColor(page));
   });
 
-  test('el foco del menú lateral del portal no se confunde con el fondo', async ({ page }) => {
+  test('el foco de la barra del portal no se confunde con el fondo', async ({ page }) => {
     await loginStudent(page);
-    await page.locator('.portal-sidenav').waitFor({ state: 'visible' });
-    await tabUntil(page, '.portal-sidenav a');
+    await page.locator('header.cromo').waitFor({ state: 'visible' });
+    await tabUntil(page, 'header.cromo .modulo-principal a');
     const ring = await focusedOutline(page);
     expect(ring.width).toBe('3px');
     expect(ring.color).not.toBe(await canvasColor(page));

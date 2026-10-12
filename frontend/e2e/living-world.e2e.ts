@@ -52,10 +52,9 @@ test('menu world renders full-bleed with no shell sidebar', async ({ page }) => 
   await login(page);
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
-  // The portal shell sidenav must not overlap the menu canvas on this route.
-  // (El shell actual lo conserva en el DOM pero oculto — lo que importa es
-  // que no sea visible sobre el canvas full-bleed.)
-  await expect(page.locator('app-shell .portal-sidenav')).toBeHidden();
+  // La barra del portal no tapa el canvas a sangre de esta ruta: con `data: { chrome: 'hidden' }` no existe
+  // (plan visual F3-3; antes era un menú lateral oculto en el DOM).
+  await expect(page.locator('app-shell header.cromo')).toHaveCount(0);
 });
 
 test('in-case world loads with the HUD', async ({ page }) => {

@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/auth/auth.guard';
+import { rolesFor } from './shared/layout/nav-items';
 
 /**
  * Rutas de solo desarrollo (plan visual F0-4): la condición va escrita aquí, envolviendo el `import()`,
@@ -44,6 +45,7 @@ export const routes: Routes = [
       {
         path: 'jugar',
         title: 'Sala de simulación',
+        data: { chrome: 'hidden' },
         canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
         loadComponent: () => import('./features/simulator/game-menu.component').then(m => m.GameMenuComponent)
       },
@@ -55,55 +57,56 @@ export const routes: Routes = [
       {
         path: 'simulador/:caseVersionId',
         title: 'Simulación',
+        data: { chrome: 'hidden' },
         canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
       },
       {
         path: 'personaje',
         title: 'Mi personaje',
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
+        canActivate: [roleGuard(...rolesFor('personaje'))],
         loadComponent: () => import('./features/character/character-editor.component').then(m => m.CharacterEditorComponent)
       },
       {
         path: 'casos',
         title: 'Gestión de casos',
-        canActivate: [roleGuard('ADMIN')],
+        canActivate: [roleGuard(...rolesFor('casos'))],
         loadComponent: () => import('./features/simulator/case-authoring-hub.component').then(m => m.CaseAuthoringHubComponent)
       },
       {
         path: 'casos/:caseVersionId/editor',
         title: 'Editor de caso',
-        canActivate: [roleGuard('ADMIN')],
+        canActivate: [roleGuard(...rolesFor('casos'))],
         loadComponent: () => import('./features/simulator/case-editor.component').then(m => m.CaseEditorComponent)
       },
       {
         path: 'docente/trazabilidad',
         title: 'Trazabilidad docente',
-        canActivate: [roleGuard('PROFESOR', 'ADMIN')],
+        canActivate: [roleGuard(...rolesFor('trazabilidad'))],
         loadComponent: () => import('./features/simulator/instructor-trace.component').then(m => m.InstructorTraceComponent)
       },
       {
         path: 'rubricas',
         title: 'Rúbricas',
-        canActivate: [roleGuard('PROFESOR', 'ADMIN')],
+        canActivate: [roleGuard(...rolesFor('rubricas'))],
         loadComponent: () => import('./features/admin/rubrics.component').then(m => m.RubricsComponent)
       },
       {
         path: 'grupos',
         title: 'Grupos',
-        canActivate: [roleGuard('PROFESOR')],
+        canActivate: [roleGuard(...rolesFor('grupos'))],
         loadComponent: () => import('./features/grupos/grupo-list.component').then(m => m.GrupoListComponent)
       },
       {
         path: 'reportes',
         title: 'Reportes',
-        canActivate: [roleGuard('PROFESOR')],
+        canActivate: [roleGuard(...rolesFor('reportes'))],
         loadComponent: () => import('./features/reportes/reporte-grupo.component').then(m => m.ReporteGrupoComponent)
       },
       {
         path: 'admin/usuarios',
         title: 'Usuarios',
-        canActivate: [roleGuard('ADMIN')],
+        canActivate: [roleGuard(...rolesFor('usuarios'))],
         loadComponent: () => import('./features/admin/users.component').then(m => m.UsersComponent)
       }
     ]
