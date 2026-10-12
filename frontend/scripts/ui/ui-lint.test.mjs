@@ -88,9 +88,11 @@ test('unaccentedCopy: ignora bloques de control con paréntesis anidados, coment
     '@if (report()!.simulacion; as sim) { <p>ok</p> }',
     '<!-- Decision form -->',
     '<mat-icon>menu_book</mat-icon>',
+    '<mat-icon aria-hidden="true">menu</mat-icon>',
     '<input placeholder="historia-clinica">',
   ].join('\n');
   assert.equal(count('unaccentedCopy', component('', tpl)), 0);
+  assert.equal(count('unaccentedCopy', component('', '<mat-icon>menu</mat-icon><span>Abrir menu</span>')), 1, 'el texto de al lado sí cuenta');
   const ts = [{ path: 'src/app/core/api/x.api.ts', text: 'const url = `/api/admin/cases/${id}/clone-version`;\n' }];
   assert.equal(count('unaccentedCopy', ts), 0);
 });

@@ -776,6 +776,13 @@
 
 /* ── Responsive ──────────────────────────────────────────── */
 
+/* Móvil (plan visual F3-5): las anclas viven en las pestañas fijas de abajo; el pie reserva su alto y la zona segura. */
+@media (max-width: 63.999rem) {
+  .landing {
+    padding-bottom: calc(var(--asb-alto-modulo-inferior) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (max-width: 960px) {
   .landing-hero__grid {
     grid-template-columns: 1fr;

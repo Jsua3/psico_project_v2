@@ -200,6 +200,112 @@ describe('GlassBarMachine: modalidad de la última entrada', () => {
   });
 });
 
+// req: BLOQUE-H (barra móvil del plan visual F3-5; references/movil.md §5 de la skill)
+describe('GlassBarMachine: móvil, compacta por DIRECCIÓN con histéresis (+24 / −12 px)', () => {
+  const mobile = (reduced = false) => {
+    const env = { reduced };
+    const machine = new GlassBarMachine(
+      { isFinePointer: () => false, isDesktop: () => false, prefersReducedMotion: () => env.reduced },
+      new ManualTimers(),
+    );
+    machine.sync(0, 2000);
+    return { machine, env };
+  };
+
+  it('pasar el umbral de 8 px no basta: hace falta recorrer 24 px hacia abajo desde el ancla', () => {
+    const { machine } = mobile();
+    machine.sync(9, 2000);
+    expect(machine.state()).toBe('inicial');
+    machine.sync(24, 2000);
+    expect(machine.state()).toBe('inicial');
+    machine.sync(25, 2000);
+    expect(machine.state()).toBe('scroll');
+  });
+
+  it('el ancla sigue al extremo: volver cuesta 12 px desde donde paró el dedo', () => {
+    const { machine } = mobile();
+    machine.sync(40, 2000);
+    machine.sync(300, 2000);
+    machine.sync(289, 2000);
+    expect(machine.state()).toBe('scroll');
+    machine.sync(287, 2000);
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('arriba (≤ 8 px) vuelve siempre a «inicial»', () => {
+    const { machine } = mobile();
+    machine.sync(40, 2000);
+    machine.sync(100, 2000);
+    expect(machine.state()).toBe('scroll');
+    machine.sync(5, 2000);
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('un salto de más de 200 px no es un gesto (ancla, restaurar desplazamiento): solo reancla', () => {
+    const { machine } = mobile();
+    machine.sync(600, 2000);
+    expect(machine.state()).toBe('inicial');
+    machine.sync(630, 2000);
+    expect(machine.state()).toBe('scroll');
+  });
+
+  it('el tope inferior es zona muerta (rebote elástico): llegar al final no compacta aunque se hayan recorrido 100 px', () => {
+    const { machine } = mobile();
+    machine.sync(100, 100);
+    expect(machine.state()).toBe('inicial');
+    machine.sync(140, 100); // el rebote pasa del tope: se acota al tope
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('con movimiento reducido nunca compacta (animación ligada al gesto, WCAG 2.3.3)', () => {
+    const { machine } = mobile(true);
+    machine.sync(40, 2000);
+    machine.sync(400, 2000);
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('cruzar a escritorio y volver descompacta', () => {
+    const { machine } = mobile();
+    machine.sync(40, 2000);
+    expect(machine.state()).toBe('scroll');
+    machine.setDesktop(true);
+    expect(machine.state()).toBe('scroll'); // escritorio decide por posición (40 > 8)
+    machine.setDesktop(false);
+    expect(machine.state()).toBe('inicial');
+  });
+});
+
+describe('GlassBarMachine: teclado virtual (móvil)', () => {
+  const mobile = () => new GlassBarMachine({ isFinePointer: () => false, isDesktop: () => false }, new ManualTimers());
+
+  it('se da por abierto con foco en un campo Y el viewport visual 150 px por debajo del mayor alto visto', () => {
+    const machine = mobile();
+    machine.measureKeyboard(true, 800);
+    expect(machine.keyboard()).toBe(false);
+    machine.measureKeyboard(true, 660);
+    expect(machine.keyboard()).toBe(false);
+    machine.measureKeyboard(true, 500);
+    expect(machine.keyboard()).toBe(true);
+    machine.measureKeyboard(false, 500);
+    expect(machine.keyboard()).toBe(false);
+  });
+
+  it('al girar el teléfono la referencia es el alto de la orientación nueva', () => {
+    const machine = mobile();
+    machine.measureKeyboard(true, 800);
+    machine.resetKeyboardReference(380);
+    machine.measureKeyboard(true, 300);
+    expect(machine.keyboard()).toBe(false);
+  });
+
+  it('en escritorio nunca hay teclado virtual', () => {
+    const machine = new GlassBarMachine({ isFinePointer: () => true, isDesktop: () => true }, new ManualTimers());
+    machine.measureKeyboard(true, 900);
+    machine.measureKeyboard(true, 400);
+    expect(machine.keyboard()).toBe(false);
+  });
+});
+
 describe('GlassBarMachine: limpieza', () => {
   it('destroy() cancela la gracia pendiente', () => {
     const { machine, timers } = setup();

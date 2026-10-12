@@ -21,7 +21,18 @@ export interface GlassBarSignals {
   isFinePointer(): boolean;
   /** `(min-width: 64rem)`, en vivo. */
   isDesktop(): boolean;
+  /** `(prefers-reduced-motion: reduce)`, en vivo: en móvil la barra nunca compacta. */
+  prefersReducedMotion?(): boolean;
 }
+
+/** px: en móvil, recorrido hacia abajo desde el ancla que compacta la barra. */
+export const GLASS_BAR_COMPACT_PX = 24;
+/** px: en móvil, recorrido hacia arriba desde el ancla que la devuelve. */
+export const GLASS_BAR_EXPAND_PX = 12;
+/** px: un salto mayor no es un gesto (ancla, restaurar el desplazamiento). */
+export const GLASS_BAR_JUMP_PX = 200;
+/** px: el viewport visual encogido más que esto (con foco en un campo) = teclado virtual abierto. */
+export const GLASS_BAR_KEYBOARD_PX = 150;
 
 export interface GlassBarTimers {
   set(fn: () => void, ms: number): unknown;
@@ -43,8 +54,11 @@ const BROWSER_TIMERS: GlassBarTimers = {
 export class GlassBarMachine {
   private readonly stateSignal = signal<GlassBarState>('inicial');
   private readonly modalitySignal = signal<GlassBarModality | null>(null);
+  private readonly keyboardSignal = signal(false);
   readonly state: Signal<GlassBarState> = this.stateSignal.asReadonly();
   readonly modality: Signal<GlassBarModality | null> = this.modalitySignal.asReadonly();
+  /** Móvil: teclado virtual abierto (la barra inferior se retira). */
+  readonly keyboard: Signal<boolean> = this.keyboardSignal.asReadonly();
 
   private scrolled = false;
   private attending = false;
@@ -54,20 +68,44 @@ export class GlassBarMachine {
   private scrollAtAttend = 0;
   /** El ÚLTIMO puntero que tocó: en un portátil táctil la media dice «ratón» aunque toque un dedo. */
   private lastPointer: string;
+  /** Móvil: compacta por dirección, y el ancla desde la que se mide el recorrido. */
+  private compact = false;
+  private anchor = 0;
+  /** Móvil: el mayor alto del viewport visual visto en esta orientación (referencia del teclado). */
+  private keyboardReference = 0;
 
   constructor(private readonly signals: GlassBarSignals, private readonly timers: GlassBarTimers = BROWSER_TIMERS) {
     this.desktop = signals.isDesktop();
     this.lastPointer = signals.isFinePointer() ? 'mouse' : 'touch';
   }
 
-  /** Nueva posición de desplazamiento del documento. */
-  sync(scrollY: number): void {
+  /**
+   * Nueva posición de desplazamiento del documento. `maxScroll` es el tope (`scrollHeight − innerHeight`): en móvil
+   * los extremos son zona muerta (rebote elástico).
+   */
+  sync(scrollY: number, maxScroll = Number.POSITIVE_INFINITY): void {
     this.scrollY = Math.max(scrollY, 0);
     this.scrolled = this.scrollY > GLASS_BAR_THRESHOLD_PX;
+    if (!this.desktop) this.compactByDirection(Math.min(this.scrollY, Math.max(maxScroll, 0)), Math.max(maxScroll, 0));
     if (this.attending && this.isFinger() && Math.abs(this.scrollY - this.scrollAtAttend) > GLASS_BAR_FINGER_RELEASE_PX) {
       this.attending = false;
     }
     this.paint();
+  }
+
+  /**
+   * Teclado virtual (móvil): abierto si el foco está en un campo de texto Y el viewport visual encogió más de
+   * 150 px respecto del mayor alto visto en esta orientación (nunca contra el alto del layout, que también encoge).
+   */
+  measureKeyboard(fieldFocused: boolean, visualHeight: number | null): void {
+    if (visualHeight !== null && visualHeight > this.keyboardReference) this.keyboardReference = visualHeight;
+    this.keyboardSignal.set(!this.desktop && fieldFocused && visualHeight !== null
+      && this.keyboardReference - visualHeight > GLASS_BAR_KEYBOARD_PX);
+  }
+
+  /** Cambió la orientación: el alto de referencia del teclado es el de la nueva. */
+  resetKeyboardReference(visualHeight: number): void {
+    this.keyboardReference = visualHeight;
   }
 
   pointerDown(pointerType: string): void {
@@ -118,6 +156,9 @@ export class GlassBarMachine {
 
   setDesktop(isDesktop: boolean): void {
     this.desktop = isDesktop;
+    this.compact = false;
+    this.anchor = this.scrollY;
+    this.keyboardSignal.set(false);
     this.paint();
   }
 
@@ -129,8 +170,43 @@ export class GlassBarMachine {
     return this.lastPointer !== 'mouse' || !this.signals.isFinePointer();
   }
 
+  /**
+   * Móvil (references/movil.md §5.2, código fiel): la DIRECCIÓN decide, con histéresis asimétrica. El ancla sigue
+   * al extremo del recorrido en el sentido vigente; irse cuesta 24 px y volver 12. Los extremos son zona muerta, un
+   * salto de más de 200 px no es un gesto y con movimiento reducido no hay estado compacto (WCAG 2.3.3).
+   */
+  private compactByDirection(position: number, top: number): void {
+    if (this.signals.prefersReducedMotion?.()) {
+      this.compact = false;
+      return;
+    }
+    const travel = position - this.anchor;
+    if (position <= GLASS_BAR_THRESHOLD_PX) {
+      this.compact = false;
+      this.anchor = position;
+      return;
+    }
+    if (position >= top || Math.abs(travel) > GLASS_BAR_JUMP_PX) {
+      this.anchor = position;
+      return;
+    }
+    if ((this.compact && travel > 0) || (!this.compact && travel < 0)) {
+      this.anchor = position;
+      return;
+    }
+    if (travel > GLASS_BAR_COMPACT_PX) {
+      this.compact = true;
+      this.anchor = position;
+    } else if (travel < -GLASS_BAR_EXPAND_PX) {
+      this.compact = false;
+      this.anchor = position;
+    }
+  }
+
   private derive(): GlassBarState {
-    if (!this.scrolled || !this.desktop) return 'inicial';
+    if (!this.scrolled) return 'inicial';
+    // Por debajo de 64rem no hay puntero que atender: compacta o no (por ancho, no por puntero).
+    if (!this.desktop) return this.compact ? 'scroll' : 'inicial';
     return this.attending ? 'atencion' : 'scroll';
   }
 

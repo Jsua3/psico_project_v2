@@ -4,9 +4,10 @@ import type { Page } from '@playwright/test';
 import { loginAs } from './support/screen-tour';
 
 /**
- * Barra de vidrio del portal (plan visual F3-3) en el navegador real: destinos por rol, destino activo, plegado al
- * desplazarse y vuelta con el teclado, menú de cuenta y ausencia de barra en el juego. El comportamiento fino de la
- * barra (resortes, vidrio, huecos, 44 px, contraste) lo mide el arnés de la skill sobre /dev/barra.
+ * Barra de vidrio del portal (plan visual F3-3 y F3-5) en el navegador real: destinos por rol, destino activo, plegado
+ * al desplazarse y vuelta con el teclado, menú de cuenta y ausencia de barra en el juego; en el teléfono, las pestañas
+ * inferiores, la hoja «Más» y el plegado por dirección. El comportamiento fino de la barra de escritorio (resortes,
+ * vidrio, huecos, 44 px, contraste) lo mide el arnés de la skill sobre /dev/barra.
  */
 
 /** Alarga la página para poder desplazarse más de 8 px en cualquier pantalla. */
@@ -56,6 +57,18 @@ test.describe('@shell barra de vidrio del portal', () => {
     for (const link of await folded.all()) await expect(link).toBeVisible();
   });
 
+  test('entrar y moverse por el portal no deja errores de Angular en la consola (p. ej. NG0600 por el foco)', async ({ page }) => {
+    // El acceso retira el botón con foco mientras pinta: el focusout que dispara Chrome en ese instante no puede
+    // escribir señales (la barra mide el teclado virtual con el foco).
+    const errors: string[] = [];
+    page.on('console', message => { if (message.type() === 'error' && /NG0\d+/.test(message.text())) errors.push(message.text()); });
+    page.on('pageerror', error => { if (/NG0\d+/.test(error.message)) errors.push(error.message); });
+    await loginAs(page, 'profesor');
+    await page.locator('header.cromo').getByRole('link', { name: 'Trazabilidad', exact: true }).click();
+    await page.waitForURL(/\/portal\/docente\/trazabilidad$/);
+    expect(errors).toEqual([]);
+  });
+
   test('la cuenta muestra nombre y rol, y su menú cierra la sesión', async ({ page }) => {
     await loginAs(page, 'profesor');
     const bar = page.locator('header.cromo');
@@ -64,5 +77,91 @@ test.describe('@shell barra de vidrio del portal', () => {
     await bar.getByRole('button', { name: 'Cuenta' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
     await page.waitForURL(/\/login/, { timeout: 15_000 });
+  });
+});
+
+/** Un paso de desplazamiento (cada uno, un evento de scroll: la máquina móvil decide por la dirección). */
+async function scrollStep(page: Page, top: number): Promise<void> {
+  await page.evaluate(y => window.scrollTo({ top: y, behavior: 'instant' }), top);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+// req: BLOQUE-H (navegación móvil con el dedo, plan visual F3-5; references/movil.md de /barra-de-vidrio-modular)
+test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('docente: pestañas de ≥ 44 px, y la hoja «Más» con sus destinos, trampa de foco y retorno a «Más»', async ({ page }) => {
+    await loginAs(page, 'profesor');
+    const top = page.getByRole('navigation', { name: 'Marca y cuenta' });
+    const bottom = page.getByRole('navigation', { name: 'Navegación principal' });
+    await expect(top).toBeVisible();
+    await expect(bottom).toBeVisible();
+    await expect(page.locator('header.cromo .modulo-principal')).toBeHidden();
+    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Trazabilidad', 'Más']);
+    for (const tab of await bottom.locator('.pestana').all()) {
+      const box = (await tab.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+    }
+    await expect(bottom.getByRole('link', { name: 'Panel', exact: true })).toHaveAttribute('aria-current', 'page');
+
+    const more = bottom.getByRole('button', { name: 'Más' });
+    await more.tap();
+    const sheet = page.getByRole('dialog', { name: 'Más destinos' });
+    await expect(sheet).toBeVisible();
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
+    // Nombres accesibles (el icono es decorativo; su ligadura no forma parte del nombre).
+    await expect(sheet.getByRole('link')).toHaveCount(3);
+    for (const name of ['Rúbricas', 'Grupos', 'Reportes']) await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(more).toBeFocused();
+
+    await more.tap();
+    await page.getByRole('dialog', { name: 'Más destinos' }).getByRole('link', { name: 'Rúbricas' }).tap();
+    await page.waitForURL(/\/portal\/rubricas$/);
+    await expect(page.getByRole('dialog', { name: 'Más destinos' })).toHaveCount(0);
+  });
+
+  test('estudiante (412 × 915): bajar 24 px compacta y pliega los rótulos, subir 12 px los devuelve; el contenido no queda bajo las pestañas', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await loginAs(page, 'estudiante');
+    const bar = page.locator('header.cromo');
+    const bottom = page.getByRole('navigation', { name: 'Navegación principal' });
+    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Mi personaje']);
+    await expect(bottom.getByRole('button', { name: 'Más' })).toHaveCount(0);
+
+    // Al final de la página, el área de contenido de main (sin su relleno) termina por encima de la barra inferior.
+    // Desplazar y medir en el mismo turno: el panel crece cuando llegan sus datos.
+    await page.waitForLoadState('networkidle');
+    const gap = await page.evaluate(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+      const main = document.querySelector('main.portal-main')!;
+      const contentBottom = main.getBoundingClientRect().bottom - parseFloat(getComputedStyle(main).paddingBottom);
+      return document.querySelector('header.cromo nav.modulo-inferior')!.getBoundingClientRect().top - contentBottom;
+    });
+    expect(gap).toBeGreaterThanOrEqual(0);
+
+    await scrollStep(page, 0);
+    await page.evaluate(() => document.body.style.setProperty('min-height', '300vh'));
+    await expect(bar).toHaveAttribute('data-estado', 'inicial');
+    await scrollStep(page, 20);
+    await scrollStep(page, 40); // 40 − 0 = 40 > 24
+    await expect(bar).toHaveAttribute('data-estado', 'scroll');
+    await expect.poll(() => bottom.locator('.pestana__rotulo').first().evaluate(el => getComputedStyle(el).opacity)).toBe('0');
+    await scrollStep(page, 30); // −10: aún no
+    await expect(bar).toHaveAttribute('data-estado', 'scroll');
+    await scrollStep(page, 25); // −15 > 12
+    await expect(bar).toHaveAttribute('data-estado', 'inicial');
+    await expect.poll(() => bottom.locator('.pestana__rotulo').first().evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+  });
+
+  test('con movimiento reducido la barra móvil nunca se compacta (WCAG 2.3.3)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await loginAs(page, 'estudiante');
+    const bar = page.locator('header.cromo');
+    await page.evaluate(() => document.body.style.setProperty('min-height', '300vh'));
+    for (const y of [40, 100, 160]) await scrollStep(page, y);
+    await expect(bar).toHaveAttribute('data-estado', 'inicial');
   });
 });

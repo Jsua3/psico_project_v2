@@ -8,21 +8,25 @@ import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
 import { roleLabel } from '../ui/labels';
 import { UiMenu, UiMenuItem } from '../ui/menu/ui-menu';
 import { UiRouteProgress } from '../ui/route-progress/ui-route-progress';
+import { BottomTab, BottomTabsComponent } from './bottom-tabs.component';
 import { NavItem, navItemsFor } from './nav-items';
 
 const ACCOUNT_MENU: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
 
+const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, icon, route });
+
 /**
  * Shell del portal (plan visual F3-3): la barra de vidrio modular arriba (sin barra lateral, VD-1) y la página
  * desplazándose en `window`. Los destinos salen de NAV_ITEMS (la misma fuente que los guards) y se pliegan según el
- * rol (D3). En el juego —rutas con `data: { chrome: 'hidden' }`— no hay barra y el contenido ocupa la ventana.
+ * rol (D3). Por debajo de 64rem la navegación principal baja a pestañas fijas (D11, F3-5): arriba quedan marca y
+ * cuenta, y los destinos plegables van a la hoja «Más». En el juego —rutas con `data: { chrome: 'hidden' }`— no hay barra y el contenido ocupa la ventana.
  *
  * La clase `game-mode` del `<body>` se conserva para el CSS heredado del juego hasta F6-1 (REGLA-010); ninguna regla
  * nueva la usa.
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, UiGlassBar, UiMenu, UiRouteProgress],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, BottomTabsComponent, UiGlassBar, UiMenu, UiRouteProgress],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!inGame()) {
@@ -47,6 +51,7 @@ const ACCOUNT_MENU: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', i
           </span>
           <ui-menu label="Cuenta" icon="account_circle" iconOnly [items]="accountMenu" (itemSelected)="onAccount($event)" />
         </div>
+        <nav app-bottom-tabs [tabs]="tabs()" [more]="moreTabs()"></nav>
         <ui-route-progress />
       </header>
     }
@@ -70,6 +75,14 @@ const ACCOUNT_MENU: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', i
     @media (max-width: 920px) {
       .portal-main:not(.portal-main--juego) { padding-inline: 16px; }
     }
+    /* Móvil (F3-5): la barra de arriba es una banda de 3,5rem y abajo están las pestañas fijas; el contenido reserva
+       los dos altos y la zona segura. */
+    @media (max-width: 63.999rem) {
+      .portal-main:not(.portal-main--juego) {
+        padding-top: calc(var(--asb-alto-modulo-superior) + env(safe-area-inset-top, 0px) + 1rem);
+        padding-bottom: calc(var(--asb-alto-modulo-inferior) + env(safe-area-inset-bottom, 0px) + 1.5rem);
+      }
+    }
   `],
 })
 export class ShellComponent {
@@ -83,6 +96,9 @@ export class ShellComponent {
 
   readonly inGame = computed(() => this.chrome() === 'hidden');
   readonly navItems = computed(() => navItemsFor(this.auth.currentUser()?.role));
+  /** Móvil (D11): lo que no se pliega en escritorio es pestaña; lo que se pliega va a «Más». */
+  protected readonly tabs = computed(() => this.navItems().filter(item => !this.folds(item)).map(toTab));
+  protected readonly moreTabs = computed(() => this.navItems().filter(item => this.folds(item)).map(toTab));
   readonly userName = computed(() => {
     const user = this.auth.currentUser();
     const name = `${user?.nombre ?? ''} ${user?.apellido ?? ''}`.trim();

@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { UiDialog } from '../ui/dialog/ui-dialog';
 import { PUBLIC_ANCHORS, PublicBarComponent } from './public-bar.component';
 
 @Component({
@@ -24,7 +25,9 @@ class LoginHost {}
  */
 // req: BLOQUE-H (navegación pública con la barra del lenguaje)
 describe('app-public-bar', () => {
-  beforeEach(() => TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([])] }));
+  beforeEach(() => TestBed.configureTestingModule({
+    providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: UiDialog, useValue: { sheet: vi.fn() } }],
+  }));
 
   it('la portada: barra de vidrio nombrada, anclas que apuntan a secciones que existen e «Ingresar»', async () => {
     const fixture = TestBed.createComponent(LandingHost);
@@ -40,11 +43,24 @@ describe('app-public-bar', () => {
     expect(login.getAttribute('href')).toBe('/login');
   });
 
-  it('el acceso: la misma barra, sin anclas, con el regreso a la portada', async () => {
+  it('en móvil, las mismas anclas son las pestañas inferiores (hija directa del header), con icono y sin «Más»', async () => {
+    const fixture = TestBed.createComponent(LandingHost);
+    await fixture.whenStable();
+    const bottom = (fixture.nativeElement as HTMLElement).querySelector('header.cromo > nav.modulo-inferior')!;
+    expect(bottom.getAttribute('aria-label')).toBe('Navegación pública');
+    const tabs = [...bottom.querySelectorAll<HTMLAnchorElement>('a.pestana')];
+    expect(tabs.map(tab => tab.querySelector('.pestana__rotulo')!.textContent!.trim())).toEqual(['Simulador', 'Casos', 'Cómo funciona', 'Roles', 'Ética']);
+    expect(tabs.map(tab => tab.getAttribute('href'))).toEqual(['#simulador', '#casos', '#como-funciona', '#roles', '#etica']);
+    for (const tab of tabs) expect(tab.querySelector('mat-icon')!.textContent!.trim()).not.toBe('');
+    expect(bottom.querySelector('button.pestana')).toBeNull();
+  });
+
+  it('el acceso: la misma barra, sin anclas ni pestañas, con el regreso a la portada', async () => {
     const fixture = TestBed.createComponent(LoginHost);
     await fixture.whenStable();
     const header = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
     expect(header.querySelectorAll('.modulo-principal a.nav-enlace')).toHaveLength(0);
+    expect(header.querySelector('nav.modulo-inferior')).toBeNull();
     const back = header.querySelector<HTMLAnchorElement>('.modulo-cuenta a')!;
     expect(back.textContent!.trim()).toBe('Volver al inicio');
     expect(back.hasAttribute('aria-label')).toBe(false); // el nombre es el texto visible (WCAG 2.5.3)

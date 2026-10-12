@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterEveryRender, afterNextRender, inject,
-  input,
+  input, signal,
 } from '@angular/core';
 
 import { GlassBarMachine } from './glass-bar-machine';
@@ -10,11 +10,12 @@ const media = (query: string, fallback: boolean): (() => boolean) => {
   return () => list?.matches ?? fallback;
 };
 
-/** Escape es del campo de texto con el foco: no suelta la atención (gemela, «enCampoDeTexto»). */
+/** Campos que abren el teclado y se quedan el Escape (gemela, «enCampoDeTexto»; movil.md, «campo»). */
+const TEXT_FIELD = 'textarea, select, [contenteditable="true"], input:not([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="image"])';
+
 function focusInTextField(): boolean {
   const active = document.activeElement as HTMLElement | null;
-  return !!active && (active.isContentEditable
-    || active.matches('textarea, select, input:not([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="image"])'));
+  return !!active && (active.isContentEditable || active.matches(TEXT_FIELD));
 }
 
 /**
@@ -24,7 +25,7 @@ function focusInTextField(): boolean {
  * píldora; cualquier otro hijo (p. ej. la barra inferior fija) queda como hijo directo del header (invariante 3).
  *
  * El componente solo cablea eventos a `GlassBarMachine` y pinta `data-estado` (servido «inicial» desde la primera
- * pintura) y `data-modalidad`; la luz que sigue al ratón se escribe por CSSOM (`--puntero-x/y`), no con estilos en
+ * pintura), `data-modalidad`, `data-ancho` (escritorio | movil) y `data-teclado`; la luz que sigue al ratón se escribe por CSSOM (`--puntero-x/y`), no con estilos en
  * línea del marcado. Los estilos son globales (src/styles/components/_glass-bar.scss): los selectores de estado
  * cruzan del header a los módulos proyectados.
  */
@@ -37,12 +38,15 @@ function focusInTextField(): boolean {
     'data-vidrio': 'pseudo',
     '[attr.data-estado]': 'machine.state()',
     '[attr.data-modalidad]': 'machine.modality()',
+    '[attr.data-teclado]': "machine.keyboard() ? 'abierto' : null",
+    // Dueño del vidrio por ancho (una sola regla en _glass-bar.scss): píldora/módulos en escritorio, dos barras en móvil.
+    '[attr.data-ancho]': "desktop() ? 'escritorio' : 'movil'",
     '(pointerenter)': 'machine.pointerEnter($any($event).pointerType)',
     '(pointerleave)': 'machine.pointerLeave($any($event).pointerType)',
     '(click)': 'onStripClick($event)',
   },
   template: `
-    <nav class="bandeja ds-motion" [attr.aria-label]="label()" (pointermove)="followLight($event)" (pointerleave)="resetLight()">
+    <nav class="bandeja ds-motion" [attr.aria-label]="desktop() ? label() : compactLabel()" (pointermove)="followLight($event)" (pointerleave)="resetLight()">
       <ng-content select=".modulo-logo" />
       <ng-content select=".modulo-principal" />
       <ng-content select=".modulo-cuenta" />
@@ -52,13 +56,20 @@ function focusInTextField(): boolean {
 })
 export class UiGlassBar {
   readonly label = input.required<string>();
+  /** Nombre de la barra de arriba por debajo de 64rem, donde la navegación principal es la barra inferior. */
+  readonly compactLabel = input('Marca y cuenta');
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly isFinePointer = media('(hover: hover) and (pointer: fine)', true);
   private readonly prefersReducedMotion = media('(prefers-reduced-motion: reduce)', false);
+  private readonly isDesktop = media('(min-width: 64rem)', true);
+  private readonly wide = signal(this.isDesktop());
+  /** Ancho de escritorio (≥ 64rem, la misma media que el CSS de la barra). La barra inferior lo lee para esconderse. */
+  readonly desktop = this.wide.asReadonly();
   protected readonly machine = new GlassBarMachine({
     isFinePointer: this.isFinePointer,
-    isDesktop: media('(min-width: 64rem)', true),
+    isDesktop: this.isDesktop,
+    prefersReducedMotion: this.prefersReducedMotion,
   });
 
   constructor() {
@@ -78,16 +89,37 @@ export class UiGlassBar {
       const key = (event as KeyboardEvent).key;
       if (key === 'Escape') this.machine.keyDown(key, focusInTextField());
     });
-    listen(window, 'scroll', () => this.machine.sync(window.scrollY), { passive: true });
+    listen(window, 'scroll', () => this.syncScroll(), { passive: true });
     listen(document, 'click', event => {
       const principal = this.host.querySelector('.modulo-principal');
       this.machine.outsideClick(!!principal?.contains(event.target as Node));
     });
     const desktop = typeof matchMedia === 'function' ? matchMedia('(min-width: 64rem)') : null;
-    if (desktop) listen(desktop, 'change', event => this.machine.setDesktop((event as MediaQueryListEvent).matches));
+    if (desktop) {
+      listen(desktop, 'change', event => {
+        const matches = (event as MediaQueryListEvent).matches;
+        this.wide.set(matches);
+        this.machine.setDesktop(matches);
+      });
+    }
+
+    // Teclado virtual (móvil): foco en un campo + viewport visual encogido (references/movil.md §8). Los oyentes de
+    // foco escriben en una microtarea: Chrome dispara focusout en el acto cuando Angular retira, en plena pintura, un
+    // elemento con foco (el botón del acceso al entrar), y ahí escribir una señal es NG0600.
+    const viewport = () => window.visualViewport ?? null;
+    const measureKeyboard = () => this.machine.measureKeyboard(focusInTextField(), viewport()?.height ?? null);
+    listen(window, 'focusin', () => queueMicrotask(measureKeyboard));
+    listen(window, 'focusout', event => {
+      const next = (event as FocusEvent).relatedTarget as HTMLElement | null;
+      if (!next?.matches?.(TEXT_FIELD)) queueMicrotask(() => this.machine.measureKeyboard(false, viewport()?.height ?? null));
+    });
+    const visual = viewport();
+    if (visual) listen(visual, 'resize', measureKeyboard);
+    const portrait = typeof matchMedia === 'function' ? matchMedia('(orientation: portrait)') : null;
+    if (portrait) listen(portrait, 'change', () => this.machine.resetKeyboardReference(viewport()?.height ?? window.innerHeight));
 
     // Una carga ya desplazada nace en su estado.
-    afterNextRender(() => this.machine.sync(window.scrollY));
+    afterNextRender(() => this.syncScroll());
     // Techo de cada plegable = su ancho natural (desvío F3-a de _glass-bar.scss); se vuelve a medir tras cada
     // pintura (cambian los destinos al cambiar de rol) y cuando termina de cargar la fuente.
     afterEveryRender(() => this.measureFolds());
@@ -97,6 +129,11 @@ export class UiGlassBar {
       cleanups.forEach(cleanup => cleanup());
       this.machine.destroy();
     });
+  }
+
+  /** Posición y tope del documento (el tope con el alto VIGENTE del viewport: en iOS crece al plegarse su barra). */
+  private syncScroll(): void {
+    this.machine.sync(window.scrollY, document.documentElement.scrollHeight - window.innerHeight);
   }
 
   /**

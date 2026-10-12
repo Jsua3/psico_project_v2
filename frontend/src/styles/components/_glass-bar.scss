@@ -177,7 +177,7 @@ $corte-tope: 82.499rem;
   white-space: nowrap;
 }
 
-// Por debajo de 64rem la gemela solo deja la píldora (su DESVÍO 5); las pestañas inferiores llegan en F3-5.
+// Por debajo de 64rem el módulo central sale: la navegación principal es la barra inferior (sección 9).
 @media (max-width: 63.999rem) {
   :where(.cromo) .modulo-principal {
     display: none;
@@ -186,33 +186,40 @@ $corte-tope: 82.499rem;
 
 // 5. LOS TRES ESTADOS. inicial: una sola píldora de vidrio. scroll y atención: tres cápsulas, cada una con su
 // vidrio. Un solo dueño de vidrio por estado: el material cambia de dueño en el mismo recálculo de estilo.
-.cromo[data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before,
-.cromo[data-estado='scroll'][data-vidrio='pseudo'] .modulo::before,
-.cromo[data-estado='atencion'][data-vidrio='pseudo'] .modulo::before {
+// Todos los dueños de vidrio de la barra, de escritorio y de móvil, en UNA regla: `data-ancho` lo pinta ui-glass-bar
+// con la misma media que este CSS (64rem). En móvil el vidrio es la banda superior y la barra inferior, siempre; los
+// módulos no llevan vidrio (no hay vidrio sobre vidrio).
+.cromo[data-ancho='escritorio'][data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before,
+.cromo[data-ancho='escritorio'][data-estado='scroll'][data-vidrio='pseudo'] .modulo::before,
+.cromo[data-ancho='escritorio'][data-estado='atencion'][data-vidrio='pseudo'] .modulo::before,
+.cromo[data-ancho='movil'] .bandeja::before,
+.cromo[data-ancho='movil'] .modulo-inferior::before {
   @include m.ds-glass-bar-layer;
 }
 
-// Solo la píldora lleva el resplandor de marca.
-.cromo[data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before {
-  box-shadow:
-    var(--asb-cromo-apoyo),
-    inset 0 1px 0 var(--asb-filo),
-    var(--asb-resplandor);
-}
+@media (min-width: 64rem) {
+  // Solo la píldora lleva el resplandor de marca.
+  .cromo[data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before {
+    box-shadow:
+      var(--asb-cromo-apoyo),
+      inset 0 1px 0 var(--asb-filo),
+      var(--asb-resplandor);
+  }
 
-.cromo[data-estado='scroll'] .bandeja,
-.cromo[data-estado='atencion'] .bandeja {
-  gap: var(--asb-separacion-modulos);
-}
+  .cromo[data-estado='scroll'] .bandeja,
+  .cromo[data-estado='atencion'] .bandeja {
+    gap: var(--asb-separacion-modulos);
+  }
 
-.cromo[data-estado='scroll'] .modulo,
-.cromo[data-estado='atencion'] .modulo {
-  translate: 0 var(--asb-caida-modulo);
-}
+  .cromo[data-estado='scroll'] .modulo,
+  .cromo[data-estado='atencion'] .modulo {
+    translate: 0 var(--asb-caida-modulo);
+  }
 
-.cromo[data-estado='scroll'][data-vidrio='pseudo'] .modulo::after,
-.cromo[data-estado='atencion'][data-vidrio='pseudo'] .modulo::after {
-  opacity: 1;
+  .cromo[data-estado='scroll'][data-vidrio='pseudo'] .modulo::after,
+  .cromo[data-estado='atencion'][data-vidrio='pseudo'] .modulo::after {
+    opacity: 1;
+  }
 }
 
 // 6. LOS CONTROLES PLEGABLES (la expansión del módulo central). La geometría va en el <a>. Se pliegan en «scroll»
@@ -477,5 +484,246 @@ $corte-tope: 82.499rem;
 @media (max-width: $corte-tope) {
   :where(.cromo) .cuenta-chip {
     display: none;
+  }
+}
+
+// 9. MÓVIL (por debajo de 64rem; references/movil.md de la skill, decisión D11): dos barras en el mismo header. Arriba
+// la banda con el logo y la cuenta; abajo la barra de pestañas (`nav.modulo-inferior`, hija directa de .cromo). El
+// estado `scroll` lo decide la DIRECCIÓN (la máquina) y solo reasigna dos altos. Sin «atención», sin quiebre, sin
+// hover. Ningún `env(safe-area-inset-*)` entra en una propiedad que se transiciona (§7).
+:where(.cromo) .modulo-inferior {
+  display: none;
+}
+
+@media (max-width: 63.999rem) {
+  html {
+    scroll-padding-top: calc(var(--asb-alto-modulo-superior) + env(safe-area-inset-top, 0px) + 2.5rem);
+    scroll-padding-bottom: calc(var(--asb-alto-modulo-inferior) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  // Con 100vh, en iOS las páginas cortas se desplazan y la máquina lo leería como gesto (§7).
+  body {
+    min-height: 100svh;
+  }
+
+  .cromo {
+    min-height: 0;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  }
+
+  .cromo[data-estado='scroll'] {
+    --asb-alto-modulo-superior: var(--asb-alto-modulo-superior-compacto);
+    --asb-alto-modulo-inferior: var(--asb-alto-modulo-inferior-compacto);
+  }
+
+  // La banda superior: a todo lo ancho, sin borde ni radio (un borde transparente subía la cabecera 2 px).
+  :where(.cromo) .bandeja {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    height: var(--asb-alto-modulo-superior);
+    padding: 0 1rem;
+    gap: 1rem;
+    border: 0;
+    border-radius: 0;
+    touch-action: manipulation;
+    transition:
+      height var(--duracion-estado) var(--ease-rebote-suave),
+      gap var(--duracion-estado) var(--ease-rebote-suave);
+  }
+
+  // Su vidrio se extiende por la zona segura (cubre la muesca).
+  .cromo[data-vidrio='pseudo'] .bandeja::before {
+    inset: calc(-1 * env(safe-area-inset-top, 0px)) calc(-1 * env(safe-area-inset-right, 0px)) 0 calc(-1 * env(safe-area-inset-left, 0px));
+    border-width: 0 0 1px;
+    border-radius: 0;
+  }
+
+  // La barra inferior: fija al viewport (hija directa del header, que no es bloque contenedor). Sin translate en
+  // reposo: solo en el estado de teclado.
+  :where(.cromo) .modulo-inferior {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: var(--ds-z-elevado);
+    isolation: isolate;
+    display: flex;
+    justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+    touch-action: manipulation;
+    transition:
+      translate var(--duracion-panel) var(--ease-cajon),
+      opacity var(--duracion-salida) var(--ease-color),
+      visibility 0s linear 0s;
+  }
+
+  :where(.cromo) .modulo-inferior::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: calc(var(--ds-z-base) - 1);
+    border-top: 1px solid transparent;
+  }
+
+  // Su sombra mira hacia arriba (hacia el contenido).
+  .cromo[data-ancho='movil'] .modulo-inferior::before {
+    box-shadow:
+      var(--asb-cromo-apoyo-inferior),
+      inset 0 1px 0 var(--asb-filo);
+  }
+
+  // El alto lo lleva la fila, no el nav (el nav solo paga la zona segura).
+  :where(.cromo) .pestanas {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    max-width: 36rem;
+    height: var(--asb-alto-modulo-inferior);
+    transition: height var(--duracion-estado) var(--ease-rebote-suave);
+  }
+
+  :where(.cromo) .pestana {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    row-gap: 0.1875rem;
+    min-width: 0;
+    min-height: var(--ds-target-min);
+    margin: 0;
+    padding: 0 0.125rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background-color: transparent;
+    color: var(--asb-cromo-tinta-tenue);
+    font: inherit;
+    font-size: var(--ds-type-caption-size);
+    font-weight: 600;
+    line-height: 1.65;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--duracion-boton) var(--ease-color);
+  }
+
+  // Acuse de pulsación: solo tinte, sin escala (una pestaña encogida se lee como una arruga de la barra).
+  :where(.cromo) .pestana:active {
+    background-color: var(--ds-primary-subtle);
+    transition-duration: 0ms;
+  }
+
+  :where(.cromo) .pestana[aria-current='page'] {
+    color: var(--asb-acento);
+  }
+
+  :where(.cromo) .pestana__icono {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+
+  // La pestaña activa lleva una gota bajo el icono (estática: la receta la hace viajar con View Transitions entre
+  // documentos; en esta SPA no se anima).
+  :where(.cromo) .pestana[aria-current='page'] .pestana__icono::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: -0.125rem -0.5rem;
+    z-index: calc(var(--ds-z-base) - 1);
+    border-radius: 999px;
+    background-color: var(--ds-primary-subtle);
+  }
+
+  // El rótulo pliega por rejilla, nunca por height (§4.3): no se recorta en reposo (WCAG 1.4.12).
+  :where(.cromo) .pestana__rotulo {
+    display: grid;
+    grid-template-rows: 1fr;
+    min-height: var(--asb-alto-rotulo-pestana);
+    opacity: 1;
+    transition:
+      grid-template-rows var(--duracion-estado) var(--ease-rebote-suave),
+      min-height var(--duracion-estado) var(--ease-rebote-suave),
+      opacity var(--duracion-entrada) var(--ease-color);
+  }
+
+  :where(.cromo) .pestana__rotulo > span {
+    min-height: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  .cromo[data-estado='scroll'] .pestana__rotulo {
+    grid-template-rows: 0fr;
+    min-height: 0;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--duracion-estado) var(--ease-rebote-suave),
+      min-height var(--duracion-estado) var(--ease-rebote-suave),
+      opacity var(--duracion-salida) var(--ease-color);
+  }
+
+  // Con el teclado virtual abierto la barra inferior se retira: desliza, funde y sale del orden de tabulación al final.
+  .cromo[data-teclado='abierto'] .modulo-inferior {
+    visibility: hidden;
+    opacity: 0;
+    translate: 0 var(--asb-retirada-barra);
+    transition:
+      translate var(--duracion-panel) var(--ease-cajon),
+      opacity var(--duracion-salida) var(--ease-color),
+      visibility 0s linear var(--duracion-panel);
+  }
+
+  // Pantalla muy estrecha: isotipo siempre, por ancho y no por recorte.
+  @media (max-width: 22.499rem) {
+    :where(.cromo) .logo-doble {
+      max-width: var(--asb-isotipo-ancho);
+    }
+
+    :where(.cromo) .logo-doble__completo {
+      opacity: 0;
+      scale: var(--asb-escala-isotipo);
+    }
+
+    :where(.cromo) .logo-doble__isotipo {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  // Teléfono apaisado: compacto de nacimiento y rótulos plegados.
+  @media (orientation: landscape) and (max-height: 30rem) {
+    .cromo {
+      --asb-alto-modulo-superior: var(--asb-alto-modulo-superior-compacto);
+      --asb-alto-modulo-inferior: var(--asb-alto-modulo-inferior-compacto);
+    }
+
+    :where(.cromo) .pestana__rotulo {
+      grid-template-rows: 0fr;
+      min-height: 0;
+      opacity: 0;
+    }
+  }
+
+  // Viewport muy corto (zoom al 400 %): el header entero sale del fijo (dos barras fijas se comían media pantalla).
+  @media (max-height: 20rem) {
+    .cromo {
+      position: static;
+    }
+
+    :where(.cromo) .modulo-inferior {
+      position: relative;
+    }
+
+    html {
+      scroll-padding-top: 0;
+      scroll-padding-bottom: 0;
+    }
   }
 }

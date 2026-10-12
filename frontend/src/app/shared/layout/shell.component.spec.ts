@@ -5,7 +5,9 @@ import { Router, provideRouter } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { User } from '../../core/models/user.model';
+import { UiDialog } from '../ui/dialog/ui-dialog';
 import { UiMenu } from '../ui/menu/ui-menu';
+import { BottomTab } from './bottom-tabs.component';
 import { isGameRoute } from './game-route.util';
 import { ShellComponent } from './shell.component';
 
@@ -30,6 +32,9 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
   const links = () => [...host().querySelectorAll<HTMLAnchorElement>('.modulo-principal a.nav-enlace')];
   const labels = () => links().map(link => link.textContent!.trim());
   const folded = () => links().filter(link => link.classList.contains('control-plegable')).map(link => link.textContent!.trim());
+  const sheet = vi.fn();
+  const tabs = () => [...host().querySelectorAll<HTMLElement>('header.cromo > nav.modulo-inferior .pestana')];
+  const tabLabels = () => tabs().map(tab => tab.querySelector('.pestana__rotulo')!.textContent!.trim());
 
   async function go(url: string): Promise<void> {
     await router.navigateByUrl(url);
@@ -39,6 +44,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
   beforeEach(async () => {
     currentUser.set(user('ESTUDIANTE'));
     logout.mockReset();
+    sheet.mockReset();
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -55,6 +61,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
           },
         ]),
         { provide: AuthService, useValue: { currentUser, logout } },
+        { provide: UiDialog, useValue: { sheet } },
       ],
     });
     router = TestBed.inject(Router);
@@ -97,6 +104,21 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     await go('/portal/simulador');
     const current = links().filter(link => link.getAttribute('aria-current') === 'page');
     expect(current.map(link => link.textContent!.trim())).toEqual(['Simulador']);
+  });
+
+  it('debajo de 64rem la navegación principal es la barra inferior (hija directa del header): los destinos que no se pliegan son pestañas', async () => {
+    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Mi personaje']);
+    currentUser.set(user('ADMIN'));
+    await fixture.whenStable();
+    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Editar casos', 'Más']);
+  });
+
+  it('los destinos que se pliegan en escritorio van a la hoja «Más» (docente: Rúbricas, Grupos y Reportes)', async () => {
+    currentUser.set(user('PROFESOR'));
+    await fixture.whenStable();
+    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Más']);
+    tabs().at(-1)!.click();
+    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Rúbricas', 'Grupos', 'Reportes']);
   });
 
   it('la cuenta muestra nombre y rol humanizado, y su menú se llama «Cuenta»', async () => {

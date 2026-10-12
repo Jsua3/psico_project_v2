@@ -39,6 +39,77 @@ function scrollTo(y: number): void {
   window.dispatchEvent(new Event('scroll'));
 }
 
+/** Simula un teléfono: ninguna media de escritorio ni de puntero fino casa, y hay viewport visual. */
+function mockPhone(): { viewport: EventTarget & { height: number }; restore: () => void } {
+  const originalMatchMedia = window.matchMedia;
+  const originalViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+  window.matchMedia = ((query: string) => ({
+    matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined,
+  })) as unknown as typeof window.matchMedia;
+  const viewport = Object.assign(new EventTarget(), { height: 800 });
+  Object.defineProperty(window, 'visualViewport', { value: viewport, configurable: true });
+  return {
+    viewport,
+    restore: () => {
+      window.matchMedia = originalMatchMedia;
+      if (originalViewport) Object.defineProperty(window, 'visualViewport', originalViewport);
+      else delete (window as { visualViewport?: unknown }).visualViewport;
+    },
+  };
+}
+
+@Component({
+  imports: [UiGlassBar],
+  template: `
+    <header ui-glass-bar label="Navegación principal">
+      <a class="modulo modulo-logo" href="/inicio">SIEP</a>
+      <div class="modulo modulo-principal"><a class="nav-enlace" href="/a">A</a></div>
+      <div class="modulo modulo-cuenta"><span>Cuenta</span></div>
+    </header>
+    <input type="text" aria-label="Buscar" />
+  `,
+})
+class PhoneHost {}
+
+// req: BLOQUE-H (barra móvil del plan visual F3-5)
+describe('ui-glass-bar en un teléfono', () => {
+  let phone: ReturnType<typeof mockPhone>;
+
+  beforeEach(() => {
+    phone = mockPhone();
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+  });
+
+  afterEach(() => phone.restore());
+
+  it('la navegación de arriba se llama «Marca y cuenta» (la principal es la barra inferior) y el header dice data-ancho="movil"', async () => {
+    const fixture = TestBed.createComponent(PhoneHost);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('nav.bandeja').getAttribute('aria-label')).toBe('Marca y cuenta');
+    expect(fixture.nativeElement.querySelector('header').getAttribute('data-ancho')).toBe('movil');
+  });
+
+  it('con el foco en un campo y el viewport visual 150 px más bajo, marca data-teclado="abierto"; al salir, se quita', async () => {
+    const fixture = TestBed.createComponent(PhoneHost);
+    await fixture.whenStable();
+    const header = fixture.nativeElement.querySelector('header') as HTMLElement;
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    input.focus();
+    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await fixture.whenStable();
+    expect(header.hasAttribute('data-teclado')).toBe(false);
+    phone.viewport.height = 500;
+    phone.viewport.dispatchEvent(new Event('resize'));
+    await fixture.whenStable();
+    expect(header.getAttribute('data-teclado')).toBe('abierto');
+    input.blur();
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }));
+    await Promise.resolve(); // el oyente de foco escribe en una microtarea (nunca en plena pintura: NG0600)
+    await fixture.whenStable();
+    expect(header.hasAttribute('data-teclado')).toBe(false);
+  });
+});
+
 // req: BLOQUE-H (barra de navegación del plan visual F3)
 describe('ui-glass-bar', () => {
   let fixture: ComponentFixture<Host>;
@@ -53,10 +124,11 @@ describe('ui-glass-bar', () => {
 
   afterEach(() => scrollTo(0));
 
-  it('el anfitrión es header.cromo y sirve data-estado="inicial" y data-vidrio="pseudo"', () => {
+  it('el anfitrión es header.cromo y sirve data-estado="inicial", data-vidrio="pseudo" y data-ancho="escritorio"', () => {
     expect(header()!.classList).toContain('cromo');
     expect(header()!.dataset['estado']).toBe('inicial');
     expect(header()!.dataset['vidrio']).toBe('pseudo');
+    expect(header()!.dataset['ancho']).toBe('escritorio');
   });
 
   it('los tres módulos son hijos DIRECTOS de nav.bandeja y lo fijo es hijo directo del header (E1, E7)', () => {

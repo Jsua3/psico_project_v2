@@ -319,7 +319,8 @@ function visibleTemplateText(rawText) {
       out.push({ text: m[2], index: tag.index });
     }
     cursor = tag.end + 1;
-    if (tag.name === 'style' || tag.name === 'script') {
+    // El contenido de <mat-icon> es el nombre de la ligadura («menu», «search»), nunca texto para leer.
+    if (tag.name === 'style' || tag.name === 'script' || tag.name === 'mat-icon') {
       const close = text.indexOf(`</${tag.name}`, cursor);
       if (close > 0) cursor = close;
     }
