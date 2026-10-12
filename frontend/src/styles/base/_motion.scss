@@ -1,0 +1,21 @@
+// «Movimiento reducido» (plan visual §2.7, F1-6). Los componentes del lenguaje nuevo degradan por tokens: la
+// geometría vale 0,01 ms y los fundidos cortos de opacidad siguen; esos componentes llevan la clase .ds-motion.
+// Lo que todavía no usa tokens conserva la red de seguridad de siempre (1 ms, una iteración, sin scroll suave):
+// es la misma regla que replica el interruptor del juego (.game-container--reduce-motion). Se retira en F9-4,
+// cuando ui:lint no cuente duraciones literales.
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-dur-press: 0.01ms;
+    --ds-dur-move: 0.01ms;
+    --ds-dur-glass: 0.01ms;
+  }
+
+  :where(:not(.ds-motion, .ds-motion *)),
+  :where(:not(.ds-motion, .ds-motion *))::before,
+  :where(:not(.ds-motion, .ds-motion *))::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

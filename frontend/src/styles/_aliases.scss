@@ -43,4 +43,8 @@
   --psy-shadow-soft: var(--ds-shadow-e2);
   --psy-shadow-card: var(--ds-shadow-e1);
   --psy-z-nav: var(--ds-z-cubierta);
+  --psy-ease-out: var(--ds-ease-out);
+  --psy-motion-fast: var(--ds-dur-fast) var(--ds-ease-out);
+  --psy-motion-ui: var(--ds-dur-slow) var(--ds-ease-out);
+  --psy-motion-section: var(--ds-dur-slow) var(--ds-ease-out);
 }

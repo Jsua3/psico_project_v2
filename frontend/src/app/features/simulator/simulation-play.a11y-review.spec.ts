@@ -55,8 +55,9 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
     expect(reduceRule).toContain('animation-iteration-count: 1 !important;');
     expect(reduceRule).toContain('transition-duration: 1ms !important;');
     expect(reduceRule).toContain('scroll-behavior: auto !important;');
-    const globalRule = readFileSync(join(__dirname, '../../../styles/styles.scss'), 'utf-8');
-    const media = globalRule.slice(globalRule.indexOf('@media (prefers-reduced-motion: reduce) {\n  *,'));
+    // La red de seguridad global vive en styles/base/_motion.scss desde F1-6.
+    const globalRule = readFileSync(join(__dirname, '../../../styles/base/_motion.scss'), 'utf-8');
+    const media = globalRule.slice(globalRule.indexOf('@media (prefers-reduced-motion: reduce) {'));
     for (const declaration of ['animation-duration: 1ms !important;', 'animation-iteration-count: 1 !important;', 'transition-duration: 1ms !important;']) {
       expect(media).toContain(declaration);
     }

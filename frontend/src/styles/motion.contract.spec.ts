@@ -8,8 +8,9 @@ function source(relativePath: string): string {
 describe('movimiento: botones y páginas', () => {
   const styles = source('./styles.scss');
 
-  it('define la curva ease-out fuerte como token', () => {
-    expect(styles).toContain('--psy-ease-out: cubic-bezier(0.23, 1, 0.32, 1);');
+  it('define la curva ease-out fuerte como token (--ds-ease-out; --psy-ease-out es su alias, F1-6)', () => {
+    expect(source('./tokens/_motion.scss')).toContain('out: cubic-bezier(0.23, 1, 0.32, 1),');
+    expect(source('./_aliases.scss')).toContain('--psy-ease-out: var(--ds-ease-out);');
   });
 
   it('los botones no tienen destello en hover y responden en 160 ms', () => {

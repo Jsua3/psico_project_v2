@@ -3,6 +3,7 @@
 @use '../tokens/scale';
 @use '../tokens/elevation';
 @use '../tokens/type';
+@use '../tokens/motion';
 
 :root,
 [data-skin='portal'] {
@@ -14,4 +15,11 @@
 :root {
   @include scale.emit;
   @include type.emit;
+  @include motion.emit;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    @include motion.emit-springs;
+  }
 }
