@@ -7,7 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const DEV_ONLY_MARKERS = ['Galería de componentes', '[axe-core]'];
+export const DEV_ONLY_MARKERS = ['Galería de componentes', 'Banco de la barra', '[axe-core]'];
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

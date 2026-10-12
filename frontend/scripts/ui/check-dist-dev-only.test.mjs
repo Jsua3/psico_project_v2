@@ -19,8 +19,9 @@ function distWith(files) {
   return root;
 }
 
-test('los marcadores cubren la galería de desarrollo y el auditor axe del arranque', () => {
+test('los marcadores cubren la galería de desarrollo, el banco de la barra y el auditor axe del arranque', () => {
   assert.ok(DEV_ONLY_MARKERS.includes('Galería de componentes'));
+  assert.ok(DEV_ONLY_MARKERS.includes('Banco de la barra'));
   assert.ok(DEV_ONLY_MARKERS.includes('[axe-core]'));
 });
 

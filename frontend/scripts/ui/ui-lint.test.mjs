@@ -59,6 +59,11 @@ test('clickableNoActive: botones y enlaces sin :active en su ámbito; Material n
   assert.equal(count('clickableNoActive', component('', '<button mat-button>A</button><a href="/x" role="button" class="k">B</a>')), 1);
   const globalActive = [{ path: 'src/styles/styles.scss', text: '.psy-button:active { transform: scale(.97); }' }];
   assert.equal(count('clickableNoActive', [...globalActive, ...component('', '<a class="psy-button" href="/">A</a>')]), 0, 'la regla global de styles.scss vale');
+  // F3-1: los parciales de src/styles que importa styles.scss también son globales (la barra de vidrio).
+  const partialActive = [{ path: 'src/styles/components/_glass-bar.scss', text: ':where(.cromo) .nav-enlace:active { opacity: .55; }' }];
+  assert.equal(count('clickableNoActive', [...partialActive, ...component('', '<a class="nav-enlace" href="/">A</a>')]), 0, 'un parcial global de src/styles vale');
+  const otherComponent = [{ path: 'src/app/y/y.component.scss', text: '.nav-enlace:active { opacity: .55; }' }];
+  assert.equal(count('clickableNoActive', [...otherComponent, ...component('', '<a class="nav-enlace" href="/">A</a>')]), 1, 'el :active de OTRO componente no vale');
   // F2-1: los componentes de shared/ui traen su propio :active (como Material).
   assert.equal(count('clickableNoActive', component('', '<button ui-button>A</button><button ui-icon-button icon="close" label="Cerrar"></button><a ui-link href="/x">B</a><a class="z" ui-button variant="ghost" href="/">C</a>')), 0);
   assert.equal(count('clickableNoActive', component('', '<button data-ui-button-like>A</button>')), 1, 'solo los atributos exactos de la biblioteca');

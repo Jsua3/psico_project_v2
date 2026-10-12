@@ -5,6 +5,8 @@
 @use 'base/motion';
 @use 'base/utilities';
 @use 'base/overlays';
+@use 'tokens/glass-bar' as glass-bar-tokens;
+@use 'components/glass-bar';
 
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7) y las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */
@@ -535,11 +537,6 @@ code, .psy-mono {
 @keyframes psy-card-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes psy-glass-in {
-  from { opacity: 0; transform: translateY(-10px); backdrop-filter: blur(0) saturate(100%); }
-  to { opacity: 1; transform: translateY(0); backdrop-filter: var(--psy-blur); }
 }
 
 @keyframes psy-liquid-sheen {

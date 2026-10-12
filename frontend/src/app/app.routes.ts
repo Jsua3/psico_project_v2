@@ -11,6 +11,10 @@ const DEV_ONLY_ROUTES: Routes = (typeof ngDevMode === 'undefined' || ngDevMode)
       path: 'dev/ui',
       title: 'Galería de componentes',
       loadComponent: () => import('./dev/ui-gallery/ui-gallery.component').then(m => m.UiGalleryComponent),
+    }, {
+      path: 'dev/barra',
+      title: 'Banco de la barra',
+      loadComponent: () => import('./dev/glass-bar-bench/glass-bar-bench.component').then(m => m.GlassBarBenchComponent),
     }]
   : [];
 

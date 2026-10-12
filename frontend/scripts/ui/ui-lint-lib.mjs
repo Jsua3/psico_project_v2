@@ -421,7 +421,12 @@ export function countMetrics({ css, templates, scripts }) {
   }
 
   const empty = { classes: new Set(), tags: new Set(), attrs: new Set() };
-  const globalActive = activeByScope.get('src/styles/styles') ?? empty;
+  // Globales: styles.scss y todo parcial de src/styles que importa (p. ej. components/_glass-bar, F3-1).
+  const globalActive = { classes: new Set(), tags: new Set(), attrs: new Set() };
+  for (const [scope, info] of activeByScope) {
+    if (!scope.startsWith('src/styles/')) continue;
+    for (const key of ['classes', 'tags', 'attrs']) info[key].forEach(value => globalActive[key].add(value));
+  }
   for (const block of templates) {
     for (const tag of scanTags(block.text)) {
       const line = block.startLine + (block.text.slice(0, tag.index).match(/\n/g) || []).length;
