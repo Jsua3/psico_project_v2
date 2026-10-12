@@ -51,6 +51,7 @@
           "options": {
             "tsConfig": "tsconfig.spec.json",
             "runner": "vitest",
+            "runnerConfig": true,
             "buildTarget": "psychosim-admin-panel:build:development",
             "include": ["**/*.spec.ts", "../e2e/support/*.spec.ts"],
             "isolate": true

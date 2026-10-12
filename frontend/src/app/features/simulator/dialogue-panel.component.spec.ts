@@ -1,3 +1,4 @@
+import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -362,7 +363,10 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+      // Sin zone.js, como la app (Angular 22 es zoneless por defecto): con el planificador de zone.js el reloj
+      // falso de Vitest dejaba ticks a medias y, con el pool vmThreads (TOO-1), re-entraba en
+      // ApplicationRef.tick (NG0101). Aquí cada detectChanges() es explícito.
+      providers: [provideZonelessChangeDetection(), { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
