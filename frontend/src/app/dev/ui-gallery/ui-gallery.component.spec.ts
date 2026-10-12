@@ -134,4 +134,17 @@ describe('UiGalleryComponent (/dev/ui)', () => {
     TestBed.tick();
     expect(host.querySelector('ui-toast-host .ui-toast--success')).not.toBeNull();
   });
+
+  it('tabla (F2-8): densidades, fila seleccionada y los estados de datos alternables', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelector('ui-table.ui-table--comfortable tr[aria-selected="true"]')).not.toBeNull();
+      expect(panel.querySelector('ui-table.ui-table--compact')).not.toBeNull();
+      expect(panel.querySelector('ui-table ui-empty-state')).not.toBeNull();
+      expect(panel.querySelector('ui-table ui-error-state')).not.toBeNull();
+      expect(panel.querySelectorAll('.ui-gallery__table-states button').length).toBe(4);
+    }
+  });
 });

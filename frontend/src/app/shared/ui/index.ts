@@ -33,3 +33,4 @@ export { describeHostWith } from './describe';
 export { UiConfirmDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
 export type { UiConfirmOptions, UiDialogOptions, UiDialogSize, UiSheetOptions } from './dialog/ui-dialog';
 export { UiToastHost } from './toast/ui-toast-host';
+export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './table/ui-table';

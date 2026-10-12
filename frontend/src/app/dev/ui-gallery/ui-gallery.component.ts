@@ -20,6 +20,8 @@ import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiDataStateValue } from '../../shared/ui/state/ui-data-state';
+import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { UiToastHost } from '../../shared/ui/toast/ui-toast-host';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
@@ -54,7 +56,8 @@ export class UiGalleryDialog {
   providers: [NotificationService],
   imports: [
     NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
-    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTabs, UiToastHost, UiTooltip,
+    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTable, UiTableEmpty, UiTableError, UiTableRow,
+    UiTableTable, UiTabs, UiToastHost, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -206,6 +209,39 @@ export class UiGalleryDialog {
         </ui-tabs>
       </ui-section>
 
+      <ui-section title="Tabla" [level]="3">
+        <div class="ui-gallery__row ui-gallery__table-states" role="group" aria-label="Estado de la tabla">
+          @for (option of tableStates; track option.id) {
+            <button ui-button type="button" size="sm" [variant]="tableState() === option.id ? 'primary' : 'secondary'"
+              [attr.aria-pressed]="tableState() === option.id" (click)="tableState.set(option.id)">{{ option.label }}</button>
+          }
+        </div>
+        <ui-table label="Intentos del grupo" [state]="tableState()">
+          <table ui-table>
+            <thead><tr><th scope="col">Estudiante</th><th scope="col">Caso</th><th scope="col">Estado</th><th scope="col">Puntaje</th></tr></thead>
+            <tbody>
+              @for (row of tableRows; track row.name) {
+                <tr uiRow [selected]="row.name === 'Luis Pérez'">
+                  <td>{{ row.name }}</td><td>{{ row.caseName }}</td><td><ui-badge [tone]="row.tone">{{ row.state }}</ui-badge></td><td>{{ row.score }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <ui-empty-state uiTableEmpty kind="first-use" title="Aún no hay intentos" description="Cuando tus estudiantes jueguen un caso, aparecerán aquí." />
+          <ui-error-state uiTableError kind="network" [status]="0" />
+        </ui-table>
+        <ui-table label="Reporte detallado" density="compact" class="ui-gallery__wide-table">
+          <table ui-table>
+            <thead><tr>@for (column of wideColumns; track column) {<th scope="col">{{ column }}</th>}</tr></thead>
+            <tbody>
+              @for (row of tableRows; track row.name) {
+                <tr uiRow>@for (column of wideColumns; track column) {<td>{{ row.name }} · {{ column }}</td>}</tr>
+              }
+            </tbody>
+          </table>
+        </ui-table>
+      </ui-section>
+
       <ui-section title="Diálogos y avisos" [level]="3">
         <div class="ui-gallery__row ui-gallery__overlays">
           <button ui-button type="button" variant="secondary" (click)="openDialog()">Abrir diálogo</button>
@@ -237,6 +273,19 @@ export class UiGalleryDialog {
   `],
 })
 export class UiGalleryComponent {
+  protected readonly tableState = signal<UiDataStateValue>('ready');
+  protected readonly tableStates: readonly { id: UiDataStateValue; label: string }[] = [
+    { id: 'ready', label: 'Con datos' },
+    { id: 'loading', label: 'Cargando' },
+    { id: 'empty', label: 'Vacía' },
+    { id: 'error', label: 'Con error' },
+  ];
+  protected readonly tableRows = [
+    { name: 'Ana Gómez', caseName: 'Crisis en urgencias', state: 'Completado', tone: 'success' as const, score: '9,2' },
+    { name: 'Luis Pérez', caseName: 'Crisis en urgencias', state: 'En curso', tone: 'info' as const, score: '—' },
+    { name: 'Sara Ruiz', caseName: 'Acompañamiento familiar', state: 'Salida segura', tone: 'warning' as const, score: '—' },
+  ];
+  protected readonly wideColumns = ['Escena 1', 'Escena 2', 'Escena 3', 'Escena 4', 'Escena 5', 'Escena 6', 'Escena 7', 'Escena 8'];
   private readonly dialog = inject(UiDialog);
   private readonly notifications = inject(NotificationService);
   protected readonly toasts: readonly { type: NotificationType; label: string; text: string }[] = [
