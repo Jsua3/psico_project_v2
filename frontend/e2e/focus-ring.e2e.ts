@@ -37,3 +37,42 @@ test('@focus-ring el foco es blanco en el menú lateral morado del portal', asyn
   await tabUntil(page, '.portal-sidenav a');
   expect(await focusedOutline(page)).toMatchObject({ color: 'rgb(255, 255, 255)', width: '3px' });
 });
+
+/**
+ * Con colores forzados (alto contraste de Windows) el navegador respeta los colores del sistema que pone el autor:
+ * un anillo que vale `Canvas` queda del color del fondo, que también pasa a ser `Canvas`. Auditoría del 2026-10-12:
+ * el menú lateral y el panel lateral del acceso apuntaban a --ds-on-primary, que en este modo vale Canvas.
+ */
+async function canvasColor(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.setProperty('background-color', 'Canvas');
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+}
+
+test.describe('@focus-ring colores forzados', () => {
+  test.use({ forcedColors: 'active' });
+
+  // req: RNF-04, RNF-004, BLOQUE-H (foco visible con contraste forzado, WCAG 2.4.7)
+  test('el foco del panel lateral del acceso no se confunde con el fondo', async ({ page }) => {
+    await page.goto('/login');
+    await page.locator('.toggle-container').waitFor({ state: 'visible' });
+    await tabUntil(page, '.toggle-container button, .toggle-container a');
+    const ring = await focusedOutline(page);
+    expect(ring.width).toBe('3px');
+    expect(ring.color).not.toBe(await canvasColor(page));
+  });
+
+  test('el foco del menú lateral del portal no se confunde con el fondo', async ({ page }) => {
+    await loginStudent(page);
+    await page.locator('.portal-sidenav').waitFor({ state: 'visible' });
+    await tabUntil(page, '.portal-sidenav a');
+    const ring = await focusedOutline(page);
+    expect(ring.width).toBe('3px');
+    expect(ring.color).not.toBe(await canvasColor(page));
+  });
+});

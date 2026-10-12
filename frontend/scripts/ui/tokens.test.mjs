@@ -125,6 +125,15 @@ test('contraste forzado: superficies Canvas, texto CanvasText, enlace LinkText y
   assert.equal(propsFor(compileScss("@use 'skins';").decls, ROOT, 'forced-colors: active').get('--ds-focus'), 'Highlight');
 });
 
+// req: RNF-04, RNF-004, BLOQUE-H (foco visible con contraste forzado, WCAG 2.4.7)
+test('contraste forzado: todo token de anillo de foco vale Highlight (uno que valga Canvas desaparece sobre el fondo)', () => {
+  const decls = compileScss("@use 'skins';").decls;
+  const rings = [...propsFor(decls, ROOT).keys()].filter(name => name.startsWith('--ds-focus') && !name.endsWith('-halo'));
+  assert.ok(rings.includes('--ds-focus-on-primary'), 'falta el foco para superficies de color primario');
+  const forced = propsFor(decls, ROOT, 'forced-colors: active');
+  for (const name of rings) assert.equal(forced.get(name), 'Highlight', name);
+});
+
 test('más contraste sube el borde y transparencia reducida quita velo y desenfoque', () => {
   assert.equal(skinTokens('[data-skin]', 'prefers-contrast: more').get('--ds-border'), 'var(--ds-border-strong)');
   const reduced = skinTokens('[data-skin]', 'prefers-reduced-transparency: reduce');

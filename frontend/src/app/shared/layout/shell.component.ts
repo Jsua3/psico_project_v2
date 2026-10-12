@@ -172,7 +172,7 @@ interface NavItem {
     }
     /* El foco global es azul marino (~1,3:1 sobre este degradado morado): aquí va en blanco. */
     .portal-sidenav {
-      --ds-focus: var(--ds-on-primary);
+      --ds-focus: var(--ds-focus-on-primary);
       --ds-focus-halo: var(--ds-focus-on-dark-halo);
     }
     .sidenav-header {
