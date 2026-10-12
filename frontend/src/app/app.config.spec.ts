@@ -1,9 +1,10 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ANIMATION_MODULE_TYPE } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of } from 'rxjs';
 
-import { initializeAuthSession } from './app.config';
+import { appConfig, initializeAuthSession } from './app.config';
 import { AuthService } from './core/auth/auth.service';
 import { User } from './core/models/user.model';
 
@@ -14,6 +15,13 @@ describe('app.config: arranque', () => {
     expect(source).not.toContain('APP_INITIALIZER');
     expect(source).toContain('const AUTH_SYNC_BUDGET_MS = 1500;');
     expect(source).toContain('provideAppInitializer(initializeAuthSession)');
+  });
+
+  it('no registra el motor de @angular/animations (ANG-2: Material anima con CSS)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    expect(TestBed.inject(ANIMATION_MODULE_TYPE, null)).toBeNull();
   });
 
   describe('initializeAuthSession', () => {

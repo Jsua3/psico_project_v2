@@ -1,7 +1,6 @@
 import { ApplicationConfig, inject, provideAppInitializer } from '@angular/core';
 import { TitleStrategy, provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
@@ -32,7 +31,6 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withXhr(), withInterceptors([jwtInterceptor])),
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
     { provide: SimulationService, useExisting: CachedSimulationService },
-    provideAnimationsAsync(),
     provideAppInitializer(initializeAuthSession),
   ]
 };
