@@ -5,3 +5,5 @@ export type { UiButtonSize, UiButtonVariant } from './button/ui-button';
 export { UiIconButton } from './button/ui-icon-button';
 export { UiLink } from './link/ui-link';
 export { UiSpinner } from './spinner/ui-spinner';
+export { UiControl, UiField } from './field/ui-field';
+export { UiCheck, UiSwitch } from './field/ui-check';

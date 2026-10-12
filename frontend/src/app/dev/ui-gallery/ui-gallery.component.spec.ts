@@ -45,4 +45,21 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('a[ui-link][target="_blank"]')).not.toBeNull();
     }
   });
+
+  it('campos (F2-2): ayuda, error, requerido, deshabilitado, área, lista, contraseña, casillas e interruptor', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelectorAll('ui-field').length).toBeGreaterThanOrEqual(6);
+      expect(panel.querySelector('.ui-control[aria-invalid="true"]')).not.toBeNull();
+      expect(panel.querySelector('.ui-control[aria-required="true"]')).not.toBeNull();
+      expect(panel.querySelector('.ui-control:disabled')).not.toBeNull();
+      expect(panel.querySelector('textarea.ui-control')).not.toBeNull();
+      expect(panel.querySelector('select.ui-control')).not.toBeNull();
+      expect(panel.querySelector('.ui-field__reveal[aria-pressed]')).not.toBeNull();
+      expect(panel.querySelector('label[ui-check] input[type="radio"]')).not.toBeNull();
+      expect(panel.querySelector('input[role="switch"]')).not.toBeNull();
+    }
+  });
 });

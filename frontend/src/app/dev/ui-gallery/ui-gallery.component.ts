@@ -3,6 +3,8 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 import { UiButton, UiButtonSize, UiButtonVariant } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
+import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiLink } from '../../shared/ui/link/ui-link';
 
 /**
@@ -14,7 +16,7 @@ import { UiLink } from '../../shared/ui/link/ui-link';
 @Component({
   selector: 'app-ui-gallery',
   standalone: true,
-  imports: [NgTemplateOutlet, UiButton, UiIconButton, UiLink],
+  imports: [NgTemplateOutlet, UiButton, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiSwitch],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main id="main-content" class="ui-gallery" tabindex="-1">
@@ -58,6 +60,38 @@ import { UiLink } from '../../shared/ui/link/ui-link';
           <a ui-link external href="https://www.minsalud.gov.co">línea de atención</a>.
         </p>
       </section>
+
+      <section class="ui-gallery__block" [attr.aria-labelledby]="skin + '-campos'">
+        <h3 [id]="skin + '-campos'">Campos</h3>
+        <div class="ui-gallery__grid">
+          <ui-field label="Correo institucional" hint="El que te dio la universidad" required>
+            <input uiControl type="email" autocomplete="off" placeholder="nombre@unal.edu.co" />
+          </ui-field>
+          <ui-field label="Usuario" error="Ese usuario ya existe: prueba con otro">
+            <input uiControl autocomplete="off" value="ana.r" />
+          </ui-field>
+          <ui-field label="Contraseña" hint="Al menos 8 caracteres" revealable>
+            <input uiControl type="password" autocomplete="off" value="secreta1" />
+          </ui-field>
+          <ui-field label="Código del grupo" hint="Lo asigna tu docente">
+            <input uiControl disabled value="PSI-2026-1" />
+          </ui-field>
+          <ui-field label="Rol">
+            <select uiControl><option>Estudiante</option><option>Docente</option><option>Administrador</option></select>
+          </ui-field>
+          <ui-field label="Comentario para el docente" hint="Máximo 500 caracteres">
+            <textarea uiControl></textarea>
+          </ui-field>
+        </div>
+        <div class="ui-gallery__row">
+          <label ui-check><input type="checkbox" checked /> Recordarme en este equipo</label>
+          <label ui-check><input type="checkbox" disabled /> Opción no disponible</label>
+          <label ui-check><input type="radio" [name]="'modo-' + skin" checked /> Guiado</label>
+          <label ui-check><input type="radio" [name]="'modo-' + skin" /> Libre</label>
+          <label ui-check><input type="checkbox" uiSwitch checked /> Sonido</label>
+          <label ui-check><input type="checkbox" uiSwitch /> Subtítulos</label>
+        </div>
+      </section>
     </ng-template>
   `,
   styles: [`
@@ -72,6 +106,7 @@ import { UiLink } from '../../shared/ui/link/ui-link';
       color: var(--ds-text-1);
     }
     .ui-gallery__block + .ui-gallery__block { margin-block-start: var(--ds-space-6); }
+    .ui-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--ds-space-4); }
     .ui-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); margin-block: var(--ds-space-3); }
   `],
 })
