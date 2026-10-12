@@ -1,0 +1,15 @@
+// Piel portal (clara), la de por defecto: vive en :root (REGLA-010: en :root solo la piel del portal).
+@use '../tokens/color';
+@use '../tokens/scale';
+@use '../tokens/elevation';
+
+:root,
+[data-skin='portal'] {
+  color-scheme: light;
+  @include color.emit(color.$portal);
+  @include elevation.emit(elevation.$portal);
+}
+
+:root {
+  @include scale.emit;
+}

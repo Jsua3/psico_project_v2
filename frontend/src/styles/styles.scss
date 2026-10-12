@@ -1,4 +1,6 @@
 @use '@angular/material' as mat;
+@use 'skins';
+@use 'aliases';
 
 @include mat.core();
 
@@ -20,47 +22,8 @@ html {
 }
 
 :root {
-  --siep-blue: #004876;
-  --siep-blue-dark: #003B63;
-  --siep-blue-soft: #0B5A8A;
-  --siep-bg: #F2F2F2;
-  --siep-surface: #FFFFFF;
-  --siep-text: #101820;
-  --siep-muted: #5F6B76;
-  --siep-border: #DDE5EC;
-  --siep-radius-lg: 36px;
-  --siep-radius-md: 24px;
-  --siep-shadow-soft: 0 18px 35px rgba(0, 72, 118, 0.16);
-
-  --psy-bg: var(--siep-bg);
-  --psy-surface: var(--siep-surface);
-  --psy-surface-soft: #E8EEF3;
-  --psy-ink: var(--siep-text);
-  --psy-muted: var(--siep-muted);
-  --psy-blue: var(--siep-blue-soft);
-  --psy-blue-deep: var(--siep-blue);
-  --psy-teal: var(--siep-blue-soft);
-  --psy-teal-deep: var(--siep-blue-dark);
-  --psy-green: #5D9278;
-  --psy-green-deep: #4A7560;
-  --psy-lavender: #7A9EC0;
-  --psy-lavender-soft: #E8EEF3;
-  --psy-border: var(--siep-border);
-  --psy-focus: rgba(0, 72, 118, 0.72);
-  --psy-radius-sm: 12px;
-  --psy-radius: 20px;
-  --psy-radius-lg: var(--siep-radius-md);
-  --psy-pill: 999px;
-  --psy-space-1: 4px;
-  --psy-space-2: 8px;
-  --psy-space-3: 12px;
-  --psy-space-4: 16px;
-  --psy-space-5: 24px;
-  --psy-space-6: 32px;
-  --psy-space-7: 48px;
-  --psy-space-8: 72px;
-  --psy-shadow-soft: 0 24px 54px -28px rgba(36, 50, 58, 0.22);
-  --psy-shadow-card: 0 18px 38px -30px rgba(36, 50, 58, 0.34);
+  /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7), el movimiento a tokens (F1-6),
+     las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */
   --psy-blur: blur(18px) saturate(125%);
   --psy-motion-fast: 180ms cubic-bezier(.2,.8,.2,1);
   --psy-motion-ui: 300ms cubic-bezier(.2,.8,.2,1);
@@ -68,7 +31,6 @@ html {
   --psy-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --psy-header-h: 76px;
   --psy-button-h: 48px;
-  --psy-z-nav: 80;
   --psy-z-dialog: 200;
 }
 

@@ -1,14 +1,14 @@
 /* Gráficas formativas — extraídas de dashboard.component.scss */
 :host {
-  --dash-blue: #005282;
-  --dash-blue-deep: #0b5a8a;
-  --dash-purple: #4b00b5;
+  --dash-blue: var(--ds-primary);
+  --dash-blue-deep: var(--ds-info);
+  --dash-purple: #4b00b5; /* legado sin token: lo retira F5-1 (VD-2, violeta solo simulador) */
   --dash-purple-main: #4b00b5;
   --dash-purple-dark: #2a006b;
-  --dash-green: #2e7d50;
+  --dash-green: var(--ds-success);
   --dash-orange: #f59e0b;
-  --dash-red: #dc2626;
-  --dash-muted: #5a6b82;
+  --dash-red: var(--ds-danger);
+  --dash-muted: var(--ds-text-2);
   --dash-pixel-shadow: 5px 5px 0 rgba(75, 0, 181, 0.06);
   --dash-border: 2px solid rgba(75, 0, 181, 0.14);
   display: block;

@@ -22,11 +22,14 @@ describe('bloque H: portada', () => {
 
 describe('bloque H: login (contraste)', () => {
   const scss = source('../app/features/login/login.component.scss');
-  const muted = source('./styles.scss').match(/--siep-muted:\s*(#[0-9A-Fa-f]{6});/)?.[1] ?? '';
+  // --siep-muted es alias de --ds-text-2 (F1-1); el valor sale del mapa de la piel portal.
+  const alias = source('./_aliases.scss').match(/--siep-muted:\s*var\(--ds-([a-z0-9-]+)\);/)?.[1] ?? '';
+  const muted = source('./tokens/_color.scss').match(new RegExp(`\\n\\s*${alias}:\\s*(#[0-9A-Fa-f]{6}),`))?.[1] ?? '';
 
   it('el divisor y el estado de Google usan el token --siep-muted (≥ 4,5:1 sobre blanco)', () => {
     // Antes: rgba(120,120,140,.85) = 3,31:1 y rgba(120,120,140,.95) = 3,92:1.
-    expect(muted).toBe('#5F6B76');
+    expect(alias).toBe('text-2');
+    expect(muted).toBe('#4A5A6A');
     expect(scss).toMatch(/\.auth-divider \{[^}]*color: var\(--siep-muted\);/);
     expect(scss).toMatch(/\.auth-google__status \{[^}]*color: var\(--siep-muted\);/);
     expect(contrastRatio(muted, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);

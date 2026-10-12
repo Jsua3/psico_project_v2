@@ -1,0 +1,34 @@
+// Colores del lenguaje visual (plan visual §2.3). ÚNICA fuente de valores: cada piel es un mapa y se emite
+// como --ds-<nombre>. Contrastes calculados el 2026-10-11 y verificados por scripts/ui/tokens.test.mjs.
+
+$portal: (
+  surface-page: #F5F7FA,
+  surface-1: #FFFFFF,
+  surface-2: #EEF2F6,
+  border: #D5DDE6,
+  border-strong: #6F8296,
+  text-1: #14202E,
+  text-2: #4A5A6A,
+  text-3: #7A8794,
+  primary: #004876,
+  primary-hover: #003B63,
+  primary-active: #002F50,
+  primary-subtle: #E6F0F7,
+  on-primary: #FFFFFF,
+  accent-sim: #5B3FD1,
+  danger: #A12C3B,
+  success: #1E7A4F,
+  warning-text: #7A4F00,
+  warning-bg: #FFF4D6,
+  info: #0B5A8A,
+  focus: #004876,
+  focus-halo: #FFFFFF,
+  veil: rgba(255, 255, 255, 0.72),
+  veil-edge: rgba(255, 255, 255, 0.85),
+);
+
+@mixin emit($map) {
+  @each $name, $value in $map {
+    --ds-#{$name}: #{$value};
+  }
+}
