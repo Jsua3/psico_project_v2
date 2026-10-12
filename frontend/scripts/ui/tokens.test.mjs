@@ -150,7 +150,11 @@ test('escala tipográfica de §2.3 en rem, con interlineado, tracking y peso por
   assert.match(t.get('--ds-font-mono'), /^'JetBrains Mono'/);
 });
 
-test('los alias heredados también se declaran en cada piel: dentro del juego resuelven con sus valores', () => {
+test('los alias heredados solo viven en :root: las clases del portal dentro del juego conservan sus valores hasta F6', () => {
+  // Declararlos también en [data-skin] pintó el «Continuar» heredado (.psy-button--primary, texto blanco) en
+  // lavanda dentro del juego: 1,9:1 (e2e @quality). Las clases heredadas pasan a la piel juego en F6-1/F6-4,
+  // junto con su texto (--ds-on-primary).
   const { decls } = compileScss("@use 'skins'; @use 'aliases';");
-  assert.equal(propsFor(decls, '[data-skin]').get('--psy-ink'), 'var(--ds-text-1)');
+  assert.equal(propsFor(decls, ROOT).get('--psy-ink'), 'var(--ds-text-1)');
+  assert.equal(propsFor(decls, '[data-skin]').has('--psy-ink'), false);
 });
