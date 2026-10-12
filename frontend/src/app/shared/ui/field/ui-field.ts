@@ -5,6 +5,7 @@ import {
 
 import { uniqueUiId } from '../button/click-guard';
 import { UiIconButton } from '../button/ui-icon-button';
+import { describeHostWith } from '../describe';
 
 /**
  * Campo del lenguaje visual (plan visual F2-2): etiqueta visible + control NATIVO marcado con `uiControl` + un
@@ -58,9 +59,9 @@ export class UiField {
 }
 
 /**
- * Control nativo dentro de un `ui-field` (plan visual F2-2): recibe del campo su id, su `aria-describedby`, su
- * `aria-invalid` y su `aria-required`; una contraseña revelada pasa a `type="text"`. Fuera de un campo solo toma la
- * apariencia del lenguaje visual.
+ * Control nativo dentro de un `ui-field` (plan visual F2-2): recibe del campo su id, su `aria-invalid` y su
+ * `aria-required`, y SUMA el mensaje del campo a su `aria-describedby` (sin borrar descripciones ajenas); una
+ * contraseña revelada pasa a `type="text"`. Fuera de un campo solo toma la apariencia del lenguaje visual.
  */
 @Directive({
   selector: 'input[uiControl], textarea[uiControl], select[uiControl]',
@@ -68,7 +69,6 @@ export class UiField {
     class: 'ui-control',
     '[attr.id]': 'id()',
     '[attr.type]': 'type()',
-    '[attr.aria-describedby]': 'field?.describedBy() ?? null',
     '[attr.aria-invalid]': "field?.error() ? 'true' : null",
     '[attr.aria-required]': "field?.required() ? 'true' : null",
   },
@@ -84,5 +84,6 @@ export class UiControl {
 
   constructor() {
     if (this.field && this.ownId) this.field.controlId.set(this.ownId);
+    describeHostWith(() => this.field?.describedBy());
   }
 }

@@ -143,3 +143,30 @@ describe('ui-field', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
   });
 });
+
+@Component({
+  imports: [UiField, UiControl],
+  template: `<p id="formato">Formato: AAAA-MM-DD</p>
+    <ui-field label="Fecha" [error]="error()"><input uiControl aria-describedby="formato" /></ui-field>`,
+})
+class DescribedHost {
+  error = signal<string | null>(null);
+}
+
+describe('uiControl con otras descripciones', () => {
+  it('suma el mensaje del campo a aria-describedby sin borrar las ajenas', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(DescribedHost);
+    await fixture.whenStable();
+    const input = (fixture.nativeElement as HTMLElement).querySelector('input')!;
+    const ids = () => (input.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+    expect(ids()).toEqual(['formato']);
+    fixture.componentInstance.error.set('Fecha inválida');
+    await fixture.whenStable();
+    expect(ids()).toContain('formato');
+    expect(ids().length).toBe(2);
+    fixture.componentInstance.error.set(null);
+    await fixture.whenStable();
+    expect(ids()).toEqual(['formato']);
+  });
+});

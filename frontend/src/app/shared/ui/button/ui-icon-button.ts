@@ -1,8 +1,10 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, ViewEncapsulation, computed, inject, input,
+  ChangeDetectionStrategy, Component, ElementRef, ViewEncapsulation, computed, effect, inject, input,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
+import { describeHostWith } from '../describe';
+import { injectUiTooltip } from '../tooltip/ui-tooltip';
 import { guardClicks, uniqueUiId } from './click-guard';
 import { UiButtonVariant } from './ui-button';
 
@@ -10,7 +12,8 @@ import { UiButtonVariant } from './ui-button';
  * Botón de solo icono (plan visual F2-1). `icon` y `label` son obligatorios: el `label` es el nombre accesible
  * (`aria-label`); sin él la plantilla no compila. Cuadrado de 44 px. Fantasma por defecto. En un `<button>` el
  * tipo por defecto es `button` (un icono dentro de un formulario —mostrar contraseña, borrar fila— nunca debe
- * enviarlo). Con `disabledReason` sigue enfocable, explica el motivo y no dispara el clic.
+ * enviarlo). Con `disabledReason` sigue enfocable, explica el motivo y no dispara el clic. Un globo muestra el
+ * `label` (o el motivo) con el ratón y con el foco de teclado: el icono solo no basta para quien ve.
  */
 @Component({
   selector: 'button[ui-icon-button], a[ui-icon-button]',
@@ -26,7 +29,6 @@ import { UiButtonVariant } from './ui-button';
     '[attr.type]': 'isButton ? type() : null',
     '[attr.aria-label]': 'label()',
     '[attr.aria-disabled]': "disabledReason() ? 'true' : null",
-    '[attr.aria-describedby]': 'disabledReason() ? reasonId : null',
   },
   template: `
     <mat-icon class="ui-icon-button__icon" aria-hidden="true">{{ icon() }}</mat-icon>
@@ -49,5 +51,8 @@ export class UiIconButton {
 
   constructor() {
     guardClicks(() => this.blocked());
+    describeHostWith(() => (this.disabledReason() ? this.reasonId : null));
+    const tooltip = injectUiTooltip({ describe: false });
+    effect(() => tooltip.setText(this.disabledReason() ?? this.label()));
   }
 }

@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
+import { UI_TOOLTIP_SHOW_DELAY_MS } from '../tooltip/ui-tooltip';
 import { UI_BUTTON_SPINNER_DELAY_MS, UiButton, UiButtonSize, UiButtonVariant } from './ui-button';
 
 /**
@@ -75,6 +76,28 @@ describe('ui-button', () => {
     // Oculto con `hidden`: aria-describedby lo lee igual, pero no se suma al nombre del botón (que se calcula
     // con su contenido y quedaría «Guardar Completa correo y contraseña»).
     expect(reason?.hidden).toBe(true);
+  });
+
+  it('con un motivo, el ratón lo muestra en un globo a los 400 ms (§2.6); sin motivo no hay globo', async () => {
+    host.reason.set('Completa correo y contraseña');
+    await fixture.whenStable();
+    document.body.appendChild(fixture.nativeElement);
+    vi.useFakeTimers();
+    try {
+      button().dispatchEvent(new MouseEvent('mouseenter'));
+      vi.advanceTimersByTime(UI_TOOLTIP_SHOW_DELAY_MS);
+      expect(document.querySelector('.ui-tooltip')?.textContent?.trim()).toBe('Completa correo y contraseña');
+      button().dispatchEvent(new MouseEvent('mouseleave'));
+      vi.advanceTimersByTime(1000);
+      host.reason.set(null);
+      fixture.detectChanges();
+      button().dispatchEvent(new MouseEvent('mouseenter'));
+      vi.advanceTimersByTime(1000);
+      expect(document.querySelector('.ui-tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      (fixture.nativeElement as HTMLElement).remove();
+    }
   });
 
   it('sin motivo no queda rastro de aria-disabled ni de aria-describedby', async () => {
@@ -172,5 +195,33 @@ describe('ui-button', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Revisión de F2-6: el motivo se SUMA a aria-describedby; no borra otras descripciones (uiTooltip, ayudas propias).
+@Component({
+  imports: [UiButton],
+  template: `<p id="ayuda-externa">Se guarda en tu perfil.</p>
+    <button ui-button type="button" aria-describedby="ayuda-externa" [disabledReason]="reason()">Guardar</button>`,
+})
+class DescribedHost {
+  reason = signal<string | null>(null);
+}
+
+describe('ui-button con otras descripciones', () => {
+  it('conserva las descripciones ajenas y suma o quita la del motivo', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(DescribedHost);
+    await fixture.whenStable();
+    const button = (fixture.nativeElement as HTMLElement).querySelector('button')!;
+    const ids = () => (button.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+    expect(ids()).toEqual(['ayuda-externa']);
+    fixture.componentInstance.reason.set('Sin cambios');
+    await fixture.whenStable();
+    expect(ids()).toContain('ayuda-externa');
+    expect(ids().length).toBe(2);
+    fixture.componentInstance.reason.set(null);
+    await fixture.whenStable();
+    expect(ids()).toEqual(['ayuda-externa']);
   });
 });

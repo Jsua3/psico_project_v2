@@ -3,7 +3,9 @@ import {
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
+import { describeHostWith } from '../describe';
 import { UiSpinner } from '../spinner/ui-spinner';
+import { injectUiTooltip } from '../tooltip/ui-tooltip';
 import { guardClicks, uniqueUiId } from './click-guard';
 
 export type UiButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -17,7 +19,8 @@ export const UI_BUTTON_SPINNER_DELAY_MS = 150;
  * nativa (tipo, envío de formulario, href, foco). Con `disabledReason` o `loading` queda `aria-disabled` —sigue
  * enfocable y su motivo se lee por `aria-describedby`— y bloquea el clic antes que cualquier otro oyente: no hay
  * doble envío ni clics «muertos» sin explicación. Cargando, el indicador aparece a los 150 ms en el lugar del icono
- * (o encima del texto, que conserva su sitio): el ancho no cambia.
+ * (o encima del texto, que conserva su sitio): el ancho no cambia. Con el ratón, el motivo también se ve en un globo
+ * a los 400 ms (§2.6); el lector ya lo tiene por aria-describedby.
  *
  * Los estilos son globales con nombres BEM (`ViewEncapsulation.None`), como Material: el anfitrión es el propio
  * `<button>`/`<a>` del consumidor.
@@ -40,7 +43,6 @@ export const UI_BUTTON_SPINNER_DELAY_MS = 150;
     '[class.ui-button--spinner-overlay]': 'showSpinner() && !icon()',
     '[attr.aria-disabled]': "blocked() ? 'true' : null",
     '[attr.aria-busy]': "loading() ? 'true' : null",
-    '[attr.aria-describedby]': 'disabledReason() ? reasonId : null',
   },
   template: `
     @if (icon()) {
@@ -79,6 +81,9 @@ export class UiButton {
 
   constructor() {
     guardClicks(() => this.blocked());
+    describeHostWith(() => (this.disabledReason() ? this.reasonId : null));
+    const tooltip = injectUiTooltip({ describe: false });
+    effect(() => tooltip.setText(this.disabledReason()));
     effect(onCleanup => {
       if (!this.loading()) {
         this.showSpinner.set(false);

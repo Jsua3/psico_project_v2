@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
+import { UI_TOOLTIP_SHOW_DELAY_MS } from '../tooltip/ui-tooltip';
 import { UiIconButton } from './ui-icon-button';
 
 /**
@@ -53,9 +54,52 @@ describe('ui-icon-button', () => {
     expect(host.clicks).toBe(0);
   });
 
+  it('el globo muestra el label con el ratón y el motivo si está deshabilitado', async () => {
+    document.body.appendChild(fixture.nativeElement);
+    vi.useFakeTimers();
+    try {
+      button().dispatchEvent(new MouseEvent('mouseenter'));
+      vi.advanceTimersByTime(UI_TOOLTIP_SHOW_DELAY_MS);
+      expect(document.querySelector('.ui-tooltip')?.textContent?.trim()).toBe('Cerrar el aviso');
+      button().dispatchEvent(new MouseEvent('mouseleave'));
+      vi.advanceTimersByTime(1000);
+      host.reason.set('No hay nada que cerrar');
+      fixture.detectChanges();
+      button().dispatchEvent(new MouseEvent('mouseenter'));
+      vi.advanceTimersByTime(UI_TOOLTIP_SHOW_DELAY_MS);
+      expect(document.querySelector('.ui-tooltip')?.textContent?.trim()).toBe('No hay nada que cerrar');
+    } finally {
+      vi.useRealTimers();
+      (fixture.nativeElement as HTMLElement).remove();
+    }
+  });
+
   it('sin label no se puede pintar (NG0950)', () => {
     const bare = TestBed.createComponent(UiIconButton);
     bare.componentRef.setInput('icon', 'close');
     expect(() => bare.detectChanges()).toThrowError(/NG0950/);
+  });
+});
+
+@Component({
+  imports: [UiIconButton],
+  template: `<button ui-icon-button icon="undo" label="Deshacer" aria-describedby="ayuda" [disabledReason]="reason()"></button>`,
+})
+class DescribedHost {
+  reason = signal<string | null>('Nada que deshacer');
+}
+
+describe('ui-icon-button con otras descripciones', () => {
+  it('suma el motivo a aria-describedby sin borrar las ajenas', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(DescribedHost);
+    await fixture.whenStable();
+    const button = (fixture.nativeElement as HTMLElement).querySelector('button')!;
+    const ids = () => (button.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+    expect(ids()).toContain('ayuda');
+    expect(ids().length).toBe(2);
+    fixture.componentInstance.reason.set(null);
+    await fixture.whenStable();
+    expect(ids()).toEqual(['ayuda']);
   });
 });

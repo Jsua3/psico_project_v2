@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton, UiButtonSize, UiButtonVariant } from '../../shared/ui/button/ui-button';
@@ -8,6 +8,7 @@ import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiLink } from '../../shared/ui/link/ui-link';
+import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSection } from '../../shared/ui/section/ui-section';
@@ -16,6 +17,8 @@ import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
+import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
 
 /**
  * Galería de la biblioteca `shared/ui` (plan visual F0-4 y F2-9; VD-11): cada componente en todos sus estados y en
@@ -28,7 +31,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
   standalone: true,
   imports: [
     NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
-    UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch,
+    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTabs, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -164,6 +167,20 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
         </div>
         <ui-error-state kind="server" blocking message="No pudimos cargar el caso. Tu avance está guardado." />
       </ui-section>
+
+      <ui-section title="Superposiciones" [level]="3">
+        <div class="ui-gallery__row">
+          <button ui-button type="button" variant="secondary" class="ui-gallery__tooltip"
+            uiTooltip="Descarga el reporte del grupo en PDF">Exportar</button>
+          <ui-menu label="Cuenta" icon="account_circle" [items]="menuItems" align="start" />
+          <ui-menu label="Más acciones" iconOnly [items]="menuItems" />
+        </div>
+        <ui-tabs label="Secciones del caso" [(selected)]="tab">
+          <ng-template uiTab="resumen" label="Resumen"><p>Resumen del caso y sus objetivos.</p></ng-template>
+          <ng-template uiTab="escenas" label="Escenas"><p>Lista de escenas del caso.</p></ng-template>
+          <ng-template uiTab="intentos" label="Intentos"><p>Intentos del grupo.</p></ng-template>
+        </ui-tabs>
+      </ui-section>
     </ng-template>
   `,
   styles: [`
@@ -183,6 +200,12 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
   `],
 })
 export class UiGalleryComponent {
+  protected readonly tab = signal<string | undefined>('resumen');
+  protected readonly menuItems: readonly UiMenuItem[] = [
+    { value: 'perfil', label: 'Mi perfil', icon: 'person' },
+    { value: 'personaje', label: 'Mi personaje', icon: 'face' },
+    { value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' },
+  ];
   protected readonly skins = [
     { id: 'portal', label: 'portal' },
     { id: 'game', label: 'juego' },

@@ -107,4 +107,15 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('ui-error-state[role="status"] details')).not.toBeNull();
     }
   });
+
+  it('superposiciones (F2-6): globo con descripción, menú de texto y de icono, y pestañas', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelector('.ui-gallery__tooltip[aria-describedby]')).not.toBeNull();
+      expect(panel.querySelectorAll('ui-menu .ui-menu__trigger[aria-haspopup="true"]').length).toBeGreaterThanOrEqual(2);
+      expect(panel.querySelector('ui-tabs [role="tablist"][aria-label]')).not.toBeNull();
+    }
+  });
 });
