@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { ANIMATION_MODULE_TYPE } from '@angular/core';
+import { ANIMATION_MODULE_TYPE, ApplicationInitStatus } from '@angular/core';
+import { MatIconRegistry } from '@angular/material/icon';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of } from 'rxjs';
 
@@ -22,6 +23,14 @@ describe('app.config: arranque', () => {
       providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
     });
     expect(TestBed.inject(ANIMATION_MODULE_TYPE, null)).toBeNull();
+  });
+
+  it('los iconos usan la clase de Material Symbols por defecto (sin font-family !important, F1-3)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    TestBed.inject(ApplicationInitStatus);
+    expect(TestBed.inject(MatIconRegistry).getDefaultFontSetClass()).toEqual(['material-symbols-rounded']);
   });
 
   describe('initializeAuthSession', () => {

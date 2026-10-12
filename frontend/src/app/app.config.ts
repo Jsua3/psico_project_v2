@@ -1,6 +1,7 @@
 import { ApplicationConfig, inject, provideAppInitializer } from '@angular/core';
 import { TitleStrategy, provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { MatIconRegistry } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
@@ -32,5 +33,7 @@ export const appConfig: ApplicationConfig = {
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
     { provide: SimulationService, useExisting: CachedSimulationService },
     provideAppInitializer(initializeAuthSession),
+    // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
+    provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
   ]
 };

@@ -124,3 +124,28 @@ test('más contraste sube el borde y transparencia reducida quita velo y desenfo
   assert.equal(reduced.get('--ds-veil'), 'var(--ds-surface-1)');
   assert.equal(reduced.get('--ds-glass-blur'), 'none');
 });
+
+// ── F1-3: escala tipográfica por tokens (rem; nunca menos de 12 px) ──────────────────────────────────────────
+// req: RNF-04 (textos legibles: ningún token de tamaño < 0,75 rem)
+test('escala tipográfica de §2.3 en rem, con interlineado, tracking y peso por rol', () => {
+  const t = rootTokens();
+  const scale = {
+    display: ['3.25rem', '3.5rem', '-0.03em', '800'],
+    h1: ['2.25rem', '2.625rem', '-0.02em', '800'],
+    h2: ['1.75rem', '2.125rem', '-0.015em', '800'],
+    h3: ['1.375rem', '1.75rem', '-0.01em', '600'],
+    lead: ['1.125rem', '1.75rem', '0', '400'],
+    body: ['1rem', '1.5rem', '0', '400'],
+    'body-s': ['0.875rem', '1.25rem', '0.005em', '400'],
+    caption: ['0.75rem', '1rem', '0.01em', '600'],
+    mono: ['0.8125rem', '1.25rem', '0', '400'],
+  };
+  for (const [role, [size, line, track, weight]] of Object.entries(scale)) {
+    assert.deepEqual(
+      ['size', 'line', 'track', 'weight'].map(part => t.get(`--ds-type-${role}-${part}`)),
+      [size, line, track, weight], role);
+    assert.ok(Number.parseFloat(size) >= 0.75, `${role} < 0,75 rem`);
+  }
+  assert.match(t.get('--ds-font-sans'), /^'Poppins'/);
+  assert.match(t.get('--ds-font-mono'), /^'JetBrains Mono'/);
+});

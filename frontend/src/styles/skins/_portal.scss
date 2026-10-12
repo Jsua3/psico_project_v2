@@ -2,6 +2,7 @@
 @use '../tokens/color';
 @use '../tokens/scale';
 @use '../tokens/elevation';
+@use '../tokens/type';
 
 :root,
 [data-skin='portal'] {
@@ -12,4 +13,5 @@
 
 :root {
   @include scale.emit;
+  @include type.emit;
 }
