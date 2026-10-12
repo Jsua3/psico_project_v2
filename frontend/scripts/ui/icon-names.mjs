@@ -51,15 +51,69 @@ export function iconNamesIn(files) {
       for (const [, name] of text.matchAll(/(?<!\btype\s+)\b\w*[iI]con\w*\s*[:=]\s*['"]([a-z0-9]+(?:_[a-z0-9]+)*)['"]/g)) out.add(name);
     }
   }
+  // Definiciones de funciones y métodos: nombre, parámetros y cuerpo.
+  const definitions = [];
   for (const { path, text } of sources) {
     if (!path.endsWith('.ts')) continue;
-    const header = /\b([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[\w<>[\]|' ]+)?\s*\{/g;
+    const header = /\b([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?::\s*[\w<>[\]|' ]+)?\s*\{/g;
     let m;
     while ((m = header.exec(text))) {
-      if (iconFunctions.has(m[1])) addQuoted(bodyFrom(text, m.index + m[0].length - 1), out);
+      definitions.push({ name: m[1], params: m[2], body: bodyFrom(text, m.index + m[0].length - 1) });
+    }
+  }
+  // Resultados de las funciones usadas en <mat-icon>, siguiendo las llamadas que hacen a otras (timelineIcon → iconFor).
+  const pending = [...iconFunctions];
+  while (pending.length) {
+    const name = pending.pop();
+    for (const def of definitions.filter(d => d.name === name)) {
+      addQuoted(def.body, out);
+      for (const [, called] of def.body.matchAll(/\breturn\b[^;]*?\b([A-Za-z_]\w*)\s*\(/g)) {
+        if (!iconFunctions.has(called)) {
+          iconFunctions.add(called);
+          pending.push(called);
+        }
+      }
+    }
+  }
+  // Argumentos literales en la posición de un parámetro llamado *icon* (this.metric('people', …)).
+  for (const def of definitions) {
+    const position = def.params.split(',').findIndex(param => /^\s*\w*[iI]con\w*\s*[?:=]/.test(param));
+    if (position < 0) continue;
+    for (const { path, text } of sources) {
+      if (!path.endsWith('.ts')) continue;
+      for (const call of text.matchAll(new RegExp(`\\b${def.name}\\s*\\(`, 'g'))) {
+        const args = argumentsFrom(text, call.index + call[0].length);
+        const literal = /^\s*['"]([a-z0-9]+(?:_[a-z0-9]+)*)['"]\s*$/.exec(args[position] ?? '');
+        if (literal) out.add(literal[1]);
+      }
     }
   }
   return out;
+}
+
+/** Argumentos de primer nivel de una llamada cuyo paréntesis de apertura termina en `start`. */
+function argumentsFrom(text, start) {
+  const args = [];
+  let depth = 0;
+  let quote = null;
+  let current = '';
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      current += char;
+      if (char === quote && text[i - 1] !== '\\') quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') { quote = char; current += char; continue; }
+    if (char === '(' || char === '[' || char === '{') depth++;
+    if (char === ')' || char === ']' || char === '}') {
+      if (depth === 0) { args.push(current); return args; }
+      depth--;
+    }
+    if (char === ',' && depth === 0) { args.push(current); current = ''; continue; }
+    current += char;
+  }
+  return args;
 }
 
 function walk(dir, accept, out = []) {

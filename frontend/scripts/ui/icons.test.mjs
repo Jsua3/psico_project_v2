@@ -33,8 +33,29 @@ test('extrae los nombres de <mat-icon>, de ternarios, de propiedades *icon* y de
   assert.deepEqual([...iconNamesIn(files)].sort(), ['check', 'groups', 'healing', 'help', 'home', 'hourglass_empty', 'menu_book', 'psychology', 'save']);
 });
 
+test('sigue las funciones que llaman a otras y los parámetros llamados *icon* (revisión de F1, C2)', () => {
+  const files = [{ path: 'src/app/x/x.component.ts', text: [
+    'template: `<mat-icon>{{ timelineIcon(entry) }}</mat-icon><mat-icon>{{ metric.icon }}</mat-icon>`,',
+    'timelineIcon(entry: Entry): string {',
+    '  if (entry.retry) return RETRY_ICON;',
+    '  return this.iconFor(entry.type);',
+    '}',
+    'iconFor(type: string): string {',
+    "  if (type === 'DECISION') return 'rule';",
+    "  return type === 'TOOL' ? 'construction' : 'open_with';",
+    '}',
+    "readonly metrics = [this.metric('people', 'Estudiantes', 3), this.metric(\"emoji_events\", 'Mejor', 9)];",
+    'private metric(icon: string, label: string, value: number) { return { icon, label, value }; }',
+    "private other(label: string, icon = 'x') { return label; }",
+    "readonly noIcon = this.other('hola');",
+  ].join('\n') }];
+  const names = iconNamesIn(files);
+  for (const name of ['rule', 'construction', 'open_with', 'people', 'emoji_events']) assert.ok(names.has(name), name);
+  assert.equal(names.has('hola'), false, 'el argumento de un parámetro que no es *icon* no cuenta');
+});
+
 test('cada icono requerido por el código, las semillas del backend y la lista curada está en el subconjunto', () => {
-  const included = new Set(JSON.parse(readFileSync(join(FONTS, 'material-symbols-rounded.icons.json'), 'utf8')));
+  const included = new Set(JSON.parse(readFileSync(join(here, 'material-symbols-rounded.icons.json'), 'utf8')));
   const missing = [...projectIconNames()].filter(name => !included.has(name)).sort();
   assert.deepEqual(missing, [], 'Faltan en el subconjunto: ejecuta scripts/ui/subset-icons.py (ver su cabecera)');
 });

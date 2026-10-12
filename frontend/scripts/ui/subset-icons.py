@@ -5,10 +5,10 @@ app necesita (scripts/ui/icon-names.mjs) y comprueba que cada uno conserva su li
 
 Uso, desde frontend/ (requiere fontTools y brotli; en esta máquina: C:\\Python313\\python.exe):
     node scripts/ui/icon-names.mjs > <tmp>/iconos.json
-    python -I scripts/ui/subset-icons.py scripts/ui/fonts/material-symbols-rounded-full.woff2 <tmp>/iconos.json src/assets/fonts/material-symbols-rounded.woff2
+    python -I scripts/ui/subset-icons.py scripts/ui/fonts/material-symbols-rounded-full.woff2 <tmp>/iconos.json src/assets/fonts/material-symbols-rounded.woff2 scripts/ui/material-symbols-rounded.icons.json
 
-Escribe además src/assets/fonts/material-symbols-rounded.icons.json con los iconos incluidos, que lee
-scripts/ui/icons.test.mjs. Sale con 1 si un nombre pedido no es una ligadura de la fuente o se pierde.
+Escribe además la lista de iconos incluidos (4.º argumento; vive en scripts/ui y no se publica), que leen
+scripts/ui/icons.test.mjs y el e2e @icons. Sale con 1 si un nombre pedido no es una ligadura de la fuente o se pierde.
 """
 import json
 import string
@@ -37,7 +37,7 @@ def ligatures(font):
     return found
 
 
-def main(source, names_json, output):
+def main(source, names_json, output, list_path):
     names = sorted(set(json.loads(Path(names_json).read_text(encoding='utf-8'))))
     font = TTFont(source)
     available = ligatures(font)
@@ -65,10 +65,10 @@ def main(source, names_json, output):
         print('Ligaduras perdidas en el subconjunto:', ', '.join(lost))
         return 1
     out = Path(output)
-    out.with_name(out.stem + '.icons.json').write_text(json.dumps(names, indent=1) + '\n', encoding='utf-8', newline='\n')
+    Path(list_path).write_text(json.dumps(names, indent=1) + '\n', encoding='utf-8', newline='\n')
     print(f'{len(names)} iconos · {out.stat().st_size} B · {out}')
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(main(*sys.argv[1:4]))
+    sys.exit(main(*sys.argv[1:5]))
