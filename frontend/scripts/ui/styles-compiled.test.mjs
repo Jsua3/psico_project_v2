@@ -34,3 +34,21 @@ test('Material: tarjetas y tablas sin !important', () => {
   const forced = parsed.decls.filter(d => /mat-mdc-(card|header-cell|row)/.test(d.selector) && /!important/.test(d.value));
   assert.deepEqual(forced.map(d => `${d.selector} { ${d.prop} }`), []);
 });
+
+// ── F1-5: un solo anillo de foco y objetivos táctiles base ────────────────────────────────────────────────────
+// req: RNF-04, RNF-004 (foco visible ≥ 3:1; WCAG 2.4.7 y 2.4.11)
+test('foco: una sola regla raíz :focus-visible de 3 px con halo y sin border-radius', () => {
+  const rootRules = parsed.rules.filter(r => r.selector.trim() === ':focus-visible' && r.ats.length === 0);
+  assert.equal(rootRules.length, 1, 'reglas :focus-visible raíz');
+  const ring = new Map(parsed.decls.filter(d => d.selector.trim() === ':focus-visible' && d.ats.length === 0).map(d => [d.prop, d.value]));
+  assert.equal(ring.get('outline'), '3px solid var(--ds-focus)');
+  assert.equal(ring.get('outline-offset'), '2px');
+  assert.equal(ring.get('box-shadow'), '0 0 0 2px var(--ds-focus-halo)');
+  assert.equal(ring.has('border-radius'), false, 'el radio de 2 px recortaba las píldoras');
+});
+
+test('objetivos táctiles: 44 px y mínimo estricto de 24 px (WCAG 2.5.8) como tokens', () => {
+  const root = new Map(parsed.decls.filter(d => d.selector.trim() === ':root' && d.ats.length === 0).map(d => [d.prop, d.value]));
+  assert.equal(root.get('--ds-target-min'), '2.75rem');
+  assert.equal(root.get('--ds-target-min-strict'), '1.5rem');
+});

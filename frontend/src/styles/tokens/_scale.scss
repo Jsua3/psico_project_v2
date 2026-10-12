@@ -17,4 +17,7 @@ $breakpoints: (sm: 640px, md: 1024px, lg: 1280px, xl: 1600px);
   @each $name, $value in $z {
     --ds-z-#{$name}: #{$value};
   }
+  // Objetivos táctiles: 44 px recomendados y 24 px de mínimo estricto (WCAG 2.5.8).
+  --ds-target-min: 2.75rem;
+  --ds-target-min-strict: 1.5rem;
 }

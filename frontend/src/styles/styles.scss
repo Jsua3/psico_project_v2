@@ -1,6 +1,7 @@
 @use 'skins';
 @use 'aliases';
 @use 'material';
+@use 'base/focus';
 
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7), el movimiento a tokens (F1-6),
@@ -54,11 +55,6 @@ img {
 
 code, .psy-mono {
   font-family: 'JetBrains Mono', Consolas, monospace;
-}
-
-:focus-visible {
-  outline: 3px solid var(--psy-focus);
-  outline-offset: 3px;
 }
 
 ::selection {
@@ -651,13 +647,6 @@ body.siep-scroll-locked {
 main[tabindex="-1"]:focus,
 #main-content:focus {
   outline: none;
-}
-
-/** Focus indicator: high-contrast for keyboard users (light surfaces). */
-:focus-visible {
-  outline: 3px solid var(--psy-focus);
-  outline-offset: 3px;
-  border-radius: 2px;
 }
 
 /**
