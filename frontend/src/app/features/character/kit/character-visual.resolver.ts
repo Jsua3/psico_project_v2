@@ -140,13 +140,23 @@ export interface CharacterLookup {
 }
 
 /** Receta del personaje, o null si es una voz sin cuerpo (spec §7.2) o no tiene receta. */
+/** Sin tildes ni mayúsculas: el catálogo del kit indexa algunas guías por su nombre viejo sin tilde. */
+const foldName = (name: string): string => name.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
+
+function guideRecipe(guides: Record<string, string>, guide: string): string | undefined {
+  if (guides[guide]) return guides[guide];
+  const folded = foldName(guide);
+  const key = Object.keys(guides).find(name => foldName(name) === folded);
+  return key ? guides[key] : undefined;
+}
+
 export function resolveRecipeId(bundle: KitBundle, lookup: CharacterLookup): string | null {
   const { catalog, recipes } = bundle;
   const known = (id: string | null | undefined): string | null => (id && recipes[id] ? id : null);
   return known(lookup.recipeId)
     ?? known(lookup.actor ? catalog.actors[lookup.actor] ?? catalog.portraitKeys[lookup.actor] : null)
     ?? known(lookup.template ? catalog.templates[lookup.template] : null)
-    ?? known(lookup.guide ? catalog.guides[lookup.guide] : null)
+    ?? known(lookup.guide ? guideRecipe(catalog.guides, lookup.guide) : null)
     ?? (lookup.speaker && !catalog.voices.includes(lookup.speaker) ? known(catalog.speakers[lookup.speaker]) : null);
 }
 

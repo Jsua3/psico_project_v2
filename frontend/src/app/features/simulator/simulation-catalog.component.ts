@@ -7,6 +7,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptCompletionReport, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { historyDurationSeconds } from './attempt-history-duration.util';
+import { statusLabel } from '../../shared/ui/labels';
 
 @Component({
   selector: 'app-simulation-catalog',
@@ -461,18 +462,7 @@ export class SimulationCatalogComponent implements OnInit {
 
   /** Etiqueta en español de un estado: el de un intento (historial) o el de una versión de caso. */
   statusLabel(status: string) {
-    switch (status) {
-      case 'PUBLISHED': return 'Publicado';
-      case 'DRAFT': return 'Borrador';
-      case 'IN_REVIEW': return 'En revisión';
-      case 'ARCHIVED': return 'Archivado';
-      case 'COMPLETED': return 'Finalizado';
-      case 'PAUSED': return 'En pausa (reanudable)';
-      case 'SAFE_EXITED': return 'Cerrado con salida segura';
-      case 'REPLACED': return 'Reemplazado por un intento nuevo';
-      case 'IN_PROGRESS': return 'En curso';
-      default: return status || 'Sin estado';
-    }
+    return statusLabel(status);
   }
 
   formatDate(value: string | null) {

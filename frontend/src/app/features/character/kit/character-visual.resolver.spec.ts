@@ -99,6 +99,9 @@ describe('resolveRecipeId', () => {
     [{ actor: 'escucha-segura' }, 'sobreviviente'],
     [{ template: 'mujer-adulta' }, 'madre-acompanante'],
     [{ guide: 'Enfermera de turno' }, 'enfermera-urgencias'],
+    // El rótulo visible lleva tildes aunque el catálogo indexe «Orientadora juridica» (F0-3: tildes sin regenerar el kit).
+    [{ guide: 'Orientadora jurídica' }, 'orientadora-juridica'],
+    [{ guide: 'Psicóloga hospitalaria' }, 'psicologa-hospitalaria'],
     [{ speaker: 'Abuela de la niña' }, 'abuela-familia'],
     [{ speaker: 'Supervisión clínica' }, null],
     [{ recipeId: 'supervisor-clinico', speaker: 'Supervisión clínica' }, 'supervisor-clinico'],
