@@ -4,6 +4,7 @@
 @use 'base/focus';
 @use 'base/motion';
 @use 'base/utilities';
+@use 'base/overlays';
 
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7) y las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */

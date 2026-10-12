@@ -30,3 +30,6 @@ export { UiMenu } from './menu/ui-menu';
 export type { UiMenuItem } from './menu/ui-menu';
 export { UiTab, UiTabs } from './tabs/ui-tabs';
 export { describeHostWith } from './describe';
+export { UiConfirmDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
+export type { UiConfirmOptions, UiDialogOptions, UiDialogSize, UiSheetOptions } from './dialog/ui-dialog';
+export { UiToastHost } from './toast/ui-toast-host';

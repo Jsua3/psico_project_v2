@@ -118,4 +118,20 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('ui-tabs [role="tablist"][aria-label]')).not.toBeNull();
     }
   });
+
+  it('diálogos y avisos (F2-7): disparadores en cada piel y UN solo anfitrión de avisos con su propio servicio', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelectorAll('.ui-gallery__overlays button[ui-button]').length).toBeGreaterThanOrEqual(7);
+    }
+    expect(host.querySelectorAll('ui-toast-host').length).toBe(1);
+    const success = [...panels[0].querySelectorAll<HTMLButtonElement>('.ui-gallery__overlays button')]
+      .find(button => button.textContent?.includes('Aviso de éxito'))!;
+    success.click();
+    await new Promise(resolve => setTimeout(resolve));
+    TestBed.tick();
+    expect(host.querySelector('ui-toast-host .ui-toast--success')).not.toBeNull();
+  });
 });

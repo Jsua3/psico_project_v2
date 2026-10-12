@@ -1,9 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 
+import { NotificationService, NotificationType } from '../../core/notifications/notification.service';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton, UiButtonSize, UiButtonVariant } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiDialog, UiDialogActions, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog';
 import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiCard } from '../../shared/ui/card/ui-card';
@@ -18,7 +21,25 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
+import { UiToastHost } from '../../shared/ui/toast/ui-toast-host';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
+
+/** Diálogo de muestra de la galería: marco, un campo y acciones. */
+@Component({
+  selector: 'app-ui-gallery-dialog',
+  imports: [UiButton, UiControl, UiDialogActions, UiDialogFrame, UiField],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <ui-dialog-frame title="Editar grupo" description="Cambia el nombre que ven tus estudiantes.">
+      <ui-field label="Nombre del grupo" hint="Máximo 40 caracteres"><input uiControl value="Psicología 2026-1" /></ui-field>
+      <button ui-button uiDialogActions type="button" variant="secondary" (click)="ref.close()">Cancelar</button>
+      <button ui-button uiDialogActions type="button" (click)="ref.close(true)">Guardar</button>
+    </ui-dialog-frame>
+  `,
+})
+export class UiGalleryDialog {
+  protected readonly ref = inject(DialogRef);
+}
 
 /**
  * Galería de la biblioteca `shared/ui` (plan visual F0-4 y F2-9; VD-11): cada componente en todos sus estados y en
@@ -29,9 +50,11 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
 @Component({
   selector: 'app-ui-gallery',
   standalone: true,
+  // Servicio de avisos propio: el anfitrión heredado de la app no repite los avisos de la galería.
+  providers: [NotificationService],
   imports: [
     NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
-    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTabs, UiTooltip,
+    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTabs, UiToastHost, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -45,6 +68,7 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
         </section>
       }
     </main>
+    <ui-toast-host />
 
     <ng-template #matrix let-skin>
       <ui-section title="Botones" [level]="3">
@@ -181,6 +205,19 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
           <ng-template uiTab="intentos" label="Intentos"><p>Intentos del grupo.</p></ng-template>
         </ui-tabs>
       </ui-section>
+
+      <ui-section title="Diálogos y avisos" [level]="3">
+        <div class="ui-gallery__row ui-gallery__overlays">
+          <button ui-button type="button" variant="secondary" (click)="openDialog()">Abrir diálogo</button>
+          <button ui-button type="button" variant="secondary" (click)="confirm('default')">Confirmar</button>
+          <button ui-button type="button" variant="danger" (click)="confirm('danger')">Borrar grupo</button>
+          <button ui-button type="button" variant="secondary" (click)="sheet('bottom')">Hoja inferior</button>
+          <button ui-button type="button" variant="secondary" (click)="sheet('end')">Hoja lateral</button>
+          @for (toast of toasts; track toast.type) {
+            <button ui-button type="button" variant="ghost" (click)="notify(toast.type, toast.text)">{{ toast.label }}</button>
+          }
+        </div>
+      </ui-section>
     </ng-template>
   `,
   styles: [`
@@ -200,6 +237,14 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
   `],
 })
 export class UiGalleryComponent {
+  private readonly dialog = inject(UiDialog);
+  private readonly notifications = inject(NotificationService);
+  protected readonly toasts: readonly { type: NotificationType; label: string; text: string }[] = [
+    { type: 'success', label: 'Aviso de éxito', text: 'Guardado' },
+    { type: 'info', label: 'Aviso informativo', text: 'Hay una versión nueva del caso' },
+    { type: 'warning', label: 'Aviso de advertencia', text: 'Tu sesión vence en 5 minutos' },
+    { type: 'error', label: 'Aviso de error', text: 'No se pudo guardar. Revisa tu conexión.' },
+  ];
   protected readonly tab = signal<string | undefined>('resumen');
   protected readonly menuItems: readonly UiMenuItem[] = [
     { value: 'perfil', label: 'Mi perfil', icon: 'person' },
@@ -221,4 +266,23 @@ export class UiGalleryComponent {
     { id: 'md', label: 'Mediano' },
     { id: 'lg', label: 'Grande' },
   ];
+
+  protected openDialog(): void {
+    this.dialog.open(UiGalleryDialog);
+  }
+
+  protected async confirm(tone: 'default' | 'danger'): Promise<void> {
+    const accepted = tone === 'danger'
+      ? await this.dialog.confirm({ title: 'Borrar grupo', message: 'Se borran también sus códigos de acceso.', confirmLabel: 'Borrar', tone })
+      : await this.dialog.confirm({ title: 'Publicar caso', message: 'Lo verán tus estudiantes.', confirmLabel: 'Publicar' });
+    this.notifications.info(accepted ? 'Confirmado' : 'Cancelado');
+  }
+
+  protected sheet(side: 'bottom' | 'end'): void {
+    this.dialog.sheet(UiGalleryDialog, { side });
+  }
+
+  protected notify(type: NotificationType, text: string): void {
+    this.notifications.show(type, text);
+  }
 }
