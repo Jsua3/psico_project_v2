@@ -14,6 +14,7 @@ import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
+import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
@@ -56,7 +57,7 @@ export class UiGalleryDialog {
   providers: [NotificationService],
   imports: [
     NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
-    UiMenu, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTable, UiTableEmpty, UiTableError, UiTableRow,
+    UiMenu, UiPageHeader, UiProgress, UiScopeNotice, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTable, UiTableEmpty, UiTableError, UiTableRow,
     UiTableTable, UiTabs, UiToastHost, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -243,6 +244,13 @@ export class UiGalleryDialog {
         </ui-table>
       </ui-section>
 
+      <ui-section title="Alcance y consecuencia (borrador)" [level]="3">
+        <ui-scope-notice />
+        <div class="ui-gallery__row">
+          <button ui-button type="button" variant="secondary" (click)="consequence()">Iniciar un intento nuevo</button>
+        </div>
+      </ui-section>
+
       <ui-section title="Diálogos y avisos" [level]="3">
         <div class="ui-gallery__row ui-gallery__overlays">
           <button ui-button type="button" variant="secondary" (click)="openDialog()">Abrir diálogo</button>
@@ -336,6 +344,16 @@ export class UiGalleryComponent {
       ? await this.dialog.confirm({ title: 'Borrar grupo', message: 'Se borran también sus códigos de acceso.', confirmLabel: 'Borrar', tone })
       : await this.dialog.confirm({ title: 'Publicar caso', message: 'Lo verán tus estudiantes.', confirmLabel: 'Publicar' });
     this.notifications.info(accepted ? 'Confirmado' : 'Cancelado');
+  }
+
+  protected async consequence(): Promise<void> {
+    const answer = await this.dialog.consequence({
+      title: '¿Iniciar un intento nuevo?',
+      consequence: 'Se cerrará el intento que tienes abierto y perderás su avance.',
+      continueLabel: 'Continuar mi intento',
+      proceedLabel: 'Iniciar uno nuevo',
+    });
+    this.notifications.info(answer === 'continue' ? 'Sigues con tu intento' : 'Intento nuevo');
   }
 
   protected sheet(side: 'bottom' | 'end'): void {

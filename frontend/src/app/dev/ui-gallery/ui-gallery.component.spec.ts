@@ -166,4 +166,14 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelectorAll('.ui-gallery__table-states button').length).toBe(4);
     }
   });
+
+  it('alcance y consecuencia (F2-11): aviso de alcance en borrador y disparador de la confirmación', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelector('ui-scope-notice[data-draft="true"]')).not.toBeNull();
+      expect([...panel.querySelectorAll('button')].some(button => button.textContent?.includes('Iniciar un intento nuevo'))).toBe(true);
+    }
+  });
 });

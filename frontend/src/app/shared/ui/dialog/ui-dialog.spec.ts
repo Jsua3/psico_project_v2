@@ -139,3 +139,51 @@ describe('UiDialog', () => {
     }
   });
 });
+
+/**
+ * UiDialog.consequence() (plan visual F2-11; RN-07): la confirmación NOMBRA lo que se pierde y deja «Continuar» como
+ * acción por defecto (primaria, con el foco, y lo que devuelven Esc o el fondo). No es para la Salida segura
+ * (REGLA-004: salir nunca pide confirmación).
+ */
+// req: RN-07 (continuar el intento abierto es la opción por defecto)
+describe('UiDialog.consequence', () => {
+  const settle = async () => {
+    await new Promise(resolve => setTimeout(resolve));
+    TestBed.tick();
+  };
+  const options = {
+    title: '¿Iniciar un intento nuevo?',
+    consequence: 'Se cerrará el intento que tienes abierto y perderás su avance.',
+    continueLabel: 'Continuar mi intento',
+    proceedLabel: 'Iniciar uno nuevo',
+  };
+
+  beforeEach(() => TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] }));
+
+  it('alertdialog que describe la consecuencia; el foco empieza en «Continuar», primario', async () => {
+    const answer = TestBed.inject(UiDialog).consequence(options);
+    await settle();
+    const dialog = document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    expect(document.getElementById(dialog.getAttribute('aria-describedby')!)?.textContent?.trim()).toBe(options.consequence);
+    const keep = dialog.querySelector<HTMLButtonElement>('.ui-consequence__continue')!;
+    expect(keep.textContent?.trim()).toBe('Continuar mi intento');
+    expect(keep.classList).toContain('ui-button--primary');
+    expect(document.activeElement).toBe(keep);
+    keep.click();
+    expect(await answer).toBe('continue');
+  });
+
+  it('solo «proceder» devuelve proceed; Esc devuelve continue', async () => {
+    const dialog = TestBed.inject(UiDialog);
+    let answer = dialog.consequence(options);
+    await settle();
+    document.querySelector<HTMLButtonElement>('.ui-consequence__proceed')!.click();
+    expect(await answer).toBe('proceed');
+    await settle();
+
+    answer = dialog.consequence(options);
+    await settle();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    expect(await answer).toBe('continue');
+  });
+});

@@ -30,7 +30,10 @@ export { UiMenu } from './menu/ui-menu';
 export type { UiMenuItem } from './menu/ui-menu';
 export { UiTab, UiTabs } from './tabs/ui-tabs';
 export { describeHostWith } from './describe';
-export { UiConfirmDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
-export type { UiConfirmOptions, UiDialogOptions, UiDialogSize, UiSheetOptions } from './dialog/ui-dialog';
+export { UiConfirmDialog, UiConsequenceDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
+export type {
+  UiConfirmOptions, UiConsequenceAnswer, UiConsequenceOptions, UiDialogOptions, UiDialogSize, UiSheetOptions,
+} from './dialog/ui-dialog';
 export { UiToastHost } from './toast/ui-toast-host';
 export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './table/ui-table';
+export { SCOPE_NOTICE_DRAFT_TEXT, UiScopeNotice } from './scope-notice/ui-scope-notice';

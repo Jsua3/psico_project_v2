@@ -35,6 +35,18 @@ export interface UiSheetOptions<D = unknown> extends UiDialogOptions<D> {
   side: 'bottom' | 'end';
 }
 
+export interface UiConsequenceOptions {
+  title: string;
+  /** Qué se pierde si se sigue adelante, dicho sin rodeos. */
+  consequence: string;
+  /** La acción segura y por defecto («Continuar mi intento»). */
+  continueLabel: string;
+  /** La acción que asume la consecuencia («Iniciar uno nuevo»). */
+  proceedLabel: string;
+}
+
+export type UiConsequenceAnswer = 'continue' | 'proceed';
+
 export interface UiConfirmOptions {
   title: string;
   message: string;
@@ -127,10 +139,33 @@ export class UiConfirmDialog {
 }
 
 /**
+ * Confirmación que nombra la consecuencia (plan visual F2-11; RN-07): «Continuar» es primaria, tiene el foco y es
+ * lo que devuelven Esc y el fondo; la otra acción asume la pérdida que se describe. NO se usa para la Salida segura
+ * (REGLA-004: salir nunca pide confirmación).
+ */
+@Component({
+  selector: 'ui-consequence-dialog',
+  imports: [UiDialogFrame, UiDialogActions, UiButton],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <ui-dialog-frame [title]="data.title" [description]="data.consequence" [dismissible]="false">
+      <button ui-button uiDialogActions type="button" variant="secondary" class="ui-consequence__proceed"
+        (click)="ref.close('proceed')">{{ data.proceedLabel }}</button>
+      <button ui-button uiDialogActions type="button" class="ui-consequence__continue"
+        (click)="ref.close('continue')">{{ data.continueLabel }}</button>
+    </ui-dialog-frame>
+  `,
+})
+export class UiConsequenceDialog {
+  protected readonly ref = inject<DialogRef<UiConsequenceAnswer>>(DialogRef);
+  protected readonly data = inject<UiConsequenceOptions>(DIALOG_DATA);
+}
+
+/**
  * Diálogos del lenguaje visual (plan visual F2-7) sobre `@angular/cdk/dialog`: modales con trampa de foco, foco
  * inicial dentro, Esc y fondo cierran, el foco VUELVE al disparador, `aria-modal`, entrada y salida animadas
  * (interrumpibles; sin animación con movimiento reducido). `open` (diálogo centrado), `sheet` (hoja inferior o
- * lateral) y `confirm` (promesa de sí o no).
+ * lateral), `confirm` (promesa de sí o no) y `consequence` (continuar o asumir la pérdida, F2-11).
  */
 @Injectable({ providedIn: 'root' })
 export class UiDialog {
@@ -160,6 +195,15 @@ export class UiDialog {
       autoFocus: options.tone === 'danger' ? '.ui-confirm__cancel' : '.ui-confirm__confirm',
     });
     return firstValueFrom(ref.closed).then(result => result === true);
+  }
+
+  consequence(options: UiConsequenceOptions): Promise<UiConsequenceAnswer> {
+    const ref = this.launch<UiConsequenceAnswer, UiConsequenceOptions, UiConsequenceDialog>(UiConsequenceDialog, { data: options }, {
+      role: 'alertdialog',
+      panelClass: ['ui-dialog-pane', 'ui-dialog-pane--sm'],
+      autoFocus: '.ui-consequence__continue',
+    });
+    return firstValueFrom(ref.closed).then(result => (result === 'proceed' ? 'proceed' : 'continue'));
   }
 
   private launch<R, D, C>(component: ComponentType<C>, options: UiDialogOptions<D>, extra: Partial<DialogConfig<D, DialogRef<R, C>>>): DialogRef<R, C> {
