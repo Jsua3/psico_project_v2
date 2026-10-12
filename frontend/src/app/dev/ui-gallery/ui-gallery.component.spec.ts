@@ -93,4 +93,18 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('ui-progress.ui-progress--indeterminate')).not.toBeNull();
     }
   });
+
+  it('estados (F2-5): las tres clases de vacío y las cuatro de error, parcial y bloqueante', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      for (const kind of ['first-use', 'no-results', 'restricted']) {
+        expect(panel.querySelector(`ui-empty-state.ui-empty-state--${kind}`)).not.toBeNull();
+      }
+      expect(panel.querySelectorAll('ui-error-state').length).toBeGreaterThanOrEqual(4);
+      expect(panel.querySelector('ui-error-state[role="alert"]')).not.toBeNull();
+      expect(panel.querySelector('ui-error-state[role="status"] details')).not.toBeNull();
+    }
+  });
 });

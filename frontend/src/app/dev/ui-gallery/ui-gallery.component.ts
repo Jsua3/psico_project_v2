@@ -14,6 +14,8 @@ import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
 /**
  * Galería de la biblioteca `shared/ui` (plan visual F0-4 y F2-9; VD-11): cada componente en todos sus estados y en
@@ -25,8 +27,8 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
   selector: 'app-ui-gallery',
   standalone: true,
   imports: [
-    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiPageHeader, UiProgress,
-    UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch,
+    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
+    UiPageHeader, UiProgress, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -146,6 +148,21 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
           <ui-progress label="Cargando el caso" />
           <p class="ui-gallery__row"><ui-spinner label="Cargando casos" /> Indicador con nombre</p>
         </div>
+      </ui-section>
+
+      <ui-section title="Estados vacíos y de error" [level]="3">
+        <div class="ui-gallery__grid">
+          <ui-card><ui-empty-state kind="first-use" title="Aún no tienes grupos" actionLabel="Crear grupo" /></ui-card>
+          <ui-card><ui-empty-state kind="no-results" /></ui-card>
+          <ui-card><ui-empty-state kind="restricted" /></ui-card>
+        </div>
+        <div class="ui-gallery__grid">
+          <ui-error-state kind="network" [status]="0" detail="net::ERR_INTERNET_DISCONNECTED" />
+          <ui-error-state kind="server" [status]="503" detail="upstream timeout" />
+          <ui-error-state kind="forbidden" [status]="403" />
+          <ui-error-state kind="not-found" [status]="404" />
+        </div>
+        <ui-error-state kind="server" blocking message="No pudimos cargar el caso. Tu avance está guardado." />
       </ui-section>
     </ng-template>
   `,
