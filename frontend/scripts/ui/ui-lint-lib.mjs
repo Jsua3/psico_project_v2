@@ -12,6 +12,8 @@ export const METRICS = [
 
 /** Carpetas donde un color literal ES un token (las crea F1). */
 const TOKEN_DIRS = ['src/styles/tokens/', 'src/styles/skins/'];
+/** Biblioteca de mixins (F1-7): el único sitio autorizado para el vidrio y sus capas; el USO es cada @include. */
+const LIBRARY_DIRS = ['src/styles/mixins/'];
 
 const isExcluded = path => /\.spec\.ts$|\.testing\.ts$|\/testing\//.test(path);
 
@@ -374,6 +376,10 @@ export function countMetrics({ css, templates, scripts }) {
 
   const activeByScope = new Map();
   for (const { block, decls, rules } of parsed) {
+    if (LIBRARY_DIRS.some(dir => block.file.startsWith(dir))) continue;
+    for (const m of block.text.matchAll(/@include\s+(?:[\w-]+\.)?ds-glass\b/g)) {
+      add('backdropFilter', block.file, lineAt(block.text, m.index) + block.startLine - 1, m[0]);
+    }
     const inTokens = TOKEN_DIRS.some(dir => block.file.startsWith(dir));
     for (const d of decls) {
       const where = `${d.prop}: ${d.value}`;

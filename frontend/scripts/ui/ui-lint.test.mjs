@@ -122,3 +122,12 @@ test('scanSourceTree recorre un árbol real y omite specs', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('la biblioteca de mixins no cuenta como uso; cada @include de ds-glass cuenta como un vidrio', () => {
+  const library = [{ path: 'src/styles/mixins/_glass.scss', text: '@mixin ds-glass { &::before { z-index: -1; backdrop-filter: var(--ds-glass-blur); color: #fff; } }' }];
+  assert.equal(count('backdropFilter', library), 0);
+  assert.equal(count('zIndexLiteral', library), 0);
+  assert.equal(count('colorLiterals', library), 0);
+  const usage = [{ path: 'src/app/shared/ui/x/x.component.scss', text: "@use 'mixins' as m;\n.bar { @include m.ds-glass; }\n.menu { @include ds-glass; }" }];
+  assert.equal(count('backdropFilter', usage), 2);
+});

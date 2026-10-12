@@ -1,0 +1,28 @@
+// Vidrio de la receta de la barra de vidrio (plan visual §2.4): el material vive en ::before y nunca en el
+// elemento, así el contenido no se desenfoca y no hay vidrio sobre vidrio (invariante 4). Velo, canto y filo
+// salen de los tokens de la piel; con transparencia reducida los tokens dan fondo sólido y sin desenfoque, y
+// sin soporte de backdrop-filter se pinta la superficie.
+@mixin ds-glass {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--ds-veil);
+    border: 1px solid var(--ds-veil-edge);
+    box-shadow: var(--ds-shadow-e2);
+    -webkit-backdrop-filter: var(--ds-glass-blur);
+    backdrop-filter: var(--ds-glass-blur);
+    pointer-events: none;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    &::before {
+      background: var(--ds-surface-1);
+    }
+  }
+}
