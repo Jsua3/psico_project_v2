@@ -1,4 +1,4 @@
-import { DIALOG_DATA } from '@angular/cdk/dialog';
+import { DIALOG_DATA, Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, inject, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
@@ -185,5 +185,100 @@ describe('UiDialog.consequence', () => {
     await settle();
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
     expect(await answer).toBe('continue');
+  });
+});
+
+// Revisión de F2 (C1, I8): la ruta ANIMADA de la salida (jsdom no tiene matchMedia y siempre tomaba la reducida).
+@Component({
+  imports: [UiDialogFrame, UiDialogActions, UiButton],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <ui-dialog-frame title="Prioridad del foco">
+      <input class="primero" disabled />
+      <input class="segundo" />
+      <button ui-button uiDialogActions type="button" class="elegido" data-autofocus>Elegido</button>
+    </ui-dialog-frame>
+  `,
+})
+class AutofocusDialog {}
+
+@Component({
+  imports: [UiDialogFrame],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<ui-dialog-frame title="Sin marca"><input class="primero" disabled /><input class="segundo" /></ui-dialog-frame>`,
+})
+class FirstEnabledDialog {}
+
+describe('UiDialog con salida animada y opciones (revisión de F2)', () => {
+  const realMatchMedia = window.matchMedia;
+  const settle = async () => {
+    await new Promise(resolve => setTimeout(resolve));
+    TestBed.tick();
+  };
+  const escape = () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+
+  beforeEach(() => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) =>
+      ({ matches: false, media, addEventListener: () => undefined, removeEventListener: () => undefined });
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+  });
+
+  afterEach(() => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = realMatchMedia;
+  });
+
+  it('C1: si la navegación destruye la capa (Atrás), el diálogo se cierra sin error y la app deja de estar oculta', async () => {
+    const app = document.createElement('div');
+    document.body.appendChild(app);
+    const ref = TestBed.inject(UiDialog).open(EditGroupDialog, {});
+    await settle();
+    expect(app.getAttribute('aria-hidden')).toBe('true');
+    const closed = firstValueFrom(ref.closed);
+    ref.overlayRef.dispose();
+    expect(await closed).toBeUndefined();
+    expect(TestBed.inject(Dialog).openDialogs.length).toBe(0);
+    expect(app.hasAttribute('aria-hidden')).toBe(false);
+    app.remove();
+  });
+
+  it('I8: durante la salida el diálogo queda inerte (sin doble disparo) y se cierra al terminar', async () => {
+    const ref = TestBed.inject(UiDialog).open(EditGroupDialog, {});
+    await settle();
+    const closed = firstValueFrom(ref.closed);
+    ref.close('primero');
+    expect(ref.overlayRef.overlayElement.hasAttribute('inert')).toBe(true);
+    ref.close('segundo');
+    expect(await closed).toBe('primero');
+  });
+
+  it('I8: disableClose impide que Esc lo cierre', async () => {
+    const ref = TestBed.inject(UiDialog).open(EditGroupDialog, { disableClose: true });
+    await settle();
+    escape();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(TestBed.inject(Dialog).openDialogs.length).toBe(1);
+    const closed = firstValueFrom(ref.closed);
+    ref.close();
+    await closed;
+  });
+
+  it('I8: el foco inicial va a [data-autofocus] aunque haya controles antes, y salta los deshabilitados', async () => {
+    const dialog = TestBed.inject(UiDialog);
+    let ref = dialog.open(AutofocusDialog, {});
+    await settle();
+    await settle();
+    expect(document.activeElement?.classList).toContain('elegido');
+    let closed = firstValueFrom(ref.closed);
+    ref.close();
+    await closed;
+    await settle();
+
+    ref = dialog.open(FirstEnabledDialog, {});
+    await settle();
+    await settle();
+    expect(document.activeElement?.classList).toContain('segundo');
+    closed = firstValueFrom(ref.closed);
+    ref.close();
+    await closed;
   });
 });

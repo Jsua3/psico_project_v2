@@ -3,8 +3,8 @@ import { DIALOG_DATA, Dialog, DialogConfig, DialogRef } from '@angular/cdk/dialo
 import { createGlobalPositionStrategy } from '@angular/cdk/overlay';
 import { ComponentType } from '@angular/cdk/portal';
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, Directive, ElementRef, Injectable, Injector, booleanAttribute, effect,
-  inject, input,
+  ChangeDetectionStrategy, Component, DestroyRef, Directive, ElementRef, Injectable, Injector, afterNextRender,
+  booleanAttribute, effect, inject, input,
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
@@ -16,11 +16,30 @@ import { UiIconButton } from '../button/ui-icon-button';
 const UI_DIALOG_LEAVE_MS = 180;
 
 /**
- * Foco inicial por defecto: el primer control del cuerpo o, si no hay, el de las acciones; nunca el botón de cerrar
- * del encabezado. Sin coincidencias, el CDK enfoca el propio diálogo.
+ * Foco inicial por PRIORIDAD (no por orden del documento): primero `[data-autofocus]`, luego el primer control
+ * habilitado del cuerpo y luego el de las acciones; nunca el botón de cerrar del encabezado. Sin candidatos queda en
+ * el propio diálogo (el CDK lo enfoca antes).
  */
-const DEFAULT_AUTOFOCUS = '[data-autofocus], .ui-dialog-frame__body :is(input, select, textarea, button, a[href]), '
-  + '.ui-dialog-frame__actions button';
+const AUTOFOCUS_PRIORITY = [
+  '[data-autofocus]',
+  '.ui-dialog-frame__body :is(input, select, textarea, button, a[href], [tabindex]:not([tabindex="-1"]))',
+  '.ui-dialog-frame__actions :is(button, a[href])',
+];
+
+function focusByPriority(pane: HTMLElement | null): void {
+  const container = pane?.querySelector<HTMLElement>('.cdk-dialog-container');
+  if (!pane || !container) return;
+  // Si el contenido ya movió el foco por su cuenta, se respeta.
+  if (document.activeElement !== container && pane.contains(document.activeElement)) return;
+  for (const selector of AUTOFOCUS_PRIORITY) {
+    const target = [...pane.querySelectorAll<HTMLElement>(selector)]
+      .find(element => !element.matches(':disabled') && !element.closest('[inert], [aria-hidden="true"]'));
+    if (target) {
+      target.focus();
+      return;
+    }
+  }
+}
 
 export type UiDialogSize = 'sm' | 'md' | 'lg';
 
@@ -29,6 +48,12 @@ export interface UiDialogOptions<D = unknown> {
   /** Solo si el diálogo no usa `ui-dialog-frame` (que lo nombra con su título). */
   ariaLabel?: string;
   size?: UiDialogSize;
+  /** Impide cerrar con Esc o con el fondo (guardado en curso, formulario sin guardar). */
+  disableClose?: boolean;
+  /** Selector del elemento que recibe el foco inicial (por defecto: [data-autofocus] y luego el primer control habilitado). */
+  autoFocus?: string;
+  /** Devolver el foco al disparador al cerrar (por defecto, sí). */
+  restoreFocus?: boolean;
 }
 
 export interface UiSheetOptions<D = unknown> extends UiDialogOptions<D> {
@@ -210,19 +235,26 @@ export class UiDialog {
     const reduceMotion = typeof matchMedia !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches;
     let leaving = false;
     let mayClose = reduceMotion;
+    const priorityFocus = !options.autoFocus && !extra.autoFocus;
     const ref: DialogRef<R, C> = this.dialog.open<R, D, C>(component, {
       data: options.data,
       ariaLabel: options.ariaLabel ?? null,
       ariaModal: true,
-      autoFocus: DEFAULT_AUTOFOCUS,
-      restoreFocus: true,
+      autoFocus: options.autoFocus ?? 'dialog',
+      restoreFocus: options.restoreFocus ?? true,
+      disableClose: options.disableClose ?? false,
       backdropClass: 'ui-dialog-backdrop',
       // Salida animada: el primer intento de cierre arranca la animación y el cierre real llega al terminar.
       closePredicate: (result: unknown) => {
-        if (mayClose) return true;
+        const pane = ref.overlayRef.overlayElement;
+        // Sin capa (la navegación ya la destruyó, p. ej. Atrás): se cierra ya, o la promesa queda colgada y la app
+        // sigue con aria-hidden.
+        if (mayClose || !pane) return true;
         if (!leaving) {
           leaving = true;
-          ref.overlayRef.overlayElement.classList.add('ui-overlay--leaving');
+          // Inerte durante la salida: un doble clic no dispara dos veces.
+          pane.setAttribute('inert', '');
+          pane.classList.add('ui-overlay--leaving');
           ref.overlayRef.backdropElement?.classList.add('ui-overlay--leaving');
           setTimeout(() => {
             mayClose = true;
@@ -233,6 +265,8 @@ export class UiDialog {
       },
       ...extra,
     });
+    // Después del foco del CDK (que se registra al abrir): el foco por prioridad.
+    if (priorityFocus) afterNextRender(() => focusByPriority(ref.overlayRef.overlayElement), { injector: this.injector });
     return ref;
   }
 }
