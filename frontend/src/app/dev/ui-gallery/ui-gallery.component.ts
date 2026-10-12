@@ -9,7 +9,10 @@ import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 
 /**
@@ -22,8 +25,8 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
   selector: 'app-ui-gallery',
   standalone: true,
   imports: [
-    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiPageHeader, UiSection,
-    UiStat, UiSwitch,
+    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiIconButton, UiLink, UiPageHeader, UiProgress,
+    UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -124,6 +127,26 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
           <ui-badge tone="danger">Cerrado</ui-badge>
         </div>
       </ui-section>
+
+      <ui-section title="Carga" [level]="3">
+        <div class="ui-gallery__grid">
+          <ui-skeleton shape="card" />
+          <ui-skeleton shape="stat" />
+          <ui-skeleton shape="row" />
+          <ui-skeleton shape="text" [lines]="4" />
+          <ui-skeleton shape="chart" />
+          <div class="ui-gallery__row">
+            <ui-skeleton shape="avatar" />
+            <ui-skeleton shape="line" class="ui-gallery__grow" />
+          </div>
+        </div>
+        <div class="ui-gallery__grid">
+          <ui-progress label="Escenas completadas" [value]="3" [max]="5" />
+          <ui-progress label="Avance del grupo" [value]="40" />
+          <ui-progress label="Cargando el caso" />
+          <p class="ui-gallery__row"><ui-spinner label="Cargando casos" /> Indicador con nombre</p>
+        </div>
+      </ui-section>
     </ng-template>
   `,
   styles: [`
@@ -138,6 +161,7 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
       color: var(--ds-text-1);
     }
     .ui-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--ds-space-4); }
+    .ui-gallery__grow { flex: 1; }
     .ui-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); margin-block: var(--ds-space-3); }
   `],
 })

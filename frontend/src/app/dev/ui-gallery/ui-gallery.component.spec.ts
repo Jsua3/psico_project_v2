@@ -79,4 +79,18 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelectorAll('ui-section').length).toBeGreaterThanOrEqual(3);
     }
   });
+
+  it('carga (F2-4): las siete formas de esqueleto, indicador con nombre y progreso determinado e indeterminado', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      for (const shape of ['line', 'text', 'card', 'stat', 'row', 'chart', 'avatar']) {
+        expect(panel.querySelector(`ui-skeleton.ui-skeleton--${shape}`)).not.toBeNull();
+      }
+      expect(panel.querySelector('ui-spinner[role="status"][aria-label]')).not.toBeNull();
+      expect(panel.querySelector('ui-progress[aria-valuenow]')).not.toBeNull();
+      expect(panel.querySelector('ui-progress.ui-progress--indeterminate')).not.toBeNull();
+    }
+  });
 });
