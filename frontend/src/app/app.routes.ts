@@ -1,6 +1,19 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/auth/auth.guard';
 
+/**
+ * Rutas de solo desarrollo (plan visual F0-4): la condición va escrita aquí, envolviendo el `import()`,
+ * para que el build de producción (ngDevMode = false) la pliegue y no emita el chunk; `npm run build`
+ * lo comprueba con scripts/ui/check-dist-dev-only.mjs.
+ */
+const DEV_ONLY_ROUTES: Routes = (typeof ngDevMode === 'undefined' || ngDevMode)
+  ? [{
+      path: 'dev/ui',
+      title: 'Galería de componentes',
+      loadComponent: () => import('./dev/ui-gallery/ui-gallery.component').then(m => m.UiGalleryComponent),
+    }]
+  : [];
+
 export const routes: Routes = [
   {
     path: '',
@@ -99,5 +112,6 @@ export const routes: Routes = [
   { path: 'grupos', redirectTo: 'portal/grupos', pathMatch: 'full' },
   { path: 'reportes', redirectTo: 'portal/reportes', pathMatch: 'full' },
   { path: 'usuarios', redirectTo: 'portal/admin/usuarios', pathMatch: 'full' },
+  ...DEV_ONLY_ROUTES,
   { path: '**', redirectTo: 'dashboard' }
 ];

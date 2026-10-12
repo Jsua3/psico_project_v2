@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve --host 127.0.0.1 --port 4200 --proxy-config proxy.conf.json",
-    "build": "ng build",
+    "build": "ng build && node scripts/ui/check-dist-dev-only.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:watch": "ng test --watch",
