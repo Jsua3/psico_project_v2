@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { UiDataStateValue } from '../state/ui-data-state';
+import { UiErrorState } from '../state/ui-error-state';
 import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './ui-table';
 
 /**
@@ -76,6 +77,11 @@ describe('ui-table', () => {
     });
     expect(visible()).toEqual({ table: true, skeleton: false, empty: false, error: false });
 
+    host.state.set('pending');
+    await fixture.whenStable();
+    expect(visible()).toEqual({ table: true, skeleton: false, empty: false, error: false });
+    expect(region().getAttribute('aria-busy')).toBe('true');
+
     host.state.set('loading');
     await fixture.whenStable();
     expect(visible()).toEqual({ table: false, skeleton: true, empty: false, error: false });
@@ -110,5 +116,38 @@ describe('ui-table', () => {
     await fixture.whenStable();
     expect(root().classList).toContain('ui-table--overflow-start');
     expect(root().classList).not.toContain('ui-table--overflow-end');
+  });
+});
+
+// Revisión de F2 (I2): en la tabla el error no se desmonta (se oculta); tras un reintento fallido el foco va a su título.
+@Component({
+  imports: [UiTable, UiTableTable, UiTableError, UiErrorState],
+  template: `
+    <ui-table label="Intentos" [state]="state()">
+      <table ui-table><tbody><tr><td>Ana</td></tr></tbody></table>
+      <ui-error-state uiTableError kind="network" (retry)="state.set('loading')" />
+    </ui-table>
+  `,
+})
+class RetryHost {
+  state = signal<UiDataStateValue>('error');
+}
+
+describe('ui-table: foco tras un reintento fallido', () => {
+  it('vuelve al título del error cuando el reintento falla', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(RetryHost);
+    document.body.appendChild(fixture.nativeElement);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const retry = root.querySelector<HTMLButtonElement>('ui-error-state button')!;
+    retry.focus();
+    retry.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.state()).toBe('loading');
+    fixture.componentInstance.state.set('error');
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(root.querySelector('.ui-error-state__title'));
+    root.remove();
   });
 });

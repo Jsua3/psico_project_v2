@@ -1,10 +1,11 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, Directive, ElementRef, ViewEncapsulation, afterNextRender,
-  booleanAttribute, inject, input, signal, viewChild,
+  afterRenderEffect, booleanAttribute, contentChild, inject, input, signal, viewChild,
 } from '@angular/core';
 
 import { UiSkeleton } from '../skeleton/ui-skeleton';
 import { UiDataStateValue } from '../state/ui-data-state';
+import { UiErrorState } from '../state/ui-error-state';
 
 /** Marca la tabla nativa que va dentro de `ui-table`: `<table ui-table>`. */
 @Directive({ selector: 'table[ui-table]', host: { class: 'ui-table__table' } })
@@ -36,8 +37,9 @@ const SKELETON_ROWS = [0, 1, 2, 3, 4];
 /**
  * Marco de tabla (plan visual F2-8) para tablas NATIVAS: región con nombre que se desplaza en horizontal y en
  * vertical (cabecera pegajosa dentro de su alto máximo), densidad cómoda o compacta, y los estados de datos DENTRO
- * del marco y de a uno (`state`, de `uiDataState()`): esqueleto de filas mientras carga (con `aria-busy`), el vacío
- * o el error proyectados. Si la tabla desborda, sombras en los bordes indican hacia dónde hay más y la región entra
+ * del marco y de a uno (`state`, de `uiDataState()`): en `pending` se sigue viendo la tabla (sin parpadeo), en
+ * `loading` el esqueleto de filas (con `aria-busy`), y el vacío o el error proyectados; tras un reintento que vuelve a
+ * fallar, el foco va al título del error. Si la tabla desborda, sombras en los bordes indican hacia dónde hay más y la región entra
  * en el orden de tabulación para desplazarse con el teclado.
  */
 @Component({
@@ -54,9 +56,9 @@ const SKELETON_ROWS = [0, 1, 2, 3, 4];
   },
   template: `
     <div #scroller class="ui-table__scroll" role="region" [attr.aria-label]="label()"
-      [attr.aria-busy]="state() === 'loading' ? 'true' : null" [attr.tabindex]="overflowing() ? 0 : null"
+      [attr.aria-busy]="state() === 'loading' || state() === 'pending' ? 'true' : null" [attr.tabindex]="overflowing() ? 0 : null"
       (scroll)="measure()">
-      <div class="ui-table__content" [hidden]="state() !== 'ready'"><ng-content select="table" /></div>
+      <div class="ui-table__content" [hidden]="state() !== 'ready' && state() !== 'pending'"><ng-content select="table" /></div>
       @if (state() === 'loading') {
         <div class="ui-table__loading">
           @for (row of skeletonRows; track row) {
@@ -81,8 +83,16 @@ export class UiTable {
   protected readonly overflowStart = signal(false);
   protected readonly overflowEnd = signal(false);
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
+  private readonly errorState = contentChild(UiErrorState, { descendants: true });
 
   constructor() {
+    // El error proyectado no se desmonta (se oculta): la tabla le avisa cuando vuelve a verse tras un reintento.
+    afterRenderEffect(() => {
+      const state = this.state();
+      const error = this.errorState();
+      if (state === 'error') error?.focusAfterRetry();
+      else if (state === 'ready' || state === 'empty') error?.clearRetry();
+    });
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
       this.measure();

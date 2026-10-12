@@ -42,7 +42,7 @@ mixins de `src/styles/mixins` (`@use 'mixins' as m;`).
 | `UiSkeleton`, `loadingPhase` | `fase = loadingPhase(this.cargando)`; `@if (fase() === 'skeleton') { <ui-skeleton shape="card" /> }` | formas `line`, `text`, `card`, `stat`, `row`, `chart`, `avatar`; < 150 ms nada, visible ≥ 300 ms. |
 | `UiProgress` | `<ui-progress label="Escenas completadas" [value]="3" [max]="5" />` | sin `value` es indeterminada. |
 | `UiRouteProgress` | `<ui-route-progress />` bajo la barra (F3) | aparece si la navegación tarda más de 120 ms (`UI_ROUTE_PROGRESS_DELAY_MS`). |
-| `uiDataState`, `errorKindFromStatus` | `estado = uiDataState({ loading, error, isEmpty })` | `loading` → `error` → `empty` → `ready`. |
+| `uiDataState`, `errorKindFromStatus` | `estado = uiDataState({ loading, error, isEmpty })` (en un contexto de inyección) | `pending` (< 150 ms: se sigue viendo lo que había) → `loading` (esqueleto, ≥ 300 ms) → `error` → `empty` → `ready`; la regla de tiempos ya va dentro: no hace falta `loadingPhase` aparte. |
 | `UiEmptyState` | `<ui-empty-state kind="first-use" title="Aún no tienes grupos" actionLabel="Crear grupo" (action)="crear()" />` | clases `first-use`, `no-results`, `restricted`; pixel art del juego (VD-8). |
 | `UiErrorState`, `UiRetryTracker` | `<ui-error-state [kind]="errorKindFromStatus(err.status)" [status]="err.status" (retry)="cargar()" />` | `blocking` para errores de página; foco al título tras un reintento fallido. |
 | `UiTooltip`, `UiTooltipController`, `injectUiTooltip` | `<button ui-button uiTooltip="Descarga el reporte en PDF">Exportar</button>` | 400 ms con ratón, al instante con teclado, nunca con un toque; complementa, no nombra. |

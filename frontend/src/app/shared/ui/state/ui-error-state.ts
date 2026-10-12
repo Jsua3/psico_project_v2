@@ -9,27 +9,30 @@ import { ERROR_STATE_COPY, STATE_ACTION_COPY, UiErrorKind } from './state-copy';
 
 export type { UiErrorKind } from './state-copy';
 
-/** Ventana en la que un error recién pintado cuenta como «el reintento volvió a fallar». */
-const RETRY_FOCUS_WINDOW_MS = 10_000;
-
 /**
- * Recuerda que alguien pulsó «Reintentar». Lo normal es que el bloque pase a «cargando» (el estado de error se
- * desmonta, y con él el botón que tenía el foco) y, si falla otra vez, se monte un estado de error NUEVO: ese es
- * el que debe recibir el foco (WCAG 2.4.3), y solo ese.
+ * Recuerda EN QUÉ BLOQUE se pulsó «Reintentar» (el contenedor del estado de error). Lo normal es que el bloque pase a
+ * «cargando» (el estado de error se desmonta, y con él el botón que tenía el foco) y, si falla otra vez, se monte un
+ * estado de error NUEVO en ese mismo bloque: ese recibe el foco (WCAG 2.4.3), sin ventana de tiempo, y solo si el
+ * foco se perdió (si la persona ya está en otro control, no se le roba).
  */
 @Injectable({ providedIn: 'root' })
 export class UiRetryTracker {
-  private retriedAt = Number.NEGATIVE_INFINITY;
+  private block: Element | null = null;
 
-  markRetry(): void {
-    this.retriedAt = Date.now();
+  markRetry(block: Element | null): void {
+    this.block = block;
   }
 
-  consumeRecentRetry(): boolean {
-    const recent = Date.now() - this.retriedAt < RETRY_FOCUS_WINDOW_MS;
-    this.retriedAt = Number.NEGATIVE_INFINITY;
-    return recent;
+  consumeRetry(block: Element | null): boolean {
+    const matches = block !== null && block === this.block;
+    if (matches) this.block = null;
+    return matches;
   }
+}
+
+function focusWasLost(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected;
 }
 
 /**
@@ -79,16 +82,36 @@ export class UiErrorState {
   });
 
   private readonly tracker = inject(UiRetryTracker);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
+  private retryPending = false;
 
   constructor() {
     afterNextRender(() => {
-      if (this.tracker.consumeRecentRetry()) this.title().nativeElement.focus();
+      if (this.tracker.consumeRetry(this.host.parentElement) && focusWasLost()) this.title().nativeElement.focus();
     });
   }
 
+  /**
+   * Para contenedores que OCULTAN el error en vez de desmontarlo (ui-table): si esta instancia tenía un reintento
+   * pendiente, el foco va a su título.
+   */
+  focusAfterRetry(): void {
+    if (!this.retryPending) return;
+    this.retryPending = false;
+    this.tracker.consumeRetry(this.host.parentElement);
+    this.title().nativeElement.focus();
+  }
+
+  /** El bloque cargó bien: se olvida el reintento pendiente. */
+  clearRetry(): void {
+    this.retryPending = false;
+    this.tracker.consumeRetry(this.host.parentElement);
+  }
+
   protected onRetry(): void {
-    this.tracker.markRetry();
+    this.retryPending = true;
+    this.tracker.markRetry(this.host.parentElement);
     this.retry.emit();
   }
 }

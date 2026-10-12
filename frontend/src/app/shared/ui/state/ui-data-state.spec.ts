@@ -1,31 +1,80 @@
-import { signal } from '@angular/core';
+import { Signal, provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 
-import { errorKindFromStatus, uiDataState } from './ui-data-state';
+import { UiDataStateSource, UiDataStateValue, errorKindFromStatus, uiDataState } from './ui-data-state';
 
 /**
- * uiDataState() (plan visual §2.5, F2-5; Review Focus 4): UN solo estado por bloque de datos. El vacío y el error
- * no pueden coexistir (hoy usuarios, catálogo y reportes los muestran a la vez).
+ * uiDataState() (plan visual §2.5, F2-5; Review Focus 3 y 4): UN solo estado por bloque de datos, con la regla de
+ * tiempos del esqueleto INTEGRADA (revisión de F2, I3): mientras la respuesta pueda ser rápida (< 150 ms) el estado
+ * es «pending» (se sigue viendo lo que había, sin vacío ni esqueleto); pasado el umbral, «loading» al menos 300 ms.
+ * El vacío y el error nunca coexisten.
  */
 describe('uiDataState', () => {
-  it('nunca devuelve vacío y error a la vez: el error gana al vacío', () => {
-    const state = uiDataState({ loading: signal(false), error: signal(new Error('500')), isEmpty: signal(true) });
-    expect(state()).toBe('error');
+  const loading = signal(false);
+  const error = signal<unknown>(null);
+  const isEmpty = signal(true);
+  let state: Signal<UiDataStateValue>;
+
+  const create = (source: UiDataStateSource = { loading, error, isEmpty }) =>
+    TestBed.runInInjectionContext(() => uiDataState(source));
+  const set = (apply: () => void) => {
+    apply();
+    TestBed.tick();
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    loading.set(false);
+    error.set(null);
+    isEmpty.set(true);
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    state = create();
+    TestBed.tick();
   });
 
-  it('mientras carga (también al reintentar con el error anterior aún puesto) dice «loading»', () => {
-    const state = uiDataState({ loading: signal(true), error: signal('fallo previo'), isEmpty: signal(true) });
-    expect(state()).toBe('loading');
+  afterEach(() => vi.useRealTimers());
+
+  it('nunca devuelve vacío y error a la vez: el error gana al vacío', () => {
+    set(() => error.set(new Error('500')));
+    expect(state()).toBe('error');
   });
 
   it('sin error ni carga: vacío o listo según los datos, y sigue a las señales', () => {
-    const isEmpty = signal(true);
-    const error = signal<unknown>(null);
-    const state = uiDataState({ loading: signal(false), error, isEmpty });
     expect(state()).toBe('empty');
-    isEmpty.set(false);
+    set(() => isEmpty.set(false));
     expect(state()).toBe('ready');
-    error.set({ status: 0 });
+    set(() => error.set({ status: 0 }));
     expect(state()).toBe('error');
+  });
+
+  it('una carga que responde en menos de 150 ms pasa por «pending» y nunca por el vacío ni por el esqueleto', () => {
+    set(() => loading.set(true));
+    expect(state()).toBe('pending');
+    vi.advanceTimersByTime(149);
+    expect(state()).toBe('pending');
+    set(() => {
+      loading.set(false);
+      isEmpty.set(false);
+    });
+    expect(state()).toBe('ready');
+  });
+
+  it('pasados 150 ms es «loading» y se queda al menos 300 ms aunque los datos lleguen antes', () => {
+    set(() => loading.set(true));
+    vi.advanceTimersByTime(150);
+    expect(state()).toBe('loading');
+    set(() => loading.set(false));
+    expect(state()).toBe('loading');
+    vi.advanceTimersByTime(300);
+    expect(state()).toBe('empty');
+  });
+
+  it('al reintentar con el error anterior aún puesto se ve la carga, no el error', () => {
+    set(() => error.set('fallo previo'));
+    set(() => loading.set(true));
+    expect(state()).toBe('pending');
+    vi.advanceTimersByTime(150);
+    expect(state()).toBe('loading');
   });
 });
 

@@ -103,6 +103,33 @@ describe('ui-error-state', () => {
     expect(document.activeElement).toBe(title);
   });
 
+  it('si tras reintentar la persona ya está en otro control, el error nuevo no le roba el foco', async () => {
+    retry()!.click();
+    host.show.set(false);
+    await fixture.whenStable();
+    const other = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.other')!;
+    other.focus();
+    host.show.set(true);
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(other);
+  });
+
+  it('un reintento que tarda mucho (más de 10 s) y falla también devuelve el foco al título', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      retry()!.focus();
+      retry()!.click();
+      host.show.set(false);
+      await fixture.whenStable();
+      vi.setSystemTime(Date.now() + 60_000);
+      host.show.set(true);
+      await fixture.whenStable();
+      expect(document.activeElement).toBe(root().querySelector('.ui-error-state__title'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('un error que aparece sin reintento no roba el foco', async () => {
     const other = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.other')!;
     other.focus();
