@@ -23,6 +23,10 @@ $portal: (
   info: #0B5A8A,
   focus: #004876,
   focus-halo: #FFFFFF,
+  // Foco sobre las superficies oscuras del portal (cabecera y héroe de la portada, acceso, menú lateral):
+  // #C9B3FF ≥ 9:1 sobre #0c1222; halo casi negro.
+  focus-on-dark: #C9B3FF,
+  focus-on-dark-halo: #0E1322,
   veil: rgba(255, 255, 255, 0.72),
   veil-edge: rgba(255, 255, 255, 0.85),
 );

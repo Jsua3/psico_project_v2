@@ -18,7 +18,7 @@ test('ds-hover: el :hover solo existe con puntero fino (nunca en táctil)', () =
 test('ds-press: responde al presionar con scale .97 en 100 ms ease-out, sin reglas propias de movimiento reducido', () => {
   const { decls, css } = use('.x { @include m.ds-press; }');
   assert.equal(propsFor(decls, '.x').get('transition'), 'scale var(--ds-dur-press) var(--ds-ease-out)');
-  assert.equal(propsFor(decls, '.x:active').get('scale'), '0.97');
+  assert.equal(propsFor(decls, ".x:active:not([aria-disabled='true'], :disabled)").get('scale'), '0.97');
   assert.doesNotMatch(css, /prefers-reduced-motion/, 'lo resuelven los tokens: --ds-dur-press vale 0,01 ms');
 });
 
@@ -49,4 +49,17 @@ test('ds-disabled: aria-disabled o :disabled, cursor not-allowed y sin pointer-e
   assert.equal(disabled.get('color'), 'var(--ds-text-3)');
   assert.equal(propsFor(decls, '.btn:disabled').get('cursor'), 'not-allowed');
   assert.ok(!decls.some(d => d.prop === 'pointer-events'), 'sin pointer-events: none');
+});
+
+// ── Revisión de F1 (menores reclasificados por su efecto inmediato en F2 y F3) ───────────────────────────────
+test('ds-glass no pisa la posición que declara el componente (la barra fija de F3)', () => {
+  const { decls } = use('.bar { position: fixed; @include m.ds-glass; }');
+  assert.equal(propsFor(decls, '.bar').get('position'), 'fixed');
+  assert.equal(propsFor(decls, ':where(.bar)').get('position'), 'relative', 'por defecto relativo, con especificidad 0');
+});
+
+test('ds-press no encoge un control deshabilitado (sigue siendo enfocable por diseño)', () => {
+  const { decls } = use('.x { @include m.ds-press; }');
+  assert.equal(propsFor(decls, ".x:active:not([aria-disabled='true'], :disabled)").get('scale'), '0.97');
+  assert.equal(propsFor(decls, '.x:active').has('scale'), false);
 });

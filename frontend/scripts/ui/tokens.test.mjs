@@ -149,3 +149,8 @@ test('escala tipográfica de §2.3 en rem, con interlineado, tracking y peso por
   assert.match(t.get('--ds-font-sans'), /^'Poppins'/);
   assert.match(t.get('--ds-font-mono'), /^'JetBrains Mono'/);
 });
+
+test('los alias heredados también se declaran en cada piel: dentro del juego resuelven con sus valores', () => {
+  const { decls } = compileScss("@use 'skins'; @use 'aliases';");
+  assert.equal(propsFor(decls, '[data-skin]').get('--psy-ink'), 'var(--ds-text-1)');
+});

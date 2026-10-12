@@ -1,6 +1,7 @@
 // Alias de los espacios de nombres heredados (plan visual §3.2 «alias, no renombrado»): las clases y estilos
 // viejos siguen funcionando y ya pintan con los tokens nuevos. Se retiran en F9-4, cuando ui:lint marque 0 usos.
-:root {
+:root,
+[data-skin] {
   --siep-blue: var(--ds-primary);
   --siep-blue-dark: var(--ds-primary-hover);
   --siep-blue-soft: var(--ds-info);

@@ -19,8 +19,8 @@
 .landing-nav,
 .landing-hero,
 .landing-cta__inner {
-  --ds-focus: #C9B3FF;
-  --ds-focus-halo: #0c1222;
+  --ds-focus: var(--ds-focus-on-dark);
+  --ds-focus-halo: var(--ds-focus-on-dark-halo);
 }
 
 .landing {

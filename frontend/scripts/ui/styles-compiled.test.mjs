@@ -65,7 +65,8 @@ test('objetivos táctiles: 44 px y mínimo estricto de 24 px (WCAG 2.5.8) como t
 
 // ── F1-6: tokens de movimiento y «movimiento reducido» ─────────────────────────────────────────────────────────
 const rootProps = (media = null) => new Map(parsed.decls
-  .filter(d => d.selector.trim() === ':root' && (media === null ? d.ats.length === 0 : d.ats.some(at => at.includes(media))))
+  .filter(d => d.selector.split(',').map(part => part.trim()).includes(':root')
+    && (media === null ? d.ats.length === 0 : d.ats.some(at => at.includes(media))))
   .map(d => [d.prop, d.value]));
 
 test('movimiento: duraciones y curvas separadas con los valores de §2.3', () => {
@@ -114,4 +115,18 @@ test('los alias de movimiento heredados apuntan a los tokens', () => {
   assert.equal(t.get('--psy-ease-out'), 'var(--ds-ease-out)');
   assert.equal(t.get('--psy-motion-fast'), 'var(--ds-dur-fast) var(--ds-ease-out)');
   assert.equal(t.get('--psy-motion-ui'), 'var(--ds-dur-slow) var(--ds-ease-out)');
+});
+
+test('el foco programático de main no deja halo (revisión de F1)', () => {
+  const props = new Map(parsed.decls.filter(d => d.selector.includes('#main-content:focus')).map(d => [d.prop, d.value]));
+  assert.equal(props.get('outline'), 'none');
+  assert.equal(props.get('box-shadow'), 'none');
+});
+
+test('la fila de la tabla de intentos del dashboard conserva su hover (revisión de F1: sin el !important global)', () => {
+  const dashboard = parseCss({ text: compileStylesFile('../app/features/dashboard/dashboard.component.scss').css, startLine: 1 });
+  const hover = dashboard.decls.find(d => d.selector.trim() === '.attempts-table .mat-mdc-row:hover');
+  assert.ok(hover, 'regla de hover de la fila');
+  assert.ok(hover.ats.some(at => at.includes('(hover: hover) and (pointer: fine)')), 'solo con puntero fino');
+  assert.equal(hover.value, 'var(--ds-primary-subtle)');
 });

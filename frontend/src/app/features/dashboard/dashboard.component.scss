@@ -596,6 +596,13 @@
   box-shadow: 0 0 0 1px rgba(0, 82, 130, 0.08);
 }
 
+/* El hover global de fila (_material.scss) no alcanza: esta regla tiene más especificidad. Solo con puntero fino. */
+@media (hover: hover) and (pointer: fine) {
+  .attempts-table .mat-mdc-row:hover {
+    background: var(--ds-primary-subtle);
+  }
+}
+
 .attempts-table .mat-mdc-cell {
   border: none;
   padding-top: 12px;

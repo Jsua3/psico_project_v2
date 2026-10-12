@@ -38,10 +38,25 @@ export function compileStylesFile(relativePath) {
 const norm = text => text.replace(/\s+/g, ' ').replace(/(\[[\w-]+=)(['"])([^'"\]]*)\2\]/g, '$1$3]').trim();
 
 /** Valores declarados bajo un selector (uno de los de su lista) y, si se pide, dentro de un @media que contenga `media`. */
+/** Parte una lista de selectores por sus comas de primer nivel (no las de `:not(a, b)` ni `:where(…)`). */
+function splitSelectors(list) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const char of list) {
+    if (char === '(' || char === '[') depth++;
+    if (char === ')' || char === ']') depth--;
+    if (char === ',' && depth === 0) { parts.push(current); current = ''; continue; }
+    current += char;
+  }
+  parts.push(current);
+  return parts;
+}
+
 export function propsFor(decls, selector, media = null) {
   const out = new Map();
   for (const d of decls) {
-    const selectors = d.selector.split(',').map(norm);
+    const selectors = splitSelectors(d.selector).map(norm);
     if (!selectors.includes(norm(selector))) continue;
     const inMedia = media === null ? d.ats.length === 0 : d.ats.some(at => norm(at).includes(norm(media)));
     if (!inMedia) continue;

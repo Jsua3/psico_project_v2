@@ -632,6 +632,7 @@ body.siep-scroll-locked {
 main[tabindex="-1"]:focus,
 #main-content:focus {
   outline: none;
+  box-shadow: none;
 }
 
 /**

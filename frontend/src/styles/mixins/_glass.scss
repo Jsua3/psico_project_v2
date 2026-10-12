@@ -3,8 +3,11 @@
 // salen de los tokens de la piel; con transparencia reducida los tokens dan fondo sólido y sin desenfoque, y
 // sin soporte de backdrop-filter se pinta la superficie.
 @mixin ds-glass {
-  position: relative;
-  isolation: isolate;
+  // Posición por defecto con especificidad 0: no pisa un `position: fixed` o `sticky` del componente.
+  @at-root :where(#{&}) {
+    position: relative;
+    isolation: isolate;
+  }
 
   &::before {
     content: '';
