@@ -44,6 +44,12 @@
   }
 }
 
+// La lista se desplaza en horizontal y recortaría un anillo hacia fuera: en las pestañas va hacia dentro.
+.ui-tabs__tab:focus-visible {
+  outline-offset: -3px;
+  box-shadow: none;
+}
+
 // Regla plana (no anidada) para que el trinquete ui-lint la asocie a la pestaña.
 .ui-tabs__tab:active {
   background: var(--ds-surface-2);

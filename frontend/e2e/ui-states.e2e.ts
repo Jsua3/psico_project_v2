@@ -95,6 +95,56 @@ test.describe('@ui-states galería en las dos pieles', () => {
   });
 });
 
+/** El anillo de foco (3 px + 2 px de separación) cabe entero dentro del contenedor que recorta (overflow). */
+async function ringFitsIn(page: Page, clipSelector: string): Promise<boolean> {
+  return page.evaluate(selector => {
+    const focused = document.activeElement as HTMLElement | null;
+    const clip = focused?.closest<HTMLElement>(selector);
+    if (!focused || !clip) return false;
+    const ring = focused.getBoundingClientRect();
+    const box = clip.getBoundingClientRect();
+    const style = getComputedStyle(focused);
+    const outline = style.outlineStyle === 'none' ? 0 : parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+    const shadow = style.boxShadow === 'none' || style.boxShadow.includes('inset')
+      ? 0 : parseFloat(style.boxShadow.match(/-?[\d.]+px/g)?.[3] ?? '0');
+    const reach = Math.max(0, outline, shadow);
+    return ring.left - reach >= box.left - 0.5 && ring.right + reach <= box.right + 0.5
+      && ring.top - reach >= box.top - 0.5 && ring.bottom + reach <= box.bottom + 0.5;
+  }, clipSelector);
+}
+
+test.describe('@ui-states revisión de F2', () => {
+  test('I5: el anillo de foco no se recorta en el cuerpo del diálogo ni en la lista de pestañas', async ({ page }) => {
+    await openGallery(page);
+    await panel(page, 'portal').getByRole('button', { name: 'Abrir diálogo' }).click();
+    await expect(page.getByRole('textbox', { name: 'Nombre del grupo' })).toBeFocused();
+    expect(await ringFitsIn(page, '.ui-dialog-frame__body')).toBe(true);
+    await page.keyboard.press('Escape');
+
+    const firstTab = panel(page, 'portal').getByRole('tab', { name: 'Resumen' });
+    await firstTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(panel(page, 'portal').getByRole('tab', { name: 'Escenas' })).toBeFocused();
+    expect(await ringFitsIn(page, '.ui-tabs__list')).toBe(true);
+  });
+
+  test('I6: el menú de la última fila de una tabla no queda cortado por el marco', async ({ page }) => {
+    await openGallery(page);
+    const trigger = panel(page, 'portal').getByRole('button', { name: 'Más acciones para Sara Ruiz' });
+    await trigger.click();
+    const last = panel(page, 'portal').getByRole('menuitem', { name: 'Borrar' });
+    await expect(last).toBeVisible();
+    const hit = await last.evaluate(item => {
+      const box = item.getBoundingClientRect();
+      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return !!top && item.contains(top);
+    });
+    expect(hit).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+  });
+});
+
 test.describe('@ui-states contraste forzado', () => {
   test.use({ forcedColors: 'active' });
 

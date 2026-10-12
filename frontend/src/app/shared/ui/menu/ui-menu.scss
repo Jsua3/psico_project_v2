@@ -7,22 +7,30 @@
   display: inline-block;
 }
 
+// El panel es un popover (capa superior) anclado al botón: debajo y alineado a su borde final, o volteado hacia
+// arriba si no cabe. Se le quitan los estilos por defecto del navegador para popovers (centrado, borde, fondo).
 .ui-menu__panel {
-  position: absolute;
-  inset-block-start: calc(100% + var(--ds-space-1));
-  inset-inline-end: 0;
+  position: fixed;
+  inset: auto;
   z-index: var(--ds-z-desplegable);
   min-inline-size: 13rem;
+  margin: 0;
+  margin-block: var(--ds-space-1);
   padding: var(--ds-space-1);
+  overflow: visible;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
   background: var(--ds-surface-1);
   box-shadow: var(--ds-shadow-e2);
+  color: var(--ds-text-1);
+  position-area: block-end span-inline-start;
+  position-try-fallbacks: flip-block;
   transform-origin: top right;
   transition:
     opacity var(--ds-dur-fast) var(--ds-ease-out),
     scale var(--ds-dur-fast) var(--ds-ease-out),
-    display var(--ds-dur-press) allow-discrete;
+    display var(--ds-dur-press) allow-discrete,
+    overlay var(--ds-dur-press) allow-discrete;
 
   @starting-style {
     opacity: 0;
@@ -38,7 +46,7 @@
 }
 
 :host(.ui-menu--start) .ui-menu__panel {
-  inset-inline: 0 auto;
+  position-area: block-end span-inline-end;
   transform-origin: top left;
 }
 

@@ -37,8 +37,11 @@
   line-height: var(--ds-type-body-line);
 }
 
+// Desplazable: el relleno compensado deja sitio al anillo de foco (3 px + 2 px) de los campos a todo lo ancho.
 .ui-dialog-frame__body {
   min-block-size: 0;
+  margin: calc(-1 * var(--ds-space-2));
+  padding: var(--ds-space-2);
   overflow: auto;
 }
 

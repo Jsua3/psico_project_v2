@@ -220,11 +220,12 @@ export class UiGalleryDialog {
         </div>
         <ui-table label="Intentos del grupo" [state]="tableState()">
           <table ui-table>
-            <thead><tr><th scope="col">Estudiante</th><th scope="col">Caso</th><th scope="col">Estado</th><th scope="col">Puntaje</th></tr></thead>
+            <thead><tr><th scope="col">Estudiante</th><th scope="col">Caso</th><th scope="col">Estado</th><th scope="col">Puntaje</th><th scope="col"><span class="ds-sr-only">Acciones</span></th></tr></thead>
             <tbody>
               @for (row of tableRows; track row.name) {
                 <tr uiRow [selected]="row.name === 'Luis Pérez'">
                   <td>{{ row.name }}</td><td>{{ row.caseName }}</td><td><ui-badge [tone]="row.tone">{{ row.state }}</ui-badge></td><td>{{ row.score }}</td>
+                  <td><ui-menu [label]="'Más acciones para ' + row.name" iconOnly [items]="rowActions" /></td>
                 </tr>
               }
             </tbody>
@@ -297,6 +298,11 @@ export class UiGalleryComponent {
     { name: 'Ana Gómez', caseName: 'Crisis en urgencias', state: 'Completado', tone: 'success' as const, score: '9,2' },
     { name: 'Luis Pérez', caseName: 'Crisis en urgencias', state: 'En curso', tone: 'info' as const, score: '—' },
     { name: 'Sara Ruiz', caseName: 'Acompañamiento familiar', state: 'Salida segura', tone: 'warning' as const, score: '—' },
+  ];
+  protected readonly rowActions: readonly UiMenuItem[] = [
+    { value: 'ver', label: 'Ver intento', icon: 'visibility' },
+    { value: 'reabrir', label: 'Reabrir', icon: 'undo' },
+    { value: 'borrar', label: 'Borrar', icon: 'delete', tone: 'danger' },
   ];
   protected readonly wideColumns = ['Escena 1', 'Escena 2', 'Escena 3', 'Escena 4', 'Escena 5', 'Escena 6', 'Escena 7', 'Escena 8'];
   private readonly dialog = inject(UiDialog);
