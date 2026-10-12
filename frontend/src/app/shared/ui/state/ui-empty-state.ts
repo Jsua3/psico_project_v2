@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, booleanAttribute, computed, input, output } from '@angular/core';
 
 import { UiButton } from '../button/ui-button';
 import { EMPTY_STATE_COPY, UiEmptyKind } from './state-copy';
@@ -7,7 +7,8 @@ export type { UiEmptyKind } from './state-copy';
 
 /**
  * Estado vacío (plan visual §2.5, F2-5; VD-8): título = qué falta; descripción = por qué o qué hacer; acción si es
- * accionable. Tres clases con textos de reserva distintos (`state-copy.ts`). La ilustración es pixel art del juego
+ * accionable: la acción aparece SOLO si se pide (`actionLabel`, o `withAction` para el texto del catálogo, p. ej.
+ * «Limpiar filtros»), nunca un botón que no hace nada. Tres clases con textos de reserva distintos (`state-copy.ts`). La ilustración es pixel art del juego
  * a escala entera y decorativa. «Sin resultados» se anuncia (role="status"): es la respuesta a una búsqueda.
  * El título es un párrafo destacado, no un encabezado: no rompe la jerarquía de la pantalla que lo contiene.
  */
@@ -26,7 +27,7 @@ export type { UiEmptyKind } from './state-copy';
       [width]="copy().art.width * copy().art.scale" [height]="copy().art.height * copy().art.scale" />
     <p class="ui-empty-state__title">{{ title() || copy().title }}</p>
     <p class="ui-empty-state__description">{{ description() || copy().description }}</p>
-    @if (actionLabel() || copy().actionLabel; as label) {
+    @if (actionText(); as label) {
       <button ui-button type="button" [variant]="kind() === 'first-use' ? 'primary' : 'secondary'" (click)="action.emit()">{{ label }}</button>
     }
   `,
@@ -37,7 +38,11 @@ export class UiEmptyState {
   readonly title = input<string | null | undefined>(null);
   readonly description = input<string | null | undefined>(null);
   readonly actionLabel = input<string | null | undefined>(null);
+  /** Mostrar la acción con el texto del catálogo (si la clase lo tiene). */
+  readonly withAction = input(false, { transform: booleanAttribute });
   readonly action = output<void>();
 
   protected readonly copy = computed(() => EMPTY_STATE_COPY[this.kind()]);
+  protected readonly actionText = computed(() =>
+    this.actionLabel() || (this.withAction() ? this.copy().actionLabel ?? null : null));
 }

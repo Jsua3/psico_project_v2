@@ -185,7 +185,7 @@ export class UiGalleryDialog {
       <ui-section title="Estados vacíos y de error" [level]="3">
         <div class="ui-gallery__grid">
           <ui-card><ui-empty-state kind="first-use" title="Aún no tienes grupos" actionLabel="Crear grupo" /></ui-card>
-          <ui-card><ui-empty-state kind="no-results" /></ui-card>
+          <ui-card><ui-empty-state kind="no-results" withAction (action)="notify('info', 'Filtros limpios')" /></ui-card>
           <ui-card><ui-empty-state kind="restricted" /></ui-card>
         </div>
         <div class="ui-gallery__grid">

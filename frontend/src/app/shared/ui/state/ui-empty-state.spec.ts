@@ -13,13 +13,14 @@ import { UiEmptyKind, UiEmptyState } from './ui-empty-state';
 @Component({
   imports: [UiEmptyState],
   template: `<ui-empty-state [kind]="kind()" [title]="title()" [description]="description()" [actionLabel]="actionLabel()"
-    (action)="actions = actions + 1" />`,
+    [withAction]="withAction()" (action)="actions = actions + 1" />`,
 })
 class Host {
   kind = signal<UiEmptyKind>('first-use');
   title = signal<string | undefined>(undefined);
   description = signal<string | undefined>(undefined);
   actionLabel = signal<string | undefined>(undefined);
+  withAction = signal(false);
   actions = 0;
 }
 
@@ -49,8 +50,9 @@ describe('ui-empty-state', () => {
     expect(seen.size).toBe(3);
   });
 
-  it('sin resultados ofrece «Limpiar filtros» y la acción llega al consumidor', async () => {
+  it('sin resultados y con withAction ofrece «Limpiar filtros» y la acción llega al consumidor', async () => {
     host.kind.set('no-results');
+    host.withAction.set(true);
     await fixture.whenStable();
     // Es el resultado de una búsqueda del usuario: se anuncia sin mover el foco.
     expect(root().getAttribute('role')).toBe('status');
@@ -58,6 +60,14 @@ describe('ui-empty-state', () => {
     expect(action.textContent?.trim()).toBe('Limpiar filtros');
     action.click();
     expect(host.actions).toBe(1);
+  });
+
+  it('sin actionLabel ni withAction no hay botón: nunca un «Limpiar filtros» que no hace nada (revisión de F2, I4)', async () => {
+    for (const kind of ['first-use', 'no-results', 'restricted'] as const) {
+      host.kind.set(kind);
+      await fixture.whenStable();
+      expect(root().querySelector('button[ui-button]')).toBeNull();
+    }
   });
 
   it('el texto propio reemplaza al del catálogo; sin acción no hay botón', async () => {
