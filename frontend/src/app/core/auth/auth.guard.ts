@@ -1,45 +1,35 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { AuthService } from './auth.service';
 import { NotificationService } from '../notifications/notification.service';
 
-export const authGuard: CanActivateFn = () => {
+/** Motivo que el acceso explica en pantalla (plan visual F3-6, H-34). */
+export const EXPIRED_SESSION_REASON = 'sesion-expirada';
+
+/**
+ * Sin sesión válida: la limpia y manda al acceso con la ruta pedida (`returnUrl`, que el acceso valida) y, si la
+ * sesión existía pero venció o está rota, con `motivo=sesion-expirada`. El aviso lo da el acceso en la pantalla (no
+ * un aviso flotante que se va solo); null si la sesión es válida.
+ */
+function loginRedirect(auth: AuthService, router: Router, url: string): UrlTree | null {
+  const token = auth.getToken();
+  if (token && !auth.isTokenMalformed(token) && !auth.isTokenExpired(token)) return null;
+  auth.clearSession();
+  const queryParams = token ? { returnUrl: url, motivo: EXPIRED_SESSION_REASON } : { returnUrl: url };
+  return router.createUrlTree(['/login'], { queryParams });
+}
+
+export const authGuard: CanActivateFn = (_route, state) =>
+  loginRedirect(inject(AuthService), inject(Router), state.url) ?? true;
+
+export const roleGuard = (...roles: string[]): CanActivateFn => (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  const notifications = inject(NotificationService);
 
-  const token = auth.getToken();
-  if (!token) {
-    auth.clearSession();
-    return router.createUrlTree(['/login']);
-  }
-  if (auth.isTokenMalformed(token)) {
-    auth.clearSession();
-    notifications.error('Tu sesión expiró. Inicia sesión nuevamente.');
-    return router.createUrlTree(['/login']);
-  }
-  if (auth.isTokenExpired(token)) {
-    auth.clearSession();
-    notifications.warning('Tu sesión expiró. Inicia sesión nuevamente.');
-    return router.createUrlTree(['/login']);
-  }
-
-  return true;
-};
-
-export const roleGuard = (...roles: string[]): CanActivateFn => () => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
-  const notifications = inject(NotificationService);
-
-  const token = auth.getToken();
-  if (!token || auth.isTokenMalformed(token) || auth.isTokenExpired(token)) {
-    auth.clearSession();
-    notifications.warning('Tu sesión expiró. Inicia sesión nuevamente.');
-    return router.createUrlTree(['/login']);
-  }
+  const redirect = loginRedirect(auth, router, state.url);
+  if (redirect) return redirect;
 
   if (auth.hasRole(...roles)) return true;
-  notifications.warning('No tienes permisos para acceder a esta sección.');
+  inject(NotificationService).warning('No tienes permisos para acceder a esta sección.');
   return router.createUrlTree(['/portal/dashboard']);
 };

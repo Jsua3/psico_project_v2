@@ -109,7 +109,7 @@ interface EphemeralScore {
 
       @if (worldState(); as currentWorld) {
         <div class="preview-board">
-          <main class="preview-main">
+          <div class="preview-main">
             <div class="preview-stage">
               <!-- Phaser canvas -->
               <app-game-world
@@ -146,7 +146,7 @@ interface EphemeralScore {
                 </span>
               }
             </div>
-          </main>
+          </div>
 
           <aside class="preview-sidebar">
             <!-- Tools -->

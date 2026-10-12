@@ -30,7 +30,7 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!inGame()) {
-      <header ui-glass-bar label="Navegación principal">
+      <header ui-glass-bar label="Navegación principal" navSkip>
         <a class="modulo modulo-logo pulsable ds-motion" routerLink="/portal/dashboard" aria-label="SIEP: ir al panel">
           <span class="logo-doble ds-motion">
             <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca" aria-hidden="true"></span><span class="logo-doble__nombre">SIEP</span></span>
@@ -56,7 +56,9 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
       </header>
     }
 
-    <main class="portal-main" [class.portal-main--juego]="inGame()">
+    <!-- Destino de «Saltar al contenido principal». En el juego lo es su contenedor (simulation-play): un solo id. -->
+    <main class="portal-main" [class.portal-main--juego]="inGame()"
+      [attr.id]="inGame() ? null : 'main-content'" [attr.tabindex]="inGame() ? null : -1">
       <router-outlet />
     </main>
   `,

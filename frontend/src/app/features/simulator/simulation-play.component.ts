@@ -121,6 +121,8 @@ const CASE_INTRO_PARAGRAPHS = [
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
       [class.game-container--reduce-motion]="reduceMotion()">
       <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
+      <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
+      <h1 class="sr-only">{{ attempt()?.caseTitle || 'Simulación' }}</h1>
 
       @if (loading()) {
         <div class="loading-overlay"><mat-progress-bar mode="indeterminate" aria-label="Cargando simulación" /></div>
@@ -309,7 +311,7 @@ const CASE_INTRO_PARAGRAPHS = [
           }
         </header>
 
-        <main class="main-zone">
+        <div class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación"
             [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
             @if (sceneLog(); as log) {
@@ -373,7 +375,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 (frontendChoice)="handleFrontendChoice($event)" />
             </aside>
           }
-        </main>
+        </div>
 
         <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"

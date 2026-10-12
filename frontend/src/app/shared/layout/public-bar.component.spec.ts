@@ -41,6 +41,7 @@ describe('app-public-bar', () => {
     const login = header.querySelector<HTMLAnchorElement>('.modulo-cuenta a')!;
     expect(login.textContent!.trim()).toBe('Ingresar');
     expect(login.getAttribute('href')).toBe('/login');
+    expect(header.firstElementChild!.textContent!.trim()).toBe('Saltar a la navegación');
   });
 
   it('en móvil, las mismas anclas son las pestañas inferiores (hija directa del header), con icono y sin «Más»', async () => {
@@ -61,6 +62,7 @@ describe('app-public-bar', () => {
     const header = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
     expect(header.querySelectorAll('.modulo-principal a.nav-enlace')).toHaveLength(0);
     expect(header.querySelector('nav.modulo-inferior')).toBeNull();
+    expect(header.querySelector('a.psy-skip-link')).toBeNull(); // sin navegación no hay salto a ella
     const back = header.querySelector<HTMLAnchorElement>('.modulo-cuenta a')!;
     expect(back.textContent!.trim()).toBe('Volver al inicio');
     expect(back.hasAttribute('aria-label')).toBe(false); // el nombre es el texto visible (WCAG 2.5.3)

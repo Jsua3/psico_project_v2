@@ -627,6 +627,12 @@ body.siep-scroll-locked {
   outline-offset: 3px;
 }
 
+/* Acuse de pulsación (plan visual: todo lo pulsable lo tiene). Sin transición: entra y sale en el acto. */
+.psy-skip-link:active,
+.skip-link:active {
+  transform: translateX(-50%) scale(0.97);
+}
+
 /* Destino de los enlaces de salto: recibe el foco por script, sin contorno de control. */
 main[tabindex="-1"]:focus,
 #main-content:focus {

@@ -108,6 +108,11 @@ export const routes: Routes = [
         title: 'Usuarios',
         canActivate: [roleGuard(...rolesFor('usuarios'))],
         loadComponent: () => import('./features/admin/users.component').then(m => m.UsersComponent)
+      },
+      {
+        path: '**',
+        title: 'Página no encontrada',
+        loadComponent: () => import('./features/public/not-found.component').then(m => m.NotFoundComponent)
       }
     ]
   },
@@ -120,5 +125,11 @@ export const routes: Routes = [
   { path: 'reportes', redirectTo: 'portal/reportes', pathMatch: 'full' },
   { path: 'usuarios', redirectTo: 'portal/admin/usuarios', pathMatch: 'full' },
   ...DEV_ONLY_ROUTES,
-  { path: '**', redirectTo: 'dashboard' }
+  // Plan visual F3-6: una dirección desconocida muestra la 404 (antes redirigía en silencio al panel).
+  {
+    path: '**',
+    title: 'Página no encontrada',
+    data: { fueraDelPortal: true },
+    loadComponent: () => import('./features/public/not-found.component').then(m => m.NotFoundComponent)
+  }
 ];

@@ -348,9 +348,11 @@ function sentenceLiterals(script) {
         const before = text.slice(lineStart, i);
         const isLog = /console\.\w+\([^)]*$/.test(before);
         const isImport = /\b(import|from)\s*$/.test(before) || /^\s*import\b/.test(before);
+        // Un selector CSS para el DOM («.modulo-inferior .pestana») no es texto para leer.
+        const isSelector = /\b(?:querySelector(?:All)?|closest|matches)(?:<[^>]*>)?\(\s*$/.test(before);
         const visible = body.replace(/\$\{[^}]*\}/g, ' ');
         const isPath = /^\s*\//.test(visible);
-        if (!isLog && !isImport && !isPath && /\s/.test(visible.trim()) && !/^[\w./-]+$/.test(visible.trim())) {
+        if (!isLog && !isImport && !isSelector && !isPath && /\s/.test(visible.trim()) && !/^[\w./-]+$/.test(visible.trim())) {
           out.push({ text: visible, index: i });
         }
       }

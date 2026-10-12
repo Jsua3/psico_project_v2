@@ -487,6 +487,15 @@ $corte-tope: 82.499rem;
   }
 }
 
+// H-19 (WCAG 2.4.11) en escritorio: el foco y las anclas se paran bajo la barra fija. Chrome da por visible un destino
+// que está en la ventana aunque lo tape la barra, y no se desplaza; scroll-padding le dice cuánto ocupa. 5,5rem = la
+// píldora (≈ 4,25rem), la caída de 6 px de los módulos al desplazarse y aire; es el mismo relleno del <main>.
+@media (min-width: 64rem) {
+  html {
+    scroll-padding-top: calc(5.5rem + env(safe-area-inset-top, 0px));
+  }
+}
+
 // 9. MÓVIL (por debajo de 64rem; references/movil.md de la skill, decisión D11): dos barras en el mismo header. Arriba
 // la banda con el logo y la cuenta; abajo la barra de pestañas (`nav.modulo-inferior`, hija directa de .cromo). El
 // estado `scroll` lo decide la DIRECCIÓN (la máquina) y solo reasigna dos altos. Sin «atención», sin quiebre, sin

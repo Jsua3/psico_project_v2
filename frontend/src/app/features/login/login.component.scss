@@ -413,6 +413,26 @@
   align-self: center;
 }
 
+/* Por qué volvió la persona al acceso (plan visual F3-6, H-34): queda en la pantalla, con tokens del lenguaje. */
+.auth-container .auth-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  width: 100%;
+  margin: 0 0 var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-warning-bg);
+  color: var(--ds-warning-text);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+  text-align: left;
+}
+
+.auth-container .auth-notice mat-icon {
+  flex-shrink: 0;
+}
+
 .auth-error {
   width: 100%;
   margin: 4px 0 0;

@@ -65,6 +65,7 @@ async function studentCasePath(page: Page): Promise<string> {
 export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'portada', role: 'publico', routePattern: '', path: '/' },
   { id: 'acceso', role: 'publico', routePattern: 'login', path: '/login' },
+  { id: 'no-encontrada', role: 'publico', routePattern: '**', path: '/no-existe' },
   {
     id: 'acceso-solicitud', role: 'publico', routePattern: 'login', path: '/login',
     ready: async page => {
@@ -77,6 +78,8 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'catalogo', role: 'estudiante', routePattern: 'portal/simulador', path: '/portal/simulador' },
   { id: 'sala', role: 'estudiante', routePattern: 'portal/jugar', path: '/portal/jugar', ready: waitForCanvas },
   { id: 'personaje', role: 'estudiante', routePattern: 'portal/personaje', path: '/portal/personaje' },
+  // Plan visual F3-6: una dirección desconocida muestra la 404 (dentro del portal, con su barra).
+  { id: 'no-encontrada', role: 'estudiante', routePattern: 'portal/**', path: '/portal/no-existe' },
   {
     id: 'caso-aviso', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId', resolvePath: studentCasePath,
     ready: async page => {

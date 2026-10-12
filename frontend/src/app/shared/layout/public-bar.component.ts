@@ -26,7 +26,7 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
   imports: [RouterLink, BottomTabsComponent, UiButton, UiGlassBar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <header ui-glass-bar label="Navegación pública">
+    <header ui-glass-bar label="Navegación pública" [navSkip]="anchors().length > 0">
       <a class="modulo modulo-logo pulsable ds-motion" routerLink="/" aria-label="SIEP: ir al inicio">
         <span class="logo-doble ds-motion">
           <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca" aria-hidden="true"></span><span class="logo-doble__nombre">SIEP</span></span>

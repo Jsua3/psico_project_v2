@@ -95,6 +95,11 @@ test('unaccentedCopy: ignora bloques de control con paréntesis anidados, coment
   assert.equal(count('unaccentedCopy', component('', '<mat-icon>menu</mat-icon><span>Abrir menu</span>')), 1, 'el texto de al lado sí cuenta');
   const ts = [{ path: 'src/app/core/api/x.api.ts', text: 'const url = `/api/admin/cases/${id}/clone-version`;\n' }];
   assert.equal(count('unaccentedCopy', ts), 0);
+  const selectors = [{
+    path: 'src/app/x/x.component.ts',
+    text: "host.querySelector<HTMLElement>('.modulo-inferior:not([hidden]) .pestana');\nel.closest('.menu .pestana');\nel.matches('nav .pestana');\nthis.aviso.set('Abre el menu de ayuda');\n",
+  }];
+  assert.equal(count('unaccentedCopy', selectors), 1, 'los selectores de querySelector/closest/matches no son texto; la frase sí');
 });
 
 test('los specs y utilidades de prueba no cuentan', () => {

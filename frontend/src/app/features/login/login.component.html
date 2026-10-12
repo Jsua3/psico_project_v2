@@ -73,6 +73,12 @@
 
         <h1>Iniciar sesión</h1>
         <p class="auth-subtitle">Selecciona tu perfil e ingresa con tu correo institucional.</p>
+        @if (sessionExpired) {
+          <p class="auth-notice" role="status">
+            <mat-icon aria-hidden="true">schedule</mat-icon>
+            <span>Tu sesión expiró. Inicia sesión nuevamente.</span>
+          </p>
+        }
 
         <div class="auth-role-picker" role="group" aria-label="Seleccionar rol de acceso">
           @for (role of roles; track role.id) {

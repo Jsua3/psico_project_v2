@@ -1,6 +1,6 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterEveryRender, afterNextRender, inject,
-  input, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterEveryRender, afterNextRender,
+  booleanAttribute, inject, input, signal,
 } from '@angular/core';
 
 import { GlassBarMachine } from './glass-bar-machine';
@@ -46,6 +46,9 @@ function focusInTextField(): boolean {
     '(click)': 'onStripClick($event)',
   },
   template: `
+    @if (navSkip()) {
+      <a class="psy-skip-link" href="#" (click)="skipToNavigation($event)">Saltar a la navegación</a>
+    }
     <nav class="bandeja ds-motion" [attr.aria-label]="desktop() ? label() : compactLabel()" (pointermove)="followLight($event)" (pointerleave)="resetLight()">
       <ng-content select=".modulo-logo" />
       <ng-content select=".modulo-principal" />
@@ -58,6 +61,11 @@ export class UiGlassBar {
   readonly label = input.required<string>();
   /** Nombre de la barra de arriba por debajo de 64rem, donde la navegación principal es la barra inferior. */
   readonly compactLabel = input('Marca y cuenta');
+  /**
+   * Pinta «Saltar a la navegación» como primer hijo del header (plan visual F3-6): solo donde hay navegación (el
+   * acceso no la tiene). Va tras «Saltar al contenido principal», que pinta app-root.
+   */
+  readonly navSkip = input(false, { transform: booleanAttribute });
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly isFinePointer = media('(hover: hover) and (pointer: fine)', true);
@@ -149,6 +157,18 @@ export class UiGlassBar {
       const value = `calc(${Math.ceil(fold.scrollWidth - padding)}px + 1.5rem)`;
       if (fold.style.getPropertyValue('--asb-ancho-natural') !== value) fold.style.setProperty('--asb-ancho-natural', value);
     }
+  }
+
+  /**
+   * El enlace de salto lleva el foco al primer destino de la navegación principal: en escritorio, el módulo central;
+   * por debajo de 64rem, la barra inferior (si no la hay, se queda en la píldora). Con <base href="/"> un href="#"
+   * navegaría a la portada: se intercepta el clic.
+   */
+  protected skipToNavigation(event: Event): void {
+    event.preventDefault();
+    const bottom = this.desktop() ? null : this.host.querySelector<HTMLElement>('.modulo-inferior:not([hidden]) .pestana');
+    const target = bottom ?? this.host.querySelector<HTMLElement>('.modulo-principal :is(a, button)');
+    target?.focus();
   }
 
   /** Con dedo, un toque en un hueco del módulo central (no en un enlace ni un botón) alterna la atención. */

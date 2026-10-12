@@ -28,6 +28,18 @@ class Host {
   shown = signal(true);
 }
 
+@Component({
+  imports: [UiGlassBar],
+  template: `
+    <header ui-glass-bar label="Navegación principal" navSkip>
+      <a class="modulo modulo-logo" href="/inicio">SIEP</a>
+      <div class="modulo modulo-principal"><a class="nav-enlace" href="/a">A</a><a class="nav-enlace" href="/b">B</a></div>
+      <div class="modulo modulo-cuenta"><span>Cuenta</span></div>
+    </header>
+  `,
+})
+class SkipHost {}
+
 function pointer(type: string, pointerType: string): Event {
   const event = new MouseEvent(type, { bubbles: type === 'pointerdown', cancelable: true });
   Object.defineProperty(event, 'pointerType', { value: pointerType });
@@ -61,10 +73,11 @@ function mockPhone(): { viewport: EventTarget & { height: number }; restore: () 
 @Component({
   imports: [UiGlassBar],
   template: `
-    <header ui-glass-bar label="Navegación principal">
+    <header ui-glass-bar label="Navegación principal" navSkip>
       <a class="modulo modulo-logo" href="/inicio">SIEP</a>
       <div class="modulo modulo-principal"><a class="nav-enlace" href="/a">A</a></div>
       <div class="modulo modulo-cuenta"><span>Cuenta</span></div>
+      <nav class="modulo-inferior" aria-label="Navegación principal"><a class="pestana" href="/a">A</a><a class="pestana" href="/b">B</a></nav>
     </header>
     <input type="text" aria-label="Buscar" />
   `,
@@ -87,6 +100,13 @@ describe('ui-glass-bar en un teléfono', () => {
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('nav.bandeja').getAttribute('aria-label')).toBe('Marca y cuenta');
     expect(fixture.nativeElement.querySelector('header').getAttribute('data-ancho')).toBe('movil');
+  });
+
+  it('«Saltar a la navegación» lleva el foco a la primera pestaña de abajo (la navegación principal en el teléfono)', async () => {
+    const fixture = TestBed.createComponent(PhoneHost);
+    await fixture.whenStable();
+    fixture.nativeElement.querySelector('header > a.psy-skip-link').click();
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.modulo-inferior a.pestana'));
   });
 
   it('con el foco en un campo y el viewport visual 150 px más bajo, marca data-teclado="abierto"; al salir, se quita', async () => {
@@ -197,6 +217,23 @@ describe('ui-glass-bar', () => {
     scrollTo(0);
     await fixture.whenStable();
     expect(fold.style.getPropertyValue('--asb-ancho-natural')).toBe('calc(90px + 1.5rem)');
+  });
+
+  it('sin navSkip no hay enlace de salto (p. ej. el acceso, que no tiene navegación)', () => {
+    expect(header()!.querySelector('a.psy-skip-link')).toBeNull();
+  });
+
+  it('con navSkip, el primer hijo del header es «Saltar a la navegación» y lleva el foco al primer destino de la píldora', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const phoneless = TestBed.createComponent(SkipHost);
+    await phoneless.whenStable();
+    const host = phoneless.nativeElement.querySelector('header') as HTMLElement;
+    const skip = host.firstElementChild as HTMLAnchorElement;
+    expect(skip.matches('a.psy-skip-link')).toBe(true);
+    expect(skip.textContent!.trim()).toBe('Saltar a la navegación');
+    skip.click();
+    expect(document.activeElement).toBe(host.querySelector('.modulo-principal a.nav-enlace'));
   });
 
   it('el header y la píldora llevan .ds-motion (su reloj no colapsa con movimiento reducido; invariante 12)', () => {

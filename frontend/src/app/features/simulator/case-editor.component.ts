@@ -42,6 +42,8 @@ type EditorPanel =
   imports: [CommonModule, ReactiveFormsModule, MatIconModule, MatProgressBarModule, MatTabsModule, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent, ConfirmDialogComponent],
   template: `
     <section class="editor-page">
+      <!-- Un h1 por pantalla (plan visual F3-6): mientras carga o si falla, el nombre de la pantalla. -->
+      @if (!editor()) { <h1 class="sr-only">Editor de caso</h1> }
       @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
       @if (error()) {
         <div class="state-error" role="alert"><mat-icon>error</mat-icon>{{ error() }}</div>
@@ -52,7 +54,7 @@ type EditorPanel =
         <header class="editor-hero liquid-glass psy-game-panel">
           <div>
             <p class="psy-eyebrow">Editor visual administrativo</p>
-            <h2>{{ model.title }}</h2>
+            <h1>{{ model.title }}</h1>
             <p class="editor-meta">Versión {{ model.semanticVersion }} · {{ statusLabel(model.status) }} · Checklist {{ model.checklistCompletion }}%</p>
           </div>
           <div class="editor-actions">
@@ -550,7 +552,7 @@ type EditorPanel =
       border-radius: 22px;
       flex-wrap: wrap;
     }
-    .editor-hero h2 {
+    .editor-hero h1 {
       margin: 6px 0 0;
       font-family: 'Poppins', system-ui, sans-serif;
       letter-spacing: 0;

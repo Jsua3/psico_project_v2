@@ -18,7 +18,7 @@ import { statusLabel } from '../../shared/ui/labels';
       <header class="catalog-hero liquid-glass">
         <div>
           <p class="psy-eyebrow">Entrenamiento psicosocial</p>
-          <h2>Casos publicados para simulación formativa.</h2>
+          <h1>Casos publicados para simulación formativa.</h1>
           <p>
             Inicia un intento, toma decisiones en casos simulados, registra tu bitácora reflexiva y recibe
             retroalimentación formativa sobre impacto, riesgo y rutas de atención.
@@ -185,7 +185,7 @@ import { statusLabel } from '../../shared/ui/labels';
       padding: clamp(24px, 4vw, 42px);
       border-radius: 22px;
     }
-    .catalog-hero h2 {
+    .catalog-hero h1 {
       max-width: 820px;
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;

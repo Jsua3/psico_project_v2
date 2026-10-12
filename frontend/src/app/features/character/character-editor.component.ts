@@ -25,7 +25,7 @@ import { KitService } from './kit/kit.service';
   standalone: true,
   imports: [RouterLink, KitFigureComponent],
   template: `
-    <div class="ce-container" id="main-content" tabindex="-1">
+    <div class="ce-container">
       <header class="ce-header glass">
         <div>
           <p class="ce-kicker">Editor de personaje</p>

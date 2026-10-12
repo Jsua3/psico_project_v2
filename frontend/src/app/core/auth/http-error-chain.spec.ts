@@ -51,10 +51,11 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 1, warn: 0 });
     });
 
-    it('401: limpia la sesión, avisa y navega al login', () => {
+    it('401: limpia la sesión, avisa y navega al login recordando dónde estaba (returnUrl, plan visual F3-6 / H-34)', () => {
+      router.url = '/portal/grupos?pagina=2';
       run(http(401));
       expect(notifications.warning).toHaveBeenCalledWith(SESSION_MESSAGE);
-      expect(router.navigate).toHaveBeenCalledWith(['/login']);
+      expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/portal/grupos?pagina=2' } });
       expect(effects()).toEqual({ clear: 1, nav: 1, err: 0, warn: 1 });
     });
 
@@ -64,9 +65,10 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 1, nav: 0, err: 0, warn: 0 });
     });
 
-    it('403 en /api/auth/me es sesión inválida, no falta de permisos', () => {
+    it('403 en /api/auth/me es sesión inválida, no falta de permisos (sin returnUrl: un usuario inactivo no vuelve)', () => {
       run(http(403), '/api/auth/me');
       expect(notifications.warning).toHaveBeenCalledWith(SESSION_MESSAGE);
+      expect(router.navigate).toHaveBeenCalledWith(['/login']);
       expect(effects()).toEqual({ clear: 1, nav: 1, err: 0, warn: 1 });
     });
 

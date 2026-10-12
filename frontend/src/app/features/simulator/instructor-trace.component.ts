@@ -104,7 +104,8 @@ interface FeedbackPanelView {
           </div>
         </aside>
 
-        <main class="teacher-review-main">
+        <!-- Un solo <main> por página (plan visual F3-6): el del shell. -->
+        <div class="teacher-review-main">
           @if (trace(); as item) {
             <section class="attempt-overview pixel-panel" aria-labelledby="attempt-overview-title">
               <div class="panel-heading">
@@ -525,7 +526,7 @@ interface FeedbackPanelView {
               <p>El panel mostrará recorrido, decisiones, bitácoras, recursos de evaluación y rúbrica.</p>
             </section>
           }
-        </main>
+        </div>
       </div>
     </section>
   `,

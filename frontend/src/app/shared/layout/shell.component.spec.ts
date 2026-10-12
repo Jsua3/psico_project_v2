@@ -137,6 +137,20 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(logout).toHaveBeenCalledTimes(1);
   });
 
+  it('el <main> es el destino de «Saltar al contenido principal» (#main-content, enfocable por script) y la barra trae «Saltar a la navegación»', () => {
+    const main = host().querySelector('main.portal-main')!;
+    expect(main.id).toBe('main-content');
+    expect(main.getAttribute('tabindex')).toBe('-1');
+    expect(host().querySelector('header.cromo')!.firstElementChild!.textContent!.trim()).toBe('Saltar a la navegación');
+  });
+
+  it('en el juego el <main> suelta #main-content: el destino es el contenedor del juego (un solo id)', async () => {
+    await go('/portal/jugar');
+    const main = host().querySelector('main.portal-main')!;
+    expect(main.hasAttribute('id')).toBe(false);
+    expect(main.hasAttribute('tabindex')).toBe(false);
+  });
+
   it('en el juego (chrome: hidden) no hay barra y el cuerpo entra en modo juego', async () => {
     await go('/portal/jugar');
     expect(host().querySelector('header.cromo')).toBeNull();

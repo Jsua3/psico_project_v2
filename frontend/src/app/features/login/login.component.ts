@@ -6,13 +6,17 @@ import { AfterViewInit, Component, ElementRef, computed, inject, isDevMode, sign
 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { MatIconModule } from '@angular/material/icon';
 
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
+import { EXPIRED_SESSION_REASON } from '../../core/auth/auth.guard';
+
 import { AuthService } from '../../core/auth/auth.service';
+
+import { safeReturnUrl } from '../../core/auth/return-url';
 
 import { APP_BRAND } from '../../core/config/brand.config';
 
@@ -63,6 +67,14 @@ export class LoginComponent implements AfterViewInit {
   private readonly auth = inject(AuthService);
 
   private readonly router = inject(Router);
+
+  private readonly query = inject(ActivatedRoute).snapshot.queryParamMap;
+
+  /** La guardia mandó aquí porque la sesión venció (plan visual F3-6, H-34): se dice en la pantalla. */
+  readonly sessionExpired = this.query.get('motivo') === EXPIRED_SESSION_REASON;
+
+  /** Adónde volver al entrar: solo rutas internas (return-url.ts); si no, el panel. */
+  private readonly destination = safeReturnUrl(this.query.get('returnUrl')) ?? '/portal/dashboard';
 
 
 
@@ -261,7 +273,7 @@ export class LoginComponent implements AfterViewInit {
     this.googleLoading.set(true);
     this.error.set('');
     this.auth.loginWithGoogle(response.credential).subscribe({
-      next: () => this.router.navigate(['/portal/dashboard']),
+      next: () => this.router.navigateByUrl(this.destination),
       error: (error: unknown) => {
         this.error.set(this.googleErrorMessage(error));
         this.googleLoading.set(false);
@@ -321,7 +333,7 @@ export class LoginComponent implements AfterViewInit {
 
     this.auth.login(normalizedEmail, password).subscribe({
 
-      next: () => this.router.navigate(['/portal/dashboard']),
+      next: () => this.router.navigateByUrl(this.destination),
 
       error: (error: unknown) => {
 
