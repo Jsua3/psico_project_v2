@@ -42,6 +42,7 @@ interface TextObject {
   scaleX: number;
   style: { resolution: number };
   setResolution(value: number): unknown;
+  updateText?(): unknown;
   texture?: { setFilter?(mode: number): unknown };
 }
 
@@ -54,16 +55,22 @@ const isText = (value: unknown): value is TextObject =>
 export class PixelRender {
   private readonly onAdded: Listener = gameObject => {
     this.snap(gameObject);
-    if (this.zoom !== null) this.forEachText([gameObject], text => this.applyResolution(text));
+    this.forEachText([gameObject], (text, scale) => {
+      this.keepSmooth(text);
+      if (this.zoom !== null) this.applyResolution(text, scale);
+    });
   };
   /** Último zoom de cámara conocido (null hasta el primer `refreshTexts`). */
   private zoom: number | null = null;
+  /** Textos cuyo `updateText` ya repone el filtro lineal. */
+  private readonly smoothed = new WeakSet<object>();
 
   constructor(private readonly scene: PixelRenderScene) {}
 
   /** Aplica el redondeo a todo lo que ya está en la escena y a todo lo que se añada después. */
   attach(): this {
     this.scene.children.list.forEach(gameObject => this.snap(gameObject));
+    this.forEachText(this.scene.children.list, text => this.keepSmooth(text));
     this.scene.events.on(ADDED_TO_SCENE_EVENT, this.onAdded);
     return this;
   }
@@ -73,29 +80,51 @@ export class PixelRender {
   }
 
   /**
-   * Ajusta la resolución de todos los textos al zoom de cámara y a su escala actual. Se llama al cambiar el
-   * zoom o la escala de los rótulos (nunca por cuadro); solo repinta los que cambian. Devuelve cuántos.
+   * Ajusta la resolución de todos los textos al zoom de cámara y a su escala en pantalla (la propia por la de
+   * sus contenedores). Se llama al cambiar el zoom o la escala de los rótulos (nunca por cuadro); solo
+   * repinta los que cambian. Devuelve cuántos.
    */
   refreshTexts(zoom: number): number {
     this.zoom = zoom;
     let changed = 0;
-    this.forEachText(this.scene.children.list, text => { if (this.applyResolution(text)) changed++; });
+    this.forEachText(this.scene.children.list, (text, scale) => {
+      this.keepSmooth(text);
+      if (this.applyResolution(text, scale)) changed++;
+    });
     return changed;
   }
 
-  private applyResolution(text: TextObject): boolean {
-    const resolution = textResolutionFor(text.scaleX, this.zoom ?? 1);
+  private applyResolution(text: TextObject, scale: number): boolean {
+    const resolution = textResolutionFor(scale, this.zoom ?? 1);
     if (text.style.resolution === resolution) return false;
     text.setResolution(resolution);
-    text.texture?.setFilter?.(TEXTURE_FILTER_LINEAR);
     return true;
   }
 
-  private forEachText(objects: unknown[], visit: (text: TextObject) => void): void {
+  /**
+   * Phaser re-sube el lienzo del texto en cada `updateText()` (setText, ajuste de línea, resolución) y, con
+   * `pixelArt`, lo hace con filtro NEAREST: se envuelve una vez para reponer el lineal tras cada repintado.
+   */
+  private keepSmooth(text: TextObject): void {
+    if (this.smoothed.has(text)) return;
+    this.smoothed.add(text);
+    const original = text.updateText?.bind(text);
+    if (original) {
+      text.updateText = () => {
+        const result = original();
+        text.texture?.setFilter?.(TEXTURE_FILTER_LINEAR);
+        return result;
+      };
+    }
+    text.texture?.setFilter?.(TEXTURE_FILTER_LINEAR);
+  }
+
+  private forEachText(objects: unknown[], visit: (text: TextObject, scale: number) => void, parentScale = 1): void {
     for (const gameObject of objects) {
-      if (isText(gameObject)) visit(gameObject);
+      const ownScale = Math.abs((gameObject as { scaleX?: number } | null)?.scaleX ?? 1);
+      if (isText(gameObject)) visit(gameObject, parentScale * ownScale);
       const children = (gameObject as { list?: unknown[] } | null)?.list;
-      if (Array.isArray(children)) this.forEachText(children, visit);
+      if (Array.isArray(children)) this.forEachText(children, visit, parentScale * ownScale);
     }
   }
 

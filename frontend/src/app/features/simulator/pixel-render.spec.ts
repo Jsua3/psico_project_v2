@@ -131,6 +131,29 @@ describe('PixelRender: rótulos nítidos con zoom (PHA-2)', () => {
     expect(later.setResolution).toHaveBeenCalledWith(3);
   });
 
+  it('el filtro lineal sobrevive a cualquier repintado del texto (setText, ajuste de línea…)', () => {
+    // Phaser re-sube el lienzo del texto en cada updateText() con NEAREST (pixelArt): se pierde el lineal.
+    class RepaintingText extends FakeText {
+      filter = 1;
+      override texture = { setFilter: vi.fn((mode: number) => { this.filter = mode; }) };
+      updateText() { this.filter = 1; return this; }
+    }
+    const text = new RepaintingText();
+    const render = new PixelRender(fakeScene([text])).attach();
+    render.refreshTexts(2);
+    expect(text.filter).toBe(TEXTURE_FILTER_LINEAR);
+    text.updateText(); // p. ej. setWordWrapWidth() al reescalar los rótulos, con la misma resolución
+    expect(text.filter).toBe(TEXTURE_FILTER_LINEAR);
+  });
+
+  it('un texto dentro de un contenedor escalado usa la escala acumulada (pistas de puerta)', () => {
+    const inner = new FakeText();
+    const container = Object.assign(new FakeContainer([inner]), { scaleX: 2.39 });
+    const render = new PixelRender(fakeScene([container])).attach();
+    render.refreshTexts(1);
+    expect(inner.setResolution).toHaveBeenLastCalledWith(3);
+  });
+
   it('encuentra los textos dentro de contenedores', () => {
     const inner = new FakeText();
     const render = new PixelRender(fakeScene([new FakeContainer([inner])])).attach();
