@@ -83,7 +83,8 @@ describe('contraste: portada', () => {
   });
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {
-    expect(scss).toMatch(/\.landing-nav,\s*\.landing-hero,\s*\.landing-cta__inner \{\s*--psy-focus: #C9B3FF;/);
+    // Revisión de F1 (C1): el token que mueve el anillo es --ds-focus (+ halo), no el alias --psy-focus.
+    expect(scss).toMatch(/\.landing-nav,\s*\.landing-hero,\s*\.landing-cta__inner \{\s*--ds-focus: #C9B3FF;\s*--ds-focus-halo: #0c1222;/);
     expect(scss).not.toContain('--siep-primary-glow');
     for (const bg of ['#151d32', '#0c1222', '#1a1040']) {
       expect(contrast('#C9B3FF', bg)).toBeGreaterThanOrEqual(3);
@@ -95,14 +96,14 @@ describe('contraste: login', () => {
   const scss = source('../app/features/login/login.component.scss');
 
   it('el foco se adapta a cada superficie', () => {
-    expect(scss).toMatch(/\.siep-login \{\s*--psy-focus: #C9B3FF;\s*\}/);
-    expect(scss).toMatch(/\.auth-container \.form-container \{\s*--psy-focus: rgba\(0, 72, 118, \.72\);\s*\}/);
-    expect(scss).toMatch(/\.toggle-container \{\s*--psy-focus: #FFFFFF;\s*\}/);
+    expect(scss).toMatch(/\.siep-login \{\s*--ds-focus: #C9B3FF;\s*--ds-focus-halo: #0c1222;\s*\}/);
+    expect(scss).toMatch(/\.auth-container \.form-container \{\s*--ds-focus: #004876;\s*--ds-focus-halo: #FFFFFF;\s*\}/);
+    expect(scss).toMatch(/\.toggle-container \{\s*--ds-focus: #FFFFFF;\s*--ds-focus-halo: #5c6bc0;\s*\}/);
     expect(contrast('#FFFFFF', '#5c6bc0')).toBeGreaterThanOrEqual(3);
   });
 
   it('el checkbox recupera su contorno de foco', () => {
-    expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
+    expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--ds-focus\);\s*outline-offset: 2px;\s*\}/);
   });
 });
 
@@ -120,7 +121,7 @@ describe('contraste: navegación lateral', () => {
   const shell = source('../app/shared/layout/shell.component.ts');
 
   it('el menú lateral morado define un foco blanco propio, no el azul marino global', () => {
-    expect(shell).toMatch(/\.portal-sidenav \{\s*--psy-focus: #FFFFFF;\s*\}/);
+    expect(shell).toMatch(/\.portal-sidenav \{\s*--ds-focus: #FFFFFF;\s*--ds-focus-halo: #2a006b;\s*\}/);
   });
 
   it('el foco blanco supera 3:1 sobre cada tramo del degradado del menú lateral', () => {

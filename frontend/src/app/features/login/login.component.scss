@@ -836,18 +836,21 @@
 
 /* Foco visible por superficie (el global azul solo sirve sobre claro). */
 .siep-login {
-  --psy-focus: #C9B3FF;
+  --ds-focus: #C9B3FF;
+  --ds-focus-halo: #0c1222;
 }
 
 .auth-container .form-container {
-  --psy-focus: rgba(0, 72, 118, .72);
+  --ds-focus: #004876;
+  --ds-focus-halo: #FFFFFF;
 }
 
 .toggle-container {
-  --psy-focus: #FFFFFF;
+  --ds-focus: #FFFFFF;
+  --ds-focus-halo: #5c6bc0;
 }
 
 .auth-remember input:focus-visible {
-  outline: 3px solid var(--psy-focus);
+  outline: 3px solid var(--ds-focus);
   outline-offset: 2px;
 }
