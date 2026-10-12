@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ANIMATION_MODULE_TYPE, ApplicationInitStatus } from '@angular/core';
+import { MAT_CARD_CONFIG } from '@angular/material/card';
 import { MatIconRegistry } from '@angular/material/icon';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of } from 'rxjs';
@@ -31,6 +32,13 @@ describe('app.config: arranque', () => {
     });
     TestBed.inject(ApplicationInitStatus);
     expect(TestBed.inject(MatIconRegistry).getDefaultFontSetClass()).toEqual(['material-symbols-rounded']);
+  });
+
+  it('las tarjetas de Material son «outlined»: borde fino por token en vez de border-width 0 (F1-4)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    expect(TestBed.inject(MAT_CARD_CONFIG, null)?.appearance).toBe('outlined');
   });
 
   describe('initializeAuthSession', () => {

@@ -2,6 +2,8 @@
 // y JetBrains Mono para claves. Tamaños en rem (respetan el ajuste de texto del usuario); nunca menos de
 // 0,75 rem (12 px). Tres pesos de Poppins: 400, 600 y 800 (800 solo en títulos).
 
+@use 'sass:list';
+
 $font-sans: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 $font-mono: "'JetBrains Mono', ui-monospace, Consolas, monospace";
 
@@ -22,9 +24,9 @@ $scale: (
   --ds-font-sans: #{$font-sans};
   --ds-font-mono: #{$font-mono};
   @each $role, $values in $scale {
-    --ds-type-#{$role}-size: #{nth($values, 1)};
-    --ds-type-#{$role}-line: #{nth($values, 2)};
-    --ds-type-#{$role}-track: #{nth($values, 3)};
-    --ds-type-#{$role}-weight: #{nth($values, 4)};
+    --ds-type-#{$role}-size: #{list.nth($values, 1)};
+    --ds-type-#{$role}-line: #{list.nth($values, 2)};
+    --ds-type-#{$role}-track: #{list.nth($values, 3)};
+    --ds-type-#{$role}-weight: #{list.nth($values, 4)};
   }
 }

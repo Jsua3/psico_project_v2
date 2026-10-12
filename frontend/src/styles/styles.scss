@@ -1,25 +1,6 @@
-@use '@angular/material' as mat;
 @use 'skins';
 @use 'aliases';
-
-@include mat.core();
-
-$psychology-theme: mat.define-theme((
-  color: (
-    theme-type: light,
-    primary: mat.$azure-palette,
-    tertiary: mat.$cyan-palette
-  ),
-  typography: (
-    brand-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    plain-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-  ),
-  density: (scale: 0)
-));
-
-html {
-  @include mat.all-component-themes($psychology-theme);
-}
+@use 'material';
 
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7), el movimiento a tokens (F1-6),
@@ -549,23 +530,8 @@ code, .psy-mono {
   animation: psy-page-fade 150ms var(--psy-ease-out) backwards;
 }
 
-.mat-mdc-card {
-  border-radius: var(--psy-radius) !important;
-  border: 1px solid var(--psy-border) !important;
-  box-shadow: var(--psy-shadow-card) !important;
-}
-
 .mat-mdc-form-field {
   width: 100%;
-}
-
-.mat-mdc-header-cell {
-  color: var(--psy-ink) !important;
-  font-weight: 700 !important;
-}
-
-.mat-mdc-row:hover {
-  background: rgba(79, 124, 172, .06) !important;
 }
 
 @keyframes psy-page-fade {

@@ -1,6 +1,7 @@
 import { ApplicationConfig, inject, provideAppInitializer } from '@angular/core';
 import { TitleStrategy, provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { MAT_CARD_CONFIG } from '@angular/material/card';
 import { MatIconRegistry } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
@@ -35,5 +36,7 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(initializeAuthSession),
     // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
     provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
+    // Tarjetas con borde fino por token y elevación suave (F1-4): la apariencia «elevated» fija border-width 0.
+    { provide: MAT_CARD_CONFIG, useValue: { appearance: 'outlined' } },
   ]
 };
