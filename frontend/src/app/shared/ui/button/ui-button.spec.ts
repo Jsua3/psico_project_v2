@@ -1,8 +1,9 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
-import { UI_TOOLTIP_SHOW_DELAY_MS } from '../tooltip/ui-tooltip';
+import { UI_TOOLTIP_SHOW_DELAY_MS, UI_TOOLTIP_TAP_VISIBLE_MS } from '../tooltip/ui-tooltip';
 import { UI_BUTTON_SPINNER_DELAY_MS, UiButton, UiButtonSize, UiButtonVariant } from './ui-button';
 
 /**
@@ -223,5 +224,69 @@ describe('ui-button con otras descripciones', () => {
     fixture.componentInstance.reason.set(null);
     await fixture.whenStable();
     expect(ids()).toEqual(['ayuda-externa']);
+  });
+});
+
+// Revisión de F2 (I1): el motivo también se ve al PULSAR (clic rápido o toque, donde no hay hover) y se anuncia.
+@Component({
+  imports: [UiButton],
+  template: `<button ui-button type="button" [loading]="loading()" [disabledReason]="reason()">Publicar</button>
+    <p class="fuera">Otro sitio</p>`,
+})
+class BlockedHost {
+  reason = signal<string | null>('Completa al menos una escena');
+  loading = signal(false);
+}
+
+describe('ui-button bloqueado al pulsar', () => {
+  let fixture: ComponentFixture<BlockedHost>;
+  let announce: ReturnType<typeof vi.fn>;
+  const button = () => (fixture.nativeElement as HTMLElement).querySelector('button')!;
+  const tooltip = () => document.querySelector('.ui-tooltip');
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    announce = vi.fn().mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), { provide: LiveAnnouncer, useValue: { announce } }],
+    });
+    fixture = TestBed.createComponent(BlockedHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    (fixture.nativeElement as HTMLElement).remove();
+    vi.useRealTimers();
+  });
+
+  it('un clic sin pasar antes el ratón muestra el motivo al instante y lo anuncia', () => {
+    button().dispatchEvent(new MouseEvent('mousedown', { bubbles: true, buttons: 1, detail: 1 }));
+    button().click();
+    expect(tooltip()?.textContent?.trim()).toBe('Completa al menos una escena');
+    expect(announce).toHaveBeenCalledWith('Completa al menos una escena', 'polite');
+  });
+
+  it('con un toque también, y se va solo a los pocos segundos o al tocar fuera', () => {
+    button().dispatchEvent(new Event('touchstart', { bubbles: true }));
+    button().click();
+    expect(tooltip()?.textContent?.trim()).toBe('Completa al menos una escena');
+    vi.advanceTimersByTime(UI_TOOLTIP_TAP_VISIBLE_MS + 200);
+    expect(tooltip()).toBeNull();
+
+    button().click();
+    expect(tooltip()).not.toBeNull();
+    (fixture.nativeElement as HTMLElement).querySelector('.fuera')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    vi.advanceTimersByTime(200);
+    expect(tooltip()).toBeNull();
+  });
+
+  it('cargando (sin motivo) no muestra globo ni anuncia al pulsar', () => {
+    fixture.componentInstance.reason.set(null);
+    fixture.componentInstance.loading.set(true);
+    fixture.detectChanges();
+    button().click();
+    expect(tooltip()).toBeNull();
+    expect(announce).not.toHaveBeenCalled();
   });
 });

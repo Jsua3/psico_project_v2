@@ -1,11 +1,12 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import {
-  ChangeDetectionStrategy, Component, ViewEncapsulation, computed, effect, input, signal,
+  ChangeDetectionStrategy, Component, ViewEncapsulation, computed, effect, inject, input, signal,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 import { describeHostWith } from '../describe';
 import { UiSpinner } from '../spinner/ui-spinner';
-import { injectUiTooltip } from '../tooltip/ui-tooltip';
+import { UI_TOOLTIP_TAP_VISIBLE_MS, injectUiTooltip } from '../tooltip/ui-tooltip';
 import { guardClicks, uniqueUiId } from './click-guard';
 
 export type UiButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -20,7 +21,8 @@ export const UI_BUTTON_SPINNER_DELAY_MS = 150;
  * enfocable y su motivo se lee por `aria-describedby`— y bloquea el clic antes que cualquier otro oyente: no hay
  * doble envío ni clics «muertos» sin explicación. Cargando, el indicador aparece a los 150 ms en el lugar del icono
  * (o encima del texto, que conserva su sitio): el ancho no cambia. Con el ratón, el motivo también se ve en un globo
- * a los 400 ms (§2.6); el lector ya lo tiene por aria-describedby.
+ * a los 400 ms (§2.6); al PULSAR el botón bloqueado (clic rápido o toque, sin hover) el motivo aparece al instante y
+ * se anuncia; el lector ya lo tiene por aria-describedby.
  *
  * Los estilos son globales con nombres BEM (`ViewEncapsulation.None`), como Material: el anfitrión es el propio
  * `<button>`/`<a>` del consumidor.
@@ -80,9 +82,15 @@ export class UiButton {
   protected readonly blocked = computed(() => this.loading() || !!this.disabledReason());
 
   constructor() {
-    guardClicks(() => this.blocked());
-    describeHostWith(() => (this.disabledReason() ? this.reasonId : null));
     const tooltip = injectUiTooltip({ describe: false });
+    const announcer = inject(LiveAnnouncer);
+    guardClicks(() => this.blocked(), () => {
+      const reason = this.disabledReason();
+      if (!reason) return;
+      tooltip.showNow(UI_TOOLTIP_TAP_VISIBLE_MS);
+      void announcer.announce(reason, 'polite');
+    });
+    describeHostWith(() => (this.disabledReason() ? this.reasonId : null));
     effect(() => tooltip.setText(this.disabledReason()));
     effect(onCleanup => {
       if (!this.loading()) {

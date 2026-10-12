@@ -15,6 +15,8 @@ export const UI_TOOLTIP_SHOW_DELAY_MS = 400;
 export const UI_TOOLTIP_WARM_MS = 300;
 /** Gracia al salir el puntero: deja pasar al globo sin que desaparezca (WCAG 1.4.13, «se puede sobrevolar»). */
 export const UI_TOOLTIP_HIDE_GRACE_MS = 100;
+/** Tiempo visible del motivo que se muestra al pulsar un control bloqueado (clic o toque, sin hover). */
+export const UI_TOOLTIP_TAP_VISIBLE_MS = 4000;
 /** Duración de la salida (§2.7: 100–140 ms). */
 const UI_TOOLTIP_LEAVE_MS = 120;
 
@@ -100,6 +102,16 @@ export class UiTooltipController {
     else if (this.panel) this.render(value);
   }
 
+  /**
+   * Muestra el globo YA, sin retardo ni condición de modalidad (motivo de un control bloqueado al pulsarlo, también
+   * con un toque). Se va solo a los `visibleMs`, al pulsar fuera, con Esc o al perder el foco.
+   */
+  showNow(visibleMs = UI_TOOLTIP_TAP_VISIBLE_MS): void {
+    if (!this.text()) return;
+    this.show();
+    this.hideTimer = setTimeout(() => this.hide(), visibleMs);
+  }
+
   destroy(): void {
     this.hideNow();
     this.overlayRef?.dispose();
@@ -133,6 +145,11 @@ export class UiTooltipController {
         on(pane, 'mouseleave', () => this.scheduleHide()),
         on(this.element.ownerDocument, 'keydown', event => {
           if ((event as KeyboardEvent).key === 'Escape' && this.panel) this.hide();
+        }),
+        // Pulsar fuera (ratón, dedo o lápiz) lo cierra: sin hover, es la única forma natural de descartarlo.
+        on(this.element.ownerDocument, 'pointerdown', event => {
+          const target = event.target as Node | null;
+          if (this.panel && target && !this.element.contains(target) && !pane.contains(target)) this.hide();
         }),
       ];
     }

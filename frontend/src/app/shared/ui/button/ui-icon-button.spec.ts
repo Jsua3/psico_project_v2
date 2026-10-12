@@ -103,3 +103,18 @@ describe('ui-icon-button con otras descripciones', () => {
     expect(ids()).toEqual(['ayuda']);
   });
 });
+
+describe('ui-icon-button bloqueado al pulsar (revisión de F2, I1)', () => {
+  it('un toque muestra el motivo al instante', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentInstance.reason.set('No hay nada que cerrar');
+    document.body.appendChild(fixture.nativeElement);
+    await fixture.whenStable();
+    const button = (fixture.nativeElement as HTMLElement).querySelector('button')!;
+    button.dispatchEvent(new Event('touchstart', { bubbles: true }));
+    button.click();
+    expect(document.querySelector('.ui-tooltip')?.textContent?.trim()).toBe('No hay nada que cerrar');
+    (fixture.nativeElement as HTMLElement).remove();
+  });
+});
