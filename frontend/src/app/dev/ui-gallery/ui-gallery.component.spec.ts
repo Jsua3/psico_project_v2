@@ -41,8 +41,27 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('button[ui-button][aria-disabled="true"][aria-describedby]')).not.toBeNull();
       expect(panel.querySelector('button[ui-button][aria-busy="true"]')).not.toBeNull();
       expect(panel.querySelector('a[ui-button]')).not.toBeNull();
+      expect(panel.querySelector('button.ui-gallery__save')).not.toBeNull();
       expect(panel.querySelector('button[ui-icon-button][aria-label]')).not.toBeNull();
       expect(panel.querySelector('a[ui-link][target="_blank"]')).not.toBeNull();
+    }
+  });
+
+  it('«Simular guardado» pasa a cargando al pulsarlo y vuelve solo (para medir el ancho estable en el e2e)', async () => {
+    vi.useFakeTimers();
+    try {
+      TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+      const fixture = TestBed.createComponent(UiGalleryComponent);
+      fixture.detectChanges();
+      const save = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.ui-gallery__save')!;
+      save.click();
+      fixture.detectChanges();
+      expect(save.getAttribute('aria-busy')).toBe('true');
+      vi.advanceTimersByTime(2000);
+      fixture.detectChanges();
+      expect(save.hasAttribute('aria-busy')).toBe(false);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

@@ -90,6 +90,7 @@ export class UiGalleryDialog {
           <button ui-button type="button" [loading]="true" icon="save">Guardando</button>
           <button ui-button type="button" variant="secondary" [loading]="true">Enviando</button>
           <a ui-button variant="ghost" href="#main-content">Enlace con forma de botón</a>
+          <button ui-button type="button" class="ui-gallery__save" icon="save" [loading]="saving()" (click)="simulateSave()">Simular guardado</button>
         </div>
         <div class="ui-gallery__row">
           <button ui-icon-button type="button" icon="close" label="Cerrar"></button>
@@ -147,8 +148,8 @@ export class UiGalleryDialog {
             <p>Tarjeta clicable como enlace.</p>
           </a>
           <button ui-card type="button">
-            <strong>Retomar intento</strong>
-            <p>Tarjeta clicable como botón.</p>
+            <strong class="ui-gallery__card-title">Retomar intento</strong>
+            <span>Tarjeta clicable como botón.</span>
           </button>
         </div>
         <div class="ui-gallery__row">
@@ -268,11 +269,15 @@ export class UiGalleryDialog {
       color: var(--ds-text-1);
     }
     .ui-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--ds-space-4); }
+    /* El h2 global hereda el primario del portal (alias en :root): cada piel pinta su título con su texto. */
+    .ui-gallery__skin > h2 { margin-block: 0 var(--ds-space-4); color: var(--ds-text-1); font-size: var(--ds-type-h2-size); }
     .ui-gallery__grow { flex: 1; }
+    .ui-gallery__card-title { display: block; margin-block-end: var(--ds-space-1); }
     .ui-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); margin-block: var(--ds-space-3); }
   `],
 })
 export class UiGalleryComponent {
+  protected readonly saving = signal(false);
   protected readonly tableState = signal<UiDataStateValue>('ready');
   protected readonly tableStates: readonly { id: UiDataStateValue; label: string }[] = [
     { id: 'ready', label: 'Con datos' },
@@ -315,6 +320,12 @@ export class UiGalleryComponent {
     { id: 'md', label: 'Mediano' },
     { id: 'lg', label: 'Grande' },
   ];
+
+  /** Carga de 1,5 s: el e2e mide que el botón no cambia de ancho al aparecer el indicador. */
+  protected simulateSave(): void {
+    this.saving.set(true);
+    setTimeout(() => this.saving.set(false), 1500);
+  }
 
   protected openDialog(): void {
     this.dialog.open(UiGalleryDialog);

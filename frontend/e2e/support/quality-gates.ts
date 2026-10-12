@@ -48,6 +48,8 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
 export interface AxeAuditOptions {
   tags: string[];
   resultTypes: Array<'violations' | 'incomplete' | 'passes' | 'inapplicable'>;
+  /** Selector CSS del subárbol a auditar (por defecto, todo el documento). */
+  include?: string;
 }
 
 /**
@@ -64,11 +66,11 @@ export async function runAxe(page: Page, options: AxeAuditOptions): Promise<AxeR
       return axeApi !== undefined && axeApi._running !== true;
     }, undefined, { timeout: scaled(30_000) });
     try {
-      return await page.evaluate(async ({ tags, resultTypes }) => {
+      return await page.evaluate(async ({ tags, resultTypes, include }) => {
         const axeApi = (window as typeof window & {
-          axe: { run(root: Document, options: unknown): Promise<AxeResults> };
+          axe: { run(root: Document | { include: string[] }, options: unknown): Promise<AxeResults> };
         }).axe;
-        return axeApi.run(document, {
+        return axeApi.run(include ? { include: [include] } : document, {
           runOnly: { type: 'tag', values: tags },
           resultTypes,
         });
