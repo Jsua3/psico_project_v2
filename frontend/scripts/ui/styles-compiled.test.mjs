@@ -30,6 +30,16 @@ test('Material: tokens de sistema (--mat-sys-*) atados a --ds-* y sin los miles 
   assert.equal(sys.get('[data-skin=game]|--mat-sys-primary'), 'var(--ds-primary)', 'la piel juego vuelve a atar Material a sus tokens');
 });
 
+test('Material sigue la piel juego también en pistas, fondos, errores, tarjetas y tablas (revisión de F1, I2)', () => {
+  const game = new Map(parsed.decls.filter(d => d.selector === '[data-skin=game]').map(d => [d.prop, d.value]));
+  assert.equal(game.get('--mat-sys-surface-variant'), 'var(--ds-surface-2)', 'pista de mat-progress-bar');
+  assert.equal(game.get('--mat-sys-background'), 'var(--ds-surface-page)');
+  assert.equal(game.get('--mat-sys-on-background'), 'var(--ds-text-1)');
+  assert.equal(game.get('--mat-sys-on-error'), 'var(--ds-on-primary)');
+  assert.equal(game.get('--mat-card-outlined-container-color'), 'var(--ds-surface-1)');
+  assert.equal(game.get('--mat-table-header-headline-color'), 'var(--ds-text-1)');
+});
+
 test('Material: tarjetas y tablas sin !important', () => {
   const forced = parsed.decls.filter(d => /mat-mdc-(card|header-cell|row)/.test(d.selector) && /!important/.test(d.value));
   assert.deepEqual(forced.map(d => `${d.selector} { ${d.prop} }`), []);

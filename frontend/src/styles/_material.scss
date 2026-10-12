@@ -13,17 +13,35 @@ $sys-overrides: (
   on-primary-container: var(--ds-primary),
   secondary-container: var(--ds-primary-subtle),
   on-secondary-container: var(--ds-primary),
+  background: var(--ds-surface-page),
+  on-background: var(--ds-text-1),
   surface: var(--ds-surface-1),
   on-surface: var(--ds-text-1),
+  surface-variant: var(--ds-surface-2),
   on-surface-variant: var(--ds-text-2),
   surface-container-lowest: var(--ds-surface-1),
   surface-container-low: var(--ds-surface-1),
-  surface-container: var(--ds-surface-2),
+  // Paneles de select y menú sobre superficie 1: el tinte de la opción elegida (primary-subtle) se distingue.
+  surface-container: var(--ds-surface-1),
   surface-container-high: var(--ds-surface-2),
   surface-container-highest: var(--ds-surface-2),
   outline: var(--ds-border-strong),
   outline-variant: var(--ds-border),
   error: var(--ds-danger),
+  on-error: var(--ds-on-primary),
+);
+
+// Tarjetas «outlined» (MAT_CARD_CONFIG en app.config.ts): borde fino y elevación e1, sin !important.
+$card-overrides: (
+  outlined-container-color: var(--ds-surface-1),
+  outlined-outline-color: var(--ds-border),
+  outlined-container-shape: var(--ds-radius-lg),
+  outlined-container-elevation: var(--ds-shadow-e1),
+);
+
+$table-overrides: (
+  header-headline-color: var(--ds-text-1),
+  header-headline-weight: 600,
 );
 
 html {
@@ -43,21 +61,15 @@ html {
     density: 0,
   ));
   @include mat.theme-overrides($sys-overrides);
-  // Tarjetas «outlined» (MAT_CARD_CONFIG en app.config.ts): borde fino y elevación e1, sin !important.
-  @include mat.card-overrides((
-    outlined-container-color: var(--ds-surface-1),
-    outlined-outline-color: var(--ds-border),
-    outlined-container-shape: var(--ds-radius-lg),
-    outlined-container-elevation: var(--ds-shadow-e1),
-  ));
-  @include mat.table-overrides((
-    header-headline-color: var(--ds-text-1),
-    header-headline-weight: 600,
-  ));
+  @include mat.card-overrides($card-overrides);
+  @include mat.table-overrides($table-overrides);
 }
 
+// La piel juego vuelve a atar todo: un token que referencia otro se resuelve donde se declara.
 [data-skin='game'] {
   @include mat.theme-overrides($sys-overrides);
+  @include mat.card-overrides($card-overrides);
+  @include mat.table-overrides($table-overrides);
 }
 
 // Fila de tabla: el hover solo con puntero fino (plan visual §2.6) y sin !important (el :hover ya gana).

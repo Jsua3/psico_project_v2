@@ -26,4 +26,9 @@ test('@skins el simulador usa la piel juego en su contenedor y el resto de la p�
     };
   });
   expect(tokens).toEqual({ root: '#FFFFFF', body: '#FFFFFF', game: '#151B2E', bodyHasSkin: false });
+
+  // Material también cambia de piel (revisión de F1, I2): la pista de la barra de carga del juego es oscura.
+  const track = await container.evaluate(element =>
+    getComputedStyle(element).getPropertyValue('--mat-sys-surface-variant').trim().toUpperCase());
+  expect(track).toBe('#1D2540');
 });
