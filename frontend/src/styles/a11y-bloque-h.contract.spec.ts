@@ -10,13 +10,14 @@ function source(relativePath: string): string {
 describe('bloque H: portada', () => {
   const scss = source('../app/features/public/landing.component.scss');
 
-  it('el botón primario no baja de 4,5:1 con texto blanco en ningún tramo del degradado', () => {
-    // Antes: #8b5cf6 → #7c3aed; el inicio daba 4,23:1.
+  it('el botón primario no baja de 4,5:1 en ninguna de las dos pieles (ya no hay degradado propio)', () => {
+    // Antes: un degradado propio (#8b5cf6 → #7c3aed; el inicio daba 4,23:1). F4-1: los llamados a la acción son
+    // ui-button, con el primario y su texto de cada piel: juego (héroe) y portal (cierre).
     expect(scss).not.toContain('#8b5cf6');
-    expect(scss).toMatch(/\.landing-btn--primary \{[^}]*background: linear-gradient\(135deg, #7c3aed 0%, #6d28d9 100%\);/);
-    for (const stop of ['#7c3aed', '#6d28d9']) {
-      expect(contrastRatio('#FFFFFF', stop)).toBeGreaterThanOrEqual(4.5);
-    }
+    expect(scss).not.toContain('landing-btn');
+    expect(scss).not.toContain('linear-gradient');
+    expect(contrastRatio('#0E1322', '#B69CFF')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#FFFFFF', '#004876')).toBeGreaterThanOrEqual(4.5);
   });
 });
 

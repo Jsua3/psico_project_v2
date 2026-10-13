@@ -11,8 +11,11 @@ describe('portada: navegación pública y semántica de la maqueta', () => {
     expect(html).not.toContain('landing-nav');
   });
 
-  it('la maqueta de decisiones es decorativa: sus botones deshabilitados no se leen', () => {
-    expect(html).toContain('<p class="landing-preview-pixel__decisions-label" aria-hidden="true">Decisiones disponibles</p>');
-    expect(html).toContain('<div class="landing-preview-pixel__decisions" aria-hidden="true">');
+  // F4-1: la maqueta ya no finge controles (antes, botones deshabilitados ocultos al lector): las decisiones son una
+  // lista de ejemplo nombrada por su rótulo visible. El comportamiento en DOM, en landing.component.spec.ts.
+  it('la maqueta de decisiones no tiene controles falsos: es una lista de ejemplo con nombre', () => {
+    expect(html).not.toMatch(/\bdisabled\b/);
+    expect(html).toContain('<p class="landing-preview__decisions-label" id="preview-decisions">Ejemplo de decisiones</p>');
+    expect(html).toContain('<ul class="landing-preview__decisions" aria-labelledby="preview-decisions">');
   });
 });

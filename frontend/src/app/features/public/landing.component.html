@@ -2,11 +2,11 @@
   <app-public-bar [anchors]="anchors" />
 
   <main id="main-content" tabindex="-1">
-    <section class="landing-hero" id="simulador" aria-labelledby="hero-title">
+    <!-- El héroe presenta el simulador: piel juego (VD-2: el violeta solo para «simulador»). -->
+    <section class="landing-hero" id="simulador" data-skin="game" aria-labelledby="hero-title">
       <app-siep-particle-layer density="medium" [interactive]="true" mode="background"></app-siep-particle-layer>
-      <div class="landing-hero__glow" aria-hidden="true"></div>
       <div class="landing-wrap landing-hero__grid">
-        <div class="landing-hero__copy siep-fade-up">
+        <div class="landing-hero__copy landing-enter">
           <h1 id="hero-title" class="landing-hero__title">
             Entrena decisiones <span class="landing-accent">psicosociales</span> antes de enfrentarte a casos reales
           </h1>
@@ -16,31 +16,32 @@
             docente.
           </p>
           <div class="landing-hero__actions">
-            <a class="landing-btn landing-btn--primary" routerLink="/login">
+            <a ui-button variant="primary" size="lg" routerLink="/login">
               Ingresar al sistema
-              <mat-icon>arrow_forward</mat-icon>
+              <mat-icon aria-hidden="true">arrow_forward</mat-icon>
             </a>
-            <a class="landing-btn landing-btn--outline" href="#casos">Ver casos</a>
-            <a class="landing-btn landing-btn--outline" href="#como-funciona">Cómo funciona</a>
+            <a ui-button variant="secondary" size="lg" href="#casos">Ver casos</a>
+            <a ui-button variant="secondary" size="lg" href="#como-funciona">Cómo funciona</a>
           </div>
           <ul class="landing-trust" aria-label="Compromisos formativos">
             @for (item of trustItems; track item) {
               <li>
-                <mat-icon>check_circle</mat-icon>
+                <mat-icon aria-hidden="true">check_circle</mat-icon>
                 {{ item }}
               </li>
             }
           </ul>
         </div>
 
-        <aside class="landing-preview-pixel" aria-label="Vista previa del simulador">
-          <div class="landing-preview-pixel__head">
-            <span class="landing-preview-pixel__badge">Caso activo</span>
+        <!-- Maqueta: una vista previa, no un control. Nada en ella se pulsa ni finge estar deshabilitado. -->
+        <aside class="landing-preview" aria-label="Vista previa del simulador">
+          <div class="landing-preview__head">
+            <span class="landing-preview__badge">Vista previa</span>
             <h2>Violencia basada en género</h2>
           </div>
 
-          <div class="landing-preview-pixel__body">
-            <div class="landing-preview-pixel__scene">
+          <div class="landing-preview__body">
+            <div class="landing-preview__scene">
               <img
                 [src]="simulatorSceneSrc"
                 alt="Escena pixel-art de consulta psicosocial: psicóloga y consultante en espacio seguro"
@@ -49,103 +50,80 @@
               />
             </div>
 
-            <div class="landing-preview-pixel__info">
+            <dl class="landing-preview__info">
               @for (info of caseInfo; track info.label) {
-                <article class="landing-preview-pixel__info-card">
-                  <span class="landing-preview-pixel__info-icon" aria-hidden="true">
-                    <mat-icon>{{ info.icon }}</mat-icon>
-                  </span>
-                  <div>
-                    <span class="landing-preview-pixel__info-label">{{ info.label }}</span>
-                    <p>{{ info.text }}</p>
-                  </div>
-                </article>
+                <div class="landing-preview__info-item">
+                  <mat-icon aria-hidden="true">{{ info.icon }}</mat-icon>
+                  <dt>{{ info.label }}</dt>
+                  <dd>{{ info.text }}</dd>
+                </div>
               }
-            </div>
+            </dl>
           </div>
 
-          <p class="landing-preview-pixel__decisions-label" aria-hidden="true">Decisiones disponibles</p>
-          <div class="landing-preview-pixel__decisions" aria-hidden="true">
+          <p class="landing-preview__decisions-label" id="preview-decisions">Ejemplo de decisiones</p>
+          <ul class="landing-preview__decisions" aria-labelledby="preview-decisions">
             @for (decision of heroDecisions; track decision.label) {
-              <button type="button" class="landing-preview-pixel__decision" disabled>
-                <mat-icon aria-hidden="true">{{ decision.icon }}</mat-icon>
-                <span>{{ decision.label }}</span>
-              </button>
+              <li><mat-icon aria-hidden="true">{{ decision.icon }}</mat-icon><span>{{ decision.label }}</span></li>
             }
-          </div>
+          </ul>
         </aside>
       </div>
     </section>
 
-    <section id="casos" class="landing-section landing-section--light">
+    <section id="casos" class="landing-section" aria-labelledby="casos-title">
       <div class="landing-wrap">
         <div class="landing-section__head">
-          <h2 class="landing-section__title">
-            Casos de <span class="landing-accent landing-accent--dark">entrenamiento</span>
+          <h2 class="landing-section__title" id="casos-title">
+            Casos de <span class="landing-accent">entrenamiento</span>
           </h2>
-          <a class="landing-link" routerLink="/login">Ingresa para ver los casos disponibles <mat-icon>arrow_forward</mat-icon></a>
+          <a class="landing-link" routerLink="/login">Ingresa para ver los casos disponibles <mat-icon aria-hidden="true">arrow_forward</mat-icon></a>
         </div>
         <div class="landing-grid landing-grid--3">
           @for (trainingCase of trainingCases; track trainingCase.title) {
             <article class="landing-case-card" [class.landing-case-card--soon]="!trainingCase.available">
-              <span class="landing-case-card__icon" [style.background]="trainingCase.accent + '18'" [style.color]="trainingCase.accent">
-                <mat-icon>{{ trainingCase.icon }}</mat-icon>
-              </span>
+              <span class="landing-icon" aria-hidden="true"><mat-icon>{{ trainingCase.icon }}</mat-icon></span>
               <h3>{{ trainingCase.title }}</h3>
               <p>{{ trainingCase.text }}</p>
-              <span
-                class="landing-chip"
-                [class.landing-chip--soon]="!trainingCase.available"
-                [style.--chip-color]="trainingCase.accent"
-              >{{ trainingCase.tag }}</span>
+              <ui-badge [tone]="trainingCase.available ? 'info' : 'neutral'">{{ trainingCase.tag }}</ui-badge>
             </article>
           }
         </div>
       </div>
     </section>
 
-    <section id="como-funciona" class="landing-section landing-section--muted">
+    <section id="como-funciona" class="landing-section landing-section--muted" aria-labelledby="como-funciona-title">
       <div class="landing-wrap">
-        <h2 class="landing-section__title landing-section__title--center">
-          Cómo funciona <span class="landing-accent landing-accent--dark">SIEP</span>
+        <h2 class="landing-section__title landing-section__title--center" id="como-funciona-title">
+          Cómo funciona <span class="landing-accent">SIEP</span>
         </h2>
-        <div class="landing-workflow">
-          @for (step of workflow; track step.step; let last = $last) {
-            <article class="landing-workflow__step">
-              <span class="landing-workflow__num" [style.background]="step.accent">{{ step.step }}</span>
-              <span class="landing-workflow__icon" [style.background]="step.accent + '18'" [style.color]="step.accent">
-                <mat-icon>{{ step.icon }}</mat-icon>
-              </span>
+        <ol class="landing-workflow">
+          @for (step of workflow; track step.step) {
+            <li class="landing-workflow__step">
+              <span class="landing-workflow__num" aria-hidden="true">{{ step.step }}</span>
+              <span class="landing-icon landing-icon--lg" aria-hidden="true"><mat-icon>{{ step.icon }}</mat-icon></span>
               <h3>{{ step.title }}</h3>
               <p>{{ step.text }}</p>
-            </article>
-            @if (!last) {
-              <span class="landing-workflow__arrow" aria-hidden="true"></span>
-            }
+            </li>
           }
-        </div>
+        </ol>
       </div>
     </section>
 
-    <section id="roles" class="landing-section landing-section--light">
+    <section id="roles" class="landing-section" aria-labelledby="roles-title">
       <div class="landing-wrap">
-        <h2 class="landing-section__title landing-section__title--center">
-          Roles en el <span class="landing-accent landing-accent--dark">sistema</span>
+        <h2 class="landing-section__title landing-section__title--center" id="roles-title">
+          Roles en el <span class="landing-accent">sistema</span>
         </h2>
         <div class="landing-grid landing-grid--3">
           @for (role of roles; track role.title) {
             <article class="landing-role-card">
-              <span class="landing-role-card__icon" [style.background]="role.accent + '18'" [style.color]="role.accent">
-                <mat-icon>{{ role.icon }}</mat-icon>
-              </span>
+              <span class="landing-icon" aria-hidden="true"><mat-icon>{{ role.icon }}</mat-icon></span>
               <h3>{{ role.title }}</h3>
               <p>{{ role.text }}</p>
-              <ul class="landing-role-card__features">
+              <ul class="landing-role-card__features" [attr.aria-label]="'Funciones de ' + role.title">
                 @for (feature of role.features; track feature) {
-                  <li>
-                    <span [style.background]="role.accent"></span>
-                    {{ feature }}
-                  </li>
+                  <li>{{ feature }}</li>
                 }
               </ul>
             </article>
@@ -154,17 +132,15 @@
       </div>
     </section>
 
-    <section id="etica" class="landing-section landing-section--muted">
+    <section id="etica" class="landing-section landing-section--muted" aria-labelledby="etica-title">
       <div class="landing-wrap">
-        <h2 class="landing-section__title landing-section__title--center">
-          Ética y <span class="landing-accent landing-accent--dark">buenas prácticas</span>
+        <h2 class="landing-section__title landing-section__title--center" id="etica-title">
+          Ética y <span class="landing-accent">buenas prácticas</span>
         </h2>
         <div class="landing-ethics">
           @for (item of ethicsItems; track item.title) {
             <article class="landing-ethics__item">
-              <span class="landing-ethics__icon">
-                <mat-icon>{{ item.icon }}</mat-icon>
-              </span>
+              <span class="landing-icon" aria-hidden="true"><mat-icon>{{ item.icon }}</mat-icon></span>
               <h3>{{ item.title }}</h3>
               <p>{{ item.text }}</p>
             </article>
@@ -173,35 +149,34 @@
       </div>
     </section>
 
-    <section class="landing-cta" aria-label="Llamado a la acción">
+    <section class="landing-cta" aria-labelledby="cta-title">
       <div class="landing-wrap landing-cta__inner">
-        <span class="landing-cta__icon" aria-hidden="true">
-          <mat-icon>psychology</mat-icon>
-        </span>
-        <p class="landing-cta__text">
+        <span class="landing-icon landing-icon--lg" aria-hidden="true"><mat-icon>psychology</mat-icon></span>
+        <p class="landing-cta__text" id="cta-title">
           Prepárate para intervenir con criterio, empatía y ética.<br />
           <strong>Practica hoy. Transforma mañana.</strong>
         </p>
-        <a class="landing-btn landing-btn--primary landing-btn--lg" routerLink="/login">
+        <a ui-button variant="primary" size="lg" routerLink="/login">
           Ingresar al sistema
-          <mat-icon>arrow_forward</mat-icon>
+          <mat-icon aria-hidden="true">arrow_forward</mat-icon>
         </a>
       </div>
     </section>
-
-    <footer class="landing-footer">
-      <div class="landing-wrap landing-footer__inner">
-        <p>
-          <mat-icon>apartment</mat-icon>
-          Proyecto académico vinculado al Programa de Psicología. {{ brand.institution }}.
-        </p>
-        <img
-          src="/assets/images/institution/logo-cue-ccaq-vertical.webp"
-          alt="Corporación Universitaria Empresarial Alexander Von Humboldt"
-          width="72"
-          height="36"
-        />
-      </div>
-    </footer>
   </main>
+
+  <!-- Fuera del <main> (H-34): es la información del sitio, no contenido de la página. -->
+  <footer class="landing-footer">
+    <div class="landing-wrap landing-footer__inner">
+      <p>
+        <mat-icon aria-hidden="true">apartment</mat-icon>
+        Proyecto académico vinculado al Programa de Psicología. {{ brand.institution }}.
+      </p>
+      <img
+        src="/assets/images/institution/logo-cue-ccaq-vertical.webp"
+        alt="Corporación Universitaria Empresarial Alexander Von Humboldt"
+        width="72"
+        height="36"
+      />
+    </div>
+  </footer>
 </div>

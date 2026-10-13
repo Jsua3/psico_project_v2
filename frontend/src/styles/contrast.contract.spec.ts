@@ -59,11 +59,11 @@ describe('contraste: portada', () => {
   const html = source('../app/features/public/landing.component.html');
   const accents = ['#6D28D9', '#115E59', '#9A3412', '#1D4ED8'];
 
-  it('no quedan acentos claros que fallan AA', () => {
-    for (const old of ['#7c3aed', '#14b8a6', '#f97316', '#3b82f6']) {
-      expect(data).not.toContain(`'${old}'`);
+  it('no quedan acentos claros que fallan AA (F4-1: ya no hay acentos por tarjeta, solo tokens)', () => {
+    for (const color of ['#7c3aed', '#14b8a6', '#f97316', '#3b82f6', ...accents]) {
+      expect(data).not.toContain(`'${color}'`);
     }
-    for (const accent of accents) expect(data).toContain(`'${accent}'`);
+    expect(data).not.toMatch(/\baccent:/);
   });
 
   it('los acentos pasan AA como texto y como fondo de texto blanco', () => {
@@ -72,9 +72,12 @@ describe('contraste: portada', () => {
     }
   });
 
-  it('el titular no usa el tramo oscuro del degradado', () => {
-    expect(scss).toContain('background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);');
-    expect(contrast('#a78bfa', '#151d32')).toBeGreaterThanOrEqual(4.5);
+  it('el titular no usa degradado: su palabra destacada es el primario sólido de la piel (F4-1)', () => {
+    // Un texto con background-clip: text desaparece con colores forzados (§2.3 del plan visual).
+    expect(scss).not.toContain('background-clip');
+    expect(scss).toMatch(/\.landing-accent \{\s*color: var\(--ds-primary\);/);
+    expect(contrast('#B69CFF', '#0E1322')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#004876', '#F5F7FA')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
@@ -86,13 +89,14 @@ describe('contraste: portada', () => {
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {
     // Revisión de F1 (C1): el token que mueve el anillo es --ds-focus (+ halo), no el alias --psy-focus.
-    // F3-4: la cabecera oscura dejó paso a la barra de vidrio clara (anillo global); siguen oscuros el héroe y el cierre.
-    expect(scss).toMatch(/\.landing-hero,\s*\.landing-cta__inner \{\s*--ds-focus: var\(--ds-focus-on-dark\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);/);
+    // F3-4: la cabecera oscura dejó paso a la barra de vidrio clara (anillo global). F4-1: el único tramo oscuro es el
+    // héroe, en la piel juego, que trae su propio anillo (#C9B3FF): ya no hace falta el parche --ds-focus-on-dark.
+    expect(html).toMatch(/<section class="landing-hero"[^>]*data-skin="game"/);
+    expect(scss).not.toContain('--ds-focus-on-dark');
     expect(scss).not.toContain('.landing-nav');
     expect(scss).not.toContain('--siep-primary-glow');
-    for (const bg of ['#151d32', '#0c1222', '#1a1040']) {
-      expect(contrast('#C9B3FF', bg)).toBeGreaterThanOrEqual(3);
-    }
+    expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#C9B3FF', '#151B2E')).toBeGreaterThanOrEqual(3);
   });
 });
 

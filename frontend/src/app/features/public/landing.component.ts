@@ -1,9 +1,11 @@
-import { CommonModule } from '@angular/common';
-import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
+
 import { APP_BRAND } from '../../core/config/brand.config';
 import { PUBLIC_ANCHORS, PublicBarComponent } from '../../shared/layout/public-bar.component';
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 
 interface TrainingCase {
@@ -11,7 +13,6 @@ interface TrainingCase {
   title: string;
   text: string;
   tag: string;
-  accent: string;
   /** Solo hay un caso jugable hoy; los demás se anuncian como «Próximamente». */
   available: boolean;
 }
@@ -21,14 +22,12 @@ interface WorkflowStep {
   icon: string;
   title: string;
   text: string;
-  accent: string;
 }
 
 interface RoleCard {
   icon: string;
   title: string;
   text: string;
-  accent: string;
   features: string[];
 }
 
@@ -38,10 +37,15 @@ interface EthicsItem {
   text: string;
 }
 
+/**
+ * Portada (plan visual F4-1): una identidad con dos pieles. El héroe presenta el simulador en la piel juego (VD-2:
+ * el violeta solo para «simulador»); las secciones, en la piel portal. Sin acentos de color por tarjeta ni puntos de
+ * color (VD-3): un solo tratamiento de icono con tokens.
+ */
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, PublicBarComponent, SiepParticleLayerComponent],
+  imports: [RouterLink, MatIconModule, PublicBarComponent, SiepParticleLayerComponent, UiBadge, UiButton],
   templateUrl: './landing.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './landing.component.scss'
@@ -77,7 +81,6 @@ export class LandingComponent {
       title: 'Violencia basada en género',
       text: 'Evalúa señales de riesgo, activa rutas de protección y documenta decisiones con criterio ético y legal.',
       tag: 'Disponible · caso sensible',
-      accent: '#6D28D9',
       available: true
     },
     {
@@ -85,7 +88,6 @@ export class LandingComponent {
       title: 'Desplazamiento forzado',
       text: 'Analiza contexto comunitario, necesidades de apoyo y articulación con redes institucionales del territorio.',
       tag: 'Próximamente',
-      accent: '#115E59',
       available: false
     },
     {
@@ -93,40 +95,15 @@ export class LandingComponent {
       title: 'Conflicto comunitario',
       text: 'Practica mediación psicosocial, lectura del conflicto y decisiones que respeten derechos y convivencia.',
       tag: 'Próximamente',
-      accent: '#9A3412',
       available: false
     }
   ];
 
   readonly workflow: WorkflowStep[] = [
-    {
-      step: '1',
-      icon: 'folder_open',
-      title: 'Selecciona un caso',
-      text: 'Elige un escenario de entrenamiento acorde a tu cohorte.',
-      accent: '#6D28D9'
-    },
-    {
-      step: '2',
-      icon: 'psychology',
-      title: 'Analiza la situación',
-      text: 'Explora contexto, personajes y señales antes de intervenir.',
-      accent: '#115E59'
-    },
-    {
-      step: '3',
-      icon: 'account_tree',
-      title: 'Toma decisiones',
-      text: 'Cada elección queda registrada en la trazabilidad.',
-      accent: '#9A3412'
-    },
-    {
-      step: '4',
-      icon: 'bar_chart',
-      title: 'Recibe retroalimentación',
-      text: 'Consulta orientación formativa y evaluación con rúbricas.',
-      accent: '#1D4ED8'
-    }
+    { step: '1', icon: 'folder_open', title: 'Selecciona un caso', text: 'Elige un escenario de entrenamiento acorde a tu cohorte.' },
+    { step: '2', icon: 'psychology', title: 'Analiza la situación', text: 'Explora contexto, personajes y señales antes de intervenir.' },
+    { step: '3', icon: 'account_tree', title: 'Toma decisiones', text: 'Cada elección queda registrada en la trazabilidad.' },
+    { step: '4', icon: 'bar_chart', title: 'Recibe retroalimentación', text: 'Consulta orientación formativa y evaluación con rúbricas.' }
   ];
 
   readonly roles: RoleCard[] = [
@@ -134,21 +111,18 @@ export class LandingComponent {
       icon: 'school',
       title: 'Estudiante',
       text: 'Practica intervención psicosocial en escenarios simulados y recibe retroalimentación formativa.',
-      accent: '#6D28D9',
       features: ['Simulaciones', 'Bitácora', 'Retroalimentación']
     },
     {
       icon: 'supervisor_account',
       title: 'Profesor',
       text: 'Asigna casos, supervisa trazabilidad y evalúa el desempeño con rúbricas académicas.',
-      accent: '#115E59',
       features: ['Rúbricas', 'Evaluación', 'Seguimiento']
     },
     {
       icon: 'admin_panel_settings',
       title: 'Administrador',
       text: 'Gestiona usuarios, publica casos y configura el entorno académico del simulador.',
-      accent: '#1D4ED8',
       features: ['Gestión', 'Trazabilidad', 'Reportes']
     }
   ];
@@ -160,5 +134,4 @@ export class LandingComponent {
     { icon: 'route', title: 'Rutas institucionales', text: 'Orientación cuando el escenario lo requiera.' },
     { icon: 'grading', title: 'Evaluación formativa', text: 'Sin diagnósticos ni decisiones automáticas.' }
   ];
-
 }
