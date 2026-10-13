@@ -65,10 +65,12 @@ test.describe('@focus-ring colores forzados', () => {
   test.use({ forcedColors: 'active' });
 
   // req: RNF-04, RNF-004, BLOQUE-H (foco visible con contraste forzado, WCAG 2.4.7)
-  test('el foco del panel lateral del acceso no se confunde con el fondo', async ({ page }) => {
+  // F4-2: el control que alterna los formularios dejó el panel lateral deslizante y vive en el formulario
+  // («Solicitar acceso»); la garantía es la misma: su anillo se ve con colores forzados.
+  test('el foco del control que alterna los formularios del acceso no se confunde con el fondo', async ({ page }) => {
     await page.goto('/login');
-    await page.locator('.toggle-container').waitFor({ state: 'visible' });
-    await tabUntil(page, '.toggle-container button, .toggle-container a');
+    await page.locator('.acceso__switch').waitFor({ state: 'visible' });
+    await tabUntil(page, '.acceso__switch button');
     const ring = await focusedOutline(page);
     expect(ring.width).toBe('3px');
     expect(ring.color).not.toBe(await canvasColor(page));

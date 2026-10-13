@@ -27,25 +27,34 @@ describe('bloque H: login (contraste)', () => {
   const alias = source('./_aliases.scss').match(/--siep-muted:\s*var\(--ds-([a-z0-9-]+)\);/)?.[1] ?? '';
   const muted = source('./tokens/_color.scss').match(new RegExp(`\\n\\s*${alias}:\\s*(#[0-9A-Fa-f]{6}),`))?.[1] ?? '';
 
-  it('el divisor y el estado de Google usan el token --siep-muted (≥ 4,5:1 sobre blanco)', () => {
-    // Antes: rgba(120,120,140,.85) = 3,31:1 y rgba(120,120,140,.95) = 3,92:1.
+  it('el divisor y el estado de Google usan el texto secundario del lenguaje (≥ 4,5:1 sobre blanco)', () => {
+    // Antes: rgba(120,120,140,.85) = 3,31:1 y rgba(120,120,140,.95) = 3,92:1. F4-2: tokens --ds-* directos
+    // (--siep-muted era alias de --ds-text-2).
     expect(alias).toBe('text-2');
     expect(muted).toBe('#4A5A6A');
-    expect(scss).toMatch(/\.auth-divider \{[^}]*color: var\(--siep-muted\);/);
-    expect(scss).toMatch(/\.auth-google__status \{[^}]*color: var\(--siep-muted\);/);
+    expect(scss).toMatch(/\.acceso__divider \{[^}]*color: var\(--ds-text-2\);/);
+    expect(scss).toMatch(/\.acceso__google-status \{[^}]*color: var\(--ds-text-2\);/);
     expect(contrastRatio(muted, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('el placeholder tiene color propio y llega a 4,5:1 sobre el campo gris', () => {
-    // Sin regla, Chrome pinta #757575: 4,19:1 sobre #f3f4f6.
-    expect(scss).toMatch(/\.auth-container input::placeholder \{\s*color: var\(--siep-muted\);\s*opacity: 1;\s*\}/);
-    expect(contrastRatio(muted, '#F3F4F6')).toBeGreaterThanOrEqual(4.5);
+  it('el placeholder tiene color propio y llega a 4,5:1, y el borde del campo a 3:1 (H-28)', () => {
+    // Sin regla, Chrome pinta #757575: 4,19:1 sobre #f3f4f6. F4-2: los campos son ui-field + uiControl, que fija el
+    // placeholder en --ds-text-2 sobre --ds-surface-1 y el borde en --ds-border-strong.
+    const field = source('../app/shared/ui/field/ui-field.scss');
+    const html = source('../app/features/login/login.component.html');
+    expect(field).toMatch(/&::placeholder \{\s*color: var\(--ds-text-2\);\s*opacity: 1;/);
+    expect(field).toContain('border: 1px solid var(--ds-border-strong);');
+    expect((html.match(/<input uiControl /g) ?? []).length).toBe(5);
+    expect(contrastRatio(muted, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#6F8296', '#FFFFFF')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el texto pequeño del panel índigo es blanco puro (4,86:1 incluso en el tramo más claro)', () => {
-    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0.
-    expect(scss).toMatch(/\.toggle-brand small \{[^}]*color: #fff;/);
-    expect(contrastRatio('#FFFFFF', '#5C6BC0')).toBeGreaterThanOrEqual(4.5);
+  it('el texto pequeño del panel del simulador llega a 4,5:1 (F4-2: piel juego en vez del panel índigo)', () => {
+    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado).
+    const html = source('../app/features/login/login.component.html');
+    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(scss).toMatch(/\.acceso__panel p \{[^}]*color: var\(--ds-text-2\);/);
+    expect(contrastRatio('#A9B3CC', '#0E1322')).toBeGreaterThanOrEqual(4.5);
   });
 });
 

@@ -103,15 +103,23 @@ describe('contraste: portada', () => {
 describe('contraste: login', () => {
   const scss = source('../app/features/login/login.component.scss');
 
-  it('el foco se adapta a cada superficie', () => {
-    expect(scss).toMatch(/\.siep-login \{\s*--ds-focus: var\(--ds-focus-on-dark\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);\s*\}/);
-    expect(scss).toMatch(/\.auth-container \.form-container \{\s*--ds-focus: var\(--ds-primary\);\s*--ds-focus-halo: var\(--ds-surface-1\);\s*\}/);
-    expect(scss).toMatch(/\.toggle-container \{\s*--ds-focus: var\(--ds-focus-on-primary\);\s*--ds-focus-halo: var\(--ds-focus-on-dark-halo\);\s*\}/);
-    expect(contrast('#FFFFFF', '#5c6bc0')).toBeGreaterThanOrEqual(3);
+  it('el foco se adapta a cada superficie: cada piel trae su anillo (F4-2, sin parches por zona)', () => {
+    // Antes: tres reasignaciones de --ds-focus (fondo oscuro, tarjeta blanca y panel índigo). Ahora la tarjeta va en
+    // la piel portal (#004876) y el panel del simulador en la piel juego (#C9B3FF).
+    const html = source('../app/features/login/login.component.html');
+    expect(scss).not.toContain('--ds-focus');
+    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el checkbox recupera su contorno de foco', () => {
-    expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--ds-focus\);\s*outline-offset: 2px;\s*\}/);
+  it('el checkbox conserva su contorno de foco (nada lo apaga; lo pinta el anillo global)', () => {
+    // Antes el acceso quitaba los contornos y una regla propia los devolvía; F4-2 ya no los quita.
+    const html = source('../app/features/login/login.component.html');
+    expect(scss).not.toMatch(/outline:\s*(none|0)\b/);
+    expect(html).toContain('<label ui-check><input type="checkbox" formControlName="remember" /> Recordar sesión</label>');
+    expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
+    expect(source('./mixins/_focus.scss')).toMatch(/@mixin ds-focus-ring[^{]*\{[^}]*outline:/);
   });
 });
 

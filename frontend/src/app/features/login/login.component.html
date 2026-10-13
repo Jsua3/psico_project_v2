@@ -1,256 +1,137 @@
 <app-public-bar mode="acceso" />
 
-<main class="siep-login" id="main-content" tabindex="-1">
-  <app-siep-particle-layer density="medium" [interactive]="true" mode="background"></app-siep-particle-layer>
-  <div class="siep-login__glow" aria-hidden="true"></div>
+<main class="acceso" id="main-content" tabindex="-1">
+  <div class="acceso__layout">
+    <section class="acceso__card" aria-labelledby="acceso-titulo">
+      <div class="acceso__brand">
+        <span class="acceso__brand-icon" aria-hidden="true"><mat-icon>psychology</mat-icon></span>
+        <span class="acceso__brand-text">
+          <strong>{{ brand.shortName }}</strong>
+          <span>{{ brand.program }}</span>
+        </span>
+      </div>
 
-  <div
-    class="auth-container"
-    [class.active]="showRegister()"
-    [style.--login-role-accent]="activeRole().accent"
-    [style.--login-role-accent-soft]="activeRole().accentSoft"
-    id="container"
-  >
-    <div class="form-container sign-up" [attr.inert]="showRegister() ? null : ''">
-      <form [formGroup]="registerForm" (ngSubmit)="onRegisterSubmit()" novalidate>
-        <div class="auth-brand">
-          <span class="auth-brand__icon" aria-hidden="true">
-            <mat-icon>psychology</mat-icon>
-          </span>
-          <div class="auth-brand__text">
-            <strong>{{ brand.shortName }}</strong>
-            <span>{{ brand.program }}</span>
-          </div>
-        </div>
-
-        <h1>Solicitar acceso</h1>
-        <p class="auth-subtitle">Completa tus datos institucionales para solicitar la activación de tu cuenta.</p>
-
-        <input type="text" placeholder="Nombre" aria-label="Nombre" formControlName="nombre" autocomplete="given-name" />
-        @if (registerForm.controls.nombre.touched && registerForm.controls.nombre.hasError('required')) {
-          <span class="auth-error" role="alert">El nombre es obligatorio.</span>
-        }
-
-        <input type="text" placeholder="Apellido" aria-label="Apellido" formControlName="apellido" autocomplete="family-name" />
-        @if (registerForm.controls.apellido.touched && registerForm.controls.apellido.hasError('required')) {
-          <span class="auth-error" role="alert">El apellido es obligatorio.</span>
-        }
-
-        <input type="email" placeholder="Correo institucional" aria-label="Correo institucional" formControlName="email" autocomplete="email" />
-        @if (registerForm.controls.email.touched && registerForm.controls.email.hasError('required')) {
-          <span class="auth-error" role="alert">El correo es obligatorio.</span>
-        }
-        @if (registerForm.controls.email.touched && registerForm.controls.email.hasError('email')) {
-          <span class="auth-error" role="alert">Ingresa un correo válido.</span>
-        }
-
-        @if (registerNotice()) {
-          <p class="auth-notice" role="status">{{ registerNotice() }}</p>
-        }
-        @if (registerError()) {
-          <p class="auth-error" role="alert">{{ registerError() }}</p>
-        }
-        @if (registerLoading()) {
-          <mat-progress-bar mode="indeterminate" aria-label="Enviando solicitud"></mat-progress-bar>
-        }
-
-        <button type="submit" class="auth-submit" [disabled]="registerForm.invalid || registerLoading()">Enviar solicitud</button>
-        <button type="button" class="auth-link-btn" (click)="openSignIn()">Ya tengo cuenta</button>
-      </form>
-    </div>
-
-    <div class="form-container sign-in" [attr.inert]="showRegister() ? '' : null">
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-        <div class="auth-brand">
-          <span class="auth-brand__icon" aria-hidden="true">
-            <mat-icon>psychology</mat-icon>
-          </span>
-          <div class="auth-brand__text">
-            <strong>{{ brand.shortName }}</strong>
-            <span>{{ brand.program }}</span>
-          </div>
-        </div>
-
-        <h1>Iniciar sesión</h1>
-        <p class="auth-subtitle">Selecciona tu perfil e ingresa con tu correo institucional.</p>
-        @if (sessionExpired) {
-          <p class="auth-notice" role="status">
-            <mat-icon aria-hidden="true">schedule</mat-icon>
-            <span>Tu sesión expiró. Inicia sesión nuevamente.</span>
-          </p>
-        }
-
-        <div class="auth-role-picker" role="group" aria-label="Seleccionar rol de acceso">
-          @for (role of roles; track role.id) {
-            <button
-              type="button"
-              class="auth-role-card"
-              [class.auth-role-card--active]="selectedRole() === role.id"
-              [attr.aria-pressed]="selectedRole() === role.id"
-              [style.--role-accent]="role.accent"
-              [style.--role-accent-soft]="role.accentSoft"
-              (click)="selectRole(role.id)"
-            >
-              <mat-icon aria-hidden="true">{{ role.icon }}</mat-icon>
-              <span>{{ role.label }}</span>
-            </button>
+      <!-- Un formulario a la vista: al alternar, el foco va al encabezado del nuevo (nunca a body). -->
+      @if (!showRegister()) {
+        <form class="acceso__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+          <h1 #heading id="acceso-titulo" tabindex="-1">Iniciar sesión</h1>
+          <p class="acceso__subtitle">Selecciona tu perfil e ingresa con tu correo institucional.</p>
+          @if (sessionExpired) {
+            <p class="acceso__notice" role="status">
+              <mat-icon aria-hidden="true">schedule</mat-icon>
+              <span>Tu sesión expiró. Inicia sesión nuevamente.</span>
+            </p>
           }
-        </div>
+          <ui-scope-notice />
 
-        <p class="auth-role-hint">{{ activeRole().hint }}</p>
-
-        @if (demo(); as demo) {
-          <div class="auth-demo-hint">
-            <span>Credenciales demo ({{ activeRole().label }}):</span>
-            <code>{{ demo[selectedRole()].email }}</code>
-            <button type="button" class="auth-demo-fill" (click)="fillDemoCredentials()">Usar demo</button>
-          </div>
-        }
-
-        <label class="auth-field" for="login-email">
-          <span>Correo institucional</span>
-          <input
-            id="login-email"
-            type="email"
-            [placeholder]="activeRole().emailPlaceholder"
-            formControlName="email"
-            autocomplete="email"
-          />
-        </label>
-        @if (form.controls.email.touched && form.controls.email.hasError('required')) {
-          <span class="auth-error" role="alert">El correo es obligatorio.</span>
-        }
-        @if (form.controls.email.touched && form.controls.email.hasError('email')) {
-          <span class="auth-error" role="alert">Ingresa un correo institucional válido.</span>
-        }
-
-        <label class="auth-field" for="login-password">
-          <span>Contraseña</span>
-          <div class="auth-password-wrap">
-            <input
-              id="login-password"
-              [type]="hidePassword() ? 'password' : 'text'"
-              placeholder="Tu contraseña"
-              formControlName="password"
-              autocomplete="current-password"
-            />
-            <button
-              type="button"
-              class="auth-password-toggle"
-              [attr.aria-label]="hidePassword() ? 'Mostrar contraseña' : 'Ocultar contraseña'"
-              (click)="hidePassword.set(!hidePassword())"
-            >
-              <mat-icon aria-hidden="true">{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
-            </button>
-          </div>
-        </label>
-        @if (form.controls.password.touched && form.controls.password.hasError('required')) {
-          <span class="auth-error" role="alert">La contraseña es obligatoria.</span>
-        }
-
-        <div class="auth-row">
-          <label class="auth-remember">
-            <input type="checkbox" formControlName="remember" />
-            <span>Recordar sesión</span>
-          </label>
-          <a class="auth-forgot" href="mailto:secretariapsicologia@cue.edu.co">¿Olvidaste tu contraseña?</a>
-        </div>
-
-        @if (error()) {
-          <p class="auth-error" role="alert">{{ error() }}</p>
-        }
-        @if (loading()) {
-          <mat-progress-bar mode="indeterminate" aria-label="Iniciando sesión"></mat-progress-bar>
-        }
-
-        <button type="submit" class="auth-submit" [disabled]="form.invalid || loading()">Ingresar</button>
-
-        @if (googleEnabled()) {
-          <div class="auth-divider" role="separator"><span>o</span></div>
-          <div class="auth-google">
-            <div #googleBtn class="auth-google__btn" [class.is-loading]="googleLoading()"></div>
-            @if (googleLoading()) {
-              <span class="auth-google__status" role="status">Conectando con Google…</span>
+          <div class="acceso__roles" role="group" aria-label="Seleccionar rol de acceso">
+            @for (role of roles; track role.id) {
+              <button type="button" class="acceso__role" [attr.aria-pressed]="selectedRole() === role.id" (click)="selectRole(role.id)">
+                <mat-icon aria-hidden="true">{{ role.icon }}</mat-icon>
+                <span>{{ role.label }}</span>
+              </button>
             }
           </div>
-        }
-      </form>
-    </div>
+          <p class="acceso__role-hint">{{ activeRole().hint }}</p>
 
-    <div class="toggle-container">
-      <div class="toggle">
-        <div class="toggle-panel toggle-left" [attr.inert]="showRegister() ? null : ''">
-          <div class="toggle-brand">
-            <span class="toggle-brand__icon" aria-hidden="true">
-              <mat-icon>psychology</mat-icon>
-            </span>
-            <div>
-              <strong>{{ brand.shortName }}</strong>
-              <small>{{ brand.fullName }}</small>
+          @if (demo(); as demo) {
+            <div class="acceso__demo">
+              <span>Credenciales demo ({{ activeRole().label }}):</span>
+              <code>{{ demo[selectedRole()].email }}</code>
+              <button type="button" class="acceso__link" (click)="fillDemoCredentials()">Usar demo</button>
             </div>
+          }
+
+          <ui-field label="Correo institucional" required
+            [error]="fieldError(form.controls.email, { required: 'El correo es obligatorio.', email: 'Ingresa un correo institucional válido.' })">
+            <input uiControl id="login-email" type="email" formControlName="email" autocomplete="email" [placeholder]="activeRole().emailPlaceholder" />
+          </ui-field>
+          <ui-field label="Contraseña" required revealable
+            [error]="fieldError(form.controls.password, { required: 'La contraseña es obligatoria.' })">
+            <input uiControl id="login-password" type="password" formControlName="password" autocomplete="current-password" />
+          </ui-field>
+
+          <div class="acceso__row">
+            <label ui-check><input type="checkbox" formControlName="remember" /> Recordar sesión</label>
+            <a class="acceso__link" href="mailto:secretariapsicologia@cue.edu.co">¿Olvidaste tu contraseña?</a>
           </div>
 
-          <div class="toggle-sim-preview" [attr.data-role]="selectedRole()">
-            <div class="toggle-sim-preview__hud">
-              <span>{{ activeRole().previewCase }}</span>
-              <span>{{ activeRole().previewScene }}</span>
+          @if (error()) {
+            <p class="acceso__error" role="alert">{{ error() }}</p>
+          }
+
+          <button ui-button type="submit" variant="primary" size="lg" class="acceso__submit" [loading]="loading()">Ingresar</button>
+
+          @if (googleEnabled()) {
+            <div class="acceso__divider" role="separator"><span>o</span></div>
+            <div class="acceso__google">
+              <div #googleBtn class="acceso__google-btn"></div>
+              @if (googleLoading()) {
+                <span class="acceso__google-status" role="status">Conectando con Google…</span>
+              }
             </div>
-            <div class="toggle-sim-preview__visual">
-              <img [src]="loginHeroImage" alt="Consultorio psicosocial SIEP: entorno de simulación formativa" />
-            </div>
-            <p class="toggle-sim-preview__caption">{{ activeRole().narrative }}</p>
-          </div>
+          }
+          @if (googleUnavailable()) {
+            <p class="acceso__google-status" role="status">El acceso con Google no está disponible ahora.</p>
+          }
 
-          <div class="toggle-pillars" role="list" aria-label="Pilares pedagógicos SIEP">
-            @for (pillar of pedagogyPillars; track pillar.key) {
-              <span class="toggle-pillar" role="listitem" [style.--pillar-color]="pillar.color" [title]="pillar.description">
-                <span class="toggle-pillar__badge" aria-hidden="true">{{ pillar.short }}</span>
-                <small>{{ pillar.title }}</small>
-              </span>
-            }
-          </div>
+          <p class="acceso__switch">
+            ¿Aún no tienes cuenta?
+            <button type="button" class="acceso__link" (click)="openSignUp()">Solicitar acceso</button>
+          </p>
+        </form>
+      } @else {
+        <form class="acceso__form" [formGroup]="registerForm" (ngSubmit)="onRegisterSubmit()" novalidate>
+          <h1 #heading id="acceso-titulo" tabindex="-1">Solicitar acceso</h1>
+          <p class="acceso__subtitle">Completa tus datos institucionales para solicitar la activación de tu cuenta.</p>
 
-          <h2>¡Bienvenido de nuevo!</h2>
-          <p>Continúa tu entrenamiento psicosocial con casos simulados, bitácora reflexiva y retroalimentación formativa.</p>
-          <button type="button" class="hidden" id="login" (click)="openSignIn()">Iniciar sesión</button>
-        </div>
+          <ui-field label="Nombre" required [error]="fieldError(registerForm.controls.nombre, { required: 'El nombre es obligatorio.' })">
+            <input uiControl id="registro-nombre" type="text" formControlName="nombre" autocomplete="given-name" />
+          </ui-field>
+          <ui-field label="Apellido" required [error]="fieldError(registerForm.controls.apellido, { required: 'El apellido es obligatorio.' })">
+            <input uiControl id="registro-apellido" type="text" formControlName="apellido" autocomplete="family-name" />
+          </ui-field>
+          <ui-field label="Correo institucional" required
+            [error]="fieldError(registerForm.controls.email, { required: 'El correo es obligatorio.', email: 'Ingresa un correo válido.' })">
+            <input uiControl id="registro-email" type="email" formControlName="email" autocomplete="email" />
+          </ui-field>
 
-        <div class="toggle-panel toggle-right" [attr.inert]="showRegister() ? '' : null">
-          <div class="toggle-brand">
-            <span class="toggle-brand__icon" aria-hidden="true">
-              <mat-icon>psychology</mat-icon>
-            </span>
-            <div>
-              <strong>{{ brand.shortName }}</strong>
-              <small>{{ brand.institution }}</small>
-            </div>
-          </div>
+          @if (registerNotice()) {
+            <p class="acceso__notice" role="status">{{ registerNotice() }}</p>
+          }
+          @if (registerError()) {
+            <p class="acceso__error" role="alert">{{ registerError() }}</p>
+          }
 
-          <div class="toggle-sim-preview" [attr.data-role]="selectedRole()">
-            <div class="toggle-sim-preview__hud">
-              <span>{{ activeRole().previewCase }}</span>
-              <span>{{ activeRole().previewScene }}</span>
-            </div>
-            <div class="toggle-sim-preview__visual">
-              <img [src]="loginHeroImage" alt="Consultorio psicosocial SIEP: entorno de simulación formativa" />
-            </div>
-            <p class="toggle-sim-preview__caption">{{ activeRole().narrative }}</p>
-          </div>
+          <button ui-button type="submit" variant="primary" size="lg" class="acceso__submit" [loading]="registerLoading()">Enviar solicitud</button>
 
-          <div class="toggle-pillars" role="list" aria-label="Pilares pedagógicos SIEP">
-            @for (pillar of pedagogyPillars; track pillar.key) {
-              <span class="toggle-pillar" role="listitem" [style.--pillar-color]="pillar.color" [title]="pillar.description">
-                <span class="toggle-pillar__badge" aria-hidden="true">{{ pillar.short }}</span>
-                <small>{{ pillar.title }}</small>
-              </span>
-            }
-          </div>
+          <p class="acceso__switch">
+            ¿Ya tienes cuenta?
+            <button type="button" class="acceso__link" (click)="openSignIn()">Ya tengo cuenta</button>
+          </p>
+        </form>
+      }
+    </section>
 
+    <!-- El simulador, en su piel (VD-2): una sola imagen de la escena y los pilares pedagógicos. -->
+    <aside class="acceso__panel" data-skin="game" aria-label="Sobre el simulador">
+      <app-siep-particle-layer density="low" mode="background"></app-siep-particle-layer>
+      <div class="acceso__panel-inner">
+        <p class="acceso__panel-eyebrow">{{ activeRole().previewCase }} · {{ activeRole().previewScene }}</p>
+        <img class="acceso__scene" [src]="loginHeroImage" alt="Consultorio psicosocial SIEP: entorno de simulación formativa" width="560" height="315" />
+        @if (showRegister()) {
           <h2>¿Nuevo en {{ brand.shortName }}?</h2>
           <p>Las cuentas son asignadas por la facultad. Solicita acceso o consulta con tu docente.</p>
-          <button type="button" class="hidden" id="register" (click)="openSignUp()">Solicitar acceso</button>
-        </div>
+        } @else {
+          <h2>¡Bienvenido de nuevo!</h2>
+          <p>{{ activeRole().narrative }}</p>
+        }
+        <ul class="acceso__pillars" aria-label="Pilares pedagógicos SIEP">
+          @for (pillar of pedagogyPillars; track pillar.key) {
+            <li><strong>{{ pillar.title }}</strong> <span>{{ pillar.description }}</span></li>
+          }
+        </ul>
       </div>
-    </div>
+    </aside>
   </div>
 </main>

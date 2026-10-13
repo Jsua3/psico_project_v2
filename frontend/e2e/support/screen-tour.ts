@@ -69,7 +69,8 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   {
     id: 'acceso-solicitud', role: 'publico', routePattern: 'login', path: '/login',
     ready: async page => {
-      await page.locator('#register').click({ force: true, timeout: 15_000 });
+      // F4-2: el formulario de solicitud se abre desde «Solicitar acceso» (ya no hay panel deslizante).
+      await page.getByRole('button', { name: 'Solicitar acceso' }).click({ timeout: 15_000 });
       await page.getByRole('heading', { name: /solicitar acceso/i }).waitFor({ state: 'visible', timeout: 15_000 });
     },
   },

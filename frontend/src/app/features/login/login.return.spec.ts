@@ -39,7 +39,7 @@ describe('login: sesión expirada y regreso', () => {
   async function submit(host: HTMLElement): Promise<void> {
     fixture.componentInstance.form.setValue({ email: 'ana@cue.edu.co', password: 'secreta', remember: false });
     await fixture.whenStable();
-    host.querySelector<HTMLButtonElement>('.sign-in button[type="submit"]')!.click();
+    host.querySelector<HTMLButtonElement>('form button[type="submit"]')!.click();
     await fixture.whenStable();
   }
 
@@ -56,14 +56,14 @@ describe('login: sesión expirada y regreso', () => {
 
   it('con motivo=sesion-expirada, el formulario de entrada lo dice en la pantalla (no en un aviso que se va)', async () => {
     const host = await open('/login?returnUrl=%2Fportal%2Fgrupos&motivo=sesion-expirada');
-    const notice = host.querySelector('.sign-in [role="status"]')!;
+    const notice = host.querySelector('form .acceso__notice[role="status"]')!;
     expect(notice.querySelector('mat-icon')!.getAttribute('aria-hidden')).toBe('true');
     expect(notice.querySelector('span')!.textContent!.trim()).toBe('Tu sesión expiró. Inicia sesión nuevamente.');
   });
 
   it('sin motivo no hay aviso', async () => {
     const host = await open('/login');
-    expect(host.querySelector('.sign-in .auth-notice')).toBeNull();
+    expect(host.querySelector('form .acceso__notice')).toBeNull();
   });
 
   it('al entrar vuelve a la ruta pedida', async () => {

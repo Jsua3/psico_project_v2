@@ -42,7 +42,7 @@ describe('login: «Usar demo» solo en desarrollo', () => {
     await vi.waitFor(() => expect(fixture.componentInstance.demo()).not.toBeNull());
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;
-    [...host.querySelectorAll<HTMLButtonElement>('.sign-in button')].find(button => button.textContent!.trim() === 'Usar demo')!.click();
+    [...host.querySelectorAll<HTMLButtonElement>('form button')].find(button => button.textContent!.trim() === 'Usar demo')!.click();
     expect(fixture.componentInstance.form.getRawValue()).toMatchObject({ email: 'estudiante@psychosim.edu.co', password: 'Estudiante123!' });
     fixture.componentInstance.selectRole('PROFESOR');
     expect(fixture.componentInstance.form.controls.email.value).toBe('profesora@psychosim.edu.co');
