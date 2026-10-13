@@ -117,3 +117,13 @@ def _apply_decision_request(decision, request, case_version_id):
     decision.prohibited_penalty = _int(request.get("prohibitedPenalty"))
     feedback = request.get("immediateFeedback")
     decision.immediate_feedback = feedback if feedback is not None else ""
+    # Un texto presente (aunque vacío) reemplaza; uno ausente significa «no tocar»: los editores
+    # anteriores no los envían y no deben borrarlos (E1-7).
+    for field, key in (
+        ("consequence_text", "consequenceText"),
+        ("theory_basis", "theoryBasis"),
+        ("feedback_text", "feedbackText"),
+    ):
+        if key in request:
+            value = request.get(key)
+            setattr(decision, field, value.strip() or None if isinstance(value, str) else None)

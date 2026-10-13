@@ -77,6 +77,19 @@ def node_state(node, include_options):
     }
 
 
+def consequence_dto(decision):
+    """La consecuencia narrativa de una decisión registrada (C2, RN-08).
+
+    El texto propio de la opción (``consequence_text``) o, si no lo tiene, la narrativa del
+    nodo al que lleva: ``source`` dice cuál (``OPTION`` | ``NODE``). No es retroalimentación:
+    no dice si estuvo bien o mal.
+    """
+    text = (decision.consequence_text or "").strip()
+    if text:
+        return {"text": text, "source": "OPTION"}
+    return {"text": decision.target_node.narrative or "", "source": "NODE"}
+
+
 def feedback_dto(decision, effects, message, retry_required=False):
     return {
         "classification": decision.classification,

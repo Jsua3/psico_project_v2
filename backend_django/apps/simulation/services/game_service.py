@@ -28,7 +28,7 @@ from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
-from . import attempt_duration
+from . import attempt_duration, case_rules
 from shared.exceptions import ApiError
 from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
@@ -418,15 +418,50 @@ def _find_decision_replay(attempt, decision_option_id, request_id):
     return None
 
 
+#: Mensaje del reintento cuando la respuesta no puede ser evaluativa (``FEEDBACK_AT_CLOSE_ONLY``):
+#: anuncia que se puede volver a elegir sin decir si la respuesta fue buena o mala.
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+RETRY_NEUTRAL_MESSAGE = "Puedes volver a elegir en esta escena."
+
+
+def _decision_response(attempt, attempt_token, decision, effects, message, rules, retry_required=False):
+    """La respuesta de una decisión (C2): consecuencia narrativa y, según la regla, lo evaluativo.
+
+    Con ``FEEDBACK_AT_CLOSE_ONLY`` (o ``feedbackTiming = AT_CLOSE`` en la versión) la forma es
+    ``{attempt, consequence, retry?}`` y no viaja clasificación, deltas ni mensaje evaluativo:
+    llegan en el reporte al cierre. Con la bandera apagada se conserva la forma de siempre
+    (``attemptState`` con ``feedback``) y se **añaden** ``consequence`` y ``retry``. Un reintento
+    no aplicó nada, así que no tiene consecuencia (``consequence: null``).
+    """
+    at_close = case_rules.feedback_at_close_only(rules)
+    consequence = None if retry_required else dto.consequence_dto(decision)
+    retry = None
+    if retry_required:
+        retry = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE if at_close else message}
+    if at_close:
+        response = {"attempt": dto.attempt_state(attempt, attempt_token, None), "consequence": consequence}
+        if retry:
+            response["retry"] = retry
+        return response
+    feedback = dto.feedback_dto(decision, effects, message, retry_required=retry_required)
+    response = dto.attempt_state(attempt, attempt_token, feedback)
+    response["consequence"] = consequence
+    if retry:
+        response["retry"] = retry
+    return response
+
+
 def _replayed_decision_state(attempt, attempt_token, event):
     """La respuesta de una decisión ya procesada, reconstruida desde su evento y el estado actual."""
     decision = event.decision_option
     effects = decision_effects.resolve(decision)
+    rules = case_rules.rules_of(attempt.case_version)
     if event.event_type in case_effects.RETRY_EVENT_TYPES:
-        feedback = dto.feedback_dto(decision, effects, event.detail, retry_required=True)
-    else:
-        feedback = dto.feedback_dto(decision, effects, decision_effects.format_feedback(decision, effects))
-    return dto.attempt_state(attempt, attempt_token, feedback)
+        return _decision_response(
+            attempt, attempt_token, decision, effects, event.detail, rules, retry_required=True
+        )
+    message = decision_effects.format_feedback(decision, effects)
+    return _decision_response(attempt, attempt_token, decision, effects, message, rules)
 
 
 @locked_attempt
@@ -458,12 +493,13 @@ def choose_decision(
         raise ValidationError("La decisión no pertenece al caso del intento")
 
     effects = decision_effects.resolve(decision)
+    rules = case_rules.rules_of(attempt.case_version)
     is_bad_answer = decision.prohibited_conduct or decision.classification in {"RISKY", "INADEQUATE"}
-    if is_bad_answer:
-        # Regla de 2 oportunidades por escena/cuestionario: la PRIMERA respuesta
-        # riesgosa/inadecuada concede una segunda (y última) oportunidad sin
-        # cambiar métricas ni avanzar el DAG. Si la SEGUNDA también es mala, ya
-        # no se reintenta: queda registrada y avanza (cae al bloque de commit).
+    if is_bad_answer and rules.second_chance:
+        # Regla de 2 oportunidades por escena/cuestionario (``rules.secondChance``, E1-7): la
+        # PRIMERA respuesta riesgosa/inadecuada concede una segunda (y última) oportunidad sin
+        # cambiar métricas ni avanzar el DAG. Si la SEGUNDA también es mala, ya no se reintenta:
+        # queda registrada y avanza (cae al bloque de commit). Sin la regla, se registra al instante.
         prior_retries = AttemptEvent.objects.filter(
             attempt_id=attempt.id,
             node_id=attempt.current_node_id,
@@ -482,8 +518,9 @@ def choose_decision(
             # Trazado para revisión/rúbrica docente; sin cambios de métricas ni avance.
             _save_event(attempt, event_type, decision.source_node, decision, 0, 0, message, request_id)
             attempt.save(update_fields=attempt_duration.ACTIVITY_FIELDS)  # el reintento también es actividad
-            feedback = dto.feedback_dto(decision, effects, message, retry_required=True)
-            return dto.attempt_state(attempt, attempt_token, feedback)
+            return _decision_response(
+                attempt, attempt_token, decision, effects, message, rules, retry_required=True
+            )
 
     decision_effects.apply(attempt, effects)
     # Efecto mariposa del caso: flags clínicos + métricas acumulativas (se
@@ -523,8 +560,7 @@ def choose_decision(
         # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
         attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
-    feedback = dto.feedback_dto(decision, effects, message)
-    return dto.attempt_state(attempt, attempt_token, feedback)
+    return _decision_response(attempt, attempt_token, decision, effects, message, rules)
 
 
 @locked_attempt

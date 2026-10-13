@@ -104,6 +104,9 @@ def decision_edge(d):
         "stressDelta": d.stress_delta,
         "prohibitedPenalty": d.prohibited_penalty,
         "immediateFeedback": d.immediate_feedback,
+        "consequenceText": d.consequence_text,
+        "theoryBasis": d.theory_basis,
+        "feedbackText": d.feedback_text,
     }
 
 

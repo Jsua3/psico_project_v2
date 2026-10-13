@@ -146,6 +146,9 @@ def _env_flag(name, default=False):
 # «activa» y se borra lo viejo) en F9-10 del visual o en E5-10, lo que ocurra primero.
 #: E1-1 · con un intento abierto, `forceNew` de un ESTUDIANTE → 409 ATTEMPT_ALREADY_OPEN (RN-07).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
+#: E1-7 · la respuesta de una decisión no trae clasificación, deltas ni mensaje evaluativo: la
+#: retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
+FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
