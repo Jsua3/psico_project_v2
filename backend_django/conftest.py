@@ -25,3 +25,12 @@ def pytest_collection_modifyitems(config, items):
                 problems.append(f"{item.nodeid}: código inválido {code!r}")
     if problems:
         raise pytest.UsageError("Marcador req inválido:\n" + "\n".join(problems))
+
+
+@pytest.fixture
+def fetch_raise():
+    """Un acceso perezoso accidental a una relación lanza en vez de hacer N+1 (DJA-7)."""
+    from shared.testing import fetch_mode_raise
+
+    with fetch_mode_raise():
+        yield

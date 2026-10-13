@@ -346,7 +346,11 @@ def attempt_state(attempt, raw_token, feedback, events=None):
     if not in_progress:
         if events is None:
             from apps.simulation.models import AttemptEvent
-            events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+            events = list(
+                AttemptEvent.objects.filter(attempt_id=attempt.id)
+                .select_related("node", "decision_option")
+                .order_by("occurred_at", "id")
+            )
         completion_report = build_completion_report(attempt, events)
     return {
         "attemptId": str(attempt.id),

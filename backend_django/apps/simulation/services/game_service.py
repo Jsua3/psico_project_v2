@@ -148,7 +148,7 @@ def _close_active_attempts(student_id, case_version_id, reason):
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
         status__in=lifecycle.OPEN_STATUSES,
-    )
+    ).select_related("current_node")
     now = timezone.now()
     for active in actives:
         lifecycle.apply(active, lifecycle.REPLACE)
@@ -230,7 +230,11 @@ def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
-    events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+    events = list(
+        AttemptEvent.objects.filter(attempt_id=attempt.id)
+        .select_related("node", "decision_option")
+        .order_by("occurred_at", "id")
+    )
     return dto.build_completion_report(attempt, events)
 
 
@@ -328,7 +332,11 @@ def get_student_report(attempt_id, actor):
         alcance = student_ids_for_instructor(actor)
         if alcance is not None and attempt.student_id not in alcance:
             raise PermissionDenied("No tiene acceso a este intento")
-    events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+    events = list(
+        AttemptEvent.objects.filter(attempt_id=attempt.id)
+        .select_related("node", "decision_option")
+        .order_by("occurred_at", "id")
+    )
     return dto.build_completion_report(attempt, events)
 
 

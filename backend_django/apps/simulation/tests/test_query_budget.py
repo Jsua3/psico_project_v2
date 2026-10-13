@@ -34,7 +34,7 @@ QUERY_BUDGETS = {
     "patch_world_state": 19,  # (3) E5-1 apunta a ≤ 6
     "enter_room": 25,  # (3)
     "post_decision": 9,  # (4)
-    "get_student_report": 4,  # (0)
+    "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina
 }
 TIMED_REPEATS = 5  # los GET se repiten para sacar la mediana de milisegundos
