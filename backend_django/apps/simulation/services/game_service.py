@@ -6,11 +6,12 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
+from django.db.models import OuterRef
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from apps.grupos.models import GrupoCaseVersion
+from apps.grupos import assignments
 from apps.simulation.models import (
     INITIAL_STRESS_INDEX,
     INITIAL_USER_TRUST,
@@ -93,6 +94,10 @@ def _require_attempt(attempt_id, attempt_token, actor):
             pk=attempt_id, attempt_token_hash=_hash_token(attempt_token)
         )
         .select_related("case_version__simulation_case", "current_node", "student")
+        # E1-4: la asignación vigente del dueño viaja en la misma consulta (sin un viaje más).
+        .annotate(owner_has_assignment=assignments.assignment_exists(
+            OuterRef("student_id"), OuterRef("case_version_id")
+        ))
         .first()
     )
     if not attempt:
@@ -101,6 +106,12 @@ def _require_attempt(attempt_id, attempt_token, actor):
     staff = actor.role in ("ADMIN", "PROFESOR")
     if not owner and not staff:
         raise PermissionDenied("No tiene acceso a este intento")
+    # Un estudiante al que ya no le asignaron el caso no continúa un intento abierto; uno
+    # cerrado sigue siendo suyo y se puede leer. Una versión archivada o un caso dado de baja
+    # NO bloquean: se deja terminar (Review Focus 2).
+    if (owner and actor.role == "ESTUDIANTE" and lifecycle.state_of(attempt).is_open
+            and not attempt.owner_has_assignment):
+        raise access_not_assigned()
     return attempt
 
 
@@ -111,23 +122,19 @@ def _reissue_token(attempt):
     return raw
 
 
-def assigned_case_version_ids(student_id):
-    """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
-    return list(
-        GrupoCaseVersion.objects.filter(
-            grupo__activo=True, grupo__grupoestudiante__estudiante_id=student_id
-        )
-        .values_list("case_version_id", flat=True)
-        .distinct()
+def access_not_assigned():
+    """403 ACCESS_NOT_ASSIGNED: el estudiante ya no tiene el caso asignado por un grupo activo."""
+    return ApiError(
+        "ACCESS_NOT_ASSIGNED",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "Ya no tienes este caso asignado. Consúltalo con tu docente.",
+        status.HTTP_403_FORBIDDEN,
     )
 
 
-def _student_can_access_case(student_id, case_version_id):
-    return GrupoCaseVersion.objects.filter(
-        case_version_id=case_version_id,
-        grupo__activo=True,
-        grupo__grupoestudiante__estudiante_id=student_id,
-    ).exists()
+#: Reexportado: lo importan el catálogo de progresión y otras pruebas desde su ubicación anterior.
+assigned_case_version_ids = assignments.assigned_case_version_ids
+_student_can_access_case = assignments.student_has_assignment
 
 
 def list_published_cases(actor=None):
@@ -242,10 +249,20 @@ def start_attempt(case_version_id, actor, force_new=False):
 
 
 def find_active_attempt(case_version_id, actor):
-    _require_published(case_version_id)
+    """El intento abierto del estudiante en esa versión, con un token nuevo; ``None`` si no hay.
+
+    Con un intento abierto no se exige que la versión siga publicada (se deja terminar), pero sí
+    que el estudiante conserve la asignación (E1-4). Sin intento abierto, el caso debe estar
+    publicado, como siempre.
+    """
     active = _open_attempt_of(actor.id, case_version_id)
     if not active:
+        _require_published(case_version_id)
         return None
+    if getattr(actor, "role", None) == "ESTUDIANTE" and not assignments.student_has_assignment(
+        actor.id, case_version_id
+    ):
+        raise access_not_assigned()
     return dto.attempt_state(active, _reissue_token(active), None)
 
 

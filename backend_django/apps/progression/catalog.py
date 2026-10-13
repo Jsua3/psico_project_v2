@@ -5,8 +5,8 @@ the cases assigned to them by their active groups (RF-15, RN-04); within that
 sequence, case i is unlocked iff the student completed case i-1 (the first is always
 unlocked). PROFESOR/ADMIN see everything unlocked.
 """
+from apps.grupos.assignments import assigned_case_version_ids
 from apps.simulation.models import CaseVersion
-from apps.simulation.services.game_service import assigned_case_version_ids
 
 from .models import StudentCaseCompletion
 
