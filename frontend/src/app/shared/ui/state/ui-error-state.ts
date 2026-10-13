@@ -71,6 +71,11 @@ export class UiErrorState {
   readonly detail = input<string | null | undefined>(null);
   readonly status = input<number | null | undefined>(null);
   readonly blocking = input(false, { transform: booleanAttribute });
+  /**
+   * Al montarse mueve el foco a su título: un error bloqueante que aparece por sí solo (p. ej. el juego que no
+   * carga) deja el foco en el cuerpo y quien usa teclado o lector no lo encuentra.
+   */
+  readonly autofocus = input(false, { transform: booleanAttribute });
   readonly retry = output<void>();
 
   protected readonly actions = STATE_ACTION_COPY;
@@ -88,7 +93,8 @@ export class UiErrorState {
 
   constructor() {
     afterNextRender(() => {
-      if (this.tracker.consumeRetry(this.host.parentElement) && focusWasLost()) this.title().nativeElement.focus();
+      const retried = this.tracker.consumeRetry(this.host.parentElement);
+      if (this.autofocus() || (retried && focusWasLost())) this.title().nativeElement.focus();
     });
   }
 

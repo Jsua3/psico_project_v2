@@ -1,5 +1,5 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, input, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -26,7 +26,7 @@ const ICONS: Record<NotificationType, string> = {
   selector: 'ui-toast-host',
   imports: [MatIconModule, UiIconButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'ui-toast-host' },
+  host: { class: 'ui-toast-host', '[class.ui-toast-host--game]': "placement() === 'game'" },
   template: `
     <section #region class="ui-toast-host__region" popover="manual" aria-label="Mensajes del sistema">
       @for (message of messages(); track message.id) {
@@ -43,6 +43,12 @@ const ICONS: Record<NotificationType, string> = {
   styleUrl: './ui-toast-host.scss',
 })
 export class UiToastHost {
+  /**
+   * Dónde se apilan los avisos. `portal`: abajo a la derecha. `game` (F6-1): arriba a la izquierda, bajo la cabecera
+   * del juego: abajo a la derecha están «Interactuar», la cruceta táctil y el pie del diálogo, abajo a la izquierda
+   * «Salida segura», y a la derecha el panel de diálogo.
+   */
+  readonly placement = input<'portal' | 'game'>('portal');
   protected readonly notifications = inject(NotificationService);
   protected readonly messages = toSignal(this.notifications.messages$, { initialValue: [] });
   protected readonly icons = ICONS;

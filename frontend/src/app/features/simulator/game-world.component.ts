@@ -2402,7 +2402,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
     </div>
-    @if (!assetsReady()) {
+    @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
         <p class="world-loading__label" role="status">Preparando la escena…</p>
         <div class="world-loading__track" role="progressbar" aria-label="Carga de la escena"
@@ -2605,6 +2605,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
   /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */
   readonly compact = input(false);
+  /**
+   * Con false el mundo no pinta su propio indicador de carga: el anfitrión ya muestra UNO desde el intento hasta el
+   * primer cuadro (`worldReady`), y dos en secuencia eran tres señales distintas (plan visual F6-1).
+   */
+  readonly showLoader = input(true);
+  /** Primer cuadro pintado del mapa actual: el anfitrión retira su indicador de carga. */
+  readonly worldReady = output<void>();
   /** Candidato PRINCIPAL en rango; un NPC llega como `MapObjectState` sintético con key `npc:{clave}`. */
   readonly proximity = output<MapObjectState | null>();
   /** Candidato secundario en rango (otra persona u objeto), o null. */
@@ -2789,6 +2796,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
           this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
+          this.worldReady.emit();
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),

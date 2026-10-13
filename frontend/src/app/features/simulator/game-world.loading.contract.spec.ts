@@ -13,7 +13,8 @@ describe('game-world: carga de la escena', () => {
   });
 
   it('la capa de carga muestra el porcentaje real', () => {
-    expect(source).toContain('@if (!assetsReady()) {');
+    // F6-1: con `showLoader` en false el anfitrión (el juego) ya pinta UN indicador y la del mundo se oculta.
+    expect(source).toContain('@if (!assetsReady() && showLoader()) {');
     expect(source).toContain('[attr.aria-valuenow]="loadPercent()"');
     expect(source).toContain("[style.transform]=\"'scaleX(' + loadPercent() / 100 + ')'\"");
   });

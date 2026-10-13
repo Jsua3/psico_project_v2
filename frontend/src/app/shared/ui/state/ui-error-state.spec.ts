@@ -15,7 +15,7 @@ import { UiErrorKind, UiErrorState } from './ui-error-state';
   template: `
     @if (show()) {
       <ui-error-state [kind]="kind()" [message]="message()" [detail]="detail()" [status]="status()" [blocking]="blocking()"
-        (retry)="retries = retries + 1" />
+        [autofocus]="autofocus()" (retry)="retries = retries + 1" />
     }
     <button type="button" class="other">Otro control</button>
   `,
@@ -27,6 +27,7 @@ class Host {
   detail = signal<string | undefined>(undefined);
   status = signal<number | undefined>(undefined);
   blocking = signal(false);
+  autofocus = signal(false);
   retries = 0;
 }
 
@@ -128,6 +129,19 @@ describe('ui-error-state', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // req: REGLA-004, BLOQUE-H (F6-1: el error de carga del juego aparece por sí solo y deja el foco en el cuerpo)
+  it('con autofocus, un error bloqueante que aparece por sí solo deja el foco en su título', async () => {
+    const other = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.other')!;
+    other.focus();
+    host.autofocus.set(true);
+    host.blocking.set(true);
+    host.show.set(false);
+    await fixture.whenStable();
+    host.show.set(true);
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(root().querySelector('.ui-error-state__title'));
   });
 
   it('un error que aparece sin reintento no roba el foco', async () => {

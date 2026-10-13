@@ -4,7 +4,6 @@ import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterN
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -56,6 +55,11 @@ import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
 import { getDecisionCounter, getSceneProgress, getStageTitle } from './scene-objectives.config';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
+import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
+import { UiErrorKind } from '../../shared/ui/state/state-copy';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
@@ -112,10 +116,11 @@ const CASE_INTRO_PARAGRAPHS = [
   selector: 'app-simulation-play',
   standalone: true,
   imports: [
-    A11yModule, CommonModule, RouterLink, MatIconModule, MatProgressBarModule,
+    A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
-    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent
+    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent,
+    UiButton, UiErrorState, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -124,13 +129,25 @@ const CASE_INTRO_PARAGRAPHS = [
       <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
       <h1 class="sr-only">{{ attempt()?.caseTitle || 'Simulación' }}</h1>
 
-      @if (loading()) {
-        <div class="loading-overlay"><mat-progress-bar mode="indeterminate" aria-label="Cargando simulación" /></div>
+      <!-- UN solo indicador de arranque (F6-1), del intento al primer cuadro del mundo: la región de estado siempre
+           está presente y el indicador aparece a los 150 ms (loadingPhase). Cubre solo la zona del mundo: con el intento
+           ya cargado, la cabecera y «Salida segura» siguen a la vista (REGLA-004). -->
+      <p class="sr-only" role="status">{{ bootVisible() ? bootLabel() : '' }}</p>
+      @if (bootVisible()) {
+        <div class="game-boot" aria-hidden="true">
+          <ui-spinner [size]="32" />
+          <p>{{ bootLabel() }}</p>
+        </div>
       }
       @if (error()) {
-        <div class="error-overlay" role="alert">
-          <mat-icon>error</mat-icon><p>{{ error() }}</p>
-          <a class="psy-button psy-button--ghost" routerLink="/portal/simulador">Volver al simulador</a>
+        <!-- Un fallo nunca se traga: mensaje, reintento (vuelve a pedir lo que falló) y una salida. Con un intento en
+             curso la salida es el «Salida segura» del pie, que queda fuera de esta capa. -->
+        <div class="game-failure">
+          <ui-error-state blocking autofocus [kind]="errorKind()" [message]="error()" [status]="errorStatus()"
+            (retry)="retryFromError()" />
+          @if (!footerExit()) {
+            <a ui-button variant="secondary" routerLink="/portal/simulador">Volver al simulador</a>
+          }
         </div>
       }
       @if (actionError()) {
@@ -336,6 +353,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [stressLevel]="attempt()?.stressIndex ?? 0"
                 [doorStates]="doorStates()"
                 [nextTargetKey]="nextTargetKey()" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
+                [showLoader]="false" (worldReady)="onWorldReady()"
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)"
@@ -343,7 +361,8 @@ const CASE_INTRO_PARAGRAPHS = [
                 (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
             } @else {
-              <div id="game-area" class="world-skeleton" aria-label="Cargando mapa"></div>
+              <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
+              <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
             }
 
             @if (showHelpCard()) {
@@ -520,6 +539,13 @@ const CASE_INTRO_PARAGRAPHS = [
 
     /* ── Top bar ─────────────────────────────────────────────────────────── */
     .top-bar { z-index: 40; }
+    /* Cabecera y pie bajo una capa o un diálogo lateral (inert): se ven apagados, no «vivos pero muertos» (F6-1).
+       El mundo no se atenúa con un diálogo lateral abierto: sigue siendo el contexto de lo que se decide. */
+    .top-bar[inert], .bottom-zone[inert] {
+      opacity: .55;
+      filter: saturate(.6);
+      transition: opacity var(--ds-dur-fade) var(--ds-ease-out);
+    }
 
     /* ── Main zone: canvas + optional right panel ────────────────────────── */
     .main-zone {
@@ -961,14 +987,16 @@ const CASE_INTRO_PARAGRAPHS = [
       pointer-events: none; transition: opacity 320ms ease;
     }
     .scene-fade--active { opacity: 1; pointer-events: auto; }
-    .loading-overlay { position: absolute; top: 0; left: 0; right: 0; z-index: 300; }
-    .error-overlay {
-      position: absolute; inset: 0; z-index: 300; display: flex; flex-direction: column;
-      gap: 14px; align-items: center; justify-content: center;
-      background: rgba(8,12,18,.9); color: #e8f0f4; padding: 24px; text-align: center;
+    /* Arranque y fallo (F6-1): ocupan SOLO la zona del mundo (fila 2 de la rejilla). La cabecera y el pie —con
+       «Salida segura»— quedan a la vista y operables mientras carga o falla (REGLA-004). */
+    .game-boot, .game-failure {
+      grid-area: 2 / 1; z-index: 300;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: var(--ds-space-3); padding: var(--ds-space-5);
+      background: var(--ds-surface-page); color: var(--ds-text-1); text-align: center;
     }
-    .error-overlay mat-icon { font-size: 36px; color: rgba(168,80,98,.8); }
-    .error-overlay p { margin: 0; color: rgba(232,240,244,.6); }
+    .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
+    .game-failure ui-error-state { max-inline-size: 28rem; }
     /* Por encima de las tarjetas de introducción (380) y del aviso de reanudar (400): un error al
        pausar desde ellas tiene que verse, no solo anunciarse. */
     .action-toast {
@@ -1251,6 +1279,29 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly showContentWarning = signal(false);
   /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
   readonly worldStarted = signal(false);
+  /** Código HTTP del fallo que pinta el estado de error (null si no vino de una respuesta HTTP). */
+  readonly errorStatus = signal<number | null>(null);
+  /** Lo que «Reintentar» vuelve a pedir; null cuando no hay nada que reintentar (p. ej. un caso que no existe). */
+  private readonly retryAction = signal<(() => void) | null>(null);
+  readonly canRetry = computed(() => this.retryAction() !== null);
+  readonly errorKind = computed<UiErrorKind>(() => {
+    const status = this.errorStatus();
+    if (status === 0) return 'network';
+    if (status === 401 || status === 403) return 'forbidden';
+    if (status === 404 || !this.canRetry()) return 'not-found';
+    return 'server';
+  });
+  /** El mundo pintó su primer cuadro (`GameWorldComponent.worldReady`): hasta entonces hay UN indicador de carga. */
+  readonly worldRendered = signal(false);
+  /** Hay arranque en curso: el intento o el mundo se piden, o el mundo pedido todavía no pintó su primer cuadro. */
+  readonly bootLoading = computed(() => !this.error() && (this.loading() || (this.worldStarted() && !this.worldRendered())));
+  /** Una sola etiqueta para las dos fases: el mismo indicador cambia de texto, no se apila otro. */
+  readonly bootLabel = computed(() => (this.worldStarted() && this.attempt() ? 'Preparando la escena…' : 'Cargando el caso…'));
+  private readonly bootPhase = loadingPhase(this.bootLoading);
+  /** Visible a los 150 ms (una respuesta rápida no parpadea) y al menos 300 ms (una lenta no destella). */
+  readonly bootVisible = computed(() => this.bootPhase() === 'skeleton');
+  /** «Salida segura» del pie está a la vista: el error no repite la salida con un segundo botón. */
+  readonly footerExit = computed(() => this.worldStarted() && this.attempt()?.status === 'IN_PROGRESS');
   readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
   /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
@@ -1526,7 +1577,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
     });
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
-    if (!id) { this.error.set('Caso no encontrado.'); this.loading.set(false); return; }
+    if (!id) { this.fail('Caso no encontrado.', null, null); return; }
 
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
@@ -1552,11 +1603,37 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       // mismo attemptId; el consentimiento se vuelve a pedir en bootstrap.
       this.simulationService.resumeAttempt(active.attemptId, active.attemptToken).subscribe({
         next: attempt => this.bootstrapAttempt(attempt),
-        error: () => { this.error.set('No pudimos reanudar el intento.'); this.loading.set(false); },
+        error: cause => this.fail('No pudimos reanudar el intento.', cause, () => this.resumeAttempt()),
       });
       return;
     }
     this.bootstrapAttempt(active);
+  }
+
+  /**
+   * Un fallo de arranque nunca se traga (F6-1): se pinta con su mensaje y código HTTP y, si hay algo que reintentar,
+   * «Reintentar» vuelve a pedir LO QUE FALLÓ (el intento, la reanudación o el mundo), no la página entera.
+   */
+  private fail(message: string, cause: unknown, retry: (() => void) | null): void {
+    this.errorStatus.set(cause instanceof HttpErrorResponse ? cause.status : null);
+    this.retryAction.set(retry);
+    this.error.set(message);
+    this.loading.set(false);
+  }
+
+  retryFromError(): void {
+    const retry = this.retryAction();
+    if (!retry) return;
+    this.error.set('');
+    this.errorStatus.set(null);
+    this.retryAction.set(null);
+    this.loading.set(true);
+    retry();
+  }
+
+  /** Primer cuadro del mundo pintado: el indicador de arranque se retira (no vuelve con cada cambio de sala). */
+  onWorldReady(): void {
+    this.worldRendered.set(true);
   }
 
   /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
@@ -1609,10 +1686,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private beginAttempt(caseVersionId: number, forceNew: boolean) {
     this.simulationService.startAttempt(caseVersionId, forceNew).subscribe({
       next: attempt => this.bootstrapAttempt(attempt),
-      error: () => {
-        this.error.set('No pudimos iniciar la simulación. Revisa tus permisos.');
-        this.loading.set(false);
-      }
+      error: cause => this.fail(
+        'No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew),
+      ),
     });
   }
 
@@ -2676,8 +2752,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private loadWorld(attempt: SimulationAttemptState) {
     this.simulationService.getWorld(attempt.attemptId, attempt.attemptToken).subscribe({
       next: world => this.applyWorldWithScenario(world),
-      error: () => {
-        this.error.set('No pudimos cargar el mapa del caso.');
+      error: cause => {
+        this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
         this.worldReloadPending = false;
         this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.

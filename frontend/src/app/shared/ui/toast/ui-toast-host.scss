@@ -21,6 +21,17 @@
   }
 }
 
+// En el juego (plan visual F6-1): arriba a la izquierda, bajo la cabecera (que con el recordatorio ético mide hasta
+// ~5 rem). Abajo a la derecha quedarían encima de «Interactuar», de la cruceta táctil y del pie del diálogo.
+:host(.ui-toast-host--game) .ui-toast-host__region {
+  inset: calc(5.5rem + env(safe-area-inset-top)) auto auto var(--ds-space-3);
+  justify-items: start;
+}
+
+:host(.ui-toast-host--game) .ui-toast {
+  inline-size: min(22rem, calc(100vw - 2 * var(--ds-space-3)));
+}
+
 .ui-toast {
   --_tone: var(--ds-info);
 

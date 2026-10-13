@@ -42,16 +42,18 @@ describe('contraste: simulador', () => {
 });
 
 describe('contraste: avisos', () => {
-  const styles = source('./styles.scss');
+  const toast = source('../app/shared/ui/toast/ui-toast-host.scss');
 
-  it('el foco del botón de cerrar contrasta sobre la tarjeta blanca también en modo juego', () => {
-    // El anillo global de body.game-mode (#C9B3FF) no llega a 3:1 sobre blanco (WCAG 1.4.11).
-    expect(contrast('#C9B3FF', '#FFFFFF')).toBeLessThan(3);
+  // F6-1: el anfitrión de avisos vive en la capa superior, fuera de `.game-container`: hereda los tokens del portal
+  // (tarjeta blanca y anillo #004876) también dentro del juego, así que el anillo claro del juego no le aplica.
+  it('los avisos van sobre la tarjeta blanca del portal también en el juego: su anillo supera 3:1', () => {
+    expect(toast).toMatch(/\.ui-toast \{[^}]*background: var\(--ds-surface-1\);/);
     expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
-    // Tres clases/pseudoclases + un elemento (0,3,1) superan a body.game-mode :focus-visible (0,2,1).
-    expect(styles).toMatch(
-      /\.siep-notifications \.siep-notification button:focus-visible \{[^}]*outline: 2px solid var\(--siep-blue\);[^}]*outline-offset: -2px;[^}]*border-radius: 50%;/,
-    );
+    expect(contrast('#C9B3FF', '#FFFFFF')).toBeLessThan(3);
+  });
+
+  it('el foco del botón de cerrar sale del anillo global: el anfitrión no declara contornos propios', () => {
+    expect(toast).not.toMatch(/outline\s*:/);
   });
 });
 

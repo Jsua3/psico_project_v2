@@ -27,18 +27,11 @@ const STRUCTURE_RULES = new Set([
   'landmark-main-is-top-level', 'landmark-unique',
 ]);
 
-/**
- * «Saltar al juego» apunta a #game-area, que no existe hasta aceptar el aviso de contenido (ETH-01): defecto heredado
- * del juego (Axe ya lo marcaba en F2), lo resuelve F6 con la estructura del juego. Se excluye SOLO ese destino.
- */
-const PENDING_IN_F6 = (target: string) => target.includes('#game-area');
-
 async function structureViolations(page: Page): Promise<string[]> {
   const result = await runAxe(page, { tags: ['best-practice'], resultTypes: ['violations'] });
   return result.violations
     .filter(violation => STRUCTURE_RULES.has(violation.id))
-    .flatMap(violation => violation.nodes.map(node => `${violation.id}: ${node.target.join(' ')}`))
-    .filter(entry => !PENDING_IN_F6(entry));
+    .flatMap(violation => violation.nodes.map(node => `${violation.id}: ${node.target.join(' ')}`));
 }
 
 // req: BLOQUE-H (estructura de página), RNF-004

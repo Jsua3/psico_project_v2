@@ -150,74 +150,7 @@ code, .psy-mono {
   font-variation-settings: 'FILL' 1;
 }
 
-.siep-notifications {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  z-index: 1300; /* por encima de app-confirm-dialog (1200) */
-  display: grid;
-  gap: 10px;
-  width: min(380px, calc(100vw - 32px));
-  pointer-events: none;
-}
-
-.siep-notification {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--psy-border);
-  background: var(--psy-surface);
-  color: var(--psy-ink);
-  box-shadow: 0 14px 34px rgba(16, 24, 32, 0.18);
-  pointer-events: auto;
-  transition: opacity 200ms var(--psy-ease-out), transform 200ms var(--psy-ease-out);
-
-  @starting-style {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.siep-notification p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
-
-.siep-notification button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin: -10px -10px -10px 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .siep-notification button:hover {
-    background: rgba(16, 24, 32, 0.08);
-  }
-}
-
-/* Anillo propio sobre la tarjeta blanca: el anillo claro (#C9B3FF) llega a ~1,85:1 sobre blanco. Va hacia dentro
-   (offset -2px) para que el círculo de 44 px no sobresalga de la tarjeta. */
-.siep-notifications .siep-notification button:focus-visible {
-  outline: 2px solid var(--siep-blue);
-  outline-offset: -2px;
-  border-radius: 50%;
-}
-
-.siep-notification--success { border-left: 4px solid #2e7d32; }
-.siep-notification--error { border-left: 4px solid #b3261e; }
-.siep-notification--warning { border-left: 4px solid #b26a00; }
-.siep-notification--info { border-left: 4px solid var(--psy-blue-deep); }
+/* Los avisos del sistema los pinta `ui-toast-host` (F6-1) con sus propios estilos: aquí ya no vive su CSS. */
 
 .liquid-glass {
   background: rgba(255, 255, 255, 0.64);

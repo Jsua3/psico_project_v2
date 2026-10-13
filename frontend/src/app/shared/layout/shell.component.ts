@@ -10,6 +10,7 @@ import { UiMenu, UiMenuItem } from '../ui/menu/ui-menu';
 import { UiRouteProgress } from '../ui/route-progress/ui-route-progress';
 import { BottomTab, BottomTabsComponent } from './bottom-tabs.component';
 import { NavItem, navItemsFor } from './nav-items';
+import { readRouteChrome } from './route-chrome';
 
 const ACCOUNT_MENU: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
 
@@ -92,8 +93,8 @@ export class ShellComponent {
   private readonly router = inject(Router);
 
   private readonly chrome = toSignal(
-    this.router.events.pipe(filter(event => event instanceof NavigationEnd), map(() => this.readChrome())),
-    { initialValue: this.readChrome() },
+    this.router.events.pipe(filter(event => event instanceof NavigationEnd), map(() => readRouteChrome(this.router))),
+    { initialValue: readRouteChrome(this.router) },
   );
 
   readonly inGame = computed(() => this.chrome() === 'hidden');
@@ -117,16 +118,5 @@ export class ShellComponent {
 
   onAccount(value: string | undefined): void {
     if (value === 'salir') this.auth.logout();
-  }
-
-  /** `chrome` del árbol de rutas activo: la ruta más profunda que diga `hidden` oculta la barra. */
-  private readChrome(): 'full' | 'hidden' {
-    let route = this.router.routerState.snapshot.root;
-    let chrome: 'full' | 'hidden' = 'full';
-    for (;;) {
-      if (route.data?.['chrome'] === 'hidden') chrome = 'hidden';
-      if (!route.firstChild) return chrome;
-      route = route.firstChild;
-    }
   }
 }

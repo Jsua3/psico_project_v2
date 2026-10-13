@@ -97,6 +97,96 @@ describe('ui-toast-host', () => {
     fixture.detectChanges();
     expect(toasts().length).toBe(MAX_NOTIFICATIONS);
   });
+
+  // Garantías del anfitrión heredado (`app-notification-host`, retirado en F6-1) que pasan a este componente.
+  describe('anuncio a lectores de pantalla', () => {
+    it('info y advertencia se anuncian con cortesía, una vez cada una', () => {
+      service.info('Aviso informativo');
+      service.warning('Cuidado');
+      fixture.detectChanges();
+      expect(announce.mock.calls).toEqual([
+        ['Aviso informativo', 'polite'],
+        ['Cuidado', 'polite'],
+      ]);
+    });
+
+    it('una nueva emisión no vuelve a anunciar los avisos que ya estaban', () => {
+      service.success('Guardado');
+      fixture.detectChanges();
+      announce.mockClear();
+      service.info('Otro');
+      service.error('Falló');
+      fixture.detectChanges();
+      expect(announce.mock.calls).toEqual([
+        ['Otro', 'polite'],
+        ['Falló', 'assertive'],
+      ]);
+    });
+
+    it('cerrar un aviso no dispara ningún anuncio', () => {
+      service.success('Guardado');
+      fixture.detectChanges();
+      announce.mockClear();
+      toasts()[0].querySelector<HTMLButtonElement>('button')!.click();
+      fixture.detectChanges();
+      expect(announce).not.toHaveBeenCalled();
+    });
+  });
+
+  it('pausa con el puntero o el foco y reanuda al salir', () => {
+    service.info('Hola');
+    fixture.detectChanges();
+    const pause = vi.spyOn(service, 'pause');
+    const resume = vi.spyOn(service, 'resume');
+    const item = toasts()[0];
+    item.dispatchEvent(new MouseEvent('mouseenter'));
+    item.dispatchEvent(new MouseEvent('mouseleave'));
+    item.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    item.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    expect(pause).toHaveBeenCalledTimes(2);
+    expect(resume).toHaveBeenCalledTimes(2);
+  });
+
+  describe('la pausa es un booleano en el servicio: no se reanuda mientras quede puntero o foco', () => {
+    it('al salir el foco no reanuda si el puntero sigue encima', () => {
+      service.info('Hola');
+      fixture.detectChanges();
+      const resume = vi.spyOn(service, 'resume');
+      const item = toasts()[0];
+
+      // jsdom no calcula :hover, así que se simula que el puntero sigue sobre el aviso.
+      const matches = item.matches.bind(item);
+      const matchesSpy = vi.spyOn(item, 'matches').mockImplementation(selector =>
+        selector === ':hover' ? true : matches(selector),
+      );
+      item.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      expect(resume).not.toHaveBeenCalled();
+
+      matchesSpy.mockRestore();
+      item.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      expect(resume).toHaveBeenCalledTimes(1);
+    });
+
+    it('al mover el foco a otro punto del mismo aviso no reanuda', () => {
+      service.info('Hola');
+      fixture.detectChanges();
+      const resume = vi.spyOn(service, 'resume');
+      const item = toasts()[0];
+      const button = item.querySelector('button') as HTMLButtonElement;
+
+      item.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: button }));
+      expect(resume).not.toHaveBeenCalled();
+    });
+  });
+
+  it('la colocación del juego es una clase del anfitrión (arriba a la izquierda), no otro componente', () => {
+    fixture.componentRef.setInput('placement', 'game');
+    fixture.detectChanges();
+    expect(root().classList).toContain('ui-toast-host--game');
+    fixture.componentRef.setInput('placement', 'portal');
+    fixture.detectChanges();
+    expect(root().classList).not.toContain('ui-toast-host--game');
+  });
 });
 
 describe('ui-toast-host: capa superior y retorno del foco (revisión de F2, I7)', () => {
@@ -134,6 +224,25 @@ describe('ui-toast-host: capa superior y retorno del foco (revisión de F2, I7)'
     service.clear();
     await fixture.whenStable();
     expect(region.dataset['open']).toBeUndefined();
+  });
+
+  it('al salir el puntero no reanuda si el foco sigue dentro del aviso (y reanuda al perder el foco)', async () => {
+    service.info('Hola');
+    await fixture.whenStable();
+    const resume = vi.spyOn(service, 'resume');
+    const item = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ui-toast')!;
+    const button = item.querySelector('button') as HTMLButtonElement;
+
+    // jsdom no mueve el foco dentro de una región que no está abierta en la capa superior: se simula que lo tiene.
+    const focused = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(button);
+    item.dispatchEvent(new MouseEvent('mouseenter'));
+    item.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(resume).not.toHaveBeenCalled();
+
+    // Al perder el foco (el puntero ya salió) sí se reanuda, una sola vez.
+    focused.mockRestore();
+    button.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 
   it('cerrar un aviso con el teclado devuelve el foco a donde estaba', async () => {
