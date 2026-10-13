@@ -503,7 +503,10 @@ def actualizar(grupo_id, nombre, codigo, profesor):
 @transaction.atomic
 def eliminar(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    # Las membresías y asignaciones caen con el grupo: ON DELETE CASCADE de la BD.
+    # Las uniones se borran por el ORM antes que el grupo: en una base restaurada de un volcado
+    # anterior a E0-8 sus FK son NO ACTION y no existe el ON DELETE CASCADE de la BD nueva.
+    GrupoCaseVersion.objects.filter(grupo_id=grupo.id).delete()
+    GrupoEstudiante.objects.filter(grupo_id=grupo.id).delete()
     grupo.delete()
     return {"id": grupo_id}
 
