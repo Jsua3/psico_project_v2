@@ -64,6 +64,21 @@
   overflow: hidden;
 }
 
+// Pausa de las partículas (H-22): abajo a la derecha del héroe, sobre la capa. Con movimiento reducido no hay nada
+// que pausar (la capa ya está quieta).
+.landing-pausa {
+  position: absolute;
+  right: var(--ds-space-4);
+  bottom: var(--ds-space-4);
+  z-index: var(--ds-z-elevado);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-pausa {
+    display: none;
+  }
+}
+
 .landing-hero__grid {
   position: relative;
   z-index: var(--ds-z-elevado);
@@ -171,14 +186,14 @@
   line-height: 0;
 }
 
-// La escena es pixel art: escala sin suavizar.
+// La escena es una ilustración de estilo pixel, no pixel art duro (auditoría 2026-10-03): escala suavizada (con
+// `pixelated` se dentaba al reducirla).
 .landing-preview__scene img {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 13.75rem;
   object-fit: cover;
-  image-rendering: pixelated;
 }
 
 .landing-preview__info {

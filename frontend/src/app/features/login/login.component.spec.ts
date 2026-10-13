@@ -16,6 +16,7 @@ class ParticlesStub {
   @Input() density = 'medium';
   @Input() interactive = false;
   @Input() mode = 'background';
+  @Input() paused = false;
 }
 
 /**
@@ -128,8 +129,24 @@ describe('LoginComponent', () => {
     await vi.waitFor(() => expect(text(host())).toContain('El acceso con Google no está disponible ahora.'));
   });
 
-  it('la escena del simulador se pinta una sola vez', async () => {
+  it('las partículas del panel se pueden pausar y reanudar (H-22, VD-25)', async () => {
     await render();
-    expect(host().querySelectorAll('img[src*="login"]')).toHaveLength(1);
+    const toggle = () => [...host().querySelectorAll<HTMLButtonElement>('.acceso__panel button')].find(b => /animación/.test(text(b)))!;
+    const particles = () => fixture.debugElement.query(debug => debug.componentInstance instanceof ParticlesStub).componentInstance as ParticlesStub;
+    expect(spoken(toggle())).toBe('Pausar animación');
+    toggle().click();
+    await fixture.whenStable();
+    expect(spoken(toggle())).toBe('Reanudar animación');
+    expect(particles().paused).toBe(true);
+  });
+
+  it('la escena del simulador se pinta una sola vez, en WebP y con el tamaño que pide la pantalla (srcset)', async () => {
+    await render();
+    const scenes = host().querySelectorAll<HTMLImageElement>('img[src*="login"]');
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0].getAttribute('src')).toBe('assets/images/login/escena-acceso-640.webp');
+    expect(scenes[0].getAttribute('srcset')).toBe('assets/images/login/escena-acceso-640.webp 640w, assets/images/login/escena-acceso-1280.webp 1280w');
+    expect(scenes[0].getAttribute('sizes')).toBeTruthy();
+    expect(scenes[0].getAttribute('loading')).toBe('lazy');
   });
 });

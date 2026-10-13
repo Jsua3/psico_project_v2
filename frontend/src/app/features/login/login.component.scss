@@ -347,6 +347,17 @@
   line-height: var(--ds-type-body-s-line);
 }
 
+// Pausa de las partículas (H-22). Con movimiento reducido no hay nada que pausar (la capa ya está quieta).
+.acceso__pausa {
+  justify-self: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acceso__pausa {
+    display: none;
+  }
+}
+
 // ── Adaptable ──────────────────────────────────────────────────────────────────────────────────────────────────
 @media (min-width: 64rem) {
   .acceso__layout {

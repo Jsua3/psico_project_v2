@@ -12,6 +12,7 @@ class ParticlesStub {
   @Input() density = 'medium';
   @Input() interactive = false;
   @Input() mode = 'background';
+  @Input() paused = false;
 }
 
 /**
@@ -24,6 +25,12 @@ describe('LandingComponent', () => {
   let fixture: ComponentFixture<LandingComponent>;
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** Lo que se lee de un elemento: sin lo decorativo (aria-hidden, p. ej. la ligadura del icono). */
+  const spoken = (el: Element) => {
+    const copy = el.cloneNode(true) as Element;
+    copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
+    return text(copy);
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -76,6 +83,25 @@ describe('LandingComponent', () => {
   it('sin estilos en línea (los acentos por tarjeta eran [style.*]) y sin texto con degradado', () => {
     expect(host().querySelectorAll('[style]')).toHaveLength(0);
     expect(host().querySelectorAll('.landing-accent--dark')).toHaveLength(0);
+  });
+
+  it('la escena de la vista previa se sirve en WebP a su tamaño (antes, un PNG de 389 KB) y sin escalado pixelado', () => {
+    const scene = host().querySelector<HTMLImageElement>('.landing-preview__scene img')!;
+    expect(scene.getAttribute('src')).toBe('/assets/images/institution/escena-portada.webp');
+    expect([scene.getAttribute('width'), scene.getAttribute('height')]).toEqual(['581', '415']);
+    expect(scene.getAttribute('decoding')).toBe('async');
+  });
+
+  it('las partículas del héroe se pueden pausar y reanudar (H-22, VD-25)', async () => {
+    const toggle = () => [...host().querySelectorAll<HTMLButtonElement>('.landing-hero button')]
+      .find(button => /animación/.test(text(button)))!;
+    const particles = () => fixture.debugElement.query(debug => debug.componentInstance instanceof ParticlesStub).componentInstance as ParticlesStub;
+    expect(spoken(toggle())).toBe('Pausar animación');
+    expect(particles().paused).toBe(false);
+    toggle().click();
+    await fixture.whenStable();
+    expect(spoken(toggle())).toBe('Reanudar animación');
+    expect(particles().paused).toBe(true);
   });
 
   it('el pie es contentinfo: va fuera del <main> (H-34)', () => {

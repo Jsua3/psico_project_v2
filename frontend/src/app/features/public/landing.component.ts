@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 
@@ -55,7 +55,11 @@ export class LandingComponent {
   /** Anclas de la barra pública (plan visual F3-4): las secciones de esta página. */
   readonly anchors = PUBLIC_ANCHORS;
 
-  readonly simulatorSceneSrc = '/assets/images/institution/landing1.png';
+  /** Escena de la vista previa en WebP a su tamaño nativo (plan visual F4-4: antes, un PNG de 389 KB). */
+  readonly simulatorSceneSrc = '/assets/images/institution/escena-portada.webp';
+
+  /** Partículas del héroe en pausa (H-22, VD-25). */
+  readonly particlesPaused = signal(false);
 
   readonly caseInfo = [
     { icon: 'person', label: 'Rol', text: 'Psicólogo social en formación' },

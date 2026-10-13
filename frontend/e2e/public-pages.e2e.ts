@@ -123,6 +123,36 @@ test.describe('@estados sin permiso y sin conexión', () => {
   });
 });
 
+// req: BLOQUE-H (H-22), rendimiento de las pantallas públicas (plan visual F4-4)
+test.describe('@publico imágenes y animación', () => {
+  for (const path of ['/', '/login']) {
+    test(`${path}: las imágenes servidas pesan menos de 120 KB en total`, async ({ page }) => {
+      let bytes = 0;
+      page.on('response', response => {
+        if (response.request().resourceType() !== 'image') return;
+        void response.body().then(body => { bytes += body.length; }).catch(() => undefined);
+      });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(path);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+      expect(bytes).toBeGreaterThan(0);
+      expect(bytes).toBeLessThan(120 * 1024);
+    });
+  }
+
+  test('la animación de la portada se pausa con el teclado y, con movimiento reducido, no hay nada que pausar', async ({ page }) => {
+    await page.goto('/');
+    const toggle = page.getByRole('button', { name: 'Pausar animación' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Reanudar animación' })).toBeFocused();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(page.getByRole('button', { name: /animación/ })).toBeHidden();
+  });
+});
+
 // req: BLOQUE-H, RNF-04 (texto legible y sin depender del color; plan visual F4-1)
 test.describe('@publico portada', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

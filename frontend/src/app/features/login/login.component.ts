@@ -50,6 +50,7 @@ export class LoginComponent implements AfterViewInit {
   readonly roles = LOGIN_ROLES;
   readonly pedagogyPillars = LOGIN_PEDAGOGY_PILLARS;
   readonly loginHeroImage = LOGIN_ASSETS.images.hero;
+  readonly loginHeroSrcset = `${LOGIN_ASSETS.images.hero} 640w, ${LOGIN_ASSETS.images.hero2x} 1280w`;
 
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
@@ -82,6 +83,9 @@ export class LoginComponent implements AfterViewInit {
   /** Google estaba configurado pero no cargó: se dice, no desaparece en silencio. */
   readonly googleUnavailable = signal(false);
   private googleInitialized = false;
+
+  /** Partículas del panel en pausa (H-22, VD-25). */
+  readonly particlesPaused = signal(false);
 
   readonly registerNotice = signal('');
   readonly registerLoading = signal(false);

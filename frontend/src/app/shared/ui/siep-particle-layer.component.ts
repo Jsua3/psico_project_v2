@@ -40,6 +40,15 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   @Input() interactive = false;
   @Input() mode: 'background' | 'foreground' = 'background';
 
+  /**
+   * Pausa pedida por la página (plan visual F4-4, H-22, VD-25; WCAG 2.2.2: lo que se mueve más de 5 s se puede
+   * pausar): detiene el bucle y deja el último cuadro quieto.
+   */
+  @Input() set paused(value: boolean) {
+    this.isPaused = value;
+    this.applyMotion();
+  }
+
   @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
 
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -57,10 +66,19 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   private mouseX = -1000;
   private mouseY = -1000;
   private reducedMotion = false;
+  private isPaused = false;
+  private motionQuery: MediaQueryList | null = null;
   private boundPointerMove = (event: PointerEvent) => this.onPointerMove(event);
+  /** La preferencia de movimiento reducido se sigue en vivo (sin recargar): con `reduce`, quieta. */
+  private readonly onMotionChange = (event: { matches: boolean }) => {
+    this.reducedMotion = event.matches;
+    this.applyMotion();
+  };
 
   ngAfterViewInit(): void {
-    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.reducedMotion = this.motionQuery.matches;
+    this.motionQuery.addEventListener('change', this.onMotionChange);
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d');
     if (!this.ctx) {
@@ -89,16 +107,12 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
       }
     });
     this.resize();
-
-    if (this.reducedMotion) {
-      this.drawStatic();
-    } else {
-      this.start();
-    }
+    this.applyMotion();
   }
 
   ngOnDestroy(): void {
     this.stop();
+    this.motionQuery?.removeEventListener('change', this.onMotionChange);
     this.resizeObserver?.disconnect();
     this.intersectionObserver?.disconnect();
     this.host.nativeElement.closest('.landing-hero')?.removeEventListener('pointermove', this.boundPointerMove);
@@ -122,8 +136,21 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
     canvas.style.height = `${clientHeight}px`;
     this.ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.seedParticles();
-    if (this.reducedMotion) {
+    if (this.reducedMotion || this.isPaused) {
       this.drawStatic();
+    }
+  }
+
+  /** Anima salvo con movimiento reducido o en pausa; entonces, último cuadro quieto. */
+  private applyMotion(): void {
+    if (!this.ctx) {
+      return;
+    }
+    if (this.reducedMotion || this.isPaused) {
+      this.stop();
+      this.drawStatic();
+    } else {
+      this.start();
     }
   }
 
@@ -146,7 +173,7 @@ export class SiepParticleLayerComponent implements AfterViewInit, OnDestroy {
   }
 
   private start(): void {
-    if (this.frameId || this.reducedMotion || !this.visible || !this.ctx) {
+    if (this.frameId || this.reducedMotion || this.isPaused || !this.visible || !this.ctx) {
       return;
     }
     // Sin delta previo: el primer cuadro tras reanudar avanza uno de referencia, sin salto.

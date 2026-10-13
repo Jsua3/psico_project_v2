@@ -115,10 +115,12 @@
 
     <!-- El simulador, en su piel (VD-2): una sola imagen de la escena y los pilares pedagógicos. -->
     <aside class="acceso__panel" data-skin="game" aria-label="Sobre el simulador">
-      <app-siep-particle-layer density="low" mode="background"></app-siep-particle-layer>
+      <app-siep-particle-layer density="low" mode="background" [paused]="particlesPaused()"></app-siep-particle-layer>
       <div class="acceso__panel-inner">
         <p class="acceso__panel-eyebrow">{{ activeRole().previewCase }} · {{ activeRole().previewScene }}</p>
-        <img class="acceso__scene" [src]="loginHeroImage" alt="Consultorio psicosocial SIEP: entorno de simulación formativa" width="560" height="315" />
+        <img class="acceso__scene" [src]="loginHeroImage" [attr.srcset]="loginHeroSrcset"
+          sizes="(min-width: 64rem) 36rem, calc(100vw - 2rem)" loading="lazy" decoding="async"
+          alt="Consultorio psicosocial SIEP: entorno de simulación formativa" width="640" height="360" />
         @if (showRegister()) {
           <h2>¿Nuevo en {{ brand.shortName }}?</h2>
           <p>Las cuentas son asignadas por la facultad. Solicita acceso o consulta con tu docente.</p>
@@ -131,6 +133,11 @@
             <li><strong>{{ pillar.title }}</strong> <span>{{ pillar.description }}</span></li>
           }
         </ul>
+        <!-- WCAG 2.2.2 (H-22, VD-25): lo que se mueve más de 5 s se puede pausar. Con movimiento reducido ya está quieto. -->
+        <button ui-button type="button" variant="secondary" size="sm" class="acceso__pausa"
+          [icon]="particlesPaused() ? 'play_arrow' : 'pause'" (click)="particlesPaused.set(!particlesPaused())">
+          {{ particlesPaused() ? 'Reanudar animación' : 'Pausar animación' }}
+        </button>
       </div>
     </aside>
   </div>

@@ -5,7 +5,9 @@
 /** Rutas relativas al `base href` (producción y `ng serve`). */
 export const LOGIN_ASSETS = {
   images: {
-    hero: 'assets/images/login/Login.jpeg'
+    // Escena del panel en WebP a 640 y 1280 px (plan visual F4-4: antes, un JPEG de 1600 px y 214 KB pintado dos veces).
+    hero: 'assets/images/login/escena-acceso-640.webp',
+    hero2x: 'assets/images/login/escena-acceso-1280.webp'
   }
 } as const;
 
