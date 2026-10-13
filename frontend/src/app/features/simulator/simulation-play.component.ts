@@ -515,6 +515,9 @@ const CASE_INTRO_PARAGRAPHS = [
         linear-gradient(180deg, #111827 0%, #0e1322 100%);
     }
 
+    /* Eyebrow sobre las tarjetas oscuras del juego: el primario de la piel (#B69CFF = 7,7:1 sobre #12182A). */
+    .game-container .psy-eyebrow { color: var(--ds-primary); }
+
     /* ── Top bar ─────────────────────────────────────────────────────────── */
     .top-bar { z-index: 40; }
 

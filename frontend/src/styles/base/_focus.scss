@@ -1,5 +1,5 @@
-// Foco visible único para todo el DOM (plan visual F1-5). La regla de la piel juego sobre body.game-mode
-// sigue en styles.scss hasta que F6-1 retire esos selectores (REGLA-010).
+// Foco visible único para todo el DOM (plan visual F1-5). Cada piel trae su anillo por token (`--ds-focus`,
+// `--ds-focus-halo`): la del juego vive en `.game-container[data-skin='game']`, sin reglas sobre <body> (REGLA-010).
 @use '../mixins/focus' as *;
 
 :focus-visible {

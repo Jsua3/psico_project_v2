@@ -28,9 +28,11 @@ describe('contraste: simulador', () => {
     expect(play).toMatch(/\.resume-card \{[^}]*linear-gradient\(180deg, rgba\(18,24,42,\.96\), rgba\(8,12,18,\.98\)\)/);
   });
 
-  it('el encabezado pequeño se aclara en modo juego', () => {
-    expect(styles).toContain('body.game-mode .psy-eyebrow {');
-    expect(styles).toMatch(/body\.game-mode \.psy-eyebrow \{\s*color: #B69CFF;/);
+  // req: REGLA-010 (F6-1): el CSS del juego vive en `.game-container` o en sus componentes, nunca en `<body>`.
+  it('el encabezado pequeño se aclara dentro del juego con el primario de la piel, sin reglas en body', () => {
+    expect(styles).not.toContain('body.game-mode');
+    expect(play).toMatch(/\.game-container \.psy-eyebrow \{\s*color: var\(--ds-primary\);/);
+    // El primario de la piel juego (#B69CFF) sobre la superficie más clara del juego.
     expect(contrast('#B69CFF', '#12182A')).toBeGreaterThanOrEqual(4.5);
   });
 

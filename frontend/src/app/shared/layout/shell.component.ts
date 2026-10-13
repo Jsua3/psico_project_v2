@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
@@ -21,8 +21,8 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
  * rol (D3). Por debajo de 64rem la navegación principal baja a pestañas fijas (D11, F3-5): arriba quedan marca y
  * cuenta, y los destinos plegables van a la hoja «Más». En el juego —rutas con `data: { chrome: 'hidden' }`— no hay barra y el contenido ocupa la ventana.
  *
- * La clase `game-mode` del `<body>` se conserva para el CSS heredado del juego hasta F6-1 (REGLA-010); ninguna regla
- * nueva la usa.
+ * El `<body>` no recibe clases por ruta (REGLA-010, F6-1): el cromo se oculta por dato de ruta y lo demás vive en
+ * `.game-container` y en los componentes del juego.
  */
 @Component({
   selector: 'app-shell',
@@ -108,11 +108,6 @@ export class ShellComponent {
   });
   readonly userRole = computed(() => roleLabel(this.auth.currentUser()?.role));
   protected readonly accountMenu = ACCOUNT_MENU;
-
-  constructor() {
-    effect(() => document.body.classList.toggle('game-mode', this.inGame()));
-    inject(DestroyRef).onDestroy(() => document.body.classList.remove('game-mode'));
-  }
 
   /** El destino es secundario para el rol actual: se pliega al desplazarse (D3). */
   folds(item: NavItem): boolean {

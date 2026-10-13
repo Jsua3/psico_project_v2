@@ -70,8 +70,6 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     await go('/portal/dashboard');
   });
 
-  afterEach(() => document.body.classList.remove('game-mode'));
-
   it('pinta la barra (header.cromo) con la navegación principal nombrada', () => {
     const header = host().querySelector('header.cromo');
     expect(header).not.toBeNull();
@@ -152,16 +150,20 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(main.hasAttribute('tabindex')).toBe(false);
   });
 
-  it('en el juego (chrome: hidden) no hay barra y el cuerpo entra en modo juego', async () => {
+  // req: REGLA-010 (el CSS del juego no vive en `<body>`: el shell no le pone clases por ruta; F6-1)
+  it('en el juego (chrome: hidden) no hay barra, el <main> ocupa la ventana y el <body> no recibe clases', async () => {
+    const bodyClasses = () => Array.from(document.body.classList).sort();
+    const before = bodyClasses();
     await go('/portal/jugar');
     expect(host().querySelector('header.cromo')).toBeNull();
-    expect(document.body.classList).toContain('game-mode');
     expect(host().querySelector('main.portal-main')!.classList).toContain('portal-main--juego');
+    expect(bodyClasses()).toEqual(before);
     await go('/portal/simulador/42');
     expect(host().querySelector('header.cromo')).toBeNull();
+    expect(bodyClasses()).toEqual(before);
     await go('/portal/dashboard');
     expect(host().querySelector('header.cromo')).not.toBeNull();
-    expect(document.body.classList).not.toContain('game-mode');
+    expect(bodyClasses()).toEqual(before);
   });
 
   it('las rutas con chrome: hidden (leídas de app.routes) son exactamente las que reconoce isGameRoute', () => {
