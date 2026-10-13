@@ -121,6 +121,59 @@ describe('LoginComponent', () => {
     expect(host().querySelector('ui-scope-notice')).not.toBeNull();
   });
 
+  it('al recibir el foco tras enviar vacío, el campo ya dice que es inválido y por qué (revisión de F4, I-3)', async () => {
+    await render();
+    const email = form().querySelector<HTMLInputElement>('input[type="email"]')!;
+    email.value = '';
+    email.dispatchEvent(new Event('input'));
+    let atFocus: { invalid: string | null; message: string } | null = null;
+    email.addEventListener('focus', () => {
+      const describedBy = email.getAttribute('aria-describedby') ?? '';
+      atFocus = { invalid: email.getAttribute('aria-invalid'), message: describedBy.split(' ').map(id => text(host().querySelector(`#${id}`))).join(' ') };
+    });
+    submit().click();
+    await fixture.whenStable();
+    expect(atFocus).toEqual({ invalid: 'true', message: 'El correo es obligatorio.' });
+  });
+
+  it('una región de estado SIEMPRE presente anuncia «Ingresando…», «Enviando solicitud…» y el resultado (I-4, M-5)', async () => {
+    const pending = new Subject<unknown>();
+    login = vi.fn(() => pending);
+    await render();
+    const status = () => host().querySelector('.acceso__estado[role="status"]');
+    expect(status()).not.toBeNull();
+    expect(text(status())).toBe('');
+    fixture.componentInstance.form.setValue({ email: 'ana@cue.edu.co', password: 'secreta', remember: false });
+    submit().click();
+    await fixture.whenStable();
+    expect(text(status())).toBe('Ingresando…');
+
+    button('Solicitar acceso').click();
+    await fixture.whenStable();
+    fixture.componentInstance.registerForm.setValue({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co' });
+    submit().click();
+    await fixture.whenStable();
+    expect(text(status())).toBe('Solicitud enviada. El equipo académico revisará tu acceso y te contactará por correo.');
+  });
+
+  it('el botón de Google se vuelve a pintar al volver al formulario de entrada (revisión de F4, I-2)', async () => {
+    const renderButton = vi.fn();
+    (globalThis as { google?: unknown }).google = { accounts: { id: { initialize: vi.fn(), renderButton } } };
+    googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
+    try {
+      await render();
+      await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+      button('Solicitar acceso').click();
+      await fixture.whenStable();
+      button('Ya tengo cuenta').click();
+      await fixture.whenStable();
+      await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+      expect(renderButton.mock.calls[1][0]).toBe(host().querySelector('.acceso__google-btn'));
+    } finally {
+      delete (globalThis as { google?: unknown }).google;
+    }
+  });
+
   it('si el acceso con Google no carga, lo dice en vez de desaparecer en silencio', async () => {
     googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
     vi.spyOn(LoginComponent.prototype as unknown as { loadGoogleScript(): Promise<void> }, 'loadGoogleScript')

@@ -18,6 +18,10 @@ export const FULL_NAVIGATION = new InjectionToken<(url: string) => void>('FULL_N
   },
 });
 
+const STILL_OFFLINE = 'Todavía no hay conexión. Vuelve a intentarlo en un momento.';
+/** Pausa entre vaciar la región viva y volver a llenarla, para que el lector anuncie el mismo texto otra vez. */
+const ANNOUNCE_GAP_MS = 150;
+
 /**
  * «Sin conexión» (plan visual F4-3; `sin-conexion?desde=`): adonde lleva una navegación que no pudo descargar su
  * código (offline-navigation.ts). Es perezosa pero se PRECARGA con red tras la primera navegación (PreloadMarkedRoutes):
@@ -32,9 +36,9 @@ export const FULL_NAVIGATION = new InjectionToken<(url: string) => void>('FULL_N
     <main id="main-content" tabindex="-1" class="sin-red">
       <ui-page-header title="Sin conexión" />
       <ui-error-state kind="network" blocking (retry)="retry()" />
-      @if (stillOffline()) {
-        <p class="sin-red__aviso" role="status">Todavía no hay conexión. Vuelve a intentarlo en un momento.</p>
-      }
+      <!-- Región viva SIEMPRE presente (una que nace con su texto no se anuncia): se vacía y se vuelve a llenar en
+           cada reintento sin red, para que se oiga cada vez. -->
+      <p class="sin-red__aviso" role="status" aria-live="polite">{{ offlineNotice() }}</p>
     </main>
   `,
   styles: [`
@@ -59,12 +63,14 @@ export class OfflineComponent {
   private readonly from = inject(ActivatedRoute).snapshot.queryParamMap.get('desde');
   private readonly fullNavigation = inject(FULL_NAVIGATION);
   /** Se pulsó «Reintentar» sin red: se dice, en vez de recargar hacia la página de error del navegador. */
-  protected readonly stillOffline = signal(false);
+  protected readonly offlineNotice = signal('');
 
   /** «Reintentar»: carga completa de la ruta pedida si es interna (return-url.ts); si no, el inicio. */
   protected retry(): void {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      this.stillOffline.set(true);
+      // Vaciar y volver a llenar tras una pausa breve: el mismo texto otra vez no se anunciaría.
+      this.offlineNotice.set('');
+      setTimeout(() => this.offlineNotice.set(STILL_OFFLINE), ANNOUNCE_GAP_MS);
       return;
     }
     this.fullNavigation(safeReturnUrl(this.from) ?? '/');

@@ -11,6 +11,10 @@
         </span>
       </div>
 
+      <!-- Región de estado SIEMPRE presente (una que nace con su texto no se anuncia): «Ingresando…», «Enviando
+           solicitud…», el resultado de la solicitud y el fallo de Google. -->
+      <p class="acceso__estado sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+
       <!-- Un formulario a la vista: al alternar, el foco va al encabezado del nuevo (nunca a body). -->
       @if (!showRegister()) {
         <form class="acceso__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
@@ -67,12 +71,12 @@
             <div class="acceso__google">
               <div #googleBtn class="acceso__google-btn"></div>
               @if (googleLoading()) {
-                <span class="acceso__google-status" role="status">Conectando con Google…</span>
+                <span class="acceso__google-status">Conectando con Google…</span>
               }
             </div>
           }
           @if (googleUnavailable()) {
-            <p class="acceso__google-status" role="status">El acceso con Google no está disponible ahora.</p>
+            <p class="acceso__google-status">El acceso con Google no está disponible ahora.</p>
           }
 
           <p class="acceso__switch">
@@ -84,6 +88,7 @@
         <form class="acceso__form" [formGroup]="registerForm" (ngSubmit)="onRegisterSubmit()" novalidate>
           <h1 #heading id="acceso-titulo" tabindex="-1">Solicitar acceso</h1>
           <p class="acceso__subtitle">Completa tus datos institucionales para solicitar la activación de tu cuenta.</p>
+          <ui-scope-notice />
 
           <ui-field label="Nombre" required [error]="fieldError(registerForm.controls.nombre, { required: 'El nombre es obligatorio.' })">
             <input uiControl id="registro-nombre" type="text" formControlName="nombre" autocomplete="given-name" />
@@ -97,7 +102,7 @@
           </ui-field>
 
           @if (registerNotice()) {
-            <p class="acceso__notice" role="status">{{ registerNotice() }}</p>
+            <p class="acceso__notice">{{ registerNotice() }}</p>
           }
           @if (registerError()) {
             <p class="acceso__error" role="alert">{{ registerError() }}</p>

@@ -65,12 +65,26 @@ describe('páginas de estado', () => {
     expect(fullNavigation).toHaveBeenCalledWith('/');
   });
 
-  it('si al reintentar todavía no hay red, lo dice y no recarga (no lleva a la página de error del navegador)', async () => {
+  it('si al reintentar todavía no hay red, lo dice en una región SIEMPRE presente (y otra vez en cada intento) y no recarga', async () => {
+    // Revisión de F4, I-4: una región viva que nace con su texto no se anuncia; esta existe vacía desde el principio.
     const host = await render('/sin-conexion?desde=%2Fportal%2Fsimulador');
+    const status = () => host.querySelector('[role="status"].sin-red__aviso');
+    expect(status()).not.toBeNull();
+    expect(text(status())).toBe('');
     Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    const message = 'Todavía no hay conexión. Vuelve a intentarlo en un momento.';
     retry(host);
+    await vi.waitFor(async () => {
+      await TestBed.inject(ApplicationRef).whenStable();
+      expect(text(status())).toBe(message);
+    });
+    retry(host); // el segundo intento vacía la región y la vuelve a llenar: se anuncia otra vez
     await TestBed.inject(ApplicationRef).whenStable();
+    expect(text(status())).toBe('');
+    await vi.waitFor(async () => {
+      await TestBed.inject(ApplicationRef).whenStable();
+      expect(text(status())).toBe(message);
+    });
     expect(fullNavigation).not.toHaveBeenCalled();
-    expect(text(host.querySelector('[role="status"].sin-red__aviso'))).toBe('Todavía no hay conexión. Vuelve a intentarlo en un momento.');
   });
 });

@@ -87,6 +87,12 @@ export class LoginComponent implements AfterViewInit {
   /** Partículas del panel en pausa (H-22, VD-25). */
   readonly particlesPaused = signal(false);
 
+  /**
+   * Región de estado SIEMPRE presente (revisión de F4, I-4 y M-5): una región viva que nace con su texto no se
+   * anuncia; esta existe desde el principio y solo cambia su texto («Ingresando…», «Enviando solicitud…», resultado).
+   */
+  readonly announcement = signal('');
+
   readonly registerNotice = signal('');
   readonly registerLoading = signal(false);
   readonly registerError = signal('');
@@ -135,7 +141,10 @@ export class LoginComponent implements AfterViewInit {
     this.showRegister.set(false);
     this.registerNotice.set('');
     this.registerError.set('');
+    this.announcement.set('');
     this.focusHeading();
+    // El formulario de entrada se recrea: el botón de Google se pinta de nuevo en su contenedor nuevo (I-2).
+    if (this.googleEnabled()) afterNextRender(() => this.renderGoogleButton(), { injector: this.injector });
   }
 
   openSignUp(): void {
@@ -143,6 +152,7 @@ export class LoginComponent implements AfterViewInit {
     this.error.set('');
     this.registerNotice.set('');
     this.registerError.set('');
+    this.announcement.set('');
     this.selectedRole.set('ESTUDIANTE');
     this.focusHeading();
   }
@@ -173,6 +183,7 @@ export class LoginComponent implements AfterViewInit {
 
     this.loading.set(true);
     this.error.set('');
+    this.announcement.set('Ingresando…');
     const { email, password, remember } = this.form.getRawValue();
     const normalizedEmail = email.trim().toLowerCase();
     try {
@@ -184,6 +195,7 @@ export class LoginComponent implements AfterViewInit {
       next: () => this.router.navigateByUrl(this.destination),
       error: (error: unknown) => {
         this.error.set(this.loginErrorMessage(error));
+        this.announcement.set('');
         this.loading.set(false);
       },
     });
@@ -201,16 +213,18 @@ export class LoginComponent implements AfterViewInit {
     this.registerLoading.set(true);
     this.registerNotice.set('');
     this.registerError.set('');
+    this.announcement.set('Enviando solicitud…');
     this.auth.requestAccess({ nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase() }).subscribe({
       next: response => {
-        this.registerNotice.set(
-          response.message ?? 'Solicitud enviada. El equipo académico revisará tu acceso y te contactará por correo.',
-        );
+        const notice = response.message ?? 'Solicitud enviada. El equipo académico revisará tu acceso y te contactará por correo.';
+        this.registerNotice.set(notice);
+        this.announcement.set(notice);
         this.registerLoading.set(false);
         this.registerForm.reset({ nombre: '', apellido: '', email: '' });
       },
       error: (error: unknown) => {
         this.registerError.set(this.registerErrorMessage(error));
+        this.announcement.set('');
         this.registerLoading.set(false);
       },
     });
@@ -221,9 +235,14 @@ export class LoginComponent implements AfterViewInit {
     afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
   }
 
+  /**
+   * Foco al primer campo inválido DESPUÉS de pintar (revisión de F4, I-3): así el campo ya lleva aria-invalid y su
+   * mensaje en aria-describedby cuando el lector anuncia el foco.
+   */
   private focusFirstInvalid(controls: Record<string, AbstractControl>, fields: ReadonlyArray<readonly [string, string]>): void {
     const first = fields.find(([name]) => controls[name]?.invalid);
-    if (first) document.getElementById(first[1])?.focus();
+    if (!first) return;
+    afterNextRender(() => document.getElementById(first[1])?.focus(), { injector: this.injector });
   }
 
   private setupGoogle(clientId: string): void {
@@ -241,20 +260,27 @@ export class LoginComponent implements AfterViewInit {
           this.googleInitialized = true;
         }
         this.googleEnabled.set(true);
-        afterNextRender(() => {
-          const host = this.googleBtn()?.nativeElement;
-          if (!host) return;
-          host.innerHTML = '';
-          google.accounts.id.renderButton(host, {
-            theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill',
-            logo_alignment: 'left', width: 320,
-          });
-        }, { injector: this.injector });
+        afterNextRender(() => this.renderGoogleButton(), { injector: this.injector });
       })
       .catch(() => {
         this.googleEnabled.set(false);
         this.googleUnavailable.set(true);
+        this.announcement.set('El acceso con Google no está disponible ahora.');
       });
+  }
+
+  /**
+   * Pinta el botón de Google en su contenedor ACTUAL: el formulario de entrada se recrea al alternar, así que se
+   * llama al cargar Google y cada vez que se vuelve a «Iniciar sesión» (revisión de F4, I-2).
+   */
+  private renderGoogleButton(): void {
+    const host = this.googleBtn()?.nativeElement;
+    if (!host || typeof google === 'undefined' || !google.accounts?.id) return;
+    host.innerHTML = '';
+    google.accounts.id.renderButton(host, {
+      theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill',
+      logo_alignment: 'left', width: 320,
+    });
   }
 
   private loadGoogleScript(): Promise<void> {
@@ -264,7 +290,9 @@ export class LoginComponent implements AfterViewInit {
         return;
       }
       const existing = document.getElementById('google-gsi-script') as HTMLScriptElement | null;
-      if (existing) {
+      // Un script que ya falló en otra visita no vuelve a emitir eventos: se retira y se pide otra vez (M-4).
+      if (existing?.dataset['fallo'] === 'true') existing.remove();
+      else if (existing) {
         existing.addEventListener('load', () => resolve());
         existing.addEventListener('error', () => reject());
         return;
@@ -275,7 +303,10 @@ export class LoginComponent implements AfterViewInit {
       script.async = true;
       script.defer = true;
       script.onload = () => resolve();
-      script.onerror = () => reject();
+      script.onerror = () => {
+        script.dataset['fallo'] = 'true';
+        reject();
+      };
       document.head.appendChild(script);
     });
   }
@@ -284,6 +315,7 @@ export class LoginComponent implements AfterViewInit {
     if (!response?.credential || this.googleLoading()) return;
     this.googleLoading.set(true);
     this.error.set('');
+    this.announcement.set('Conectando con Google…');
     this.auth.loginWithGoogle(response.credential).subscribe({
       next: () => this.router.navigateByUrl(this.destination),
       error: (error: unknown) => {
