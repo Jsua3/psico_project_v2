@@ -30,7 +30,8 @@ describe('game-world: el jugador sale del kit (spec §8.2)', () => {
   });
 
   it('el paquete del kit llega antes que Phaser, y sin él el juego arranca igual', () => {
-    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\)\.then\(bundle => \{[\s\S]*?this\.startGame\(bundle\)/);
+    // F6-8: también se espera a Poppins (con plazo), sin que su fallo detenga el arranque.
+    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{[\s\S]*?this\.startGame\(bundle\)/);
     expect(source).toMatch(/new DataDrivenWorldScene\(\{\s*reduceMotion,\s*kit,/);
   });
 });

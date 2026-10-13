@@ -26,7 +26,7 @@ describe('game-world: game feel del bloque B', () => {
   it('la crisis la decide la utilidad pura, se congela con el mundo en pausa y nunca deja dos pulsos vivos', () => {
     expect(source).toMatch(/private applyCrisisState\(\): void \{[\s\S]*?crisisVignetteState\(this\.stressLevel, this\.callbacks\.reduceMotion \|\| this\.motionPaused\)[\s\S]*?this\.crisisPulse\?\.stop\(\);[\s\S]*?this\.crisisPulse = this\.tweens\.add\(\{[\s\S]*?yoyo: true,[\s\S]*?repeat: -1/);
     expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{[\s\S]{0,260}this\.applyCrisisState\(\);\s*\}/);
-    expect(source).toContain('setDepth(DEPTH.LIGHTING + 1)');
+    expect(source).toContain("this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1)");
   });
 
   it('activar movimiento reducido reaplica la crisis y el destello pendiente se consume una sola vez', () => {
@@ -47,12 +47,40 @@ describe('game-world: game feel del bloque B', () => {
     expect(source).toMatch(/\n  playRevealEffects\(feedback: SimulationFeedback \| null\) \{ this\.scene\?\.playRevealEffects\(feedback\); \}/);
   });
 
-  it('las dos viñetas se pintan en el rectángulo visible, compensando el zoom de la cámara', () => {
-    expect(source).toMatch(/private strokeVignetteBand\([\s\S]*?const frame = vignetteFrame\(cam\.width, cam\.height, cam\.zoom\);[\s\S]*?g\.strokeRect\(frame\.x \+ i, frame\.y \+ i, frame\.width - i \* 2, frame\.height - i \* 2\);/);
-    expect(source).toContain('this.strokeVignetteBand(g, tint, 0.12, 0.3);');
-    expect(source).toContain('this.strokeVignetteBand(g, CRISIS_VIGNETTE_TINT, 0.18, 1);');
-    // No se cuenta `g.strokeRect(` en todo el archivo: los planos de las salas legacy
-    // (zonas restringidas de hospital y comisaría) también lo usan sin ser viñetas.
+  // req: RNF-04 (REGLA-009 parte)
+  it('las dos viñetas son UNA textura de lienzo cada una, colocada en el rectángulo visible y compensando el zoom', () => {
+    const block = source.slice(source.indexOf('  private addVignette('), source.indexOf('  /**\n   * Viñeta de crisis'));
+    expect(block).toContain('const frame = vignetteFrame(cam.width, cam.height, cam.zoom);');
+    expect(block).toContain('this.textures.createCanvas(key, spec.width, spec.height)');
+    expect(block).toContain('paintVignette(texture.getContext(), spec);');
+    // Reutilizada: solo se crea si no existe; y la de otro tamaño de ese papel se retira.
+    expect(block).toContain('if (!this.textures.exists(key)) {');
+    expect(block).toContain('this.textures.remove(previous)');
+    expect(block).toMatch(/this\.add\.image\(frame\.x, frame\.y, key\)[\s\S]*?\.setDisplaySize\(frame\.width, frame\.height\)[\s\S]*?\.setScrollFactor\(0\)/);
+    expect(source).toContain("this.addVignette('tone', tint, 0.12, 0.3, DEPTH.LIGHTING_FLOOR);");
+    expect(source).toContain("this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1);");
+  });
+
+  it('ya no queda ningún bucle de strokeRect por banda en la viñeta ni la banda en Graphics', () => {
+    expect(source).not.toContain('strokeVignetteBand');
+    expect(source).not.toMatch(/for \(let i = 0; i < band; i\+\+\) \{\s*g\.lineStyle/);
+  });
+
+  it('el rótulo y el resto del texto del lienzo usan Poppins y se crean con la fuente ya disponible', () => {
+    expect(source).not.toContain("'Arial, sans-serif'");
+    expect(source).toContain('fontFamily: WORLD_FONT_FAMILY');
+    expect(source).toMatch(/Promise\.all\(\[\s*this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{/);
+  });
+
+  it('tras reintentar el foco va a #main-content y no queda perdido en <body>', () => {
+    expect(source).toMatch(/retryLoad\(\): void \{[\s\S]*?document\.getElementById\('main-content'\)\?\.focus\(\{ preventScroll: true \}\);[\s\S]*?this\.boot\(\);/);
+  });
+
+  it('si Phaser no pinta nada en 25 s el anfitrión lo sabe y ofrece reintentar', () => {
+    expect(source).toContain('const BOOT_WATCHDOG_MS = 25_000;');
+    expect(source).toContain('readonly bootFailed = output<void>();');
+    expect(source).toMatch(/this\.armBootWatchdog\(\);\s*this\.phaserGame = new Phaser\.Game\(/);
+    expect(source).toMatch(/onReady:\s+\(\) => this\.zone\.run\(\(\) => \{\s*this\.clearBootWatchdog\(\);/);
   });
 
   it('un destello ya decidido no se dispara con movimiento reducido ni con la escena destruida, y es suave', () => {

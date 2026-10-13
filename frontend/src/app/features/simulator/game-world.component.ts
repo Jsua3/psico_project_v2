@@ -51,6 +51,8 @@ import {
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import { InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
+import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
@@ -147,6 +149,8 @@ interface NpcMover {
 const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
+/** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
+const BOOT_WATCHDOG_MS = 25_000;
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
 /** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
 const RING_COLOR = 0xcdbcff;
@@ -263,11 +267,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
   private stressLevel = 0;
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
-  private crisisVignette?: Phaser.GameObjects.Graphics;
+  private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
   private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
-  private toneVignette?: Phaser.GameObjects.Graphics;
+  private toneVignette?: Phaser.GameObjects.Image;
+  /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
+  private readonly vignetteKeys = new Map<'tone' | 'crisis', string>();
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -691,7 +697,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       sprite = this.add.circle(0, -20, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
     }
     const name = this.add.text(0, KIT_LABEL_OFFSET_Y, entry.guideName, {
-      fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#cdd9ff',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#cdd9ff',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1);
 
@@ -727,7 +733,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   private buildGuideBubble(hint: string): Phaser.GameObjects.Container {
     const text = this.add.text(0, 0, hint, {
-      fontFamily: 'Arial, sans-serif', fontSize: '10px', color: '#eef3ff',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '10px', color: '#eef3ff',
       align: 'center', wordWrap: { width: 168 }, padding: { x: 8, y: 6 },
     }).setOrigin(0.5, 1);
     const b = text.getBounds();
@@ -1010,7 +1016,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.hoverLabel?.active
       ? this.hoverLabel
       : (this.hoverLabel = this.add.text(0, 0, '', {
-          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+          fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
           backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
         }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
     label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
@@ -1181,11 +1187,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.add.rectangle(mapW/2, mapH/2, mapW-36, mapH-38)
       .setStrokeStyle(3, 0x4f7cac, .3).setFillStyle(0x000000, 0).setDepth(5);
     this.add.text(16, 12, this.world.map.title, {
-      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
     }).setDepth(6).setScrollFactor(0);   // pin to screen — stays top-left as camera scrolls
     if (isComisariaMap(mapKey)) {
       this.add.text(56, 66, 'Comisaría — Restablecimiento de derechos', {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: 'rgba(157,192,232,.72)',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '11px', color: 'rgba(157,192,232,.72)',
       }).setDepth(6);
     }
 
@@ -1263,7 +1269,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       // Title pinned to screen (la sala autoría no lleva título pegado al mapa;
       // la ubicación ya vive en la top bar del HUD)
       this.add.text(16, 12, roomConfig.displayName, {
-        fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
       }).setDepth(6).setScrollFactor(0);
     }
 
@@ -1660,11 +1666,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
   ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
     const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
       fontStyle: 'bold', align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     hint.setY(label.y - label.displayHeight - 2);
@@ -1728,7 +1734,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         .setStrokeStyle(1, 0x5b4f8f, 0.38)
         .setDepth(3.5);
       this.add.text(zone.x + 8, zone.y + 6, zone.label, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: WORLD_FONT_FAMILY,
         fontSize: '9px',
         color: 'rgba(184,168,232,.75)',
         backgroundColor: 'rgba(8,12,18,.5)',
@@ -1745,7 +1751,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     g.strokeRect(640, 48, 270, 140);
 
     this.add.text(72, 392, 'COMISARÍA DE FAMILIA', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: WORLD_FONT_FAMILY,
       fontSize: '12px',
       color: '#e8f0f4',
       fontStyle: 'bold',
@@ -1756,22 +1762,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Figurantes (spec §7.2): la receta de figurantes, con los pies donde antes terminaba el sprite.
     this.addExtra(180, 236);
     this.add.text(180, 248, 'Sobreviviente', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#ffd4c0',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#ffd4c0',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(280, 215);
     this.add.text(280, 228, 'Psicóloga social', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#a8c8ff',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#a8c8ff',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(760, 106);
     this.add.text(760, 118, 'Funcionario de derechos', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(760, 415);
     this.add.text(760, 428, 'Trabajadora social', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8e8c8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#b8e8c8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
 
@@ -1804,26 +1810,42 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING_FLOOR);
-    // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
-    // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
-    this.strokeVignetteBand(g, tint, 0.12, 0.3);
-    this.toneVignette = g;
+    // Borde oscuro suave en los 4 lados. Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
+    this.toneVignette = this.addVignette('tone', tint, 0.12, 0.3, DEPTH.LIGHTING_FLOOR);
   }
 
   /**
-   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra: opacidad
-   * `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no anula el
-   * zoom de la cámara; por eso se pinta sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
+   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra (F6-8): UNA textura de lienzo por
+   * tamaño —reutilizada, y regenerada solo si cambia el tamaño— dibujada como imagen, en vez de decenas de
+   * `strokeRect` por re-render. Opacidad `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no
+   * anula el zoom de la cámara; por eso se coloca sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
    */
-  private strokeVignetteBand(g: Phaser.GameObjects.Graphics, tint: number, bandRatio: number, edgeAlpha: number): void {
+  private addVignette(
+    role: 'tone' | 'crisis', tint: number, bandRatio: number, edgeAlpha: number, depth: number,
+  ): Phaser.GameObjects.Image {
     const cam = this.cameras.main;
     const frame = vignetteFrame(cam.width, cam.height, cam.zoom);
-    const band = Math.round(Math.min(frame.width, frame.height) * bandRatio);
-    for (let i = 0; i < band; i++) {
-      g.lineStyle(1, tint, edgeAlpha * (1 - i / band) ** 2);
-      g.strokeRect(frame.x + i, frame.y + i, frame.width - i * 2, frame.height - i * 2);
+    const spec = {
+      width: Math.max(1, Math.round(frame.width)), height: Math.max(1, Math.round(frame.height)),
+      tint, bandRatio, edgeAlpha,
+    };
+    const key = vignetteTextureKey(spec);
+    if (!this.textures.exists(key)) {
+      const texture = this.textures.createCanvas(key, spec.width, spec.height);
+      if (texture) {
+        paintVignette(texture.getContext(), spec);
+        texture.refresh();
+      }
     }
+    // La textura de otro tamaño de este mismo papel ya no hace falta.
+    const previous = this.vignetteKeys.get(role);
+    if (previous && previous !== key && this.textures.exists(previous)) this.textures.remove(previous);
+    this.vignetteKeys.set(role, key);
+    return this.add.image(frame.x, frame.y, key)
+      .setOrigin(0, 0)
+      .setDisplaySize(frame.width, frame.height)
+      .setScrollFactor(0)
+      .setDepth(depth);
   }
 
   /**
@@ -1836,9 +1858,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.crisisPulse?.stop();
     this.crisisPulse = undefined;
     this.crisisStateKey = '';
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING + 1);
-    this.strokeVignetteBand(g, CRISIS_VIGNETTE_TINT, 0.18, 1);
-    this.crisisVignette = g;
+    this.crisisVignette = this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1);
     this.applyCrisisState();
   }
 
@@ -1893,7 +1913,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .setDepth(4);
     if (zone.label) {
       this.add.text(zone.x+5, zone.y+3, zone.label, {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#9dc0e8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '11px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x:4, y:2 }
       }).setDepth(5);
     }
@@ -2006,7 +2026,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
     const label  = isExit ? null : this.add.text(object.x, object.y + 28, displayLabel, {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
@@ -2092,7 +2112,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     if (isExit) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
-        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
+        fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
       // Ancho a la medida del texto + relleno + hueco del candado (a la izquierda, solo si está bloqueada).
       const hintWidth = Math.ceil(hintTx.width) + 38;
@@ -2324,7 +2344,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .setStrokeStyle(3, 0xffffff, .92);
     const shine = this.add.rectangle(-7, -7, 22, 3, 0xffffff, .28);
     const text = this.add.text(0, 0, label.slice(0, 4).toUpperCase(), {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: WORLD_FONT_FAMILY,
       fontSize: '10px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -2857,6 +2877,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
+  /** Phaser no pintó ni un cuadro en `BOOT_WATCHDOG_MS` (contexto perdido, recurso colgado): quien lo aloja ofrece reintentar. */
+  readonly bootFailed = output<void>();
   /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
   readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
@@ -2870,6 +2892,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly criticalLoadFailed = signal(false);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
+  private bootWatchdog?: number;
   private gameHost?: ElementRef<HTMLDivElement>;
   /** Deja de seguir el tamaño del contenedor y el devicePixelRatio. */
   private detachHostWatch?: () => void;
@@ -2958,6 +2981,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy() {
     this.destroyed = true;
+    this.clearBootWatchdog();
     document.removeEventListener('pointerdown', this.onPointerKind, true);
     document.removeEventListener('pointermove', this.onPointerKind, true);
     this.detachScrollKeyGuard?.();
@@ -3038,6 +3062,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.assetsReady.set(false);
     this.loadPercent.set(0);
     this.criticalLoadFailed.set(false);
+    // «Reintentar» desaparece con el aviso: el foco no queda perdido en <body> (F6-8, H-05).
+    document.getElementById('main-content')?.focus({ preventScroll: true });
     this.boot();
   }
 
@@ -3057,7 +3083,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.booting = true;
     // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
     // actores caen a su marcador (KitService lo reintenta en el próximo boot).
-    this.kit.load().then(bundle => bundle, () => null).then(bundle => {
+    // También se espera a Poppins (con plazo): Phaser mide el texto al crearlo y con la fuente aún sin cargar queda mal medido.
+    Promise.all([
+      this.kit.load().then(bundle => bundle, () => null),
+      whenWorldFontsReady(),
+    ]).then(([bundle]) => {
       this.booting = false;
       if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
     });
@@ -3070,6 +3100,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         reduceMotion,
         kit,
         onReady:       () => this.zone.run(() => {
+          this.clearBootWatchdog();
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
           this.writePlayerPosition(this.scene?.playerPosition() ?? null);
@@ -3099,6 +3130,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         sfxMuted: this.sfxMuted(),
       });
       this.scene.setStressLevel(this.stressLevel());
+      this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,
@@ -3131,6 +3163,21 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.pushExamined();
       this.pushOrientation();
     }, 0);
+  }
+
+  /** Si en `BOOT_WATCHDOG_MS` el mundo no se pintó, avisa: el indicador de carga no puede quedar eterno. */
+  private armBootWatchdog(): void {
+    this.clearBootWatchdog();
+    this.bootWatchdog = window.setTimeout(() => {
+      this.bootWatchdog = undefined;
+      if (this.destroyed || this.renderReady()) return;
+      this.zone.run(() => this.bootFailed.emit());
+    }, BOOT_WATCHDOG_MS);
+  }
+
+  private clearBootWatchdog(): void {
+    if (this.bootWatchdog !== undefined) window.clearTimeout(this.bootWatchdog);
+    this.bootWatchdog = undefined;
   }
 
   private effectiveReduceMotion(): boolean {

@@ -21,7 +21,7 @@ const OWNED_PREFIXES = [
   // El panel de opciones (F6-4, DM-5.8): ni su plantilla ni su código leen la clasificación antes de decidir.
   'dialogue-panel',
   // El ratón en el mundo (F6-7): la caminata y el resaltado solo conocen claves y distancias.
-  'world-walk', 'world-hover',
+  'world-walk', 'world-hover', 'vignette-texture', 'world-typography',
 ];
 /** Los escriben otras pistas: se vigilan si existen, pero no se exige que existan. */
 const OPTIONAL_PREFIXES = ['game-help', 'safe-exit-button'];

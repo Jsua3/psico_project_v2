@@ -385,6 +385,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)" (walkEnded)="onWalkEnded($event)"
+                (bootFailed)="onWorldBootFailed()"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
@@ -2971,6 +2972,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!this.gameWorld?.walkToKey(place.key)) {
       this.announce(`${DRAFT_COPY.placesBlocked.text} ${place.label}`);
     }
+  }
+
+  /** Phaser no pintó el mundo a tiempo (F6-8): el error de siempre con «Reintentar», que vuelve a pedir el mundo. */
+  onWorldBootFailed(): void {
+    const attempt = this.attempt();
+    if (!attempt || this.error()) return;
+    this.fail('No pudimos cargar el mapa del caso.', null, () => this.loadWorld(attempt));
   }
 
   /** Terminó la caminata de «Ir a…»: «Llegaste a …» o que no se pudo llegar (VD-19, borrador). */
