@@ -1,6 +1,7 @@
 """Ayudantes de prueba compartidos (E0-1, E0-5, E0-11)."""
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 
@@ -44,3 +45,11 @@ def measure(call):
         bytes=len(body),
         statements=statements,
     )
+
+
+_REQ_CODE = re.compile(r"[A-Z][A-Z0-9]*(-[A-Z0-9]+(\.[0-9]+)?)+")
+
+
+def invalid_req_codes(codes):
+    """Devuelve los códigos de ``@pytest.mark.req`` que no tienen forma de requisito."""
+    return [code for code in codes if not _REQ_CODE.fullmatch(str(code))]

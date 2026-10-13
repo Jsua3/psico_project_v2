@@ -25,6 +25,8 @@ from .test_game import (  # noqa: F401  (fixtures de pytest)
     estudiante,
 )
 
+pytestmark = pytest.mark.req("RNF-05")
+
 #: Presupuesto de consultas por request. Solo baja (E5-1).
 QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
