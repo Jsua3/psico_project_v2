@@ -25,6 +25,19 @@ class DashboardView(APIView):
         return api_ok(services.get_dashboard(request.user))
 
 
+class ReporteEstudianteView(APIView):
+    """Reporte de un estudiante (C3): sus intentos con tiempos y cobertura «X de N»."""
+
+    permission_classes = [IsProfesorOrAdmin]
+
+    def get(self, request, estudiante_id):
+        case_version_id = _long(request.query_params.get("caseVersionId"))
+        limit = _long(request.query_params.get("limit"))
+        return api_ok(
+            services.generar_reporte_estudiante(estudiante_id, case_version_id, limit, request.user)
+        )
+
+
 class ReporteGrupoView(APIView):
     permission_classes = [IsProfesorOrAdmin]
 
