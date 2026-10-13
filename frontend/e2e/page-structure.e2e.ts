@@ -157,17 +157,21 @@ async function focusAgainstBars(page: Page): Promise<{ what: string; top: number
   });
 }
 
-/** html lleva scroll-behavior: smooth: el desplazamiento por foco se anima. Se mide cuando se queda quieto. */
+/**
+ * html lleva scroll-behavior: smooth: el desplazamiento por foco se anima. Se mide cuando se queda quieto, y nunca
+ * antes de 250 ms (con la máquina cargada la animación tarda en empezar y tres fotogramas quietos no bastan).
+ */
 async function scrollSettled(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>(resolve => {
-    const deadline = performance.now() + 2_000;
+    const start = performance.now();
+    const deadline = start + 2_000;
     let last = Number.NaN;
     let still = 0;
     const tick = () => {
       const y = window.scrollY;
       still = y === last ? still + 1 : 0;
       last = y;
-      if (still >= 3 || performance.now() > deadline) resolve();
+      if ((still >= 3 && performance.now() - start >= 250) || performance.now() > deadline) resolve();
       else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -231,13 +235,15 @@ test.describe('@estructura H-19: el foco nunca queda bajo la barra fija', () => 
         return false;
       }, edge);
       expect(placed, 'hay un destino que se puede dejar bajo la barra').toBe(true);
-      // El anterior pudo quedar fuera de la ventana: lo que importa es el destino que recibe el foco.
+      // El anterior pudo quedar fuera de la ventana: lo que importa es el destino que recibe el foco. El desplazamiento
+      // es suave y con la máquina cargada tarda en empezar: se espera a que el destino TERMINE fuera de la barra (sin
+      // scroll-padding Chrome no se desplaza nunca y la espera vence).
       await page.keyboard.press('Tab');
-      await scrollSettled(page);
-      const result = (await focusAgainstBars(page))!;
-      expect(result, 'el foco quedó en un destino de la página').not.toBeNull();
-      if (edge === 'arriba') expect(result.top, `${result.what} bajo la barra de arriba`).toBeGreaterThanOrEqual(result.tapa - 1);
-      else expect(result.bottom, `${result.what} bajo la barra de abajo`).toBeLessThanOrEqual(result.suelo + 1);
+      expect(await focusAgainstBars(page), 'el foco quedó en un destino de la página').not.toBeNull();
+      await expect.poll(async () => {
+        const result = (await focusAgainstBars(page))!;
+        return edge === 'arriba' ? result.top - (result.tapa - 1) : (result.suelo + 1) - result.bottom;
+      }, { message: `el destino enfocado no queda bajo la barra de ${edge}`, timeout: 3_000 }).toBeGreaterThanOrEqual(0);
     });
   }
 
