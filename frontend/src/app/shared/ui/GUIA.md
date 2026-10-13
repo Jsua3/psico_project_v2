@@ -23,6 +23,15 @@ mixins de `src/styles/mixins` (`@use 'mixins' as m;`).
 - **Objetivos de 44 px** (nunca menos de 24 px) y texto de 12 px o más.
 - **Textos en español con tildes y tuteo.** Las etiquetas de enums salen de `labels.ts`; los textos de los estados,
   de `state-copy.ts`. Lo que roce contenido clínico lo fija Psicología.
+- **Anuncios a lectores de pantalla.** Un mensaje que no se ve como cambio en pantalla sale por
+  `LiveRegionAnnouncer.announce(texto, 'polite' | 'assertive')` (`core/a11y`): dos regiones persistentes en `<body>`
+  que ya existen antes de que cambie su texto, sin repetidos y con lo que llega a la vez en una sola lectura.
+  `assertive` solo para errores y la salida segura. Nunca una región `role="status"` o `role="alert"` que nace con su
+  texto dentro de un `@if`, ni `role="status"` con `aria-live="assertive"`.
+- **Avisos accionables.** Lo que dice qué hacer (una puerta bloqueada, un error) es un aviso del sistema
+  (`NotificationService.show(tipo, texto, 0)` → `ui-toast-host`): permanece hasta cerrarse, no mueve el foco y lo anuncia
+  el anfitrión. No se pinta un aviso propio sobre la pantalla; lo breve (sala nueva, «Obtuviste…») se anuncia y se retira
+  solo.
 
 ## Piezas
 
@@ -51,7 +60,7 @@ mixins de `src/styles/mixins` (`@use 'mixins' as m;`).
 | `UiDialog`, `UiDialogFrame`, `UiDialogActions`, `UiConfirmDialog` | `inject(UiDialog).open(MiDialogo, { data })`, `.confirm({ title, message, confirmLabel, tone: 'danger' })`, `.sheet(MiHoja, { side: 'end' })` | el contenido usa `<ui-dialog-frame title="…">` y `uiDialogActions` en los botones del pie. |
 | `UiDialog.consequence`, `UiConsequenceDialog` | `inject(UiDialog).consequence({ title, consequence, continueLabel, proceedLabel })` → `'continue' | 'proceed'` | nombra lo que se pierde; «Continuar» es primaria, tiene el foco y es lo que devuelve Esc (RN-07). **Nunca** para la Salida segura (REGLA-004). |
 | `UiScopeNotice`, `SCOPE_NOTICE_DRAFT_TEXT` | `<ui-scope-notice />` en acceso, aviso previo y resultado (F4-2, F6-2, F6-6) | frase de RN-01 en **borrador** visible hasta que Psicología fije el texto (decisión 17); fuera de los textos validados. |
-| `UiToastHost` | `<ui-toast-host [placement]="inGame() ? 'game' : 'portal'" />` una vez en la app (`app.component`, F6-1) | pinta `NotificationService`; nunca roba el foco. `portal`: abajo a la derecha; `game`: arriba a la izquierda bajo la cabecera, porque abajo a la derecha están «Interactuar», la cruceta táctil y el pie del diálogo. La ruta se decide con `readRouteChrome()` (`shared/layout/route-chrome.ts`, la misma fuente que el shell). |
+| `UiToastHost` | `<ui-toast-host [placement]="inGame() ? 'game' : 'portal'" />` una vez en la app (`app.component`, F6-1) | pinta `NotificationService` y anuncia cada aviso por `LiveRegionAnnouncer` (assertive solo el error); nunca roba el foco. `portal`: abajo a la derecha; `game`: arriba a la izquierda bajo la cabecera (28 rem), porque abajo a la derecha están «Interactuar», la cruceta táctil y el pie del diálogo. La ruta se decide con `readRouteChrome()` (`shared/layout/route-chrome.ts`, la misma fuente que el shell). |
 | `UiTable`, `UiTableTable`, `UiTableRow`, `UiTableEmpty`, `UiTableError` | `<ui-table label="Intentos" [state]="estado()"><table ui-table>…<tr uiRow [selected]="…">…</table><ui-empty-state uiTableEmpty … /><ui-error-state uiTableError … /></ui-table>` | densidad `compact`; desborde señalizado y desplazable con teclado. |
 | `UiGlassBar`, `GlassBarMachine` | `<header ui-glass-bar label="Navegación principal">` con tres módulos proyectados: `<a class="modulo modulo-logo">`, `<div class="modulo modulo-principal">` (enlaces `a.nav-enlace`; los secundarios con `control-plegable`) y `<div class="modulo modulo-cuenta">`; lo fijo como hijo directo: por debajo de 64rem, `<nav app-bottom-tabs [tabs]="…" [more]="…">` (`shared/layout`), que es entonces la navegación principal (como mucho cinco pestañas; lo que no cabe, a la hoja «Más») | la barra de vidrio modular (réplica Recomendada de `/barra-de-vidrio-modular`); estilos globales en `src/styles/components/_glass-bar.scss` y tokens `--asb-*` en `.cromo` (los altos móviles, `--asb-alto-modulo-*`, en `:root` para reservar el sitio del contenido). Pinta `data-estado`, `data-modalidad`, `data-ancho` («escritorio» o «movil») y `data-teclado`; en móvil la píldora se llama `compactLabel` («Marca y cuenta»). Todo elemento con transición lleva `ds-motion`. Banco y arnés: `/dev/barra` + `medir-barra.cjs` con `scripts/ui/barra.config.json`; el móvil lo prueba `e2e/shell.e2e.ts`. |
 | `describeHostWith` | `describeHostWith(() => this.motivo() ? this.motivoId : null)` | suma un id a `aria-describedby` sin borrar los ajenos (para componentes nuevos). |

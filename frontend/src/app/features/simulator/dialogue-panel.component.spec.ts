@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { DialogueState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
@@ -95,6 +96,8 @@ describe('DialoguePanelComponent - integración renderizada', () => {
       providers: [
         { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
         { provide: KitService, useValue: fakeKitService() },
+        // El anuncio de la línea tiene su propio describe (F6-12); aquí su temporizador de escritura no cuenta.
+        { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
@@ -1086,6 +1089,83 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
     }
     const hintAlpha = Number(`0.${rule('.keyboard-hint').match(/rgba\(232,240,244,\.(\d+)\)/)?.[1]}`);
     expect(contrastRatio(blend('#E8F0F4', hintAlpha, CINEMATIC_BG), CINEMATIC_BG)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/**
+ * F6-12 (H-09, WCAG 4.1.3): la línea activa se anuncia por las regiones vivas persistentes de la app. La región que
+ * tenía el panel nacía DENTRO del `@if` con su texto y la primera línea no se anunciaba; ahora el panel solo la
+ * escribe como texto (visualmente oculto, para el cursor de lectura) y el servicio la anuncia.
+ */
+// req: BLOQUE-H (H-09), RNF-004
+describe('DialoguePanelComponent - anuncio de la línea activa (F6-12)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let announce: Mock;
+
+  beforeEach(async () => {
+    announce = vi.fn();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+        { provide: LiveRegionAnnouncer, useValue: { announce } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(dialogue: DialogueState | null): void {
+    writeInputSignal(component.dialogue, dialogue);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  it('la primera línea se anuncia al abrirse el diálogo, con cortesía y una sola vez', () => {
+    render(MULTI_LINE_DIALOGUE);
+
+    expect(announce.mock.calls).toEqual([['Primera', 'polite']]);
+  });
+
+  it('cada línea nueva se anuncia al avanzar, sin repetir la anterior', () => {
+    render(MULTI_LINE_DIALOGUE);
+    component.skipTypewriter();
+    component.advanceLine();
+    TestBed.flushEffects();
+
+    expect(announce.mock.calls).toEqual([['Primera', 'polite'], ['Segunda', 'polite']]);
+  });
+
+  it('teclear la máquina de escribir no anuncia nada: solo cuenta la línea completa', () => {
+    render(MULTI_LINE_DIALOGUE);
+    announce.mockClear();
+    fixture.detectChanges();
+
+    expect(component.isTypingComplete()).toBe(false);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('sin diálogo no se anuncia nada', () => {
+    render(null);
+
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('el panel ya no lleva una región viva propia: el texto queda para el cursor de lectura, sin role', () => {
+    render(MULTI_LINE_DIALOGUE);
+
+    const text = fixture.nativeElement.querySelector('.strip-body > .visually-hidden') as HTMLElement;
+    expect(text.textContent?.trim()).toBe('Primera');
+    expect(text.hasAttribute('role')).toBe(false);
+    expect(text.hasAttribute('aria-live')).toBe(false);
+    expect(fixture.nativeElement.querySelector('[aria-live]')).toBeNull();
   });
 });
 

@@ -4,9 +4,12 @@ import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterN
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { NotificationService } from '../../core/notifications/notification.service';
 import {
   DialogueState, InteractionResult, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
@@ -82,16 +85,12 @@ const POSITION_SAVE_DEBOUNCE_MS = 550;
 const STRESS_PULSE_MS = 700;
 /** Línea «no hay nada cerca» tras pedir interactuar sin nada al alcance. */
 const NOTHING_NEARBY_MS = 2500;
-/** El error de una acción (toast) se apaga solo. */
-const ACTION_ERROR_MS = 4500;
 /** Nombre de la sala al cambiar de sala. */
 const ROOM_BANNER_MS = 2200;
 /** Banner «Nueva etapa: …». */
 const STAGE_BANNER_MS = 3000;
 /** Nota de transición autorada en el mapa (salto temporal). Hoy dura lo mismo que `NOTICE_MS`, pero es otro aviso. */
 const TRANSITION_NOTE_MS = 4200;
-/** El anuncio accesible se escribe tras vaciar la región viva: así el lector de pantalla repite también un texto igual. */
-const ANNOUNCE_DELAY_MS = 50;
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
@@ -125,7 +124,8 @@ const CASE_INTRO_PARAGRAPHS = [
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
       [class.game-container--reduce-motion]="reduceMotion()">
-      <div class="sr-only" aria-live="assertive" role="status" aria-atomic="true">{{ a11yAnnouncement() }}</div>
+      <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
+           (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
       <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
       <h1 class="sr-only">{{ attempt()?.caseTitle || 'Simulación' }}</h1>
 
@@ -150,19 +150,13 @@ const CASE_INTRO_PARAGRAPHS = [
           }
         </div>
       }
-      @if (actionError()) {
-        <div class="action-toast" role="alert">{{ actionError() }}</div>
-      }
-      @if (doorNotice()) {
-        <!-- Sin role="alert": showDoorNotice ya lo anuncia por la región viva (con los dos se leía dos veces). -->
-        <div class="door-notice">
-          <mat-icon aria-hidden="true">lock</mat-icon>
-          <span>{{ doorNotice() }}</span>
-        </div>
-      }
+      <!-- Los avisos ACCIONABLES (la puerta bloqueada y el error de una acción, VD-29) ya no se pintan aquí: son avisos
+           del sistema (ui-toast-host, colocación del juego: arriba a la izquierda). Permanecen hasta cerrarse con
+           «Cerrar», no mueven el foco y los anuncia ese anfitrión una vez (assertive solo el error). -->
       @if (softNotice()) {
-        <!-- Aviso no esencial (4,2 s): lo que dice ya quedó escrito en la lista «Qué hacer», nunca es la única fuente. -->
-        <div class="soft-notice" role="status">{{ softNotice() }}</div>
+        <!-- Aviso breve (4,2 s): lo que dice ya se anunció y quedó escrito en la lista «Qué hacer»; nunca es la única
+             fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
+        <div class="soft-notice">{{ softNotice() }}</div>
       }
       @if (pausing()) {
         <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
@@ -173,10 +167,10 @@ const CASE_INTRO_PARAGRAPHS = [
         </div>
       }
       @if (roomBanner() && !fadeActive()) {
-        <div class="room-banner" role="status">{{ roomBanner() }}</div>
+        <div class="room-banner">{{ roomBanner() }}</div>
       }
       @if (transitionNote()) {
-        <div class="transition-note" role="status">
+        <div class="transition-note">
           <p>{{ transitionNote() }}</p>
         </div>
       }
@@ -415,7 +409,9 @@ const CASE_INTRO_PARAGRAPHS = [
             [selectedToolCode]="selectedToolCode()"
             (select)="selectTool($event)" />
 
-          <div class="context-bar" aria-live="polite" aria-atomic="true">
+          <!-- Sin aria-live (H-10): la barra ya no relee la línea de reposo ni la pista de teclas. La interacción
+               cercana la anuncia el servicio de regiones vivas (efecto sobre contextLabel). -->
+          <div class="context-bar">
             @if (contextAction(); as action) {
               <!-- Un solo botón principal, una línea y altura fija: el mundo no cambia de tamaño al acercarte a algo. -->
               <button type="button" class="context-bar__interaction"
@@ -443,7 +439,7 @@ const CASE_INTRO_PARAGRAPHS = [
             } @else {
               <div class="context-bar__idle">
                 <p class="context-bar__now">{{ nowLine() }}</p>
-                <!-- aria-hidden: la barra es una región viva y esta leyenda se volvía a leer entera cada vez que volvía al reposo; la ayuda ya la dice. -->
+                <!-- aria-hidden: es una pista visual; la ayuda ya dice las teclas por escrito. -->
                 <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
               </div>
             }
@@ -997,14 +993,7 @@ const CASE_INTRO_PARAGRAPHS = [
     }
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
-    /* Por encima de las tarjetas de introducción (380) y del aviso de reanudar (400): un error al
-       pausar desde ellas tiene que verse, no solo anunciarse. */
-    .action-toast {
-      position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 420;
-      max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 12px;
-      background: rgba(143,47,61,.92); color: #fff; font-weight: 700; text-align: center;
-    }
-    /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie y bajo el aviso de puerta. */
+    /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice {
       position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
       max-width: min(92vw, 520px); padding: 9px 16px; border-radius: 12px;
@@ -1021,16 +1010,6 @@ const CASE_INTRO_PARAGRAPHS = [
       color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
     }
     .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .door-notice {
-      position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 320;
-      display: flex; align-items: center; gap: 10px;
-      max-width: min(92vw, 560px); padding: 12px 18px; border-radius: 14px;
-      background: rgba(24,30,46,.94); border: 1px solid rgba(245,184,75,.45);
-      color: #ffe2ae; font-weight: 600; text-align: left;
-      animation: door-notice-in 220ms ease;
-    }
-    .door-notice mat-icon { color: #F5B84B; flex-shrink: 0; }
-    @keyframes door-notice-in { from { opacity: 0; transform: translate(-50%, 8px); } }
     .room-banner {
       position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 320;
       padding: 10px 22px; border-radius: 999px;
@@ -1158,7 +1137,6 @@ const CASE_INTRO_PARAGRAPHS = [
       .context-bar__now { font-size: .78rem; line-height: 1.25; }
       /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
       .soft-notice { bottom: 62px; max-width: min(86vw, 460px); padding: 7px 14px; font-size: .8rem; }
-      .door-notice { bottom: 66px; padding: 8px 14px; }
       .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
       .pausing-notice { bottom: 8px; }
 
@@ -1232,7 +1210,7 @@ const CASE_INTRO_PARAGRAPHS = [
     @media (prefers-reduced-motion: reduce) {
       .scene-fade { transition: none; }
       .right-panel, .overlay-backdrop { animation: none; }
-      .door-notice, .room-banner, .transition-note { animation: none; }
+      .room-banner, .transition-note { animation: none; }
     }
   `]
 })
@@ -1243,6 +1221,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
   private readonly injector = inject(Injector);
+  /** Las dos regiones vivas persistentes de la app: el juego no trae una propia (F6-12). */
+  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
+  private readonly notifications = inject(NotificationService);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -1256,7 +1237,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly loading    = signal(true);
   readonly busy       = signal(false);
   readonly error      = signal('');
-  readonly actionError = signal('');
   readonly journalMessage      = signal('');
   readonly journalSaveState    = signal<JournalSaveState>('idle');
   readonly nearbyInteraction   = signal<MapObjectState | null>(null);
@@ -1264,11 +1244,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly selectedInteraction = signal<MapObjectState | null>(null);
   readonly dialogue    = signal<DialogueState | null>(null);
   readonly stressPulse = signal(false);
-  readonly a11yAnnouncement = signal('');
   readonly journalOpen  = signal(false);
   readonly fadeActive   = signal(false);
-  /** Puerta bloqueada: aviso transitorio propio (NO abre DialoguePanel). */
-  readonly doorNotice   = signal('');
+  /** Avisos del sistema visibles (el anfitrión `ui-toast-host` los pinta y anuncia). */
+  private readonly systemNotices = toSignal(this.notifications.messages$, { initialValue: [] });
+  /** Ids de los avisos accionables que este juego emitió: son suyos, y los retira cuando dejan de valer (VD-29). */
+  private readonly doorNoticeId = signal<number | null>(null);
+  private readonly actionErrorId = signal<number | null>(null);
+  /**
+   * Puerta bloqueada (NO abre DialoguePanel). Es accionable —dice qué hacer—: aviso de advertencia del sistema que
+   * permanece hasta cerrarse con «Cerrar» o hasta cambiar de sala, pausar o empezar un intento (VD-29, WCAG 2.2.1).
+   * '' cuando no hay (o la persona ya lo cerró).
+   */
+  readonly doorNotice = computed(() => this.noticeText(this.doorNoticeId()));
+  /**
+   * Error de una acción: aviso de error del sistema que permanece hasta cerrarse, hasta que otro error lo reemplace
+   * o hasta que salga una petición nueva (VD-29). El anfitrión lo anuncia en assertive.
+   */
+  readonly actionError = computed(() => this.noticeText(this.actionErrorId()));
   /** Aviso no esencial de 4,2 s («Obtuviste: …»). La lista «Qué hacer» conserva lo que dice. */
   readonly softNotice   = signal('');
   /** Nombre de la sala al entrar (1-2 s). */
@@ -1452,6 +1445,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Botón principal de la barra: verbo por tipo, candado y motivo en puertas bloqueadas (F§4.3). */
   readonly contextAction = computed(() => this.interactionAction(this.contextualInteraction()));
   readonly contextAlso = computed(() => this.contextualInteraction() ? this.interactionAction(this.nearbyAlso()) : null);
+  /** Lo único que la barra de contexto anuncia (H-10): la interacción cercana. Comparado por valor: no repite. */
+  private readonly contextLabel = computed(() => this.contextAction()?.ariaLabel ?? null);
 
   readonly helpModality = computed<'keyboard' | 'touch'>(() => this.coarsePointer() ? 'touch' : 'keyboard');
 
@@ -1556,11 +1551,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.inputBlocked();
       untracked(() => this.flushNotes());
     });
+    // La barra de contexto anuncia SOLO la interacción cercana (H-10): al volver al reposo no se lee la línea
+    // «Ahora: …» ni la pista de teclas.
+    effect(() => {
+      const label = this.contextLabel();
+      untracked(() => { if (label) this.announce(label); });
+    });
+    // Sale una petición nueva: el error anterior ya no describe lo que está pasando (VD-29).
+    effect(() => {
+      if (this.busy()) untracked(() => this.dismissActionError());
+    });
   }
 
   ngOnDestroy(): void {
     this.stopCompactWatch?.();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.doorNoticeTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer]) {
+    // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
+    this.dismissDoorNotice();
+    this.dismissActionError();
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1923,6 +1931,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Pidió interactuar y no hay nada a su alcance (E, Espacio, Enter o el botón táctil): línea estática de `NOTHING_NEARBY_MS`. */
   showNothingNearby(): void {
     this.nothingNearbyNote.set(ORIENTATION_COPY.now.nothingNearby);
+    // La barra ya no es una región viva: lo que la persona pidió se anuncia aquí, no por la línea de reposo.
+    this.announce(ORIENTATION_COPY.now.nothingNearby);
     if (this.nothingNearbyTimer !== null) window.clearTimeout(this.nothingNearbyTimer);
     this.nothingNearbyTimer = window.setTimeout(() => {
       this.nothingNearbyTimer = null;
@@ -2001,8 +2011,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.dialogue.set(null);
+          // «Entraste a …» lo anuncia `announceRoomChange` al aplicar el mundo: una sola fuente para el cambio de sala
+          // (por puerta o por decisión), así no se dice dos veces.
           this.applyWorldWithScenario(world);
-          this.announce(`Entraste a ${world.map.title}.`);
         },
         error: err => {
           this.busy.set(false);
@@ -2016,15 +2027,39 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, 'door_open'));
   }
 
-  private doorNoticeTimer: number | null = null;
   /** Sacudida por decisión, pendiente hasta que el fundido de escena deje ver el mundo. */
   private pendingDecisionImpact: SimulationFeedback | null = null;
 
+  /** Texto del aviso del sistema con ese id; '' si no hay o la persona ya lo cerró. */
+  private noticeText(id: number | null): string {
+    return id === null ? '' : this.systemNotices().find(message => message.id === id)?.text ?? '';
+  }
+
+  /**
+   * Aviso accionable de puerta (VD-29): aviso de advertencia del sistema SIN cierre automático. Lo pinta y anuncia
+   * `ui-toast-host` (una vez, con cortesía), no mueve el foco y reemplaza al de la puerta anterior.
+   */
   private showDoorNotice(message: string): void {
-    this.doorNotice.set(message);
-    this.announce(message);
-    if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
-    this.doorNoticeTimer = window.setTimeout(() => this.doorNotice.set(''), NOTICE_MS);
+    this.dismissDoorNotice();
+    this.doorNoticeId.set(this.notifications.show('warning', message, 0));
+  }
+
+  private dismissDoorNotice(): void {
+    const id = this.doorNoticeId();
+    if (id !== null) this.notifications.dismiss(id);
+    this.doorNoticeId.set(null);
+  }
+
+  /** Error de una acción: aviso de error del sistema (no se va solo); el siguiente reemplaza al anterior. */
+  private showActionError(message: string) {
+    this.dismissActionError();
+    this.actionErrorId.set(this.notifications.show('error', message));
+  }
+
+  private dismissActionError(): void {
+    const id = this.actionErrorId();
+    if (id !== null) this.notifications.dismiss(id);
+    this.actionErrorId.set(null);
   }
 
   onRoomExit(event: { targetRoomKey: string; entryX: number; entryY: number }) {
@@ -2158,19 +2193,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     ));
   }
 
-  /** Aviso no esencial: se anuncia solo (role="status") y se apaga a los `NOTICE_MS`. */
+  /** Aviso breve (VD-29): se anuncia por la región de cortesía y, como ya se anunció, se apaga a los `NOTICE_MS`. */
   private showSoftNotice(message: string): void {
     this.softNotice.set(message);
+    this.announce(message);
     if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
     this.softNoticeTimer = window.setTimeout(() => {
       this.softNoticeTimer = null;
       this.softNotice.set('');
     }, NOTICE_MS);
-  }
-
-  private showActionError(message: string) {
-    this.actionError.set(message);
-    window.setTimeout(() => this.actionError.set(''), ACTION_ERROR_MS);
   }
 
   /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
@@ -2206,8 +2237,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.pendingEvidenceDecisionId = decisionOptionId;
       this.pendingEvidenceMissing = [...missing];
       const message = this.evidenceMissingMessage(evidenceDef);
+      // Sin announce(): el panel de diálogo anuncia esta misma línea al abrirse (con las dos se leía dos veces).
       this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
-      this.announce(message);
       return;
     }
     const evidenceOverride = this.pendingEvidenceDecisionId === decisionOptionId
@@ -2430,7 +2461,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
     this.pauseDeadlineTimer = window.setTimeout(() => this.forcePauseAtDeadline(), QUEUED_PAUSE_DEADLINE_MS);
     if (this.busy()) {
-      this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
+      this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.', 'assertive');
       return;
     }
     this.startQueuedPause();
@@ -2465,7 +2496,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
     this.pausingSlow.set(true);
-    this.announce(QUEUED_PAUSE_SLOW_NOTICE);
+    this.announce(QUEUED_PAUSE_SLOW_NOTICE, 'assertive');
     this.audioDirector.playSfx('ui_cancel');
     this.busy.set(true);
     this.pauseCurrentAttempt();
@@ -2795,7 +2826,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private applyLoadedWorld(world: SimulationWorldState): void {
     const previousMapKey = this.world()?.map.key ?? null;
     const mapChanged = previousMapKey !== world.map.key;
-    if (mapChanged) this.doorInteractionArmed = false;
+    if (mapChanged) {
+      this.doorInteractionArmed = false;
+      // El aviso de una puerta de la sala anterior ya no dice nada de esta (permanece hasta cerrarse o cambiar de sala).
+      this.dismissDoorNotice();
+    }
     this.rememberVisitedRoom(world);
     this.world.set(world);
     this.hydrateClinicalState(this.attempt());
@@ -2911,11 +2946,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    *  mapa trae texto de transición autorado (salto temporal), overlay breve. */
   private announceRoomChange(world: SimulationWorldState, stageBannerShown = false): void {
     // Con una etapa nueva manda su banner («Nueva etapa: …»), que ya nombra dónde estás.
-    if (!stageBannerShown) this.showRoomBanner(world.map.title, ROOM_BANNER_MS);
+    if (!stageBannerShown) {
+      this.showRoomBanner(world.map.title, ROOM_BANNER_MS);
+      this.announce(`Entraste a ${world.map.title}.`);
+    }
     const transition = (world.map.ambient as Record<string, unknown> | undefined)?.['transitionText'];
     if (typeof transition === 'string' && transition && !this.seenTransitionMapKeys.has(world.map.key)) {
       this.seenTransitionMapKeys.add(world.map.key);
       this.transitionNote.set(transition);
+      this.announce(transition);
       if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
       this.transitionNoteTimer = window.setTimeout(() => {
         this.transitionNoteTimer = null;
@@ -2941,7 +2980,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Banner «Nueva etapa: …» y, en la tarjeta, «Decisión k registrada» (omitido sin decisión previa). */
   private announceNewStage(stage: { title: string; previousNumber: number | null }): void {
-    this.showRoomBanner(ORIENTATION_COPY.notices.newStage(stage.title), STAGE_BANNER_MS);
+    const banner = ORIENTATION_COPY.notices.newStage(stage.title);
+    this.showRoomBanner(banner, STAGE_BANNER_MS);
+    this.announce(banner);
     if (stage.previousNumber) {
       this.pendingNotes.unshift(ORIENTATION_COPY.notices.decisionRegistered(stage.previousNumber));
       this.flushNotes();
@@ -3005,22 +3046,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
     this.softNoticeTimer = null;
     this.softNotice.set('');
-    // Banner de sala o de etapa, aviso de puerta y nota de transición (z 320-340): sin esto quedaban pintados —y, con
-    // role="status" o "alert", anunciados— encima de la pantalla de pausa (F7). Eran de lo que se estaba haciendo.
+    // Banner de sala o de etapa, aviso de puerta y nota de transición (z 320-340): sin esto quedaban pintados encima de
+    // la pantalla de pausa (F7). Eran de lo que se estaba haciendo. (El aviso de puerta ya no se apaga solo: se retira
+    // aquí, al cerrarse o al cambiar de sala.)
     if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
     this.roomBannerTimer = null;
     this.roomBanner.set('');
-    if (this.doorNoticeTimer !== null) window.clearTimeout(this.doorNoticeTimer);
-    this.doorNoticeTimer = null;
-    this.doorNotice.set('');
+    this.dismissDoorNotice();
     if (this.transitionNoteTimer !== null) window.clearTimeout(this.transitionNoteTimer);
     this.transitionNoteTimer = null;
     this.transitionNote.set('');
   }
 
-  private announce(message: string): void {
-    this.a11yAnnouncement.set('');
-    window.setTimeout(() => this.a11yAnnouncement.set(message), ANNOUNCE_DELAY_MS);
+  /**
+   * Anuncia por las regiones vivas de la app. `polite` por defecto; `assertive` solo para errores y para la salida
+   * segura (la urgencia no se usa para llamar la atención sobre lo que no la tiene).
+   */
+  private announce(message: string, politeness: AnnouncePoliteness = 'polite'): void {
+    this.liveAnnouncer.announce(message, politeness);
   }
 
   private persistAttemptToken(attempt: SimulationAttemptState) {

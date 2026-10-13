@@ -1,15 +1,16 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { MAX_NOTIFICATIONS, NotificationService } from '../../../core/notifications/notification.service';
 import { UiToastHost } from './ui-toast-host';
 
 /**
  * ui-toast-host (plan visual §2.5 y §2.7, F2-7): pinta los avisos de NotificationService con el lenguaje visual. El
  * servicio ya limita a 4, deduplica y deja los errores hasta que se cierran; el anfitrión NO roba el foco, anuncia
- * cada aviso una vez por la región viva del CDK (los errores en modo assertive: un role="alert" dentro de la app
- * queda oculto cuando hay un diálogo abierto), vive en la capa superior y pausa el cierre con el puntero o el foco.
+ * cada aviso una vez por las regiones vivas persistentes de la app (`LiveRegionAnnouncer`; los errores en modo
+ * assertive: un role="alert" dentro de la app queda oculto cuando hay un diálogo abierto), vive en la capa superior y
+ * pausa el cierre con el puntero o el foco.
  */
 // req: RNF-004 (mensajes de estado anunciados sin mover el foco, WCAG 4.1.3)
 describe('ui-toast-host', () => {
@@ -21,9 +22,9 @@ describe('ui-toast-host', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    announce = vi.fn().mockResolvedValue(undefined);
+    announce = vi.fn();
     TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), { provide: LiveAnnouncer, useValue: { announce } }],
+      providers: [provideZonelessChangeDetection(), { provide: LiveRegionAnnouncer, useValue: { announce } }],
     });
     service = TestBed.inject(NotificationService);
     fixture = TestBed.createComponent(UiToastHost);
@@ -201,7 +202,7 @@ describe('ui-toast-host: capa superior y retorno del foco (revisión de F2, I7)'
     proto['showPopover'] = function (this: HTMLElement) { shown.push('show'); this.dataset['open'] = 'true'; };
     proto['hidePopover'] = function (this: HTMLElement) { shown.push('hide'); delete this.dataset['open']; };
     TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), { provide: LiveAnnouncer, useValue: { announce: vi.fn().mockResolvedValue(undefined) } }],
+      providers: [provideZonelessChangeDetection(), { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } }],
     });
     service = TestBed.inject(NotificationService);
     fixture = TestBed.createComponent(UiToastHost);

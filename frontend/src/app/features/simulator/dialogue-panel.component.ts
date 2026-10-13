@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
@@ -79,7 +80,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             }
           </p>
           <p class="dialogue-text" aria-hidden="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()">▋</span></p>
-          <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{{ fullText() }}</p>
+          <!-- Texto completo de la línea para el cursor de lectura. Sin role ni aria-live (H-09): una región que
+               nace dentro del @if con su texto no se anuncia; la línea la anuncia el servicio de regiones vivas. -->
+          <p class="visually-hidden">{{ fullText() }}</p>
 
           @if (staleNote(d); as note) {
             <p class="stale-note" role="note">{{ note }}</p>
@@ -579,6 +582,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
   private readonly kit = inject(KitService);
+  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -602,6 +606,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     });
     effect(() => {
       if (this.choicesVisible()) this.choicesShownAt = Date.now();
+    });
+    // La línea activa se anuncia por la región viva persistente de la app (F6-12, H-09). Cuenta la línea completa, no
+    // la máquina de escribir, y solo cuando cambia el diálogo o la línea.
+    effect(() => {
+      const text = this.dialogue() ? this.activeLine()?.text ?? '' : '';
+      untracked(() => { if (text) this.liveAnnouncer.announce(text, 'polite'); });
     });
     // Liberación: cada token nuevo suelta la elección en curso (y su ejecución pendiente).
     effect(() => {

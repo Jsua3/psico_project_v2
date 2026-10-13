@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { UI_TOOLTIP_SHOW_DELAY_MS } from '../tooltip/ui-tooltip';
 import { UiIconButton } from './ui-icon-button';
 
@@ -115,6 +116,21 @@ describe('ui-icon-button bloqueado al pulsar (revisión de F2, I1)', () => {
     button.dispatchEvent(new Event('touchstart', { bubbles: true }));
     button.click();
     expect(document.querySelector('.ui-tooltip')?.textContent?.trim()).toBe('No hay nada que cerrar');
+    (fixture.nativeElement as HTMLElement).remove();
+  });
+
+  // req: BLOQUE-H (H-09), RNF-004 (F6-12: una sola fuente de anuncios, con deduplicado entre componentes)
+  it('el motivo se anuncia por las regiones vivas de la app, con cortesía', async () => {
+    const announce = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), { provide: LiveRegionAnnouncer, useValue: { announce } }],
+    });
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentInstance.reason.set('No hay nada que cerrar');
+    document.body.appendChild(fixture.nativeElement);
+    await fixture.whenStable();
+    (fixture.nativeElement as HTMLElement).querySelector('button')!.click();
+    expect(announce).toHaveBeenCalledWith('No hay nada que cerrar', 'polite');
     (fixture.nativeElement as HTMLElement).remove();
   });
 });

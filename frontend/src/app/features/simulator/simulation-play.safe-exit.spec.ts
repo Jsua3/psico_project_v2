@@ -183,7 +183,8 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
     function showAllNotices(): void {
       component.roomBanner.set('Nueva etapa: Marco normativo en salud');
-      component.doorNotice.set('Aún no puedes pasar.');
+      // El aviso de puerta es un aviso del sistema (F6-12): se emite por su camino real.
+      (component as unknown as { showDoorNotice(message: string): void }).showDoorNotice('Aún no puedes pasar.');
       component.transitionNote.set('Quince días después…');
       component.softNotice.set('Obtuviste: Kit PAP.');
     }
@@ -274,8 +275,20 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       vi.advanceTimersByTime(60); // el anuncio se emite 50 ms después
 
       expect(component.slowPauseNotice).toBe('La acción en curso está tardando. Estamos pausando el caso igualmente.');
-      expect(component.a11yAnnouncement()).toBe(component.slowPauseNotice);
+      // La salida segura se anuncia en la región assertive de la app (F6-12): es de las pocas cosas que lo merecen.
+      expect(document.querySelector('[data-live-region="assertive"]')!.textContent).toBe(component.slowPauseNotice);
       expect(source).toContain("{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}");
+    });
+
+    it('una pausa en cola se anuncia en assertive (salida segura) y no en la región de cortesía', () => {
+      component.busy.set(true);
+
+      component.pauseFromOverlay();
+      vi.advanceTimersByTime(60);
+
+      expect(document.querySelector('[data-live-region="assertive"]')!.textContent)
+        .toBe('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
+      expect(document.querySelector('[data-live-region="polite"]')!.textContent).toBe('');
     });
 
     it('si la petición termina mucho después, su liberación de busy no repite la pausa', () => {

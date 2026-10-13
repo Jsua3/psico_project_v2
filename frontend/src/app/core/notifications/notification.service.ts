@@ -35,9 +35,12 @@ export class NotificationService {
 
   /** Un aviso igual (mismo tipo y mismo texto) ya visible absorbe al nuevo: con el servidor caído
    *  varias peticiones en paralelo fallan con el mismo error y no deben apilar tarjetas idénticas
-   *  que no se van solas. Un aviso cerrado deja de contar. */
-  show(type: NotificationType, text: string, autoCloseMs = AUTO_CLOSE_MS[type]): void {
-    if (this.messagesSubject.value.some(visible => visible.type === type && visible.text === text)) return;
+   *  que no se van solas. Un aviso cerrado deja de contar. Devuelve el id del aviso (el del que ya estaba, si es
+   *  un repetido) para que quien lo emitió pueda retirarlo cuando deja de valer; `autoCloseMs` en 0 lo deja hasta
+   *  que se cierre. */
+  show(type: NotificationType, text: string, autoCloseMs = AUTO_CLOSE_MS[type]): number {
+    const existing = this.messagesSubject.value.find(visible => visible.type === type && visible.text === text);
+    if (existing) return existing.id;
     const message: NotificationMessage = { id: this.nextId++, type, text };
     const next = [...this.messagesSubject.value, message];
     while (next.length > MAX_NOTIFICATIONS) {
@@ -50,6 +53,7 @@ export class NotificationService {
       this.timers.set(message.id, { handle: null, remaining: autoCloseMs, startedAt: 0 });
       this.resume(message.id);
     }
+    return message.id;
   }
 
   success(text: string): void {

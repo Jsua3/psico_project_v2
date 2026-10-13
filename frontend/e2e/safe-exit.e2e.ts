@@ -159,8 +159,9 @@ async function expectQueuedPauseThenResume(
   const pause = page.getByRole('alertdialog', { name: /pausa/i });
   await expect(pause, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(40_000) });
   expect(safeExitCalls(), `${state}: una sola llamada a safe-exit por pausa pedida`).toBe(expectedTotalCalls);
-  // Ningún aviso de etapa o de sala queda pintado (ni anunciado) encima de la pausa.
-  await expect(page.locator('.room-banner, .door-notice, .transition-note'), `${state}: avisos sobre la pausa`).toHaveCount(0);
+  // Ningún aviso de etapa o de sala queda pintado (ni anunciado) encima de la pausa; el aviso de puerta (F6-12) es un
+  // aviso del sistema (`.ui-toast`) y la pausa también lo retira.
+  await expect(page.locator('.room-banner, .transition-note, .ui-toast'), `${state}: avisos sobre la pausa`).toHaveCount(0);
   await page.getByRole('button', { name: /reanudar este intento/i }).click();
   await expect(pause).toBeHidden({ timeout: scaled(30_000) });
 }

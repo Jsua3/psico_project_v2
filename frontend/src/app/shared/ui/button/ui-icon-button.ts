@@ -1,9 +1,9 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
 import {
   ChangeDetectionStrategy, Component, ElementRef, ViewEncapsulation, computed, effect, inject, input,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { describeHostWith } from '../describe';
 import { UI_TOOLTIP_TAP_VISIBLE_MS, injectUiTooltip } from '../tooltip/ui-tooltip';
 import { guardClicks, uniqueUiId } from './click-guard';
@@ -52,12 +52,12 @@ export class UiIconButton {
 
   constructor() {
     const tooltip = injectUiTooltip({ describe: false });
-    const announcer = inject(LiveAnnouncer);
+    const announcer = inject(LiveRegionAnnouncer);
     guardClicks(() => this.blocked(), () => {
       const reason = this.disabledReason();
       if (!reason) return;
       tooltip.showNow(UI_TOOLTIP_TAP_VISIBLE_MS);
-      void announcer.announce(reason, 'polite');
+      announcer.announce(reason, 'polite');
     });
     describeHostWith(() => (this.disabledReason() ? this.reasonId : null));
     effect(() => tooltip.setText(this.disabledReason() ?? this.label()));

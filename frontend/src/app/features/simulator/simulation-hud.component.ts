@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
+import { DRAFT_COPY } from './draft-copy';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { Heart, stressToHearts } from './stress-hearts.util';
-import { StressTier, stressTier as resolveStressTier } from './stress-tier.util';
+import { STRESS_TIER_LABELS, StressTier, stressTier as resolveStressTier } from './stress-tier.util';
 
 /** Marca de «ayuda vista» (la escribe la tarjeta de primera vez; aquí solo se borra desde Ajustes). */
 const HELP_MEMORY_KEY = 'siep.ayuda.v1';
@@ -493,6 +495,9 @@ export class SimulationHudComponent {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
+  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
+  /** Último tramo visto de un intento: el cambio de tramo es lo único que se anuncia (nunca el primer valor). */
+  private lastStressSeen: { attemptId: string; tier: StressTier } | null = null;
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
   private readonly settingsMenu = viewChild<ElementRef<HTMLElement>>('settingsMenu');
   /** Borde superior del menú (px): justo bajo la cabecera, medido al abrirlo porque su alto cambia en compacto. */
@@ -500,6 +505,13 @@ export class SimulationHudComponent {
   private stopPointerListener: (() => void) | null = null;
 
   constructor() {
+    // El estrés se anuncia solo al CRUZAR 30, 60 u 85 (H-08, VD-20 borrador): en cortesía, con el rótulo del medidor y
+    // sin anunciar el valor de un intento recién cargado ni cada punto.
+    effect(() => {
+      const attempt = this.attempt();
+      const tier = this.stressTier();
+      untracked(() => this.announceStressCrossing(attempt?.attemptId ?? null, tier));
+    });
     // El oyente de clic fuera existe solo mientras Ajustes está abierto: uno global y
     // permanente hace entrar en la zona de Angular cada toque de toda la pantalla de juego.
     effect(() => {
@@ -523,6 +535,13 @@ export class SimulationHudComponent {
       this.unlistenOutsidePointer();
       stopWatchingPointer();
     });
+  }
+
+  private announceStressCrossing(attemptId: string | null, tier: StressTier): void {
+    const previous = this.lastStressSeen;
+    this.lastStressSeen = attemptId === null ? null : { attemptId, tier };
+    if (!previous || previous.attemptId !== attemptId || previous.tier === tier) return;
+    this.liveAnnouncer.announce(`${DRAFT_COPY.stressAnnouncementPrefix.text} ${STRESS_TIER_LABELS[tier]}`, 'polite');
   }
 
   /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
@@ -590,12 +609,7 @@ export class SimulationHudComponent {
     critical: '#E25A4F'
   })[this.stressTier()]);
 
-  readonly stressLabel = computed(() => ({
-    calm:     'Situación estable',
-    moderate: 'Tensión moderada',
-    high:     'Estrés elevado — considere herramientas de contención',
-    critical: 'Nivel crítico — priorice seguridad y autocuidado'
-  })[this.stressTier()]);
+  readonly stressLabel = computed(() => STRESS_TIER_LABELS[this.stressTier()]);
 
   trustColor(v: number): string {
     if (v >= 60) return '#4fa3a5';

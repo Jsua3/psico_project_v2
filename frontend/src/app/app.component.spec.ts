@@ -52,6 +52,23 @@ describe('AppComponent: enlaces de salto', () => {
   });
 });
 
+// req: BLOQUE-H (H-09), RNF-004 (F6-12: las regiones vivas existen antes de que alguien anuncie)
+describe('AppComponent: regiones vivas persistentes (F6-12)', () => {
+  beforeEach(() => TestBed.configureTestingModule({
+    imports: [AppComponent],
+    providers: [provideRouter([])],
+  }));
+
+  it('monta las dos regiones al arrancar, sin esperar a un primer anuncio, y una sola vez', () => {
+    TestBed.createComponent(AppComponent).detectChanges();
+
+    const regions = [...document.querySelectorAll<HTMLElement>('[data-live-region]')];
+    expect(regions.map(region => region.getAttribute('aria-live')).sort()).toEqual(['assertive', 'polite']);
+    expect(regions.every(region => region.parentElement === document.body)).toBe(true);
+    expect(regions.every(region => region.textContent === '')).toBe(true);
+  });
+});
+
 @Component({ template: '' })
 class Screen {}
 

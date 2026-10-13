@@ -1,8 +1,8 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { UI_TOOLTIP_SHOW_DELAY_MS, UI_TOOLTIP_TAP_VISIBLE_MS } from '../tooltip/ui-tooltip';
 import { UI_BUTTON_SPINNER_DELAY_MS, UiButton, UiButtonSize, UiButtonVariant } from './ui-button';
 
@@ -246,9 +246,9 @@ describe('ui-button bloqueado al pulsar', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    announce = vi.fn().mockResolvedValue(undefined);
+    announce = vi.fn();
     TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), { provide: LiveAnnouncer, useValue: { announce } }],
+      providers: [provideZonelessChangeDetection(), { provide: LiveRegionAnnouncer, useValue: { announce } }],
     });
     fixture = TestBed.createComponent(BlockedHost);
     document.body.appendChild(fixture.nativeElement);

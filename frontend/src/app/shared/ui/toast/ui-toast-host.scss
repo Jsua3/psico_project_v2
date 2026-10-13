@@ -28,8 +28,10 @@
   justify-items: start;
 }
 
+// Ancho 28 rem (F6-12): los avisos accionables del juego dicen qué hacer en una o dos frases («Antes de pasar, habla con
+// la Familia en crisis…»); a 22 rem ocupaban tres líneas y en horizontal (844×390) bajaban hasta la cruceta táctil.
 :host(.ui-toast-host--game) .ui-toast {
-  inline-size: min(22rem, calc(100vw - 2 * var(--ds-space-3)));
+  inline-size: min(28rem, calc(100vw - 2 * var(--ds-space-3)));
 }
 
 .ui-toast {

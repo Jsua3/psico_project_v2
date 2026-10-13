@@ -1,8 +1,8 @@
-import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, input, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { NotificationMessage, NotificationService, NotificationType } from '../../../core/notifications/notification.service';
 import { UiIconButton } from '../button/ui-icon-button';
 
@@ -15,12 +15,13 @@ const ICONS: Record<NotificationType, string> = {
 
 /**
  * Avisos del sistema con el lenguaje visual (plan visual §2.5 y §2.7, F2-7) sobre `NotificationService` (≤ 4,
- * deduplicados, errores persistentes). NUNCA mueven el foco. Cada aviso se anuncia una vez por la región viva del CDK
- * (los errores en modo `assertive`): un `role="alert"` dentro de la app quedaría oculto a los lectores mientras haya
- * un diálogo abierto (el CDK oculta todo lo que no es su capa ni una región viva). La región vive en la CAPA SUPERIOR
- * (`popover="manual"`), así un error queda visible y operable aunque haya un diálogo encima. El puntero o el foco
- * encima pausan el cierre automático (WCAG 2.2.1) y cerrar un aviso con el teclado devuelve el foco a donde estaba
- * (2.4.3). Entrada 200 ms con `@starting-style`; salida 160 ms con `animate.leave`.
+ * deduplicados, errores persistentes). NUNCA mueven el foco. Cada aviso se anuncia una vez por las regiones vivas
+ * persistentes de la app (`LiveRegionAnnouncer`; los errores en modo `assertive`): un `role="alert"` dentro de la app
+ * quedaría oculto a los lectores mientras haya un diálogo abierto, y una región que nace con su texto no se lee. La
+ * región VISIBLE vive en la CAPA SUPERIOR (`popover="manual"`), así un error queda visible y operable aunque haya un
+ * diálogo encima. El puntero o el foco encima pausan el cierre automático (WCAG 2.2.1) y cerrar un aviso con el
+ * teclado devuelve el foco a donde estaba (2.4.3). Entrada 200 ms con `@starting-style`; salida 160 ms con
+ * `animate.leave`.
  */
 @Component({
   selector: 'ui-toast-host',
@@ -52,7 +53,7 @@ export class UiToastHost {
   protected readonly notifications = inject(NotificationService);
   protected readonly messages = toSignal(this.notifications.messages$, { initialValue: [] });
   protected readonly icons = ICONS;
-  private readonly announcer = inject(LiveAnnouncer);
+  private readonly announcer = inject(LiveRegionAnnouncer);
   private readonly announced = new Set<number>();
   private readonly region = viewChild.required<ElementRef<HTMLElement>>('region');
   /** Dónde estaba el foco antes de entrar a cada aviso (para devolverlo al cerrarlo). */
@@ -128,7 +129,7 @@ export class UiToastHost {
     for (const message of messages) {
       if (this.announced.has(message.id)) continue;
       this.announced.add(message.id);
-      void this.announcer.announce(message.text, message.type === 'error' ? 'assertive' : 'polite');
+      this.announcer.announce(message.text, message.type === 'error' ? 'assertive' : 'polite');
     }
   }
 }
