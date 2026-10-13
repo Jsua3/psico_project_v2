@@ -52,6 +52,9 @@ import {
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import { InteractionVerb, interactionVerb } from './interaction-verb.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
+import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
+import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
+import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 import {
   NUDGE_SUBSTEPS,
   PlayerDirection,
@@ -222,6 +225,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private hoverLabel?: Phaser.GameObjects.Text;
   /** Lo ya examinado (objetos inspeccionados y personas con las que ya habló): se resalta aunque esté lejos. */
   private examinedKeys: ReadonlySet<string> = NO_KEYS;
+  /** Caminata pedida con un clic (F6-7): sus «teclas» salen de `tickWalk` y pasan por el movimiento de siempre. */
+  private walk: WalkState = NO_WALK;
   private targetRing?: { halo: Phaser.GameObjects.Ellipse; ring: Phaser.GameObjects.Ellipse };
   /** Escala de los rótulos para medir ≥ 12 px de pantalla; se recalcula al cambiar el tamaño del canvas. */
   private labelScale = 1;
@@ -380,6 +385,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.keys['ENTER']?.on('down', () => { this.tappedKeys.enter = true; });
     // Ratón (F6-7): por eventos del puntero, nunca por cuadro (`update()` no cambia).
     this.input.on('pointermove', this.handlePointerMove, this);
+    this.input.on('pointerdown', this.handlePointerDown, this);
     this.input.on('gameout', () => this.setHover(null));
     // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
     this.scale.on('resize', () => this.refitCamera());
@@ -426,12 +432,23 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const focus = document.activeElement;
     // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
     const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
-    const input: PlayerMotionInput = heldInput({
+    const keyInput: PlayerMotionInput = heldInput({
       left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
       right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),
       up:    !typing && (this.cursors.up.isDown    || this.keys['W'].isDown),
       down:  !typing && (this.cursors.down.isDown  || this.keys['S'].isDown),
     }, this.heldDirection, this.time.now - this.heldSince);
+    // Caminata del ratón (F6-7): el teclado o la cruceta mandan sobre el destino y una capa abierta lo suelta.
+    // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.
+    let input = keyInput;
+    if (this.walk.target) {
+      this.walk = this.motionPaused ? NO_WALK : cancelWalkOnKeys(this.walk, keyInput);
+      if (this.walk.target) {
+        const tick = tickWalk(this.walk, { x: this.player.x, y: this.player.y }, delta);
+        this.walk = tick.state;
+        input = tick.input;
+      }
+    }
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
@@ -746,6 +763,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') {
     if (!this.player) return;
+    this.walk = NO_WALK; // un paso de la cruceta manda sobre el destino del ratón
     // Mismo contrato que WASD (player-motion.util): sub-pasos con colisión y
     // sliding, pose/dirección estables, sin caminar en el sitio contra paredes.
     let moved = false;
@@ -858,7 +876,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Dónde y con qué verbo se anuncia lo que tiene el puntero encima (el mismo verbo que la barra de contexto). */
-  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb } | null {
+  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb; reach: number } | null {
     const obj = this.proximityObjectFor(key);
     if (!obj) return null;
     let x = obj.x;
@@ -875,7 +893,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
-    return { x, y, verb: interactionVerb(obj, door) };
+    const radius = key.startsWith(NPC_KEY_PREFIX) ? NPC_INTERACT_RADIUS : MARKER_INTERACT_RADIUS;
+    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius) };
+  }
+
+  /**
+   * Clic con el puntero fino (F6-7, VD-5): el jugador camina hasta ahí; sobre algo señalado, hasta su alcance de
+   * interacción (la barra de contexto ofrece entonces la acción de siempre). Con dedo, con una capa abierta o con
+   * un botón que no es el principal no camina. La caminata la aplica `update()` con el movimiento del teclado.
+   */
+  private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return;
+    if (pointer.button !== 0) return;
+    const aimed = this.hoverKey === null ? null : this.hoverAnchor(this.hoverKey);
+    this.walk = aimed
+      ? startWalk({ x: aimed.x, y: aimed.y, radius: aimed.reach })
+      : startWalk({ x: pointer.worldX, y: pointer.worldY, radius: WALK_GROUND_RADIUS_PX });
   }
 
   /** Contorno y verbo sobre lo señalado: la forma (borde y texto) lleva el mensaje, no solo el color. */
@@ -1136,6 +1169,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
+    // Un refresco de la misma sala conserva la caminata; una sala nueva no la arrastra.
+    if (!keepPosition) this.walk = NO_WALK;
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
     this.cameras.main.setBackgroundColor('#0e141a');
@@ -2512,6 +2547,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   selector: 'app-game-world',
   standalone: true,
   imports: [CommonModule, MatIconModule],
+  host: { '[class.touch-input]': 'touchInput()' },
   template: `
     <div #gameHost class="phaser-host" role="application"
       [attr.data-world-ready]="renderReady()"
@@ -2683,14 +2719,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     .world-load-warning__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     @keyframes world-loading-in { from { opacity: 0; } to { opacity: 1; } }
     /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
-    @media (pointer: coarse) { .touch-controls { display: grid; } }
+    /* La cruceta sigue a la ENTRADA real (F6-7): el primer toque la muestra y mover el ratón la oculta; sin entrada
+       aún, vale el puntero principal. Lo decide la clase touch-input del anfitrión. */
+    :host(.touch-input) .touch-controls { display: grid; }
     /* En anchos cortos (< 700 px) la cruz ya no cabe en las bandas negras y se encima al mundo:
        se hace semitransparente para que el piso se siga viendo por debajo. */
-    @media (pointer: coarse) and (max-width: 699px) {
-      .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
+    @media (max-width: 699px) {
+      :host(.touch-input) .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
       /* Fondo oscuro translúcido: el texto pasa a claro (el vidrio claro de escritorio lleva texto oscuro). */
-      .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
-      .touch-interact--idle { color: rgba(232,240,244,.8); border-style: dashed; }
+      :host(.touch-input) .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
+      :host(.touch-input) .touch-interact--idle { color: rgba(232,240,244,.8); border-style: dashed; }
     }
   `]
 })
@@ -2764,7 +2802,23 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private destroyed = false;
   private booting = false;
 
-  constructor(private readonly zone: NgZone) {}
+  /** La última entrada real (dedo o ratón): decide la cruceta junto con el puntero principal (F6-7, VD-5). */
+  private lastInput: InputKind = null;
+  readonly touchInput = signal(touchControlsVisible(null, matchesMedia(COARSE_POINTER_QUERY)));
+  private readonly onPointerKind = (event: PointerEvent): void => {
+    const next = nextInputKind(this.lastInput, event.pointerType, matchesMedia('(any-pointer: fine)'));
+    if (next === this.lastInput) return;
+    this.lastInput = next;
+    this.zone.run(() => this.touchInput.set(touchControlsVisible(next, matchesMedia(COARSE_POINTER_QUERY))));
+  };
+
+  constructor(private readonly zone: NgZone) {
+    // Fuera de Angular: el puntero se mueve ~60 veces por segundo y solo un cambio de entrada entra a la zona.
+    zone.runOutsideAngular(() => {
+      document.addEventListener('pointerdown', this.onPointerKind, { capture: true, passive: true });
+      document.addEventListener('pointermove', this.onPointerKind, { capture: true, passive: true });
+    });
+  }
 
   @ViewChild('gameHost')
   set host(value: ElementRef<HTMLDivElement> | undefined) {
@@ -2824,6 +2878,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy() {
     this.destroyed = true;
+    document.removeEventListener('pointerdown', this.onPointerKind, true);
+    document.removeEventListener('pointermove', this.onPointerKind, true);
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
     this.detachHostWatch?.();

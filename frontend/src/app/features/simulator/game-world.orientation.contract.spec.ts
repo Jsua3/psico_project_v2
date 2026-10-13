@@ -110,6 +110,30 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
     expect(handler).toContain('this.examinedKeys');
   });
 
+  // req: BLOQUE-H, RNF-04 (VD-5)
+  it('el clic con puntero fino camina; con dedo, capa abierta o botón secundario no', () => {
+    const handler = bodyOf(/\n  private handlePointerDown\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  \}\n/);
+    expect(handler).toContain('pointer.wasTouch || this.motionPaused');
+    expect(handler).toMatch(/pointer\.button !== 0/);
+    // Sobre algo señalado camina hasta su alcance de interacción; en el suelo, hasta el punto clicado.
+    expect(handler).toContain('startWalk({ x: aimed.x, y: aimed.y, radius: aimed.reach })');
+    expect(handler).toContain('WALK_GROUND_RADIUS_PX');
+  });
+
+  it('en update() el teclado o la cruceta cancelan la caminata antes de aplicarla y el paso es el de siempre', () => {
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain('cancelWalkOnKeys(');
+    expect(update.indexOf('cancelWalkOnKeys(')).toBeLessThan(update.indexOf('tickWalk('));
+    expect(update).toContain('computePlayerStep(input, this.lastDirection, delta)');
+    expect(update).toContain('this.movePlayer(part.dx, part.dy)');
+  });
+
+  it('un paso de la cruceta suelta la caminata y una sala nueva no la arrastra', () => {
+    const nudge = bodyOf(/\n  nudge\(direction: 'up' \| 'down' \| 'left' \| 'right'\) \{\n    if \(!this\.player\) return;/, /\n  \/\*\* Punto de pies/);
+    expect(nudge).toContain('this.walk = NO_WALK;');
+    expect(source).toContain('if (!keepPosition) this.walk = NO_WALK;');
+  });
+
   it('el hover no lee clasificación ni datos clínicos de lo que señala', () => {
     const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
     expect(hover).not.toMatch(/classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId|effect\b/);

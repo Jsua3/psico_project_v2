@@ -23,6 +23,15 @@ export const WALK_AXIS_DEADZONE_PX = 3;
 export const WALK_STUCK_MS = 450;
 /** Menos que esto entre dos cuadros no cuenta como avance. */
 export const WALK_PROGRESS_EPSILON_PX = 0.25;
+/** Radio de llegada de un clic en el suelo: el punto clicado, con unos píxeles de tolerancia. */
+export const WALK_GROUND_RADIUS_PX = 6;
+/** Cuánto antes del límite de interacción se detiene la caminata hacia una persona u objeto señalado. */
+export const WALK_REACH_MARGIN_PX = 14;
+
+/** Radio de llegada hacia algo señalado: dentro de su alcance de interacción, con margen (nunca menos de 8 px). */
+export function reachRadius(interactRadius: number): number {
+  return Math.max(8, interactRadius - WALK_REACH_MARGIN_PX);
+}
 
 export interface WalkState {
   readonly target: WalkTarget | null;

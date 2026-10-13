@@ -1,10 +1,13 @@
 import {
   NO_WALK,
   WALK_AXIS_DEADZONE_PX,
+  WALK_GROUND_RADIUS_PX,
+  WALK_REACH_MARGIN_PX,
   WALK_STUCK_MS,
   WalkPoint,
   WalkState,
   cancelWalkOnKeys,
+  reachRadius,
   startWalk,
   tickWalk,
 } from './world-walk.util';
@@ -43,6 +46,23 @@ describe('world-walk: la caminata pide las teclas que acercan al destino', () =>
     expect(tick.input).toEqual(NONE);
     expect(tick.arrived).toBe(false);
     expect(tick.state).toEqual(NO_WALK);
+  });
+});
+
+describe('world-walk: radios de llegada', () => {
+  it('hacia algo señalado se detiene antes de su límite de interacción, con margen', () => {
+    expect(reachRadius(72)).toBe(72 - WALK_REACH_MARGIN_PX);
+    expect(reachRadius(74)).toBe(74 - WALK_REACH_MARGIN_PX);
+  });
+
+  it('nunca pide un radio menor de 8 px (no se queda dando vueltas)', () => {
+    expect(reachRadius(10)).toBe(8);
+    expect(reachRadius(0)).toBe(8);
+  });
+
+  it('en el suelo basta la tolerancia de unos píxeles', () => {
+    expect(WALK_GROUND_RADIUS_PX).toBeGreaterThanOrEqual(WALK_AXIS_DEADZONE_PX);
+    expect(WALK_GROUND_RADIUS_PX).toBeLessThanOrEqual(12);
   });
 });
 

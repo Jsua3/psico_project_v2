@@ -5,6 +5,7 @@ import {
   createWorldInputDriver,
   enterWorld,
   exploreUntilNearby,
+  readPlayerPosition,
   waitUntilPlayerStill,
 } from './support/siep-flow';
 import { scaled } from './support/time-scale';
@@ -70,5 +71,81 @@ test.describe('@mouse-world hover', () => {
     await page.mouse.move(empty!.x, empty!.y);
     await expect.poll(() => hoverKey(page), { message: 'el suelo vacío no resalta nada' }).toBeNull();
     await expect.poll(() => canvasCursor(page)).not.toBe('pointer');
+  });
+});
+
+const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+
+// req: BLOQUE-H, RNF-04 (VD-5)
+test.describe('@mouse-world clic para caminar', () => {
+  test('un clic en el suelo camina hasta ahí y se detiene; una tecla de movimiento cancela el destino', async ({ page }) => {
+    test.setTimeout(scaled(240_000));
+    await enterWorld(page);
+    const box = (await page.locator('app-game-world canvas').boundingBox())!;
+    const center: Point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // El jugador queda cerca del centro del lienzo (la cámara lo sigue): un clic cercano en alguna dirección con suelo.
+    let walked: { dx: number; dy: number; from: Point; to: Point } | null = null;
+    for (const [dx, dy] of [[150, 0], [-150, 0], [0, 110], [0, -110]]) {
+      const from = await readPlayerPosition(page);
+      await page.mouse.click(center.x + dx, center.y + dy);
+      await page.waitForTimeout(scaled(900));
+      await waitUntilPlayerStill(page);
+      const to = await readPlayerPosition(page);
+      if (distance(from, to) > 10) {
+        walked = { dx, dy, from, to };
+        break;
+      }
+    }
+    expect(walked, 'un clic en el suelo mueve al jugador').not.toBeNull();
+    // Llegó y se detuvo: sin teclas pulsadas no sigue caminando.
+    const settled = await readPlayerPosition(page);
+    await page.waitForTimeout(scaled(600));
+    expect(await readPlayerPosition(page), 'llegó y se detuvo').toEqual(settled);
+
+    // Un destino más lejano: a media caminata una tecla de movimiento lo cancela y al soltarla no se retoma.
+    await page.mouse.click(center.x + walked!.dx * 2.2, center.y + walked!.dy * 2.2);
+    await expect.poll(async () => distance(await readPlayerPosition(page), settled), {
+      message: 'el jugador empieza a caminar', timeout: scaled(5_000),
+    }).toBeGreaterThan(8);
+    await page.keyboard.down('ArrowUp');
+    await page.waitForTimeout(scaled(150));
+    await page.keyboard.up('ArrowUp');
+    await waitUntilPlayerStill(page);
+    const afterKey = await readPlayerPosition(page);
+    await page.waitForTimeout(scaled(900));
+    expect(await readPlayerPosition(page), 'la tecla canceló el destino: no retoma la caminata').toEqual(afterKey);
+  });
+
+  test('un clic sobre la ayuda abierta no camina', async ({ page }) => {
+    test.setTimeout(scaled(240_000));
+    await enterWorld(page);
+    await page.getByRole('button', { name: /abrir cómo se juega/i }).click();
+    const sheet = page.locator('.help-screen');
+    await expect(sheet).toBeVisible();
+    const before = await readPlayerPosition(page);
+    const box = (await sheet.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(scaled(900));
+    expect(await readPlayerPosition(page), 'un clic sobre la ayuda no es un destino').toEqual(before);
+  });
+});
+
+// req: BLOQUE-H, RNF-04 (VD-5)
+test.describe('@mouse-world cruceta por entrada real', () => {
+  test('un toque muestra la cruceta aunque el puntero principal sea fino y mover el ratón la oculta', async ({ page }) => {
+    test.setTimeout(scaled(240_000));
+    await enterWorld(page);
+    const dpad = page.locator('app-game-world .touch-controls');
+    await expect(dpad, 'con ratón y sin toques no hay cruceta').toBeHidden();
+
+    await page.evaluate(() => {
+      document.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+    });
+    await expect(dpad, 'el primer toque la muestra').toBeVisible();
+
+    await page.mouse.move(300, 300);
+    await page.mouse.move(340, 320);
+    await expect(dpad, 'mover el ratón la oculta').toBeHidden();
   });
 });
