@@ -49,6 +49,12 @@ describe('páginas de estado', () => {
     expect(text(host.querySelector('.ui-error-state__message'))).toBe('Tu cuenta no tiene permiso para ver esto. Si crees que es un error, escribe a la administración.');
   });
 
+  it('una subruta de una sección (simulador/<id>) no se nombra como la sección: el docente SÍ tiene «Simulador» (M-1)', async () => {
+    // roleGuard('ESTUDIANTE','ADMIN') protege simulador/:id; nombrar «Simulador» contradiría el menú del docente.
+    const host = await render('/portal/sin-permiso?desde=%2Fportal%2Fsimulador%2F5');
+    expect(text(host.querySelector('.ui-error-state__message'))).toBe('Tu cuenta no tiene permiso para ver esto. Si crees que es un error, escribe a la administración.');
+  });
+
   it('sin conexión: su propio <main>, un h1, el estado bloqueante y «Reintentar» CARGA de nuevo la ruta pedida', async () => {
     // El navegador guarda en su mapa de módulos la descarga fallida: un import() otra vez fallaría aunque ya haya
     // red; por eso «Reintentar» hace una carga completa (FULL_NAVIGATION), no una navegación del Router.

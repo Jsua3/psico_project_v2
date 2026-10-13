@@ -80,6 +80,14 @@ describe('SiepParticleLayerComponent', () => {
     expect(await animating()).toBe(true);
   });
 
+  it('al destruirse deja de pintar y suelta el oyente de la preferencia de movimiento (revisión de F4, M-11)', async () => {
+    await render();
+    expect(await animating()).toBe(true);
+    fixture.destroy();
+    expect(await animating()).toBe(false);
+    expect(mediaListener).toBeNull();
+  });
+
   it('con movimiento reducido arranca quieta; si la preferencia cambia en vivo, se detiene y se reanuda sin recargar', async () => {
     reduce = true;
     await render();

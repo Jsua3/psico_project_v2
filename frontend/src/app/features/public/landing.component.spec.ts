@@ -85,7 +85,8 @@ describe('LandingComponent', () => {
     expect(host().querySelectorAll('.landing-accent--dark')).toHaveLength(0);
   });
 
-  it('la escena de la vista previa se sirve en WebP a su tamaño (antes, un PNG de 389 KB) y sin escalado pixelado', () => {
+  // El peso servido lo mide el e2e @publico (< 120 KB por pantalla); aquí, el marcado.
+  it('la escena de la vista previa se sirve en WebP a su tamaño nativo (antes, un PNG de 389 KB), con sus dimensiones', () => {
     const scene = host().querySelector<HTMLImageElement>('.landing-preview__scene img')!;
     expect(scene.getAttribute('src')).toBe('/assets/images/institution/escena-portada.webp');
     expect([scene.getAttribute('width'), scene.getAttribute('height')]).toEqual(['581', '415']);

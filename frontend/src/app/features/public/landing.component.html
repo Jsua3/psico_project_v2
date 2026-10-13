@@ -5,11 +5,6 @@
     <!-- El héroe presenta el simulador: piel juego (VD-2: el violeta solo para «simulador»). -->
     <section class="landing-hero" id="simulador" data-skin="game" aria-labelledby="hero-title">
       <app-siep-particle-layer density="medium" [interactive]="true" mode="background" [paused]="particlesPaused()"></app-siep-particle-layer>
-      <!-- WCAG 2.2.2 (H-22, VD-25): lo que se mueve más de 5 s se puede pausar. Con movimiento reducido ya está quieto. -->
-      <button ui-button type="button" variant="secondary" size="sm" class="landing-pausa"
-        [icon]="particlesPaused() ? 'play_arrow' : 'pause'" (click)="particlesPaused.set(!particlesPaused())">
-        {{ particlesPaused() ? 'Reanudar animación' : 'Pausar animación' }}
-      </button>
       <div class="landing-wrap landing-hero__grid">
         <div class="landing-hero__copy landing-enter">
           <h1 id="hero-title" class="landing-hero__title">
@@ -59,8 +54,7 @@
             <dl class="landing-preview__info">
               @for (info of caseInfo; track info.label) {
                 <div class="landing-preview__info-item">
-                  <mat-icon aria-hidden="true">{{ info.icon }}</mat-icon>
-                  <dt>{{ info.label }}</dt>
+                  <dt><mat-icon aria-hidden="true">{{ info.icon }}</mat-icon>{{ info.label }}</dt>
                   <dd>{{ info.text }}</dd>
                 </div>
               }
@@ -75,6 +69,11 @@
           </ul>
         </aside>
       </div>
+      <!-- WCAG 2.2.2 (H-22, VD-25): lo que se mueve más de 5 s se puede pausar. Con movimiento reducido ya está quieto. -->
+      <button ui-button type="button" variant="secondary" size="sm" class="landing-pausa"
+        [icon]="particlesPaused() ? 'play_arrow' : 'pause'" (click)="particlesPaused.set(!particlesPaused())">
+        {{ particlesPaused() ? 'Reanudar animación' : 'Pausar animación' }}
+      </button>
     </section>
 
     <section id="casos" class="landing-section" aria-labelledby="casos-title">

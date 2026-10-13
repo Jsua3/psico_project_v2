@@ -6,11 +6,15 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
-/** Nombre de la sección pedida, desde NAV_ITEMS (la única fuente de destinos); null si no es un destino conocido. */
+/**
+ * Nombre de la sección pedida, desde NAV_ITEMS (la única fuente de destinos); null si no es EXACTAMENTE un destino.
+ * Una subruta no se nombra como su sección: `simulador/<id>` lo guarda otro rol que `simulador`, y decir «no puedes
+ * ver Simulador» contradiría el menú del docente (revisión de F4, M-1).
+ */
 function sectionName(path: string | null): string | null {
   if (!path) return null;
   const clean = path.split(/[?#;]/, 1)[0];
-  return NAV_ITEMS.find(item => clean === item.route || clean.startsWith(`${item.route}/`))?.label ?? null;
+  return NAV_ITEMS.find(item => clean === item.route)?.label ?? null;
 }
 
 /**

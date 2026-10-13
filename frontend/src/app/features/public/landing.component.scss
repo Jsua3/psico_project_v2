@@ -205,20 +205,22 @@
 
 .landing-preview__info-item {
   display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: var(--ds-space-2);
+  gap: var(--ds-space-1);
   padding: var(--ds-space-2) var(--ds-space-3);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
   background: var(--ds-surface-2);
 }
 
+// El icono va dentro del <dt> (un <div> de <dl> solo admite <dt> y <dd>).
 .landing-preview__info-item mat-icon {
-  grid-row: span 2;
   color: var(--ds-primary);
 }
 
 .landing-preview__info-item dt {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
   font-size: var(--ds-type-caption-size);
   font-weight: var(--ds-type-caption-weight);
   letter-spacing: var(--ds-type-caption-track);
@@ -258,7 +260,7 @@
   gap: var(--ds-space-2);
   min-height: 5rem;
   padding: var(--ds-space-3) var(--ds-space-2);
-  border: 1px dashed var(--ds-border-strong);
+  border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
   font-size: var(--ds-type-body-s-size);
   font-weight: 600;
@@ -367,9 +369,9 @@
   margin-top: auto;
 }
 
-// «Próximamente»: sin elevación y con borde discontinuo (la forma también lo dice, no solo el color).
+// «Próximamente»: sin elevación ni fondo (la forma también lo dice, no solo el color) y el estado como texto en el
+// ui-badge. Borde sólido: VD-3 retira los bordes punteados (revisión de F4, M-2).
 .landing-case-card--soon {
-  border-style: dashed;
   border-color: var(--ds-border-strong);
   background: transparent;
   box-shadow: none;

@@ -4,8 +4,6 @@ export interface LoginRoleOption {
   id: LoginRole;
   label: string;
   icon: string;
-  accent: string;
-  accentSoft: string;
   emailPlaceholder: string;
   hint: string;
   narrative: string;
@@ -18,8 +16,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
     id: 'ESTUDIANTE',
     label: 'Estudiante',
     icon: 'school',
-    accent: '#4f6fd6',
-    accentSoft: '#e8eeff',
     emailPlaceholder: 'estudiante@institucion.edu.co',
     hint: 'Accede a tus casos asignados, explora el simulador y registra tu bitácora reflexiva.',
     narrative:
@@ -31,8 +27,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
     id: 'PROFESOR',
     label: 'Docente',
     icon: 'co_present',
-    accent: '#2c2a84',
-    accentSoft: '#ecebff',
     emailPlaceholder: 'docente@institucion.edu.co',
     hint: 'Gestiona grupos, asigna simulaciones y revisa evidencias con rúbricas académicas.',
     narrative:
@@ -44,8 +38,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
     id: 'ADMIN',
     label: 'Administrador',
     icon: 'admin_panel_settings',
-    accent: '#7c3aed',
-    accentSoft: '#f1e8ff',
     emailPlaceholder: 'admin@institucion.edu.co',
     hint: 'Administra usuarios, autoría de casos y publicación del catálogo institucional.',
     narrative:
