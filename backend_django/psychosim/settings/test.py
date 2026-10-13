@@ -1,13 +1,15 @@
 """Settings de pruebas AISLADOS (ENV-01).
 
-Las tablas de dominio son ``managed = False``, así que el runner no crea el
-esquema: las pruebas corren contra una base ya sembrada. Antes este módulo
-apuntaba al esquema real ``psychosim`` compartido con desarrollo; ahora exige
-un target explícito y desechable (docker-compose.test.yml) y FALLA en el
-arranque si el DSN huele a desarrollo o producción.
+El esquema lo construye ``migrate`` (Django es el dueño; E0-8) y el runner
+(``scripts/test-backend.mjs``) siembra la base desechable con ``bootstrap_dev_db``
+antes de lanzar pytest. Este módulo exige un target explícito y desechable
+(docker-compose.test.yml) y FALLA en el arranque si el DSN huele a desarrollo o
+producción.
 
-Nunca uses ``transactional_db`` / ``TransactionTestCase``: truncan tablas.
-El aislamiento por prueba sigue siendo el rollback de ``django_db``.
+Nunca uses ``transactional_db`` / ``TransactionTestCase``: su ``flush`` trunca las
+tablas y borra la siembra. El aislamiento por prueba es el rollback de ``django_db``;
+para commits reales con varios hilos usa ``run_concurrently`` y el fixture
+``real_commits`` de ``shared.testing`` (E0-9), que limpian lo que crean.
 
 Variables obligatorias (las exporta scripts/test-backend.mjs):
     SIEP_TEST_DB_NAME, SIEP_TEST_DB_HOST, SIEP_TEST_DB_PORT,

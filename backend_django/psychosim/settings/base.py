@@ -1,7 +1,8 @@
 """Shared Django settings for the PsychoSim (SIEP) backend.
 
-The PostgreSQL schema is owned by Flyway (Spring side). Every domain model maps
-to an existing table with ``managed = False`` so Django never mutates the schema.
+Django owns the PostgreSQL schema: every table is created and evolved by the
+migrations of each app (E0-8); the constraints that production enforces live in
+the models' ``Meta`` and are pinned by ``test_schema_contract.py``.
 """
 import os
 from datetime import timedelta
@@ -16,9 +17,9 @@ SECRET_KEY = os.environ.get(
 INSTALLED_APPS = [
     # auth + contenttypes are required by djangorestframework-simplejwt (it
     # imports django.contrib.auth.models at load time). Our user model is custom
-    # (managed=False, no PermissionsMixin); these apps only add Django's small
-    # housekeeping tables (content_type/permission) — additive and ignored by
-    # Spring. The running server never auto-creates tables (only migrate does).
+    # (no PermissionsMixin); these apps only add Django's small housekeeping
+    # tables (content_type/permission). The running server never auto-creates
+    # tables (only migrate does).
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "rest_framework",
