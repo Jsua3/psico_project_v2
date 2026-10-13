@@ -1,5 +1,6 @@
 """Los settings de producción que el despliegue necesita (E0-3, revisión de fase)."""
 import runpy
+from pathlib import Path
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -53,6 +54,7 @@ def test_la_conexion_a_la_bd_tiene_un_tope_de_espera(monkeypatch, database_url):
     if database_url:
         monkeypatch.setenv("DATABASE_URL", database_url)
 
-    base = runpy.run_module("psychosim.settings.base", run_name="base_bajo_prueba")
+    base_py = Path(__file__).resolve().parents[2] / "psychosim" / "settings" / "base.py"
+    base = runpy.run_path(str(base_py), run_name="base_bajo_prueba")
 
     assert base["DATABASES"]["default"]["OPTIONS"]["connect_timeout"] <= 10
