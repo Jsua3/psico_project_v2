@@ -34,6 +34,12 @@
   inline-size: min(28rem, calc(100vw - 2 * var(--ds-space-3)));
 }
 
+// Con varios avisos persistentes la pila no debe llegar a «Salida segura» (abajo a la izquierda; REGLA-004): en el juego
+// solo se ven los dos más recientes. Los anteriores reaparecen al cerrar los nuevos y ya se anunciaron al crearse.
+:host(.ui-toast-host--game) .ui-toast:nth-last-child(n + 3) {
+  display: none;
+}
+
 .ui-toast {
   --_tone: var(--ds-info);
 

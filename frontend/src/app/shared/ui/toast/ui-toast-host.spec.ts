@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
@@ -187,6 +189,12 @@ describe('ui-toast-host', () => {
     fixture.componentRef.setInput('placement', 'portal');
     fixture.detectChanges();
     expect(root().classList).not.toContain('ui-toast-host--game');
+  });
+
+  // req: REGLA-004 (revisión de F6: cuatro avisos persistentes a 844×390 llegaban al pie y tapaban «Salida segura»)
+  it('en el juego solo se ven los dos avisos más recientes: la pila no llega al pie de «Salida segura»', () => {
+    const scss = readFileSync(join(__dirname, 'ui-toast-host.scss'), 'utf-8');
+    expect(scss).toMatch(/:host\(\.ui-toast-host--game\) \.ui-toast:nth-last-child\(n \+ 3\) \{\s*display: none;\s*\}/);
   });
 });
 
