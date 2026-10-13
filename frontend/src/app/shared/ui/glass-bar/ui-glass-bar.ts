@@ -87,11 +87,17 @@ export class UiGlassBar {
       cleanups.push(() => target.removeEventListener(type, fn, options));
     };
 
-    // Modalidad: en captura sobre document, para marcar el Tab antes de que el foco se mueva.
-    listen(document, 'pointerdown', event => this.machine.pointerDown((event as PointerEvent).pointerType), { capture: true, passive: true });
+    // Modalidad: en captura sobre document, para marcar el Tab antes de que el foco se mueva. Se pinta en el DOM en
+    // el mismo evento (paintModality): esperar a la detección de cambios llega tarde para ese Tab.
+    listen(document, 'pointerdown', event => {
+      this.machine.pointerDown((event as PointerEvent).pointerType);
+      this.paintModality();
+    }, { capture: true, passive: true });
     listen(document, 'keydown', event => {
       const key = (event as KeyboardEvent).key;
-      if (key === 'Tab') this.machine.keyDown(key, false);
+      if (key !== 'Tab') return;
+      this.machine.keyDown(key, false);
+      this.paintModality();
     }, { capture: true });
     listen(window, 'keydown', event => {
       const key = (event as KeyboardEvent).key;
@@ -137,6 +143,17 @@ export class UiGlassBar {
       cleanups.forEach(cleanup => cleanup());
       this.machine.destroy();
     });
+  }
+
+  /**
+   * Invariante 7 de la barra: la modalidad llega al DOM en el MISMO evento. El navegador decide adónde va Tab justo
+   * después del keydown, y los plegados solo son enfocables con data-modalidad="teclado"; la detección de cambios
+   * pintaría el atributo más tarde. El binding del host escribe luego el mismo valor.
+   */
+  private paintModality(): void {
+    const modality = this.machine.modality();
+    if (modality) this.host.setAttribute('data-modalidad', modality);
+    else this.host.removeAttribute('data-modalidad');
   }
 
   /** Posición y tope del documento (el tope con el alto VIGENTE del viewport: en iOS crece al plegarse su barra). */

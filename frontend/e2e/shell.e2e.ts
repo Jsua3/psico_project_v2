@@ -57,6 +57,27 @@ test.describe('@shell barra de vidrio del portal', () => {
     for (const link of await folded.all()) await expect(link).toBeVisible();
   });
 
+  test('docente: tras un clic en la barra y con el ratón fuera, Tab desde «Trazabilidad» llega a «Rúbricas» plegada', async ({ page }) => {
+    // Revisión de F3 (I-1): la modalidad se escribía en el DOM después de que Tab moviera el foco, así que el Tab que
+    // sigue a un clic se saltaba los plegados (ocultos con modalidad «puntero»).
+    await loginAs(page, 'profesor');
+    const bar = page.locator('header.cromo');
+    await page.goto('/portal/docente/trazabilidad');
+    await scrollDown(page);
+    await expect(bar).toHaveAttribute('data-estado', 'scroll');
+    const trace = bar.getByRole('link', { name: 'Trazabilidad', exact: true });
+    await trace.click();
+    await page.mouse.move(700, 600); // fuera de la barra: vence la gracia y se repliega
+    await expect(bar).toHaveAttribute('data-estado', 'scroll');
+    await expect(bar).toHaveAttribute('data-modalidad', 'puntero');
+    await expect(trace).toBeFocused();
+    // El ocultado de los plegados llega con el retraso de su transición (620 ms): Tab cuando ya están ocultos.
+    const rubrics = bar.getByRole('link', { name: 'Rúbricas', exact: true });
+    await expect(rubrics).toBeHidden();
+    await page.keyboard.press('Tab');
+    await expect(rubrics).toBeFocused();
+  });
+
   test('entrar y moverse por el portal no deja errores de Angular en la consola (p. ej. NG0600 por el foco)', async ({ page }) => {
     // El acceso retira el botón con foco mientras pinta: el focusout que dispara Chrome en ese instante no puede
     // escribir señales (la barra mide el teclado virtual con el foco).

@@ -102,6 +102,21 @@ describe('ui-glass-bar en un teléfono', () => {
     expect(fixture.nativeElement.querySelector('header').getAttribute('data-ancho')).toBe('movil');
   });
 
+  it('al destruirse suelta también los oyentes del viewport visual y de las medias', async () => {
+    const shown = signal(true);
+    @Component({
+      imports: [UiGlassBar],
+      template: `@if (shown()) { <header ui-glass-bar label="Navegación principal"><a class="modulo modulo-logo" href="/">S</a></header> }`,
+    })
+    class Toggle { shown = shown; }
+    const removedFromViewport = vi.spyOn(phone.viewport, 'removeEventListener');
+    const fixture = TestBed.createComponent(Toggle);
+    await fixture.whenStable();
+    shown.set(false);
+    await fixture.whenStable();
+    expect(removedFromViewport.mock.calls.map(call => call[0])).toContain('resize');
+  });
+
   it('«Saltar a la navegación» lleva el foco a la primera pestaña de abajo (la navegación principal en el teléfono)', async () => {
     const fixture = TestBed.createComponent(PhoneHost);
     await fixture.whenStable();
@@ -186,6 +201,15 @@ describe('ui-glass-bar', () => {
     expect(header()!.dataset['modalidad']).toBe('puntero');
   });
 
+  it('la modalidad llega al DOM en el MISMO keydown/pointerdown, antes de que Tab mueva el foco (invariante 7)', () => {
+    // Sin esperar a la detección de cambios: el navegador decide adónde va Tab justo después del keydown, y los
+    // plegados solo son enfocables con data-modalidad="teclado".
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(header()!.dataset['modalidad']).toBe('teclado');
+    document.body.dispatchEvent(pointer('pointerdown', 'mouse'));
+    expect(header()!.dataset['modalidad']).toBe('puntero');
+  });
+
   it('ningún nodo entra ni sale al cambiar de estado (E3)', async () => {
     const changes: MutationRecord[] = [];
     const observer = new MutationObserver(records => changes.push(...records));
@@ -246,7 +270,7 @@ describe('ui-glass-bar', () => {
     const removedFromDocument = vi.spyOn(document, 'removeEventListener');
     fixture.componentInstance.shown.set(false);
     await fixture.whenStable();
-    expect(removedFromWindow.mock.calls.map(call => call[0])).toEqual(expect.arrayContaining(['scroll', 'keydown']));
+    expect(removedFromWindow.mock.calls.map(call => call[0])).toEqual(expect.arrayContaining(['scroll', 'keydown', 'focusin', 'focusout']));
     expect(removedFromDocument.mock.calls.map(call => call[0])).toEqual(expect.arrayContaining(['pointerdown', 'keydown', 'click']));
     removedFromWindow.mockRestore();
     removedFromDocument.mockRestore();
