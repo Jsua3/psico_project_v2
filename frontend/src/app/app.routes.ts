@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/auth/auth.guard';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
+import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { rolesFor } from './shared/layout/nav-items';
 
 /**
@@ -59,7 +60,7 @@ export const routes: Routes = [
         path: 'simulador/:caseVersionId',
         title: 'Simulación',
         data: { chrome: 'hidden' },
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
+        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN'), caseUnlockedGuard],
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
       },
       {

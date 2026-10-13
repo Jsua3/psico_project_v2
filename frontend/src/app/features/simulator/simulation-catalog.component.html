@@ -6,6 +6,12 @@
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
+@if (notice(); as message) {
+  <p class="catalog-notice" role="status">
+    <mat-icon aria-hidden="true">lock</mat-icon>{{ message }}
+  </p>
+}
+
 <ui-section class="catalog-cases" title="Casos">
   @switch (casesState()) {
     @case ('loading') {
@@ -38,10 +44,17 @@
             @if (card.open; as open) {
               <ui-badge class="case-card__attempt" [tone]="tone(open.status)">{{ statusLabel(open.status) }}</ui-badge>
             }
+            @if (card.lock; as reason) {
+              <ui-badge class="case-card__lock" tone="neutral">Bloqueado</ui-badge>
+              <p class="case-card__reason">{{ reason }}</p>
+            }
+            @if (card.done) {
+              <ui-badge class="case-card__done" tone="success">Resuelto</ui-badge>
+            }
             @if (canPlay || canEdit) {
               <div class="case-card__actions">
                 @if (canPlay) {
-                  <button ui-button type="button" variant="primary" icon="play_arrow" (click)="openCase(card.item.caseVersionId)">
+                  <button ui-button type="button" variant="primary" icon="play_arrow" [disabledReason]="card.lock" (click)="openCase(card.item.caseVersionId)">
                     {{ card.open ? 'Continuar' : card.startLabel }}
                   </button>
                 }

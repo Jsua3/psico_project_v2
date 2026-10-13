@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 
 import { loginAs } from './support/screen-tour';
 import { runAxe } from './support/quality-gates';
+import { scaled } from './support/time-scale';
 
 /**
  * Portal del estudiante en un navegador real (plan visual F5): lo que jsdom no mide —desborde en un teléfono, Axe
@@ -201,6 +202,41 @@ test.describe('@estudiante personaje', () => {
     await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' }).getByRole('button', { name: 'Salir sin guardar' }).click();
     await page.waitForURL(/\/portal\/dashboard$/);
+  });
+});
+
+// req: SIEP-RF-12 (gancho de interfaz), BLOQUE-H (plan visual F5-5)
+test.describe('@estudiante estados de ruta', () => {
+  test('abrir por dirección un caso bloqueado vuelve al catálogo con el motivo', async ({ page }) => {
+    await loginAs(page, 'estudiante');
+    let lockedId = 0;
+    // El catálogo de desbloqueo se simula con todo bloqueado (la base del e2e tiene un solo caso, siempre abierto).
+    await page.route('**/api/simulation/catalog', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.data = body.data.map((item: { caseVersionId: number }) => ({ ...item, unlocked: false, locked: true }));
+      lockedId = body.data[0].caseVersionId;
+      await route.fulfill({ response, json: body });
+    });
+    await page.goto('/portal/simulador');
+    await expect(page.locator('.case-card').first()).toBeVisible({ timeout: scaled(15_000) });
+    await page.goto(`/portal/simulador/${lockedId}`);
+    await page.waitForURL(new RegExp(`/portal/simulador\\?bloqueado=${lockedId}$`), { timeout: scaled(15_000) });
+    await expect(page.locator('.catalog-notice')).toContainText('todavía está bloqueado', { timeout: scaled(15_000) });
+    const card = page.locator('.case-card').first();
+    await expect(card.locator('.case-card__lock')).toHaveText('Bloqueado');
+    // «Iniciar…» o «Continuar» si otra prueba dejó un intento abierto: bloqueado igual (coherente con la guardia).
+    await expect(card.locator('.case-card__actions button').first()).toHaveAttribute('aria-disabled', 'true');
+    expect(await blockingViolations(page, 'app-simulation-catalog')).toEqual([]);
+  });
+
+  test('la sala sin casos asignados lo dice, sin pasillo vacío, y la salida sigue a mano', async ({ page }) => {
+    await loginAs(page, 'estudiante');
+    await page.route('**/api/simulation/catalog', route => route.fulfill({ json: { success: true, data: [] } }));
+    await page.goto('/portal/jugar');
+    await expect(page.locator('app-game-menu ui-empty-state')).toContainText('Aún no tienes casos asignados');
+    await expect(page.locator('app-game-menu canvas')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Volver al panel' }).click({ trial: true, timeout: 3_000 });
   });
 });
 

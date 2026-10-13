@@ -19,7 +19,7 @@ import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { EMPTY, NEVER, throwError } from 'rxjs';
+import { EMPTY, NEVER, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
@@ -379,6 +379,29 @@ describe('GameMenuComponent: salida, carga y error de la sala (F5-3)', () => {
     expect(root.querySelectorAll('.menu-loading')).toHaveLength(1);
     expect(text(root.querySelector('[role="status"]'))).toBe('Preparando la sala…');
     expect(root.querySelector('mat-progress-bar')).toBeNull();
+  });
+
+  // req: SIEP-RF-12 (gancho de interfaz), BLOQUE-H (plan visual F5-5)
+  it('F5-5: la puerta bloqueada nombra el caso anterior y su botón queda deshabilitado CON motivo', () => {
+    const { fixture, root } = mountWith(() => NEVER);
+    const first = makeItem({ caseVersionId: 7, title: 'Caso uno', order: 1 } as Partial<CatalogItem>);
+    const second = makeItem({ caseVersionId: 8, title: 'Caso dos', order: 2, unlocked: false } as Partial<CatalogItem>);
+    fixture.componentInstance.catalog.set([first, second]);
+    fixture.componentInstance.focused.set(second);
+    fixture.detectChanges();
+    expect(text(root.querySelector('.case-banner span'))).toBe('Bloqueado: completa «Caso uno» para abrirlo.');
+    const button = root.querySelector<HTMLButtonElement>('.banner-enter')!;
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('F5-5: sin casos asignados, la sala lo dice (sin pasillo vacío) y la salida sigue a mano', () => {
+    const { fixture, root } = mountWith(() => of([]));
+    fixture.detectChanges();
+    const empty = root.querySelector('ui-empty-state')!;
+    expect(text(empty)).toContain('Aún no tienes casos asignados');
+    expect(root.querySelector('.menu-loading')).toBeNull();
+    expect([...root.querySelectorAll('a')].some(link => spoken(link) === 'Volver al panel')).toBe(true);
   });
 
   it('si falla el catálogo: error con «Reintentar» que vuelve a pedirlo, y la salida sigue a mano', () => {

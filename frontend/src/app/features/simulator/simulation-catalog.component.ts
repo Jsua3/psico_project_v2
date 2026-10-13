@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { CatalogItem, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
@@ -18,6 +19,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { attemptTone, formatDate, openAttempt } from '../dashboard/student-dashboard.util';
 import { formatAttemptDuration, historyDurationSeconds } from './attempt-history-duration.util';
+import { blockedNotice, lockReason } from './case-lock.util';
 import { StudentReportDialogComponent, StudentReportDialogData } from './student-report-dialog.component';
 
 type HttpLikeError = { status?: number };
@@ -26,12 +28,14 @@ type HttpLikeError = { status?: number };
  * Catálogo, historial y reporte propio (plan visual F5-2). Lo abierto se continúa (RN-07, parte de interfaz): la
  * tarjeta de un caso con un intento en curso o en pausa ofrece «Continuar» y no «Iniciar»; sin abierto, «Iniciar
  * simulación» o, si ya hubo intentos, «Iniciar nuevo intento». El historial tiene su propio error con «Reintentar»,
- * distinto de «sin intentos» (RF-24), y el reporte se abre en un diálogo con sus propios estados.
+ * distinto de «sin intentos» (RF-24), y el reporte se abre en un diálogo con sus propios estados. Para el estudiante,
+ * cada caso dice si está bloqueado y por qué, o si ya lo resolvió (F5-5, con `/catalog`); si llegó aquí desde un caso
+ * bloqueado pedido por dirección (`caseUnlockedGuard`), un aviso dice cuál y por qué.
  */
 @Component({
   selector: 'app-simulation-catalog',
   imports: [
-    UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiPageHeader, UiSection, UiSkeleton, UiTable, UiTableRow,
+    MatIconModule, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiPageHeader, UiSection, UiSkeleton, UiTable, UiTableRow,
     UiTableTable,
   ],
   templateUrl: './simulation-catalog.component.html',
@@ -43,6 +47,7 @@ export class SimulationCatalogComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly dialog = inject(UiDialog);
+  private readonly blockedId = Number(inject(ActivatedRoute).snapshot.queryParamMap.get('bloqueado')) || null;
 
   protected readonly isStudent = this.auth.hasRole('ESTUDIANTE');
   protected readonly canPlay = this.auth.hasRole('ESTUDIANTE', 'ADMIN');
@@ -54,12 +59,15 @@ export class SimulationCatalogComponent {
   private readonly history = signal<StudentAttemptSummary[]>([]);
   private readonly historyLoading = signal(false);
   private readonly historyError = signal<HttpLikeError | null>(null);
+  /** Desbloqueo lineal del estudiante (SIEP-RF-12): si no llega, no se inventa ningún bloqueo. */
+  private readonly catalogItems = signal<CatalogItem[]>([]);
+  private readonly catalogSettled = signal(!this.isStudent);
   /** El historial respondió al menos una vez (bien o mal): hasta entonces las tarjetas no saben si hay algo abierto. */
   private readonly historySettled = signal(!this.isStudent);
 
   /** Las tarjetas esperan al primer historial (el botón de cada caso depende de él); un reintento no las recarga. */
   protected readonly casesState = uiDataState({
-    loading: computed(() => this.casesLoading() || !this.historySettled()),
+    loading: computed(() => this.casesLoading() || !this.historySettled() || !this.catalogSettled()),
     error: this.casesError,
     isEmpty: computed(() => this.cases().length === 0),
   });
@@ -76,7 +84,9 @@ export class SimulationCatalogComponent {
     const attempts = this.history().filter(attempt => attempt.caseVersionId === item.caseVersionId);
     const open = openAttempt(attempts);
     const startLabel = attempts.length ? 'Iniciar nuevo intento' : 'Iniciar simulación';
-    return { item, open, startLabel };
+    const lock = lockReason(this.catalogItems(), item.caseVersionId);
+    const done = !open && !!this.catalogItems().find(entry => entry.caseVersionId === item.caseVersionId)?.completed;
+    return { item, open, startLabel, lock, done };
   }));
   protected readonly rows = computed(() => this.history().map(attempt => ({
     attempt,
@@ -88,13 +98,18 @@ export class SimulationCatalogComponent {
     ? { title: 'Aún no tienes casos asignados', description: 'Cuando tu docente te asigne un caso, aparecerá aquí para que puedas empezar.' }
     : { title: 'Aún no hay casos publicados', description: 'Cuando se publique un caso, aparecerá aquí.' };
 
+  protected readonly notice = computed(() => (this.blockedId ? blockedNotice(this.catalogItems(), this.blockedId) : null));
+
   protected readonly plural = plural;
   protected readonly tone = attemptTone;
   protected readonly formatDate = formatDate;
 
   constructor() {
     this.loadCases();
-    if (this.isStudent) this.loadHistory();
+    if (this.isStudent) {
+      this.loadHistory();
+      this.loadUnlocks();
+    }
   }
 
   /** Etiqueta en español de un estado: el de un intento (historial) o el de una versión de caso. */
@@ -131,6 +146,13 @@ export class SimulationCatalogComponent {
         this.historyLoading.set(false);
         this.historySettled.set(true);
       },
+    });
+  }
+
+  private loadUnlocks(): void {
+    this.simulationService.getCatalog().subscribe({
+      next: items => { this.catalogItems.set(items); this.catalogSettled.set(true); },
+      error: () => this.catalogSettled.set(true),
     });
   }
 

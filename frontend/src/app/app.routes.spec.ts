@@ -1,5 +1,6 @@
 import { routes } from './app.routes';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
+import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
 import { OfflineComponent } from './features/public/offline.component';
@@ -64,6 +65,14 @@ describe('app.routes: páginas de estado', () => {
 /** Plan visual F5-4: salir del editor de avatar con cambios sin guardar pregunta antes (canLeaveGuard → canLeave del editor). */
 // req: BLOQUE-H
 describe('app.routes: editor de avatar', () => {
+  // F5-5: abrir por dirección un caso bloqueado vuelve al catálogo con el motivo (después de la guardia de rol).
+  it('«simulador/:caseVersionId» mira el desbloqueo tras el rol', () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    const play = children.find(child => child.path === 'simulador/:caseVersionId')!;
+    expect(play.canActivate).toHaveLength(2);
+    expect(play.canActivate![1]).toBe(caseUnlockedGuard);
+  });
+
   it('«personaje» lleva la guardia de cambios sin guardar', () => {
     const children = routes.find(route => route.path === 'portal')!.children ?? [];
     expect(children.find(child => child.path === 'personaje')!.canDeactivate).toEqual([canLeaveGuard]);

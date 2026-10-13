@@ -1,11 +1,11 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { AttemptCompletionReport, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { AttemptCompletionReport, CatalogItem, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { SimulationCatalogComponent } from './simulation-catalog.component';
 
 type Role = 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN';
@@ -44,6 +44,11 @@ interface Api {
   listCases: () => Observable<SimulationCaseSummary[]>;
   attemptHistory: () => Observable<StudentAttemptSummary[]>;
   studentReport: (attemptId: string) => Observable<AttemptCompletionReport>;
+  getCatalog: () => Observable<CatalogItem[]>;
+}
+
+function catalogItem(caseVersionId: number, order: number, unlocked: boolean, completed = false): CatalogItem {
+  return { caseVersionId, code: `SIM-${caseVersionId}`, title: `Caso ${caseVersionId}`, description: '', order, unlocked, completed, locked: !unlocked };
 }
 
 /**
@@ -72,11 +77,12 @@ describe('SimulationCatalogComponent', () => {
   const field = (label: string) =>
     text([...(dialog()?.querySelectorAll('dt') ?? [])].find(el => text(el) === label)?.nextElementSibling ?? null);
 
-  async function render(role: Role, api: Partial<Api> = {}) {
+  async function render(role: Role, api: Partial<Api> = {}, query: Record<string, string> = {}) {
     const service: Api = {
       listCases: () => of([caseSummary(1)]),
       attemptHistory: () => of([]),
       studentReport: () => of(report()),
+      getCatalog: () => of([]),
       ...api,
     };
     TestBed.configureTestingModule({
@@ -84,6 +90,7 @@ describe('SimulationCatalogComponent', () => {
         provideZonelessChangeDetection(), provideRouter([]),
         { provide: SimulationService, useValue: service },
         { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
       ],
     });
     navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true) as unknown as ReturnType<typeof vi.fn>;
@@ -206,6 +213,39 @@ describe('SimulationCatalogComponent', () => {
     (error.querySelector('button') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(text(host().querySelector('.catalog-cases ui-empty-state'))).toContain('Aún no tienes casos asignados');
+  });
+
+  // req: SIEP-RF-12 (gancho de interfaz), BLOQUE-H (plan visual F5-5)
+  it('F5-5: un caso bloqueado lo dice con motivo y su botón queda deshabilitado CON motivo (enfocable, no navega)', async () => {
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2)]),
+      getCatalog: () => of([catalogItem(1, 1, true, true), catalogItem(2, 2, false)]),
+    });
+    const locked = card('Caso 2');
+    expect(text(locked.querySelector('ui-badge.case-card__lock'))).toBe('Bloqueado');
+    expect(text(locked.querySelector('.case-card__reason'))).toBe('Completa «Caso 1» para abrirlo.');
+    const start = locked.querySelector('button') as HTMLButtonElement;
+    expect(spoken(start)).toBe('Iniciar simulación');
+    expect(start.disabled).toBe(false);
+    expect(start.getAttribute('aria-disabled')).toBe('true');
+    start.click();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(text(card('Caso 1').querySelector('ui-badge.case-card__done'))).toBe('Resuelto');
+  });
+
+  it('F5-5: si el catálogo de desbloqueo falla, no se inventa ningún bloqueo (decide el servidor)', async () => {
+    await render('ESTUDIANTE', { listCases: () => of([caseSummary(1), caseSummary(2)]), getCatalog: httpFailure });
+    expect(host().querySelector('.case-card__lock')).toBeNull();
+    expect(cards()).toHaveLength(2);
+  });
+
+  it('F5-5: al volver de un caso bloqueado pedido por dirección, el aviso dice cuál y por qué', async () => {
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2)]),
+      getCatalog: () => of([catalogItem(1, 1, true), catalogItem(2, 2, false)]),
+    }, { bloqueado: '2' });
+    expect(spoken(host().querySelector('.catalog-notice')!)).toBe('«Caso 2» todavía está bloqueado: completa «Caso 1» para abrirlo.');
+    expect(host().querySelector('.catalog-notice')!.getAttribute('role')).toBe('status');
   });
 
   it('administración: «Iniciar simulación» y «Editor visual», sin historial propio', async () => {

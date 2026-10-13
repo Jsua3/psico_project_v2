@@ -58,8 +58,30 @@
   line-height: var(--ds-type-body-s-line);
 }
 
-.case-card__attempt {
+.case-card__attempt,
+.case-card__lock,
+.case-card__done {
   justify-self: start;
+}
+
+.case-card__reason {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// Aviso al volver de un caso bloqueado pedido por dirección (F5-5): informa, no es un error.
+.catalog-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-info-bg);
+  color: var(--ds-text-1);
 }
 
 .case-card__actions {

@@ -27,6 +27,8 @@ import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
 import { errorKindFromStatus } from '../../shared/ui/state/ui-data-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { lockReason } from './case-lock.util';
 
 interface MenuCallbacks {
   onEnter: (caseVersionId: number) => void;
@@ -236,7 +238,7 @@ export class ClinicMenuScene extends Phaser.Scene {
 @Component({
   selector: 'app-game-menu',
   standalone: true,
-  imports: [CommonModule, MatIconModule, GameHelpComponent, UiButton, UiErrorState, UiSpinner],
+  imports: [CommonModule, MatIconModule, GameHelpComponent, UiButton, UiEmptyState, UiErrorState, UiSpinner],
   template: `
     <div class="menu-root" id="main-content" tabindex="-1" data-skin="game">
       <!-- Un h1 por pantalla (plan visual F3-6): la sala es un mundo a sangre, así que va visualmente oculto. -->
@@ -248,6 +250,13 @@ export class ClinicMenuScene extends Phaser.Scene {
       <p class="sr-only" role="status">{{ loadingVisible() ? 'Preparando la sala…' : '' }}</p>
       @if (loadingVisible()) {
         <div class="menu-loading" aria-hidden="true"><ui-spinner [size]="32" /><p>Preparando la sala…</p></div>
+      }
+      <!-- Sin casos asignados (F5-5): se dice, sin pasillo vacío; la salida sigue a mano. -->
+      @if (phase() === 'ready' && !catalog().length) {
+        <div class="menu-empty">
+          <ui-empty-state kind="first-use" title="Aún no tienes casos asignados"
+            description="Cuando tu docente te asigne un caso, aparecerá su puerta en esta sala." />
+        </div>
       }
       @if (phase() === 'error') {
         <div class="menu-error">
@@ -281,11 +290,11 @@ export class ClinicMenuScene extends Phaser.Scene {
       @if (focused(); as f) {
         <div class="case-banner" [class.case-banner--locked]="!f.unlocked" aria-live="polite">
           <strong>{{ f.title }}</strong>
-          <span>{{ f.completed ? 'Resuelto' : f.unlocked ? 'Disponible' : 'Bloqueado — completa el caso anterior' }}</span>
+          <span>{{ bannerStatus(f) }}</span>
           <!-- Control VISIBLE y accesible (sin botones sr-only enfocables):
                misma navegación única que la tecla E. -->
           <button ui-button class="banner-enter" type="button" variant="primary"
-            [disabled]="!f.unlocked || !!entering()" (click)="enter(f.caseVersionId)">
+            [disabledReason]="lockReasonOf(f)" [loading]="!!entering()" (click)="enter(f.caseVersionId)">
             {{ f.unlocked ? (coarsePointer() ? 'Entrar al caso' : 'Entrar al caso (E)') : 'Bloqueado' }}
           </button>
         </div>
@@ -321,7 +330,7 @@ export class ClinicMenuScene extends Phaser.Scene {
     }
     @media (max-width: 40rem) { .lobby-sign { display: none; } }
     /* Por debajo de «Volver al panel» y «Cómo se juega»: cargando o con error, la salida sigue a mano. */
-    .menu-loading, .menu-error {
+    .menu-loading, .menu-error, .menu-empty {
       position: absolute; inset: 0; z-index: var(--ds-z-pegajoso); display: grid; place-content: center; justify-items: center;
       gap: var(--ds-space-3); padding: var(--ds-space-5); background: var(--ds-surface-page);
     }
@@ -421,7 +430,12 @@ export class GameMenuComponent implements OnDestroy {
   private load() {
     this.phase.set('loading');
     this.sim.getCatalog().subscribe({
-      next: items => { this.catalog.set(items); this.boot(items); },
+      next: items => {
+        this.catalog.set(items);
+        // Sin casos no hay puertas que mostrar: la sala dice que no hay casos, sin arrancar un pasillo vacío.
+        if (!items.length) { this.phase.set('ready'); return; }
+        this.boot(items);
+      },
       error: (error: { status?: number } | null) => {
         this.loadErrorStatus.set(error?.status ?? null);
         this.phase.set('error');
@@ -473,6 +487,18 @@ export class GameMenuComponent implements OnDestroy {
         // Foco inicial explícito: los controles de teclado quedan activos sin un click previo (GAME-09).
         window.setTimeout(() => this.focusCanvas(), 0);
       });
+  }
+
+  /** Estado de la puerta enfocada; la bloqueada nombra el caso que hay que completar antes (F5-5). */
+  bannerStatus(item: CatalogItem): string {
+    if (item.completed) return 'Resuelto';
+    if (item.unlocked) return 'Disponible';
+    const reason = this.lockReasonOf(item);
+    return reason ? `Bloqueado: ${reason.charAt(0).toLowerCase()}${reason.slice(1)}` : 'Bloqueado';
+  }
+
+  lockReasonOf(item: CatalogItem): string | null {
+    return item.unlocked ? null : lockReason(this.catalog(), item.caseVersionId) ?? 'Completa el caso anterior para abrirlo.';
   }
 
   focusCanvas() {
