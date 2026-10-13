@@ -176,59 +176,6 @@
 .bar-row__fill--orange { background: var(--dash-orange); }
 .bar-row__fill--red { background: var(--dash-red); }
 
-.line-chart {
-  width: 100%;
-  height: auto;
-  margin-top: 12px;
-}
-
-.line-chart polyline {
-  fill: none;
-  stroke: var(--dash-purple-main);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.line-chart circle {
-  fill: var(--dash-blue);
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
-.chart-summary {
-  margin: 10px 0 0;
-  color: var(--dash-muted);
-  font-size: 0.78rem;
-}
-
-.decision-chart {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.decision-chart__item {
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(75, 0, 181, 0.04);
-}
-
-.decision-chart__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-}
-
-.decision-chart__item--green .decision-chart__dot { background: var(--dash-green); }
-.decision-chart__item--orange .decision-chart__dot { background: var(--dash-orange); }
-.decision-chart__item--purple .decision-chart__dot { background: var(--dash-purple-main); }
-.decision-chart__item--red .decision-chart__dot { background: var(--dash-red); }
-
 .progress-ring {
   width: 120px;
   height: 120px;
