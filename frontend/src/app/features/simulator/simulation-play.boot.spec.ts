@@ -216,8 +216,76 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
     });
   });
 
+  // req: REGLA-004, BLOQUE-H, RNF-04 (revisión de F6)
+  describe('un lienzo que no pinta (watchdog de arranque)', () => {
+    /** El anfitrión del mundo es un ViewChild que jsdom no monta: se le da un doble con lo único que se usa. */
+    const attachWorld = () => {
+      const retryLoad = vi.fn();
+      (component as unknown as { gameWorld?: { retryLoad(): void } }).gameWorld = { retryLoad };
+      return retryLoad;
+    };
+
+    it('«Reintentar» reinicia el lienzo y vuelve al indicador de arranque hasta el primer cuadro', () => {
+      setup();
+      component.ngOnInit();
+      const retryLoad = attachWorld();
+      component.onWorldBootFailed();
+      expect(component.error()).toBe('No pudimos cargar el mapa del caso.');
+
+      component.retryFromError();
+
+      expect(retryLoad).toHaveBeenCalledTimes(1);
+      expect(sim['getWorld']).toHaveBeenCalledTimes(1); // el mundo ya estaba pedido: lo colgado es Phaser, no la red
+      expect(component.error()).toBe('');
+      expect(component.worldRendered()).toBe(false);
+      expect(component.loading()).toBe(false);
+      expect(component.bootLoading()).toBe(true);
+    });
+
+    it('si el mundo pinta cuando el error ya se mostró, el error se retira', () => {
+      setup();
+      component.ngOnInit();
+      component.onWorldBootFailed();
+      expect(component.error()).not.toBe('');
+
+      component.onWorldReady();
+
+      expect(component.error()).toBe('');
+      expect(component.errorStatus()).toBeNull();
+      expect(component.worldRendered()).toBe(true);
+      expect(component.bootLoading()).toBe(false);
+    });
+
+    it('un error de otro origen no lo retira un primer cuadro: solo el del propio arranque', () => {
+      setup({ sim: { getWorld: vi.fn(() => throwError(() => httpError(500))) } });
+      component.ngOnInit();
+      expect(component.error()).not.toBe('');
+
+      component.onWorldReady();
+
+      expect(component.error()).not.toBe('');
+    });
+  });
+
   // req: BLOQUE-H, RNF-004
   describe('un solo indicador de arranque', () => {
+    it('el arranque de un intento nuevo vuelve a mostrar el indicador hasta su primer cuadro (no hereda el del anterior)', () => {
+      setup();
+      component.ngOnInit();
+      component.onWorldReady();
+      expect(component.worldRendered()).toBe(true);
+      expect(component.bootLoading()).toBe(false);
+
+      // Lo que hace bootstrapAttempt para un intento sin consentimiento, y luego el aceptar: un arranque nuevo.
+      component.worldStarted.set(false);
+      (component as unknown as { startWorld(attempt: SimulationAttemptState): void })
+        .startWorld(makeAttempt({ attemptId: 'attempt-2' }));
+
+      expect(component.worldStarted()).toBe(true);
+      expect(component.worldRendered()).toBe(false);
+      expect(component.bootLoading()).toBe(true);
+    });
+
     it('cubre el intento y el mundo hasta el primer cuadro con el MISMO indicador', () => {
       setup({ sim: { getWorld: vi.fn(() => EMPTY) } });
 

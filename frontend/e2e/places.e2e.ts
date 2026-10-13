@@ -54,9 +54,10 @@ test.describe('@places «Ir a…»', () => {
     const arrived = await readPlayerPosition(page);
     expect(Math.hypot(arrived.x - before.x, arrived.y - before.y), 'el jugador caminó hasta ahí').toBeGreaterThan(8);
 
-    // Y de ahí al diálogo, sin tocar el lienzo.
-    await talk.focus();
-    await page.keyboard.press('Enter');
+    // Y de ahí al diálogo, sin tocar el lienzo ni mover el foco: tras elegir, el foco queda en su acceso y la E (la tecla
+    // que anuncia la barra de contexto) sigue siendo del juego (revisión de F6).
+    await expect(access).toBeFocused();
+    await page.keyboard.press('e');
     await expect(page.getByRole('dialog', { name: /diálogo con/i })).toBeVisible({ timeout: scaled(30_000) });
   });
 });

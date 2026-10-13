@@ -241,6 +241,28 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(component.transitionNote()).toBe('');
     });
 
+    // req: REGLA-004 (revisión de F6, «Ir a…» + «Salida segura»)
+    it('«Ir a…» abierto se cierra con la pausa: no queda bajo la pantalla de pausa ni reaparece al reanudar', () => {
+      sim['safeExit'].mockReturnValue(of(paused()));
+      component.placesOpen.set(true);
+
+      component.pauseFromOverlay();
+
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.placesOpen()).toBe(false);
+    });
+
+    it('si la pausa falla, «Ir a…» sigue abierta (se limpia al éxito, no antes) y se puede reintentar', () => {
+      const failing = new Subject<never>();
+      sim['safeExit'].mockReturnValue(failing);
+      component.placesOpen.set(true);
+
+      component.pauseFromOverlay();
+      failing.error(new Error('sin red'));
+
+      expect(component.placesOpen()).toBe(true);
+    });
+
     it('la nota de transición ya no es un temporizador anónimo: se puede cancelar', () => {
       expect(source).toMatch(/this\.transitionNoteTimer = window\.setTimeout\(\(\) => \{\s*this\.transitionNoteTimer = null;\s*this\.transitionNote\.set\(''\);/);
     });

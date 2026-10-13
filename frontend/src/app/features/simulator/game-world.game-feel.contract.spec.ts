@@ -76,6 +76,11 @@ describe('game-world: game feel del bloque B', () => {
     expect(source).toMatch(/retryLoad\(\): void \{[\s\S]*?document\.getElementById\('main-content'\)\?\.focus\(\{ preventScroll: true \}\);[\s\S]*?this\.boot\(\);/);
   });
 
+  // req: RNF-04, REGLA-004 (revisión de F6)
+  it('cada avance de la carga rearma el plazo: una red lenta que avanza no es un arranque colgado', () => {
+    expect(source).toMatch(/onLoadProgress: percent => this\.zone\.run\(\(\) => \{\s*this\.loadPercent\.set\(percent\);\s*(?:\/\/[^\n]*\n\s*)?if \(!this\.renderReady\(\)\) this\.armBootWatchdog\(\);\s*\}\),/);
+  });
+
   it('si Phaser no pinta nada en 25 s el anfitrión lo sabe y ofrece reintentar', () => {
     expect(source).toContain('const BOOT_WATCHDOG_MS = 25_000;');
     expect(source).toContain('readonly bootFailed = output<void>();');

@@ -562,6 +562,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // al jugador junto a la puerta de regreso antes de resolver ScenarioConfig.
     if (!this.world || this.world.map.key !== world.map.key) {
       this.currentRoomKey = '';
+      // La caminata del ratón y el destino de «Ir a…» eran de la sala anterior: en el render heredado (casos del
+      // editor, sin ScenarioConfig) nada más los suelta y el jugador caminaría solo hacia coordenadas ajenas.
+      this.walk = NO_WALK;
+      this.walkGoal = null;
       // Recién entrado a una sala: desarmar hasta alejarse de la puerta de regreso
       // (la histéresis de checkDbDoorTriggers re-arma al superar doorRearmDist).
       this.dbDoorArmed = false;
@@ -880,10 +884,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * o ya examinado): nada por descubrir se ilumina. Va por eventos del puntero, nunca por cuadro.
    */
   private handlePointerMove(pointer: Phaser.Input.Pointer): void {
-    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) {
-      this.setHover(null);
-      return;
-    }
+    this.setHover(this.hoverTargetAt(pointer));
+  }
+
+  /**
+   * Qué elegible tiene el puntero encima ahora mismo (null si nada o si el mundo no responde: dedo, capa abierta, sin
+   * jugador). Lo usan el movimiento del puntero y el clic: con el cursor quieto la cámara o una persona pueden moverse
+   * y el objetivo marcado en el último movimiento ya no es el que está debajo.
+   */
+  private hoverTargetAt(pointer: Phaser.Input.Pointer): string | null {
+    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return null;
     const px = this.player.x;
     const py = this.player.y;
     const candidates: HoverCandidate[] = [];
@@ -901,7 +911,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         playerDistance: Math.hypot(px - container.x, py - container.y),
       });
     });
-    this.setHover(pickHoverTarget({ x: pointer.worldX, y: pointer.worldY }, candidates, this.examinedKeys));
+    return pickHoverTarget({ x: pointer.worldX, y: pointer.worldY }, candidates, this.examinedKeys);
   }
 
   private setHover(key: string | null): void {
@@ -984,7 +994,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
     if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return;
     if (pointer.button !== 0) return;
-    const aimed = this.hoverKey === null ? null : this.hoverAnchor(this.hoverKey);
+    // Se vuelve a decidir qué hay bajo el puntero (el último movimiento pudo quedar atrás: cámara o persona en marcha).
+    const key = this.hoverTargetAt(pointer);
+    this.setHover(key);
+    const aimed = key === null ? null : this.hoverAnchor(key);
     this.walkGoal = null;
     this.walkWaitsForResume = false;
     this.walk = aimed
@@ -1642,9 +1655,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return ((container as unknown as Record<string, unknown>)['__npcConfig'] as NpcConfig | undefined) ?? null;
   }
 
-  /** Pista sobre una persona a su alcance: sin la letra E donde no hay teclado. */
+  /** Pista sobre una persona a su alcance: sin la letra E donde no hay teclado ni con los atajos apagados. */
   private npcHintGlyph(): string {
-    return this.touchPointer() ? '▲' : '▲ E';
+    return this.touchPointer() || !this.shortcutsEnabled ? '▲' : '▲ E';
   }
 
   /** Puntero táctil (sin teclado): evita atajos de teclado en los textos del mundo. */
@@ -2142,9 +2155,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     hint.x = Math.max(reach, Math.min(960 - reach, x));
   }
 
-  /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado. */
+  /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado ni con los atajos apagados. */
   private doorHintText(label: string): string {
-    return this.touchPointer() ? `${label} →` : `E  ${label} →`;
+    return this.touchPointer() || !this.shortcutsEnabled ? `${label} →` : `E  ${label} →`;
   }
 
   /**
@@ -2648,7 +2661,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-world-ready]="renderReady()"
       [attr.data-rendered-map-key]="renderedMapKey()"
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
-      aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
+      [attr.aria-label]="worldLabel()">
     </div>
     @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
@@ -2845,6 +2858,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
   /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): con false WASD y E no hacen nada en el mundo. */
   readonly shortcuts = input(true);
+  /** Nombre accesible del mundo: solo promete las teclas que «Atajos de una tecla» deja activas (F6-10, revisión de F6). */
+  protected readonly worldLabel = computed(() => (this.shortcuts()
+    ? 'Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.'
+    : 'Mapa explorable de la simulación. Usa las flechas para moverte, Enter para interactuar.'));
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
@@ -3120,7 +3137,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
         onHover:       key => this.writeHover(key),
         onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
-        onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
+        onLoadProgress: percent => this.zone.run(() => {
+          this.loadPercent.set(percent);
+          // Una carga que avanza no está colgada: el plazo cuenta desde el último avance, no desde el arranque.
+          if (!this.renderReady()) this.armBootWatchdog();
+        }),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);

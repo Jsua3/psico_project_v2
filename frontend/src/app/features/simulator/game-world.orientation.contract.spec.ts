@@ -104,10 +104,20 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
   });
 
   it('con dedo o con una capa abierta no se resalta nada y el contorno solo sale de lo elegible', () => {
-    const handler = bodyOf(/\n  private handlePointerMove\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  private setHover\(/);
-    expect(handler).toContain('pointer.wasTouch || this.motionPaused');
-    expect(handler).toContain('pickHoverTarget(');
-    expect(handler).toContain('this.examinedKeys');
+    const target = bodyOf(/\n  private hoverTargetAt\(pointer: Phaser\.Input\.Pointer\): string \| null \{/, /\n  private handlePointerMove\(/);
+    expect(target).toContain('pointer.wasTouch || this.motionPaused');
+    expect(target).toContain('pickHoverTarget(');
+    expect(target).toContain('this.examinedKeys');
+    const move = bodyOf(/\n  private handlePointerMove\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  private setHover\(/);
+    expect(move).toContain('this.setHover(this.hoverTargetAt(pointer));');
+  });
+
+  // req: BLOQUE-H, RNF-04 (revisión de F6)
+  it('el clic vuelve a decidir qué hay bajo el puntero: con el cursor quieto el objetivo marcado puede estar viejo', () => {
+    const handler = bodyOf(/\n  private handlePointerDown\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  \}\n/);
+    expect(handler).toContain('const key = this.hoverTargetAt(pointer);');
+    expect(handler).toContain('this.setHover(key);');
+    expect(handler).not.toContain('this.hoverKey');
   });
 
   // req: BLOQUE-H, RNF-04 (VD-5)
@@ -203,9 +213,16 @@ describe('game-world: señales iguales para todos (límite 1 de producto)', () =
     expect(source).not.toContain('const DIMMED_ALPHA');
   });
 
-  it('en táctil la pista de una persona y el rótulo de una puerta no mencionan la tecla E', () => {
-    expect(source).toMatch(/private npcHintGlyph\(\): string \{\s*return this\.touchPointer\(\) \? '▲' : '▲ E';\s*\}/);
-    expect(source).toMatch(/private doorHintText\(label: string\): string \{\s*return this\.touchPointer\(\) \? `\$\{label\} →` : `E  \$\{label\} →`;\s*\}/);
+  it('en táctil o con los atajos apagados la pista de una persona y el rótulo de una puerta no mencionan la tecla E', () => {
+    expect(source).toMatch(/private npcHintGlyph\(\): string \{\s*return this\.touchPointer\(\) \|\| !this\.shortcutsEnabled \? '▲' : '▲ E';\s*\}/);
+    expect(source).toMatch(/private doorHintText\(label: string\): string \{\s*return this\.touchPointer\(\) \|\| !this\.shortcutsEnabled \? `\$\{label\} →` : `E  \$\{label\} →`;\s*\}/);
     expect(source).not.toContain("'▲ E', {");
+  });
+
+  // req: BLOQUE-H (H-07), RNF-04 (revisión de F6)
+  it('el nombre accesible del mundo solo promete las teclas que el ajuste deja activas', () => {
+    expect(source).toContain('[attr.aria-label]="worldLabel()"');
+    expect(source).not.toMatch(/\n\s+aria-label="Mapa explorable/);
+    expect(source).toMatch(/protected readonly worldLabel = computed\(\(\) => \(this\.shortcuts\(\)\s*\? 'Mapa explorable de la simulación\. Usa WASD o flechas para moverte, E para interactuar\.'\s*: 'Mapa explorable de la simulación\. Usa las flechas para moverte, Enter para interactuar\.'/);
   });
 });

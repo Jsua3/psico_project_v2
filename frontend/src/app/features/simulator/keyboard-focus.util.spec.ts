@@ -141,9 +141,26 @@ describe('keyboard-focus.util', () => {
       expect(isShortcutContext(el('<canvas></canvas>'))).toBe(true);
     });
 
-    it('con el foco en un campo, un botón o un enlace no actúan', () => {
-      for (const html of ['<textarea></textarea>', '<input type="text">', '<select></select>', '<button></button>', '<a href="/x"></a>']) {
+    it('con el foco en un campo, una casilla, un botón de formulario o una opción no actúan', () => {
+      for (const html of [
+        '<textarea></textarea>', '<input type="text">', '<select></select>', '<input type="checkbox">',
+        '<input type="submit">', '<div role="option" tabindex="-1"></div>', '<div role="switch" tabindex="0"></div>',
+      ]) {
         expect(isShortcutContext(el(html)), html).toBe(false);
+      }
+    });
+
+    // req: BLOQUE-H (H-07), RNF-04 (revisión de F6: tras cerrar Ajustes o «Ir a…» el foco vuelve a un botón del HUD)
+    it('con el foco en un botón o un enlace de la propia interfaz SÍ actúan: ninguna letra los activa', () => {
+      for (const html of ['<button></button>', '<a href="/x"></a>', '<div role="button" tabindex="0"></div>']) {
+        expect(isShortcutContext(el(html)), html).toBe(true);
+      }
+    });
+
+    it('pero un botón dentro de un diálogo, un menú o una barra de herramientas sigue sin disparar el juego', () => {
+      for (const wrapper of ['<div role="dialog">', '<div role="alertdialog">', '<div role="menu">', '<div role="toolbar">']) {
+        const host = el(wrapper + '<button id="inner"></button></div>');
+        expect(isShortcutContext(host.querySelector('#inner')), wrapper).toBe(false);
       }
     });
 

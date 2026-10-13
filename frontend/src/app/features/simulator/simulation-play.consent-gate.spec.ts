@@ -398,12 +398,32 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(component.journalOpen()).toBe(true);
     });
 
-    it('con el foco en un botón la J no hace nada: el atajo no actúa por detrás de un control', () => {
+    // req: BLOQUE-H (H-07), RNF-04 (revisión de F6)
+    it('con el foco en un botón de la interfaz la J sigue abriendo la bitácora: ninguna letra lo activa', () => {
       setup(makeAttempt());
       const event = keyOn(document.createElement('button'), 'j');
       component.handleGlobalInteraction(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(component.journalOpen()).toBe(true);
+    });
+
+    it('con el foco en un botón DENTRO de un diálogo la J no hace nada: el atajo no actúa por detrás de un control', () => {
+      setup(makeAttempt());
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      const button = document.createElement('button');
+      dialog.appendChild(button);
+      const event = keyOn(button, 'j');
+      component.handleGlobalInteraction(event);
       expect(event.defaultPrevented).toBe(false);
       expect(component.journalOpen()).toBe(false);
+    });
+
+    it('un keydown cuyo destino es el documento (no un elemento) no lanza y cuenta como el juego', () => {
+      setup(makeAttempt());
+      const event = keyOn(document as unknown as Element, 'j');
+      expect(() => component.handleGlobalInteraction(event)).not.toThrow();
+      expect(component.journalOpen()).toBe(true);
     });
 
     it('con el foco en un campo de texto la J y la E no hacen nada', () => {

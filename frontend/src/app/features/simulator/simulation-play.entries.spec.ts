@@ -333,6 +333,20 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
       expect(region('assertive').textContent).toBe(DRAFT_COPY.consentStorageError.text);
     });
 
+    // req: ETH-01 (revisión de F6: con un registro en servidor la respuesta puede llegar tarde)
+    it('«Volver al catálogo» mientras se registra: al cumplirse el registro no arranca ni mundo ni audio', () => {
+      showConsent();
+      clickContinue();
+      component.declineContentWarning();
+
+      recordings[0].resolve();
+      fixture.detectChanges();
+
+      expect(component.showContentWarning()).toBe(false);
+      expect(component.worldStarted()).toBe(false);
+      expect(audio['init']).not.toHaveBeenCalled();
+    });
+
     it('«Reintentar» vuelve a registrar y, si sale bien, arranca el mundo', () => {
       showConsent();
       clickContinue();

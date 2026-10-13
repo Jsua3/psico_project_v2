@@ -1300,6 +1300,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   });
   /** El mundo pintó su primer cuadro (`GameWorldComponent.worldReady`): hasta entonces hay UN indicador de carga. */
   readonly worldRendered = signal(false);
+  /** El error que se muestra es el del arranque del lienzo (plazo vencido): un primer cuadro tardío lo retira. */
+  private bootFailureShown = false;
   /** Hay arranque en curso: el intento o el mundo se piden, o el mundo pedido todavía no pintó su primer cuadro. */
   readonly bootLoading = computed(() => !this.error() && (this.loading() || (this.worldStarted() && !this.worldRendered())));
   /** Una sola etiqueta para las dos fases: el mismo indicador cambia de texto, no se apila otro. */
@@ -1656,6 +1658,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Primer cuadro del mundo pintado: el indicador de arranque se retira (no vuelve con cada cambio de sala). */
   onWorldReady(): void {
     this.worldRendered.set(true);
+    // El mundo pintó después de que el plazo venciera: el error de ese arranque ya no es verdad y taparía el juego.
+    if (this.bootFailureShown && this.error()) {
+      this.error.set('');
+      this.errorStatus.set(null);
+      this.retryAction.set(null);
+    }
+    this.bootFailureShown = false;
   }
 
   /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
@@ -1736,6 +1745,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private startWorld(attempt: SimulationAttemptState) {
     if (this.worldStarted()) return;
     this.worldStarted.set(true);
+    // Un arranque nuevo (otro intento, otro consentimiento) muestra el indicador hasta SU primer cuadro.
+    this.worldRendered.set(false);
     this.loading.set(true);
     this.audioDirector.init();
     this.musicMuted.set(this.audioDirector.isMusicMuted());
@@ -1816,10 +1827,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Con la pantalla de ayuda abierta E, J, Espacio y Enter no actúan sobre el mundo de debajo (Espacio sigue desplazando el texto).
     if (this.helpOpen() && ['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) return;
 
-    // Atajos de una letra (F6-10; WCAG 2.1.4): apagables, y solo actúan con el foco en el juego o en el cuerpo (nunca en
-    // un botón, un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del ajuste.
+    // Atajos de una letra (F6-10; WCAG 2.1.4): apagables, y solo actúan con el foco en el juego, en el cuerpo o en un
+    // botón de la interfaz (nunca en un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del
+    // ajuste. El destino de un keydown sintético puede ser el documento, que no es un elemento.
     const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E';
-    if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(event.target as Element | null))) return;
+    const focusTarget = event.target instanceof Element ? event.target : null;
+    if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(focusTarget))) return;
 
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
@@ -2570,6 +2583,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.supervisionHold.set(false);
     this.dialogue.set(null);
     this.journalOpen.set(false);
+    // «Ir a…» tiene su propia «Salida segura»: pausar desde ahí no la deja bajo la pantalla de pausa ni la trae de vuelta.
+    this.placesOpen.set(false);
     this.showIntroScene.set(false);
     this.showCaseIntro.set(false);
     this.helpOpen.set(false);
@@ -2927,12 +2942,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce('Registrando tu consentimiento…');
     this.consentRecorder.record(this.caseConsentStorageKey(attempt)).then(
       () => {
+        // El aviso pudo cerrarse mientras se registraba («Volver al catálogo»): una respuesta tardía no arranca nada.
+        if (!this.showContentWarning() || this.consentState() !== 'saving') return;
         this.consentState.set('idle');
         this.showContentWarning.set(false);
         this.announce('Continuaste al caso. Cargando el escenario.');
         this.startWorld(attempt);
       },
       () => {
+        if (!this.showContentWarning()) return;
         this.consentState.set('error');
         this.announce(this.consentErrorText, 'assertive');
       },
@@ -2974,11 +2992,20 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Phaser no pintó el mundo a tiempo (F6-8): el error de siempre con «Reintentar», que vuelve a pedir el mundo. */
+  /**
+   * Phaser no pintó el mundo a tiempo (F6-8): el error de siempre con «Reintentar». Lo colgado es el lienzo, no el
+   * estado del mundo (que ya llegó): reintentar REINICIA Phaser (`retryLoad`, que rearma el plazo) y deja el indicador
+   * de arranque hasta su primer cuadro. Si el mundo pinta antes de pulsarlo, `onWorldReady` retira el error.
+   */
   onWorldBootFailed(): void {
-    const attempt = this.attempt();
-    if (!attempt || this.error()) return;
-    this.fail('No pudimos cargar el mapa del caso.', null, () => this.loadWorld(attempt));
+    if (!this.attempt() || this.error()) return;
+    this.bootFailureShown = true;
+    this.fail('No pudimos cargar el mapa del caso.', null, () => {
+      this.bootFailureShown = false;
+      this.worldRendered.set(false);
+      this.loading.set(false);
+      this.gameWorld?.retryLoad();
+    });
   }
 
   /** Terminó la caminata de «Ir a…»: «Llegaste a …» o que no se pudo llegar (VD-19, borrador). */
@@ -2989,6 +3016,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   declineContentWarning(): void {
     this.showContentWarning.set(false);
+    this.consentState.set('idle');
     this.announce('Volviste al catálogo. Puedes retomar el caso cuando lo decidas.');
     void this.router.navigate(['/portal/simulador']);
   }

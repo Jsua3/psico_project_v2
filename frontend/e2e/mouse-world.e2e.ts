@@ -129,6 +129,20 @@ test.describe('@mouse-world clic para caminar', () => {
     await page.waitForTimeout(scaled(900));
     expect(await readPlayerPosition(page), 'un clic sobre la ayuda no es un destino').toEqual(before);
   });
+
+  // req: BLOQUE-H, RNF-04 (revisión de F6: Phaser también recibe los clics que caen sobre OTROS elementos de la página)
+  test('un clic sobre un botón de la interfaz que no pausa el juego («Qué hacer») no hace caminar al jugador', async ({ page }) => {
+    test.setTimeout(scaled(240_000));
+    await enterWorld(page);
+    await waitUntilPlayerStill(page);
+    const before = await readPlayerPosition(page);
+    const toggle = page.locator('[data-checklist-toggle]').first();
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    await page.waitForTimeout(scaled(1500));
+    const after = await readPlayerPosition(page);
+    expect(Math.hypot(after.x - before.x, after.y - before.y), 'un clic en la interfaz no es un destino del mundo').toBeLessThan(2);
+  });
 });
 
 // req: BLOQUE-H, RNF-04 (VD-5)

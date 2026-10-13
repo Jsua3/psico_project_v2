@@ -65,16 +65,26 @@ export function isScrollRegionTarget(el: Element | null): boolean {
   return node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1;
 }
 
+/** Un botón o enlace de la interfaz: ninguna letra lo activa (solo Enter y Espacio), así que no «se queda» el atajo. */
+function isPlainButtonOrLink(el: Element): boolean {
+  if (el.tagName === 'BUTTON') return true;
+  if (el.tagName === 'A') return el.hasAttribute('href');
+  return el.getAttribute('role') === 'button';
+}
+
 /**
- * ¿El foco está donde un atajo de una tecla puede actuar? (F6-10; WCAG 2.1.4). Solo en el juego o en el cuerpo de la
- * página: nunca en un campo, un botón o enlace, una región con scroll, un diálogo, un menú, una barra de
- * herramientas ni un popover. Así una letra escrita o una tecla de una herramienta no dispara el juego por detrás.
+ * ¿El foco está donde un atajo de una tecla puede actuar? (F6-10; WCAG 2.1.4). En el juego, en el cuerpo de la página
+ * o en un botón o enlace de la interfaz: cerrar Ajustes o «Ir a…» devuelve el foco a su botón del HUD, y WASD, E y J no
+ * pueden quedar mudas hasta hacer clic en el lienzo (revisión de F6; el ajuste «Atajos de una tecla» ya cumple 2.1.4).
+ * Nunca en un campo, una casilla u opción, una región con scroll, un diálogo, un menú, una barra de herramientas ni un
+ * popover: ahí la letra es del control y no dispara el juego por detrás.
  */
 export function isShortcutContext(el: Element | null): boolean {
   if (!el || el === document.body || el === document.documentElement) return true;
   // El host del juego (role="application", p. ej. el lobby con tabindex 0) ES el juego.
   if (el.closest('[role="application"]')) return true;
-  if (isTextEntryTarget(el) || isActivatableTarget(el) || isScrollRegionTarget(el)) return false;
+  if (isTextEntryTarget(el) || isScrollRegionTarget(el)) return false;
+  if (isActivatableTarget(el) && !isPlainButtonOrLink(el)) return false;
   return el.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="toolbar"], [popover]') === null;
 }
 
