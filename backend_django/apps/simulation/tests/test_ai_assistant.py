@@ -93,8 +93,9 @@ def _ask(client, attempt_id, question="¿Qué principios aplican aquí?", **extr
 
 def _assert_envelope(response, status, *, message_contains=None):
     assert response.status_code == status
-    assert set(response.data) == {"success", "message"}
+    assert set(response.data) == {"success", "code", "message"}
     assert response.data["success"] is False
+    assert isinstance(response.data["code"], str) and response.data["code"]
     assert isinstance(response.data["message"], str) and response.data["message"]
     if message_contains:
         assert message_contains in response.data["message"]
