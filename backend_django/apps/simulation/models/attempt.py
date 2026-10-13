@@ -143,6 +143,35 @@ class AttemptEvent(models.Model):
         ordering = ["occurred_at", "id"]
 
 
+class AttemptReport(models.Model):
+    """El reporte del intento, congelado al completarse (E1-8, RF-22, CU-12, TD-08, N2).
+
+    Se escribe una sola vez, dentro de la transacción que completa el intento, y no se
+    vuelve a guardar: lo que la persona vio al cerrar no cambia cuando después cambian las
+    reglas o los textos del caso (Review Focus 5). ``report_json`` es un superconjunto del
+    reporte de cierre de siempre (más ``decisionReview[]``, el ordinal y el tiempo por escena);
+    ``definition_hash`` es la huella de la definición del caso con la que se cerró y
+    ``attempt_ordinal`` el n.º de intento del estudiante en el caso (RQ-NEG-001/003).
+    """
+
+    attempt = models.OneToOneField(
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="report", db_column="attempt_id",
+    )
+    report_json = models.TextField()
+    report_schema_version = models.IntegerField(default=1, db_default=1)
+    definition_hash = models.CharField(max_length=64)
+    attempt_ordinal = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attempt_reports"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise RuntimeError("attempt_reports es inmutable: un reporte cerrado no se vuelve a guardar")
+        super().save(*args, **kwargs)
+
+
 class ReflectionJournal(models.Model):
     attempt = models.ForeignKey(
         SimulationAttempt, on_delete=models.DB_CASCADE, related_name="reflections",

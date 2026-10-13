@@ -358,10 +358,11 @@ def build_completion_report(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, feedback, events=None):
+def attempt_state(attempt, raw_token, feedback, events=None, completion_report=None):
+    """El estado del intento. ``completion_report`` es el reporte ya resuelto (el congelado de un
+    intento completado, E1-8); sin él, un intento que no está en juego lo arma en vivo."""
     in_progress = attempt.status == AttemptStatus.IN_PROGRESS
-    completion_report = None
-    if not in_progress:
+    if not in_progress and completion_report is None:
         if events is None:
             from apps.simulation.models import AttemptEvent
             events = list(

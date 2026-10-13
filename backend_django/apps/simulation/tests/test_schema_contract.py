@@ -35,6 +35,7 @@ TABLES = {
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
+    "attempt_reports",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -54,6 +55,7 @@ UNIQUE_COLUMNS = {
     "decision_options": [("case_version_id", "option_key")],
     "reflection_journals": [("attempt_id", "node_id")],
     "attempt_events": [("attempt_id", "request_id")],
+    "attempt_reports": [("attempt_id",)],
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
@@ -80,6 +82,7 @@ INDEXES = {
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
 ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
+    ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_versions", "simulation_case_id"): "CASCADE",
     ("clinical_tools", "case_version_id"): "CASCADE",

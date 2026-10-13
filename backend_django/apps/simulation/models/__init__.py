@@ -5,6 +5,7 @@ from .attempt import (  # noqa: F401
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptReport,
     AttemptStatus,
     AttemptWorldState,
     ReflectionJournal,

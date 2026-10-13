@@ -1,6 +1,7 @@
 """Port of Spring's SimulationGameService — the DAG state machine."""
 import base64
 import hashlib
+import json
 import secrets
 from datetime import timedelta
 
@@ -17,6 +18,7 @@ from apps.simulation.models import (
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptReport,
     AttemptStatus,
     CaseVersion,
     DecisionOption,
@@ -28,7 +30,7 @@ from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
-from . import attempt_duration, case_rules
+from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
@@ -167,6 +169,14 @@ def _close_active_attempts(student, case_version_id, reason):
         replace_open_attempt(active, by=student, reason=reason)
 
 
+def _state(attempt, attempt_token, feedback=None):
+    """El estado del intento; si está completado, con su reporte congelado (E1-8)."""
+    report = None
+    if attempt.status == AttemptStatus.COMPLETED:
+        report = attempt_report.frozen_report_for(attempt.id)
+    return dto.attempt_state(attempt, attempt_token, feedback, completion_report=report)
+
+
 def _open_attempt_of(student_id, case_version_id):
     """El intento abierto (en juego o en pausa) del estudiante en esa versión del caso, si lo hay."""
     return (
@@ -182,7 +192,7 @@ def _open_attempt_of(student_id, case_version_id):
 
 def _resumed_state(attempt):
     """El intento abierto con un token nuevo y ``resumed: true`` (C1)."""
-    state = dto.attempt_state(attempt, _reissue_token(attempt), None)
+    state = _state(attempt, _reissue_token(attempt), None)
     state["resumed"] = True
     return state
 
@@ -250,7 +260,7 @@ def start_attempt(case_version_id, actor, force_new=False):
         return _resumed_state(winner)
     _save_event(attempt, "ATTEMPT_STARTED", start_node, None, 0, 0, "Intento iniciado")
     _save_event(attempt, "NODE_ENTERED", start_node, None, 0, 0, "Nodo inicial")
-    state = dto.attempt_state(attempt, raw_token, None)
+    state = _state(attempt, raw_token, None)
     state["resumed"] = False
     return state
 
@@ -270,30 +280,42 @@ def find_active_attempt(case_version_id, actor):
         actor.id, case_version_id
     ):
         raise access_not_assigned()
-    return dto.attempt_state(active, _reissue_token(active), None)
+    return _state(active, _reissue_token(active), None)
 
 
 def get_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    return dto.attempt_state(attempt, attempt_token, None)
+    return _state(attempt, attempt_token, None)
 
 
 def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
-    events = list(
-        AttemptEvent.objects.filter(attempt_id=attempt.id)
-        .select_related("node", "decision_option")
-        .order_by("occurred_at", "id")
-    )
-    return dto.build_completion_report(attempt, events)
+    return attempt_report.report_for(attempt)
+
+
+def get_attempt_report(attempt_id, attempt_token, actor):
+    """El reporte congelado del intento (C2): solo de un intento COMPLETADO, si no 409.
+
+    Un intento en juego, en pausa o reemplazado todavía no (o ya no) tiene reporte de cierre.
+    """
+    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    if attempt.status != AttemptStatus.COMPLETED:
+        raise ApiError(
+            "ATTEMPT_NOT_COMPLETED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El intento no está completado: aún no tiene reporte de cierre.",
+            status.HTTP_409_CONFLICT,
+        )
+    return attempt_report.report_for(attempt)
 
 
 def list_attempt_history(actor):
     """Resumen de los intentos del propio estudiante (más recientes primero).
 
-    Las cuentas de decisiones se calculan en una sola consulta agregada para
+    Las cuentas de un intento completado salen de su reporte congelado (E1-8: no cambian si
+    el caso cambia después); las de los demás se calculan en una sola consulta agregada para
     evitar N+1, con la misma semántica que el reporte de finalización.
     """
     attempts = list(
@@ -305,30 +327,39 @@ def list_attempt_history(actor):
         return []
 
     attempt_ids = [a.id for a in attempts]
-    counts = {
-        aid: {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
-        for aid in attempt_ids
-    }
-    # Solo decisiones registradas: los reintentos no puntúan (misma regla que el reporte).
-    decision_events = (
-        AttemptEvent.objects.filter(
-            attempt_id__in=attempt_ids,
-            event_type__in=case_effects.REGISTERED_DECISION_EVENT_TYPES,
-            decision_option__isnull=False,
+    counts = {}
+    for row in AttemptReport.objects.filter(attempt_id__in=attempt_ids).only("attempt_id", "report_json"):
+        frozen = json.loads(row.report_json)
+        counts[row.attempt_id] = {
+            "ADEQUATE": frozen["adequateDecisions"],
+            "RISKY": frozen["riskyDecisions"],
+            "INADEQUATE": frozen["inadequateDecisions"],
+            "PROHIBITED": frozen["prohibitedDecisions"],
+        }
+    live_ids = [aid for aid in attempt_ids if aid not in counts]
+    for aid in live_ids:
+        counts[aid] = {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
+    if live_ids:
+        # Solo decisiones registradas: los reintentos no puntúan (misma regla que el reporte).
+        decision_events = (
+            AttemptEvent.objects.filter(
+                attempt_id__in=live_ids,
+                event_type__in=case_effects.REGISTERED_DECISION_EVENT_TYPES,
+                decision_option__isnull=False,
+            )
+            .values(
+                "attempt_id",
+                "decision_option__classification",
+                "decision_option__prohibited_conduct",
+            )
         )
-        .values(
-            "attempt_id",
-            "decision_option__classification",
-            "decision_option__prohibited_conduct",
-        )
-    )
-    for ev in decision_events:
-        bucket = counts[ev["attempt_id"]]
-        classification = ev["decision_option__classification"]
-        if classification in bucket:
-            bucket[classification] += 1
-        if ev["decision_option__prohibited_conduct"]:
-            bucket["PROHIBITED"] += 1
+        for ev in decision_events:
+            bucket = counts[ev["attempt_id"]]
+            classification = ev["decision_option__classification"]
+            if classification in bucket:
+                bucket[classification] += 1
+            if ev["decision_option__prohibited_conduct"]:
+                bucket["PROHIBITED"] += 1
 
     return [
         {
@@ -370,12 +401,7 @@ def get_student_report(attempt_id, actor):
         alcance = student_ids_for_instructor(actor)
         if alcance is not None and attempt.student_id not in alcance:
             raise PermissionDenied("No tiene acceso a este intento")
-    events = list(
-        AttemptEvent.objects.filter(attempt_id=attempt.id)
-        .select_related("node", "decision_option")
-        .order_by("occurred_at", "id")
-    )
-    return dto.build_completion_report(attempt, events)
+    return attempt_report.report_for(attempt)
 
 
 def _override_evidence_labels(missing_evidence):
@@ -439,12 +465,12 @@ def _decision_response(attempt, attempt_token, decision, effects, message, rules
     if retry_required:
         retry = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE if at_close else message}
     if at_close:
-        response = {"attempt": dto.attempt_state(attempt, attempt_token, None), "consequence": consequence}
+        response = {"attempt": _state(attempt, attempt_token, None), "consequence": consequence}
         if retry:
             response["retry"] = retry
         return response
     feedback = dto.feedback_dto(decision, effects, message, retry_required=retry_required)
-    response = dto.attempt_state(attempt, attempt_token, feedback)
+    response = _state(attempt, attempt_token, feedback)
     response["consequence"] = consequence
     if retry:
         response["retry"] = retry
@@ -556,6 +582,8 @@ def choose_decision(
 
     if attempt.status == AttemptStatus.COMPLETED:
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
+        # E1-8: el reporte queda congelado en la misma transacción que cierra el intento.
+        attempt_report.freeze_report(attempt)
         # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
         # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
         attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
@@ -609,13 +637,13 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
-        return dto.attempt_state(attempt, attempt_token, None)
+        return _state(attempt, attempt_token, None)
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
-    return dto.attempt_state(attempt, attempt_token, None)
+    return _state(attempt, attempt_token, None)
 
 
 @locked_attempt
@@ -628,14 +656,14 @@ def resume_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     state = lifecycle.state_of(attempt)
     if state.plays:
-        return dto.attempt_state(attempt, attempt_token, None)
+        return _state(attempt, attempt_token, None)
     if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
     lifecycle.apply(attempt, lifecycle.RESUME)
     attempt_duration.reset_clock(attempt, timezone.now())  # el tiempo en pausa no es tiempo activo
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
-    return dto.attempt_state(attempt, attempt_token, None)
+    return _state(attempt, attempt_token, None)
 
 
 def get_progress_map(attempt_id, attempt_token, actor):

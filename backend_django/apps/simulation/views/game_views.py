@@ -75,6 +75,17 @@ class CompletionReportView(APIView):
         ))
 
 
+class AttemptReportView(APIView):
+    """El reporte congelado de un intento completado (C2); 409 ``ATTEMPT_NOT_COMPLETED`` si no."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        return _private_ok(game_service.get_attempt_report(
+            attempt_id, _attempt_token(request), request.user,
+        ))
+
+
 class AttemptHistoryView(APIView):
     permission_classes = [IsEstudianteOrAdmin]
 
