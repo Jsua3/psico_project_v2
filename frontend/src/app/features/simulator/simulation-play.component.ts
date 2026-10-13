@@ -460,7 +460,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         <!-- Screen-reader narrative route -->
         <section class="sr-narrative-route" aria-label="Ruta narrativa accesible">
-          <h4 class="sr-only">Escena: {{ game.currentNode.title }}</h4>
+          <h2 class="sr-only">Escena: {{ game.currentNode.title }}</h2>
           <p class="sr-only">{{ game.currentNode.narrative }}</p>
           @if (game.currentNode.warningMessage) {
             <p class="sr-only" role="alert">Advertencia: {{ game.currentNode.warningMessage }}</p>

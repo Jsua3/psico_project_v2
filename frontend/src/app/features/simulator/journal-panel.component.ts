@@ -29,7 +29,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       <div class="sheet-header">
         <mat-icon aria-hidden="true">menu_book</mat-icon>
         <div class="sheet-header__copy">
-          <h3 id="journal-heading">Bitácora reflexiva</h3>
+          <h2 id="journal-heading">Bitácora reflexiva</h2>
           <p class="psy-eyebrow sheet-sub">Razonamiento ético y formativo</p>
         </div>
         <button cdkFocusInitial class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
@@ -149,7 +149,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     }
     .sheet-header > mat-icon { color: #B69CFF; flex-shrink: 0; }
     .sheet-header__copy { flex: 1; min-width: 0; }
-    .sheet-header h3 {
+    .sheet-header h2 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       font-size: 1.1rem;

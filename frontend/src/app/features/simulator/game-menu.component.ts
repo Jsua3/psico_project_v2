@@ -219,7 +219,7 @@ export class ClinicMenuScene extends Phaser.Scene {
   standalone: true,
   imports: [CommonModule, MatIconModule, MatProgressBarModule, GameHelpComponent],
   template: `
-    <div class="menu-root">
+    <div class="menu-root" id="main-content" tabindex="-1">
       <!-- Un h1 por pantalla (plan visual F3-6): la sala es un mundo a sangre, así que va visualmente oculto. -->
       <h1 class="sr-only">Sala de simulación</h1>
       @if (loading()) { <mat-progress-bar mode="indeterminate" aria-label="Cargando casos" /> }

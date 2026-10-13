@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { runAxe } from './support/quality-gates';
 import { TOUR_SCREENS, loginAs, openScreen } from './support/screen-tour';
-import type { SignedRole } from './support/screen-tour';
+import type { TourRole } from './support/screen-tour';
 
 /**
  * Estructura de página (plan visual F3-6) en el navegador real: un h1 y un solo <main> por pantalla en las rutas de
@@ -10,25 +11,50 @@ import type { SignedRole } from './support/screen-tour';
  * foco nunca queda tapado por la barra fija).
  */
 
-const h1s = (page: Page) => page.getByRole('heading', { level: 1 });
+/**
+ * Los h1 que ve un lector de pantalla. El motor de roles de Playwright no descarta lo `inert` (el acceso tiene dos
+ * formularios y el que no se ve es inerte), y por especificación HTML lo inerte no se expone a la accesibilidad.
+ */
+const h1s = (page: Page) => page.locator('h1:not([inert] *):not([aria-hidden="true"] *)');
 
 async function settle(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+}
+
+/** Reglas de estructura de Axe (best-practice): orden de títulos, destino de los saltos y puntos de referencia. */
+const STRUCTURE_RULES = new Set([
+  'heading-order', 'skip-link', 'page-has-heading-one', 'landmark-one-main', 'landmark-no-duplicate-main',
+  'landmark-main-is-top-level', 'landmark-unique',
+]);
+
+/**
+ * «Saltar al juego» apunta a #game-area, que no existe hasta aceptar el aviso de contenido (ETH-01): defecto heredado
+ * del juego (Axe ya lo marcaba en F2), lo resuelve F6 con la estructura del juego. Se excluye SOLO ese destino.
+ */
+const PENDING_IN_F6 = (target: string) => target.includes('#game-area');
+
+async function structureViolations(page: Page): Promise<string[]> {
+  const result = await runAxe(page, { tags: ['best-practice'], resultTypes: ['violations'] });
+  return result.violations
+    .filter(violation => STRUCTURE_RULES.has(violation.id))
+    .flatMap(violation => violation.nodes.map(node => `${violation.id}: ${node.target.join(' ')}`))
+    .filter(entry => !PENDING_IN_F6(entry));
 }
 
 // req: BLOQUE-H (estructura de página), RNF-004
 test.describe('@estructura un h1 y un <main> por pantalla', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  for (const role of ['estudiante', 'profesor', 'admin'] as const satisfies readonly SignedRole[]) {
+  for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as const satisfies readonly TourRole[]) {
     test(`${role}: cada pantalla de su recorrido`, async ({ page }) => {
       test.setTimeout(240_000);
-      await loginAs(page, role);
+      if (role !== 'publico') await loginAs(page, role);
       for (const screen of TOUR_SCREENS.filter(entry => entry.role === role)) {
         await openScreen(page, screen);
         await expect.soft(h1s(page), `${role} · ${screen.id}: un h1`).toHaveCount(1);
         await expect.soft(h1s(page).first(), `${role} · ${screen.id}: h1 con texto`).not.toHaveText('');
         await expect.soft(page.getByRole('main'), `${role} · ${screen.id}: un <main>`).toHaveCount(1);
+        expect.soft(await structureViolations(page), `${role} · ${screen.id}: estructura según Axe`).toEqual([]);
       }
     });
   }

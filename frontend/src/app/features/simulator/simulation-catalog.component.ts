@@ -47,7 +47,7 @@ import { statusLabel } from '../../shared/ui/labels';
               <span class="psy-chip">{{ item.code }}</span>
               <span class="psy-mono">v{{ item.semanticVersion }}</span>
             </div>
-            <h3>{{ item.title }}</h3>
+            <h2>{{ item.title }}</h2>
             <p>{{ item.description }}</p>
             <div class="case-meta">
               <span><mat-icon>route</mat-icon>{{ item.nodeCount }} escenas</span>
@@ -84,7 +84,7 @@ import { statusLabel } from '../../shared/ui/labels';
           <div class="history-head">
             <div>
               <p class="psy-eyebrow">Historial real</p>
-              <h3 id="attempt-history-title">Historial de intentos</h3>
+              <h2 id="attempt-history-title">Historial de intentos</h2>
             </div>
             @if (historyLoading()) {
               <span class="psy-mono">Cargando...</span>
@@ -136,7 +136,7 @@ import { statusLabel } from '../../shared/ui/labels';
           <div class="history-head">
             <div>
               <p class="psy-eyebrow">Reporte final</p>
-              <h3 id="student-report-title">{{ report.caseTitle }}</h3>
+              <h2 id="student-report-title">{{ report.caseTitle }}</h2>
               <p>Resumen formativo. La trazabilidad queda disponible para revisión docente; no equivale a diagnóstico automático.</p>
             </div>
             <button class="psy-button psy-button--ghost" type="button" (click)="selectedReport.set(null)">Cerrar</button>
@@ -233,7 +233,7 @@ import { statusLabel } from '../../shared/ui/labels';
       gap: 12px;
       flex-wrap: wrap;
     }
-    .case-card h3 {
+    .case-card h2 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       font-size: 1.85rem;
@@ -302,7 +302,7 @@ import { statusLabel } from '../../shared/ui/labels';
     .history-head {
       justify-content: space-between;
     }
-    .history-head h3 {
+    .history-head h2 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       font-size: 1.45rem;
