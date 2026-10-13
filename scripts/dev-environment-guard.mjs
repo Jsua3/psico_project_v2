@@ -198,6 +198,18 @@ export function decideSchemaGateAction({ schemaReady }) {
 }
 
 /**
+ * Comando que decide si el esquema está listo: `manage.py migrate --check` sale
+ * con 0 solo si no queda ninguna migración sin aplicar. Con Django dueño del
+ * esquema (E0-8) sustituye a las tablas centinela, que dejaban pasar una base a
+ * la que le faltaba cualquier migración posterior a la última centinela, y
+ * también detiene una base con el historial de migraciones anterior (check
+ * `siep.E001`).
+ */
+export function buildSchemaGateCommand() {
+  return { args: ['manage.py', 'migrate', '--check'] };
+}
+
+/**
  * Un salto de versión mayor de PostgreSQL no arranca sobre el volumen anterior
  * y es una migración deliberada (dump/restore). Recibe el contenido de
  * `PG_VERSION` en la raíz del volumen (vacío o nulo: volumen nuevo o con el

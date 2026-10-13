@@ -10,6 +10,7 @@ import {
   assessVolumeOwnership,
   assessTestDatabaseTarget,
   buildSanitizedDatabaseEnv,
+  buildSchemaGateCommand,
   buildTestComposeArgs,
   decideSchemaGateAction,
   parseLastJsonObjectLine,
@@ -349,9 +350,15 @@ test('parser del probe rechaza array y null como última línea JSON', () => {
   }
 });
 
-test('una tabla centinela ausente detiene el arranque y NUNCA dispara bootstrap', () => {
+test('un esquema no listo detiene el arranque y NUNCA dispara bootstrap', () => {
   assert.equal(decideSchemaGateAction({ schemaReady: true }), 'start');
   assert.equal(decideSchemaGateAction({ schemaReady: false }), 'halt');
+});
+
+test('el gate de esquema usa migrate --check: una migración pendiente detiene el arranque (M-4)', () => {
+  // Con Django dueño del esquema (E0-8) las tablas centinela dejaban pasar una BD
+  // a la que le faltaba cualquier migración posterior a la última centinela.
+  assert.deepEqual(buildSchemaGateCommand().args, ['manage.py', 'migrate', '--check']);
 });
 
 test('Compose de test exige un proyecto explícito y lo incluye en cada comando', () => {
