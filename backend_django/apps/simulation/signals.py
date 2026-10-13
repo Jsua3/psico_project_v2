@@ -16,3 +16,11 @@ from django.dispatch import Signal
 #:
 #: Argumentos: ``sender`` (``SimulationAttempt``) y ``attempt`` (el intento ya guardado).
 attempt_completed = Signal()
+
+#: Un estudiante pide iniciar un intento NUEVO de una versión (SIEP-RF-12, E1-11). Se emite con
+#: ``send`` —no ``send_robust``— y ANTES de crear nada: un suscriptor que quiera impedirlo lanza
+#: ``ApiError`` y la petición responde con él (el simulador no conoce a quien lo veta; hoy,
+#: progresión exige el desbloqueo lineal). No se emite al reanudar un intento abierto.
+#:
+#: Argumentos: ``sender`` (``SimulationAttempt``), ``student`` (el usuario) y ``case_version_id``.
+attempt_start_requested = Signal()

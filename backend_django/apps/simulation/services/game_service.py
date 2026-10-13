@@ -25,7 +25,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
-from apps.simulation.signals import attempt_completed
+from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from . import attempt_duration
@@ -214,6 +214,13 @@ def start_attempt(case_version_id, actor, force_new=False):
                 existingAttemptId=str(open_attempt.id),
             )
         _close_active_attempts(actor, case_version_id, "Reemplazado por nuevo intento")
+    elif is_student:
+        # SIEP-RF-12: el desbloqueo lineal lo hace cumplir el servidor, no solo la interfaz. Quien
+        # ya tiene un intento abierto de ese caso no pasa por aquí (lo reanuda o lo reemplaza). El
+        # simulador solo anuncia el inicio; quien quiera vetarlo (progresión) se suscribe (P-13).
+        attempt_start_requested.send(
+            sender=SimulationAttempt, student=actor, case_version_id=case_version_id
+        )
 
     start_node = SimulationNode.objects.filter(case_version_id=version.id, start_node=True).first()
     if not start_node:
