@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import re
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 import django.db.models.query as _query
-from django.db import connection
+from django.db import connection, connections
 from django.db.models import FETCH_RAISE
 from django.test.utils import CaptureQueriesContext
 
@@ -85,3 +86,43 @@ def assert_queries_at_most(limit):
         if not q["sql"].lstrip().upper().startswith(_TRANSACTION_CONTROL)
     )
     assert used <= limit, f"{used} consultas; el máximo es {limit}"
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """Resultado de una llamada de ``run_concurrently``: su valor o el error que lanzó."""
+
+    value: object = None
+    error: BaseException | None = None
+
+
+def run_concurrently(*calls, timeout=30):
+    """Ejecuta cada ``call()`` en su propio hilo, arrancándolos a la vez (E0-9).
+
+    Cada hilo usa su propia conexión (se cierra al terminar) y, sin una transacción
+    de prueba de por medio, **hace commits reales**. Devuelve un ``Outcome`` por
+    llamada, en el mismo orden. Úsese con el fixture ``real_commits`` y limpiando
+    lo que se crea: ``transactional_db`` haría ``flush`` y borraría la siembra.
+    """
+    barrier = threading.Barrier(len(calls))
+    outcomes = [None] * len(calls)
+
+    def runner(index, call):
+        try:
+            barrier.wait(timeout)
+            outcomes[index] = Outcome(value=call())
+        except BaseException as error:  # noqa: BLE001  (se devuelve, no se pierde)
+            outcomes[index] = Outcome(error=error)
+        finally:
+            connections.close_all()
+
+    threads = [
+        threading.Thread(target=runner, args=(index, call), daemon=True)
+        for index, call in enumerate(calls)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout + 5)
+    assert not any(thread.is_alive() for thread in threads), "un hilo no terminó a tiempo"
+    return outcomes

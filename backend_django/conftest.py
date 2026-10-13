@@ -34,3 +34,14 @@ def fetch_raise():
 
     with fetch_mode_raise():
         yield
+
+
+@pytest.fixture
+def real_commits(django_db_setup, django_db_blocker):
+    """Commits reales para pruebas con varios hilos, SIN ``transactional_db`` (E0-9).
+
+    Desbloquea la base de datos para el hilo principal y los de ``run_concurrently``.
+    No hay ``flush``: la siembra queda intacta, pero la prueba debe borrar lo que cree.
+    """
+    with django_db_blocker.unblock():
+        yield
