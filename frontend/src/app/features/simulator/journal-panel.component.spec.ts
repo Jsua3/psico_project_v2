@@ -2,6 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { blend, contrastRatio } from '../../../styles/contrast.util';
+
 import { AudioDirectorService } from './audio-director.service';
 import { JournalPanelComponent } from './journal-panel.component';
 import type { Mock } from 'vitest';
@@ -90,6 +92,79 @@ describe('JournalPanelComponent: salida segura en la bitácora (T12.2, REGLA-004
     // El pie no se parte en dos filas con los dos botones y la nota cede ancho.
     expect(source).toMatch(/\.footer-actions \{[^}]*flex-shrink: 0;/);
     expect(source).toMatch(/\.encrypt-note \{[^}]*flex: 1 1 0; min-width: 0;/);
+  });
+});
+
+describe('JournalPanelComponent: «Guardar» con motivo y campo legible (F6-5)', () => {
+  let fixture: ComponentFixture<JournalPanelComponent>;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const save = () => host().querySelector<HTMLButtonElement>('.journal-write button[ui-button]')!;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [JournalPanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+    });
+    fixture = TestBed.createComponent(JournalPanelComponent);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  // req: BLOQUE-H, RNF-04
+  it('sin texto «Guardar bitácora» no se deshabilita: queda aria-disabled y dice por qué', () => {
+    expect(save().hasAttribute('disabled')).toBe(false);
+    expect(save().getAttribute('aria-disabled')).toBe('true');
+    const reasonId = save().getAttribute('aria-describedby')!;
+    expect(host().querySelector('#' + reasonId)?.textContent?.trim()).toBe('Escribe tu reflexión para guardar');
+  });
+
+  it('con texto se puede guardar y emite lo escrito', () => {
+    const saved = vi.fn();
+    fixture.componentInstance.save.subscribe(saved);
+    fixture.componentInstance.text = 'Observé señales de riesgo';
+    fixture.detectChanges();
+    expect(save().getAttribute('aria-disabled')).toBeNull();
+    save().click();
+    expect(saved).toHaveBeenCalledWith('Observé señales de riesgo');
+  });
+
+  it('guardando muestra su estado, queda ocupado y no envía dos veces', () => {
+    const saved = vi.fn();
+    fixture.componentInstance.save.subscribe(saved);
+    fixture.componentInstance.text = 'Observé señales de riesgo';
+    writeInputSignal(fixture.componentInstance.saveState, 'saving');
+    fixture.detectChanges();
+    expect(save().getAttribute('aria-busy')).toBe('true');
+    expect(save().textContent).toContain('Guardando…');
+    save().click();
+    expect(saved).not.toHaveBeenCalled();
+  });
+
+  it('el borde del campo es el token de borde fuerte de la piel del juego y llega a 3:1', () => {
+    expect(source).toMatch(/textarea \{[^}]*border: 1px solid var\(--ds-border-strong\);/);
+    const tokens = readFileSync(join(__dirname, '../../../styles/tokens/_color.scss'), 'utf-8');
+    const border = tokens.match(/\$game: \([\s\S]*?border-strong: (#[0-9A-Fa-f]{6})/)?.[1] ?? '';
+    expect(border).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    // Peor caso: el fondo de la bitácora (rgba(13,18,32,.96)) sobre un píxel blanco del mapa.
+    expect(contrastRatio(border, blend('#0D1220', 0.96, '#FFFFFF'))).toBeGreaterThanOrEqual(3);
+  });
+
+  it('ningún texto de la bitácora baja de 12 px (0,75 rem)', () => {
+    const styles = source.slice(source.indexOf('styles: [`'));
+    const small: string[] = [];
+    for (const chunk of styles.split('}')) {
+      const [selector, body] = chunk.split('{');
+      if (!body) continue;
+      for (const match of body.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) {
+        const px = match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]);
+        if (px < 12) small.push(selector.trim().split('\n').pop() + ' → ' + match[0]);
+      }
+    }
+    expect(small).toEqual([]);
   });
 });
 

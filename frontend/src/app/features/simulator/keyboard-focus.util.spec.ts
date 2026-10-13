@@ -1,6 +1,7 @@
 import {
   attachScrollKeyGuard,
   isActivatableTarget,
+  isScrollRegionTarget,
   isTextEntryTarget,
   OutsideAngularRunner,
   resolveInteractPress,
@@ -93,7 +94,39 @@ describe('keyboard-focus.util', () => {
     });
   });
 
+  describe('isScrollRegionTarget (F6-5, H-12)', () => {
+    /** jsdom no calcula el diseño: el desborde se declara como lo mediría un navegador. */
+    function region(html: string, overflowing: boolean): Element {
+      const element = el(html);
+      Object.defineProperty(element, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(element, 'scrollHeight', { configurable: true, value: overflowing ? 400 : 100 });
+      return element;
+    }
+
+    it('es true para una región enfocable que de verdad se desplaza', () => {
+      expect(isScrollRegionTarget(region('<div tabindex="0" role="region"></div>', true))).toBe(true);
+    });
+
+    it('es false sin desborde, sin tabindex, con tabindex -1, en el cuerpo y en null', () => {
+      expect(isScrollRegionTarget(region('<div tabindex="0"></div>', false))).toBe(false);
+      expect(isScrollRegionTarget(region('<div></div>', true))).toBe(false);
+      expect(isScrollRegionTarget(region('<div tabindex="-1"></div>', true))).toBe(false);
+      expect(isScrollRegionTarget(document.body)).toBe(false);
+      expect(isScrollRegionTarget(null)).toBe(false);
+    });
+  });
+
   describe('shouldBlockScrollKey', () => {
+    it('no bloquea las flechas con el foco en una región con scroll: la desplazan (H-12)', () => {
+      const area = document.createElement('div');
+      area.tabIndex = 0;
+      Object.defineProperty(area, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(area, 'scrollHeight', { configurable: true, value: 400 });
+      for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+        expect(shouldBlockScrollKey(keydown(key, {}, area))).toBe(false);
+      }
+    });
+
     it('bloquea flechas y Espacio cuando el foco está en el cuerpo de la página', () => {
       for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']) {
         const event = keydown(key, {}, document.createElement('div'));

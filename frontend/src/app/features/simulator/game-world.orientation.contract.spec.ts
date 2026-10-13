@@ -80,6 +80,12 @@ describe('game-world: nada nuevo por cuadro (F§7.2, 59 FPS)', () => {
     expect(update).not.toContain('updateNpcHints');
   });
 
+  // req: BLOQUE-H (H-12)
+  it('con el foco en una región con scroll las flechas la desplazan y el jugador no camina', () => {
+    expect(source).toMatch(/const typing = isTextEntryTarget\(focus\) \|\| isScrollRegionTarget\(focus\);/);
+    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown/);
+  });
+
   it('la pulsación corta de E, Espacio y Enter no se pierde (T0.2) y respeta las mismas reglas de foco', () => {
     expect(source).toMatch(/this\.keys\['E'\]\?\.on\('down', \(\) => \{ this\.tappedKeys\.e = true; \}\);/);
     expect(source).toMatch(/this\.keys\['SPACE'\]\?\.on\('down', \(\) => \{ this\.tappedKeys\.space = true; \}\);/);

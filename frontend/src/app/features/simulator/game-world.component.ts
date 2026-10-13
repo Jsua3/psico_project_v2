@@ -64,7 +64,7 @@ import {
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
-import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { attachScrollKeyGuard, isScrollRegionTarget, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
@@ -412,7 +412,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Sin captura de Phaser, las teclas también llegan mientras se escribe en la bitácora o se
     // activa un botón. El foco se lee una vez por cuadro y decide qué teclas cuentan.
     const focus = document.activeElement;
-    const typing = isTextEntryTarget(focus);
+    // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
+    const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
     const input: PlayerMotionInput = heldInput({
       left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
       right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),

@@ -52,15 +52,27 @@ export function isActivatableTarget(el: Element | null): boolean {
 }
 
 /**
+ * El foco está en una región con scroll a la que se llegó con Tab (`tabindex` ≥ 0 y desborde real): sus flechas la
+ * desplazan (H-12). El mundo no las lee como pasos y la guarda de desplazamiento no las cancela.
+ */
+export function isScrollRegionTarget(el: Element | null): boolean {
+  if (!el || el === document.body) return false;
+  const tabindex = el.getAttribute('tabindex');
+  if (tabindex === null || Number(tabindex) < 0) return false;
+  const node = el as HTMLElement;
+  return node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1;
+}
+
+/**
  * Flechas y Espacio sin modificadores desplazarían la página (la «Vista previa» del editor, el
  * lobby). Sin la captura de Phaser, algo tiene que cancelarlos; pero nunca cuando el destino los
- * necesita: un campo de texto (cursor, Espacio) o un control que se activa con teclado.
+ * necesita: un campo de texto (cursor, Espacio), un control que se activa con teclado o una región con scroll.
  */
 export function shouldBlockScrollKey(event: KeyboardEvent): boolean {
   if (!SCROLL_KEYS.has(event.key)) return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
   const target = event.target instanceof Element ? event.target : null;
-  return !isTextEntryTarget(target) && !isActivatableTarget(target);
+  return !isTextEntryTarget(target) && !isActivatableTarget(target) && !isScrollRegionTarget(target);
 }
 
 /** Lo que Phaser marcó como «recién pulsado» en este cuadro. */
