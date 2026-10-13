@@ -184,6 +184,16 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
     });
   });
 
+  describe('vocabulario educativo (VD-24, borrador de Psicología)', () => {
+    // req: RNF-04, BLOQUE-H
+    it('la barra se llama «Inventario», no «Inventario clínico»', () => {
+      mount(['PAP']);
+      const label = root.querySelector('[role="toolbar"]')?.getAttribute('aria-label') ?? '';
+      expect(label).toContain('Inventario;');
+      expect(label).not.toMatch(/clínico/i);
+    });
+  });
+
   describe('contratos de fuente (CSS)', () => {
     const styles = source.slice(source.indexOf('styles: [`'));
 

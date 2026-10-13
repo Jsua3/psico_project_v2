@@ -18,6 +18,8 @@ const LEAK = new RegExp(`\\b(${FORBIDDEN.join('|')})\\b`, 'g');
 const OWNED_PREFIXES = [
   'orientation', 'stage-route', 'scene-checklist', 'place-hint', 'evidence-copy', 'door-status',
   'dialogue-decoration', 'interaction-verb', 'help-memory', 'visited-rooms', 'evidence-gating',
+  // El panel de opciones (F6-4, DM-5.8): ni su plantilla ni su código leen la clasificación antes de decidir.
+  'dialogue-panel',
 ];
 /** Los escriben otras pistas: se vigilan si existen, pero no se exige que existan. */
 const OPTIONAL_PREFIXES = ['game-help', 'safe-exit-button'];

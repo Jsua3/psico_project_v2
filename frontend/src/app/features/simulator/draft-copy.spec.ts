@@ -18,6 +18,14 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     }
   });
 
+  // req: RNF-04, BLOQUE-H (VD-24)
+  it('registra el vocabulario educativo del panel de diálogo y del dock: «Decisión» e «Inventario»', () => {
+    expect(DRAFT_COPY.decisionLabel.text).toBe('Decisión');
+    expect(DRAFT_COPY.decisionLabel.decision).toBe('VD-24');
+    expect(DRAFT_COPY.inventoryLabel.text).toBe('Inventario');
+    expect(DRAFT_COPY.inventoryLabel.decision).toBe('VD-24');
+  });
+
   it('las claves del registro son únicas y la lista las recorre todas', () => {
     const keys = draftCopyList().map(entry => entry.key);
     expect(new Set(keys).size).toBe(keys.length);

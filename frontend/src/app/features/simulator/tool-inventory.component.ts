@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { ClinicalToolState } from '../../core/models/simulation.model';
+import { DRAFT_COPY } from './draft-copy';
 
 /** Cómo se consigue una herramienta que aún no se tiene: igual para todas, no revela cuál sirve para qué decisión. */
 const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
@@ -28,7 +29,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       <div
         class="tool-dock"
         role="toolbar"
-        [attr.aria-label]="'Herramientas ' + ownedCount() + ' de ' + tools().length + '. Inventario clínico; desplázate horizontalmente para revisar todas las herramientas.'">
+        [attr.aria-label]="'Herramientas ' + ownedCount() + ' de ' + tools().length + '. ' + inventoryLabel + '; desplázate horizontalmente para revisar todas las herramientas.'">
         @for (tool of tools(); track tool.code) {
           @let owned = ownedSet().has(tool.code);
           <button
@@ -186,6 +187,8 @@ export class ToolInventoryComponent {
   readonly select = output<string>();
 
   protected readonly lockedReason = LOCKED_REASON;
+  /** Vocabulario educativo en borrador (VD-24): sale del registro, no de la plantilla. */
+  protected readonly inventoryLabel = DRAFT_COPY.inventoryLabel.text;
 
   protected readonly ownedSet = computed(() => new Set(this.inventory()));
   protected readonly ownedCount = computed(() => this.tools().filter(tool => this.ownedSet().has(tool.code)).length);

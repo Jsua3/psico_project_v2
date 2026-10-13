@@ -13,6 +13,8 @@ import {
   isFinalDialogueLine,
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { DRAFT_COPY } from './draft-copy';
 import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 
@@ -26,7 +28,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, SafeExitButtonComponent],
+  imports: [A11yModule, CommonModule, SafeExitButtonComponent, UiButton],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -51,7 +53,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           </div>
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
-              <span class="panel-chip">Decisión clínica</span>
+              <span class="panel-chip">{{ decisionLabel }}</span>
               <span>Tu elección queda registrada en tu seguimiento formativo.</span>
             </p>
           }
@@ -125,21 +127,21 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           }
 
           @if (!isTypingComplete()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="skipTypewriter()"
               aria-label="Saltar animación de texto">
               Saltar <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && !isLastLine()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="advanceLine()"
               aria-label="Mostrar siguiente intervención">
               Siguiente <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="close.emit()">
               Continuar <span aria-hidden="true">▶</span>
             </button>
@@ -210,7 +212,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       border: 1px solid rgba(182,156,255,.5);
       background: rgba(124,77,255,.16);
       color: #d6c6ff;
-      font-size: .72rem;
+      font-size: .75rem;
       font-weight: 800;
       letter-spacing: .04em;
     }
@@ -229,9 +231,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       font-weight: 800;
       cursor: pointer;
     }
-    .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
-    .panel-back:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 2px; }
-    .panel-back__arrow { font-size: .62rem; }
+    @media (hover: hover) and (pointer: fine) {
+      .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
+    }
+    .panel-back:active { transform: translateY(1px); }
+    .panel-back__arrow { font-size: .75rem; }
 
     .portrait {
       position: relative;
@@ -276,7 +280,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       display: flex;
       align-items: baseline;
       gap: 8px;
-      font-size: .7rem;
+      font-size: .75rem;
       font-weight: 900;
       letter-spacing: .12em;
       text-transform: uppercase;
@@ -285,7 +289,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .strip--supervisory .speaker-name { color: #5d9278; }
     .strip--warning .speaker-name { color: #d9798e; }
     .emotion-tag {
-      font-size: .6rem;
+      font-size: .75rem;
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: lowercase;
@@ -357,10 +361,6 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
     .choice-btn:active {
       transform: scale(.97);
-    }
-    .choice-btn:focus-visible {
-      outline: 3px solid #C9B3FF;
-      outline-offset: 3px;
     }
     /* Entrada escalonada de opciones (sutil, una sola vez). */
     .choice-btn {
@@ -456,13 +456,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (hover: hover) and (pointer: fine) {
       .keyboard-hint { display: block; }
     }
-    .close-btn {
-      align-self: flex-end;
-      font-size: .88rem;
-      padding: 9px 20px;
-      min-height: 42px;
-      cursor: pointer;
-    }
+    .close-btn { align-self: flex-end; }
 
     @keyframes strip-rise {
       from { transform: translateY(100%); opacity: 0; }
@@ -554,6 +548,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly pausing = input(false);
 
   readonly close   = output<void>();
+  /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
+  protected readonly decisionLabel = DRAFT_COPY.decisionLabel.text;
   /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */
   readonly safeExit = output<void>();
   readonly execute = output<number>();
@@ -678,7 +674,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return !d.stale && d.choices.length > 0;
   }
 
-  /** Alguna opción activa registra una decisión clínica (cabecera con el chip «Decisión clínica»). */
+  /** Alguna opción activa registra una decisión (cabecera con el chip de decisión: VD-24). */
   hasDecisionOptions(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null);
   }
@@ -710,7 +706,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const firstDecision = d.choices.findIndex(isDecision);
     if (firstTool < 0 || firstDecision < 0) return null;
     if (index === firstTool) return 'Usar una herramienta';
-    if (index === firstDecision) return 'Decisión clínica';
+    if (index === firstDecision) return DRAFT_COPY.decisionLabel.text;
     return null;
   }
 

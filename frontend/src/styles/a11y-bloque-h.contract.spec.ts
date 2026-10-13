@@ -65,11 +65,12 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
   // Peor caso del panel de diálogo: rgba(8,12,18,.95) sobre un píxel blanco del mapa.
   const DIALOGUE_BG = blend('#080C12', 0.95, '#FFFFFF');
 
-  it('el anillo de las opciones del diálogo llega a 3:1', () => {
-    // Antes: rgba(182,156,255,.5) = 2,89:1.
-    const ring = dialogue.match(/\.choice-btn:focus-visible \{\s*outline: 3px solid (#[0-9A-Fa-f]{6});\s*outline-offset: 3px;\s*\}/)?.[1] ?? '';
-    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(contrastRatio(ring, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
+  it('el anillo de las opciones del diálogo es el global de la piel del juego y llega a 3:1', () => {
+    // Antes: rgba(182,156,255,.5) = 2,89:1 y luego un anillo local literal que anulaba el global (F6-4).
+    expect(dialogue).not.toMatch(/\.choice-btn:focus-visible \{[^}]*outline:\s*\d+px solid/);
+    const gameRing = [...source('tokens/_color.scss').matchAll(/focus: (#[0-9A-Fa-f]{6}),/g)].map(match => match[1])[1];
+    expect(gameRing).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(gameRing, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
   it('el botón de salida segura no pinta un anillo propio y el global de la piel llega a 3:1', () => {

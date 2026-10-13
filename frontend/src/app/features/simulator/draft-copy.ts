@@ -38,6 +38,23 @@ export const DRAFT_COPY = {
     title: '¿Empezar un intento nuevo?',
     text: 'El intento que tienes abierto se cerrará y no podrás retomarlo. Si prefieres seguir donde ibas, elige «Continuar».',
   },
+  /**
+   * Chip de la cabecera del panel de diálogo y subtítulo del grupo de decisiones (F6-4, VD-24). Antes decía «Decisión
+   * clínica»: el vocabulario de la interfaz es educativo, no clínico.
+   */
+  decisionLabel: {
+    decision: 'VD-24',
+    owner: 'Psicología',
+    where: 'Panel de diálogo: chip de la cabecera y subtítulo del grupo de decisiones',
+    text: 'Decisión',
+  },
+  /** Nombre accesible de la barra de herramientas (F6-4, VD-24). Antes decía «Inventario clínico». */
+  inventoryLabel: {
+    decision: 'VD-24',
+    owner: 'Psicología',
+    where: 'Dock de herramientas: nombre accesible de la barra',
+    text: 'Inventario',
+  },
   /** Cuando el navegador no deja registrar el consentimiento (F6-2, ETH-01): no se arranca nada y se puede reintentar. */
   consentStorageError: {
     decision: 'ETH-01',
