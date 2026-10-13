@@ -25,5 +25,7 @@ COPY backend_django/ ./
 COPY --from=frontend /fe/dist/psychosim-admin-panel/browser ./frontend_dist
 
 EXPOSE 8000
-# Railway inyecta $PORT. Gunicorn sirve la app WSGI de Django.
-CMD ["sh", "-c", "gunicorn psychosim.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120 --access-logfile - --error-logfile -"]
+# Railway inyecta $PORT. El esquema lo construye `migrate` (Django es el dueño; E0-8) y se
+# aplica ANTES de servir; con más de una réplica habría que moverlo a un paso de despliegue.
+# Gunicorn sirve la app WSGI de Django.
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn psychosim.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120 --access-logfile - --error-logfile -"]
