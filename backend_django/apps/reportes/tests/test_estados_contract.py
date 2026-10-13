@@ -10,6 +10,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.reportes.services import _estudiante_sim_dto
@@ -22,6 +23,7 @@ from .test_reportes import (  # noqa: F401
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
 SCORED = ("COMPLETED", "SAFE_EXITED")
+User = get_user_model()
 
 
 def _attempt(estudiante, case_version_id, status, score=0, ended_at=None):
@@ -36,12 +38,20 @@ def _attempt(estudiante, case_version_id, status, score=0, ended_at=None):
     )
 
 
-def _mixed_attempts(estudiante, case_version_id):
-    """1 en progreso, 2 en pausa, 3 completados (uno de ayer), 1 salida segura histórica, 1 reemplazo."""
+def _mixed_attempts(estudiante, case_version_id, grupo=None):
+    """1 en progreso, 3 completados (uno de ayer), 1 salida segura histórica y 1 reemplazo del
+    estudiante; más 2 en pausa de otros dos estudiantes del grupo (DM-5.4: un estudiante no puede
+    tener dos intentos abiertos del mismo caso, así que las pausas son de personas distintas)."""
     now = timezone.now()
     _attempt(estudiante, case_version_id, "IN_PROGRESS", score=10)
-    _attempt(estudiante, case_version_id, "PAUSED", score=11)
-    _attempt(estudiante, case_version_id, "PAUSED", score=12)
+    for n, score in enumerate((11, 12)):
+        otro = User.objects.create_user(
+            email=f"pausa{n}_{uuid.uuid4().hex[:6]}@x.com", password="pass1234",
+            nombre="Otro", apellido=f"Pausa{n}", role="ESTUDIANTE",
+        )
+        if grupo is not None:
+            _add_student(grupo, otro)
+        _attempt(otro, case_version_id, "PAUSED", score=score)
     _attempt(estudiante, case_version_id, "COMPLETED", score=30, ended_at=now)
     _attempt(estudiante, case_version_id, "COMPLETED", score=50, ended_at=now)
     _attempt(estudiante, case_version_id, "COMPLETED", score=70, ended_at=now - timedelta(days=1))
@@ -50,10 +60,11 @@ def _mixed_attempts(estudiante, case_version_id):
 
 
 def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_version_id):
-    _add_student(_grupo(profesor), estudiante)  # el tablero es del docente: sus estudiantes
+    grupo = _grupo(profesor)
+    _add_student(grupo, estudiante)  # el tablero es del docente: sus estudiantes
     before = cl(profesor).get("/api/reportes/dashboard").data["data"]
 
-    _mixed_attempts(estudiante, case_version_id)
+    _mixed_attempts(estudiante, case_version_id, grupo)
 
     after = cl(profesor).get("/api/reportes/dashboard").data["data"]
     assert after["simulacionesEnProgreso"] - before["simulacionesEnProgreso"] == 1
@@ -62,8 +73,9 @@ def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_v
 
 
 def test_el_promedio_del_tablero_solo_usa_completados_y_salidas_seguras(profesor, estudiante, case_version_id):
-    _add_student(_grupo(profesor), estudiante)  # el tablero es del docente: sus estudiantes
-    _mixed_attempts(estudiante, case_version_id)
+    grupo = _grupo(profesor)
+    _add_student(grupo, estudiante)  # el tablero es del docente: sus estudiantes
+    _mixed_attempts(estudiante, case_version_id, grupo)
     scores = list(
         SimulationAttempt.objects.filter(student_id=estudiante.id, status__in=SCORED)
         .values_list("accumulated_score", flat=True)
@@ -79,16 +91,18 @@ def test_el_reporte_de_grupo_cuenta_cada_estado_por_separado(profesor, estudiant
     grupo = _grupo(profesor)
     _add_student(grupo, estudiante)
     _assign_case(grupo, case_version_id)
-    _mixed_attempts(estudiante, case_version_id)
+    _mixed_attempts(estudiante, case_version_id, grupo)
 
     sim = cl(profesor).get(f"/api/reportes/grupo/{grupo.id}?caseVersionId={case_version_id}").data["data"]["simulacion"]
     mine = next(e for e in sim["estudiantes"] if e["nombre"] == "Est Rep")
 
-    for block in (sim, mine):
-        assert block["totalIntentos"] == 8
+    # El grupo suma los 6 intentos del estudiante y las 2 pausas de sus compañeros; cada
+    # estudiante ve solo lo suyo (las pausas no son de «Est Rep»).
+    for block, total, pausas in ((sim, 8, 2), (mine, 6, 0)):
+        assert block["totalIntentos"] == total
         assert block["intentosCompletados"] == 3
         assert block["intentosEnProgreso"] == 1
-        assert block["intentosEnPausa"] == 2
+        assert block["intentosEnPausa"] == pausas
         assert block["intentosSalidaSegura"] == 1   # la histórica, sin evento: cuenta por su estado
         assert block["puntajePromedio"] == pytest.approx((30 + 50 + 70 + 20) / 4)
 
