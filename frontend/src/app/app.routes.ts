@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/auth/auth.guard';
+import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { rolesFor } from './shared/layout/nav-items';
 
 /**
@@ -65,6 +66,7 @@ export const routes: Routes = [
         path: 'personaje',
         title: 'Mi personaje',
         canActivate: [roleGuard(...rolesFor('personaje'))],
+        canDeactivate: [canLeaveGuard],
         loadComponent: () => import('./features/character/character-editor.component').then(m => m.CharacterEditorComponent)
       },
       {

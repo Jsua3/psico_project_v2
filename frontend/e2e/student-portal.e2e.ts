@@ -154,6 +154,56 @@ test.describe('@estudiante sala', () => {
   });
 });
 
+async function openEditor(page: Page): Promise<void> {
+  await loginAs(page, 'estudiante');
+  await page.evaluate(() => localStorage.removeItem('psychosim_avatar'));
+  await page.goto('/portal/personaje');
+  await expect(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').first()).toBeAttached();
+}
+
+// req: BLOQUE-H, RNF-04 (plan visual F5-4)
+test.describe('@estudiante personaje', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`piel portal con escenario oscuro: sin desborde, opciones ≥ 44 px y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openEditor(page);
+      await page.locator('fieldset').filter({ hasText: 'Elenco' }).getByText('Personalizado').click();
+      await expect(page.locator('fieldset').filter({ hasText: 'Peinado' })).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      const small = await page.locator('.ce-option').evaluateAll(options => options
+        .map(option => option.getBoundingClientRect())
+        .filter(box => box.height < 44 || box.width < 44).length);
+      expect(small).toBe(0);
+      expect(await blockingViolations(page, 'app-character-editor')).toEqual([]);
+    });
+  }
+
+  test('los grupos son radios nativos: las flechas cambian la elección', async ({ page }) => {
+    await openEditor(page);
+    const radios = page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]');
+    await radios.first().focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(radios.nth(1)).toBeChecked();
+    await expect(radios.nth(1)).toBeFocused();
+    await expect(page.getByRole('status').filter({ hasText: 'Cambios sin guardar' })).toBeVisible();
+  });
+
+  test('salir con cambios sin guardar pregunta: «Seguir editando» se queda y «Salir sin guardar» sale', async ({ page }) => {
+    await openEditor(page);
+    await page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').nth(2).check({ force: true });
+    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Seguir editando' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/portal\/personaje$/);
+
+    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    await page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' }).getByRole('button', { name: 'Salir sin guardar' }).click();
+    await page.waitForURL(/\/portal\/dashboard$/);
+  });
+});
+
 // req: RN-07, RF-24, RNF-04, BLOQUE-H
 test.describe('@estudiante catálogo', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

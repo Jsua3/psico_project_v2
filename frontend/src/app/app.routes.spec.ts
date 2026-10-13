@@ -1,4 +1,5 @@
 import { routes } from './app.routes';
+import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
 import { OfflineComponent } from './features/public/offline.component';
@@ -57,6 +58,15 @@ describe('app.routes: páginas de estado', () => {
     const forbidden = children.find(child => child.path === 'sin-permiso')!;
     expect(await (forbidden.loadComponent as () => Promise<unknown>)()).toBe(ForbiddenComponent);
     expect(children.indexOf(forbidden)).toBeLessThan(children.findIndex(child => child.path === '**'));
+  });
+});
+
+/** Plan visual F5-4: salir del editor de avatar con cambios sin guardar pregunta antes (canLeaveGuard → canLeave del editor). */
+// req: BLOQUE-H
+describe('app.routes: editor de avatar', () => {
+  it('«personaje» lleva la guardia de cambios sin guardar', () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    expect(children.find(child => child.path === 'personaje')!.canDeactivate).toEqual([canLeaveGuard]);
   });
 });
 
