@@ -487,6 +487,21 @@ $corte-tope: 82.499rem;
   }
 }
 
+// Colores forzados (revisión de F3, I-2; accesibilidad-y-tactil.md §10 de la skill): el sistema repinta el color y los
+// fondos, así que el destino actual pierde su tinta de acento, su raya (::after con background) y la gota de la
+// pestaña. Se marca con lo que el sistema respeta: subrayado en el enlace y un borde en la pestaña (WCAG 1.4.1).
+@media (forced-colors: active) {
+  :where(.cromo) .nav-enlace[aria-current='page'] {
+    text-decoration-line: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.3em;
+  }
+
+  :where(.cromo) .pestana[aria-current] {
+    border-block-end: 3px solid CanvasText;
+  }
+}
+
 // H-19 (WCAG 2.4.11) en escritorio: el foco y las anclas se paran bajo la barra fija. Chrome da por visible un destino
 // que está en la ventana aunque lo tape la barra, y no se desplaza; scroll-padding le dice cuánto ocupa. 5,5rem = la
 // píldora (≈ 4,25rem), la caída de 6 px de los módulos al desplazarse y aire; es el mismo relleno del <main>.

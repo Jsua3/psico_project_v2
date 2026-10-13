@@ -101,6 +101,28 @@ test.describe('@shell barra de vidrio del portal', () => {
   });
 });
 
+// req: BLOQUE-H (WCAG 1.4.1: el destino actual no se distingue solo por color; revisión de F3, I-2)
+test.describe('@shell colores forzados: el destino actual se distingue sin color', () => {
+  test('escritorio: el enlace actual va subrayado y los demás no; teléfono: la pestaña actual lleva una raya', async ({ page }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginAs(page, 'profesor');
+    const principal = page.locator('header.cromo .modulo-principal');
+    const current = principal.locator('a[aria-current="page"]');
+    await expect(current).toHaveText('Panel');
+    expect(await current.evaluate(el => getComputedStyle(el).textDecorationLine)).toContain('underline');
+    const other = principal.getByRole('link', { name: 'Simulador', exact: true });
+    expect(await other.evaluate(el => getComputedStyle(el).textDecorationLine)).not.toContain('underline');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const tab = page.locator('header.cromo nav.modulo-inferior .pestana[aria-current="page"]');
+    await expect(tab).toBeVisible();
+    const edge = await tab.evaluate(el => ({ style: getComputedStyle(el).borderBottomStyle, width: parseFloat(getComputedStyle(el).borderBottomWidth) }));
+    expect(edge.style).toBe('solid');
+    expect(edge.width).toBeGreaterThanOrEqual(2);
+  });
+});
+
 /** Un paso de desplazamiento (cada uno, un evento de scroll: la máquina móvil decide por la dirección). */
 async function scrollStep(page: Page, top: number): Promise<void> {
   await page.evaluate(y => window.scrollTo({ top: y, behavior: 'instant' }), top);
