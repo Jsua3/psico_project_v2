@@ -35,8 +35,11 @@ from apps.users.views import (
     AdminUserStatusView,
 )
 from apps.simulation.views.authoring_views import AdminCaseListCreateView
+from shared.health import health
 
 urlpatterns = [
+    # C11: salud del servicio (pública, sin autenticación, sin datos internos).
+    path("api/health", health),
     path("api/auth/", include("apps.users.urls")),
     path("api/grupos", GrupoListCreateView.as_view()),
     path("api/grupos/<int:pk>", GrupoDetailView.as_view()),

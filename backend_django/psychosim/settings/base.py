@@ -33,6 +33,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
+    "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
     # producción sin necesidad de un servidor web aparte.
@@ -158,6 +160,22 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend Django para el simulador SIEP (contrato idéntico a Spring).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"request_id": {"()": "shared.jsonlog.RequestIdFilter"}},
+    "formatters": {"json": {"()": "shared.jsonlog.JsonFormatter"}},
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
 }
 
 LANGUAGE_CODE = "es"
