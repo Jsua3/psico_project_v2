@@ -26,10 +26,13 @@ async function login(page: Page) {
   await page.waitForURL(/\/portal\//);
 }
 
-/** Abre el caso desde el catálogo y resuelve el prompt de reanudación si sale. */
+/**
+ * Abre el caso desde el catálogo y resuelve el prompt de reanudación si sale. Con un intento abierto que dejó otra
+ * prueba, la tarjeta dice «Continuar» (RN-07, plan visual F5-2); si no, «Iniciar simulación» o «Iniciar nuevo intento».
+ */
 async function openCase(page: Page) {
   await page.goto('/portal/simulador');
-  await page.getByRole('button', { name: /iniciar simulación/i }).first().click();
+  await page.locator('.catalog-cases').getByRole('button', { name: /^(iniciar simulación|iniciar nuevo intento|continuar)$/i }).first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
   // Espera determinista: aparece el prompt de reanudación (si hay intento
   // activo) O directamente la advertencia de contenido — sin carreras.

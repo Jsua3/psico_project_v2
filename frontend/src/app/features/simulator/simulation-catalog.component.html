@@ -1,0 +1,109 @@
+<ui-page-header
+  eyebrow="Entrenamiento psicosocial"
+  title="Casos publicados para simulación formativa"
+  description="Inicia un intento, toma decisiones en casos simulados, registra tu bitácora reflexiva y recibe retroalimentación formativa sobre impacto, riesgo y rutas de atención."
+/>
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+<ui-section class="catalog-cases" title="Casos">
+  @switch (casesState()) {
+    @case ('loading') {
+      <div class="catalog-grid" aria-busy="true">
+        @for (bone of [1, 2, 3]; track bone) {
+          <ui-skeleton shape="card" [lines]="3" />
+        }
+      </div>
+    }
+    @case ('error') {
+      <ui-error-state [kind]="casesErrorKind()" message="No pudimos cargar los casos." (retry)="loadCases()" />
+    }
+    @case ('empty') {
+      <ui-empty-state kind="first-use" [title]="emptyCases.title" [description]="emptyCases.description" />
+    }
+    @case ('ready') {
+      <div class="catalog-grid">
+        @for (card of cards(); track card.item.caseVersionId) {
+          <ui-card class="case-card">
+            <div class="case-card__top">
+              <ui-badge tone="neutral">{{ card.item.code }}</ui-badge>
+              <span class="case-card__version">v{{ card.item.semanticVersion }}</span>
+            </div>
+            <h3 class="case-card__title">{{ card.item.title }}</h3>
+            <p class="case-card__description">{{ card.item.description }}</p>
+            <p class="case-card__meta">
+              <span>{{ plural(card.item.nodeCount, 'escena') }}</span>
+              <span>{{ statusLabel(card.item.status) }}</span>
+            </p>
+            @if (card.open; as open) {
+              <ui-badge class="case-card__attempt" [tone]="tone(open.status)">{{ statusLabel(open.status) }}</ui-badge>
+            }
+            @if (canPlay || canEdit) {
+              <div class="case-card__actions">
+                @if (canPlay) {
+                  <button ui-button type="button" variant="primary" icon="play_arrow" (click)="openCase(card.item.caseVersionId)">
+                    {{ card.open ? 'Continuar' : card.startLabel }}
+                  </button>
+                }
+                @if (canEdit) {
+                  <button ui-button type="button" variant="secondary" icon="edit_note" (click)="openEditor(card.item.caseVersionId)">Editor visual</button>
+                }
+              </div>
+            }
+          </ui-card>
+        }
+      </div>
+    }
+  }
+</ui-section>
+
+@if (isStudent) {
+  <ui-section class="catalog-history" title="Historial de intentos">
+    @switch (historyState()) {
+      @case ('error') {
+        <ui-error-state [kind]="historyErrorKind()" message="No pudimos cargar tu historial de intentos." (retry)="loadHistory()" />
+      }
+      @case ('empty') {
+        <ui-empty-state kind="first-use" title="Aún no tienes intentos" description="Cuando inicies un caso, tu intento aparecerá aquí con su resumen." />
+      }
+      @default {
+        <ui-table label="Tabla del historial de intentos" [state]="historyState() === 'loading' ? 'loading' : 'ready'">
+          <table ui-table>
+            <thead>
+              <tr>
+                <th scope="col">Caso</th>
+                <th scope="col">Inicio</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Puntaje</th>
+                <th scope="col">Adecuadas</th>
+                <th scope="col">Alertas éticas</th>
+                <th scope="col">Duración</th>
+                <th scope="col"><span class="ds-sr-only">Acción</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track row.attempt.attemptId) {
+                <tr uiRow>
+                  <td class="catalog-history__case">{{ row.attempt.caseTitle }}</td>
+                  <td class="catalog-nowrap">{{ formatDate(row.attempt.startedAt, true) }}</td>
+                  <td class="catalog-nowrap"><ui-badge [tone]="tone(row.attempt.status)">{{ statusLabel(row.attempt.status) }}</ui-badge></td>
+                  <td class="catalog-num">{{ row.attempt.accumulatedScore }}</td>
+                  <td class="catalog-num">{{ row.attempt.adequateDecisions }}</td>
+                  <td class="catalog-num">{{ row.attempt.prohibitedDecisions }}</td>
+                  <td class="catalog-nowrap">{{ row.duration }}</td>
+                  <td class="catalog-nowrap">
+                    @if (row.open) {
+                      <button ui-button type="button" size="sm" variant="primary" icon="play_arrow" (click)="openCase(row.attempt.caseVersionId)">Continuar</button>
+                    } @else {
+                      <button ui-button type="button" size="sm" variant="secondary" icon="description" (click)="openReport(row.attempt)">Ver resumen</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </ui-table>
+      }
+    }
+  </ui-section>
+}

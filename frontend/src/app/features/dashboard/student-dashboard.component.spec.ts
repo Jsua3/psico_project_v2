@@ -244,7 +244,7 @@ describe('StudentDashboardComponent', () => {
   it('el historial reciente va en una tabla con nombre, estados humanizados y el enlace al historial completo', async () => {
     await render({ attemptHistory: () => of([attempt({ status: 'PAUSED', caseTitle: 'Caso A', accumulatedScore: 12 })]) });
     const table = host().querySelector('ui-table')!;
-    expect(table.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Tus últimos intentos');
+    expect(table.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Tabla de tus últimos intentos');
     expect([...table.querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado', 'Puntaje']);
     expect(text(table.querySelector('tbody ui-badge'))).toBe('En pausa (reanudable)');
     expect(table.querySelector('tbody')!.textContent).not.toMatch(/PAUSED|IN_PROGRESS/);

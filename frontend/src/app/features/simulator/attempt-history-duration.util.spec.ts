@@ -1,4 +1,13 @@
-import { historyDurationSeconds } from './attempt-history-duration.util';
+import { formatAttemptDuration, historyDurationSeconds } from './attempt-history-duration.util';
+
+// req: RNF-04 (cifras legibles)
+describe('formatAttemptDuration', () => {
+  it('minutos y segundos, solo segundos o «No disponible»', () => {
+    expect(formatAttemptDuration(754)).toBe('12 min 34 s');
+    expect(formatAttemptDuration(45)).toBe('45 s');
+    expect(formatAttemptDuration(null)).toBe('No disponible');
+  });
+});
 
 describe('historyDurationSeconds', () => {
   it('prefiere el tiempo activo estimado al total de reloj', () => {
