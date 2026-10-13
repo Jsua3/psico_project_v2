@@ -106,6 +106,27 @@ def test_allowany_solo_en_las_vistas_publicas(tmp_path):
     assert [v.detail for v in found] == ["MeView declara AllowAny"]
 
 
+def test_las_tablas_de_union_se_tocan_por_el_orm(tmp_path):
+    files = {
+        "apps/grupos/services.py": (
+            "def f(cursor):\n"
+            '    cursor.execute("DELETE FROM grupo_estudiante WHERE grupo_id = %s", [1])\n'
+        ),
+    }
+    assert "uniones-por-orm" in _rules(tmp_path, files)
+
+
+def test_los_modelos_pueden_nombrar_las_tablas_de_union(tmp_path):
+    files = {
+        "apps/grupos/models.py": (
+            "class GrupoEstudiante:\n"
+            "    class Meta:\n"
+            '        db_table = "grupo_estudiante"\n'
+        ),
+    }
+    assert check_architecture(_tree(tmp_path, files)) == []
+
+
 def test_el_codigo_real_respeta_las_fronteras_con_trinquete():
     current: dict[str, set[str]] = {}
     for v in check_architecture(BACKEND):

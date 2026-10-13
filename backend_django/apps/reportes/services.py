@@ -8,12 +8,11 @@ string plano (sin envoltorio JSON), con ``.`` decimal y ``,`` delimitador.
 from datetime import datetime, time
 
 from django.contrib.auth import get_user_model
-from django.db import connection
 from django.db.models import Avg
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-from apps.grupos.models import Grupo
+from apps.grupos.models import Grupo, GrupoEstudiante
 from apps.simulation.models.attempt import (
     AttemptEvent,
     AttemptStatus,
@@ -37,11 +36,7 @@ def _nombre_completo(user):
 
 
 def _grupo_student_ids(grupo_id):
-    with connection.cursor() as cur:
-        cur.execute(
-            "SELECT estudiante_id FROM grupo_estudiante WHERE grupo_id = %s", [grupo_id]
-        )
-        return [row[0] for row in cur.fetchall()]
+    return list(GrupoEstudiante.objects.filter(grupo_id=grupo_id).values_list("estudiante_id", flat=True))
 
 
 def _count_decisions(attempt_ids, classification):

@@ -3,10 +3,11 @@ import base64
 import hashlib
 import secrets
 
-from django.db import connection, transaction
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.grupos.models import GrupoCaseVersion
 from apps.simulation.models import (
     INITIAL_STRESS_INDEX,
     INITIAL_USER_TRUST,
@@ -93,34 +94,21 @@ def _reissue_token(attempt):
 
 def assigned_case_version_ids(student_id):
     """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT DISTINCT gcv.case_version_id
-            FROM grupo_estudiante ge
-            INNER JOIN grupos g ON g.id = ge.grupo_id AND g.activo = TRUE
-            INNER JOIN grupo_case_version gcv ON gcv.grupo_id = ge.grupo_id
-            WHERE ge.estudiante_id = %s
-            """,
-            [student_id],
+    return list(
+        GrupoCaseVersion.objects.filter(
+            grupo__activo=True, grupo__grupoestudiante__estudiante_id=student_id
         )
-        return [row[0] for row in cur.fetchall()]
+        .values_list("case_version_id", flat=True)
+        .distinct()
+    )
 
 
 def _student_can_access_case(student_id, case_version_id):
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT 1
-            FROM grupo_estudiante ge
-            INNER JOIN grupos g ON g.id = ge.grupo_id AND g.activo = TRUE
-            INNER JOIN grupo_case_version gcv ON gcv.grupo_id = ge.grupo_id
-            WHERE ge.estudiante_id = %s AND gcv.case_version_id = %s
-            LIMIT 1
-            """,
-            [student_id, case_version_id],
-        )
-        return cur.fetchone() is not None
+    return GrupoCaseVersion.objects.filter(
+        case_version_id=case_version_id,
+        grupo__activo=True,
+        grupo__grupoestudiante__estudiante_id=student_id,
+    ).exists()
 
 
 def list_published_cases(actor=None):

@@ -14,6 +14,7 @@ Reglas (``Violation.rule``):
 - ``sql-sin-interpolacion``: sin ``.raw(``, ``.extra(``, ``RawSQL(`` ni ``execute(`` con SQL interpolado.
 - ``serializers-sin-all``: sin ``fields = "__all__"`` ni ``exclude`` en serializadores.
 - ``allowany-solo-publicas``: ``AllowAny`` solo en las vistas públicas de ``PUBLIC_VIEWS``.
+- ``uniones-por-orm``: sin SQL sobre ``grupo_estudiante`` ni ``grupo_case_version`` (E0-8).
 """
 from __future__ import annotations
 
@@ -181,6 +182,23 @@ def _allowany_solo_publicas(rel, tree):
     return found
 
 
+JOIN_TABLES = ("grupo_estudiante", "grupo_case_version")
+
+
+def _uniones_por_orm(rel, tree):
+    """Las tablas de unión tienen modelo (``GrupoEstudiante``, ``GrupoCaseVersion``): no se tocan con SQL."""
+    if "/models" in rel:
+        return []
+    found = {
+        Violation("uniones-por-orm", rel, f"SQL sobre {table}")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        for table in JOIN_TABLES
+        if table in node.value
+    }
+    return sorted(found, key=lambda v: v.detail)
+
+
 def check_architecture(root: Path) -> list[Violation]:
     violations: list[Violation] = []
     for rel, tree in _source_files(root):
@@ -213,4 +231,5 @@ def check_architecture(root: Path) -> list[Violation]:
         violations += _sql_sin_interpolacion(rel, tree)
         violations += _serializers_sin_all(rel, tree)
         violations += _allowany_solo_publicas(rel, tree)
+        violations += _uniones_por_orm(rel, tree)
     return violations

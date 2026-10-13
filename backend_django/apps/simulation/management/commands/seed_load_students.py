@@ -7,9 +7,9 @@ quedan en el grupo demo, que ya tiene el caso ``SIM-VBG-001`` asignado.
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection, transaction
+from django.db import transaction
 
-from apps.grupos.models import Grupo
+from apps.grupos.models import Grupo, GrupoEstudiante
 
 User = get_user_model()
 GRUPO_DEMO = "DEMO1"
@@ -45,10 +45,5 @@ class Command(BaseCommand):
                     apellido=f"{number:03d}",
                     role="ESTUDIANTE",
                 )
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) VALUES (%s, %s) "
-                    "ON CONFLICT DO NOTHING",
-                    [grupo.id, user.id],
-                )
+            GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=user.id)
         self.stdout.write(self.style.SUCCESS(f"{count} estudiantes de carga listos en {GRUPO_DEMO}."))
