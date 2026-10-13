@@ -6,6 +6,7 @@ import {
   enterCaseAtContentWarning,
   finishCaseIntroduction,
   loginStudent,
+  startFreshAttempt,
   waitForWorldReady,
 } from './support/siep-flow';
 import { scaled } from './support/time-scale';
@@ -126,7 +127,7 @@ test.describe('@game-chrome arranque del juego', () => {
     // Otra prueba pudo dejar un intento abierto: la tarjeta de reanudar aparece en vez de pedir uno nuevo.
     const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
     await expect(startFresh.or(failure).first()).toBeVisible({ timeout: scaled(30_000) });
-    if (await startFresh.isVisible().catch(() => false)) await startFresh.click();
+    if (await startFresh.isVisible().catch(() => false)) await startFreshAttempt(page, startFresh);
     await expect(failure).toBeVisible({ timeout: scaled(30_000) });
     await expect(failure).toContainText('No pudimos iniciar la simulación.');
     await expect(failure.getByRole('link', { name: 'Volver al simulador' })).toBeVisible();

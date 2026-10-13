@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
-import { nearbyAction } from './support/siep-flow';
+import { nearbyAction, startFreshAttempt } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -32,7 +32,7 @@ async function enterPlayableCase(page: Page) {
   // Intento nuevo: la posición de salida no depende de lo que dejó otra prueba.
   const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
   await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(15_000) });
-  if (await startFresh.count()) await startFresh.click();
+  if (await startFresh.count()) await startFreshAttempt(page, startFresh);
   await consent.getByRole('button', { name: /^continuar$/i }).click();
 
   const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });

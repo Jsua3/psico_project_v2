@@ -63,6 +63,10 @@ import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
 import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiErrorKind } from '../../shared/ui/state/state-copy';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
+import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
+import { CONSENT_RECORDER } from './consent-recorder';
+import { DRAFT_COPY } from './draft-copy';
 
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
@@ -119,7 +123,7 @@ const CASE_INTRO_PARAGRAPHS = [
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
     SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent,
-    UiButton, UiErrorState, UiSpinner
+    UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -176,28 +180,37 @@ const CASE_INTRO_PARAGRAPHS = [
       }
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
-        <section class="resume-overlay" role="dialog" aria-labelledby="resume-title">
-          <article class="resume-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
-            <p class="psy-eyebrow">Intento en progreso</p>
-            <h2 id="resume-title">Continuar simulación formativa</h2>
-            <p>
-              Ya tienes un intento activo en <strong>{{ active.caseTitle }}</strong>.
-              Puedes retomarlo desde <strong>{{ active.currentNode.title }}</strong> o iniciar uno nuevo.
-            </p>
-            <div class="resume-metrics">
-              <span>Puntaje: {{ active.accumulatedScore }}</span>
-              <span>Estrés: {{ active.stressIndex }}%</span>
-              <span>Riesgo: {{ active.metrics.victimRisk }}%</span>
+        <!-- Reanudar comparte estructura, movimiento y comportamiento modal con las otras tres entradas (F6-2). -->
+        <section class="case-intro-overlay case-intro-overlay--resume" role="dialog" aria-modal="true"
+          aria-labelledby="resume-title" aria-describedby="resume-body">
+          <article class="case-intro-card case-intro-card--entry" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+            <header class="case-intro-card__header">
+              <p class="psy-eyebrow">Intento en progreso</p>
+              <h2 id="resume-title">Continuar simulación formativa</h2>
+            </header>
+
+            <div class="case-intro-card__body" id="resume-body">
+              <p>
+                Ya tienes un intento activo en <strong>{{ active.caseTitle }}</strong>.
+                Puedes retomarlo desde <strong>{{ active.currentNode.title }}</strong> o iniciar uno nuevo.
+              </p>
+              <div class="case-intro-card__metrics">
+                <span>Puntaje: {{ active.accumulatedScore }}</span>
+                <span>Estrés: {{ active.stressIndex }}%</span>
+                <span>Riesgo: {{ active.metrics.victimRisk }}%</span>
+              </div>
             </div>
-            <div class="resume-actions">
-              <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="resumeAttempt()">
-                {{ active.status === 'PAUSED' ? 'Reanudar intento en pausa' : 'Continuar intento en progreso' }}
-              </button>
-              <button class="psy-button psy-button--ghost" type="button" (click)="startNewAttempt()">
-                Iniciar nuevo intento
-              </button>
-              <a class="psy-button psy-button--ghost" routerLink="/portal/simulador">Volver al catálogo</a>
-            </div>
+
+            <footer class="case-intro-card__actions">
+              <a ui-button variant="ghost" routerLink="/portal/simulador">Volver al catálogo</a>
+              <div class="case-intro-card__buttons">
+                <!-- RN-07: empezar de nuevo nombra lo que se pierde y «Continuar» (conservar el intento) es lo seguro. -->
+                <button ui-button variant="secondary" type="button" (click)="requestNewAttempt()">Iniciar nuevo intento</button>
+                <button cdkFocusInitial ui-button variant="primary" type="button" (click)="resumeAttempt()">
+                  {{ active.status === 'PAUSED' ? 'Reanudar intento en pausa' : 'Continuar intento en progreso' }}
+                </button>
+              </div>
+            </footer>
           </article>
         </section>
       }
@@ -213,25 +226,41 @@ const CASE_INTRO_PARAGRAPHS = [
                 <span class="case-intro-card__chip">Simulación formativa con datos ficticios</span>
               </header>
 
-              <div class="case-intro-card__body" id="content-warning-body">
-                <p>
-                  Este caso presenta una situación ficticia de violencia basada en género
-                  y crisis familiar. Algunas escenas incluyen relatos y decisiones
-                  emocionalmente exigentes.
-                </p>
-                <p>
-                  Podrás pausar el caso en cualquier momento con el botón «Salida segura»
-                  (con teclado, también <kbd>Esc</kbd>). Tu avance se guarda y puedes retomarlo.
-                  Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
-                  cuando lo decidas.
-                </p>
+              <div class="case-intro-card__body">
+                <!-- Solo el texto validado: aria-describedby lo lee tal cual; el aviso de alcance y el estado del
+                     registro van fuera de este bloque. -->
+                <div id="content-warning-body">
+                  <p>
+                    Este caso presenta una situación ficticia de violencia basada en género
+                    y crisis familiar. Algunas escenas incluyen relatos y decisiones
+                    emocionalmente exigentes.
+                  </p>
+                  <p>
+                    Podrás pausar el caso en cualquier momento con el botón «Salida segura»
+                    (con teclado, también <kbd>Esc</kbd>). Tu avance se guarda y puedes retomarlo.
+                    Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
+                    cuando lo decidas.
+                  </p>
+                </div>
+                <!-- Aviso de alcance (RN-01, borrador de Psicología): fuera del texto validado. -->
+                <ui-scope-notice />
+                @if (consentState() === 'error') {
+                  <!-- ETH-01: un almacenamiento que falla NUNCA da el consentimiento por registrado. No se arranca
+                       nada y se puede reintentar; «Volver al catálogo» sigue operable. Se anuncia por la región. -->
+                  <div class="consent-error">
+                    <mat-icon aria-hidden="true">error</mat-icon>
+                    <p>{{ consentErrorText }}</p>
+                    <button ui-button type="button" variant="secondary" (click)="acceptContentWarning()">Reintentar</button>
+                  </div>
+                }
               </div>
 
               <footer class="case-intro-card__actions">
-                <button class="psy-button psy-button--ghost" type="button" (click)="declineContentWarning()">
+                <button ui-button type="button" variant="ghost" (click)="declineContentWarning()">
                   Volver al catálogo
                 </button>
-                <button class="psy-button psy-button--primary" type="button" cdkFocusInitial (click)="acceptContentWarning()">
+                <button ui-button type="button" variant="primary" cdkFocusInitial
+                  [loading]="consentState() === 'saving'" (click)="acceptContentWarning()">
                   Continuar
                 </button>
               </footer>
@@ -819,8 +848,10 @@ const CASE_INTRO_PARAGRAPHS = [
       background:
         radial-gradient(circle at 50% 20%, rgba(124,77,255,.16), transparent 40%),
         rgba(5,8,14,.9);
+      animation: case-intro-fade var(--ds-dur-fade) var(--ds-ease-out) both;
     }
     .case-intro-card {
+      animation: case-intro-rise var(--ds-dur-base) var(--ds-ease-out) both;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
       width: min(760px, 100%);
@@ -886,6 +917,10 @@ const CASE_INTRO_PARAGRAPHS = [
     @media (hover: hover) and (pointer: fine) {
       .intro-music-toggle:hover { background: rgba(108,192,199,.18); }
     }
+    @keyframes case-intro-fade { from { opacity: 0; } }
+    @keyframes case-intro-rise { from { opacity: 0; transform: translateY(var(--ds-space-3)); } }
+    /* Con movimiento reducido solo el fundido: nada se desplaza. */
+    @media (prefers-reduced-motion: reduce) { .case-intro-card { animation-name: case-intro-fade; } }
     .case-intro-card--scene { width: min(860px, 100%); max-height: min(88vh, 760px); }
     .case-intro-card__media {
       min-height: 0;
@@ -1001,39 +1036,23 @@ const CASE_INTRO_PARAGRAPHS = [
       line-height: 1.6; letter-spacing: .02em; font-style: italic;
     }
     @keyframes transition-note-in { from { opacity: 0; } }
-    /* Con scroll propio y la tarjeta centrada por margen automático: si no cabe (móvil horizontal), se alinea arriba y se
-       desplaza; con place-items: center la parte de abajo quedaba sin scroll posible y «Volver al catálogo» fuera de pantalla. */
-    .resume-overlay {
-      position: absolute; inset: 0; z-index: 400; display: grid; place-items: start center;
-      padding: 24px; background: rgba(8,12,18,.88);
-      overflow-y: auto; overscroll-behavior: contain;
-    }
-    .resume-card {
-      width: min(560px, 100%); margin-block: auto; padding: clamp(24px, 4vw, 36px); color: #e8f0f4; text-align: left;
-      border: 1px solid rgba(182,156,255,.34);
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(18,24,42,.96), rgba(8,12,18,.98));
-      box-shadow:
-        inset 0 0 0 1px rgba(255,255,255,.04),
-        0 28px 80px -36px rgba(124,77,255,.75);
-    }
-    .resume-card h2 { margin: 12px 0; color: #fff; font-size: 1.6rem; }
-    .resume-card p { margin: 0; color: rgba(232,240,244,.72); line-height: 1.6; }
-    .resume-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
-    .resume-metrics span {
+    /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
+    .case-intro-overlay--resume { z-index: 400; }
+    .case-intro-card--entry { width: min(560px, 100%); }
+    .case-intro-card__metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .case-intro-card__metrics span {
       padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.08); font-size: .82rem; font-weight: 700;
     }
-    .resume-actions { display: grid; gap: 10px; margin-top: 20px; }
-    .resume-actions .psy-button { width: 100%; }
-    /* Pantallas bajas (móvil horizontal de 390 px): tarjeta más ancha y baja, con las tres salidas en una fila. */
-    @media (max-height: 520px) {
-      .resume-overlay { padding: 10px 16px; }
-      .resume-card { width: min(760px, 100%); padding: 14px 20px; }
-      .resume-card h2 { margin: 6px 0; font-size: 1.25rem; }
-      .resume-metrics { margin: 10px 0; }
-      .resume-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; }
+    /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
+    .consent-error {
+      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
+      margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid rgba(226,90,79,.5); background: rgba(226,90,79,.1);
     }
+    .consent-error mat-icon { color: #f1a79f; }
+    .consent-error p { margin: 0; color: #f4f7fb; font-size: .9rem; line-height: 1.5; }
+    .consent-error button { grid-column: 2; justify-self: start; }
 
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }
@@ -1192,6 +1211,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Las dos regiones vivas persistentes de la app: el juego no trae una propia (F6-12). */
   private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly notifications = inject(NotificationService);
+  private readonly consentRecorder = inject(CONSENT_RECORDER);
+  private readonly dialog = inject(UiDialog);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -1238,6 +1259,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly transitionNote = signal('');
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
+  /** Registro del consentimiento (ETH-01): `saving` mientras guarda; `error` si el almacenamiento falló. */
+  readonly consentState = signal<'idle' | 'saving' | 'error'>('idle');
+  readonly consentErrorText: string = DRAFT_COPY.consentStorageError.text;
   /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
   readonly worldStarted = signal(false);
   /** Código HTTP del fallo que pinta el estado de error (null si no vino de una respuesta HTTP). */
@@ -1683,7 +1707,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private hasContentConsent(attempt: SimulationAttemptState): boolean {
-    return sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given';
+    return this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt));
   }
 
   /** Arranque real (post-consentimiento). Idempotente ante dobles llamadas. */
@@ -2838,8 +2862,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       attemptStatus: attempt.status,
       nodeKey: attempt.currentNode.key,
       mapKey,
-      consentGiven: sessionStorage.getItem(this.caseConsentStorageKey(attempt)) === 'given',
-      introRead: sessionStorage.getItem(this.caseIntroStorageKey(attempt)) === 'read',
+      // Una lectura que falla (modo privado, política) es «sin consentimiento» / «sin leer»: se vuelve a pedir.
+      consentGiven: this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt)),
+      introRead: this.readStored(this.caseIntroStorageKey(attempt)) === 'read',
       reduceMotion: this.reduceMotion(),
     });
   }
@@ -2862,13 +2887,41 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Aceptar el aviso de contenido (ETH-01): pasa por el registro con estados. Guardando, el botón muestra su estado
+   * y no hay doble envío; si el almacenamiento falla, NO se da por registrado: error con «Reintentar» y ni mundo,
+   * ni HUD, ni audio. Solo con el consentimiento ya registrado se anuncia y arranca el mundo.
+   */
   acceptContentWarning(): void {
     const attempt = this.attempt();
-    if (!attempt) return;
-    sessionStorage.setItem(this.caseConsentStorageKey(attempt), 'given');
-    this.showContentWarning.set(false);
-    this.announce('Continuaste al caso. Cargando el escenario.');
-    this.startWorld(attempt);
+    if (!attempt || this.consentState() === 'saving') return;
+    this.consentState.set('saving');
+    this.announce('Registrando tu consentimiento…');
+    this.consentRecorder.record(this.caseConsentStorageKey(attempt)).then(
+      () => {
+        this.consentState.set('idle');
+        this.showContentWarning.set(false);
+        this.announce('Continuaste al caso. Cargando el escenario.');
+        this.startWorld(attempt);
+      },
+      () => {
+        this.consentState.set('error');
+        this.announce(this.consentErrorText, 'assertive');
+      },
+    );
+  }
+
+  /** «Iniciar nuevo intento» (RN-07): nombra lo que se pierde; «Continuar» conserva el intento abierto. */
+  requestNewAttempt(): void {
+    const copy = DRAFT_COPY.newAttemptConsequence;
+    void this.dialog.consequence({
+      title: copy.title,
+      consequence: copy.text,
+      continueLabel: 'Continuar',
+      proceedLabel: 'Iniciar nuevo intento',
+    }).then(answer => {
+      if (answer === 'proceed') this.startNewAttempt();
+    });
   }
 
   declineContentWarning(): void {
@@ -2893,11 +2946,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   continueFromCaseIntro(): void {
     const attempt = this.attempt();
-    if (attempt) sessionStorage.setItem(this.caseIntroStorageKey(attempt), 'read');
+    if (attempt) this.writeStored(this.caseIntroStorageKey(attempt), 'read');
     this.showCaseIntro.set(false);
     this.audioDirector.stopIntroLament();
     this.audioDirector.setStressLevel(attempt?.stressIndex ?? 0);
     this.announce('Introducción completada. Inicia la intervención en urgencias.');
+  }
+
+  /** Lectura y escritura del almacenamiento de la sesión sin que un bloqueo (modo privado, cuota) rompa el juego. */
+  private readStored(key: string): string | null {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private writeStored(key: string, value: string): void {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Sin almacenamiento la marca no se guarda: lo no leído se vuelve a mostrar. El juego sigue.
+    }
   }
 
   private caseIntroStorageKey(attempt: SimulationAttemptState): string {
@@ -3029,7 +3099,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private persistAttemptToken(attempt: SimulationAttemptState) {
-    sessionStorage.setItem(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
+    this.writeStored(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
       attemptToken: attempt.attemptToken,
       viewedNpcKeys: Array.from(this.viewedNpcKeys()),
@@ -3080,7 +3150,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private persistViewedNpcKeys(keys: ReadonlySet<string> = this.viewedNpcKeys()): void {
     const attempt = this.attempt();
     if (!attempt) return;
-    sessionStorage.setItem(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
+    this.writeStored(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
       attemptToken: attempt.attemptToken,
       viewedNpcKeys: Array.from(keys),

@@ -23,9 +23,10 @@ describe('contraste: simulador', () => {
   const play = source('../app/features/simulator/simulation-play.component.ts');
   const styles = source('./styles.scss');
 
-  it('la tarjeta de reanudar no usa el vidrio claro', () => {
-    expect(play).not.toContain('resume-card liquid-glass');
-    expect(play).toMatch(/\.resume-card \{[^}]*linear-gradient\(180deg, rgba\(18,24,42,\.96\), rgba\(8,12,18,\.98\)\)/);
+  it('la tarjeta de reanudar es la tarjeta oscura de las entradas del juego, sin el vidrio claro', () => {
+    expect(play).not.toContain('resume-card');
+    expect(play).not.toContain('liquid-glass');
+    expect(play).toMatch(/\.case-intro-card \{[^}]*background: linear-gradient\(180deg, rgba\(18,24,42,\.96\), rgba\(8,12,18,\.98\)\)/);
   });
 
   // req: REGLA-010 (F6-1): el CSS del juego vive en `.game-container` o en sus componentes, nunca en `<body>`.

@@ -5,12 +5,14 @@
  * Los textos YA validados (aviso de contenido, pausa, reintentos, opciones, ayuda…) no pasan por aquí: no se tocan.
  */
 export interface DraftCopyEntry {
-  /** Decisión del plan visual que lo origina (§9). */
-  readonly decision: `VD-${number}`;
+  /** Decisión del plan visual (§9) o regla de negocio que lo origina. */
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Dónde se usa (para revisarlo en su contexto). */
   readonly where: string;
+  /** Título, si el texto lo lleva (un diálogo). */
+  readonly title?: string;
   readonly text: string;
 }
 
@@ -24,6 +26,24 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Anuncio a lectores de pantalla al cambiar el nivel de estrés (HUD)',
     text: 'Nivel de estrés:',
+  },
+  /**
+   * Confirmación al pulsar «Iniciar nuevo intento» con uno abierto (F6-2, RN-07): dice qué se pierde. «Continuar»
+   * (el intento abierto se conserva) es la acción por defecto.
+   */
+  newAttemptConsequence: {
+    decision: 'RN-07',
+    owner: 'Psicología',
+    where: 'Tarjeta de reanudar: confirmación de «Iniciar nuevo intento»',
+    title: '¿Empezar un intento nuevo?',
+    text: 'El intento que tienes abierto se cerrará y no podrás retomarlo. Si prefieres seguir donde ibas, elige «Continuar».',
+  },
+  /** Cuando el navegador no deja registrar el consentimiento (F6-2, ETH-01): no se arranca nada y se puede reintentar. */
+  consentStorageError: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    where: 'Aviso de contenido: error al registrar el consentimiento',
+    text: 'No pudimos registrar tu consentimiento en este navegador. Revisa que no tenga bloqueado el almacenamiento e inténtalo de nuevo.',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

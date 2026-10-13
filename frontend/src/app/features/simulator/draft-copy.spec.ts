@@ -11,7 +11,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^VD-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');

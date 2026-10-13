@@ -20,6 +20,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
+import { CONSENT_RECORDER, ConsentRecorder } from './consent-recorder';
 import { SimulationPlayComponent } from './simulation-play.component';
 import type { Mock } from 'vitest';
 
@@ -54,6 +55,18 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
 function consentKey(attempt: SimulationAttemptState): string {
   return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
 }
+
+/**
+ * Registro de prueba que guarda de verdad en `sessionStorage` y se cumple en el acto: este archivo lleva `vi.mock` y
+ * se mantiene síncrono. Los estados guardando / error del registro real viven en `simulation-play.entries.spec.ts`.
+ */
+const storedConsent: ConsentRecorder = {
+  isGiven: key => sessionStorage.getItem(key) === 'given',
+  record: key => {
+    sessionStorage.setItem(key, 'given');
+    return { then: (onFulfilled?: (() => unknown) | null) => { onFulfilled?.(); return undefined as never; } };
+  },
+};
 
 describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => {
   let component: SimulationPlayComponent;
@@ -118,6 +131,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
         { provide: Router, useValue: router },
+        { provide: CONSENT_RECORDER, useValue: storedConsent },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
