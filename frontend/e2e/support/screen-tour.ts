@@ -66,6 +66,7 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'portada', role: 'publico', routePattern: '', path: '/' },
   { id: 'acceso', role: 'publico', routePattern: 'login', path: '/login' },
   { id: 'no-encontrada', role: 'publico', routePattern: '**', path: '/no-existe' },
+  { id: 'sin-conexion', role: 'publico', routePattern: 'sin-conexion', path: '/sin-conexion?desde=%2Fportal%2Fdashboard' },
   {
     id: 'acceso-solicitud', role: 'publico', routePattern: 'login', path: '/login',
     ready: async page => {
@@ -81,6 +82,8 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'personaje', role: 'estudiante', routePattern: 'portal/personaje', path: '/portal/personaje' },
   // Plan visual F3-6: una dirección desconocida muestra la 404 (dentro del portal, con su barra).
   { id: 'no-encontrada', role: 'estudiante', routePattern: 'portal/**', path: '/portal/no-existe' },
+  // Plan visual F4-3: lo que ve el estudiante al pedir una sección de otro rol.
+  { id: 'sin-permiso', role: 'estudiante', routePattern: 'portal/sin-permiso', path: '/portal/sin-permiso?desde=%2Fportal%2Frubricas' },
   {
     id: 'caso-aviso', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId', resolvePath: studentCasePath,
     ready: async page => {

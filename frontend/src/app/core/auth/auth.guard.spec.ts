@@ -68,12 +68,13 @@ describe('authGuard y roleGuard', () => {
     }
   });
 
-  it('roleGuard: sesión vencida igual que authGuard; sin el rol, al panel con aviso', () => {
+  it('roleGuard: sesión vencida igual que authGuard; sin el rol, a la página «sin permiso» con la sección pedida (F4-3)', () => {
     token = 'expired';
     expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/login?returnUrl=%2Fportal%2Fgrupos&motivo=sesion-expirada');
     token = 'valid';
     hasRole = () => false;
-    expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/portal/dashboard');
-    expect(warning).toHaveBeenCalledWith('No tienes permisos para acceder a esta sección.');
+    // Antes: al panel con un aviso flotante que se iba solo (una redirección muda, según el gancho de F3).
+    expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/portal/sin-permiso?desde=%2Fportal%2Fgrupos');
+    expect(warning).not.toHaveBeenCalled();
   });
 });

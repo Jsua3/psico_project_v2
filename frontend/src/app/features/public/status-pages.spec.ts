@@ -1,0 +1,76 @@
+import { ApplicationRef, provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+
+import { ForbiddenComponent } from './forbidden.component';
+import { FULL_NAVIGATION, OfflineComponent } from './offline.component';
+
+/**
+ * Páginas de estado (plan visual F4-3): «Sin permiso» (dentro del portal, con la sección pedida) y «Sin conexión»
+ * (cargada sin red y mínima; «Reintentar» CARGA de nuevo la ruta pedida si es interna).
+ */
+// req: BLOQUE-H (estados), RNF-004; gancho RF-02/RNF-002 (lo que se ve al negar una sección)
+describe('páginas de estado', () => {
+  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const fullNavigation = vi.fn();
+  const online = Object.getOwnPropertyDescriptor(Navigator.prototype, 'onLine');
+
+  beforeEach(() => fullNavigation.mockReset());
+  afterEach(() => { if (online) Object.defineProperty(Navigator.prototype, 'onLine', online); });
+
+  async function render(url: string): Promise<HTMLElement> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([
+          { path: 'portal', children: [{ path: 'sin-permiso', component: ForbiddenComponent }] },
+          { path: 'sin-conexion', component: OfflineComponent },
+        ]),
+        { provide: FULL_NAVIGATION, useValue: fullNavigation },
+      ],
+    });
+    const harness = await RouterTestingHarness.create(url);
+    return harness.routeNativeElement as HTMLElement;
+  }
+
+  const retry = (host: HTMLElement) => [...host.querySelectorAll('button')].find(button => text(button) === 'Reintentar')!.click();
+
+  it('sin permiso: un h1, el estado «forbidden» nombrando la sección pedida y «Volver al panel», sin <main> propio', async () => {
+    const host = await render('/portal/sin-permiso?desde=%2Fportal%2Frubricas');
+    expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Sin permiso']);
+    expect(text(host.querySelector('ui-error-state .ui-error-state__message'))).toContain('«Rúbricas»');
+    expect(host.querySelector<HTMLAnchorElement>('a[href="/portal/dashboard"]')!.textContent!.trim()).toBe('Volver al panel');
+    expect(host.querySelector('main')).toBeNull();
+  });
+
+  it('sin permiso con una ruta desconocida: el mensaje general, sin inventar un nombre', async () => {
+    const host = await render('/portal/sin-permiso?desde=%2Fportal%2Fnada');
+    expect(text(host.querySelector('.ui-error-state__message'))).toBe('Tu cuenta no tiene permiso para ver esto. Si crees que es un error, escribe a la administración.');
+  });
+
+  it('sin conexión: su propio <main>, un h1, el estado bloqueante y «Reintentar» CARGA de nuevo la ruta pedida', async () => {
+    // El navegador guarda en su mapa de módulos la descarga fallida: un import() otra vez fallaría aunque ya haya
+    // red; por eso «Reintentar» hace una carga completa (FULL_NAVIGATION), no una navegación del Router.
+    const host = await render('/sin-conexion?desde=%2Fportal%2Fsimulador');
+    expect(host.querySelector('main#main-content')).not.toBeNull();
+    expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Sin conexión']);
+    expect(host.querySelector('ui-error-state')!.getAttribute('role')).toBe('alert');
+    retry(host);
+    expect(fullNavigation).toHaveBeenCalledWith('/portal/simulador');
+  });
+
+  it('sin conexión con una ruta que saldría del sitio: «Reintentar» va al inicio', async () => {
+    retry(await render('/sin-conexion?desde=%2F%2Fevil.example'));
+    expect(fullNavigation).toHaveBeenCalledWith('/');
+  });
+
+  it('si al reintentar todavía no hay red, lo dice y no recarga (no lleva a la página de error del navegador)', async () => {
+    const host = await render('/sin-conexion?desde=%2Fportal%2Fsimulador');
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    retry(host);
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(fullNavigation).not.toHaveBeenCalled();
+    expect(text(host.querySelector('[role="status"].sin-red__aviso'))).toBe('Todavía no hay conexión. Vuelve a intentarlo en un momento.');
+  });
+});

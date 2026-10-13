@@ -110,11 +110,26 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/users.component').then(m => m.UsersComponent)
       },
       {
+        // Plan visual F4-3: adonde manda roleGuard al negar una sección (antes, al panel en silencio).
+        path: 'sin-permiso',
+        title: 'Sin permiso',
+        loadComponent: () => import('./features/public/forbidden.component').then(m => m.ForbiddenComponent)
+      },
+      {
         path: '**',
         title: 'Página no encontrada',
         loadComponent: () => import('./features/public/not-found.component').then(m => m.NotFoundComponent)
       }
     ]
+  },
+  {
+    // Plan visual F4-3: sin red, una navegación que no pudo descargar su código llega aquí (offline-navigation.ts).
+    // Se PRECARGA con red tras la primera navegación (PreloadMarkedRoutes): sin red ya está lista, y el bundle
+    // inicial no crece (importarla directa le sumaba ~80 kB).
+    path: 'sin-conexion',
+    title: 'Sin conexión',
+    data: { precargar: true },
+    loadComponent: () => import('./features/public/offline.component').then(m => m.OfflineComponent)
   },
   { path: 'dashboard', redirectTo: 'portal/dashboard', pathMatch: 'full' },
   { path: 'simulador', redirectTo: 'portal/simulador', pathMatch: 'full' },

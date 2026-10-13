@@ -1,7 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { AuthService } from './auth.service';
-import { NotificationService } from '../notifications/notification.service';
 
 /** Motivo que el acceso explica en pantalla (plan visual F3-6, H-34). */
 export const EXPIRED_SESSION_REASON = 'sesion-expirada';
@@ -30,6 +29,6 @@ export const roleGuard = (...roles: string[]): CanActivateFn => (_route, state) 
   if (redirect) return redirect;
 
   if (auth.hasRole(...roles)) return true;
-  inject(NotificationService).warning('No tienes permisos para acceder a esta sección.');
-  return router.createUrlTree(['/portal/dashboard']);
+  // Plan visual F4-3: la negación se ve (página «Sin permiso» con la sección pedida), no es una redirección muda.
+  return router.createUrlTree(['/portal/sin-permiso'], { queryParams: { desde: state.url } });
 };

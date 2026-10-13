@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { loginAs } from './support/screen-tour';
+
 /**
  * Pantallas públicas (plan visual F4) en el navegador real: lo que solo se ve con estilos calculados.
  */
@@ -92,6 +94,32 @@ test.describe('@publico acceso', () => {
     expect(border.width).toBeGreaterThanOrEqual(1);
     expect(border.style).toBe('solid');
     expect(border.color).not.toBe(border.background);
+  });
+});
+
+// req: BLOQUE-H (estados), RNF-004; gancho RF-02/RNF-002 (plan visual F4-3)
+test.describe('@estados sin permiso y sin conexión', () => {
+  test('sin permiso: el estudiante que pide Rúbricas ve por qué y vuelve al panel (no una redirección muda)', async ({ page }) => {
+    await loginAs(page, 'estudiante');
+    await page.goto('/portal/rubricas');
+    await page.waitForURL(/\/portal\/sin-permiso\?desde=%2Fportal%2Frubricas$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sin permiso');
+    await expect(page.getByText('Tu cuenta no tiene permiso para ver «Rúbricas».', { exact: false })).toBeVisible();
+    await page.getByRole('link', { name: 'Volver al panel' }).click();
+    await page.waitForURL(/\/portal\/dashboard$/);
+  });
+
+  test('sin conexión: una navegación que no puede descargar su código muestra «Sin conexión» y «Reintentar» llega con red', async ({ page, context }) => {
+    await loginAs(page, 'estudiante');
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+    await context.setOffline(true);
+    await page.locator('header.cromo .modulo-principal').getByRole('link', { name: 'Simulador', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sin conexión', { timeout: 15_000 });
+    await expect(page.getByRole('alert')).toContainText('Revisa tu conexión a internet');
+    await context.setOffline(false);
+    await page.getByRole('button', { name: 'Reintentar' }).click();
+    await page.waitForURL(/\/portal\/simulador$/, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Casos publicados para simulación formativa.');
   });
 });
 
