@@ -6,7 +6,7 @@
  * Uso: npm run baseline:backend [-- --out <carpeta>] [--label <texto>]
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,6 +16,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { outDir, label } = parseMeasureArgs(process.argv.slice(2), { root: ROOT });
 mkdirSync(outDir, { recursive: true });
 const measurementsFile = join(outDir, 'measurements.json');
+rmSync(measurementsFile, { force: true }); // nunca reutilizar una medición vieja
 
 const run = spawnSync(
   process.execPath,

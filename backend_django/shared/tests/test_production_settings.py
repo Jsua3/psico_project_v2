@@ -43,3 +43,16 @@ def test_el_host_del_healthcheck_no_entra_a_los_origenes_de_csrf(monkeypatch):
 def test_sin_hosts_configurados_sigue_fallando_al_arrancar(monkeypatch):
     with pytest.raises(ImproperlyConfigured, match="DJANGO_ALLOWED_HOSTS"):
         _production(monkeypatch, DJANGO_ALLOWED_HOSTS=None)
+
+
+@pytest.mark.parametrize("database_url", [None, "postgres://u:p@h:5432/d"])
+def test_la_conexion_a_la_bd_tiene_un_tope_de_espera(monkeypatch, database_url):
+    # Sin tope, una BD inalcanzable bloquea /api/health ~130 s (el valor por defecto de psycopg)
+    # y gunicorn mata el worker a los 120 s.
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    if database_url:
+        monkeypatch.setenv("DATABASE_URL", database_url)
+
+    base = runpy.run_module("psychosim.settings.base", run_name="base_bajo_prueba")
+
+    assert base["DATABASES"]["default"]["OPTIONS"]["connect_timeout"] <= 10

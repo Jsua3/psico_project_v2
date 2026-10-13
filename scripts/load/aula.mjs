@@ -40,6 +40,8 @@ const EXPLORE_RESERVE_MS = 8000; // lo que tarda la ruta (puerta y decisión) de
 const THINK_MS = 4000;
 let interruptedExitCode = null;
 let server = null;
+// Secretos efímeros de esta corrida: se redactan de cualquier mensaje de error.
+const secrets = [];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const venvPython = () => (isWin
@@ -197,7 +199,8 @@ async function waitForAttestedBackend(apiPort, nonce) {
       const response = await fetch(url);
       if (response.status === 401) {
         const attested = response.headers.get('x-siep-test-environment') === 'isolated'
-          && response.headers.get('x-siep-test-run') === nonce;
+          && response.headers.get('x-siep-test-run') === nonce
+          && response.headers.get('cache-control') === 'no-store';
         if (!attested) throw new Error('El backend no demostró la atestación de este stack aislado.');
         return;
       }
@@ -226,6 +229,7 @@ async function runLoad(runtime, args, apiPort) {
   console.log('[siep:load] Sembrando el caso demo (bootstrap_dev_db)...');
   check('bootstrap_dev_db', manage('bootstrap_dev_db'));
   const password = createEphemeralPassword();
+  secrets.push(password);
   console.log(`[siep:load] Sembrando ${args.students} estudiantes virtuales...`);
   check('seed_load_students', manage('seed_load_students', '--count', String(args.students), '--password', password));
 
@@ -306,6 +310,7 @@ async function main() {
   const apiPort = parseLoopbackPort(process.env.SIEP_E2E_API_PORT ?? '8093', 'SIEP_E2E_API_PORT');
   const runtime = createTestDatabaseRuntime(process.env);
   runtime.env = { ...runtime.env, SIEP_TEST_CHECKOUT_ID: PROJECT };
+  secrets.push(runtime.database.password, runtime.attestationNonce);
   const guard = assessTestDatabaseTarget({
     test: runtime.database,
     dev: {
@@ -348,6 +353,8 @@ main()
     process.exitCode = interruptedExitCode ?? status;
   })
   .catch((error) => {
-    console.error(`[siep:load] ${formatErrorDetails(error)}`);
+    const redacted = secrets.reduce((text, secret) => (secret ? text.replaceAll(secret, '[REDACTED]') : text),
+      formatErrorDetails(error));
+    console.error(`[siep:load] ${redacted}`);
     process.exitCode = interruptedExitCode ?? 1;
   });

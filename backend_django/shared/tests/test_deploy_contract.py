@@ -31,3 +31,8 @@ def test_la_siembra_ya_no_crea_tablas_con_sql():
 
     assert "SCHEMA_STATEMENTS" not in source
     assert "CREATE TABLE" not in source
+
+
+def test_gunicorn_es_el_proceso_principal_del_contenedor():
+    # Con `exec`, gunicorn recibe SIGTERM en los redespliegues y drena las peticiones en vuelo.
+    assert "exec gunicorn" in _cmd_line()

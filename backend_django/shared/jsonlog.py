@@ -13,7 +13,10 @@ class RequestIdFilter(logging.Filter):
 
     def filter(self, record):
         if not hasattr(record, "request_id"):
-            record.request_id = request_id_var.get()
+            # django.request registra las 4xx/5xx fuera del middleware, con la request en el
+            # registro y el ContextVar ya restablecido.
+            request = getattr(record, "request", None)
+            record.request_id = getattr(request, "request_id", None) or request_id_var.get()
         return True
 
 

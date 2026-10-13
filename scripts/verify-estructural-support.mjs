@@ -25,6 +25,9 @@ export function buildSteps({ platform = process.platform, root }) {
       label: 'pip-audit (dependencias del backend)',
       command: venvPython,
       args: ['-m', 'pip_audit', '-r', join(root, 'backend_django', 'requirements.txt')],
+      hint: 'Falta pip-audit en el venv: instala las herramientas de desarrollo con '
+        + '`backend_django/.venv/Scripts/python.exe -m pip install -r backend_django/requirements-dev.txt` '
+        + '(en Linux: `.venv/bin/python`).',
     },
     {
       id: 'npm-audit',

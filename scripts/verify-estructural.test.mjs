@@ -44,3 +44,8 @@ test('el resumen falla si algún paso falla y lista el estado de todos', () => {
 test('el resumen es verde si todo pasa', () => {
   assert.equal(summarize([{ id: 'scripts', status: 0, seconds: 1 }]).ok, true);
 });
+
+test('el paso de pip-audit explica cómo instalar la herramienta si falta', () => {
+  const step = buildSteps({ platform: 'linux', root: '/repo' }).find((s) => s.id === 'pip-audit');
+  assert.match(step.hint, /requirements-dev\.txt/);
+});

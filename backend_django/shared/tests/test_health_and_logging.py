@@ -2,13 +2,14 @@ import json
 import logging
 import re
 import sys
+import types
 from pathlib import Path
 
 import pytest
 from django.db import OperationalError
 from django.test import Client
 
-from shared.jsonlog import JsonFormatter
+from shared.jsonlog import JsonFormatter, RequestIdFilter
 
 ROOT = Path(__file__).resolve().parents[3]  # raíz del repositorio
 
@@ -89,3 +90,16 @@ def test_railway_usa_el_healthcheck_y_reinicia_siempre():
     deploy = json.loads((ROOT / "railway.json").read_text(encoding="utf-8"))["deploy"]
     assert deploy["healthcheckPath"] == "/api/health"
     assert deploy["restartPolicyType"] == "ALWAYS"
+
+
+def test_el_filtro_toma_el_request_id_de_la_request_del_registro():
+    # Django registra las respuestas 4xx/5xx de django.request fuera del middleware, con la
+    # request en el registro y el ContextVar ya restablecido.
+    record = logging.getLogger("django.request").makeRecord(
+        "django.request", logging.WARNING, __file__, 1, "Not Found", (), None
+    )
+    record.request = types.SimpleNamespace(request_id="trace-abc12345")
+
+    RequestIdFilter().filter(record)
+
+    assert record.request_id == "trace-abc12345"

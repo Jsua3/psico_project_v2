@@ -36,7 +36,10 @@ for (const step of buildSteps({ root: ROOT })) {
   });
   const status = run.status ?? 1;
   results.push({ id: step.id, status, seconds: (Date.now() - started) / 1000 });
-  if (status !== 0) failed = true;
+  if (status !== 0) {
+    failed = true;
+    if (step.hint) console.error(`[siep:verify] ${step.hint}`);
+  }
 }
 
 const { lines, ok } = summarize(results);
