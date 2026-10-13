@@ -265,10 +265,13 @@ function ensureDevDataVolumeMatchesImage() {
     return;
   }
   console.error(`[siep] ${verdict.reason}`);
-  console.error('[siep] Para migrarlo (los datos de desarrollo se restauran del volcado o se vuelven a sembrar):');
-  console.error(`[siep]   1. con el contenedor viejo:  docker compose -p ${DEV_COMPOSE_PROJECT} exec db pg_dump -U psychosim psychosim > dev.sql`);
-  console.error(`[siep]   2. docker compose -p ${DEV_COMPOSE_PROJECT} down -v`);
-  console.error('[siep]   3. npm run up   y después   npm run db:bootstrap -- --yes   (o restaura dev.sql)');
+  console.error('[siep] Para recrearla (los datos de desarrollo se vuelven a sembrar; el volcado es solo para conservarlos como archivo):');
+  console.error(`[siep]   1. arranca el contenedor viejo:   docker start $(docker compose -p ${DEV_COMPOSE_PROJECT} ps -aq db)`);
+  console.error('[siep]   2. vuélcalo DENTRO del contenedor (sin redirecciones de shell, que corrompen el archivo en Windows):');
+  console.error('[siep]        docker exec <contenedor> pg_dump -U psychosim -Fc -f /tmp/dev.dump psychosim');
+  console.error('[siep]        docker cp <contenedor>:/tmp/dev.dump ./dev.dump     y comprueba que dev.dump NO esté vacío');
+  console.error(`[siep]   3. solo entonces:  docker compose -p ${DEV_COMPOSE_PROJECT} down -v`);
+  console.error('[siep]   4. npm run up   y después   npm run db:bootstrap -- --yes');
   process.exit(1);
 }
 
