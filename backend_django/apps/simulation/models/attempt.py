@@ -34,10 +34,15 @@ INITIAL_VICTIM_RISK = 50
 INITIAL_USER_TRUST = 50
 
 
+def new_attempt_id():
+    """UUID v7 (ordenado en el tiempo: mejor localidad de índice) desde Python 3.14; v4 antes."""
+    return uuid.uuid7() if hasattr(uuid, "uuid7") else uuid.uuid4()
+
+
 class SimulationAttempt(models.Model):
     AttemptStatus = AttemptStatus
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=new_attempt_id, editable=False)
     attempt_token_hash = models.CharField(max_length=255, unique=True)
     case_version = models.ForeignKey(
         CaseVersion, on_delete=models.DO_NOTHING, db_column="case_version_id"
