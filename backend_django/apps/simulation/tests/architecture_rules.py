@@ -8,17 +8,22 @@ Reglas (``Violation.rule``):
 
 - ``casedef-puro``: ``apps/simulation/casedef/**`` no importa Django, DRF ni otras apps.
 - ``runtime-sin-authoring``: ``apps/simulation/runtime/**`` no importa autoría.
-- ``reportes-solo-lee``: ``apps/reportes/**`` no escribe.
+- ``reportes-solo-lee``: ``apps/reportes/**`` no escribe (ORM, querysets guardados ni SQL crudo).
 - ``policies-sin-servicios``: ``shared/policies.py`` no importa servicios ni vistas.
 - ``dto-sin-servicios``: los ``*dtos*.py`` de ``serializers/`` no importan servicios.
-- ``sql-sin-interpolacion``: sin ``.raw(``, ``.extra(``, ``RawSQL(`` ni ``execute(`` con SQL interpolado.
+- ``sql-sin-interpolacion``: sin ``.raw(``, ``.extra(``, ``RawSQL(`` y con ``execute*`` solo con SQL literal.
 - ``serializers-sin-all``: sin ``fields = "__all__"`` ni ``exclude`` en serializadores.
-- ``allowany-solo-publicas``: ``AllowAny`` solo en las vistas públicas de ``PUBLIC_VIEWS``.
+- ``allowany-solo-publicas``: ``AllowAny`` (o ``permission_classes`` vacío) solo en ``PUBLIC_VIEWS``.
 - ``uniones-por-orm``: sin SQL sobre ``grupo_estudiante`` ni ``grupo_case_version`` (E0-8).
+
+Las evasiones que la revisión de la fase E0 encontró (imports relativos, alias y
+atributos de ``AllowAny``, SQL en una variable, querysets guardados) están
+cubiertas con una prueba sintética cada una en ``test_architecture.py``.
 """
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +48,9 @@ ORM_WRITES = {
     "update_or_create",
 }
 QUERYSET_HINTS = {"objects", "filter", "exclude", "all", "get"}
+WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "TRUNCATE", "CREATE")
+EXECUTE_NAMES = {"execute", "executemany"}
+JOIN_TABLES = ("grupo_estudiante", "grupo_case_version")
 
 
 @dataclass(frozen=True)
@@ -68,15 +76,28 @@ def _source_files(root: Path):
             yield rel, ast.parse(path.read_text(encoding="utf-8"), filename=rel)
 
 
-def _imports(tree):
-    """Destinos importados: ``from a.b import c`` es ``a.b.c`` (uno por alias)."""
+def _package_of(rel: str) -> list[str]:
+    parts = rel[: -len(".py")].split("/")
+    return parts if parts[-1] == "__init__" and parts.pop() else parts[:-1]
+
+
+def _imports(tree, rel):
+    """Destinos importados, ya absolutos: ``from a.b import c`` es ``a.b.c`` (uno por alias)."""
+    package = _package_of(rel)
     found = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             found.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = package[: len(package) - (node.level - 1)] if node.level > 1 else list(package)
+                module = ".".join(base + ([node.module] if node.module else []))
+            else:
+                module = node.module or ""
+            if not module:
+                continue
             for alias in node.names:
-                found.add(node.module if alias.name == "*" else f"{node.module}.{alias.name}")
+                found.add(module if alias.name == "*" else f"{module}.{alias.name}")
     return found
 
 
@@ -95,7 +116,7 @@ def _import_rule(rel, tree, applies, rule, forbidden):
         return []
     return [
         Violation(rule, rel, f"importa {module}")
-        for module in sorted(_imports(tree))
+        for module in sorted(_imports(tree, rel))
         if forbidden(module)
     ]
 
@@ -111,29 +132,66 @@ def _receiver_names(node):
     return names
 
 
+def _scopes(tree):
+    """Módulo y cada función: los ámbitos en los que una variable guarda un queryset."""
+    yield tree
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield node
+
+
+def _walk_scope(scope):
+    """Los nodos del ámbito, sin entrar en las funciones anidadas (tienen su propio ámbito)."""
+    stack = list(ast.iter_child_nodes(scope))
+    while stack:
+        node = stack.pop()
+        yield node
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            stack.extend(ast.iter_child_nodes(node))
+
+
+def _first_sql_argument(call):
+    if call.args:
+        return call.args[0]
+    for keyword in call.keywords:
+        if keyword.arg == "sql":
+            return keyword.value
+    return None
+
+
+def _call_name(call):
+    func = call.func
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+
+
 def _reportes_solo_lee(rel, tree):
     if not rel.startswith("apps/reportes/"):
         return []
-    found = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            attr = node.func.attr
-            chain = set(_receiver_names(node.func.value))
-            if attr in ORM_WRITES or (attr == "update" and chain & QUERYSET_HINTS):
-                found.append(Violation("reportes-solo-lee", rel, f"escribe con .{attr}("))
-    return found
-
-
-def _interpolated(arg):
-    if isinstance(arg, ast.JoinedStr):
-        return True
-    if isinstance(arg, ast.BinOp) and isinstance(arg.op, (ast.Mod, ast.Add)):
-        return True
-    return (
-        isinstance(arg, ast.Call)
-        and isinstance(arg.func, ast.Attribute)
-        and arg.func.attr == "format"
-    )
+    found = set()
+    for scope in _scopes(tree):
+        queryset_names = set()
+        nodes = list(_walk_scope(scope))
+        for node in nodes:
+            if isinstance(node, ast.Assign) and isinstance(node.value, (ast.Attribute, ast.Call)):
+                if set(_receiver_names(node.value)) & QUERYSET_HINTS:
+                    queryset_names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        for node in nodes:
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if isinstance(node.func, ast.Attribute):
+                receiver = node.func.value
+                chain = set(_receiver_names(receiver))
+                saved = isinstance(receiver, ast.Name) and receiver.id in queryset_names
+                if name in ORM_WRITES or (name == "update" and (chain & QUERYSET_HINTS or saved)):
+                    found.add(Violation("reportes-solo-lee", rel, f"escribe con .{name}("))
+            if name in EXECUTE_NAMES:
+                sql = _first_sql_argument(node)
+                if isinstance(sql, ast.Constant) and isinstance(sql.value, str):
+                    verb = sql.value.lstrip().split(None, 1)[0].upper() if sql.value.strip() else ""
+                    if verb in WRITE_VERBS:
+                        found.add(Violation("reportes-solo-lee", rel, f"escribe con SQL ({verb})"))
+    return sorted(found, key=lambda v: v.detail)
 
 
 def _sql_sin_interpolacion(rel, tree):
@@ -141,12 +199,23 @@ def _sql_sin_interpolacion(rel, tree):
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        name = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+        name = _call_name(node)
         if name in {"raw", "extra", "RawSQL"}:
             found.append(Violation("sql-sin-interpolacion", rel, f"usa {name}("))
-        elif name == "execute" and node.args and _interpolated(node.args[0]):
-            found.append(Violation("sql-sin-interpolacion", rel, "execute( con SQL interpolado"))
+        elif name in EXECUTE_NAMES:
+            sql = _first_sql_argument(node)
+            literal = isinstance(sql, ast.Constant) and isinstance(sql.value, str)
+            if sql is not None and not literal:
+                found.append(Violation("sql-sin-interpolacion", rel, f"{name}( con SQL que no es un literal"))
     return found
+
+
+def _is_all(value):
+    if isinstance(value, ast.Constant):
+        return value.value == "__all__"
+    if isinstance(value, (ast.List, ast.Tuple)):
+        return any(isinstance(e, ast.Constant) and e.value == "__all__" for e in value.elts)
+    return False
 
 
 def _serializers_sin_all(rel, tree):
@@ -154,35 +223,80 @@ def _serializers_sin_all(rel, tree):
         return []
     found = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign):
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
             continue
-        for target in node.targets:
+        for target in targets:
             if not isinstance(target, ast.Name):
                 continue
             if target.id == "exclude":
                 found.append(Violation("serializers-sin-all", rel, "usa exclude"))
-            if (
-                target.id == "fields"
-                and isinstance(node.value, ast.Constant)
-                and node.value.value == "__all__"
-            ):
+            if target.id == "fields" and _is_all(value):
                 found.append(Violation("serializers-sin-all", rel, 'usa fields = "__all__"'))
     return found
 
 
+def _allowany_aliases(tree):
+    names = {"AllowAny"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "AllowAny":
+                    names.add(alias.asname or alias.name)
+    return names
+
+
+def _mentions_allowany(node, names):
+    return any(
+        (isinstance(n, ast.Name) and n.id in names)
+        or (isinstance(n, ast.Attribute) and n.attr == "AllowAny")
+        for n in ast.walk(node)
+    )
+
+
+def _declares_empty_permissions(cls):
+    for stmt in cls.body:
+        value = None
+        if isinstance(stmt, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "permission_classes" for t in stmt.targets
+        ):
+            value = stmt.value
+        elif (
+            isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and stmt.target.id == "permission_classes"
+        ):
+            value = stmt.value
+        if isinstance(value, (ast.List, ast.Tuple)) and not value.elts:
+            return True
+    return False
+
+
 def _allowany_solo_publicas(rel, tree):
     allowed = PUBLIC_VIEWS.get(rel, set())
+    names = _allowany_aliases(tree)
     found = []
     for node in tree.body:
-        if not isinstance(node, ast.ClassDef):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
             continue
-        uses = any(isinstance(n, ast.Name) and n.id == "AllowAny" for n in ast.walk(node))
-        if uses and node.name not in allowed:
-            found.append(Violation("allowany-solo-publicas", rel, f"{node.name} declara AllowAny"))
+        if isinstance(node, ast.ClassDef):
+            if node.name in allowed:
+                continue
+            if _mentions_allowany(node, names):
+                found.append(Violation("allowany-solo-publicas", rel, f"{node.name} declara AllowAny"))
+            elif _declares_empty_permissions(node):
+                found.append(
+                    Violation("allowany-solo-publicas", rel, f"{node.name} declara permission_classes vacío")
+                )
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if _mentions_allowany(node, names):
+                found.append(Violation("allowany-solo-publicas", rel, f"{node.name} usa AllowAny"))
+        elif _mentions_allowany(node, names):
+            found.append(Violation("allowany-solo-publicas", rel, "usa AllowAny a nivel de módulo"))
     return found
-
-
-JOIN_TABLES = ("grupo_estudiante", "grupo_case_version")
 
 
 def _uniones_por_orm(rel, tree):
@@ -194,7 +308,9 @@ def _uniones_por_orm(rel, tree):
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
         for table in JOIN_TABLES
-        if table in node.value
+        # Solo cuenta como SQL «FROM/INTO/JOIN/UPDATE/TABLE <tabla>»: el nombre de una migración
+        # (p. ej. 0002_grupo_case_version) contiene el de la tabla y no es una consulta.
+        if re.search(rf"\b(from|into|join|update|table)\s+{table}\b", node.value, re.IGNORECASE)
     }
     return sorted(found, key=lambda v: v.detail)
 

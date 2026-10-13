@@ -127,6 +127,67 @@ def test_los_modelos_pueden_nombrar_las_tablas_de_union(tmp_path):
     assert check_architecture(_tree(tmp_path, files)) == []
 
 
+def test_un_nombre_de_migracion_no_es_sql_sobre_la_tabla(tmp_path):
+    files = {"shared/checks.py": 'LEGACY = ("grupos", "0002_grupo_case_version")\n'}
+    assert check_architecture(_tree(tmp_path, files)) == []
+
+
+# ── Evasiones que la revisión de fase (Sonnet 5.5) encontró y esta prueba ya no deja pasar ──
+
+def test_los_imports_relativos_tambien_cuentan(tmp_path):
+    files = {"apps/simulation/serializers/game_dtos.py": "from ..services import case_effects\n"}
+    assert "dto-sin-servicios" in _rules(tmp_path, files)
+
+
+def test_un_import_relativo_de_paquete_tambien_cuenta(tmp_path):
+    files = {"apps/simulation/serializers/game_dtos.py": "from .. import services\n"}
+    assert "dto-sin-servicios" in _rules(tmp_path, files)
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "from rest_framework import permissions\nclass V:\n    permission_classes = [permissions.AllowAny]\n",
+        "from rest_framework.permissions import AllowAny as Open\nclass V:\n    permission_classes = [Open]\n",
+        "from rest_framework.permissions import AllowAny\n@permission_classes([AllowAny])\ndef view(request):\n    pass\n",
+        "from rest_framework.permissions import AllowAny\nPUBLIC = [AllowAny]\n",
+        "class V:\n    permission_classes = []\n",
+    ],
+)
+def test_allowany_no_se_evade(tmp_path, snippet):
+    assert "allowany-solo-publicas" in _rules(tmp_path, {"apps/x/views.py": snippet})
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def f(cursor, x):\n    sql = f'SELECT {x}'\n    cursor.execute(sql)\n",
+        "def f(cursor, x, rows):\n    cursor.executemany(f'INSERT {x}', rows)\n",
+        "def f(cursor, x):\n    cursor.execute(sql=f'SELECT {x}')\n",
+    ],
+)
+def test_el_sql_no_literal_no_se_evade(tmp_path, snippet):
+    assert "sql-sin-interpolacion" in _rules(tmp_path, {"apps/x/services.py": snippet})
+
+
+def test_reportes_no_escribe_por_un_queryset_guardado(tmp_path):
+    files = {"apps/reportes/services.py": "def f():\n    qs = Intento.objects.filter(a=1)\n    qs.update(b=2)\n"}
+    assert "reportes-solo-lee" in _rules(tmp_path, files)
+
+
+def test_reportes_no_escribe_con_sql_crudo(tmp_path):
+    files = {"apps/reportes/services.py": "def f(cursor):\n    cursor.execute('DELETE FROM grupos')\n"}
+    assert "reportes-solo-lee" in _rules(tmp_path, files)
+
+
+@pytest.mark.parametrize(
+    "line", ['fields: str = "__all__"', 'fields = ("__all__",)', 'fields = ["__all__"]'],
+)
+def test_serializers_sin_all_en_sus_variantes(tmp_path, line):
+    files = {"apps/x/serializers.py": f"class S:\n    class Meta:\n        {line}\n"}
+    assert "serializers-sin-all" in _rules(tmp_path, files)
+
+
 def test_el_codigo_real_respeta_las_fronteras_con_trinquete():
     current: dict[str, set[str]] = {}
     for v in check_architecture(BACKEND):
