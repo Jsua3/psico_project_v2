@@ -47,7 +47,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             <button type="button" class="panel-back" (click)="close.emit()">
               <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
             </button>
-            <app-safe-exit-button class="panel-head__exit" data-hide-key (pause)="safeExit.emit()" />
+            <app-safe-exit-button class="panel-head__exit" data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
           </div>
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
@@ -550,6 +550,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * hasta que cambiaba el diálogo y el panel se quedaba atrapado (DLG-01).
    */
   readonly releaseToken = input(0);
+  /** Hay una salida segura pedida que espera: el botón «Salida segura» del panel dice «Pausando…» (F6-6). */
+  readonly pausing = input(false);
 
   readonly close   = output<void>();
   /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */

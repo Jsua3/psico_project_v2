@@ -100,7 +100,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
         </p>
         <div class="footer-actions">
           <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->
-          <app-safe-exit-button data-hide-key (pause)="safeExit.emit()" />
+          <app-safe-exit-button data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
           <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
             Continuar simulación
           </button>
@@ -263,6 +263,8 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 })
 export class JournalPanelComponent {
   readonly open = input(false);
+  /** Hay una salida segura pedida que espera: el botón «Salida segura» de la bitácora dice «Pausando…» (F6-6). */
+  readonly pausing = input(false);
   readonly disabled = input(false);
   readonly message = input('');
   readonly saveState = input<JournalSaveState>('idle');

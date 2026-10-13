@@ -241,11 +241,15 @@ describe('modo compacto (T10)', () => {
 
   it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda', () => {
     expect(compactCss).toMatch(/\.bottom-zone \{[^}]*flex-wrap: nowrap;[^}]*height: 56px;/);
-    expect(compactCss).toMatch(/\.safe-exit__copy kbd, \.context-bar__hint \{ display: none; \}/);
+    expect(compactCss).toMatch(/\.context-bar__hint \{ display: none; \}/);
+    // «Salida segura» es el componente compartido (F6-6): en compacto va en su variante densa, sin la pista de tecla.
+    expect(source).toMatch(/<app-safe-exit-button \[compact\]="compactMode\(\)" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>/);
   });
 
   it('los controles del pie miden al menos 44 px', () => {
-    expect(compactCss).toMatch(/\.safe-exit \{[^}]*min-height: 44px;/);
+    // «Salida segura» mide 44 px en el propio componente, también compacto (su spec lo fija).
+    expect(readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8'))
+      .toMatch(/\.safe-exit-btn \{[^}]*min-height: 44px;/);
     expect(compactCss).toMatch(/\.context-bar__interaction \{[^}]*min-height: 44px;/);
   });
 

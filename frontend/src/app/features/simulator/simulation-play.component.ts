@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -258,7 +258,7 @@ const CASE_INTRO_PARAGRAPHS = [
                   <span>Silenciar música</span>
                 </button>
                 <div class="case-intro-card__buttons">
-                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
                     Continuar
                   </button>
@@ -289,7 +289,7 @@ const CASE_INTRO_PARAGRAPHS = [
               <footer class="case-intro-card__actions">
                 <span>Lee el contexto completo antes de iniciar la intervención.</span>
                 <div class="case-intro-card__buttons">
-                  <app-safe-exit-button (pause)="pauseFromOverlay()" />
+                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                     Continuar
                   </button>
@@ -382,7 +382,7 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-                [releaseToken]="dialogueReleaseToken()"
+                [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -394,14 +394,11 @@ const CASE_INTRO_PARAGRAPHS = [
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
           [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (game.status === 'IN_PROGRESS') {
-            <!-- Sin [disabled]: con una petición en curso el toque se acepta y la pausa queda en cola (H-04).
-                 Sin aria-label: el nombre accesible sale del texto visible («Salida segura» o «Pausando…»; la
-                 tecla Esc es aria-hidden), así contiene su etiqueta visible (WCAG 2.5.3, axe label-content-name-mismatch). -->
-            <button class="safe-exit" type="button" (click)="pauseFromOverlay()"
-              [attr.aria-busy]="pausing() ? 'true' : null">
-              <mat-icon aria-hidden="true">exit_to_app</mat-icon>
-              <span class="safe-exit__copy"><strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong><kbd aria-hidden="true">Esc</kbd></span>
-            </button>
+            <!-- La misma implementación que las superposiciones (F6-6, REGLA-004). Sin [disabled]: con una petición
+                 en curso el toque se acepta y la pausa queda en cola (H-04), y el rótulo pasa a «Pausando…»
+                 (aria-busy). Sin aria-label: el nombre accesible sale del texto visible (WCAG 2.5.3, axe
+                 label-content-name-mismatch); la tecla Esc es aria-hidden. -->
+            <app-safe-exit-button [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
           }
 
           <app-tool-inventory class="tool-dock" [tools]="world()?.tools ?? []"
@@ -448,7 +445,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-            [releaseToken]="dialogueReleaseToken()"
+            [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
@@ -469,7 +466,7 @@ const CASE_INTRO_PARAGRAPHS = [
           [disabled]="game.status !== 'IN_PROGRESS' || busy()" [message]="journalMessage()"
           [saveState]="journalSaveState()"
           [timeline]="visitedStageLabels()"
-          [resources]="supportResources()"
+          [resources]="supportResources()" [pausing]="pausing()"
           (save)="saveReflection($event)" (closeSheet)="journalOpen.set(false)"
           (safeExit)="pauseFromOverlay()" />
 
@@ -696,34 +693,8 @@ const CASE_INTRO_PARAGRAPHS = [
     /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
        «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
     .bottom-zone--above-veils { z-index: 350; }
-    .safe-exit {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-      padding: 6px 14px;
-      border: 1px solid rgba(226,90,79,.4);
-      border-radius: 12px;
-      background: rgba(226,90,79,.1);
-      color: #f1a79f;
-      cursor: pointer;
-      transition: border-color 160ms, background 160ms;
-    }
-    .safe-exit:hover { border-color: rgba(226,90,79,.7); background: rgba(226,90,79,.18); }
-    .safe-exit:focus-visible { outline: 2px solid #f1a79f; outline-offset: 2px; }
-    .safe-exit:active { transform: translateY(1px); }
-    .safe-exit[aria-busy='true'] { opacity: .75; cursor: progress; }
-    .safe-exit mat-icon { font-size: 19px; width: 19px; height: 19px; }
-    .safe-exit__copy { display: grid; gap: 1px; text-align: left; }
-    .safe-exit__copy strong { font-size: .72rem; font-weight: 900; letter-spacing: .03em; }
-    .safe-exit__copy kbd {
-      font-size: .58rem; font-family: 'JetBrains Mono', monospace;
-      color: rgba(241,167,159,.7);
-    }
-    /* La tecla Esc solo se anuncia donde hay teclado y puntero fino (no se promete en táctil). */
-    @media not all and (hover: hover) and (pointer: fine) {
-      .safe-exit__copy kbd { display: none; }
-    }
+    /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
+    .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
     .context-bar {
       flex: 1;
@@ -1103,7 +1074,6 @@ const CASE_INTRO_PARAGRAPHS = [
       .tool-dock { flex: 1 1 0; }
       .context-bar { justify-content: center; flex-basis: 100%; order: 3; height: 44px; }
       .context-bar__idle { text-align: center; }
-      .safe-exit__copy strong { font-size: .66rem; }
       .case-intro-overlay { padding: 10px; }
       .case-intro-card { max-height: 90vh; border-radius: 14px; }
       .case-intro-card__actions {
@@ -1124,8 +1094,7 @@ const CASE_INTRO_PARAGRAPHS = [
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       /* Pie de altura fija de una sola fila: sin teclas ni leyenda, y el mundo no cambia de tamaño al acercarte a algo. */
       .bottom-zone { flex-wrap: nowrap; align-items: center; height: 56px; padding: 4px 12px; gap: 8px; }
-      .safe-exit { min-height: 44px; padding: 4px 10px; }
-      .safe-exit__copy kbd, .context-bar__hint { display: none; }
+      .context-bar__hint { display: none; }
       /* Las cinco herramientas conservan su sitio; la barra cede (elipsis) cuando el motivo de una puerta es largo. */
       .tool-dock { flex: 0 0 auto; }
       .context-bar { flex: 1 1 0; order: 0; height: 100%; justify-content: flex-end; }
@@ -1220,7 +1189,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
-  private readonly injector = inject(Injector);
   /** Las dos regiones vivas persistentes de la app: el juego no trae una propia (F6-12). */
   private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly notifications = inject(NotificationService);
@@ -2709,14 +2677,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.supervisionHold.set(false);
     this.announce('Se abre el resultado del caso.');
     this.playCompletionAudio();
-    // El foco queda en la sección, no en un botón: si se mantuvo Enter para cerrar la supervisión, un botón
-    // enfocado («Reintentar caso») se activaría solo con la repetición de la tecla.
-    afterNextRender(() => {
-      const section = document.querySelector<HTMLElement>('app-attempt-outcome .outcome');
-      if (!section) return;
-      section.setAttribute('tabindex', '-1');
-      section.focus({ preventScroll: true });
-    }, { injector: this.injector });
+    // El foco inicial lo toma el propio resultado, en su título y nunca en un botón (H-05): si se mantuvo Enter para
+    // cerrar la supervisión, un botón enfocado («Reintentar caso») se activaría solo con la repetición de la tecla.
   }
 
   private playCompletionAudio(): void {

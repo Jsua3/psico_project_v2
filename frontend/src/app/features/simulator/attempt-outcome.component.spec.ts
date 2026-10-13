@@ -289,6 +289,136 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     expect(host().querySelector('section')).toBeNull();
   });
 
+  // F6-6 (H-05, WCAG 4.1.3 y 2.4.3; RN-01 en borrador): el resultado es un diálogo modal de verdad.
+  describe('resultado accesible (F6-6)', () => {
+    // req: BLOQUE-H (H-05), REGLA-004, RNF-04
+    it('es modal en todos los estados: aria-modal y trampa de foco (no solo en la pausa)', async () => {
+      for (const status of ['COMPLETED', 'SAFE_EXITED', 'REPLACED', 'PAUSED'] as const) {
+        render(status);
+        await fixture.whenStable();
+        const dialog = host().querySelector('[role="alertdialog"]') as HTMLElement;
+        expect(dialog.getAttribute('aria-modal'), status).toBe('true');
+        expect(host().querySelectorAll('.cdk-focus-trap-anchor').length, `${status}: trampa de foco`).toBe(2);
+        fixture.destroy();
+        TestBed.resetTestingModule();
+      }
+    });
+
+    it('el foco inicial va al título (que lleva tabindex −1) cuando el intento terminó', async () => {
+      render('COMPLETED');
+      await fixture.whenStable();
+      const title = host().querySelector('#outcome-title') as HTMLElement;
+      expect(title.getAttribute('tabindex')).toBe('-1');
+      expect(document.activeElement).toBe(title);
+      // Nunca a un botón: un Enter mantenido al cerrar la supervisión activaría «Reintentar caso».
+      expect((document.activeElement as HTMLElement).tagName).not.toBe('BUTTON');
+    });
+
+    it('en pausa el foco sigue en «Reanudar este intento»: lo primero es poder volver', async () => {
+      render('PAUSED');
+      await fixture.whenStable();
+      expect(document.activeElement).toBe(host().querySelector('button.oc-btn--go'));
+    });
+
+    it('al reanudar el foco vuelve a donde estaba antes de la pausa, y si ese elemento ya no está, al juego', async () => {
+      const before = document.createElement('button');
+      before.textContent = 'Salida segura';
+      document.body.appendChild(before);
+      before.focus();
+      render('PAUSED');
+      await fixture.whenStable();
+      expect(document.activeElement).not.toBe(before);
+
+      writeInputSignal(component.status, 'IN_PROGRESS');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(document.activeElement).toBe(before);
+
+      // El elemento desapareció (p. ej. el pie se repintó): el foco cae a un elemento visible del juego, nunca a <body>.
+      // El mundo (#game-area) es un contenedor sin tabindex: no puede recibirlo y se sigue con #main-content.
+      const area = document.createElement('div');
+      area.id = 'game-area';
+      document.body.appendChild(area);
+      const container = document.createElement('div');
+      container.id = 'main-content';
+      container.tabIndex = -1;
+      document.body.appendChild(container);
+      before.remove();
+      const gone = document.createElement('button');
+      document.body.appendChild(gone);
+      gone.focus();
+      writeInputSignal(component.status, 'PAUSED');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      gone.remove();
+      writeInputSignal(component.status, 'IN_PROGRESS');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(document.activeElement).toBe(container);
+      container.remove();
+      area.remove();
+    });
+
+    it('lleva el aviso de alcance (RN-01, borrador) fuera de los textos validados y no en la pausa calmada', () => {
+      render('COMPLETED');
+      expect(host().querySelector('ui-scope-notice')).not.toBeNull();
+      expect(host().querySelector('ui-scope-notice')!.closest('.oc-ending, .oc-pause-copy, .oc-actions')).toBeNull();
+      fixture.destroy();
+      TestBed.resetTestingModule();
+      render('PAUSED');
+      // En la pausa solo está dentro del seguimiento plegado: lo primero a la vista son las acciones.
+      expect(host().querySelector('section > ui-scope-notice')).toBeNull();
+    });
+
+    it('los textos congelados no cambian', () => {
+      render('COMPLETED');
+      expect(component.eyebrow('COMPLETED')).toBe('¡Simulación completada!');
+      expect(host().textContent).toContain('Puntaje total');
+      fixture.destroy();
+      TestBed.resetTestingModule();
+      render('PAUSED');
+      expect(text(host().querySelector('#outcome-title'))).toBe('Tu caso está en pausa');
+      expect(component.pauseMessage)
+        .toBe('Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.');
+      expect(text(host().querySelector('button.oc-btn--go'))).toBe('Reanudar este intento');
+    });
+  });
+
+  describe('forma (F6-6)', () => {
+    const rule = (selector: string) => {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return source.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    };
+    const rem = (selector: string) => Number(/font-size:\s*([0-9.]+)rem/.exec(rule(selector))?.[1]);
+
+    it('las acciones tienen hover protegido para híbridos y estilo de pulsado', () => {
+      expect(source).not.toMatch(/\n {4}\.oc-btn[^{]*:hover/); // a nivel de hoja, sin la consulta
+      expect(source).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{[\s\S]*?\.oc-btn:hover \{/);
+      expect(source).toMatch(/\.oc-btn:active \{ transform: translateY\(1px\); \}/);
+    });
+
+    it('ningún rótulo del resultado baja de 12 px', () => {
+      for (const selector of ['.oc-label', '.oc-eyebrow', '.oc-chip, .oc-tag', '.oc-tl__delta', '.oc-bar__k']) {
+        const size = selector === '.oc-chip, .oc-tag'
+          ? Number(/font-size:\s*([0-9.]+)rem/.exec(source.match(/\.oc-chip, \.oc-tag \{([^}]*)\}/)?.[1] ?? '')?.[1])
+          : rem(selector);
+        expect(size * 16, selector).toBeGreaterThanOrEqual(12);
+      }
+      // Las etiquetas de las métricas son un selector compuesto (`.oc-metric span`).
+      const metricLabel = Number(/font-size:\s*([0-9.]+)rem/.exec(source.match(/\.oc-metric span \{([^}]*)\}/)?.[1] ?? '')?.[1]);
+      expect(metricLabel * 16, '.oc-metric span').toBeGreaterThanOrEqual(12);
+    });
+
+    it('a 360 px las métricas, la barra y la línea de tiempo caben en una columna útil (sin desplazamiento horizontal)', () => {
+      const narrow = source.match(/@media \(max-width: 480px\) \{([\s\S]*?)\n    \}/)?.[1] ?? '';
+      expect(narrow).toMatch(/\.oc-metrics \{[^}]*grid-template-columns: repeat\(2, minmax\(0, ?1fr\)\)/);
+      expect(narrow).toMatch(/\.oc-bar \{[^}]*grid-template-columns: [^;}]*minmax\(0, ?\d+px\)/);
+      expect(narrow).toMatch(/\.oc-tl \{[^}]*grid-template-columns: \d+px minmax\(0, ?1fr\)/);
+      expect(narrow).toMatch(/\.oc-tl__delta \{[^}]*grid-column: 2/);
+      expect(narrow).toMatch(/\.oc-actions \{[^}]*flex-direction: column/);
+    });
+  });
+
   describe('respuestas reconsideradas (L-03)', () => {
     const chips = () => Array.from(host().querySelectorAll('.oc-chip')).map(el => text(el));
 

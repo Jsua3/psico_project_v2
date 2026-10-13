@@ -92,8 +92,12 @@ async function assertSafeExitPauses(page: Page, state: string, viewport: { width
   // click() falla si otra capa tapa el centro del botón: «operativo» incluye que se pueda tocar.
   await exit.click({ timeout: scaled(10_000) });
   expect((await paused).ok(), `${state}: el servidor debe aceptar la pausa`).toBe(true);
-  await expect(page.getByRole('alertdialog', { name: /pausa/i }), `${state}: debe aparecer la pausa`)
-    .toBeVisible({ timeout: scaled(30_000) });
+  const pauseDialog = page.getByRole('alertdialog', { name: /pausa/i });
+  await expect(pauseDialog, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(30_000) });
+  // F6-6 (H-05): el resultado es un diálogo modal y la pausa lleva el foco a «Reanudar este intento».
+  await expect(pauseDialog, `${state}: la pausa es modal`).toHaveAttribute('aria-modal', 'true');
+  await expect(page.getByRole('button', { name: /reanudar este intento/i }), `${state}: el foco entra a «Reanudar»`)
+    .toBeFocused();
 
   const resumed = page.waitForResponse(response =>
     response.request().method() === 'POST'
@@ -101,7 +105,12 @@ async function assertSafeExitPauses(page: Page, state: string, viewport: { width
   { timeout: scaled(30_000) });
   await page.getByRole('button', { name: /reanudar este intento/i }).click();
   expect((await resumed).ok(), `${state}: reanudar debe funcionar`).toBe(true);
-  await expect(page.getByRole('alertdialog', { name: /pausa/i })).toBeHidden({ timeout: scaled(30_000) });
+  await expect(pauseDialog).toBeHidden({ timeout: scaled(30_000) });
+  // Al reanudar el foco vuelve a un elemento del juego (o a la tarjeta que reaparece): nunca queda en <body>.
+  await expect.poll(
+    () => page.evaluate(() => !!document.activeElement && document.activeElement !== document.body),
+    { message: `${state}: el foco no queda perdido en <body> tras reanudar`, timeout: scaled(5_000) },
+  ).toBe(true);
 }
 
 /** Tras reanudar desde la introducción o el contexto reaparece lo que no se había leído: se avanza hasta el mundo. */

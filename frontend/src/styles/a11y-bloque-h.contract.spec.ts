@@ -72,11 +72,16 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
     expect(contrastRatio(ring, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
-  it('el anillo del botón de salida segura llega a 3:1', () => {
-    // Antes: rgba(226,90,79,.6) = 2,55:1.
-    const ring = play.match(/\.safe-exit:focus-visible \{ outline: 2px solid (#[0-9A-Fa-f]{6}); outline-offset: 2px; \}/)?.[1] ?? '';
-    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(contrastRatio(ring, GAME_BG)).toBeGreaterThanOrEqual(3);
+  it('el botón de salida segura no pinta un anillo propio y el global de la piel llega a 3:1', () => {
+    // Antes: rgba(226,90,79,.6) = 2,55:1 y luego un anillo local #f1a79f de 2 px que anulaba el global (F6-6).
+    expect(source('../app/features/simulator/safe-exit-button.component.ts')).not.toContain(':focus-visible');
+    expect(play).not.toMatch(/\.safe-exit[\w-]*:focus-visible/);
+    // El foco de la piel juego es el segundo «focus:» de los tokens de color (el primero es el del portal).
+    const focusTokens = [...source('tokens/_color.scss').matchAll(/focus: (#[0-9A-Fa-f]{6}),/g)].map(match => match[1]);
+    const gameRing = focusTokens[1];
+    expect(gameRing).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(gameRing, GAME_BG)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(gameRing, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
   it('el nombre del hablante de una advertencia llega a 4,5:1', () => {
