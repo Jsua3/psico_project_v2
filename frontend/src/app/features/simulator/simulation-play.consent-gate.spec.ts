@@ -13,12 +13,15 @@ vi.mock('phaser', () => ({
 }));
 
 import { TestBed } from '@angular/core/testing';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { EMPTY, of, Subject, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { DialogueState, MapObjectState, NpcConfig, SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AudioDirectorService } from './audio-director.service';
 import { CONSENT_RECORDER, ConsentRecorder } from './consent-recorder';
 import { SimulationPlayComponent } from './simulation-play.component';
@@ -144,6 +147,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   afterEach(() => {
     component?.ngOnDestroy(); // cancela los temporizadores pendientes antes de que se desmonte el entorno
     sessionStorage.clear();
+    localStorage.removeItem('siep.atajos.v1'); // el ajuste «Atajos de una tecla» no se filtra entre pruebas
     TestBed.resetTestingModule();
   });
 
@@ -378,16 +382,75 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     });
   });
 
-  it('mantiene el atajo J aunque el foco venga del botón que cerró un overlay', () => {
-    setup(makeAttempt());
-    const button = document.createElement('button');
-    const event = new KeyboardEvent('keydown', { key: 'j', cancelable: true });
-    Object.defineProperty(event, 'target', { value: button });
+  describe('atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
+    // req: BLOQUE-H (H-07), RNF-04
+    function keyOn(target: Element | null, key: string): KeyboardEvent {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true });
+      Object.defineProperty(event, 'target', { value: target });
+      return event;
+    }
 
-    component.handleGlobalInteraction(event);
+    it('activos, la J abre la bitácora con el foco en el juego (cuerpo) y la cierra', () => {
+      setup(makeAttempt());
+      const event = keyOn(document.body, 'j');
+      component.handleGlobalInteraction(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(component.journalOpen()).toBe(true);
+    });
 
-    expect(event.defaultPrevented).toBe(true);
-    expect(component.journalOpen()).toBe(true);
+    it('con el foco en un botón la J no hace nada: el atajo no actúa por detrás de un control', () => {
+      setup(makeAttempt());
+      const event = keyOn(document.createElement('button'), 'j');
+      component.handleGlobalInteraction(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(component.journalOpen()).toBe(false);
+    });
+
+    it('con el foco en un campo de texto la J y la E no hacen nada', () => {
+      setup(makeAttempt());
+      component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+      const open = vi.spyOn(component, 'openInteraction');
+      const field = document.createElement('textarea');
+      for (const key of ['j', 'e']) component.handleGlobalInteraction(keyOn(field, key));
+      expect(component.journalOpen()).toBe(false);
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('apagados, ni la J ni la E actúan aunque el foco esté en el juego', () => {
+      setup(makeAttempt());
+      TestBed.inject(ShortcutSettings).set(false);
+      component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+      const open = vi.spyOn(component, 'openInteraction');
+      const journal = keyOn(document.body, 'j');
+      const interact = keyOn(document.body, 'e');
+      component.handleGlobalInteraction(journal);
+      component.handleGlobalInteraction(interact);
+      expect(journal.defaultPrevented).toBe(false);
+      expect(interact.defaultPrevented).toBe(false);
+      expect(component.journalOpen()).toBe(false);
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('apagados, Enter sigue interactuando y Esc sigue su cadena (cierra la bitácora)', () => {
+      setup(makeAttempt());
+      TestBed.inject(ShortcutSettings).set(false);
+      component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
+      const open = vi.spyOn(component, 'openInteraction');
+      component.handleGlobalInteraction(keyOn(document.body, 'Enter'));
+      expect(open).toHaveBeenCalledTimes(1);
+
+      component.journalOpen.set(true);
+      const escape = keyOn(document.body, 'Escape');
+      component.handleGlobalInteraction(escape);
+      expect(escape.defaultPrevented).toBe(true);
+      expect(component.journalOpen()).toBe(false);
+    });
+
+    it('las pistas de tecla salen del ajuste: apagados prometen flechas y Enter, no WASD, E ni J', () => {
+      const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+      expect(source).toContain('Flechas mover · <kbd>Enter</kbd> interactuar · <kbd>Esc</kbd> salida segura');
+      expect(source).toContain('WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura');
+    });
   });
 
   it('no autocierra un feedback de herramienta antes de que el usuario lea sus líneas', () => {

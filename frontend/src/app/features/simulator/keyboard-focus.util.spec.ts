@@ -2,6 +2,7 @@ import {
   attachScrollKeyGuard,
   isActivatableTarget,
   isScrollRegionTarget,
+  isShortcutContext,
   isTextEntryTarget,
   OutsideAngularRunner,
   resolveInteractPress,
@@ -107,6 +108,10 @@ describe('keyboard-focus.util', () => {
       expect(isScrollRegionTarget(region('<div tabindex="0" role="region"></div>', true))).toBe(true);
     });
 
+    it('el host del juego (role="application") nunca es una región de lectura, aunque desborde', () => {
+      expect(isScrollRegionTarget(region('<div tabindex="0" role="application"></div>', true))).toBe(false);
+    });
+
     it('es false sin desborde, sin tabindex, con tabindex -1, en el cuerpo y en null', () => {
       expect(isScrollRegionTarget(region('<div tabindex="0"></div>', false))).toBe(false);
       expect(isScrollRegionTarget(region('<div></div>', true))).toBe(false);
@@ -116,6 +121,46 @@ describe('keyboard-focus.util', () => {
     });
   });
 
+  describe('isShortcutContext (F6-10, WCAG 2.1.4)', () => {
+    // req: BLOQUE-H (H-07), RNF-04
+    it('el cuerpo, el documento y nada enfocado son el juego: los atajos actúan', () => {
+      expect(isShortcutContext(null)).toBe(true);
+      expect(isShortcutContext(document.body)).toBe(true);
+      expect(isShortcutContext(document.documentElement)).toBe(true);
+    });
+
+    it('el host del juego (role="application", tabindex 0, aunque desborde) es el juego', () => {
+      const host = el('<div role="application" tabindex="0"></div>');
+      Object.defineProperty(host, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 120 });
+      expect(isShortcutContext(host)).toBe(true);
+    });
+
+    it('un contenedor del propio juego (tabindex -1, sin rol) también es el juego', () => {
+      expect(isShortcutContext(el('<div id="main-content" tabindex="-1"></div>'))).toBe(true);
+      expect(isShortcutContext(el('<canvas></canvas>'))).toBe(true);
+    });
+
+    it('con el foco en un campo, un botón o un enlace no actúan', () => {
+      for (const html of ['<textarea></textarea>', '<input type="text">', '<select></select>', '<button></button>', '<a href="/x"></a>']) {
+        expect(isShortcutContext(el(html)), html).toBe(false);
+      }
+    });
+
+    it('con el foco dentro de un diálogo, un menú, una barra de herramientas o un popover no actúan', () => {
+      for (const wrapper of ['<div role="dialog">', '<div role="alertdialog">', '<div role="menu">', '<div role="toolbar">', '<div popover>']) {
+        const host = el(wrapper + '<span tabindex="-1" id="inner"></span></div>');
+        expect(isShortcutContext(host.querySelector('#inner')), wrapper).toBe(false);
+      }
+    });
+
+    it('con el foco en una región con scroll no actúan (las flechas y las teclas son suyas)', () => {
+      const area = el('<div tabindex="0"></div>');
+      Object.defineProperty(area, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(area, 'scrollHeight', { configurable: true, value: 400 });
+      expect(isShortcutContext(area)).toBe(false);
+    });
+  });
   describe('shouldBlockScrollKey', () => {
     it('no bloquea las flechas con el foco en una región con scroll: la desplazan (H-12)', () => {
       const area = document.createElement('div');

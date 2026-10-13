@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
@@ -550,6 +551,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly close   = output<void>();
   /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
   protected readonly decisionLabel = DRAFT_COPY.decisionLabel.text;
+  private readonly shortcuts = inject(ShortcutSettings);
   /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */
   readonly safeExit = output<void>();
   readonly execute = output<number>();
@@ -710,10 +712,10 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return null;
   }
 
-  /** Pista de teclado (solo se pinta con puntero fino). */
+  /** Pista de teclado (solo se pinta con puntero fino); sin los atajos de una tecla no promete los números. */
   keyboardHint(d: DialogueState): string {
     const count = this.hasChoices(d) ? d.choices.length : 0;
-    if (count === 0) return 'Enter: continuar · Esc: volver al mapa';
+    if (count === 0 || !this.shortcuts.enabled()) return 'Enter: continuar · Esc: volver al mapa';
     const range = count === 1 ? '1' : `1 a ${count}`;
     return `Enter: continuar · ${range}: elegir · Esc: volver al mapa`;
   }
@@ -736,13 +738,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     // La cabecera conserva su propia activación: sin esto, Enter o Espacio sobre «Volver al mapa»
     // o «Salida segura» avanzarían el texto y el preventDefault cancelaría el clic nativo.
     if (e.key !== 'Escape' && (e.target as HTMLElement | null)?.closest?.('.panel-head')) return;
-    const action = dialogueKeyAction(
+    let action = dialogueKeyAction(
       e.key,
       this.isTypingComplete(),
       this.isLastLine(),
       this.hasChoices(d) ? d.choices.length : 0,
       e.repeat,
     );
+    // Los números de las opciones son atajos de una tecla (F6-10, WCAG 2.1.4): apagados, ni eligen ni se consumen.
+    if (action === 'choose' && !this.shortcuts.enabled()) action = 'none';
 
     if (action === 'none') return;
     e.preventDefault();

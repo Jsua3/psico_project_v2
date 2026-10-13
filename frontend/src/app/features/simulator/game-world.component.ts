@@ -69,7 +69,7 @@ import {
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
-import { attachScrollKeyGuard, isScrollRegionTarget, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
@@ -228,6 +228,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private hoverLabel?: Phaser.GameObjects.Text;
   /** Lo ya examinado (objetos inspeccionados y personas con las que ya habló): se resalta aunque esté lejos. */
   private examinedKeys: ReadonlySet<string> = NO_KEYS;
+  /** «Atajos de una tecla» activos (F6-10): con ellos apagados WASD y E no hacen nada; flechas, Enter y Espacio siguen. */
+  private shortcutsEnabled = true;
   /** Caminata pedida con un clic (F6-7): sus «teclas» salen de `tickWalk` y pasan por el movimiento de siempre. */
   private walk: WalkState = NO_WALK;
   /** Destino pedido con «Ir a…» (F6-11): al llegar o rendirse la escena lo avisa; un clic o una tecla lo sueltan. */
@@ -443,11 +445,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const focus = document.activeElement;
     // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
     const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
+    // Las letras (WASD y E) solo con el ajuste activo y con el foco en el juego o en el cuerpo (F6-10, WCAG 2.1.4).
+    const letters = this.shortcutsEnabled && isShortcutContext(focus);
     const keyInput: PlayerMotionInput = heldInput({
-      left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
-      right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),
-      up:    !typing && (this.cursors.up.isDown    || this.keys['W'].isDown),
-      down:  !typing && (this.cursors.down.isDown  || this.keys['S'].isDown),
+      left:  !typing && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
+      right: !typing && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
+      up:    !typing && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
+      down:  !typing && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
     }, this.heldDirection, this.time.now - this.heldSince);
     // Caminata del ratón (F6-7): el teclado o la cruceta mandan sobre el destino y una capa abierta lo suelta.
     // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.
@@ -507,12 +511,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
     // en true hasta que alguien lo lee, y una «e» escrita en la bitácora dispararía
     // `interactNearest()` en cuanto el foco saliera del campo.
+    // La E se lee SIEMPRE (como las otras dos) y después se enmascara: sin leerla quedaría latente.
+    const justE = Phaser.Input.Keyboard.JustDown(this.keys['E']);
     const pressed = resolveInteractPress(focus, {
-      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      e: justE && letters,
       space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
       enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
     });
     // El toque corto cuenta igual que `JustDown` (mismas reglas de foco) y se consume en este cuadro.
+    if (!letters) this.tappedKeys.e = false;
     const tapped = resolveInteractPress(focus, this.tappedKeys);
     this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
     // Una pulsación durante el enfriamiento espera a que termine (como cuando JustDown
@@ -849,6 +856,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Puntero táctil o ventana compacta: rótulos mínimos (destino y el más cercano). */
   setCompactLabels(compact: boolean): void {
     this.compactLabels = compact || this.touchPointer();
+  }
+
+  /** «Atajos de una tecla» activos o no (F6-10): llega de Angular. */
+  setShortcutsEnabled(enabled: boolean): void {
+    this.shortcutsEnabled = enabled;
   }
 
   /** Lo ya examinado llega de Angular: objetos inspeccionados y personas con las que ya se habló (`npc:{clave}`). */
@@ -2811,6 +2823,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly guide = input<SceneGuideEntry | null>(null);
   /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
   readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
+  /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): con false WASD y E no hacen nada en el mundo. */
+  readonly shortcuts = input(true);
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
@@ -2905,6 +2919,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene?.setWorld(this.world()!);
     }
     if (changes['world'] || changes['viewedNpcKeys']) this.pushExamined();
+    if (changes['shortcuts']) this.scene?.setShortcutsEnabled(this.shortcuts());
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
@@ -3112,6 +3127,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene?.setSfxMuted(this.sfxMuted());
       this.scene?.setReduceMotion(this.effectiveReduceMotion());
       this.scene?.setCompactLabels(this.compact());
+      this.scene?.setShortcutsEnabled(this.shortcuts());
       this.pushExamined();
       this.pushOrientation();
     }, 0);

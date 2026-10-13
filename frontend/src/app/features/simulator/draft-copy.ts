@@ -86,6 +86,16 @@ export const DRAFT_COPY = {
     where: 'Anuncio a lectores de pantalla si «Ir a…» no pudo llegar',
     text: 'No se pudo llegar a',
   },
+  /**
+   * Nota de la pantalla de ayuda sobre los atajos de una tecla (F6-10, VD-18): FUERA del bloque validado de la ayuda,
+   * que no cambia ni un byte. Dice que se pueden apagar y dónde.
+   */
+  shortcutsHelpNote: {
+    decision: 'VD-18',
+    owner: 'Psicología',
+    where: 'Pantalla de ayuda: nota sobre los atajos de una tecla (fuera del bloque validado)',
+    text: 'Los atajos de una tecla (J, E, WASD y los números de las opciones) se pueden apagar en Ajustes, en «Atajos de una tecla».',
+  },
   /** Cuando el navegador no deja registrar el consentimiento (F6-2, ETH-01): no se arranca nada y se puede reintentar. */
   consentStorageError: {
     decision: 'ETH-01',

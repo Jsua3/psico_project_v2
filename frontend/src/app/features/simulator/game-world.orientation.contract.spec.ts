@@ -145,6 +145,24 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
   });
 });
 
+describe('game-world: atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
+  // req: BLOQUE-H (H-07)
+  it('WASD y E solo con el ajuste activo y con el foco en el juego; flechas, Enter y Espacio no dependen de él', () => {
+    expect(source).toContain('const letters = this.shortcutsEnabled && isShortcutContext(focus);');
+    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
+    expect(source).toMatch(/up:    !typing && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
+    expect(source).toContain('e: justE && letters,');
+    expect(source).toContain('if (!letters) this.tappedKeys.e = false;');
+    // Enter y Espacio siguen sin pasar por «letters».
+    expect(source).toMatch(/space: Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['SPACE'\]\),\s*enter: Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['ENTER'\]\),/);
+  });
+
+  it('el ajuste llega a la escena al arrancar y al cambiar', () => {
+    expect(source).toContain("if (changes['shortcuts']) this.scene?.setShortcutsEnabled(this.shortcuts());");
+    expect(source).toContain('this.scene?.setShortcutsEnabled(this.shortcuts());');
+  });
+});
+
 describe('game-world: «Ir a…» (F6-11)', () => {
   // req: BLOQUE-H H-06, DM-5.8
   it('los candidatos son solo clave, nombre y tipo: nada clínico ni la clasificación de una opción', () => {

@@ -126,8 +126,8 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
               </button>
               <button type="button" class="hud-action" [class.hud-action--active]="journalOpen()"
                 (click)="toggleJournal.emit()"
-                [attr.aria-label]="coarsePointer() ? 'Abrir bitácora reflexiva' : 'Abrir bitácora reflexiva (J)'"
-                [title]="coarsePointer() ? 'Bitácora' : 'Bitácora (J)'">
+                [attr.aria-label]="journalKey() ? 'Abrir bitácora reflexiva (J)' : 'Abrir bitácora reflexiva'"
+                [title]="journalKey() ? 'Bitácora (J)' : 'Bitácora'">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
               <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
@@ -162,10 +162,16 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                     <span>Movimiento reducido</span>
                     <strong>{{ reduceMotion() ? 'On' : 'Off' }}</strong>
                   </button>
+                  <!-- WCAG 2.1.4 (F6-10): las teclas de una letra o un número se pueden apagar. -->
+                  <button type="button" [attr.aria-pressed]="shortcuts()" (click)="toggleShortcuts.emit()">
+                    <mat-icon aria-hidden="true">accessibility</mat-icon>
+                    <span>Atajos de una tecla</span>
+                    <strong>{{ shortcuts() ? 'On' : 'Off' }}</strong>
+                  </button>
                   <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
                     <mat-icon aria-hidden="true">menu_book</mat-icon>
                     <span>Bitácora</span>
-                    <strong>{{ coarsePointer() ? '' : 'J' }}</strong>
+                    <strong>{{ journalKey() ? 'J' : '' }}</strong>
                   </button>
                   <button type="button" (click)="showHelp()">
                     <mat-icon aria-hidden="true">help_outline</mat-icon>
@@ -398,6 +404,9 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       text-decoration: none;
       cursor: pointer;
     }
+    /* Responde al presionar: todas las filas de Ajustes (botones y el enlace al catálogo). */
+    .settings-menu > button:active,
+    .settings-menu > a:active { transform: translateY(1px); }
     @media (hover: hover) and (pointer: fine) {
       .settings-menu > button:hover,
       .settings-menu > a:hover {
@@ -505,6 +514,10 @@ export class SimulationHudComponent {
   readonly musicMuted = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input(false);
+  /** «Atajos de una tecla» activos (F6-10, WCAG 2.1.4): con ellos apagados ningún texto promete la J. */
+  readonly shortcuts = input(true);
+  /** La bitácora se anuncia con su tecla solo donde hay teclado y los atajos están activos. */
+  readonly journalKey = computed(() => !this.coarsePointer() && this.shortcuts());
   readonly settingsOpen = signal(false);
   /** Sin teclado de por medio: los nombres accesibles y textos de este HUD no prometen atajos (J). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
@@ -520,6 +533,7 @@ export class SimulationHudComponent {
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();
+  readonly toggleShortcuts = output<void>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);

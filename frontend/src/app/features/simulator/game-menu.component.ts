@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { SimulationService } from '../../core/api/simulation.service';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { CatalogItem } from '../../core/models/simulation.model';
 import { AvatarStore } from '../character/avatar.store';
 import { toAvatarV2 } from '../character/kit/avatar-v2';
@@ -14,7 +15,7 @@ import {
   LOBBY_BLEED, LOBBY_DOOR_RANGE, LOBBY_ROOM, lobbyDoorCursor, lobbyFacadeBand, lobbyMotion, lobbyPose, nearestLobbyDoor,
 } from './lobby-avatar.util';
 import { LOBBY_DOOR_Y, lobbyDoorLayout } from './lobby-door-layout.util';
-import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { attachScrollKeyGuard, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -31,6 +32,8 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { lockReason } from './case-lock.util';
 
 interface MenuCallbacks {
+  /** Los «Atajos de una tecla» siguen activos (F6-10): con false A, D y E no hacen nada en el lobby. */
+  shortcutsEnabled?: () => boolean;
   onEnter: (caseVersionId: number) => void;
   onFocus: (item: CatalogItem | null) => void;
   /** La sala ya está pintada: termina la única señal de carga (F5-3). */
@@ -38,8 +41,9 @@ interface MenuCallbacks {
 }
 
 /** Recordatorio de teclas que Phaser pinta en una esquina del lobby; sin teclado (puntero grueso) no se pinta. */
-export function lobbyKeyboardHint(coarsePointer: boolean): string | null {
-  return coarsePointer ? null : '← → / A D  mover · E entrar';
+export function lobbyKeyboardHint(coarsePointer: boolean, shortcuts = true): string | null {
+  if (coarsePointer) return null;
+  return shortcuts ? '← → / A D  mover · E entrar' : '← →  mover · Enter entrar';
 }
 
 export class ClinicMenuScene extends Phaser.Scene {
@@ -190,9 +194,11 @@ export class ClinicMenuScene extends Phaser.Scene {
     // El foco se lee una vez por cuadro: escribiendo, el jugador no camina ni interactúa.
     const focus = document.activeElement;
     const typing = isTextEntryTarget(focus);
+    // A, D y E son atajos de una tecla (F6-10): apagables y solo con el foco en la sala o en el cuerpo (WCAG 2.1.4).
+    const letters = (this.cb.shortcutsEnabled?.() ?? true) && isShortcutContext(focus);
     let vx = 0;
-    if (!typing && (this.cursors?.left?.isDown || this.keys['A']?.isDown)) vx -= speed;
-    if (!typing && (this.cursors?.right?.isDown || this.keys['D']?.isDown)) vx += speed;
+    if (!typing && (this.cursors?.left?.isDown || (letters && this.keys['A']?.isDown))) vx -= speed;
+    if (!typing && (this.cursors?.right?.isDown || (letters && this.keys['D']?.isDown))) vx += speed;
     if (vx !== 0) {
       this.pointerTargetX = null;  // el teclado manda sobre el destino táctil
     } else if (this.pointerTargetX !== null) {
@@ -223,8 +229,9 @@ export class ClinicMenuScene extends Phaser.Scene {
     // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
     // en true hasta que alguien lo lee. Con foco en un botón, Espacio y Enter los activa el
     // navegador (una sola navegación); E sigue siendo del juego.
+    const justE = Phaser.Input.Keyboard.JustDown(this.keys['E']); // se lee siempre y después se enmascara
     const pressed = resolveInteractPress(focus, {
-      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      e: justE && letters,
       space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
       enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
     });
@@ -296,7 +303,7 @@ export class ClinicMenuScene extends Phaser.Scene {
                misma navegación única que la tecla E. -->
           <button ui-button class="banner-enter" type="button" variant="primary"
             [disabledReason]="lockReasonOf(f)" [loading]="!!entering()" (click)="enter(f.caseVersionId)">
-            {{ f.unlocked ? (coarsePointer() ? 'Entrar al caso' : 'Entrar al caso (E)') : 'Bloqueado' }}
+            {{ f.unlocked ? (keyboardHint() && shortcuts.enabled() ? 'Entrar al caso (E)' : 'Entrar al caso') : 'Bloqueado' }}
           </button>
         </div>
       }
@@ -383,6 +390,8 @@ export class ClinicMenuScene extends Phaser.Scene {
 })
 export class GameMenuComponent implements OnDestroy {
   private readonly sim = inject(SimulationService);
+  /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): A, D y E del lobby; apagables. */
+  protected readonly shortcuts = inject(ShortcutSettings);
   private readonly router = inject(Router);
   private readonly zone = inject(NgZone);
   private readonly avatarStore = inject(AvatarStore);
@@ -403,14 +412,19 @@ export class GameMenuComponent implements OnDestroy {
   readonly entering = signal<string>('');
   /** Sin teclado: se quitan los textos que prometen teclas (la lectura es puntual, el lobby no cambia de puntero). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
-  readonly keyboardHint = computed(() => lobbyKeyboardHint(this.coarsePointer()));
+  readonly keyboardHint = computed(() => lobbyKeyboardHint(this.coarsePointer(), this.shortcuts.enabled()));
   readonly helpOpen = signal(false);
   readonly helpModality = computed<HelpModality>(() => this.coarsePointer() ? 'touch' : 'keyboard');
   /** Misma bandera que el juego: la promesa de «Salida segura» solo se escribe cuando es cierta en todos los estados. */
   protected readonly safeExitPromise = SAFE_EXIT_ALWAYS_REACHABLE;
-  readonly hostLabel = computed(() => this.coarsePointer()
-    ? 'Menú de casos. Toca el suelo para caminar hasta una puerta disponible y usa el botón «Entrar al caso».'
-    : 'Menú de casos. Flechas o A/D para moverte, toca el suelo para caminar, E para entrar a una puerta disponible.');
+  readonly hostLabel = computed(() => {
+    if (this.coarsePointer()) {
+      return 'Menú de casos. Toca el suelo para caminar hasta una puerta disponible y usa el botón «Entrar al caso».';
+    }
+    return this.shortcuts.enabled()
+      ? 'Menú de casos. Flechas o A/D para moverte, toca el suelo para caminar, E para entrar a una puerta disponible.'
+      : 'Menú de casos. Flechas para moverte, toca el suelo para caminar, Enter para entrar a una puerta disponible.';
+  });
 
   private game?: Phaser.Game;
   /** Retira el bloqueo de desplazamiento por teclado (flechas y Espacio) de `window`. */
@@ -496,6 +510,7 @@ export class GameMenuComponent implements OnDestroy {
   /** Crea la escena y el juego fuera de Angular; lanza si Phaser no puede arrancar (lo recoge `boot`). */
   private startGame(items: CatalogItem[], visual: CharacterVisual | null, reduceMotion: boolean) {
     const scene = new ClinicMenuScene(items, visual, reduceMotion, {
+      shortcutsEnabled: () => this.shortcuts.enabled(),
       onEnter: id => this.zone.run(() => this.enter(id)),
       onFocus: item => this.zone.run(() => this.focused.set(item)),
       onReady: () => this.zone.run(() => this.phase.set('ready')),

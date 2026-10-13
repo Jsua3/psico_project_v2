@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
@@ -592,6 +593,33 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true }));
     vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(2);
+  });
+
+  // req: BLOQUE-H (H-07), WCAG 2.1.4
+  it('con los atajos de una tecla apagados los dígitos no eligen ni se consumen', () => {
+    TestBed.inject(ShortcutSettings).set(false);
+    try {
+      const execute = vi.fn();
+      component.execute.subscribe(execute);
+      const event = new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      vi.advanceTimersByTime(600);
+      expect(execute).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      localStorage.removeItem('siep.atajos.v1');
+    }
+  });
+
+  it('apagados, la pista de teclado no promete los números; activos sí', () => {
+    const settings = TestBed.inject(ShortcutSettings);
+    try {
+      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · 1 a 2: elegir · Esc: volver al mapa');
+      settings.set(false);
+      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · Esc: volver al mapa');
+    } finally {
+      localStorage.removeItem('siep.atajos.v1');
+    }
   });
 });
 

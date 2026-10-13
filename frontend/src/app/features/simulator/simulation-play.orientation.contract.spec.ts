@@ -138,7 +138,8 @@ describe('barra contextual (T9.3, T9.5)', () => {
   });
 
   it('la <kbd> «E» del botón no se pinta en modo compacto ni sin puntero fino', () => {
-    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">E<\/kbd> \}/);
+    // La tecla que se rotula sale del ajuste «Atajos de una tecla» (F6-10): E con ellos activos, Enter sin ellos.
+    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">\{\{ shortcuts\.enabled\(\) \? 'E' : 'Enter' \}\}<\/kbd> \}/);
     expect(source).toMatch(/@media not all and \(hover: hover\) and \(pointer: fine\) \{\s*\.context-bar__interaction kbd \{ display: none; \}/);
   });
 

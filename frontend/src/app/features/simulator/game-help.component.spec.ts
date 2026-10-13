@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { blend, contrastRatio } from '../../../styles/contrast.util';
+import { DRAFT_COPY } from './draft-copy';
 import { GameHelpComponent } from './game-help.component';
 import { HelpModality, firstTimeHelpLines, helpSections } from './game-help.content';
 
@@ -40,6 +41,51 @@ function ruleBody(css: string, selector: string): string {
 }
 
 const source = readFileSync(join(__dirname, 'game-help.component.ts'), 'utf-8');
+
+describe('GameHelpComponent: nota sobre los atajos fuera del bloque validado (F6-10, VD-18)', () => {
+  let fixture: ComponentFixture<GameHelpComponent>;
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  function create(view: 'card' | 'screen', modality: HelpModality = 'keyboard'): void {
+    TestBed.configureTestingModule({ imports: [GameHelpComponent] });
+    fixture = TestBed.createComponent(GameHelpComponent);
+    writeInputSignal(fixture.componentInstance.view, view);
+    writeInputSignal(fixture.componentInstance.modality, modality);
+    writeInputSignal(fixture.componentInstance.safeExitPromise, true);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    fixture?.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  // req: BLOQUE-H (H-07), RNF-04, WCAG 2.1.4
+  it('la pantalla de ayuda trae la nota marcada «Borrador», fuera de toda sección validada', () => {
+    create('screen');
+    const note = host().querySelector('[data-help-draft="shortcuts"]');
+    expect(note).not.toBeNull();
+    expect(note?.closest('[data-help-section]')).toBeNull();
+    expect(note?.querySelector('.help-draft__tag')?.textContent?.trim()).toBe('Borrador');
+    expect(note?.textContent).toContain(DRAFT_COPY.shortcutsHelpNote.text);
+  });
+
+  it('las secciones validadas siguen siendo exactamente las de siempre, sin ninguna nueva', () => {
+    create('screen');
+    const rendered = Array.from(host().querySelectorAll('[data-help-section]')).map(section => section.getAttribute('data-help-section'));
+    expect(rendered).toEqual(helpSections({ modality: 'keyboard', safeExitPromise: true }).map(section => section.id));
+  });
+
+  it('la tarjeta de primera vez no lleva la nota', () => {
+    create('card');
+    expect(host().querySelector('[data-help-draft]')).toBeNull();
+  });
+
+  it('la nota es un borrador registrado con su decisión y responsable', () => {
+    expect(DRAFT_COPY.shortcutsHelpNote.decision).toBe('VD-18');
+    expect(DRAFT_COPY.shortcutsHelpNote.owner).toBe('Psicología');
+  });
+});
 
 describe('GameHelpComponent (T3.2)', () => {
   let fixture: ComponentFixture<GameHelpComponent>;

@@ -181,13 +181,28 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
   });
 
   describe('texto de teclado', () => {
+    // req: BLOQUE-H (H-07), WCAG 2.1.4
+    it('A, D y E del lobby solo con el ajuste activo y con el foco en la sala; flechas, Enter y Espacio no dependen', () => {
+      expect(source).toContain('const letters = (this.cb.shortcutsEnabled?.() ?? true) && isShortcutContext(focus);');
+      expect(source).toContain('e: justE && letters,');
+      expect(source).toContain('shortcutsEnabled: () => this.shortcuts.enabled(),');
+      expect(source).toMatch(/\(letters && this\.keys\['A'\]\?\.isDown\)/);
+      expect(source).toMatch(/\(letters && this\.keys\['D'\]\?\.isDown\)/);
+    });
+
     it('lobbyKeyboardHint: con puntero fino devuelve el recordatorio y con puntero grueso nada', () => {
       expect(lobbyKeyboardHint(false)).toBe('← → / A D  mover · E entrar');
       expect(lobbyKeyboardHint(true)).toBeNull();
     });
 
+    // req: BLOQUE-H (H-07), WCAG 2.1.4
+    it('sin los atajos de una tecla la pista del lobby promete flechas y Enter, no A, D ni E', () => {
+      expect(lobbyKeyboardHint(false, false)).toBe('← →  mover · Enter entrar');
+      expect(lobbyKeyboardHint(true, false)).toBeNull();
+    });
+
     it('la pista del lobby es DOM (no texto de Phaser) y solo sale si lobbyKeyboardHint la devuelve', () => {
-      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\)\)\);/);
+      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\), this\.shortcuts\.enabled\(\)\)\);/);
       expect(source).toContain('@if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }');
       expect(source).not.toMatch(/add\.text\(12, 12, '← →/);
     });

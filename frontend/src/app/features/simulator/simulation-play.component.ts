@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -34,6 +35,7 @@ import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
+import { isShortcutContext } from './keyboard-focus.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { WorldPlacesListComponent } from './world-places-list.component';
 import { PlaceCandidate, selectPlaces } from './world-places.util';
@@ -342,6 +344,7 @@ const CASE_INTRO_PARAGRAPHS = [
             [sfxMuted]="sfxMuted()"
             [reduceMotion]="reduceMotion()"
             (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
+            [shortcuts]="shortcuts.enabled()" (toggleShortcuts)="shortcuts.toggle()"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()"
@@ -370,7 +373,7 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (world(); as w) {
               <app-game-world #gameWorld id="game-area" class="game-surface" [world]="w"
                 [scenarioConfig]="scenarioConfig()"
-                [guide]="sceneGuide()" [viewedNpcKeys]="viewedNpcKeys()"
+                [guide]="sceneGuide()" [viewedNpcKeys]="viewedNpcKeys()" [shortcuts]="shortcuts.enabled()"
                 [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
@@ -446,7 +449,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [class.context-bar__interaction--exit]="action.obj.type === 'EXIT'"
                 [class.context-bar__interaction--locked]="action.verb.locked"
                 (click)="openInteraction(action.obj)" [attr.aria-label]="action.ariaLabel" [attr.title]="action.title">
-                @if (!compactMode()) { <kbd aria-hidden="true">E</kbd> }
+                @if (!compactMode()) { <kbd aria-hidden="true">{{ shortcuts.enabled() ? 'E' : 'Enter' }}</kbd> }
                 @if (action.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
                 <span class="context-bar__copy">
                   <strong>{{ action.verb.text }}</strong>
@@ -468,7 +471,11 @@ const CASE_INTRO_PARAGRAPHS = [
               <div class="context-bar__idle">
                 <p class="context-bar__now">{{ nowLine() }}</p>
                 <!-- aria-hidden: es una pista visual; la ayuda ya dice las teclas por escrito. -->
-                <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+                @if (shortcuts.enabled()) {
+                  <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
+                } @else {
+                  <p class="context-bar__hint" aria-hidden="true">Flechas mover · <kbd>Enter</kbd> interactuar · <kbd>Esc</kbd> salida segura</p>
+                }
               </div>
             }
           </div>
@@ -1246,6 +1253,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly placesOpen   = signal(false);
   readonly placeOptions = signal<readonly PlaceCandidate[]>([]);
   private readonly injector = inject(Injector);
+  /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): J, E, WASD, números del diálogo y A/D/E del lobby; apagables. */
+  readonly shortcuts = inject(ShortcutSettings);
   readonly fadeActive   = signal(false);
   /** Avisos del sistema visibles (el anfitrión `ui-toast-host` los pinta y anuncia). */
   private readonly systemNotices = toSignal(this.notifications.messages$, { initialValue: [] });
@@ -1805,6 +1814,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
     // Con la pantalla de ayuda abierta E, J, Espacio y Enter no actúan sobre el mundo de debajo (Espacio sigue desplazando el texto).
     if (this.helpOpen() && ['e', 'E', 'j', 'J', ' ', 'Enter'].includes(event.key)) return;
+
+    // Atajos de una letra (F6-10; WCAG 2.1.4): apagables, y solo actúan con el foco en el juego o en el cuerpo (nunca en
+    // un botón, un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del ajuste.
+    const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E';
+    if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(event.target as Element | null))) return;
 
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
