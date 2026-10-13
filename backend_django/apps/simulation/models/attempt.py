@@ -25,6 +25,10 @@ class AttemptStatus(models.TextChoices):
     REPLACED = "REPLACED"
 
 
+#: Estados de un intento abierto: el «intento activo» del estudiante (se reanuda o se reemplaza).
+#: ``lifecycle.OPEN_STATUSES`` los deriva de la tabla de transiciones; una prueba exige que coincidan.
+OPEN_ATTEMPT_STATUSES = (AttemptStatus.IN_PROGRESS, AttemptStatus.PAUSED)
+
 #: Escala de los indicadores del intento: estrés, confianza en la persona y riesgo de la víctima.
 INDICATOR_MIN = 0
 INDICATOR_MAX = 100
@@ -71,6 +75,25 @@ class SimulationAttempt(models.Model):
         db_table = "simulation_attempts_v2"
         constraints = [
             models.CheckConstraint(condition=models.Q(status__in=AttemptStatus.values), name="simulation_attempts_v2_status_check"),
+            # DM-5.4: un intento abierto por estudiante y caso. Última defensa de la política de
+            # inicio (E1-1): dos POST simultáneos no pueden crear dos intentos abiertos.
+            models.UniqueConstraint(
+                fields=["student", "case_version"],
+                condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES),
+                name="uq_attempts_open_per_student_case",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(stress_index__gte=INDICATOR_MIN, stress_index__lte=INDICATOR_MAX),
+                name="ck_attempts_stress_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(victim_risk__gte=INDICATOR_MIN, victim_risk__lte=INDICATOR_MAX),
+                name="ck_attempts_victim_risk_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(user_trust__gte=INDICATOR_MIN, user_trust__lte=INDICATOR_MAX),
+                name="ck_attempts_user_trust_range",
+            ),
         ]
         indexes = [
             models.Index(fields=["student", "status"], name="idx_attempts_student_status"),

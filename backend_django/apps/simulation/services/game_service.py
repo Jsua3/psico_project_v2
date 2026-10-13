@@ -3,8 +3,10 @@ import base64
 import hashlib
 import secrets
 
-from django.db import transaction
+from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.grupos.models import GrupoCaseVersion
@@ -25,6 +27,8 @@ from apps.simulation.signals import attempt_completed
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
+from shared.exceptions import ApiError
+
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
@@ -147,27 +151,52 @@ def _close_active_attempts(student_id, case_version_id, reason):
         _save_event(active, "ATTEMPT_REPLACED", active.current_node, None, 0, 0, reason)
 
 
+def _open_attempt_of(student_id, case_version_id):
+    """El intento abierto (en juego o en pausa) del estudiante en esa versión del caso, si lo hay."""
+    return (
+        SimulationAttempt.objects.filter(
+            student_id=student_id, case_version_id=case_version_id,
+            status__in=lifecycle.OPEN_STATUSES,
+        )
+        .select_related("case_version__simulation_case", "current_node")
+        .order_by("-started_at")
+        .first()
+    )
+
+
+def _resumed_state(attempt):
+    """El intento abierto con un token nuevo y ``resumed: true`` (C1)."""
+    state = dto.attempt_state(attempt, _reissue_token(attempt), None)
+    state["resumed"] = True
+    return state
+
+
 @transaction.atomic
 def start_attempt(case_version_id, actor, force_new=False):
+    """Inicia un intento o devuelve el abierto (C1, RN-07, DM-5.4).
+
+    Un intento pausado también cuenta como abierto: nunca se duplica en silencio. Con
+    ``ATTEMPT_START_STRICT``, ``forceNew`` de un estudiante que ya tiene uno abierto es un
+    409: reemplazar un intento es una acción docente (``replace_attempt``). El índice único
+    parcial de la BD es la última defensa; quien pierde una carrera recibe el intento ganador.
+    """
     version = _require_published(case_version_id)
-    if getattr(actor, "role", None) == "ESTUDIANTE" and not _student_can_access_case(actor.id, case_version_id):
+    is_student = getattr(actor, "role", None) == "ESTUDIANTE"
+    if is_student and not _student_can_access_case(actor.id, case_version_id):
         raise PermissionDenied("El caso no ha sido asignado a tu grupo")
 
-    if not force_new:
-        # Un intento pausado también cuenta como activo: nunca se duplica en
-        # silencio; el cliente debe reanudarlo o pedir forceNew explícito.
-        active = (
-            SimulationAttempt.objects.filter(
-                student_id=actor.id, case_version_id=case_version_id,
-                status__in=lifecycle.OPEN_STATUSES,
+    open_attempt = _open_attempt_of(actor.id, case_version_id)
+    if open_attempt is not None:
+        if not force_new:
+            return _resumed_state(open_attempt)
+        if settings.ATTEMPT_START_STRICT and is_student:
+            raise ApiError(
+                "ATTEMPT_ALREADY_OPEN",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Ya tienes un intento abierto de este caso. Continúalo o pide a tu docente que lo reemplace.",
+                status.HTTP_409_CONFLICT,
+                existingAttemptId=str(open_attempt.id),
             )
-            .select_related("case_version__simulation_case", "current_node")
-            .order_by("-started_at")
-            .first()
-        )
-        if active:
-            return dto.attempt_state(active, _reissue_token(active), None)
-    else:
         _close_active_attempts(actor.id, case_version_id, "Reemplazado por nuevo intento")
 
     start_node = SimulationNode.objects.filter(case_version_id=version.id, start_node=True).first()
@@ -175,35 +204,36 @@ def start_attempt(case_version_id, actor, force_new=False):
         raise NotFound("El caso no tiene nodo inicial")
 
     raw_token = _new_token()
-    attempt = SimulationAttempt.objects.create(
-        attempt_token_hash=_hash_token(raw_token),
-        case_version=version,
-        student_id=actor.id,
-        current_node=start_node,
-        status=lifecycle.INITIAL_STATUS,
-        accumulated_score=0,
-        stress_index=INITIAL_STRESS_INDEX,
-        victim_risk=INITIAL_VICTIM_RISK,
-        user_trust=INITIAL_USER_TRUST,
-        institutional_route_activated=False,
-        revictimization_risk=False,
-    )
+    try:
+        with transaction.atomic():  # savepoint: un IntegrityError no rompe la transacción externa
+            attempt = SimulationAttempt.objects.create(
+                attempt_token_hash=_hash_token(raw_token),
+                case_version=version,
+                student_id=actor.id,
+                current_node=start_node,
+                status=lifecycle.INITIAL_STATUS,
+                accumulated_score=0,
+                stress_index=INITIAL_STRESS_INDEX,
+                victim_risk=INITIAL_VICTIM_RISK,
+                user_trust=INITIAL_USER_TRUST,
+                institutional_route_activated=False,
+                revictimization_risk=False,
+            )
+    except IntegrityError:
+        winner = _open_attempt_of(actor.id, case_version_id)
+        if winner is None:
+            raise
+        return _resumed_state(winner)
     _save_event(attempt, "ATTEMPT_STARTED", start_node, None, 0, 0, "Intento iniciado")
     _save_event(attempt, "NODE_ENTERED", start_node, None, 0, 0, "Nodo inicial")
-    return dto.attempt_state(attempt, raw_token, None)
+    state = dto.attempt_state(attempt, raw_token, None)
+    state["resumed"] = False
+    return state
 
 
 def find_active_attempt(case_version_id, actor):
     _require_published(case_version_id)
-    active = (
-        SimulationAttempt.objects.filter(
-            student_id=actor.id, case_version_id=case_version_id,
-            status__in=lifecycle.OPEN_STATUSES,
-        )
-        .select_related("case_version__simulation_case", "current_node")
-        .order_by("-started_at")
-        .first()
-    )
+    active = _open_attempt_of(actor.id, case_version_id)
     if not active:
         return None
     return dto.attempt_state(active, _reissue_token(active), None)

@@ -268,7 +268,9 @@ def test_llegar_a_un_nodo_terminal_completa_el_intento_y_lo_cierra(intentos):
 
 
 @pytest.mark.parametrize("status", ["IN_PROGRESS", "PAUSED"])
-def test_un_intento_nuevo_forzado_reemplaza_al_abierto(intentos, estudiante, case_version_id, status):
+def test_un_intento_nuevo_forzado_reemplaza_al_abierto(settings, intentos, estudiante, case_version_id, status):
+    # Política heredada (bandera apagada) hasta que el visual migre su consumo (F10-9†).
+    settings.ATTEMPT_START_STRICT = False
     client, make = intentos
     old = make(status)
 
@@ -279,6 +281,26 @@ def test_un_intento_nuevo_forzado_reemplaza_al_abierto(intentos, estudiante, cas
     assert row.status == "REPLACED"
     assert row.ended_at is not None and row.locked_at is not None
     assert _events(old["attemptId"]).count("ATTEMPT_REPLACED") == 1
+
+
+@pytest.mark.parametrize("status", ["IN_PROGRESS", "PAUSED"])
+def test_con_la_politica_estricta_forzar_un_intento_nuevo_no_reemplaza_al_abierto(
+    settings, intentos, case_version_id, status
+):
+    """RN-07 (E1-1): reemplazar un intento es una acción docente; el estudiante recibe 409."""
+    settings.ATTEMPT_START_STRICT = True
+    client, make = intentos
+    old = make(status)
+
+    response = client.post(f"{BASE}/attempts", {"caseVersionId": case_version_id, "forceNew": True}, format="json")
+
+    assert response.status_code == 409
+    assert response.data["code"] == "ATTEMPT_ALREADY_OPEN"
+    assert response.data["existingAttemptId"] == old["attemptId"]
+    row = SimulationAttempt.objects.get(pk=old["attemptId"])
+    assert row.status == status
+    assert row.ended_at is None and row.locked_at is None
+    assert "ATTEMPT_REPLACED" not in _events(old["attemptId"])
 
 
 @pytest.mark.parametrize("status", TERMINAL)

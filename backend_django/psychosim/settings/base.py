@@ -132,6 +132,21 @@ IMPORTED_STUDENT_DEFAULT_PASSWORD = (
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
 # un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.
+def _env_flag(name, default=False):
+    """Bandera booleana por variable de entorno: 1/true/yes/on la encienden; ausente, ``default``."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8) ───────────
+# Apagadas por defecto: lo nuevo que cambia lo que el visual consume ya está en el servidor, pero
+# el comportamiento anterior sigue activo hasta que el visual migre. Cada una se retira (pasa a
+# «activa» y se borra lo viejo) en F9-10 del visual o en E5-10, lo que ocurra primero.
+#: E1-1 · con un intento abierto, `forceNew` de un ESTUDIANTE → 409 ATTEMPT_ALREADY_OPEN (RN-07).
+ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
