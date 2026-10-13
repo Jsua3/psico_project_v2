@@ -1,4 +1,4 @@
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { PreloadMarkedRoutes } from './preload-marked';
 
@@ -20,5 +20,17 @@ describe('PreloadMarkedRoutes', () => {
     strategy.preload({ path: 'otra', data: { precargar: 'sí' } }, load).subscribe();
     expect(load).not.toHaveBeenCalled();
     expect(result).toBeNull();
+  });
+
+  it('si la precarga falla (p. ej. sin red), no rompe la precarga de las demás: emite null y termina (revisión de F4, I-1)', () => {
+    const strategy = new PreloadMarkedRoutes();
+    const values: unknown[] = [];
+    let failed = false;
+    let completed = false;
+    strategy.preload({ path: 'sin-conexion', data: { precargar: true } }, () => throwError(() => new TypeError('Failed to fetch')))
+      .subscribe({ next: value => values.push(value), error: () => (failed = true), complete: () => (completed = true) });
+    expect(failed).toBe(false);
+    expect(values).toEqual([null]);
+    expect(completed).toBe(true);
   });
 });

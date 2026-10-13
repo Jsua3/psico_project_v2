@@ -20,9 +20,9 @@ export const FULL_NAVIGATION = new InjectionToken<(url: string) => void>('FULL_N
 
 /**
  * «Sin conexión» (plan visual F4-3; `sin-conexion?desde=`): adonde lleva una navegación que no pudo descargar su
- * código (offline-navigation.ts). app.routes la importa DIRECTA (sin red, un loadComponent no llegaría), así que va
- * en el bundle inicial: por eso es mínima (sin barra ni enlaces del Router: con la barra pública, el bundle inicial
- * crecía ~120 kB). «Reintentar» carga de nuevo la ruta pedida si es interna; sin red, lo dice y no recarga.
+ * código (offline-navigation.ts). Es perezosa pero se PRECARGA con red tras la primera navegación (PreloadMarkedRoutes):
+ * sin red ya está cargada. Es mínima (sin barra ni enlaces del Router) para que esa precarga sea ligera y no dependa
+ * de nada más. «Reintentar» carga de nuevo la ruta pedida si es interna; sin red, lo dice y no recarga.
  */
 @Component({
   selector: 'app-offline',

@@ -36,7 +36,8 @@ describe('app.routes: página no encontrada', () => {
 });
 
 /**
- * Plan visual F4-3: «Sin conexión» se carga SIN código perezoso (sin red, un loadComponent no llegaría) y «Sin permiso»
+ * Plan visual F4-3: «Sin conexión» se precarga con red (sin red ya está cargada; si aun así falla, no hay bucle: ver
+ * offline-navigation.spec) y «Sin permiso»
  * vive en el portal, antes de su comodín.
  */
 // req: BLOQUE-H (estados)

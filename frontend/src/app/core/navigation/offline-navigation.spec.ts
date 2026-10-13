@@ -41,4 +41,10 @@ describe('navegación sin conexión', () => {
     const other = new NavigationError(2, '/portal/x', new Error('otra cosa'));
     expect(TestBed.runInInjectionContext(() => offlineNavigationHandler(other))).toBeUndefined();
   });
+
+  it('si la que falla es la propia «Sin conexión», no vuelve a redirigir (sin bucle: revisión de F4, I-1)', () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([])] });
+    const failed = new NavigationError(3, '/sin-conexion?desde=%2Fportal%2Fsimulador', new TypeError('Failed to fetch dynamically imported module: x'));
+    expect(TestBed.runInInjectionContext(() => offlineNavigationHandler(failed))).toBeUndefined();
+  });
 });
