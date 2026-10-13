@@ -642,7 +642,7 @@ $corte-tope: 82.499rem;
     transition-duration: 0ms;
   }
 
-  :where(.cromo) .pestana[aria-current='page'] {
+  :where(.cromo) .pestana[aria-current] {
     color: var(--asb-acento);
   }
 
@@ -654,7 +654,7 @@ $corte-tope: 82.499rem;
 
   // La pestaña activa lleva una gota bajo el icono (estática: la receta la hace viajar con View Transitions entre
   // documentos; en esta SPA no se anima).
-  :where(.cromo) .pestana[aria-current='page'] .pestana__icono::before {
+  :where(.cromo) .pestana[aria-current] .pestana__icono::before {
     content: '';
     pointer-events: none;
     position: absolute;

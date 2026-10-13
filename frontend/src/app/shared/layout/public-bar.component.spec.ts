@@ -29,7 +29,8 @@ describe('app-public-bar', () => {
     providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: UiDialog, useValue: { sheet: vi.fn() } }],
   }));
 
-  it('la portada: barra de vidrio nombrada, anclas que apuntan a secciones que existen e «Ingresar»', async () => {
+  // Que la portada REAL tenga esas secciones lo comprueba el e2e @estructura (aquí las secciones son del anfitrión).
+  it('la portada: barra de vidrio nombrada, anclas #id a las secciones del anfitrión e «Ingresar»', async () => {
     const fixture = TestBed.createComponent(LandingHost);
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;

@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 
+import { routes } from '../../app.routes';
 import { AuthService } from '../../core/auth/auth.service';
 import { User } from '../../core/models/user.model';
 import { UiDialog } from '../ui/dialog/ui-dialog';
@@ -163,9 +164,14 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(document.body.classList).not.toContain('game-mode');
   });
 
-  it('las rutas con chrome: hidden son las mismas que reconoce isGameRoute', () => {
-    for (const url of ['/portal/jugar', '/portal/simulador/42']) expect(isGameRoute(url)).toBe(true);
-    for (const url of ['/portal/dashboard', '/portal/simulador']) expect(isGameRoute(url)).toBe(false);
+  it('las rutas con chrome: hidden (leídas de app.routes) son exactamente las que reconoce isGameRoute', () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    const screens = children.filter(child => child.path && !child.redirectTo && child.path !== '**');
+    expect(screens.length).toBeGreaterThan(5);
+    for (const child of screens) {
+      const url = `/portal/${child.path!.replace(/:[^/]+/g, '42')}`;
+      expect(isGameRoute(url), url).toBe(child.data?.['chrome'] === 'hidden');
+    }
   });
 });
 

@@ -1,3 +1,4 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -19,6 +20,31 @@ class Host {
   ]);
   more = signal<BottomTab[]>([]);
 }
+
+// req: BLOQUE-H (la hoja «Más» dice cuál es la página actual)
+describe('app-more-sheet', () => {
+  it('el destino actual lleva aria-current="page" y elegir uno cierra la hoja', async () => {
+    const close = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([{ path: '**', component: Screen }]),
+        { provide: DIALOG_DATA, useValue: [
+          { id: 'rubricas', label: 'Rúbricas', icon: 'grading', route: '/portal/rubricas' },
+          { id: 'grupos', label: 'Grupos', icon: 'groups', route: '/portal/grupos' },
+        ] },
+        { provide: DialogRef, useValue: { close } },
+      ],
+    });
+    await TestBed.inject(Router).navigateByUrl('/portal/grupos');
+    const sheet = TestBed.createComponent(MoreSheetComponent);
+    await sheet.whenStable();
+    const links = [...(sheet.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('a.hoja-mas__enlace')];
+    expect(links.map(link => link.getAttribute('aria-current'))).toEqual([null, 'page']);
+    links[0].click();
+    expect(close).toHaveBeenCalled();
+  });
+});
 
 /**
  * Pestañas inferiores del móvil (plan visual F3-5; references/movil.md §3.3 de la skill): como mucho cinco; si el
@@ -76,6 +102,20 @@ describe('app-bottom-tabs', () => {
     expect(sheet).toHaveBeenCalledWith(MoreSheetComponent, expect.objectContaining({
       side: 'bottom', data: [{ id: 'rubricas', label: 'Rúbricas', icon: 'grading', route: '/portal/rubricas' }],
     }));
+  });
+
+  it('si la página actual está en «Más», «Más» lo dice (aria-current); si no, no (revisión de F3, M-4)', async () => {
+    fixture.componentInstance.more.set([{ id: 'rubricas', label: 'Rúbricas', icon: 'grading', route: '/portal/rubricas' }]);
+    await fixture.whenStable();
+    const more = () => nav().querySelector<HTMLButtonElement>('button.pestana')!;
+    expect(more().hasAttribute('aria-current')).toBe(false);
+    await TestBed.inject(Router).navigateByUrl('/portal/rubricas?pagina=2');
+    await fixture.whenStable();
+    expect(more().getAttribute('aria-current')).toBe('true');
+    expect(tabs().filter(tab => tab.getAttribute('aria-current') === 'page')).toHaveLength(0);
+    await TestBed.inject(Router).navigateByUrl('/portal/rubricas-viejas');
+    await fixture.whenStable();
+    expect(more().hasAttribute('aria-current')).toBe(false);
   });
 
   it('nunca pasa de cinco pestañas: si hay más destinos que caben, los últimos van a «Más»', async () => {

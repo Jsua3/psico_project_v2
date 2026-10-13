@@ -18,9 +18,15 @@ describe('safeReturnUrl', () => {
   });
 
   it('rechaza el propio acceso (no hay bucle) y los valores vacíos', () => {
-    for (const value of ['/login', '/login?returnUrl=%2Fportal', '', null, undefined]) {
+    for (const value of ['/login', '/login?returnUrl=%2Fportal', '/login;motivo=x', '', null, undefined]) {
       expect(safeReturnUrl(value), String(value)).toBeNull();
     }
+  });
+
+  it('rechaza las rutas con un escape % roto (el Router no las entiende y caería a la portada)', () => {
+    expect(safeReturnUrl('/%')).toBeNull();
+    expect(safeReturnUrl('/portal/%E0%A4%A')).toBeNull();
+    expect(safeReturnUrl('/portal/grupos?nombre=Mar%C3%ADa')).toBe('/portal/grupos?nombre=Mar%C3%ADa');
   });
 
   it('rechaza caracteres de control (un salto de línea no puede partir la ruta)', () => {

@@ -1,7 +1,9 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { filter, map } from 'rxjs/operators';
 
 import { UiDialog, UiDialogFrame } from '../ui/dialog/ui-dialog';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
@@ -18,13 +20,15 @@ export interface BottomTab {
 /** Como mucho cinco pestañas (references/movil.md §3): con más destinos, la quinta es «Más». */
 const MAX_TABS = 5;
 
+const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
+
 /**
  * Hoja «Más» del móvil (plan visual F3-5): los destinos que no caben en la barra inferior, en una hoja que sube
  * (UiDialog.sheet: trampa de foco, Esc y retorno del foco a «Más»). Elegir un destino navega y cierra la hoja.
  */
 @Component({
   selector: 'app-more-sheet',
-  imports: [MatIconModule, RouterLink, UiDialogFrame],
+  imports: [MatIconModule, RouterLink, RouterLinkActive, UiDialogFrame],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ui-dialog-frame title="Más destinos">
@@ -32,7 +36,8 @@ const MAX_TABS = 5;
         @for (tab of tabs; track tab.id) {
           <li>
             @if (tab.route) {
-              <a class="hoja-mas__enlace" [routerLink]="tab.route" (click)="ref.close()">
+              <a class="hoja-mas__enlace" [routerLink]="tab.route" routerLinkActive="hoja-mas__enlace--activa"
+                ariaCurrentWhenActive="page" (click)="ref.close()">
                 <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon><span>{{ tab.label }}</span>
               </a>
             } @else {
@@ -59,6 +64,10 @@ const MAX_TABS = 5;
       text-decoration: none;
     }
     .hoja-mas__enlace:active { background-color: var(--ds-primary-subtle); }
+    .hoja-mas__enlace[aria-current='page'] { color: var(--ds-primary); font-weight: 600; }
+    @media (forced-colors: active) {
+      .hoja-mas__enlace[aria-current='page'] { text-decoration-line: underline; text-decoration-thickness: 2px; }
+    }
   `],
 })
 export class MoreSheetComponent {
@@ -94,7 +103,9 @@ export class MoreSheetComponent {
         }
       }
       @if (overflow().length) {
-        <button class="pestana ds-motion" type="button" aria-haspopup="dialog" (click)="openMore()">
+        <!-- Si la página actual está en la hoja, «Más» lo dice: aria-current="true" (actual dentro del conjunto). -->
+        <button class="pestana ds-motion" type="button" aria-haspopup="dialog" [attr.aria-current]="moreIsCurrent() ? 'true' : null"
+          (click)="openMore()">
           <span class="pestana__icono"><mat-icon aria-hidden="true">menu</mat-icon></span>
           <span class="pestana__rotulo ds-motion"><span>Más</span></span>
         </button>
@@ -109,11 +120,24 @@ export class BottomTabsComponent {
   readonly label = input('Navegación principal');
 
   private readonly dialog = inject(UiDialog);
+  private readonly router = inject(Router);
   protected readonly bar = inject(UiGlassBar, { optional: true });
 
   private readonly fits = computed(() => this.tabs().length + (this.more().length ? 1 : 0) <= MAX_TABS);
   protected readonly visible = computed(() => (this.fits() ? this.tabs() : this.tabs().slice(0, MAX_TABS - 1)));
   protected readonly overflow = computed(() => (this.fits() ? this.more() : [...this.tabs().slice(MAX_TABS - 1), ...this.more()]));
+
+  /** Ruta actual sin consulta, fragmento ni matriz. */
+  private readonly path = toSignal(
+    this.router.events.pipe(filter(event => event instanceof NavigationEnd), map(() => pathOf(this.router.url))),
+    { initialValue: pathOf(this.router.url) },
+  );
+
+  /** La página actual es uno de los destinos de «Más» (o una ruta hija suya). */
+  protected readonly moreIsCurrent = computed(() => {
+    const path = this.path();
+    return this.overflow().some(tab => !!tab.route && (path === tab.route || path.startsWith(`${tab.route}/`)));
+  });
 
   protected openMore(): void {
     this.dialog.sheet(MoreSheetComponent, { side: 'bottom', data: [...this.overflow()] });

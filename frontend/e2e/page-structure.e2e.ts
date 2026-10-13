@@ -59,6 +59,14 @@ test.describe('@estructura un h1 y un <main> por pantalla', () => {
     });
   }
 
+  test('las anclas de la barra pública llevan a secciones que existen en la portada real', async ({ page }) => {
+    await page.goto('/');
+    await settle(page);
+    const hrefs = await page.locator('header.cromo .modulo-principal a.nav-enlace').evaluateAll(links => links.map(link => link.getAttribute('href')!));
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) await expect(page.locator(href), href).toHaveCount(1);
+  });
+
   test('portada y 404 (fuera del portal y dentro, con su barra)', async ({ page }) => {
     for (const path of ['/', '/no-existe']) {
       await page.goto(path);
