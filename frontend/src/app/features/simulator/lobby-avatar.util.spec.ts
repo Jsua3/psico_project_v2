@@ -1,4 +1,19 @@
-import { LOBBY_BLEED, LOBBY_ROOM, lobbyFacadeBand, lobbyPose, nearestLobbyDoor } from './lobby-avatar.util';
+import {
+  LOBBY_BLEED, LOBBY_ROOM, lobbyDoorCursor, lobbyFacadeBand, lobbyMotion, lobbyPose, nearestLobbyDoor,
+} from './lobby-avatar.util';
+
+// req: BLOQUE-H (H-22: movimiento reducido), RNF-04 (plan visual F5-3)
+describe('lobby: movimiento y puntero (F5-3)', () => {
+  it('con movimiento reducido las puertas no pulsan ni la cámara se sacude; sin él, sí', () => {
+    expect(lobbyMotion(true)).toEqual({ doorPulse: false, lockedShake: false });
+    expect(lobbyMotion(false)).toEqual({ doorPulse: true, lockedShake: true });
+  });
+
+  it('el cursor sobre una puerta dice si se puede entrar: mano en la abierta, prohibido en la bloqueada', () => {
+    expect(lobbyDoorCursor({ unlocked: true })).toBe('pointer');
+    expect(lobbyDoorCursor({ unlocked: false })).toBe('not-allowed');
+  });
+});
 
 describe('lobby-avatar.util', () => {
   it('camina mirando hacia su lado; quieto conserva la vista', () => {

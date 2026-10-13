@@ -19,7 +19,7 @@ import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { EMPTY } from 'rxjs';
+import { EMPTY, NEVER, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
@@ -71,6 +71,13 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     expect(component.entering()).toBe('Caso demo');
     vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
+  });
+
+  // req: RNF-04 (plan visual F5-3: sin la espera ficticia de 900 ms)
+  it('entrar navega al instante, sin espera ficticia', () => {
+    component.catalog.set([makeItem()]);
+    component.enter(7);
     expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
   });
 
@@ -296,7 +303,11 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       const { fixture, root } = mount(false);
       helpButton(root)!.click();
       fixture.detectChanges();
-      expect(add.mock.calls.filter(([type]) => String(type).startsWith('key'))).toEqual([]);
+      // El detector de modalidad del CDK (oyente pasivo en captura) que usan los botones del sistema (F5-3) no reacciona
+      // a ninguna tecla: no cuenta. Lo que se vigila es que la sala no escuche el teclado de toda la página.
+      const own = add.mock.calls.filter(([type, , options]) =>
+        String(type).startsWith('key') && !(typeof options === 'object' && options?.capture && options?.passive));
+      expect(own).toEqual([]);
       expect(source).not.toMatch(/HostListener\('document:/);
       add.mockRestore();
     });
@@ -305,6 +316,82 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       expect(source).toMatch(/\.menu-help-layer \{\s*position: absolute; inset: 0;/);
       expect(source).toMatch(/\.menu-help-btn \{[^}]*min-height: 44px;/);
     });
+  });
+});
+
+/**
+ * Sala (plan visual F5-3), en DOM: la salida al panel siempre visible (la barra está oculta en la sala), UNA señal de
+ * carga hasta que la sala está lista y el error con «Reintentar» que vuelve a pedir el catálogo.
+ */
+// req: BLOQUE-H, RNF-04
+describe('GameMenuComponent: salida, carga y error de la sala (F5-3)', () => {
+  function mountWith(getCatalog: () => unknown) {
+    TestBed.configureTestingModule({
+      imports: [GameMenuComponent],
+      providers: [
+        { provide: SimulationService, useValue: { getCatalog: vi.fn(getCatalog) } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
+    });
+    TestBed.overrideComponent(GameMenuComponent, {
+      remove: { imports: [GameHelpComponent] },
+      add: { imports: [GameHelpStubComponent] },
+    });
+    const fixture = TestBed.createComponent(GameMenuComponent);
+    fixture.detectChanges();
+    const service = TestBed.inject(SimulationService) as unknown as { getCatalog: Mock };
+    const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+    return { fixture, root: fixture.nativeElement as HTMLElement, service, router };
+  }
+  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  // Lo que se lee de un enlace: sin la ligadura del icono (aria-hidden).
+  const spoken = (el: Element) => {
+    const copy = el.cloneNode(true) as Element;
+    copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
+    return text(copy);
+  };
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.useRealTimers();
+  });
+
+  it('«Volver al panel» es un enlace visible al panel, también mientras carga', () => {
+    const { root, router } = mountWith(() => NEVER);
+    const exit = [...root.querySelectorAll('a')].find(link => spoken(link) === 'Volver al panel')!;
+    expect(exit.getAttribute('href')).toBe('/portal/dashboard');
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    exit.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/dashboard']);
+  });
+
+  // Síncrona a propósito: en este archivo (con vi.mock) una función async hace que el builder reescriba el módulo y
+  // Vitest ya no encuentre el vi.mock en el nivel superior.
+  it('carga unificada: una sola señal («Preparando la sala…») pasado el umbral, sin barra de progreso', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const { fixture, root } = mountWith(() => NEVER);
+    expect(root.querySelector('.menu-loading')).toBeNull();
+    vi.advanceTimersByTime(200);
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.menu-loading')).toHaveLength(1);
+    expect(text(root.querySelector('[role="status"]'))).toBe('Preparando la sala…');
+    expect(root.querySelector('mat-progress-bar')).toBeNull();
+  });
+
+  it('si falla el catálogo: error con «Reintentar» que vuelve a pedirlo, y la salida sigue a mano', () => {
+    let calls = 0;
+    const { fixture, root, service } = mountWith(() => (++calls === 1 ? throwError(() => ({ status: 500 })) : NEVER));
+    fixture.detectChanges();
+    const error = root.querySelector('ui-error-state')!;
+    expect(text(error)).toContain('No pudimos cargar la sala.');
+    expect([...root.querySelectorAll('a')].some(link => spoken(link) === 'Volver al panel')).toBe(true);
+    (error.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(service.getCatalog).toHaveBeenCalledTimes(2);
+    expect(root.querySelector('ui-error-state')).toBeNull();
   });
 });
 
