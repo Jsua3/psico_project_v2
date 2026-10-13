@@ -6,11 +6,12 @@
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
-@if (notice(); as message) {
-  <p class="catalog-notice" role="status">
-    <mat-icon aria-hidden="true">lock</mat-icon>{{ message }}
-  </p>
-}
+<!-- Región siempre presente: el aviso llega cuando carga el desbloqueo y así se anuncia. -->
+<div class="catalog-notice-region" role="status">
+  @if (notice(); as message) {
+    <p class="catalog-notice"><mat-icon aria-hidden="true">lock</mat-icon>{{ message }}</p>
+  }
+</div>
 
 <ui-section class="catalog-cases" title="Casos">
   @switch (casesState()) {

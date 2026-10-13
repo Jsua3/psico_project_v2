@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -47,7 +49,9 @@ export class SimulationCatalogComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly dialog = inject(UiDialog);
-  private readonly blockedId = Number(inject(ActivatedRoute).snapshot.queryParamMap.get('bloqueado')) || null;
+  /** ?bloqueado=<id> de la guardia: reactivo (la guardia puede redirigir a esta misma ruta y Angular la reutiliza). */
+  private readonly query = toSignal(inject(ActivatedRoute).queryParamMap);
+  private readonly blockedId = computed(() => Number(this.query()?.get('bloqueado')) || null);
 
   protected readonly isStudent = this.auth.hasRole('ESTUDIANTE');
   protected readonly canPlay = this.auth.hasRole('ESTUDIANTE', 'ADMIN');
@@ -83,8 +87,11 @@ export class SimulationCatalogComponent {
   protected readonly cards = computed(() => this.cases().map(item => {
     const attempts = this.history().filter(attempt => attempt.caseVersionId === item.caseVersionId);
     const open = openAttempt(attempts);
-    const startLabel = attempts.length ? 'Iniciar nuevo intento' : 'Iniciar simulación';
-    const lock = lockReason(this.catalogItems(), item.caseVersionId);
+    // Sin historial no se sabe si hay algo abierto: un rótulo neutro y no «Iniciar» (RN-07); el juego ofrece reanudar.
+    const startLabel = this.historyError() ? 'Abrir caso' : attempts.length ? 'Iniciar nuevo intento' : 'Iniciar simulación';
+    // Un intento abierto se puede continuar aunque el caso haya quedado bloqueado (p. ej. el docente asignó uno
+    // anterior): continuar, pausar o terminar (RN-07) manda sobre el desbloqueo lineal.
+    const lock = open ? null : lockReason(this.catalogItems(), item.caseVersionId);
     const done = !open && !!this.catalogItems().find(entry => entry.caseVersionId === item.caseVersionId)?.completed;
     return { item, open, startLabel, lock, done };
   }));
@@ -98,7 +105,10 @@ export class SimulationCatalogComponent {
     ? { title: 'Aún no tienes casos asignados', description: 'Cuando tu docente te asigne un caso, aparecerá aquí para que puedas empezar.' }
     : { title: 'Aún no hay casos publicados', description: 'Cuando se publique un caso, aparecerá aquí.' };
 
-  protected readonly notice = computed(() => (this.blockedId ? blockedNotice(this.catalogItems(), this.blockedId) : null));
+  protected readonly notice = computed(() => {
+    const id = this.blockedId();
+    return id ? blockedNotice(this.catalogItems(), id) : null;
+  });
 
   protected readonly plural = plural;
   protected readonly tone = attemptTone;
@@ -150,7 +160,8 @@ export class SimulationCatalogComponent {
   }
 
   private loadUnlocks(): void {
-    this.simulationService.getCatalog().subscribe({
+    // Con tiempo límite: el desbloqueo solo matiza las tarjetas; si no llega, se pintan sin bloqueos.
+    this.simulationService.getCatalog().pipe(timeout(4000)).subscribe({
       next: items => { this.catalogItems.set(items); this.catalogSettled.set(true); },
       error: () => this.catalogSettled.set(true),
     });

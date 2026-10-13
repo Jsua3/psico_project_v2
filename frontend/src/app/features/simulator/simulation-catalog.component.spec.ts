@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -77,7 +77,10 @@ describe('SimulationCatalogComponent', () => {
   const field = (label: string) =>
     text([...(dialog()?.querySelectorAll('dt') ?? [])].find(el => text(el) === label)?.nextElementSibling ?? null);
 
+  let queryParams: BehaviorSubject<ParamMap>;
+
   async function render(role: Role, api: Partial<Api> = {}, query: Record<string, string> = {}) {
+    queryParams = new BehaviorSubject(convertToParamMap(query));
     const service: Api = {
       listCases: () => of([caseSummary(1)]),
       attemptHistory: () => of([]),
@@ -90,7 +93,7 @@ describe('SimulationCatalogComponent', () => {
         provideZonelessChangeDetection(), provideRouter([]),
         { provide: SimulationService, useValue: service },
         { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
+        { provide: ActivatedRoute, useValue: { queryParamMap: queryParams } },
       ],
     });
     navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true) as unknown as ReturnType<typeof vi.fn>;
@@ -182,6 +185,9 @@ describe('SimulationCatalogComponent', () => {
     expect(field('Tiempo total')).toBe('12 min 34 s');
     expect(content).toContain('Activa la ruta institucional antes de cerrar el caso.');
     expect(content).toContain('no realiza diagnósticos clínicos');
+    // Un solo «Cerrar» (el del pie), como los demás diálogos del sistema.
+    expect([...dialog()!.querySelectorAll('button')].filter(button => spoken(button) === 'Cerrar')).toHaveLength(1);
+    expect(dialog()!.querySelector('[role="status"]')).not.toBeNull();
     // El reporte ya no se pega al final de la página.
     expect(host().querySelector('.report-panel')).toBeNull();
   });
@@ -245,7 +251,30 @@ describe('SimulationCatalogComponent', () => {
       getCatalog: () => of([catalogItem(1, 1, true), catalogItem(2, 2, false)]),
     }, { bloqueado: '2' });
     expect(spoken(host().querySelector('.catalog-notice')!)).toBe('«Caso 2» todavía está bloqueado: completa «Caso 1» para abrirlo.');
-    expect(host().querySelector('.catalog-notice')!.getAttribute('role')).toBe('status');
+    expect(host().querySelector('.catalog-notice')!.closest('[role="status"]')).not.toBeNull();
+    // La guardia puede redirigir a esta misma ruta (Angular reutiliza el componente): el aviso sigue a la dirección.
+    queryParams.next(convertToParamMap({}));
+    await fixture.whenStable();
+    expect(host().querySelector('.catalog-notice')).toBeNull();
+    expect(host().querySelector('.catalog-notice-region[role="status"]')).not.toBeNull();
+  });
+
+  it('F5-6: un intento abierto se continúa aunque el caso haya quedado bloqueado (RN-07 manda)', async () => {
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2)]),
+      getCatalog: () => of([catalogItem(1, 1, true), catalogItem(2, 2, false)]),
+      attemptHistory: () => of([attempt({ attemptId: 'p', caseVersionId: 2, caseTitle: 'Caso 2', status: 'PAUSED' })]),
+    });
+    const card2 = card('Caso 2');
+    expect(card2.querySelector('.case-card__lock')).toBeNull();
+    const button = card2.querySelector('button') as HTMLButtonElement;
+    expect(spoken(button)).toBe('Continuar');
+    expect(button.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('F5-6: sin historial no se sabe si hay algo abierto: «Abrir caso», nunca «Iniciar» (RN-07)', async () => {
+    await render('ESTUDIANTE', { attemptHistory: httpFailure });
+    expect(buttons(card('Caso 1'))).toEqual(['Abrir caso']);
   });
 
   it('administración: «Iniciar simulación» y «Editor visual», sin historial propio', async () => {

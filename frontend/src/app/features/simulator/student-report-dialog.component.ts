@@ -30,7 +30,10 @@ export interface StudentReportDialogData {
   imports: [UiBadge, UiButton, UiDialogActions, UiDialogFrame, UiErrorState, UiScopeNotice, UiSkeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ui-dialog-frame [title]="data.caseTitle" description="Resumen formativo de tu intento. La trazabilidad queda disponible para revisión docente.">
+    <ui-dialog-frame [title]="data.caseTitle" [dismissible]="false"
+      description="Resumen formativo de tu intento. La trazabilidad queda disponible para revisión docente.">
+      <!-- Región siempre presente: anuncia la carga del resumen (el diálogo se abre antes de que llegue). -->
+      <p class="ds-sr-only" role="status">{{ state() === 'loading' ? 'Cargando el resumen…' : '' }}</p>
       @switch (state()) {
         @case ('loading') {
           <div class="sr-loading" aria-busy="true"><ui-skeleton shape="card" [lines]="4" /></div>

@@ -1,12 +1,12 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree, convertToParamMap, provideRouter } from '@angular/router';
-import { Observable, firstValueFrom, isObservable, of, throwError } from 'rxjs';
+import { NEVER, Observable, firstValueFrom, isObservable, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogItem } from '../../core/models/simulation.model';
-import { caseUnlockedGuard } from './case-unlocked.guard';
+import { CatalogItem, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { CASE_UNLOCK_CHECK_MS, caseUnlockedGuard } from './case-unlocked.guard';
 
 function item(caseVersionId: number, order: number, unlocked: boolean): CatalogItem {
   return { caseVersionId, code: `C${caseVersionId}`, title: `Caso ${caseVersionId}`, description: '', order, unlocked, completed: false, locked: !unlocked };
@@ -20,12 +20,12 @@ function item(caseVersionId: number, order: number, unlocked: boolean): CatalogI
 describe('caseUnlockedGuard', () => {
   let getCatalog: ReturnType<typeof vi.fn>;
 
-  function setup(role: string, catalog: () => Observable<CatalogItem[]>) {
+  function setup(role: string, catalog: () => Observable<CatalogItem[]>, history: () => Observable<StudentAttemptSummary[]> = () => of([])) {
     getCatalog = vi.fn(catalog);
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(), provideRouter([]),
-        { provide: SimulationService, useValue: { getCatalog } },
+        { provide: SimulationService, useValue: { getCatalog, attemptHistory: history } },
         { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
       ],
     });
@@ -54,6 +54,21 @@ describe('caseUnlockedGuard', () => {
     TestBed.resetTestingModule();
     setup('ESTUDIANTE', () => of([item(1, 1, true)]));
     expect(await run('7')).toBe(true);
+  });
+
+  it('un intento abierto en un caso que quedó bloqueado se puede continuar (RN-07)', async () => {
+    setup('ESTUDIANTE', () => of([item(1, 1, true), item(2, 2, false)]),
+      () => of([{ attemptId: 'p', caseVersionId: 2, status: 'PAUSED' } as StudentAttemptSummary]));
+    expect(await run('2')).toBe(true);
+  });
+
+  it('si el catálogo no responde, a los pocos segundos deja pasar (nadie se queda esperando a la puerta)', async () => {
+    vi.useFakeTimers();
+    setup('ESTUDIANTE', () => NEVER, () => NEVER);
+    const pending = run('2');
+    await vi.advanceTimersByTimeAsync(CASE_UNLOCK_CHECK_MS + 10);
+    expect(await pending).toBe(true);
+    vi.useRealTimers();
   });
 
   it('docencia y administración no se miran (ven todo abierto) y no piden el catálogo', async () => {

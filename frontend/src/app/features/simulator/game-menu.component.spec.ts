@@ -27,7 +27,10 @@ import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { GameHelpComponent } from './game-help.component';
+import Phaser from 'phaser';
+
 import { ClinicMenuScene, GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
+import { lobbyMotion } from './lobby-avatar.util';
 import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import type { Mock } from 'vitest';
 
@@ -404,6 +407,33 @@ describe('GameMenuComponent: salida, carga y error de la sala (F5-3)', () => {
     expect([...root.querySelectorAll('a')].some(link => spoken(link) === 'Volver al panel')).toBe(true);
   });
 
+  // Revisión de F5 (WCAG 2.4.11): bajo una capa que se queda, el lienzo no puede recibir un foco que nadie vería.
+  it('el lienzo sale del orden de foco bajo el error y bajo «sin casos»; cargando, no', () => {
+    const host = (root: HTMLElement) => root.querySelector('.phaser-host')!;
+    let mounted = mountWith(() => throwError(() => ({ status: 500 })));
+    mounted.fixture.detectChanges();
+    expect(host(mounted.root).hasAttribute('inert')).toBe(true);
+    TestBed.resetTestingModule();
+    mounted = mountWith(() => of([]));
+    mounted.fixture.detectChanges();
+    expect(host(mounted.root).hasAttribute('inert')).toBe(true);
+    TestBed.resetTestingModule();
+    mounted = mountWith(() => NEVER);
+    expect(host(mounted.root).hasAttribute('inert')).toBe(false);
+  });
+
+  // Sin async a propósito (vi.mock en el archivo): la prueba devuelve la promesa.
+  it('si la navegación no se completa, la tarjeta «Entrando al caso» se retira y la sala vuelve a estar a mano', () => {
+    const { fixture, router } = mountWith(() => NEVER);
+    router.navigate.mockResolvedValue(false);
+    fixture.componentInstance.catalog.set([makeItem()]);
+    fixture.componentInstance.enter(7);
+    expect(fixture.componentInstance.entering()).toBe('Caso demo');
+    return Promise.resolve().then(() => Promise.resolve()).then(() => {
+      expect(fixture.componentInstance.entering()).toBe('');
+    });
+  });
+
   it('si falla el catálogo: error con «Reintentar» que vuelve a pedirlo, y la salida sigue a mano', () => {
     let calls = 0;
     const { fixture, root, service } = mountWith(() => (++calls === 1 ? throwError(() => ({ status: 500 })) : NEVER));
@@ -430,6 +460,48 @@ describe('GameMenuComponent: el observador del contenedor', () => {
     expect(order).toEqual(['detach', 'destroy']);
     component.ngOnDestroy();
     expect(detach).toHaveBeenCalledTimes(1);
+  });
+});
+
+// req: BLOQUE-H (H-22: movimiento reducido; revisión de F5)
+describe('lobby: la sacudida ante una puerta bloqueada respeta el movimiento reducido', () => {
+  const justDown = Phaser.Input.Keyboard.JustDown;
+  afterEach(() => { (Phaser.Input.Keyboard as { JustDown: unknown }).JustDown = justDown; });
+
+  function sceneAtLockedDoor(reduceMotion: boolean) {
+    // La tecla E «acaba de bajar» en este cuadro.
+    (Phaser.Input.Keyboard as { JustDown: unknown }).JustDown = () => true;
+    const shake = vi.fn();
+    const key = { isDown: false };
+    const scene = Object.create(ClinicMenuScene.prototype) as Record<string, unknown> & { update(t: number, dt: number): void };
+    Object.assign(scene, {
+      player: { x: 220, y: 382, setPosition: vi.fn() },
+      keys: { A: key, D: key, E: key, SPACE: key, ENTER: key },
+      cursors: undefined,
+      pointerTargetX: null,
+      doors: [{ item: makeItem({ unlocked: false }), x: 220 }],
+      nearestId: null,
+      worldW: 960,
+      view: 'right',
+      walking: false,
+      cb: { onEnter: vi.fn(), onFocus: vi.fn(), onReady: vi.fn() },
+      motion: lobbyMotion(reduceMotion),
+      cameras: { main: { shake } },
+    });
+    scene.update(0, 16);
+    return { shake, onEnter: (scene['cb'] as { onEnter: Mock }).onEnter };
+  }
+
+  it('sin «reducir movimiento», E ante la puerta bloqueada sacude la cámara y no entra', () => {
+    const { shake, onEnter } = sceneAtLockedDoor(false);
+    expect(shake).toHaveBeenCalledTimes(1);
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+
+  it('con «reducir movimiento», no hay sacudida (y tampoco entra)', () => {
+    const { shake, onEnter } = sceneAtLockedDoor(true);
+    expect(shake).not.toHaveBeenCalled();
+    expect(onEnter).not.toHaveBeenCalled();
   });
 });
 

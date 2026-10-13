@@ -56,7 +56,8 @@ test.describe('@estudiante panel', () => {
   test('el ratón sobre un punto del gráfico muestra su dato exacto', async ({ page }) => {
     await openPanel(page);
     await page.locator('.sd-chart__hit').last().hover();
-    await expect(page.locator('ui-tooltip-panel')).toHaveText(`Intento 3 · ${CASE_TITLE}: 38 puntos`);
+    // El último punto es el último intento TERMINADO (el abierto no se dibuja): 72 puntos.
+    await expect(page.locator('ui-tooltip-panel')).toHaveText(new RegExp(` · ${CASE_TITLE}: 72 puntos$`));
   });
 });
 
@@ -92,13 +93,21 @@ async function cursorsOverCanvas(page: Page): Promise<string[]> {
 
 // req: BLOQUE-H, RNF-04 (plan visual F5-3)
 test.describe('@estudiante sala', () => {
-  test('el ratón sobre una puerta abierta pone la mano; fuera de las puertas, no', async ({ page }) => {
+  test('el ratón sobre una puerta abierta pone la mano, sobre una bloqueada «prohibido»; fuera, ninguno', async ({ page }) => {
     await loginAs(page, 'estudiante');
+    // Una segunda puerta bloqueada simulada (la base del e2e tiene un solo caso, siempre abierto).
+    await page.route('**/api/simulation/catalog', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.data = [...body.data, { caseVersionId: 999_999, code: 'SIM-X', title: 'Caso bloqueado de prueba', description: '', order: 99, unlocked: false, completed: false, locked: true }];
+      await route.fulfill({ response, json: body });
+    });
     await page.goto('/portal/jugar');
     await expect(page.locator('app-game-menu canvas')).toBeVisible();
     await expect(page.getByRole('button', { name: /entrar al caso/i })).toBeVisible();
     const cursors = await cursorsOverCanvas(page);
     expect(cursors).toContain('pointer');
+    expect(cursors).toContain('not-allowed');
     expect(cursors.filter(cursor => cursor !== 'pointer').length).toBeGreaterThan(cursors.length / 2);
   });
 
@@ -159,7 +168,7 @@ async function openEditor(page: Page): Promise<void> {
   await loginAs(page, 'estudiante');
   await page.evaluate(() => localStorage.removeItem('psychosim_avatar'));
   await page.goto('/portal/personaje');
-  await expect(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').first()).toBeAttached();
+  await expect(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').first()).toBeAttached({ timeout: scaled(15_000) });
 }
 
 // req: BLOQUE-H, RNF-04 (plan visual F5-4)
@@ -218,6 +227,8 @@ test.describe('@estudiante estados de ruta', () => {
       lockedId = body.data[0].caseVersionId;
       await route.fulfill({ response, json: body });
     });
+    // Sin intentos abiertos: uno abierto (que dejara otra prueba) se puede continuar aunque el caso esté bloqueado.
+    await page.route('**/api/simulation/attempts/history', route => route.fulfill({ json: { success: true, data: [] } }));
     await page.goto('/portal/simulador');
     await expect(page.locator('.case-card').first()).toBeVisible({ timeout: scaled(15_000) });
     await page.goto(`/portal/simulador/${lockedId}`);

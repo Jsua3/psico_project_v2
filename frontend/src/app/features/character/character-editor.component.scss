@@ -121,8 +121,10 @@
   padding: var(--ds-space-1);
 }
 
-// La muestra de color: el valor entra como variable desde la rampa del kit.
+// La muestra de color: el valor entra como variable desde la rampa del kit. Con colores forzados conserva su color
+// (si no, todas serían círculos iguales: el color ES la información).
 .ce-swatch {
+  forced-color-adjust: none;
   display: block;
   inline-size: 1.75rem;
   block-size: 1.75rem;

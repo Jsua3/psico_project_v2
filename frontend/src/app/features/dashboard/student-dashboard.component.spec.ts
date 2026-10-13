@@ -6,6 +6,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { StudentDashboardComponent } from './student-dashboard.component';
+import { formatDate } from './student-dashboard.util';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
@@ -210,8 +211,8 @@ describe('StudentDashboardComponent', () => {
     expect(score.querySelectorAll('.sd-chart__hit')).toHaveLength(2);
     const cells = (row: Element) => [...row.querySelectorAll('th, td')].map(text).join(' ');
     expect([...score.querySelectorAll('.ds-sr-only table tbody tr')].map(cells)).toEqual([
-      'Intento 1 Violencia familiar y tentativa de feminicidio 30',
-      'Intento 2 Violencia familiar y tentativa de feminicidio 45',
+      `${formatDate('2026-09-01T10:00:00Z')} Violencia familiar y tentativa de feminicidio 30`,
+      `${formatDate('2026-09-02T10:00:00Z')} Violencia familiar y tentativa de feminicidio 45`,
     ]);
     // Título entero en el DOM (lo recorta el CSS, no el código) y la cuenta en el globo.
     expect(text(progress.querySelector('.sd-bar__label'))).toBe('Violencia familiar y tentativa de feminicidio');
@@ -234,7 +235,7 @@ describe('StudentDashboardComponent', () => {
       await vi.advanceTimersByTimeAsync(450);
     };
     await hover(host().querySelectorAll('.sd-chart__hit')[1]);
-    expect(tooltip()).toBe('Intento 2 · Caso A: 45 puntos');
+    expect(tooltip()).toBe(`${formatDate('2026-09-02T10:00:00Z')} · Caso A: 45 puntos`);
     host().querySelectorAll('.sd-chart__hit')[1].dispatchEvent(new MouseEvent('mouseleave'));
     await vi.advanceTimersByTimeAsync(300);
     await hover(host().querySelector('.sd-bar')!);

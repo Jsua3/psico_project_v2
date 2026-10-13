@@ -193,6 +193,11 @@ export class CharacterEditorComponent implements CanLeave {
 
   /** Salir por la navegación con cambios sin guardar: pregunta (la ruta lleva `canLeaveGuard`). */
   canLeave(): Promise<boolean> {
+    // La sesión ya se cerró (salir de la cuenta o un 401): no hay nada que preguntar; lo no guardado se descarta.
+    if (!this.auth.currentUser()) {
+      this.store.revert();
+      return Promise.resolve(true);
+    }
     return confirmLeaveEditor(this.store, this.dialog);
   }
 

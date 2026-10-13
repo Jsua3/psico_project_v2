@@ -244,7 +244,7 @@ export class ClinicMenuScene extends Phaser.Scene {
       <!-- Un h1 por pantalla (plan visual F3-6): la sala es un mundo a sangre, así que va visualmente oculto. -->
       <h1 class="sr-only">Sala de simulación</h1>
       <!-- La barra del portal está oculta en la sala: la salida al panel queda siempre a la vista (F5-3). -->
-      <a ui-button variant="secondary" size="sm" icon="arrow_back" class="menu-exit" href="/portal/dashboard"
+      <a ui-button variant="secondary" size="md" icon="arrow_back" class="menu-exit" href="/portal/dashboard"
          (click)="exitToPanel($event)">Volver al panel</a>
       <!-- UNA señal de carga (catálogo, kit y primer cuadro): la región de estado siempre presente. -->
       <p class="sr-only" role="status">{{ loadingVisible() ? 'Preparando la sala…' : '' }}</p>
@@ -268,7 +268,8 @@ export class ClinicMenuScene extends Phaser.Scene {
            lectores; la guardia entering() garantiza UNA sola navegación. -->
       @if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }
       <div class="lobby-sign" aria-hidden="true">CLÍNICA · SIEP</div>
-      <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()"
+      <!-- Bajo la capa de error o de «sin casos» el lienzo no se enfoca (su foco quedaría tapado: WCAG 2.4.11). -->
+      <div #host class="phaser-host" role="application" tabindex="0" (click)="focusCanvas()" [attr.inert]="covered() ? '' : null"
            (keydown.e)="enterFocused($event)" (keydown.enter)="enterFocused($event)"
            (keydown.space)="enterFocused($event)"
            [attr.aria-label]="hostLabel()"></div>
@@ -395,6 +396,8 @@ export class GameMenuComponent implements OnDestroy {
   protected readonly loadingVisible = computed(() => this.loadingShown() === 'skeleton');
   protected readonly errorKind = computed(() => errorKindFromStatus(this.loadErrorStatus()));
   protected readonly errorStatus = this.loadErrorStatus.asReadonly();
+  /** Una capa que se queda (error o sala sin casos) tapa el lienzo: el lienzo sale del orden de foco. */
+  protected readonly covered = computed(() => this.phase() === 'error' || (this.phase() === 'ready' && !this.catalog().length));
   readonly catalog = signal<CatalogItem[]>([]);
   readonly focused = signal<CatalogItem | null>(null);
   readonly entering = signal<string>('');
@@ -464,26 +467,15 @@ export class GameMenuComponent implements OnDestroy {
       .then(visual => {
         this.booting = false;
         if (this.destroyed || !this.host || this.game) return;
-        this.zone.runOutsideAngular(() => {
-          const scene = new ClinicMenuScene(items, visual, reduceMotion, {
-            onEnter: id => this.zone.run(() => this.enter(id)),
-            onFocus: item => this.zone.run(() => this.focused.set(item)),
-            onReady: () => this.zone.run(() => this.phase.set('ready')),
-          });
-          this.game = new Phaser.Game({
-            type: Phaser.AUTO,
-            parent: this.host!.nativeElement,
-            backgroundColor: '#0e141a',
-            pixelArt: true,
-            roundPixels: true, // con zoom ≥ 2 lo completa PixelRender en create() (F0-7)
-            scale: pixelScaleConfig(this.host!.nativeElement),
-            scene,
-          });
-          this.detachHostWatch = watchHostSize(this.game, this.host!.nativeElement);
-          // Sin la captura de Phaser, flechas y Espacio desplazarían la página. Se arma DESPUÉS de
-          // crear el juego: Phaser descarta los `keydown` ya cancelados.
-          this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
-        });
+        // Si Phaser no arranca (sin WebGL ni canvas utilizable), error con «Reintentar» y no «Preparando…» para siempre.
+        try {
+          this.zone.runOutsideAngular(() => this.startGame(items, visual, reduceMotion));
+        } catch {
+          this.teardownGame();
+          this.loadErrorStatus.set(null);
+          this.phase.set('error');
+          return;
+        }
         // Foco inicial explícito: los controles de teclado quedan activos sin un click previo (GAME-09).
         window.setTimeout(() => this.focusCanvas(), 0);
       });
@@ -499,6 +491,28 @@ export class GameMenuComponent implements OnDestroy {
 
   lockReasonOf(item: CatalogItem): string | null {
     return item.unlocked ? null : lockReason(this.catalog(), item.caseVersionId) ?? 'Completa el caso anterior para abrirlo.';
+  }
+
+  /** Crea la escena y el juego fuera de Angular; lanza si Phaser no puede arrancar (lo recoge `boot`). */
+  private startGame(items: CatalogItem[], visual: CharacterVisual | null, reduceMotion: boolean) {
+    const scene = new ClinicMenuScene(items, visual, reduceMotion, {
+      onEnter: id => this.zone.run(() => this.enter(id)),
+      onFocus: item => this.zone.run(() => this.focused.set(item)),
+      onReady: () => this.zone.run(() => this.phase.set('ready')),
+    });
+    this.game = new Phaser.Game({
+      type: Phaser.AUTO,
+      parent: this.host!.nativeElement,
+      backgroundColor: '#0e141a',
+      pixelArt: true,
+      roundPixels: true, // con zoom ≥ 2 lo completa PixelRender en create() (F0-7)
+      scale: pixelScaleConfig(this.host!.nativeElement),
+      scene,
+    });
+    this.detachHostWatch = watchHostSize(this.game, this.host!.nativeElement);
+    // Sin la captura de Phaser, flechas y Espacio desplazarían la página. Se arma DESPUÉS de
+    // crear el juego: Phaser descarta los `keydown` ya cancelados.
+    this.detachScrollKeyGuard = attachScrollKeyGuard(this.zone);
   }
 
   focusCanvas() {

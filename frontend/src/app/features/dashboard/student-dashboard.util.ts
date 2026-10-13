@@ -3,7 +3,7 @@ import { UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { plural } from '../../shared/ui/labels';
 import { NO_DATA_LABEL, completedAttemptCount } from './dashboard-metrics.util';
 
-/** Un punto de «Evolución de puntaje»: el intento por orden, su caso y su puntaje. */
+/** Un punto de «Evolución de puntaje»: la fecha del intento, su caso y su puntaje. */
 export interface ScorePoint {
   label: string;
   caseTitle: string;
@@ -49,13 +49,17 @@ export function attemptTone(status: string): UiBadgeTone {
   return 'neutral';
 }
 
-/** Los ocho últimos intentos por fecha de inicio, del más antiguo al más reciente. */
+/**
+ * Los ocho últimos intentos CERRADOS por fecha de inicio, del más antiguo al más reciente. Un intento abierto aún
+ * no tiene su puntaje (dibujarlo sería una caída falsa); el rótulo es la fecha, no un número relativo a la ventana.
+ */
 export function scoreSeries(history: readonly StudentAttemptSummary[]): ScorePoint[] {
-  return [...history]
+  return history
+    .filter(attempt => !OPEN_STATUSES.has(attempt.status))
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
     .slice(-MAX_SCORE_POINTS)
-    .map((attempt, index) => ({
-      label: `Intento ${index + 1}`,
+    .map(attempt => ({
+      label: formatDate(attempt.startedAt),
       caseTitle: attempt.caseTitle,
       value: Math.max(0, attempt.accumulatedScore),
     }));

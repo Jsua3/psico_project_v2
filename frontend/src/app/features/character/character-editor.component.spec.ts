@@ -145,6 +145,29 @@ describe('CharacterEditorComponent', () => {
     expect(store.avatar()).toMatchObject({ recipeId: 'david' });
   });
 
+  it('si la sesión ya se cerró (salir de la cuenta, 401), deja salir sin preguntar y descarta lo no guardado', async () => {
+    await render();
+    radio('Elenco', DAVID).click();
+    await fixture.whenStable();
+    (TestBed.inject(AuthService).currentUser as ReturnType<typeof signal<{ role: string } | null>>).set(null);
+    expect(await fixture.componentInstance.canLeave()).toBe(true);
+    expect(consequence).not.toHaveBeenCalled();
+    expect(store.dirty()).toBe(false);
+  });
+
+  it('cerrar la pestaña con cambios sin guardar hace que el navegador pregunte; sin cambios, no', async () => {
+    await render();
+    const unload = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(unload()).toBe(false);
+    radio('Elenco', DAVID).click();
+    await fixture.whenStable();
+    expect(unload()).toBe(true);
+  });
+
   it('el rol del resumen sale de labels.ts', async () => {
     await render({ role: 'PROFESOR' });
     expect(text(host().querySelector('.ce-summary'))).toContain('Docente');

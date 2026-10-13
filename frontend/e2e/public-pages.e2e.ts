@@ -119,7 +119,8 @@ test.describe('@estados sin permiso y sin conexión', () => {
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Reintentar' }).click();
     await page.waitForURL(/\/portal\/simulador$/, { timeout: 30_000 });
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Casos publicados para simulación formativa.');
+    // El título del catálogo pasó a ui-page-header en F5-2, sin punto final.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Casos publicados para simulación formativa');
   });
 });
 

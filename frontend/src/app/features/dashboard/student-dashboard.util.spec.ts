@@ -1,6 +1,6 @@
 import { StudentAttemptSummary } from '../../core/models/simulation.model';
 import {
-  attemptTone, caseProgress, decisionBreakdown, firstUseCopy, formatActiveTime, openAttempt, scoreSeries,
+  attemptTone, caseProgress, decisionBreakdown, firstUseCopy, formatActiveTime, formatDate, openAttempt, scoreSeries,
 } from './student-dashboard.util';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
@@ -30,7 +30,7 @@ describe('student-dashboard.util', () => {
     expect(attemptTone('REPLACED')).toBe('neutral');
   });
 
-  it('scoreSeries ordena por fecha, se queda con los ocho últimos y nombra cada punto con su caso', () => {
+  it('scoreSeries ordena por fecha, se queda con los ocho últimos y nombra cada punto con su fecha y su caso', () => {
     const history = Array.from({ length: 10 }, (_, index) => attempt({
       attemptId: `a${index}`, caseTitle: `Caso ${index}`, accumulatedScore: index * 10,
       startedAt: `2026-09-${String(20 - index).padStart(2, '0')}T10:00:00Z`,
@@ -38,8 +38,18 @@ describe('student-dashboard.util', () => {
     const series = scoreSeries(history);
     expect(series).toHaveLength(8);
     // El más antiguo de los ocho últimos es el de índice 7 (día 13); el último, el de índice 0 (día 20).
-    expect(series[0]).toMatchObject({ label: 'Intento 1', value: 70, caseTitle: 'Caso 7' });
-    expect(series[7]).toMatchObject({ label: 'Intento 8', value: 0, caseTitle: 'Caso 0' });
+    expect(series[0]).toMatchObject({ label: formatDate('2026-09-13T10:00:00Z'), value: 70, caseTitle: 'Caso 7' });
+    expect(series[7]).toMatchObject({ label: formatDate('2026-09-20T10:00:00Z'), value: 0, caseTitle: 'Caso 0' });
+  });
+
+  // Revisión de F5: un intento abierto aún no tiene su puntaje; dibujarlo sería una caída falsa a 0.
+  it('scoreSeries deja fuera los intentos abiertos (en curso o en pausa)', () => {
+    const series = scoreSeries([
+      attempt({ attemptId: 'a', accumulatedScore: 40, startedAt: '2026-09-01T10:00:00Z' }),
+      attempt({ attemptId: 'b', status: 'PAUSED', accumulatedScore: 0, startedAt: '2026-09-02T10:00:00Z' }),
+      attempt({ attemptId: 'c', status: 'IN_PROGRESS', accumulatedScore: 5, startedAt: '2026-09-03T10:00:00Z' }),
+    ]);
+    expect(series.map(point => point.value)).toEqual([40]);
   });
 
   it('caseProgress cuenta por caso los completados frente al total, con el título entero (máximo cinco casos)', () => {

@@ -62,8 +62,11 @@ describe('app.routes: páginas de estado', () => {
   });
 });
 
-/** Plan visual F5-4: salir del editor de avatar con cambios sin guardar pregunta antes (canLeaveGuard → canLeave del editor). */
-// req: BLOQUE-H
+/**
+ * Plan visual F5-4: salir del editor de avatar con cambios sin guardar pregunta antes (canLeaveGuard → canLeave del
+ * editor). F5-5: abrir por dirección un caso bloqueado vuelve al catálogo con el motivo.
+ */
+// req: BLOQUE-H, SIEP-RF-12 (gancho de interfaz)
 describe('app.routes: editor de avatar', () => {
   // F5-5: abrir por dirección un caso bloqueado vuelve al catálogo con el motivo (después de la guardia de rol).
   it('«simulador/:caseVersionId» mira el desbloqueo tras el rol', () => {
