@@ -225,6 +225,40 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
       expect(escape().defaultPrevented).toBe(false);
     });
 
+    // req: REGLA-004 (revisión de F6: la cadena Esc ayuda → bitácora → diálogo → pausa no pierde pulsaciones)
+    it('con el dock fuera de alcance (una capa abierta lo vuelve inerte) el aviso no consume el Esc', () => {
+      mount(['PAP']);
+      card('SPIKES').click();
+      fixture.detectChanges();
+      const footer = document.createElement('footer');
+      footer.setAttribute('inert', '');
+      document.body.appendChild(footer);
+      footer.appendChild(root);
+      try {
+        const event = escape();
+        expect(event.defaultPrevented).toBe(false);
+        expect(root.querySelector('.tool-notice')).not.toBeNull();
+      } finally {
+        footer.remove();
+      }
+    });
+
+    it('con el dock oculto a los lectores (aria-hidden) tampoco consume el Esc', () => {
+      mount(['PAP']);
+      card('SPIKES').click();
+      fixture.detectChanges();
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(wrapper);
+      wrapper.appendChild(root);
+      try {
+        expect(escape().defaultPrevented).toBe(false);
+        expect(root.querySelector('.tool-notice')).not.toBeNull();
+      } finally {
+        wrapper.remove();
+      }
+    });
+
     it('el botón de cierre es el botón de icono de la biblioteca (cuadrado de 44 px), sin CSS propio', () => {
       mount(['PAP']);
       card('SPIKES').click();

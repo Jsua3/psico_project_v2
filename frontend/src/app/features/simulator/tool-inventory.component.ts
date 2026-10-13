@@ -273,11 +273,13 @@ export class ToolInventoryComponent {
   /**
    * Esc cierra SOLO el aviso y consume esa pulsación: el juego no la lee como pausa (cadena ayuda → bitácora → diálogo →
    * pausa). Sin aviso abierto no hace nada y la cadena sigue intacta. `document` recibe la tecla antes que el
-   * `window:keydown` de la pantalla de juego.
+   * `window:keydown` de la pantalla de juego. Con el dock fuera de alcance (otra capa abierta lo vuelve inerte u
+   * oculto) el aviso no se ve ni se opera: el Esc le toca a esa capa y no se consume aquí.
    */
   @HostListener('document:keydown.escape', ['$event'])
   protected onEscape(event: Event): void {
     if (event.defaultPrevented || !this.notice()) return;
+    if (this.host.nativeElement.closest('[inert], [aria-hidden="true"], [hidden]')) return;
     event.preventDefault();
     this.dismissNotice();
   }
