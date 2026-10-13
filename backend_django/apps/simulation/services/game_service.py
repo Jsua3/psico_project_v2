@@ -27,7 +27,7 @@ from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed
 from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
-from .attempt_duration import active_duration_seconds
+from . import attempt_duration
 from shared.exceptions import ApiError
 from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
@@ -220,6 +220,7 @@ def start_attempt(case_version_id, actor, force_new=False):
                 case_version=version,
                 student_id=actor.id,
                 current_node=start_node,
+                last_activity_at=timezone.now(),
                 status=lifecycle.INITIAL_STATUS,
                 accumulated_score=0,
                 stress_index=INITIAL_STRESS_INDEX,
@@ -305,19 +306,6 @@ def list_attempt_history(actor):
         if ev["decision_option__prohibited_conduct"]:
             bucket["PROHIBITED"] += 1
 
-    # El tiempo activo solo se calcula para intentos terminados (ended_at); un
-    # intento en curso no lo necesita y sus eventos (posiciones del mundo) crecen
-    # con el juego, así que no se cargan.
-    finished_ids = [a.id for a in attempts if a.ended_at]
-    event_marks = {}
-    if finished_ids:
-        for attempt_id, event_type, occurred_at in (
-            AttemptEvent.objects.filter(attempt_id__in=finished_ids)
-            .order_by("attempt_id", "occurred_at", "id")
-            .values_list("attempt_id", "event_type", "occurred_at")
-        ):
-            event_marks.setdefault(attempt_id, []).append((event_type, occurred_at))
-
     return [
         {
             "attemptId": str(a.id),
@@ -333,9 +321,8 @@ def list_attempt_history(actor):
                 int((a.ended_at - a.started_at).total_seconds())
                 if a.started_at and a.ended_at else None
             ),
-            "activeDurationSeconds": active_duration_seconds(
-                a.started_at, a.ended_at, event_marks.get(a.id, [])
-            ),
+            # Del acumulador (E1-5); un intento sin terminar no informa tiempo activo, como antes.
+            "activeDurationSeconds": int(round(a.active_seconds or 0)) if a.ended_at else None,
             "startedAt": a.started_at.isoformat() if a.started_at else None,
             "endedAt": a.ended_at.isoformat() if a.ended_at else None,
         }
@@ -432,6 +419,7 @@ def choose_decision(
         return _replayed_decision_state(attempt, attempt_token, replay)
     if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta decisiones")
+    attempt_duration.touch(attempt, timezone.now())  # solo en memoria; se guarda con el intento
 
     decision = (
         DecisionOption.objects.filter(pk=decision_option_id)
@@ -469,6 +457,7 @@ def choose_decision(
             )
             # Trazado para revisión/rúbrica docente; sin cambios de métricas ni avance.
             _save_event(attempt, event_type, decision.source_node, decision, 0, 0, message, request_id)
+            attempt.save(update_fields=attempt_duration.ACTIVITY_FIELDS)  # el reintento también es actividad
             feedback = dto.feedback_dto(decision, effects, message, retry_required=True)
             return dto.attempt_state(attempt, attempt_token, feedback)
 
@@ -545,6 +534,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
     reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 
+    attempt_duration.record_activity(attempt)
     _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada", request_id)
     return {"nodeId": node.id, "locked": reflection.locked}
 
@@ -560,6 +550,7 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
         return dto.attempt_state(attempt, attempt_token, None)
+    attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
@@ -581,6 +572,7 @@ def resume_attempt(attempt_id, attempt_token, actor):
     if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
     lifecycle.apply(attempt, lifecycle.RESUME)
+    attempt_duration.reset_clock(attempt, timezone.now())  # el tiempo en pausa no es tiempo activo
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
     return dto.attempt_state(attempt, attempt_token, None)

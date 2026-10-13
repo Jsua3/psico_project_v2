@@ -41,7 +41,7 @@ QUERY_BUDGETS = {
     # intento; decidir suma otra por la búsqueda de repetición. E5-1 las consolida.
     "get_world": 16,  # (2) una LECTURA que escribe: D-15, lo corrige E1-6
     "patch_world_state": 20,  # (3) era 19; E5-1 apunta a ≤ 6
-    "enter_room": 26,  # (3) era 25
+    "enter_room": 27,  # (4) era 25 (3): +1 cerrojo (E1-3) y +1 UPDATE del acumulador de tiempo (E1-5)
     "post_decision": 11,  # (4) era 9
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina

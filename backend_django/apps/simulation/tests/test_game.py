@@ -441,8 +441,8 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
 def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     estudiante, case_version_id
 ):
-    """Un intento cerrado informa un tiempo activo entero acotado por el total, y el
-    historial no carga eventos de intentos sin terminar (su duración activa es None)."""
+    """Un intento cerrado informa un tiempo activo entero acotado por el total (del acumulador
+    del intento, E1-5), y el de un intento sin terminar es None."""
     assign_case_to_student(estudiante, case_version_id, "SIM-HFIN")
     c = cl(estudiante)
     closed = c.post("/api/simulation/attempts",
@@ -466,17 +466,13 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     assert unfinished["status"] == "IN_PROGRESS"
     assert unfinished["activeDurationSeconds"] is None
 
-    # La consulta de marcas de tiempo es la única que LEE event_type de attempt_events
-    # (la de conteos de decisiones lo usa solo para filtrar, no lo selecciona).
+    # Desde E1-5 el tiempo activo sale del acumulador: ninguna consulta LEE event_type de
+    # attempt_events (la de conteos de decisiones lo usa solo para filtrar, no lo selecciona).
     marks_sql = [
         q["sql"] for q in queries.captured_queries
         if '"attempt_events"."event_type"' in q["sql"].split(" FROM ")[0]
     ]
-    assert len(marks_sql) == 1, "una sola consulta de eventos para el tiempo activo"
-    # Según el driver (psycopg 3) el UUID viaja sin guiones dentro del SQL literal.
-    sql_text = marks_sql[0].replace("-", "")
-    assert closed["attemptId"].replace("-", "") in sql_text
-    assert running["attemptId"].replace("-", "") not in sql_text, "no se cargan eventos del intento en curso"
+    assert marks_sql == [], "el historial ya no recorre los eventos para calcular el tiempo activo"
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):

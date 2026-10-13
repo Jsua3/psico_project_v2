@@ -292,6 +292,10 @@ class CompletionReportBuilder:
 
     def build(self):
         attempt, events = self._attempt, self._events
+        clock_seconds = (
+            int((attempt.ended_at - attempt.started_at).total_seconds())
+            if attempt.started_at and attempt.ended_at else None
+        )
         return {
             "attemptId": str(attempt.id),
             "caseTitle": attempt.case_version.simulation_case.title,
@@ -317,10 +321,11 @@ class CompletionReportBuilder:
             "competencies": self.competencies,
             "recommendations": self.recommendations,
             "summaryMessage": self.summary,
-            "totalDurationSeconds": (
-                int((attempt.ended_at - attempt.started_at).total_seconds())
-                if attempt.started_at and attempt.ended_at else None
-            ),
+            "totalDurationSeconds": clock_seconds,
+            # Tiempo activo (acumulador del intento, E1-5) y de reloj: no es lo mismo, y el reporte
+            # no debe ofrecer uno por el otro.
+            "activeSeconds": int(round(attempt.active_seconds or 0)),
+            "clockSeconds": clock_seconds,
             "timeline": build_timeline(attempt, events),
             # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
             "ending": case_effects.compute_ending(attempt, events),

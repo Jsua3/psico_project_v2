@@ -77,6 +77,11 @@ class SimulationAttempt(models.Model):
         db_column="replaced_by_id", related_name="+",
     )
     replace_reason = models.TextField(null=True, blank=True)
+    # Tiempo activo acumulado (E1-5, decisión 14): cada orden que cambia el intento suma
+    # ``min(ahora − last_activity_at, 300)``; la pausa no suma. Reemplaza los eventos
+    # WORLD_POSITION_UPDATED como fuente del tiempo (ver ``services/attempt_duration``).
+    active_seconds = models.FloatField(default=0.0, db_default=0)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "simulation_attempts_v2"

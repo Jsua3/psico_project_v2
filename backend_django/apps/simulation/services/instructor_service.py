@@ -111,6 +111,7 @@ def trace(attempt_id, instructor=None):
         "prohibitedRetries": report["prohibitedRetries"],
         "safeExitUsed": report["safeExitUsed"],
         "totalDurationSeconds": total_duration,
+        "activeSeconds": report["activeSeconds"],
         "timeline": report["timeline"],
         "visitedNodeTitles": report["visitedNodeTitles"],
         "events": [_to_trace_event(e) for e in events],

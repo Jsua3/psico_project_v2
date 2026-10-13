@@ -64,12 +64,13 @@ def test_teletransporte_rechazado_sin_mutacion(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     world = _world(c, attempt_id, token)
-    before = _events(attempt_id, "WORLD_POSITION_UPDATED")
+    before = AttemptEvent.objects.filter(attempt_id=attempt_id).count()
 
     resp = _move(c, attempt_id, token, 100, 250, world["map"]["key"])  # salto ~420px inmediato
     assert resp.status_code == 400
     assert _player(attempt_id) == (480, 430)
-    assert _events(attempt_id, "WORLD_POSITION_UPDATED") == before
+    # Un movimiento rechazado no escribe nada; uno aceptado tampoco deja evento (E1-5).
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id).count() == before
 
 
 def test_fuera_de_limites_rechazado(estudiante, case_version_id):

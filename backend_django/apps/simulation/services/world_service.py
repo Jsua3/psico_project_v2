@@ -27,7 +27,7 @@ from ..models import (
     MapObject,
     SceneMap,
 )
-from . import attempt_lifecycle as lifecycle, door_chain, game_service
+from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service
 from .attempt_lock import locked_attempt
 from shared.idempotency import normalize_request_id
 from shared.jsonutils import (
@@ -205,7 +205,8 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
     world_state.player_y = y
     _stamp_position_sync(world_state)
     world_state.save()
-    _save_event(attempt, "WORLD_POSITION_UPDATED", "Posicion de jugador actualizada")
+    # El reloj queda como dato en el intento: ya no se escribe un evento por cada movimiento (E1-5).
+    attempt_duration.record_activity(attempt)
     return _to_world_state(attempt, world_state)
 
 
@@ -249,6 +250,7 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
         unlocked_tool = map_object.tool_code
 
     world_state.save()
+    attempt_duration.record_activity(attempt)
     _save_event(attempt, "MAP_INTERACTION_OPENED", map_object.interaction_prompt)
 
     return {
@@ -342,6 +344,7 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
 
     stress_delta = TOOL_PERTINENT_STRESS_DELTA if pertinent else TOOL_IMPERTINENT_STRESS_DELTA
     attempt.stress_index = _clamp(attempt.stress_index + stress_delta, INDICATOR_MIN, INDICATOR_MAX)
+    attempt_duration.touch(attempt, timezone.now())
     attempt.save()
 
     sign = "+" if stress_delta >= 0 else ""
@@ -415,6 +418,7 @@ def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
     flags["viewedNpcKeys"] = viewed
     world_state.flags_json = _write_map(flags)
     world_state.save(update_fields=["flags_json", "updated_at"])
+    attempt_duration.record_activity(attempt)
     _save_event(attempt, "NPC_DIALOGUE_VIEWED", f"NPC escuchado: {npc_key}")
     return _to_world_state(attempt, world_state)
 
@@ -470,6 +474,7 @@ def enter_room(attempt_id, attempt_token, target_node_key, actor, door_key=None,
     flags["syncedNodeId"] = attempt.current_node_id  # keep — door room is intentional
     _stamp_position_sync(state, flags)
     state.save()
+    attempt_duration.record_activity(attempt)
     _save_event(attempt, "ROOM_ENTERED", f"Puerta hacia sala {target_node_key}", request_id)
     return _to_world_state(attempt, state)
 
