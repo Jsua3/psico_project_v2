@@ -4,6 +4,7 @@ import { test } from '@playwright/test';
 
 import { TOUR_SCREENS, loginAs, openScreen } from '../../e2e/support/screen-tour';
 import type { SignedRole, TourRole } from '../../e2e/support/screen-tour';
+import { enterCaseAtContentWarning, openFamilyDialogue } from '../../e2e/support/siep-flow';
 
 /**
  * Capturas por rol × pantalla × ancho (F0-1). No es una prueba: un fallo en una pantalla se anota en
@@ -72,6 +73,70 @@ test('capturas · galería /dev/ui', async ({ page }) => {
       }
     } catch (error) {
       manifest.push({ role: 'publico', screen: 'galeria', viewport: label, error: String(error).slice(0, 400) });
+    }
+  }
+});
+
+// Estados del juego (F6): cada uno a los tres anchos, de la entrada al caso a la pausa. El video de introducción se
+// salta (la configuración fija movimiento reducido). Un estado que falla se anota en el manifiesto y el recorrido sigue.
+test('capturas · juego', async ({ page }) => {
+  test.setTimeout(20 * 60_000);
+  mkdirSync(OUT_DIR, { recursive: true });
+  const settle = async () => {
+    await page.evaluate(async () => {
+      const finite = document.getAnimations().filter(animation => {
+        const end = animation.effect?.getComputedTiming().endTime;
+        return typeof end === 'number' && Number.isFinite(end);
+      });
+      await Promise.race([Promise.allSettled(finite.map(animation => animation.finished)), new Promise(resolve => setTimeout(resolve, 3000))]);
+    });
+    await page.waitForTimeout(250);
+  };
+  for (const viewport of VIEWPORTS) {
+    const label = `${viewport.width}x${viewport.height}`;
+    const shot = async (state: string, step: () => Promise<void>): Promise<void> => {
+      const file = `estudiante__juego-${state}__${label}.png`;
+      try {
+        await step();
+        await settle();
+        await page.screenshot({ path: join(OUT_DIR, file) });
+        manifest.push({ role: 'estudiante', screen: `juego-${state}`, viewport: label, file, path: page.url() });
+      } catch (error) {
+        manifest.push({ role: 'estudiante', screen: `juego-${state}`, viewport: label, error: String(error).slice(0, 400) });
+      }
+    };
+    try {
+      await page.setViewportSize(viewport);
+      await loginAs(page, 'estudiante');
+      await page.goto('/portal/jugar');
+      await page.locator('app-game-menu canvas').waitFor({ state: 'visible', timeout: 30_000 });
+      const consent = await enterCaseAtContentWarning(page);
+      await shot('aviso-contenido', async () => undefined);
+      // Con movimiento reducido el juego salta el video de introducción: aviso → contexto → mundo.
+      await consent.getByRole('button', { name: /^continuar$/i }).click();
+      const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+      await caseIntro.waitFor({ state: 'visible', timeout: 30_000 });
+      await shot('contexto', async () => undefined);
+      await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+      await page.locator('app-game-world .phaser-host[data-world-ready="true"]').waitFor({ state: 'visible', timeout: 45_000 });
+      await shot('mundo', async () => { await page.waitForTimeout(800); });
+
+      await shot('ayuda', async () => { await page.getByRole('button', { name: /abrir cómo se juega/i }).click(); });
+      await page.keyboard.press('Escape');
+      await shot('ajustes', async () => { await page.getByRole('button', { name: /abrir ajustes del juego/i }).click(); });
+      await page.getByRole('button', { name: /cerrar ajustes/i }).click();
+      await shot('ir-a', async () => { await page.locator('button[data-hud-places]').click(); });
+      await page.keyboard.press('Escape');
+      await shot('bitacora', async () => { await page.getByRole('button', { name: /abrir bitácora reflexiva/i }).click(); });
+      await page.getByRole('dialog', { name: /bitácora reflexiva cifrada/i }).getByRole('button', { name: /cerrar bitácora/i }).click();
+      await shot('dialogo', async () => { await openFamilyDialogue(page, false); });
+      await page.keyboard.press('Escape');
+      await shot('pausa', async () => {
+        await page.getByRole('button', { name: /salida segura/i }).first().click();
+        await page.getByRole('button', { name: /reanudar este intento/i }).waitFor({ state: 'visible', timeout: 30_000 });
+      });
+    } catch (error) {
+      manifest.push({ role: 'estudiante', screen: 'juego-recorrido', viewport: label, error: String(error).slice(0, 400) });
     }
   }
 });
