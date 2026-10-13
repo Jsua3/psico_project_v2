@@ -40,8 +40,28 @@ const summarize = (results: Result[]): Finding[] => results.map(result => ({
   targets: result.nodes.slice(0, 5).map(node => node.target.join(' ')),
 }));
 
+/**
+ * Axe calcula el contraste con la opacidad de ese instante: un diálogo auditado a media entrada (fundido) sale con
+ * 1,0–1,3:1 aunque, ya asentado, pase. Se espera a que terminen las animaciones y transiciones FINITAS (las
+ * infinitas, como un indicador de carga, no terminan nunca) con un tope, y un respiro para el repintado.
+ */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter(animation => {
+      const end = animation.effect?.getComputedTiming().endTime;
+      return typeof end === 'number' && Number.isFinite(end);
+    });
+    await Promise.race([
+      Promise.allSettled(finite.map(animation => animation.finished)),
+      new Promise(resolve => setTimeout(resolve, 3000)),
+    ]);
+  });
+  await page.waitForTimeout(150);
+}
+
 async function audit(page: Page, record: Omit<ScreenRecord, 'violations' | 'incomplete'>): Promise<void> {
   try {
+    await settle(page);
     const results: AxeResults = await runAxe(page, { tags: TAGS, resultTypes: ['violations', 'incomplete'] });
     records.push({ ...record, violations: summarize(results.violations), incomplete: summarize(results.incomplete) });
   } catch (error) {

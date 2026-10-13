@@ -115,7 +115,8 @@ test.describe('@estados sin permiso y sin conexión', () => {
     await context.setOffline(true);
     await page.locator('header.cromo .modulo-principal').getByRole('link', { name: 'Simulador', exact: true }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sin conexión', { timeout: 15_000 });
-    await expect(page.getByRole('alert')).toContainText('Revisa tu conexión a internet');
+    // Desde F6-12 hay una región viva `role="alert"` siempre montada (vacía): se elige la que trae el aviso.
+    await expect(page.getByRole('alert').filter({ hasText: 'Revisa tu conexión a internet' })).toBeVisible();
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Reintentar' }).click();
     await page.waitForURL(/\/portal\/simulador$/, { timeout: 30_000 });
