@@ -17,6 +17,7 @@
     "test:frontend": "npm test --prefix frontend",
     "build:frontend": "npm run build --prefix frontend",
     "baseline:backend": "node scripts/baseline/measure-backend.mjs",
-    "verify:estructural": "node scripts/verify-estructural.mjs"
+    "verify:estructural": "node scripts/verify-estructural.mjs",
+    "load:aula": "node scripts/load/aula.mjs"
   }
 }
