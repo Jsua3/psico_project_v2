@@ -95,6 +95,32 @@ describe('game-world: nada nuevo por cuadro (F§7.2, 59 FPS)', () => {
   });
 });
 
+describe('game-world: ratón (F6-7, VD-5)', () => {
+  // req: BLOQUE-H, RNF-04
+  it('el hover va por eventos del puntero, no por cuadro: update() no sabe nada de él', () => {
+    expect(source).toMatch(/this\.input\.on\('pointermove', this\.handlePointerMove, this\);/);
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).not.toMatch(/hover|Hover|pickHoverTarget|handlePointerMove/);
+  });
+
+  it('con dedo o con una capa abierta no se resalta nada y el contorno solo sale de lo elegible', () => {
+    const handler = bodyOf(/\n  private handlePointerMove\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  private setHover\(/);
+    expect(handler).toContain('pointer.wasTouch || this.motionPaused');
+    expect(handler).toContain('pickHoverTarget(');
+    expect(handler).toContain('this.examinedKeys');
+  });
+
+  it('el hover no lee clasificación ni datos clínicos de lo que señala', () => {
+    const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
+    expect(hover).not.toMatch(/classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId|effect\b/);
+  });
+
+  it('el mundo no pide nada al servidor al pasar el puntero (solo callbacks de la propia escena)', () => {
+    const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
+    expect(hover).not.toMatch(/http|fetch|simulation\.|onInteract|onNpcInteract/);
+  });
+});
+
 describe('game-world: señales iguales para todos (límite 1 de producto)', () => {
   it('el anillo y los rótulos nacen de la clave del destino y de la distancia, nunca de lo clínico', () => {
     const forbidden = /classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId/;

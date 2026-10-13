@@ -50,7 +50,8 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { interactionVerb } from './interaction-verb.util';
+import { InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import {
   NUDGE_SUBSTEPS,
   PlayerDirection,
@@ -104,6 +105,8 @@ interface WorldCallbacks {
   onRoomExit:    (targetRoomKey: string, entryX: number, entryY: number) => void;
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
+  /** El puntero está sobre esta clave (marcador o `npc:{clave}`) o sobre nada (F6-7, VD-5). */
+  onHover?:      (key: string | null) => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
   onLoadProgress: (percent: number) => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
@@ -213,6 +216,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private dimmedKeys: ReadonlySet<string> = NO_KEYS;
   /** Puntero táctil o modo compacto: en los rótulos solo el destino y el más cercano. */
   private compactLabels = false;
+  // ── Ratón (F6-7, VD-5): contorno, verbo y cursor solo sobre lo que el jugador ya podría saber ──
+  private hoverKey: string | null = null;
+  private hoverOutline?: Phaser.GameObjects.Graphics;
+  private hoverLabel?: Phaser.GameObjects.Text;
+  /** Lo ya examinado (objetos inspeccionados y personas con las que ya habló): se resalta aunque esté lejos. */
+  private examinedKeys: ReadonlySet<string> = NO_KEYS;
   private targetRing?: { halo: Phaser.GameObjects.Ellipse; ring: Phaser.GameObjects.Ellipse };
   /** Escala de los rótulos para medir ≥ 12 px de pantalla; se recalcula al cambiar el tamaño del canvas. */
   private labelScale = 1;
@@ -369,6 +378,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
     this.keys['SPACE']?.on('down', () => { this.tappedKeys.space = true; });
     this.keys['ENTER']?.on('down', () => { this.tappedKeys.enter = true; });
+    // Ratón (F6-7): por eventos del puntero, nunca por cuadro (`update()` no cambia).
+    this.input.on('pointermove', this.handlePointerMove, this);
+    this.input.on('gameout', () => this.setHover(null));
     // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
     this.scale.on('resize', () => this.refitCamera());
     this.scale.on('resize', this.onScaleResize, this);
@@ -521,7 +533,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Pausa el movimiento del mundo (NPCs y ambient) sin congelar al jugador. */
   setMotionPaused(paused: boolean) {
     this.motionPaused = paused;
-    if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+    if (paused) {
+      this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+      this.setHover(null);
+    }
     this.applyCrisisState();
   }
 
@@ -796,6 +811,102 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Puntero táctil o ventana compacta: rótulos mínimos (destino y el más cercano). */
   setCompactLabels(compact: boolean): void {
     this.compactLabels = compact || this.touchPointer();
+  }
+
+  /** Lo ya examinado llega de Angular: objetos inspeccionados y personas con las que ya se habló (`npc:{clave}`). */
+  setExamined(keys: ReadonlySet<string>): void {
+    this.examinedKeys = keys;
+  }
+
+  /**
+   * El puntero se mueve (F6-7, VD-5). Con dedo no hay «pasar por encima» y con una capa abierta el mundo no
+   * responde. Solo se resalta lo que el jugador ya podría saber (`pickHoverTarget`: dentro del radio de percepción
+   * o ya examinado): nada por descubrir se ilumina. Va por eventos del puntero, nunca por cuadro.
+   */
+  private handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) {
+      this.setHover(null);
+      return;
+    }
+    const px = this.player.x;
+    const py = this.player.y;
+    const candidates: HoverCandidate[] = [];
+    this.markers.forEach((marker, key) => {
+      const obj = this.markerData.get(key);
+      if (!obj || !this.isInteractive(obj)) return;
+      const moving = this.ambientMovers.has(key);
+      const x = moving ? marker.x : obj.x;
+      const y = moving ? marker.y : obj.y;
+      candidates.push({ key, x, y, playerDistance: Math.hypot(px - x, py - y) });
+    });
+    this.npcMarkers.forEach((container, key) => {
+      candidates.push({
+        key: this.npcKeyOf(key), x: container.x, y: container.y,
+        playerDistance: Math.hypot(px - container.x, py - container.y),
+      });
+    });
+    this.setHover(pickHoverTarget({ x: pointer.worldX, y: pointer.worldY }, candidates, this.examinedKeys));
+  }
+
+  private setHover(key: string | null): void {
+    if (key === this.hoverKey) return;
+    this.hoverKey = key;
+    this.drawHover();
+    // `input` ya no existe tras destruir la escena (cambio de ruta): el cursor se deja como esté.
+    this.input?.setDefaultCursor(key === null ? 'default' : 'pointer');
+    this.callbacks.onHover?.(key);
+  }
+
+  /** Dónde y con qué verbo se anuncia lo que tiene el puntero encima (el mismo verbo que la barra de contexto). */
+  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb } | null {
+    const obj = this.proximityObjectFor(key);
+    if (!obj) return null;
+    let x = obj.x;
+    let y = obj.y;
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const container = this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (!container) return null;
+      x = container.x;
+      y = container.y;
+    } else {
+      const marker = this.markers.get(key);
+      if (!marker) return null;
+      if (this.ambientMovers.has(key)) { x = marker.x; y = marker.y; }
+    }
+    const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
+    const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
+    return { x, y, verb: interactionVerb(obj, door) };
+  }
+
+  /** Contorno y verbo sobre lo señalado: la forma (borde y texto) lleva el mensaje, no solo el color. */
+  private drawHover(): void {
+    const anchor = this.hoverKey === null ? null : this.hoverAnchor(this.hoverKey);
+    if (!anchor) {
+      this.hoverOutline?.setVisible(false);
+      this.hoverLabel?.setVisible(false);
+      return;
+    }
+    const outline = this.hoverOutline?.active
+      ? this.hoverOutline
+      : (this.hoverOutline = this.add.graphics().setDepth(LABEL_DEPTH));
+    const left = anchor.x - HOVER_HIT.halfWidth;
+    const top = anchor.y - HOVER_HIT.above;
+    const width = HOVER_HIT.halfWidth * 2;
+    const height = HOVER_HIT.above + HOVER_HIT.below;
+    outline.clear();
+    outline.lineStyle(4, RING_HALO_COLOR, 0.85).strokeRect(left - 1, top - 1, width + 2, height + 2);
+    // Una puerta bloqueada lo dice también en el rótulo: el contorno no depende solo del color.
+    outline.lineStyle(2, RING_COLOR, 1).strokeRect(left, top, width, height);
+    outline.setVisible(true);
+
+    const label = this.hoverLabel?.active
+      ? this.hoverLabel
+      : (this.hoverLabel = this.add.text(0, 0, '', {
+          fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+          backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
+        }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
+    label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
+    label.setPosition(anchor.x, top - 4).setVisible(true);
   }
 
   focus(key: string) {
@@ -1989,6 +2100,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private resetOrientationVisuals(): void {
     this.targetRing = undefined;
     this.revealed.length = 0;
+    // El contorno y el verbo del puntero también los destruye `children.removeAll`: se vuelven a crear al usarlos.
+    this.hoverOutline = undefined;
+    this.hoverLabel = undefined;
+    this.hoverKey = null;
   }
 
   private isInteractive(o: MapObjectState): boolean {
@@ -2368,6 +2483,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
+    this.hoverLabel?.setScale(next);
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;
@@ -2592,6 +2708,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     return interactionVerb(nearby, door).text;
   });
   readonly guide = input<SceneGuideEntry | null>(null);
+  /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
+  readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
@@ -2667,6 +2785,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.renderedScenarioKey.set(null);
       this.scene?.setWorld(this.world()!);
     }
+    if (changes['world'] || changes['viewedNpcKeys']) this.pushExamined();
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
@@ -2675,6 +2794,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
     if (changes['compact']) this.scene?.setCompactLabels(this.compact());
     if (changes['nextTargetKey'] || changes['doorStates'] || changes['dimmedKeys']) this.pushOrientation();
+  }
+
+  /** Lo ya examinado: los objetos que el servidor da por inspeccionados y las personas con quienes ya se habló. */
+  private pushExamined(): void {
+    const examined = new Set<string>(this.world()?.inspectedObjectKeys ?? []);
+    for (const key of this.viewedNpcKeys()) examined.add(NPC_KEY_PREFIX + key);
+    this.scene?.setExamined(examined);
   }
 
   /** Lleva a la escena el destino, el estado de las puertas y los atenuados. */
@@ -2747,6 +2873,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   interactNearest() { this.scene?.interactNearest(); }
 
+  /** Qué tiene el puntero encima, como `data-world-hover` del host (contrato del e2e: el contorno y el cursor viven en
+   *  el lienzo). Directo al DOM: cambia con el puntero y no debe disparar la detección de cambios. */
+  private writeHover(key: string | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (key === null) host.removeAttribute('data-world-hover');
+    else host.setAttribute('data-world-hover', key);
+  }
+
   /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
    *  del navegador) sin recargar la página ni perder el intento. */
   retryLoad(): void {
@@ -2810,6 +2945,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
+        onHover:       key => this.writeHover(key),
         onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
@@ -2848,6 +2984,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene?.setSfxMuted(this.sfxMuted());
       this.scene?.setReduceMotion(this.effectiveReduceMotion());
       this.scene?.setCompactLabels(this.compact());
+      this.pushExamined();
       this.pushOrientation();
     }, 0);
   }

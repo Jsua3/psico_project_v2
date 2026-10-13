@@ -32,7 +32,7 @@ describe('game-world: controles táctiles', () => {
   });
 
   it('un overlay que congela el mundo suelta la dirección mantenida', () => {
-    expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{\s*this\.motionPaused = paused;\s*if \(paused\) this\.setHeldDirection\(null\);/);
+    expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{\s*this\.motionPaused = paused;\s*if \(paused\) \{\s*this\.setHeldDirection\(null\);/);
   });
 
   it('la cruceta es una cruz de 3x3 de 48 px abajo a la izquierda y «Interactuar» abajo a la derecha, sin tapar el piso', () => {

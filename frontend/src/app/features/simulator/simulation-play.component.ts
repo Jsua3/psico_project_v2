@@ -368,7 +368,7 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (world(); as w) {
               <app-game-world #gameWorld id="game-area" class="game-surface" [world]="w"
                 [scenarioConfig]="scenarioConfig()"
-                [guide]="sceneGuide()"
+                [guide]="sceneGuide()" [viewedNpcKeys]="viewedNpcKeys()"
                 [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
@@ -1332,7 +1332,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
   private interventionRules: InterventionRuleSet = DEFAULT_INTERVENTION_RULES;
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
-  private readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
   private pendingEvidenceMissing: string[] = [];
 
