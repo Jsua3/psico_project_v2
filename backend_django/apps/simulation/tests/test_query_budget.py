@@ -1,9 +1,16 @@
 """E0-1 · Presupuesto de consultas por request (RNF-05, TD-07, LW-12 en su parte de API).
 
 Cada escenario arma el estado mínimo, mide la llamada y compara con
-``QUERY_BUDGETS``. El trinquete SOLO BAJA: E5-1 reduce estos números y ninguna
-tarea puede subirlos. Con ``SIEP_BASELINE_OUT=<archivo.json>`` la misma prueba
-escribe las mediciones que lee ``scripts/baseline/measure-backend.mjs``.
+``QUERY_BUDGETS``. El trinquete SOLO BAJA y muerde en los dos sentidos: si la
+medición sube la prueba falla, y si baja también (hay que bajar el número aquí,
+para que una regresión posterior no quepa en la holgura que dejó una mejora).
+Con ``SIEP_BASELINE_OUT=<archivo.json>`` la misma prueba escribe las mediciones que
+lee ``scripts/baseline/measure-backend.mjs``.
+
+Límites declarados de la medición: los escenarios usan ``force_authenticate``, así
+que omiten la consulta de usuario de la autenticación JWT de una request real (+1),
+y ``get_group_report`` se mide con un solo estudiante, de modo que un N+1 por
+estudiante no se vería (lo cubre E5-6, que pagina y mide con varios).
 """
 import json
 import os
@@ -191,7 +198,8 @@ def test_presupuesto_de_consultas(name, estudiante, case_version_id):
         "samples": len(samples),
         "budget": QUERY_BUDGETS[name],
     }
-    assert worst.queries <= QUERY_BUDGETS[name], (
+    assert worst.queries == QUERY_BUDGETS[name], (
         f"{name}: {worst.queries} consultas ({worst.writes} escrituras); "
-        f"presupuesto {QUERY_BUDGETS[name]}. El presupuesto solo baja."
+        f"presupuesto {QUERY_BUDGETS[name]}. El presupuesto solo baja: si la medición "
+        f"bajó, pon QUERY_BUDGETS[{name!r}] = {worst.queries}; si subió, optimiza."
     )
