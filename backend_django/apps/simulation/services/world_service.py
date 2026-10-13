@@ -29,6 +29,11 @@ from ..models import (
 )
 from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service
 from .attempt_lock import locked_attempt
+from .world_state import (
+    require_world_state,
+    resolve_world_state,
+    stamp_position_sync as _stamp_position_sync,
+)
 from shared.idempotency import normalize_request_id
 from shared.jsonutils import (
     clamp as _clamp,
@@ -147,13 +152,6 @@ def _position_blocked(world_state, x, y):
     return False
 
 
-def _stamp_position_sync(world_state, flags=None):
-    flags = flags if flags is not None else _read_map(world_state.flags_json)
-    flags["positionSyncedAt"] = timezone.now().timestamp()
-    world_state.flags_json = _write_map(flags)
-    return flags
-
-
 def _require_plausible_displacement(world_state, x, y):
     """Presupuesto temporal: velocidad_máx × tiempo desde el último sync de
     posición + margen. Sin ancla (estados legados) se acepta y se ancla."""
@@ -169,10 +167,15 @@ def _require_plausible_displacement(world_state, x, y):
 
 
 # ─── public API ───────────────────────────────────────────────────────────────
-@transaction.atomic
 def get_world(attempt_id, attempt_token, actor):
+    """Lectura pura (E1-6, D-15): resuelve el estado del mundo sin guardarlo.
+
+    Si el estado no existe o no está sincronizado con el nodo actual, devuelve el que
+    tendría (spawn del nodo) sin persistirlo: la sincronización la hace la primera orden
+    que mute. Un nodo final sin escena sirve el último mundo guardado.
+    """
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
-    world_state = require_world_state(attempt)
+    world_state, _ = resolve_world_state(attempt, tolerate_missing_map=True)
     return _to_world_state(attempt, world_state)
 
 
@@ -277,7 +280,7 @@ def _replayed_tool_use(attempt, event, tool_code, target_key):
         raise NotFound("Herramienta no encontrada")
     pertinent = match["verdict"] == "pertinente"
     return {
-        "world": _to_world_state(attempt, require_world_state(attempt)),
+        "world": _current_world(attempt),
         "toolCode": tool_code,
         "targetKey": target_key,
         "pertinent": pertinent,
@@ -424,7 +427,21 @@ def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
 
 
 def world_for_attempt(attempt):
-    return _to_world_state(attempt, require_world_state(attempt))
+    """El mundo del intento para la traza docente: puro y tolerante (E1-6, D-15, D-16).
+
+    ``None`` si el intento está en un nodo sin escena y nunca guardó un mundo.
+    """
+    try:
+        state, _ = resolve_world_state(attempt, tolerate_missing_map=True)
+    except NotFound:
+        return None
+    return _to_world_state(attempt, state)
+
+
+def _current_world(attempt):
+    """El mundo actual sin escribir (respuestas repetidas de una orden ya procesada)."""
+    state, _ = resolve_world_state(attempt)
+    return _to_world_state(attempt, state)
 
 
 @locked_attempt
@@ -450,7 +467,7 @@ def enter_room(attempt_id, attempt_token, target_node_key, actor, door_key=None,
             # La misma orden otra vez: no se vuelve a reubicar al jugador en la entrada de la sala.
             if previous.event_type != "ROOM_ENTERED" or previous.detail != f"Puerta hacia sala {target_node_key}":
                 raise game_service.request_id_reused()
-            return _to_world_state(attempt, require_world_state(attempt))
+            return _current_world(attempt)
     _require_in_progress(attempt)
     if not door_key or not str(door_key).strip():
         # GAME-01/4D: el bypass sin puerta se eliminó; todos los consumidores
@@ -509,36 +526,6 @@ def _door_entry(meta, target):
 
 
 # ─── internals ────────────────────────────────────────────────────────────────
-def require_world_state(attempt):
-    expected_map = SceneMap.objects.filter(node_id=attempt.current_node_id).first()
-    if not expected_map:
-        raise NotFound("La escena no tiene mapa configurado")
-    state = (
-        AttemptWorldState.objects.filter(attempt_id=attempt.id)
-        .select_related("scene_map")
-        .first()
-    )
-    if state is None:
-        state = AttemptWorldState(
-            attempt=attempt,
-            scene_map=expected_map,
-            player_x=expected_map.spawn_x,
-            player_y=expected_map.spawn_y,
-        )
-    # Fase 5: the displayed room is reset to the DAG node's map ONLY when the node
-    # changed (e.g. a decision advanced it), tracked via flags.syncedNodeId. Between
-    # node changes, a spatial door may have set a different room — respect it.
-    flags = _read_map(state.flags_json)
-    if state.scene_map_id is None or flags.get("syncedNodeId") != attempt.current_node_id:
-        state.scene_map = expected_map
-        state.player_x = expected_map.spawn_x
-        state.player_y = expected_map.spawn_y
-        flags["syncedNodeId"] = attempt.current_node_id
-        _stamp_position_sync(state, flags)
-    state.save()  # updated_at is auto_now
-    return state
-
-
 def _require_in_progress(attempt):
     if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta interacciones en el mundo")

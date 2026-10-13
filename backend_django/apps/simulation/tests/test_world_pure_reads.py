@@ -6,8 +6,11 @@ final sin mapa respondía 404. Ahora resolver el estado es una función pura; so
 órdenes que mutan lo persisten, y el ancla de plausibilidad del desplazamiento es
 ``last_activity_at`` (el momento del cambio de nodo), no un sello que ponía la lectura.
 """
+from datetime import datetime
+
 import pytest
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from apps.simulation.models import (
     AttemptWorldState,
@@ -40,6 +43,14 @@ def _advance(client, attempt_id, token):
         format="json",
     )
     assert response.status_code == 200, response.data
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch):
+    """Congela ``timezone.now``: el presupuesto de desplazamiento depende del tiempo transcurrido."""
+    now = datetime(2026, 9, 1, 10, 0, 0)  # naive: USE_TZ=False
+    monkeypatch.setattr(timezone, "now", lambda: now)
+    return now
 
 
 @pytest.fixture
@@ -95,7 +106,7 @@ def test_get_world_tras_decidir_devuelve_el_spawn_del_nodo_nuevo_sin_persistirlo
 
 
 def test_el_primer_movimiento_tras_cambiar_de_nodo_se_acepta_y_persiste_la_sincronizacion(
-    estudiante, case_version_id
+    estudiante, case_version_id, frozen_clock
 ):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
@@ -117,16 +128,17 @@ def test_el_primer_movimiento_tras_cambiar_de_nodo_se_acepta_y_persiste_la_sincr
     assert (state.player_x, state.player_y) == (spawn_x + 20, spawn_y)
 
 
-def test_un_salto_absurdo_tras_cambiar_de_nodo_sigue_rechazado(estudiante, case_version_id):
+def test_un_salto_absurdo_tras_cambiar_de_nodo_sigue_rechazado(estudiante, case_version_id, frozen_clock):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     first_map = _world(c, attempt_id, token).data["data"]["map"]["key"]
     _move(c, attempt_id, token, first_map, (340, 430))
     _advance(c, attempt_id, token)
     world = _world(c, attempt_id, token).data["data"]
-    spawn_x = world["map"]["spawnX"]
-    far_x = spawn_x + 600 if spawn_x + 600 < world["map"]["width"] - 40 else spawn_x - 600
-    assert 0 < far_x < world["map"]["width"], "el destino debe caer dentro del mapa"
+    spawn_x, width = world["map"]["spawnX"], world["map"]["width"]
+    # El punto del mapa más lejano del spawn: sin tiempo transcurrido el presupuesto es de 240 px.
+    far_x = max((40, width - 40), key=lambda x: abs(x - spawn_x))
+    assert abs(far_x - spawn_x) > 240, "el destino debe quedar fuera del presupuesto base"
 
     response = c.patch(
         f"{BASE}/attempts/{attempt_id}/world-state",

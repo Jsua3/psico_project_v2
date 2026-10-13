@@ -15,7 +15,7 @@ Geometría del mapa inicial sembrado (hospital-urgencias, 960×528, spawn
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.simulation.models import AttemptEvent, AttemptWorldState, MapObject
+from apps.simulation.models import AttemptEvent, AttemptWorldState, MapObject, SceneMap, SimulationAttempt
 
 from .test_world import _assign_case_to_student, _start, case_version_id, cl, estudiante, otro_estudiante  # noqa: F401
 
@@ -55,8 +55,14 @@ def _events(attempt_id, event_type):
 
 
 def _player(attempt_id):
-    state = AttemptWorldState.objects.get(attempt_id=attempt_id)
-    return state.player_x, state.player_y
+    """Dónde está el jugador. Desde E1-6 la lectura del mundo no persiste el estado: mientras
+    ninguna orden lo haya guardado, el jugador está en el spawn de la escena actual."""
+    state = AttemptWorldState.objects.filter(attempt_id=attempt_id).first()
+    if state is not None:
+        return state.player_x, state.player_y
+    attempt = SimulationAttempt.objects.select_related("current_node").get(pk=attempt_id)
+    scene = SceneMap.objects.get(node_id=attempt.current_node_id)
+    return scene.spawn_x, scene.spawn_y
 
 
 # ─── 4A: movimiento ───────────────────────────────────────────────────────────
