@@ -92,6 +92,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       flex-shrink: 0;
       min-width: 76px;
       max-width: 112px;
+      min-height: 44px;
       padding: 4px 10px 3px;
       border: 1px solid rgba(182,156,255,.28);
       border-radius: 11px;
@@ -141,10 +142,8 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       height: 11px !important;
       color: rgba(232,240,244,.75);
     }
-    .tool-card:focus-visible {
-      outline: 2px solid rgba(182,156,255,.7);
-      outline-offset: 2px;
-    }
+    /* El anillo es el de la piel del juego (--ds-focus); el dock recorta lo que sale de él (overflow), así que va hacia adentro. */
+    .tool-card:focus-visible { outline-offset: -3px; }
     .tool-notice {
       position: absolute;
       left: 0;
@@ -166,10 +165,6 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       0%   { transform: scale(.94); }
       70%  { transform: scale(1.02); }
       100% { transform: scale(1); }
-    }
-    /* Con dedo: ranuras de al menos 44 px de alto. */
-    @media (pointer: coarse) {
-      .tool-card { min-height: 44px; }
     }
     /* Modo compacto: ranuras de icono (44x44); el nombre completo queda en title y en el nombre accesible. */
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {

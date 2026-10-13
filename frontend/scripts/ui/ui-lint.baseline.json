@@ -2,11 +2,11 @@
   "version": 1,
   "generatedAt": "2026-10-13",
   "counts": {
-    "colorLiterals": 876,
+    "colorLiterals": 872,
     "transitionAll": 1,
     "easeIn": 0,
     "scale0": 1,
-    "hoverUnguarded": 9,
+    "hoverUnguarded": 6,
     "important": 27,
     "zIndexLiteral": 32,
     "fontSizeLiteral": 306,

@@ -692,7 +692,7 @@ const CASE_INTRO_PARAGRAPHS = [
     .right-panel__kicker {
       margin: 0;
       color: var(--sim-lavender);
-      font-size: .66rem;
+      font-size: .75rem;
       font-weight: 900;
       letter-spacing: .1em;
       text-transform: uppercase;
@@ -741,6 +741,7 @@ const CASE_INTRO_PARAGRAPHS = [
       min-width: 0;
       max-width: 100%;
       max-height: 100%;
+      min-height: 44px;
       padding: 5px 14px;
       border: 1px solid rgba(182,156,255,.35);
       border-radius: 12px;
@@ -754,7 +755,6 @@ const CASE_INTRO_PARAGRAPHS = [
     .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
     /* Puerta bloqueada: forma, no solo color (borde discontinuo y candado). */
     .context-bar__interaction--locked { border-style: dashed; border-color: rgba(245,184,75,.7); }
-    .context-bar__interaction:focus-visible { outline: 3px solid rgba(182,156,255,.55); outline-offset: 3px; }
     .context-bar__interaction kbd {
       flex-shrink: 0;
       padding: 3px 9px;
@@ -786,7 +786,7 @@ const CASE_INTRO_PARAGRAPHS = [
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: .7rem;
+      font-size: .75rem;
       line-height: 1.3;
       color: #ffe2ae;
     }
@@ -795,9 +795,9 @@ const CASE_INTRO_PARAGRAPHS = [
       flex: 0 1 40%; min-width: 96px; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25);
     }
     .context-bar__interaction--secondary strong {
-      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; color: #cdbcff;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: #cdbcff;
     }
-    .context-bar__also { flex-shrink: 0; font-size: .68rem; font-weight: 700; color: rgba(232,240,244,.78); }
+    .context-bar__also { flex-shrink: 0; font-size: .75rem; font-weight: 700; color: rgba(232,240,244,.78); }
     /* Sin nada cerca: el siguiente paso arriba y, con teclado y espacio de sobra, la leyenda debajo. */
     .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
     .context-bar__now {
@@ -830,7 +830,7 @@ const CASE_INTRO_PARAGRAPHS = [
       border-radius: 4px;
       background: rgba(124,77,255,.16);
       font-family: 'JetBrains Mono', monospace;
-      font-size: .64rem;
+      font-size: .75rem;
       color: #c9b8ff;
     }
 
@@ -887,7 +887,7 @@ const CASE_INTRO_PARAGRAPHS = [
       border-radius: 999px;
       color: #bdeef2;
       background: rgba(108,192,199,.1);
-      font-size: .74rem;
+      font-size: .75rem;
       font-weight: 800;
       letter-spacing: .04em;
     }
@@ -1170,7 +1170,7 @@ const CASE_INTRO_PARAGRAPHS = [
       .case-intro-card__header h2 { grid-area: title; font-size: 1.2rem; }
       .case-intro-card__header .case-intro-card__chip,
       .case-intro-card__header .intro-music-toggle { grid-area: extra; }
-      .case-intro-card__header .case-intro-card__chip { padding: 3px 9px; font-size: .68rem; }
+      .case-intro-card__header .case-intro-card__chip { padding: 3px 9px; font-size: .75rem; }
       .case-intro-card__header .intro-music-toggle { min-height: 44px; }
       .case-intro-card__media { padding: 4px 12px; }
       .case-intro-card__body { padding: 10px 16px 28px; }
@@ -1181,7 +1181,7 @@ const CASE_INTRO_PARAGRAPHS = [
         background: linear-gradient(180deg, rgba(18,24,42,0), rgba(5,8,14,.94));
       }
       .case-intro-card__actions { padding: 8px 16px; gap: 10px; }
-      .case-intro-card__actions > span { font-size: .72rem; }
+      .case-intro-card__actions > span { font-size: .75rem; }
     }
     /* Interruptor «Movimiento reducido» del juego (Ajustes): apaga también las animaciones y transiciones CSS de la pantalla y
        de todos sus componentes (sheet-up, panel-in, choice-in, door-notice-in, tool-pop, fade-in…), igual que la regla global de

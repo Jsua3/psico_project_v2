@@ -393,8 +393,8 @@ describe('SceneChecklistCardComponent (T3.1)', () => {
       expect(items).toEqual(['A · aún no', 'B · ya hablaste', 'C · ya revisaste', 'D', 'E']);
     });
 
-    it('el <details> es nativo (teclado y lectores sin código extra): summary enfocable de al menos 32 px', () => {
-      expect(ruleBody('.checklist__summary')).toMatch(/min-height:\s*32px;/);
+    it('el <details> es nativo (teclado y lectores sin código extra): summary enfocable de al menos 44 px', () => {
+      expect(ruleBody('.checklist__summary')).toMatch(/min-height:\s*44px;/);
       expect(template).toContain('<summary');
     });
   });
@@ -669,12 +669,16 @@ describe('scene-checklist-card: contratos de fuente', () => {
     for (const size of sizes) expect(size).toBeGreaterThanOrEqual(0.75);
   });
 
-  it('los controles miden 32 px (mínimo AA 24) con zona de toque ampliada y anillo de foco', () => {
+  // req: RNF-04, BLOQUE-H
+  it('los controles miden 44 px de verdad con cualquier puntero y el foco es el anillo global del juego', () => {
     const body = ruleBody('.checklist__toggle,\n    .checklist__chip');
-    expect(body).toMatch(/min-height:\s*32px;/);
+    expect(body).toMatch(/min-height:\s*44px;/);
     expect(body).toMatch(/min-width:\s*44px;/);
-    expect(css).toMatch(/\.checklist__chip::after \{ content: ''; position: absolute; inset: -6px -2px; \}/);
-    expect(css).toMatch(/\.checklist__toggle:focus-visible,[^{]*\{ outline: 2px solid #c9b3ff; outline-offset: 2px; \}/);
+    // Ya no hay zona de toque «ampliada» con un pseudoelemento: el control mide lo que se ve.
+    expect(css).not.toMatch(/::after \{ content: ''; position: absolute; inset: -6px -2px; \}/);
+    expect(ruleBody('.checklist__summary')).toMatch(/min-height:\s*44px;/);
+    // Sin anillo propio con literales: manda --ds-focus de la piel (el mismo en todo el juego).
+    expect(css).not.toMatch(/focus-visible[^{]*\{[^}]*outline:\s*\d+px solid/);
   });
 
   it('el estado no depende del color: cada estado tiene su propia forma en la plantilla', () => {

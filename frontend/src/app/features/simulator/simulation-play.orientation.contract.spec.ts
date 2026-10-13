@@ -151,10 +151,36 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(rule('.bottom-zone')).not.toMatch(/min-height/);
   });
 
+  // req: RNF-04, BLOQUE-H
+  it('las acciones de la barra de contexto miden 44 px con cualquier puntero', () => {
+    expect(rule('.context-bar__interaction')).toMatch(/min-height: 44px;/);
+  });
+
   it('el botón no hace crecer el pie: una línea con puntos suspensivos', () => {
     expect(rule('.context-bar__copy strong')).toMatch(/white-space: nowrap;/);
     expect(rule('.context-bar__copy strong')).toMatch(/text-overflow: ellipsis;/);
     expect(rule('.context-bar__interaction')).toMatch(/max-height: 100%;/);
+  });
+});
+
+describe('texto de la pantalla de juego (F6-3)', () => {
+  // req: RNF-04, BLOQUE-H
+  it('ningún texto del componente baja de 12 px, ni en las entradas ni en el pie ni en el panel de escena', () => {
+    const styles = source.slice(source.indexOf('styles: [`'));
+    const small: string[] = [];
+    for (const chunk of styles.split('}')) {
+      const [selector, body] = chunk.split('{');
+      if (!body) continue;
+      for (const match of body.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) {
+        const px = match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]);
+        if (px < 12) small.push(selector.trim().split('\n').pop() + ' → ' + match[0]);
+      }
+    }
+    expect(small).toEqual([]);
+  });
+
+  it('el foco del pie es el anillo global del juego, sin anillo local con literales', () => {
+    expect(source).not.toMatch(/\.context-bar__interaction:focus-visible/);
   });
 });
 

@@ -199,8 +199,15 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
       expect(sizes.filter(s => s.px < 12)).toEqual([]);
     });
 
-    it('con puntero grueso cada ranura mide al menos 44 px', () => {
-      expect(styles).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.tool-card \{[^}]*min-height: 44px;/);
+    // req: RNF-04, BLOQUE-H
+    it('cada ranura mide al menos 44 px con cualquier puntero, no solo con dedo', () => {
+      const base = styles.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+      expect(base).toMatch(/\.tool-card \{[^}]*min-height: 44px;/);
+    });
+
+    it('el foco de la ranura es el anillo global del juego, hacia adentro porque el dock recorta lo que sale', () => {
+      expect(styles).not.toMatch(/\.tool-card:focus-visible \{[^}]*outline:\s*\d+px solid/);
+      expect(styles).toMatch(/\.tool-card:focus-visible \{[^}]*outline-offset: -3px;/);
     });
 
     it('en compacto las ranuras son iconos de 44x44 y el nombre queda en title y aria-label', () => {

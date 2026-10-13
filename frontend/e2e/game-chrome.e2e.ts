@@ -3,11 +3,15 @@ import type { Page } from '@playwright/test';
 
 import {
   acceptContentWarning,
+  createWorldInputDriver,
   enterCaseAtContentWarning,
+  enterWorld,
+  exploreUntilNearby,
   finishCaseIntroduction,
   loginStudent,
   startFreshAttempt,
   waitForWorldReady,
+  waitUntilPlayerStill,
 } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
@@ -219,3 +223,58 @@ test.describe('@game-chrome cabecera y pie bajo una capa', () => {
     expect(focusToken.toLowerCase()).toBe('#c9b3ff');
   });
 });
+
+// req: RNF-04, BLOQUE-H (WCAG 2.5.8 objetivos de 44 px; texto de 12 px)
+for (const viewport of [
+  { name: 'desktop-1366', width: 1366, height: 768, touch: false },
+  { name: 'mobile-390', width: 390, height: 844, touch: true },
+]) {
+  test.describe(`@game-chrome tamaños ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height }, hasTouch: viewport.touch });
+
+    test('las acciones de la cabecera, la tarjeta y el pie miden 44 px y ningún texto baja de 12 px', async ({ page }) => {
+      test.setTimeout(scaled(240_000));
+      const input = createWorldInputDriver(page, viewport.touch ? 'touch' : 'keyboard');
+      await enterWorld(page);
+      // Con una puerta cerca la barra de contexto ofrece su acción: así hay una acción del pie que medir.
+      await exploreUntilNearby(page, input, /sala de escucha familiar/i);
+      await waitUntilPlayerStill(page);
+
+      for (const selector of ['.hud-action', 'button.context-bar__interaction', '.tool-card', '[data-checklist-toggle]']) {
+        const items = page.locator(selector);
+        const count = await items.count();
+        expect(count, `hay al menos un ${selector}`).toBeGreaterThan(0);
+        let measured = 0;
+        for (let index = 0; index < count; index += 1) {
+          const item = items.nth(index);
+          if (!(await item.isVisible())) continue;
+          const box = (await item.boundingBox())!;
+          expect(box.height, `${selector} #${index}: alto`).toBeGreaterThanOrEqual(43.9);
+          expect(box.width, `${selector} #${index}: ancho`).toBeGreaterThanOrEqual(43.9);
+          measured += 1;
+        }
+        expect(measured, `${selector}: alguno visible que medir`).toBeGreaterThan(0);
+      }
+
+      // Todo texto visible de la cabecera, la tarjeta «Qué hacer» y el pie, con su tamaño real calculado.
+      const small = await page.evaluate(() => {
+        const found: string[] = [];
+        for (const root of Array.from(document.querySelectorAll('app-simulation-hud, app-scene-checklist-card, footer.bottom-zone'))) {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = (node.textContent ?? '').trim();
+            const element = node.parentElement;
+            // Los iconos de Material son texto (ligaduras): se miden en px de glifo, no cuentan como texto.
+            if (!text || !element || element.closest('mat-icon, svg')) continue;
+            const rect = element.getBoundingClientRect();
+            if (element.getClientRects().length === 0 || rect.width < 2 || rect.height < 2) continue;
+            const size = Number.parseFloat(getComputedStyle(element).fontSize);
+            if (size < 12) found.push(`${element.className || element.tagName}: ${size}px «${text.slice(0, 40)}»`);
+          }
+        }
+        return found;
+      });
+      expect(small, 'ningún texto visible baja de 12 px').toEqual([]);
+    });
+  });
+}
