@@ -198,6 +198,30 @@ export function decideSchemaGateAction({ schemaReady }) {
 }
 
 /**
+ * Un salto de versión mayor de PostgreSQL no arranca sobre el volumen anterior
+ * y es una migración deliberada (dump/restore). Recibe el contenido de
+ * `PG_VERSION` en la raíz del volumen (vacío o nulo: volumen nuevo o con el
+ * diseño de PostgreSQL 18, donde los datos viven en `18/docker`).
+ */
+export function assessDevDataVolumeVersion({ pgVersionFile, expectedMajor }) {
+  const raw = String(pgVersionFile ?? '').trim();
+  if (raw === '') return { ok: true };
+  if (!/^\d+$/.test(raw)) {
+    return {
+      ok: false,
+      reason: `PG_VERSION del volumen de desarrollo no es un número ("${raw}"); no se toca.`,
+    };
+  }
+  if (Number(raw) === Number(expectedMajor)) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      `El volumen de desarrollo contiene PostgreSQL ${raw} y la imagen es ${expectedMajor}. ` +
+      'No se tocó nada: un salto de versión mayor es una migración deliberada (dump/restore).',
+  };
+}
+
+/**
  * Argumentos Compose siempre acotados al proyecto y archivo de test, para que
  * cualquier limpieza (`down --volumes`) sea incapaz de alcanzar otros stacks.
  */

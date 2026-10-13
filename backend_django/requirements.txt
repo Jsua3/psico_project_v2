@@ -1,5 +1,5 @@
 # backend_django/requirements.txt
-# Pins ajustados para Python 3.13 (wheels disponibles). Revisados el 2026-10-04.
+# Pins para Python 3.14 (imagen y CI; wheels disponibles). Revisados el 2026-10-13.
 Django==6.1.2
 djangorestframework==3.18.3
 djangorestframework-simplejwt==5.5.1

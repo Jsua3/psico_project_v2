@@ -5,6 +5,7 @@ import {
   DEV_COMPOSE_PROJECT,
   TEST_COMPOSE_FILE,
   assessContainerOwnership,
+  assessDevDataVolumeVersion,
   assessDevelopmentDatabaseTarget,
   assessVolumeOwnership,
   assessTestDatabaseTarget,
@@ -365,4 +366,26 @@ test('Compose de test nunca cae en un proyecto global si falta el proyecto expl�
     () => buildTestComposeArgs(undefined, ['up', '-d', 'db']),
     /proyecto/i,
   );
+});
+
+// ── E0-6: el volumen de desarrollo debe corresponder a la versión de la imagen ──
+
+test('un volumen con el mismo mayor de PostgreSQL es válido', () => {
+  assert.deepEqual(assessDevDataVolumeVersion({ pgVersionFile: '18\n', expectedMajor: 18 }), { ok: true });
+});
+
+test('un volumen con otro mayor se rechaza y nombra los dos', () => {
+  const result = assessDevDataVolumeVersion({ pgVersionFile: '16\n', expectedMajor: 18 });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /PostgreSQL 16/);
+  assert.match(result.reason, /imagen es 18/);
+});
+
+test('un volumen sin PG_VERSION en la raíz (diseño nuevo o vacío) es válido', () => {
+  assert.deepEqual(assessDevDataVolumeVersion({ pgVersionFile: '', expectedMajor: 18 }), { ok: true });
+  assert.deepEqual(assessDevDataVolumeVersion({ pgVersionFile: null, expectedMajor: 18 }), { ok: true });
+});
+
+test('un contenido que no es un número se rechaza', () => {
+  assert.equal(assessDevDataVolumeVersion({ pgVersionFile: 'basura', expectedMajor: 18 }).ok, false);
 });
