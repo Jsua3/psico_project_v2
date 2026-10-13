@@ -31,3 +31,9 @@ class SafeExitRequest(serializers.Serializer):
 
 class ResumeAttemptRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
+
+
+class ReplaceAttemptRequest(serializers.Serializer):
+    """Reemplazo por acción docente (E1-2): el motivo es obligatorio y queda en el intento."""
+
+    reason = serializers.CharField(max_length=500)

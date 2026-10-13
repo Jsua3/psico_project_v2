@@ -70,6 +70,13 @@ class SimulationAttempt(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     locked_at = models.DateTimeField(null=True, blank=True)
+    # Quién y por qué cerró el intento como REPLACED (E1-2): el docente o el ADMIN en la acción
+    # docente, el propio estudiante en el ``forceNew`` heredado. Vacíos en cualquier otro estado.
+    replaced_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        db_column="replaced_by_id", related_name="+",
+    )
+    replace_reason = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = "simulation_attempts_v2"

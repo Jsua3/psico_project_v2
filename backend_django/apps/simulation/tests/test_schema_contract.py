@@ -102,6 +102,7 @@ ON_DELETE = {
     ("publication_checklist_items", "checklist_id"): "CASCADE",
     ("publication_checklists", "case_version_id"): "CASCADE",
     ("reflection_journals", "attempt_id"): "CASCADE",
+    ("simulation_attempts_v2", "replaced_by_id"): "SET NULL",
     ("rubric_criteria", "rubric_id"): "CASCADE",
     ("rubric_evaluations", "attempt_id"): "CASCADE",
     ("rubrics", "case_version_id"): "CASCADE",

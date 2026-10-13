@@ -29,6 +29,7 @@ from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from shared.exceptions import ApiError
 
+from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
@@ -133,22 +134,16 @@ def list_published_cases(actor=None):
     return result
 
 
-def _close_active_attempts(student_id, case_version_id, reason):
-    # Reemplazar con forceNew cierra de forma TERMINAL tanto los intentos en
-    # progreso como los pausados (la pausa reanudable deja de tener sentido).
-    # Es un reemplazo, no una salida segura: estado y evento propios.
+def _close_active_attempts(student, case_version_id, reason):
+    # Reemplazar con forceNew (ruta heredada, mientras ATTEMPT_START_STRICT esté apagada) cierra
+    # de forma TERMINAL tanto los intentos en progreso como los pausados. Es un reemplazo, no una
+    # salida segura: estado y evento propios; ``replaced_by`` es el propio estudiante.
     actives = SimulationAttempt.objects.filter(
-        student_id=student_id, case_version_id=case_version_id,
+        student_id=student.id, case_version_id=case_version_id,
         status__in=lifecycle.OPEN_STATUSES,
     ).select_related("current_node")
-    now = timezone.now()
     for active in actives:
-        lifecycle.apply(active, lifecycle.REPLACE)
-        active.ended_at = now
-        active.locked_at = now
-        active.save()
-        _lock_reflections(active)
-        _save_event(active, "ATTEMPT_REPLACED", active.current_node, None, 0, 0, reason)
+        replace_open_attempt(active, by=student, reason=reason)
 
 
 def _open_attempt_of(student_id, case_version_id):
@@ -197,7 +192,7 @@ def start_attempt(case_version_id, actor, force_new=False):
                 status.HTTP_409_CONFLICT,
                 existingAttemptId=str(open_attempt.id),
             )
-        _close_active_attempts(actor.id, case_version_id, "Reemplazado por nuevo intento")
+        _close_active_attempts(actor, case_version_id, "Reemplazado por nuevo intento")
 
     start_node = SimulationNode.objects.filter(case_version_id=version.id, start_node=True).first()
     if not start_node:

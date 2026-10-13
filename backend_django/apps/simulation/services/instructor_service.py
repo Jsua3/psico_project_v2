@@ -5,9 +5,11 @@ DECRYPTED reflections for authorized review + rubric summaries, with anonymized
 student alias), and rubric evaluation read/save.
 """
 from django.db import connection, transaction
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.simulation.serializers import game_dtos as dto
+from shared.exceptions import ApiError
 from shared.jsonutils import read_map as _read_map
 
 from ..models import (
@@ -17,8 +19,11 @@ from ..models import (
     RubricEvaluation,
     SimulationAttempt,
 )
+from . import attempt_lifecycle as lifecycle
 from . import crypto_service, world_service
 from . import rubric_service
+from .attempt_replacement import replace_open_attempt
+from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
 
 
@@ -131,6 +136,36 @@ def trace(attempt_id, instructor=None):
             .order_by("-evaluated_at")
         ],
     }
+
+
+@transaction.atomic
+def replace_attempt(attempt_id, reason, instructor):
+    """Reemplaza un intento abierto por acción docente (RN-07, E1-2): motivo y auditoría.
+
+    El ESTUDIANTE nunca reemplaza al abierto (E1-1); un PROFESOR solo los de sus estudiantes
+    (``_require_attempt``) y el ADMIN cualquiera. El intento queda REPLACED, con su bitácora
+    bloqueada y quién y por qué lo reemplazó.
+    """
+    # Cerrojo de la fila: serializa el reemplazo con las órdenes del estudiante sobre el intento.
+    SimulationAttempt.objects.select_for_update().filter(pk=attempt_id).first()
+    attempt = _require_attempt(attempt_id, instructor)
+    if not lifecycle.state_of(attempt).is_open:
+        raise ApiError(
+            "ATTEMPT_NOT_OPEN",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El intento ya está cerrado y no puede reemplazarse.",
+            status.HTTP_409_CONFLICT,
+        )
+    replace_open_attempt(attempt, by=instructor, reason=reason)
+    return {
+        "attemptId": str(attempt.id),
+        "status": attempt.status,
+        "reason": reason,
+        "replacedAt": _dt(attempt.ended_at),
+    }
+
+
+replace_attempt = auditable("ATTEMPT_REPLACED", "ATTEMPT")(replace_attempt)
 
 
 def rubric(attempt_id, instructor=None):
