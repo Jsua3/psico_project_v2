@@ -131,7 +131,7 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
   it('un paso de la cruceta suelta la caminata y una sala nueva no la arrastra', () => {
     const nudge = bodyOf(/\n  nudge\(direction: 'up' \| 'down' \| 'left' \| 'right'\) \{\n    if \(!this\.player\) return;/, /\n  \/\*\* Punto de pies/);
     expect(nudge).toContain('this.walk = NO_WALK;');
-    expect(source).toContain('if (!keepPosition) this.walk = NO_WALK;');
+    expect(source).toContain('if (!keepPosition) { this.walk = NO_WALK; this.walkGoal = null; }');
   });
 
   it('el hover no lee clasificación ni datos clínicos de lo que señala', () => {
@@ -142,6 +142,26 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
   it('el mundo no pide nada al servidor al pasar el puntero (solo callbacks de la propia escena)', () => {
     const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
     expect(hover).not.toMatch(/http|fetch|simulation\.|onInteract|onNpcInteract/);
+  });
+});
+
+describe('game-world: «Ir a…» (F6-11)', () => {
+  // req: BLOQUE-H H-06, DM-5.8
+  it('los candidatos son solo clave, nombre y tipo: nada clínico ni la clasificación de una opción', () => {
+    const block = bodyOf(/\n  placeCandidates\(\): PlaceCandidate\[\] \{/, /\n  private finishWalkGoal\(/);
+    expect(block).not.toMatch(/classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId|effect\b/);
+    expect(block).toContain("kind: 'person'");
+    expect(block).toContain("obj.type === 'EXIT' ? 'door'");
+  });
+
+  it('la caminata a un lugar elegido pasa por la misma caminata del clic y avisa al terminar', () => {
+    const walk = bodyOf(/\n  walkToKey\(key: string\): boolean \{/, /\n  private finishWalkGoal\(/);
+    expect(walk).toContain('startWalk({ x: anchor.x, y: anchor.y, radius: anchor.reach })');
+    expect(walk).toContain('this.walkGoal = { key, label: anchor.label };');
+    // Pedida con la lista aún cerrándose (la escena figura pausada): espera a reanudarse en vez de soltarse.
+    expect(walk).toContain('this.walkWaitsForResume = this.motionPaused;');
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain("this.finishWalkGoal(tick.arrived ? 'arrived' : 'blocked')");
   });
 });
 

@@ -54,6 +54,7 @@ import { InteractionVerb, interactionVerb } from './interaction-verb.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
+import { PlaceCandidate } from './world-places.util';
 import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 import {
   NUDGE_SUBSTEPS,
@@ -110,6 +111,8 @@ interface WorldCallbacks {
   onNpcInteract: (npc: NpcConfig) => void;
   /** El puntero está sobre esta clave (marcador o `npc:{clave}`) o sobre nada (F6-7, VD-5). */
   onHover?:      (key: string | null) => void;
+  /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
+  onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
   onLoadProgress: (percent: number) => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
@@ -227,6 +230,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private examinedKeys: ReadonlySet<string> = NO_KEYS;
   /** Caminata pedida con un clic (F6-7): sus «teclas» salen de `tickWalk` y pasan por el movimiento de siempre. */
   private walk: WalkState = NO_WALK;
+  /** Destino pedido con «Ir a…» (F6-11): al llegar o rendirse la escena lo avisa; un clic o una tecla lo sueltan. */
+  private walkGoal: { key: string; label: string } | null = null;
+  /**
+   * «Ir a…» pide la caminata MIENTRAS su lista sigue abierta: la escena aún figura pausada (Angular le avisa del cierre
+   * en el siguiente ciclo). Esa caminata espera a que se reanude en vez de cancelarse; una pausa que llega con la
+   * caminata ya en marcha (un diálogo, la bitácora) sí la suelta.
+   */
+  private walkWaitsForResume = false;
   private targetRing?: { halo: Phaser.GameObjects.Ellipse; ring: Phaser.GameObjects.Ellipse };
   /** Escala de los rótulos para medir ≥ 12 px de pantalla; se recalcula al cambiar el tamaño del canvas. */
   private labelScale = 1;
@@ -442,11 +453,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.
     let input = keyInput;
     if (this.walk.target) {
-      this.walk = this.motionPaused ? NO_WALK : cancelWalkOnKeys(this.walk, keyInput);
-      if (this.walk.target) {
-        const tick = tickWalk(this.walk, { x: this.player.x, y: this.player.y }, delta);
-        this.walk = tick.state;
-        input = tick.input;
+      if (this.motionPaused && this.walkWaitsForResume) {
+        // Pedida desde una lista que se está cerrando: espera, sin soltarse ni mover al jugador.
+      } else {
+        this.walkWaitsForResume = false;
+        this.walk = this.motionPaused ? NO_WALK : cancelWalkOnKeys(this.walk, keyInput);
+        if (this.walk.target) {
+          const tick = tickWalk(this.walk, { x: this.player.x, y: this.player.y }, delta);
+          this.walk = tick.state;
+          input = tick.input;
+          if (tick.arrived || tick.gaveUp) this.finishWalkGoal(tick.arrived ? 'arrived' : 'blocked');
+        } else {
+          this.walkGoal = null; // lo soltaron las teclas o una capa: nadie espera un aviso de llegada
+        }
       }
     }
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
@@ -764,6 +783,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   nudge(direction: 'up' | 'down' | 'left' | 'right') {
     if (!this.player) return;
     this.walk = NO_WALK; // un paso de la cruceta manda sobre el destino del ratón
+    this.walkGoal = null;
     // Mismo contrato que WASD (player-motion.util): sub-pasos con colisión y
     // sliding, pose/dirección estables, sin caminar en el sitio contra paredes.
     let moved = false;
@@ -876,7 +896,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Dónde y con qué verbo se anuncia lo que tiene el puntero encima (el mismo verbo que la barra de contexto). */
-  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb; reach: number } | null {
+  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb; reach: number; label: string } | null {
     const obj = this.proximityObjectFor(key);
     if (!obj) return null;
     let x = obj.x;
@@ -894,7 +914,48 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
     const radius = key.startsWith(NPC_KEY_PREFIX) ? NPC_INTERACT_RADIUS : MARKER_INTERACT_RADIUS;
-    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius) };
+    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius), label: obj.label };
+  }
+
+  /**
+   * Lo que «Ir a…» puede ofrecer en la sala actual (F6-11): las personas, las puertas y los objetos con los que se
+   * puede actuar. La regla de lo examinado la aplica quien muestra la lista (`selectPlaces`): aquí no se filtra por
+   * lo que el jugador sabe y no sale nada clínico, solo clave, nombre y tipo.
+   */
+  placeCandidates(): PlaceCandidate[] {
+    const out: PlaceCandidate[] = [];
+    this.npcMarkers.forEach((_container, key) => {
+      const candidateKey = this.npcKeyOf(key);
+      const npc = this.npcConfigFor(candidateKey);
+      if (npc) out.push({ key: candidateKey, label: npc.displayName, kind: 'person' });
+    });
+    const mapKey = this.world?.map.key ?? '';
+    this.markers.forEach((_marker, key) => {
+      const obj = this.markerData.get(key);
+      if (!obj || !this.isInteractive(obj)) return;
+      out.push({
+        key,
+        label: getSceneDisplayLabel(obj, mapKey),
+        kind: obj.type === 'EXIT' ? 'door' : obj.type === 'PERSON' ? 'person' : 'object',
+      });
+    });
+    return out;
+  }
+
+  /** Camina hasta lo elegido en «Ir a…» (F6-11) y lo avisa al llegar o si no pudo. false si ya no está en la sala. */
+  walkToKey(key: string): boolean {
+    const anchor = this.player ? this.hoverAnchor(key) : null;
+    if (!anchor) return false;
+    this.walkGoal = { key, label: anchor.label };
+    this.walkWaitsForResume = this.motionPaused;
+    this.walk = startWalk({ x: anchor.x, y: anchor.y, radius: anchor.reach });
+    return true;
+  }
+
+  private finishWalkGoal(outcome: 'arrived' | 'blocked'): void {
+    const goal = this.walkGoal;
+    this.walkGoal = null;
+    if (goal) this.callbacks.onWalkEnded?.(goal.key, goal.label, outcome);
   }
 
   /**
@@ -906,6 +967,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return;
     if (pointer.button !== 0) return;
     const aimed = this.hoverKey === null ? null : this.hoverAnchor(this.hoverKey);
+    this.walkGoal = null;
+    this.walkWaitsForResume = false;
     this.walk = aimed
       ? startWalk({ x: aimed.x, y: aimed.y, radius: aimed.reach })
       : startWalk({ x: pointer.worldX, y: pointer.worldY, radius: WALK_GROUND_RADIUS_PX });
@@ -1170,7 +1233,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
     // Un refresco de la misma sala conserva la caminata; una sala nueva no la arrastra.
-    if (!keepPosition) this.walk = NO_WALK;
+    if (!keepPosition) { this.walk = NO_WALK; this.walkGoal = null; }
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
     this.cameras.main.setBackgroundColor('#0e141a');
@@ -2780,6 +2843,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
+  /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
+  readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
@@ -2929,6 +2994,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   interactNearest() { this.scene?.interactNearest(); }
 
+  /** Personas, puertas y objetos de la sala a los que «Ir a…» puede llevar (F6-11). */
+  places(): PlaceCandidate[] { return this.scene?.placeCandidates() ?? []; }
+
+  /** Camina hasta una de ellas; false si ya no está (cambió la sala). */
+  walkToKey(key: string): boolean { return this.scene?.walkToKey(key) ?? false; }
+
   /** Qué tiene el puntero encima, como `data-world-hover` del host (contrato del e2e: el contorno y el cursor viven en
    *  el lienzo). Directo al DOM: cambia con el puntero y no debe disparar la detección de cambios. */
   private writeHover(key: string | null): void {
@@ -3002,6 +3073,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
         onHover:       key => this.writeHover(key),
+        onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
         onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);

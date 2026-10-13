@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -35,6 +35,8 @@ import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
+import { WorldPlacesListComponent } from './world-places-list.component';
+import { PlaceCandidate, selectPlaces } from './world-places.util';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
@@ -122,7 +124,7 @@ const CASE_INTRO_PARAGRAPHS = [
     A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
-    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent,
+    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent, WorldPlacesListComponent,
     UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
@@ -339,7 +341,7 @@ const CASE_INTRO_PARAGRAPHS = [
             [musicMuted]="musicMuted()"
             [sfxMuted]="sfxMuted()"
             [reduceMotion]="reduceMotion()"
-            (toggleJournal)="journalOpen.set(!journalOpen())"
+            (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
             (toggleMusic)="toggleMusicMute()"
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()"
@@ -379,7 +381,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [showLoader]="false" (worldReady)="onWorldReady()"
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
-                (npcInteract)="openNpcDialogue($event)"
+                (npcInteract)="openNpcDialogue($event)" (walkEnded)="onWalkEnded($event)"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
@@ -490,6 +492,12 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (journalOpen()) {
           <div class="overlay-backdrop" aria-hidden="true" (click)="journalOpen.set(false)"></div>
+        }
+        @if (placesOpen()) {
+          <!-- «Ir a…» (F6-11): modal, con SU «Salida segura»; la cabecera, el mundo y el pie quedan inertes. -->
+          <div class="overlay-backdrop" aria-hidden="true" (click)="closePlaces()"></div>
+          <app-world-places-list [places]="placeOptions()" [pausing]="pausing()"
+            (choose)="choosePlace($event)" (closed)="closePlaces()" (safeExit)="pauseFromOverlay()" />
         }
         <app-journal-panel #journalPanel class="journal-layer" [open]="journalOpen()"
           [disabled]="game.status !== 'IN_PROGRESS' || busy()" [message]="journalMessage()"
@@ -1234,6 +1242,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly dialogue    = signal<DialogueState | null>(null);
   readonly stressPulse = signal(false);
   readonly journalOpen  = signal(false);
+  /** «Ir a…» (F6-11): la lista de personas y puertas de la sala abierta y lo que ofrece. */
+  readonly placesOpen   = signal(false);
+  readonly placeOptions = signal<readonly PlaceCandidate[]>([]);
+  private readonly injector = inject(Injector);
   readonly fadeActive   = signal(false);
   /** Avisos del sistema visibles (el anfitrión `ui-toast-host` los pinta y anuncia). */
   private readonly systemNotices = toSignal(this.notifications.messages$, { initialValue: [] });
@@ -1407,7 +1419,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning() || this.showIntroScene()
-    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen()
+    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
@@ -1771,7 +1783,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (event.key === 'Escape') {
-      // Cadena: ayuda → bitácora → diálogo → pausa. Con una petición en curso la pausa se encola.
+      // Cadena: «Ir a…» → ayuda → bitácora → diálogo → pausa. Con una petición en curso la pausa se encola.
+      if (this.placesOpen())  { event.preventDefault(); this.closePlaces(); return; }
       if (this.helpOpen())    { event.preventDefault(); this.helpOpen.set(false); return; }
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
       if (this.dialogue())    { event.preventDefault(); this.closeDialogue(); return; }
@@ -2922,6 +2935,34 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }).then(answer => {
       if (answer === 'proceed') this.startNewAttempt();
     });
+  }
+
+  /** «Ir a…» (F6-11): abre la lista de lo que se puede alcanzar en la sala (personas, puertas y objetos ya examinados). */
+  openPlaces(): void {
+    const examined = new Set(this.world()?.inspectedObjectKeys ?? []);
+    this.placeOptions.set(selectPlaces(this.gameWorld?.places() ?? [], examined));
+    this.placesOpen.set(true);
+  }
+
+  /** Cierra la lista y devuelve el foco a su acceso: la cabecera estaba inerte mientras estuvo abierta. */
+  closePlaces(): void {
+    if (!this.placesOpen()) return;
+    this.placesOpen.set(false);
+    afterNextRender(() => document.querySelector<HTMLElement>('[data-hud-places]')?.focus(), { injector: this.injector });
+  }
+
+  /** Elegir un lugar: cierra la lista y camina hasta su alcance de interacción; la llegada se anuncia. */
+  choosePlace(place: PlaceCandidate): void {
+    this.closePlaces();
+    if (!this.gameWorld?.walkToKey(place.key)) {
+      this.announce(`${DRAFT_COPY.placesBlocked.text} ${place.label}`);
+    }
+  }
+
+  /** Terminó la caminata de «Ir a…»: «Llegaste a …» o que no se pudo llegar (VD-19, borrador). */
+  onWalkEnded(event: { key: string; label: string; outcome: 'arrived' | 'blocked' }): void {
+    const copy = event.outcome === 'arrived' ? DRAFT_COPY.placesArrived : DRAFT_COPY.placesBlocked;
+    this.announce(`${copy.text} ${event.label}`);
   }
 
   declineContentWarning(): void {

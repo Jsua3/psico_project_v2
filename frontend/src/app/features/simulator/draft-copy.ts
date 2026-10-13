@@ -55,6 +55,37 @@ export const DRAFT_COPY = {
     where: 'Dock de herramientas: nombre accesible de la barra',
     text: 'Inventario',
   },
+  /**
+   * Lista «Ir a…» (F6-11, VD-19): título y ayuda. Llegar a personas y puertas sin mirar el lienzo ni usar el ratón.
+   */
+  placesDialog: {
+    decision: 'VD-19',
+    owner: 'Psicología',
+    where: 'Lista «Ir a…»: título y ayuda',
+    title: 'Ir a…',
+    text: 'Elige a dónde quieres ir: caminarás hasta ahí y se te avisará al llegar.',
+  },
+  /** Cuando la sala no ofrece nada a lo que ir todavía (F6-11, VD-19): dice por qué en vez de quedar vacía. */
+  placesEmpty: {
+    decision: 'VD-19',
+    owner: 'Psicología',
+    where: 'Lista «Ir a…»: estado vacío',
+    text: 'Todavía no hay nada a lo que ir: aquí aparecerán las personas y las puertas de la sala y lo que ya hayas examinado.',
+  },
+  /** Anuncio al llegar al destino elegido en «Ir a…» (F6-11, VD-19): va seguido del nombre del lugar. */
+  placesArrived: {
+    decision: 'VD-19',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla al llegar con «Ir a…»',
+    text: 'Llegaste a',
+  },
+  /** Anuncio cuando el camino hasta el destino de «Ir a…» no se pudo recorrer (F6-11, VD-19). */
+  placesBlocked: {
+    decision: 'VD-19',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla si «Ir a…» no pudo llegar',
+    text: 'No se pudo llegar a',
+  },
   /** Cuando el navegador no deja registrar el consentimiento (F6-2, ETH-01): no se arranca nada y se puede reintentar. */
   consentStorageError: {
     decision: 'ETH-01',

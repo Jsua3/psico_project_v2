@@ -163,6 +163,27 @@ describe('barra contextual (T9.3, T9.5)', () => {
   });
 });
 
+describe('«Ir a…» (F6-11, VD-19)', () => {
+  // req: BLOQUE-H H-06, RNF-04
+  it('abierta, el resto del juego queda inerte y Esc la cierra antes que la ayuda, la bitácora, el diálogo y la pausa', () => {
+    expect(source).toMatch(/this\.showCaseIntro\(\) \|\| this\.dialogue\(\) !== null \|\| this\.journalOpen\(\) \|\| this\.placesOpen\(\)/);
+    const chain = source.slice(source.indexOf('if (this.placesOpen())  {'));
+    expect(chain.indexOf('if (this.placesOpen())')).toBeLessThan(chain.indexOf('if (this.helpOpen())'));
+    expect(source).toMatch(/<app-world-places-list \[places\]="placeOptions\(\)" \[pausing\]="pausing\(\)"\s*\(choose\)="choosePlace\(\$event\)" \(closed\)="closePlaces\(\)" \(safeExit\)="pauseFromOverlay\(\)" \/>/);
+  });
+
+  it('solo se ofrecen personas, puertas y lo examinado (misma regla que el hover) y la llegada se anuncia', () => {
+    expect(source).toContain('selectPlaces(this.gameWorld?.places() ?? [], examined)');
+    expect(source).toContain('new Set(this.world()?.inspectedObjectKeys ?? [])');
+    expect(source).toMatch(/onWalkEnded\(event: \{ key: string; label: string; outcome: 'arrived' \| 'blocked' \}\): void \{/);
+    expect(source).toContain('DRAFT_COPY.placesArrived');
+  });
+
+  it('al cerrarla el foco vuelve a su acceso de la cabecera', () => {
+    expect(source).toMatch(/afterNextRender\(\(\) => document\.querySelector<HTMLElement>\('\[data-hud-places\]'\)\?\.focus\(\)/);
+  });
+});
+
 describe('texto de la pantalla de juego (F6-3)', () => {
   // req: RNF-04, BLOQUE-H
   it('ningún texto del componente baja de 12 px, ni en las entradas ni en el pie ni en el panel de escena', () => {

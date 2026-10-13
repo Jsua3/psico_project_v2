@@ -106,6 +106,19 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
   });
 
+  describe('acceso a «Ir a…» (F6-11)', () => {
+    // req: BLOQUE-H H-06, RNF-04
+    it('hay un botón con nombre claro que pide la lista y no lleva atajo de teclado en el nombre', () => {
+      const root = mount();
+      const places = root.querySelector<HTMLButtonElement>('button[data-hud-places]')!;
+      expect(places).not.toBeNull();
+      expect(places.getAttribute('aria-label')).toBe('Ir a… personas y puertas de la sala');
+      expect(places.getAttribute('title')).toBe('Ir a…');
+      expect(places.querySelector('mat-icon')?.textContent?.trim()).toBe('near_me');
+      expect(hudSource).toMatch(/readonly openPlaces = output<void>\(\);/);
+    });
+  });
+
   describe('botón de ayuda', () => {
     it('existe con el nombre accesible «Abrir cómo se juega» y emite openHelp', () => {
       const root = mount();

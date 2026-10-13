@@ -116,6 +116,10 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
             }
 
             <div class="hud-actions">
+              <button type="button" class="hud-action" data-hud-places (click)="openPlaces.emit()"
+                aria-label="Ir a… personas y puertas de la sala" title="Ir a…">
+                <mat-icon aria-hidden="true">near_me</mat-icon>
+              </button>
               <button type="button" class="hud-action" (click)="openHelp.emit()"
                 aria-label="Abrir cómo se juega" title="Cómo se juega">
                 <mat-icon aria-hidden="true">help</mat-icon>
@@ -507,6 +511,8 @@ export class SimulationHudComponent {
   /** Tras «Ver la ayuda otra vez»: lo confirma la fila y una región viva (sin temporizadores). */
   readonly helpResetDone = signal(false);
   readonly toggleJournal = output<void>();
+  /** Botón «Ir a…» de la cabecera (F6-11): pide la lista de personas y puertas de la sala. */
+  readonly openPlaces = output<void>();
   /** Botón «?» de la cabecera y fila «Cómo se juega» de Ajustes: piden abrir la pantalla de ayuda. */
   readonly openHelp = output<void>();
   /** «Ver la ayuda otra vez» ya borró la marca de ayuda vista: quien integra puede volver a mostrar la tarjeta de primera vez. */
