@@ -3,6 +3,7 @@ from django.urls import path
 from apps.simulation.views.ai_assistant import AIAssistantView
 from apps.simulation.views.game_views import (
     ActiveAttemptView,
+    AttemptEvaluationView,
     AttemptHistoryView,
     AttemptReportView,
     AttemptView,
@@ -33,6 +34,7 @@ urlpatterns = [
     path("attempts/history", AttemptHistoryView.as_view()),
     path("attempts/<uuid:attempt_id>", AttemptView.as_view()),
     path("attempts/<uuid:attempt_id>/report", AttemptReportView.as_view()),
+    path("attempts/<uuid:attempt_id>/evaluation", AttemptEvaluationView.as_view()),
     path("attempts/<uuid:attempt_id>/student-report", StudentReportView.as_view()),
     path("attempts/<uuid:attempt_id>/completion-report", CompletionReportView.as_view()),
     path("attempts/<uuid:attempt_id>/progress-map", ProgressMapView.as_view()),

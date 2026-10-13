@@ -20,8 +20,11 @@ from .case import (  # noqa: F401
     SimulationNode,
 )
 from .rubric import (  # noqa: F401
+    LEVEL_INDEX,
     AuditLog,
     CriterionScore,
+    EvaluationOrigin,
+    FormativeLevel,
     PublicationChecklist,
     PublicationChecklistItem,
     Rubric,

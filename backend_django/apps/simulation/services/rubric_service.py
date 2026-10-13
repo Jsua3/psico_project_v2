@@ -1,13 +1,16 @@
 import json
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.simulation.models import (
+    LEVEL_INDEX,
     CaseVersion,
     CriterionScore,
+    EvaluationOrigin,
     Rubric,
     RubricCriterion,
     RubricEvaluation,
@@ -65,7 +68,45 @@ BASIC_CRITERIA = [
 def _decimal(value, default="0"):
     if value in (None, ""):
         return Decimal(default)
-    return Decimal(str(value))
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        raise ValidationError("La calificación debe ser un número")
+
+
+# ─── niveles formativos (E1-9, RN-09, ED-2) ───────────────────────────────────
+_LEVEL_BY_INDEX = {index: level for level, index in LEVEL_INDEX.items()}
+
+
+def _level_from_index(value):
+    """El nivel más cercano a un índice 1–4 (promedio ponderado o equivalente de un score)."""
+    index = int(Decimal(value).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return _LEVEL_BY_INDEX[max(1, min(4, index))]
+
+
+def level_for_score(score):
+    """El nivel que corresponde a un ``score`` heredado de 1.0–5.0 (la escala de antes de E1-9)."""
+    return _level_from_index(Decimal("1") + (Decimal(score) - Decimal("1")) * Decimal("3") / Decimal("4"))
+
+
+def overall_level(weighted_levels):
+    """Nivel global: promedio ponderado del índice de cada criterio.
+
+    ``weighted_levels`` son pares ``(peso, nivel)`` de TODOS los criterios activos; si falta
+    alguno calificado no hay nivel global (``None``): una evaluación pendiente no concluye nada.
+    """
+    if not weighted_levels or any(level is None for _, level in weighted_levels):
+        return None
+    total_weight = sum((Decimal(weight) for weight, _ in weighted_levels), Decimal("0"))
+    if total_weight <= 0:
+        return None
+    weighted = sum((Decimal(weight) * LEVEL_INDEX[level] for weight, level in weighted_levels), Decimal("0"))
+    return _level_from_index(weighted / total_weight)
+
+
+def _numeric_total(total):
+    """El total numérico solo viaja con ``RUBRIC_NUMERIC_TOTAL`` (apagada: ED-2, RN-09)."""
+    return float(total) if settings.RUBRIC_NUMERIC_TOTAL and total is not None else None
 
 
 def _criteria_qs(rubric):
@@ -343,6 +384,7 @@ def attempt_rubric_view(attempt_id, instructor=None):
             "title": c.title,
             "description": c.description,
             "weight": float(_weight(c)),
+            "level": score.level if score else None,
             "score": float(score.score) if score else None,
             "observations": score.comment if score else "",
             "comment": score.comment if score else "",
@@ -375,13 +417,16 @@ def attempt_rubric_view(attempt_id, instructor=None):
             {
                 "criterionId": item["criterionId"],
                 "score": item["score"],
+                "level": item["level"],
                 "comment": item["comment"],
                 "evidence": {},
             }
             for item in items if item["score"] is not None
         ],
-        "total_score": float(total) if total is not None else None,
-        "totalScore": float(total) if total is not None else None,
+        "overallLevel": overall_level([(item["weight"], item["level"]) for item in items]),
+        "origin": evaluation.origin if evaluation else None,
+        "total_score": _numeric_total(total),
+        "totalScore": _numeric_total(total),
         "general_observations": evaluation.comment if evaluation else "",
         "comment": evaluation.comment if evaluation else "",
     }
@@ -410,15 +455,30 @@ def save_attempt_evaluation(attempt_id, data, instructor):
     raw_scores = data.get("scores") or data.get("items") or []
     score_by_id = {}
     for item in raw_scores:
-        cid = int(item.get("criterionId") or item.get("criterion_id"))
+        try:
+            cid = int(item.get("criterionId") or item.get("criterion_id"))
+        except (TypeError, ValueError):
+            raise ValidationError("Cada calificacion necesita su criterionId")
+        level = item.get("level")
         score = item.get("score")
-        if score in (None, ""):
+        if level not in (None, ""):
+            # El nivel formativo es lo que se muestra; el ``score`` interno es su índice (1–4).
+            if not isinstance(level, str) or level not in LEVEL_INDEX:
+                raise ValidationError(
+                    "Nivel inválido: use EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO"  # BORRADOR (VD-23)
+                )
+            score = Decimal(LEVEL_INDEX[level])
+        elif score in (None, ""):
             continue
-        score = _decimal(score)
-        if score < Decimal("1.0") or score > Decimal("5.0"):
-            raise ValidationError("Cada calificacion debe estar entre 1.0 y 5.0")
+        else:
+            # Escala heredada 1.0–5.0 (SIEP-CU-04: se rechaza el 0 y todo valor fuera del contrato).
+            score = _decimal(score)
+            if score < Decimal("1.0") or score > Decimal("5.0"):
+                raise ValidationError("Cada calificacion debe estar entre 1.0 y 5.0")
+            level = level_for_score(score)
         score_by_id[cid] = {
             "score": score,
+            "level": level,
             "comment": item.get("comment") or item.get("observations") or "",
         }
 
@@ -437,6 +497,7 @@ def save_attempt_evaluation(attempt_id, data, instructor):
             attempt=attempt,
             rubric=rubric,
             instructor=instructor,
+            origin=EvaluationOrigin.DOCENTE,
             created_at=timezone.now(),
         )
     evaluation.total_score = total
@@ -455,10 +516,77 @@ def save_attempt_evaluation(attempt_id, data, instructor):
             rubric_evaluation=evaluation,
             rubric_criterion=criterion,
             score=payload["score"],
+            level=payload["level"],
             comment=payload["comment"],
             evidence_json="{}",
         )
     return attempt_rubric_view(attempt.id, instructor)
+
+
+def _evaluation_levels(evaluation):
+    """Pares ``(peso, nivel)`` de los criterios activos de la evaluación y sus calificaciones."""
+    scores = {
+        s.rubric_criterion_id: s
+        for s in CriterionScore.objects.filter(rubric_evaluation=evaluation)
+    }
+    return [
+        (_weight(c), scores[c.id].level if c.id in scores else None)
+        for c in RubricCriterion.objects.filter(rubric_id=evaluation.rubric_id, active=True)
+    ], scores
+
+
+def evaluation_summary(evaluation):
+    """La evaluación para la traza docente: niveles y total (este último tras ``RUBRIC_NUMERIC_TOTAL``)."""
+    levels, _ = _evaluation_levels(evaluation)
+    return {
+        "id": evaluation.id,
+        "rubricName": evaluation.rubric.name,
+        "totalScore": _numeric_total(evaluation.total_score),
+        "overallLevel": overall_level(levels),
+        "origin": evaluation.origin,
+        "comment": evaluation.comment,
+        "evaluatedAt": evaluation.evaluated_at.isoformat() if evaluation.evaluated_at else None,
+    }
+
+
+def owner_evaluation_view(attempt_id, actor):
+    """La evaluación del docente tal como la lee el dueño del intento: comentario y niveles.
+
+    Nunca trae un número (RN-09): ni el ``score`` interno ni el total, con o sin la bandera.
+    Solo las evaluaciones concluidas (``EVALUATED``); una a medias no se muestra.
+    """
+    attempt = SimulationAttempt.objects.filter(pk=attempt_id).first()
+    if not attempt:
+        raise NotFound("Intento no encontrado")
+    if attempt.student_id != actor.id:
+        raise PermissionDenied("No tiene acceso a esta evaluación")
+    evaluations = []
+    queryset = (
+        RubricEvaluation.objects.filter(attempt_id=attempt.id, status="EVALUATED")
+        .select_related("rubric")
+        .order_by("evaluated_at", "id")
+    )
+    for evaluation in queryset:
+        levels, scores = _evaluation_levels(evaluation)
+        criteria = [
+            {
+                "criterionId": c.id,
+                "title": c.title,
+                "level": scores[c.id].level,
+                "comment": scores[c.id].comment or "",
+            }
+            for c in _criteria_qs(evaluation.rubric)
+            if c.id in scores
+        ]
+        evaluations.append({
+            "rubricName": evaluation.rubric.name,
+            "origin": evaluation.origin,
+            "evaluatedAt": evaluation.evaluated_at.isoformat() if evaluation.evaluated_at else None,
+            "comment": evaluation.comment or "",
+            "overallLevel": overall_level(levels),
+            "criteria": criteria,
+        })
+    return {"attemptId": str(attempt.id), "evaluations": evaluations}
 
 
 @transaction.atomic

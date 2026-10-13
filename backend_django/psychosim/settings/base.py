@@ -149,6 +149,10 @@ ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
 #: E1-7 · la respuesta de una decisión no trae clasificación, deltas ni mensaje evaluativo: la
 #: retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
 FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
+#: E1-9 · las vistas del docente incluyen el total numérico de la evaluación (``totalScore``).
+#: Apagada (ED-2, RN-09): la evaluación es formativa, por niveles; el total no viaja y el estudiante
+#: nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
+RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",

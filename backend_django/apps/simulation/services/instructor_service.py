@@ -126,13 +126,7 @@ def trace(attempt_id, instructor=None):
             for r in ReflectionJournal.objects.filter(attempt_id=attempt_id).select_related("node")
         ],
         "rubricEvaluations": [
-            {
-                "id": ev.id,
-                "rubricName": ev.rubric.name,
-                "totalScore": float(ev.total_score),
-                "comment": ev.comment,
-                "evaluatedAt": _dt(ev.evaluated_at),
-            }
+            rubric_service.evaluation_summary(ev)
             for ev in RubricEvaluation.objects.filter(attempt_id=attempt_id)
             .select_related("rubric")
             .order_by("-evaluated_at")

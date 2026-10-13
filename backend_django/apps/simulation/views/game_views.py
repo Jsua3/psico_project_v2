@@ -13,7 +13,7 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import game_service, world_service
+from apps.simulation.services import game_service, rubric_service, world_service
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
@@ -84,6 +84,15 @@ class AttemptReportView(APIView):
         return _private_ok(game_service.get_attempt_report(
             attempt_id, _attempt_token(request), request.user,
         ))
+
+
+class AttemptEvaluationView(APIView):
+    """La evaluación del docente para el dueño del intento: comentario y niveles, sin números."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        return api_ok(rubric_service.owner_evaluation_view(attempt_id, request.user))
 
 
 class AttemptHistoryView(APIView):
