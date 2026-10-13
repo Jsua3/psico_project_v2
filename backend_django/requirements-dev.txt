@@ -1,0 +1,4 @@
+# Herramientas de desarrollo y verificación que NO van en la imagen de producción.
+# Instalación: backend_django/.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+-r requirements.txt
+pip-audit==2.10.1

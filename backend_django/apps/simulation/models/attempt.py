@@ -1,8 +1,8 @@
-"""Attempt-related models (managed=False).
+"""Attempt-related models.
 
-Only the columns that actually exist are mapped. The real attempts table tracks
-accumulated_score + stress_index (no victim_risk/user_trust columns).
 attempt_world_states is keyed 1:1 by attempt_id (no surrogate id).
+Los CHECK, UNIQUE e índices que antes imponía el volcado de despliegue viven en
+``Meta`` y los fija ``apps/simulation/tests/test_schema_contract.py``.
 """
 import uuid
 
@@ -34,10 +34,15 @@ INITIAL_VICTIM_RISK = 50
 INITIAL_USER_TRUST = 50
 
 
+def new_attempt_id():
+    """UUID v7 (ordenado en el tiempo: mejor localidad de índice) desde Python 3.14; v4 antes."""
+    return uuid.uuid7() if hasattr(uuid, "uuid7") else uuid.uuid4()
+
+
 class SimulationAttempt(models.Model):
     AttemptStatus = AttemptStatus
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=new_attempt_id, editable=False)
     attempt_token_hash = models.CharField(max_length=255, unique=True)
     case_version = models.ForeignKey(
         CaseVersion, on_delete=models.DO_NOTHING, db_column="case_version_id"
@@ -49,27 +54,32 @@ class SimulationAttempt(models.Model):
         SimulationNode, on_delete=models.DO_NOTHING, db_column="current_node_id"
     )
     status = models.CharField(
-        max_length=20, choices=AttemptStatus.choices, default=AttemptStatus.IN_PROGRESS
+        max_length=24, choices=AttemptStatus.choices, default=AttemptStatus.IN_PROGRESS
     )
-    accumulated_score = models.IntegerField(default=0)
-    stress_index = models.IntegerField(default=INITIAL_STRESS_INDEX)
+    accumulated_score = models.IntegerField(default=0, db_default=0)
+    stress_index = models.IntegerField(default=INITIAL_STRESS_INDEX, db_default=0)
     # Clinical metrics (Flyway V8).
-    victim_risk = models.IntegerField(default=INITIAL_VICTIM_RISK)
-    user_trust = models.IntegerField(default=INITIAL_USER_TRUST)
-    institutional_route_activated = models.BooleanField(default=False)
-    revictimization_risk = models.BooleanField(default=False)
+    victim_risk = models.IntegerField(default=INITIAL_VICTIM_RISK, db_default=50)
+    user_trust = models.IntegerField(default=INITIAL_USER_TRUST, db_default=50)
+    institutional_route_activated = models.BooleanField(default=False, db_default=False)
+    revictimization_risk = models.BooleanField(default=False, db_default=False)
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     locked_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "simulation_attempts_v2"
-        managed = False
+        constraints = [
+            models.CheckConstraint(condition=models.Q(status__in=AttemptStatus.values), name="simulation_attempts_v2_status_check"),
+        ]
+        indexes = [
+            models.Index(fields=["student", "status"], name="idx_attempts_student_status"),
+        ]
 
 
 class AttemptEvent(models.Model):
     attempt = models.ForeignKey(
-        SimulationAttempt, on_delete=models.CASCADE, related_name="events", db_column="attempt_id"
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="events", db_column="attempt_id"
     )
     event_type = models.CharField(max_length=50)
     node = models.ForeignKey(
@@ -79,52 +89,55 @@ class AttemptEvent(models.Model):
         DecisionOption, on_delete=models.DO_NOTHING, null=True, blank=True,
         db_column="decision_option_id",
     )
-    score_delta = models.IntegerField(default=0)
-    stress_delta = models.IntegerField(default=0)
+    score_delta = models.IntegerField(default=0, db_default=0)
+    stress_delta = models.IntegerField(default=0, db_default=0)
     detail = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "attempt_events"
-        managed = False
+        indexes = [
+            models.Index(fields=["attempt", "occurred_at"], name="idx_attempt_events_att_time"),
+        ]
         ordering = ["occurred_at", "id"]
 
 
 class ReflectionJournal(models.Model):
     attempt = models.ForeignKey(
-        SimulationAttempt, on_delete=models.CASCADE, related_name="reflections",
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="reflections",
         db_column="attempt_id",
     )
     node = models.ForeignKey(SimulationNode, on_delete=models.DO_NOTHING, db_column="node_id")
     encrypted_text = models.TextField()
     encryption_key_ref = models.CharField(max_length=255)
-    locked = models.BooleanField(default=False)
+    locked = models.BooleanField(default=False, db_default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "reflection_journals"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "node"], name="reflection_journals_attempt_id_node_id_key"),
+        ]
 
 
 class AttemptWorldState(models.Model):
     attempt = models.OneToOneField(
-        SimulationAttempt, on_delete=models.CASCADE, primary_key=True,
+        SimulationAttempt, on_delete=models.DB_CASCADE, primary_key=True,
         db_column="attempt_id", related_name="world_state",
     )
     scene_map = models.ForeignKey(
         "simulation.SceneMap", on_delete=models.DO_NOTHING, null=True, blank=True,
         db_column="scene_map_id",
     )
-    player_x = models.IntegerField(default=0)
-    player_y = models.IntegerField(default=0)
-    inventory_json = models.TextField(default="[]")
-    inspected_object_keys_json = models.TextField(default="[]")
-    viewed_dialogue_keys_json = models.TextField(default="[]")
-    used_tool_keys_json = models.TextField(default="[]")
-    flags_json = models.TextField(default="{}")
+    player_x = models.IntegerField(default=0, db_default=0)
+    player_y = models.IntegerField(default=0, db_default=0)
+    inventory_json = models.TextField(default="[]", db_default="[]")
+    inspected_object_keys_json = models.TextField(default="[]", db_default="[]")
+    viewed_dialogue_keys_json = models.TextField(default="[]", db_default="[]")
+    used_tool_keys_json = models.TextField(default="[]", db_default="[]")
+    flags_json = models.TextField(default="{}", db_default="{}")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "attempt_world_states"
-        managed = False

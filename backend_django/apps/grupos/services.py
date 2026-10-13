@@ -12,7 +12,7 @@ from xml.etree import ElementTree as ET
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
-from django.db import connection, transaction
+from django.db import transaction
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import CaseVersion, SimulationNode
@@ -24,7 +24,7 @@ from .import_contract import (
     STUDENT_IMPORT_COLUMNS,
     STUDENT_IMPORT_TEMPLATE_FILENAME,
 )
-from .models import Grupo
+from .models import Grupo, GrupoCaseVersion, GrupoEstudiante
 
 User = get_user_model()
 
@@ -63,9 +63,7 @@ class ImportValidationError(Exception):
 
 
 def _total_estudiantes(grupo_id):
-    with connection.cursor() as cur:
-        cur.execute("SELECT count(*) FROM grupo_estudiante WHERE grupo_id = %s", [grupo_id])
-        return cur.fetchone()[0]
+    return GrupoEstudiante.objects.filter(grupo_id=grupo_id).count()
 
 
 def grupo_dto(grupo):
@@ -318,18 +316,11 @@ def _parse_student_import(uploaded_file):
 
 def listar_estudiantes(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT u.id
-            FROM grupo_estudiante ge
-            INNER JOIN users u ON u.id = ge.estudiante_id
-            WHERE ge.grupo_id = %s
-            ORDER BY u.apellido, u.nombre, u.email
-            """,
-            [grupo.id],
-        )
-        ids = [row[0] for row in cur.fetchall()]
+    ids = list(
+        GrupoEstudiante.objects.filter(grupo_id=grupo.id)
+        .order_by("estudiante__apellido", "estudiante__nombre", "estudiante__email")
+        .values_list("estudiante_id", flat=True)
+    )
     users = User.objects.filter(id__in=ids)
     by_id = {u.id: u for u in users}
     return [_student_dto(by_id[user_id]) for user_id in ids if user_id in by_id]
@@ -442,16 +433,11 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
             )
             created += 1
 
-        with connection.cursor() as cur:
-            cur.execute(
-                "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) VALUES (%s, %s) "
-                "ON CONFLICT DO NOTHING",
-                [grupo.id, user.id],
-            )
-            if cur.rowcount:
-                assigned += 1
-            else:
-                skipped += 1
+        _, joined = GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=user.id)
+        if joined:
+            assigned += 1
+        else:
+            skipped += 1
         imported_students.append(_student_dto(user))
 
     return _import_result(
@@ -479,17 +465,11 @@ def _case_summary(case_version_id):
 
 def listar_casos_asignados(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT case_version_id
-            FROM grupo_case_version
-            WHERE grupo_id = %s
-            ORDER BY assigned_at DESC, case_version_id DESC
-            """,
-            [grupo.id],
-        )
-        ids = [row[0] for row in cur.fetchall()]
+    ids = list(
+        GrupoCaseVersion.objects.filter(grupo_id=grupo.id)
+        .order_by("-assigned_at", "-case_version_id")
+        .values_list("case_version_id", flat=True)
+    )
     return [_case_summary(case_version_id) for case_version_id in ids]
 
 
@@ -523,9 +503,10 @@ def actualizar(grupo_id, nombre, codigo, profesor):
 @transaction.atomic
 def eliminar(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    with connection.cursor() as cur:
-        cur.execute("DELETE FROM grupo_case_version WHERE grupo_id = %s", [grupo.id])
-        cur.execute("DELETE FROM grupo_estudiante WHERE grupo_id = %s", [grupo.id])
+    # Las uniones se borran por el ORM antes que el grupo: en una base restaurada de un volcado
+    # anterior a E0-8 sus FK son NO ACTION y no existe el ON DELETE CASCADE de la BD nueva.
+    GrupoCaseVersion.objects.filter(grupo_id=grupo.id).delete()
+    GrupoEstudiante.objects.filter(grupo_id=grupo.id).delete()
     grupo.delete()
     return {"id": grupo_id}
 
@@ -533,11 +514,7 @@ def eliminar(grupo_id, profesor):
 @transaction.atomic
 def quitar_estudiante(grupo_id, estudiante_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    with connection.cursor() as cur:
-        cur.execute(
-            "DELETE FROM grupo_estudiante WHERE grupo_id = %s AND estudiante_id = %s",
-            [grupo.id, estudiante_id],
-        )
+    GrupoEstudiante.objects.filter(grupo_id=grupo.id, estudiante_id=estudiante_id).delete()
     return grupo_dto(grupo)
 
 
@@ -549,12 +526,7 @@ def agregar_estudiante(grupo_id, email, profesor):
         raise NotFound(f"Usuario no encontrado: {email}")
     if estudiante.role != "ESTUDIANTE":
         raise ValidationError("El usuario no tiene rol de estudiante")
-    with connection.cursor() as cur:
-        cur.execute(
-            "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) VALUES (%s, %s) "
-            "ON CONFLICT DO NOTHING",
-            [grupo.id, estudiante.id],
-        )
+    GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=estudiante.id)
     return grupo_dto(grupo)
 
 
@@ -570,24 +542,12 @@ def asignar_caso(grupo_id, case_version_id, profesor):
         raise NotFound(f"Version de caso no encontrada: {case_version_id}")
     if version.status != "PUBLISHED" or not version.simulation_case.active:
         raise ValidationError("Solo se pueden asignar casos publicados y activos")
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO grupo_case_version (grupo_id, case_version_id)
-            VALUES (%s, %s)
-            ON CONFLICT DO NOTHING
-            """,
-            [grupo.id, version.id],
-        )
+    GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
     return listar_casos_asignados(grupo.id, profesor)
 
 
 @transaction.atomic
 def quitar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    with connection.cursor() as cur:
-        cur.execute(
-            "DELETE FROM grupo_case_version WHERE grupo_id = %s AND case_version_id = %s",
-            [grupo.id, case_version_id],
-        )
+    GrupoCaseVersion.objects.filter(grupo_id=grupo.id, case_version_id=case_version_id).delete()
     return listar_casos_asignados(grupo.id, profesor)

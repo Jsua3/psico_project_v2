@@ -1,7 +1,8 @@
 """Shared Django settings for the PsychoSim (SIEP) backend.
 
-The PostgreSQL schema is owned by Flyway (Spring side). Every domain model maps
-to an existing table with ``managed = False`` so Django never mutates the schema.
+Django owns the PostgreSQL schema: every table is created and evolved by the
+migrations of each app (E0-8); the constraints that production enforces live in
+the models' ``Meta`` and are pinned by ``test_schema_contract.py``.
 """
 import os
 from datetime import timedelta
@@ -16,9 +17,9 @@ SECRET_KEY = os.environ.get(
 INSTALLED_APPS = [
     # auth + contenttypes are required by djangorestframework-simplejwt (it
     # imports django.contrib.auth.models at load time). Our user model is custom
-    # (managed=False, no PermissionsMixin); these apps only add Django's small
-    # housekeeping tables (content_type/permission) — additive and ignored by
-    # Spring. The running server never auto-creates tables (only migrate does).
+    # (no PermissionsMixin); these apps only add Django's small housekeeping
+    # tables (content_type/permission). The running server never auto-creates
+    # tables (only migrate does).
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "rest_framework",
@@ -33,6 +34,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
+    "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
     # producción sin necesidad de un servidor web aparte.
@@ -66,6 +69,9 @@ if _DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.parse(_DATABASE_URL, conn_max_age=600),
     }
+    # Sin tope, una BD inalcanzable bloquea /api/health ~130 s (el valor por defecto de
+    # psycopg) y gunicorn mata el worker a los 120 s.
+    DATABASES["default"].setdefault("OPTIONS", {}).setdefault("connect_timeout", 5)
 else:
     DATABASES = {
         "default": {
@@ -75,6 +81,7 @@ else:
             "PASSWORD": os.environ.get("DB_PASSWORD", "psychosim_secret"),
             "HOST": os.environ.get("DB_HOST", "localhost"),
             "PORT": os.environ.get("DB_PORT", "5433"),
+            "OPTIONS": {"connect_timeout": 5},
         }
     }
 
@@ -158,6 +165,22 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend Django para el simulador SIEP (contrato idéntico a Spring).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"request_id": {"()": "shared.jsonlog.RequestIdFilter"}},
+    "formatters": {"json": {"()": "shared.jsonlog.JsonFormatter"}},
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
 }
 
 LANGUAGE_CODE = "es"

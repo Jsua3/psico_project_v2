@@ -1,21 +1,23 @@
-"""Rubric / checklist / audit models (managed=False)."""
+"""Rubric / checklist / audit models."""
 from django.conf import settings
 from django.db import models
 
 from .attempt import SimulationAttempt
 from .case import CaseVersion
 
+PUBLICATION_STATUSES = ["PENDING", "COMPLETE", "REJECTED"]
+
 
 class Rubric(models.Model):
     case_version = models.ForeignKey(
-        CaseVersion, on_delete=models.CASCADE, null=True, blank=True,
+        CaseVersion, on_delete=models.DB_CASCADE, null=True, blank=True,
         related_name="rubrics", db_column="case_version_id",
     )
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
-    active = models.BooleanField(default=True)
-    version = models.CharField(max_length=30, default="1.0")
-    is_default = models.BooleanField(default=False)
+    active = models.BooleanField(default=True, db_default=True)
+    version = models.CharField(max_length=30, default="1.0", db_default="1.0")
+    is_default = models.BooleanField(default=False, db_default=False)
     updated_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="created_by",
@@ -25,69 +27,71 @@ class Rubric(models.Model):
 
     class Meta:
         db_table = "rubrics"
-        managed = False
 
 
 class RubricCriterion(models.Model):
     rubric = models.ForeignKey(
-        Rubric, on_delete=models.CASCADE, related_name="criteria", db_column="rubric_id"
+        Rubric, on_delete=models.DB_CASCADE, related_name="criteria", db_column="rubric_id"
     )
     competency = models.CharField(max_length=100)
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
-    max_score = models.IntegerField(default=0)
-    weight = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    active = models.BooleanField(default=True)
-    display_order = models.IntegerField(default=0)
+    max_score = models.IntegerField(default=0, db_default=0)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, default=0, db_default=0)
+    active = models.BooleanField(default=True, db_default=True)
+    display_order = models.IntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "rubric_criteria"
-        managed = False
         ordering = ["display_order"]
 
 
 class RubricEvaluation(models.Model):
     attempt = models.ForeignKey(
-        SimulationAttempt, on_delete=models.CASCADE, related_name="rubric_evaluations",
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="rubric_evaluations",
         db_column="attempt_id",
     )
     rubric = models.ForeignKey(Rubric, on_delete=models.DO_NOTHING, db_column="rubric_id")
     instructor = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="instructor_id"
     )
-    total_score = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_score = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_default=0)
     comment = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=20, default="PENDING")
-    snapshot_json = models.TextField(default="{}")
+    status = models.CharField(max_length=20, default="PENDING", db_default="PENDING")
+    snapshot_json = models.TextField(default="{}", db_default="{}")
     created_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(null=True, blank=True)
     evaluated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "rubric_evaluations"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "rubric", "instructor"], name="rubric_evaluations_attempt_id_rubric_id_instructor_id_key"),
+        ]
 
 
 class CriterionScore(models.Model):
     rubric_evaluation = models.ForeignKey(
-        RubricEvaluation, on_delete=models.CASCADE, related_name="criterion_scores",
+        RubricEvaluation, on_delete=models.DB_CASCADE, related_name="criterion_scores",
         db_column="rubric_evaluation_id",
     )
     rubric_criterion = models.ForeignKey(
-        RubricCriterion, on_delete=models.DO_NOTHING, db_column="rubric_criterion_id"
+        RubricCriterion, on_delete=models.DB_CASCADE, db_column="rubric_criterion_id"
     )
-    score = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    score = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_default=0)
     comment = models.TextField(null=True, blank=True)
-    evidence_json = models.TextField(default="[]")
+    evidence_json = models.TextField(default="[]", db_default="[]")
 
     class Meta:
         db_table = "criterion_scores"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["rubric_evaluation", "rubric_criterion"], name="criterion_scores_rubric_evaluation_id_rubric_criterion_id_key"),
+        ]
 
 
 class SimulationRubricAssignment(models.Model):
     case_version = models.ForeignKey(
-        CaseVersion, on_delete=models.CASCADE, related_name="rubric_assignments",
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="rubric_assignments",
         db_column="case_version_id",
     )
     rubric = models.ForeignKey(Rubric, on_delete=models.DO_NOTHING, db_column="rubric_id")
@@ -95,58 +99,70 @@ class SimulationRubricAssignment(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, null=True, blank=True,
         db_column="assigned_by",
     )
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_default=True)
     assigned_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "simulation_rubric_assignments"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["case_version"], condition=models.Q(active=True), name="uq_active_case_version_rubric_assignment"),
+        ]
 
 
 class PublicationChecklist(models.Model):
     case_version = models.ForeignKey(
-        CaseVersion, on_delete=models.CASCADE, related_name="checklists", db_column="case_version_id"
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="checklists", db_column="case_version_id"
     )
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="submitted_by"
     )
-    completion_ratio = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    status = models.CharField(max_length=30, default="")
+    completion_ratio = models.DecimalField(max_digits=5, decimal_places=2, default=0, db_default=0)
+    status = models.CharField(max_length=30, default="PENDING")
     submitted_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "publication_checklists"
-        managed = False
+        constraints = [
+            models.CheckConstraint(condition=models.Q(status__in=PUBLICATION_STATUSES), name="publication_checklists_status_check"),
+        ]
 
 
 class PublicationChecklistItem(models.Model):
     checklist = models.ForeignKey(
-        PublicationChecklist, on_delete=models.CASCADE, related_name="items", db_column="checklist_id"
+        PublicationChecklist, on_delete=models.DB_CASCADE, related_name="items", db_column="checklist_id"
     )
-    code = models.CharField(max_length=50)
+    code = models.CharField(max_length=80)
     label = models.CharField(max_length=255)
-    required = models.BooleanField(default=True)
-    fulfilled = models.BooleanField(default=False)
+    required = models.BooleanField(default=True, db_default=True)
+    fulfilled = models.BooleanField(default=False, db_default=False)
     evidence_note = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = "publication_checklist_items"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["checklist", "code"], name="publication_checklist_items_checklist_id_code_key"),
+        ]
 
 
 class AuditLog(models.Model):
-    actor_id = models.BigIntegerField(null=True, blank=True)
-    actor_role = models.CharField(max_length=20, null=True, blank=True)
-    action = models.CharField(max_length=100)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, null=True, blank=True,
+        db_column="actor_id", related_name="+",
+    )
+    actor_role = models.CharField(max_length=40, null=True, blank=True)
+    action = models.CharField(max_length=120)
     resource_type = models.CharField(max_length=100, null=True, blank=True)
-    resource_id = models.CharField(max_length=100, null=True, blank=True)
-    context_json = models.TextField(default="{}")
-    ip_address = models.CharField(max_length=64, null=True, blank=True)
+    resource_id = models.CharField(max_length=120, null=True, blank=True)
+    context_json = models.TextField(default="{}", db_default="{}")
+    ip_address = models.CharField(max_length=80, null=True, blank=True)
     user_agent = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
     retention_until = models.DateTimeField()
 
     class Meta:
         db_table = "audit_logs"
-        managed = False
+        indexes = [
+            models.Index(fields=["occurred_at"], name="idx_audit_logs_time"),
+            models.Index(fields=["retention_until"], name="idx_audit_logs_retention"),
+        ]

@@ -3,10 +3,11 @@ import base64
 import hashlib
 import secrets
 
-from django.db import connection, transaction
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.grupos.models import GrupoCaseVersion
 from apps.simulation.models import (
     INITIAL_STRESS_INDEX,
     INITIAL_USER_TRUST,
@@ -93,34 +94,21 @@ def _reissue_token(attempt):
 
 def assigned_case_version_ids(student_id):
     """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT DISTINCT gcv.case_version_id
-            FROM grupo_estudiante ge
-            INNER JOIN grupos g ON g.id = ge.grupo_id AND g.activo = TRUE
-            INNER JOIN grupo_case_version gcv ON gcv.grupo_id = ge.grupo_id
-            WHERE ge.estudiante_id = %s
-            """,
-            [student_id],
+    return list(
+        GrupoCaseVersion.objects.filter(
+            grupo__activo=True, grupo__grupoestudiante__estudiante_id=student_id
         )
-        return [row[0] for row in cur.fetchall()]
+        .values_list("case_version_id", flat=True)
+        .distinct()
+    )
 
 
 def _student_can_access_case(student_id, case_version_id):
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT 1
-            FROM grupo_estudiante ge
-            INNER JOIN grupos g ON g.id = ge.grupo_id AND g.activo = TRUE
-            INNER JOIN grupo_case_version gcv ON gcv.grupo_id = ge.grupo_id
-            WHERE ge.estudiante_id = %s AND gcv.case_version_id = %s
-            LIMIT 1
-            """,
-            [student_id, case_version_id],
-        )
-        return cur.fetchone() is not None
+    return GrupoCaseVersion.objects.filter(
+        case_version_id=case_version_id,
+        grupo__activo=True,
+        grupo__grupoestudiante__estudiante_id=student_id,
+    ).exists()
 
 
 def list_published_cases(actor=None):
@@ -148,7 +136,7 @@ def _close_active_attempts(student_id, case_version_id, reason):
     actives = SimulationAttempt.objects.filter(
         student_id=student_id, case_version_id=case_version_id,
         status__in=lifecycle.OPEN_STATUSES,
-    )
+    ).select_related("current_node")
     now = timezone.now()
     for active in actives:
         lifecycle.apply(active, lifecycle.REPLACE)
@@ -230,7 +218,11 @@ def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
-    events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+    events = list(
+        AttemptEvent.objects.filter(attempt_id=attempt.id)
+        .select_related("node", "decision_option")
+        .order_by("occurred_at", "id")
+    )
     return dto.build_completion_report(attempt, events)
 
 
@@ -328,7 +320,11 @@ def get_student_report(attempt_id, actor):
         alcance = student_ids_for_instructor(actor)
         if alcance is not None and attempt.student_id not in alcance:
             raise PermissionDenied("No tiene acceso a este intento")
-    events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+    events = list(
+        AttemptEvent.objects.filter(attempt_id=attempt.id)
+        .select_related("node", "decision_option")
+        .order_by("occurred_at", "id")
+    )
     return dto.build_completion_report(attempt, events)
 
 

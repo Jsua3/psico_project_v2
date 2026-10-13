@@ -172,7 +172,7 @@ def fuente(admin, autor):
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))
-    obj = MapObject.objects.create(scene_map=scene_map, decision_option=decision, **_all_distinct(MapObject))
+    obj = MapObject.objects.create(scene_map=scene_map, decision_option=decision, **_all_distinct(MapObject, object_type="PROP"))
     tree = DialogueTree.objects.create(scene_map=scene_map, map_object=obj, **_all_distinct(DialogueTree))
     DialogueLine.objects.create(dialogue_tree=tree, **_all_distinct(DialogueLine))
     DialogueChoice.objects.create(dialogue_tree=tree, decision_option=decision, **_all_distinct(DialogueChoice))

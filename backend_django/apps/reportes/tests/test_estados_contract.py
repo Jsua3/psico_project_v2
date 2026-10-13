@@ -19,6 +19,8 @@ from .test_reportes import (  # noqa: F401
     _add_student, _assign_case, _grupo, case_version_id, cl, estudiante, profesor,
 )
 
+pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
+
 SCORED = ("COMPLETED", "SAFE_EXITED")
 
 

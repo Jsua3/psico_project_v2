@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEV_COMPOSE_PROJECT,
   assessContainerOwnership,
+  assessDevDataVolumeVersion,
   assessVolumeOwnership,
   decideSchemaGateAction,
 } from './dev-environment-guard.mjs';
@@ -60,6 +61,9 @@ function venvPythonVersion() {
   return `${match[1]}.${match[2]}`;
 }
 
+// Versión de Python de la imagen y del CI (Dockerfile, ci.yml); local se alinea con ella (PYP-2).
+const TARGET_PYTHON = '3.14';
+
 function isSupportedPython(version) {
   // Django 6.1 exige Python >= 3.12; psycopg 3 ya tiene ruedas para 3.14.
   return version === '3.12' || version === '3.13' || version === '3.14';
@@ -84,6 +88,14 @@ function ensureVenv() {
   if (existingVersion && !isSupportedPython(existingVersion)) {
     console.log(`[siep] .venv usa Python ${existingVersion}; recreando con 3.12-3.14...`);
     rmSync(join(BACKEND, '.venv'), { recursive: true, force: true });
+  } else if (existingVersion && existingVersion !== TARGET_PYTHON) {
+    if (process.env.SIEP_UPGRADE_VENV === '1') {
+      console.log(`[siep] .venv usa Python ${existingVersion}; recreando con ${TARGET_PYTHON} (SIEP_UPGRADE_VENV=1)...`);
+      rmSync(join(BACKEND, '.venv'), { recursive: true, force: true });
+    } else {
+      console.warn(`[siep] .venv usa Python ${existingVersion}; el objetivo del proyecto es ${TARGET_PYTHON} (imagen y CI).`);
+      console.warn('[siep] Para pasarlo: SIEP_UPGRADE_VENV=1 npm run up  (recrea backend_django/.venv).');
+    }
   }
 
   const py = venvPython();
@@ -229,6 +241,40 @@ function resolveOwnDbContainer() {
   return id;
 }
 
+// Mayor de PostgreSQL de la imagen de desarrollo (docker-compose.yml).
+const PG_MAJOR = 18;
+
+// Un salto de versión mayor no arranca sobre el volumen anterior: se detiene ANTES de
+// tocar nada y explica el procedimiento (E0-6). No ejecuta nada destructivo.
+function ensureDevDataVolumeMatchesImage() {
+  const volume = `${DEV_COMPOSE_PROJECT}_postgres_data`;
+  const inspect = spawnSync('docker', ['volume', 'inspect', volume], { stdio: 'pipe' });
+  if (inspect.status !== 0) {
+    return; // volumen nuevo (o Docker apagado: lo dirá startDb)
+  }
+  const read = spawnSync(
+    'docker',
+    ['run', '--rm', '--entrypoint', 'cat', '-v', `${volume}:/pgdata:ro`, `postgres:${PG_MAJOR}-alpine`, '/pgdata/PG_VERSION'],
+    { stdio: 'pipe', encoding: 'utf8' },
+  );
+  const verdict = assessDevDataVolumeVersion({
+    pgVersionFile: read.status === 0 ? read.stdout : '',
+    expectedMajor: PG_MAJOR,
+  });
+  if (verdict.ok) {
+    return;
+  }
+  console.error(`[siep] ${verdict.reason}`);
+  console.error('[siep] Para recrearla (los datos de desarrollo se vuelven a sembrar; el volcado es solo para conservarlos como archivo):');
+  console.error(`[siep]   1. arranca el contenedor viejo:   docker start $(docker compose -p ${DEV_COMPOSE_PROJECT} ps -aq db)`);
+  console.error('[siep]   2. vuélcalo DENTRO del contenedor (sin redirecciones de shell, que corrompen el archivo en Windows):');
+  console.error('[siep]        docker exec <contenedor> pg_dump -U psychosim -Fc -f /tmp/dev.dump psychosim');
+  console.error('[siep]        docker cp <contenedor>:/tmp/dev.dump ./dev.dump     y comprueba que dev.dump NO esté vacío');
+  console.error(`[siep]   3. solo entonces:  docker compose -p ${DEV_COMPOSE_PROJECT} down -v`);
+  console.error('[siep]   4. npm run up   y después   npm run db:bootstrap -- --yes');
+  process.exit(1);
+}
+
 async function startDb() {
   console.log(`[siep] Iniciando PostgreSQL propio (proyecto Compose ${DEV_COMPOSE_PROJECT}, puerto ${DB_PORT})...`);
   const compose = composeDev(['up', '-d', 'db'], {
@@ -284,6 +330,7 @@ function spawnProc(label, cmd, args, cwd, env = process.env) {
 
 async function main() {
   ensureLocalSettings();
+  ensureDevDataVolumeMatchesImage();
   await startDb();
   ensureVenv();
   ensureDevDatabase();

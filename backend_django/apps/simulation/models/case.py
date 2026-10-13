@@ -1,4 +1,4 @@
-"""Simulation core models (managed=False), mapped to the real Flyway schema.
+"""Simulation core models.
 
 Note: support_resources_json / required_tools_json are TEXT columns holding
 JSON strings (not jsonb), so they are TextField and parsed in serializers.
@@ -21,10 +21,10 @@ class DecisionClassification(models.TextChoices):
 
 
 class SimulationCase(models.Model):
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=80, unique=True)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="created_by",
         related_name="simulation_cases",
@@ -34,7 +34,6 @@ class SimulationCase(models.Model):
 
     class Meta:
         db_table = "simulation_cases"
-        managed = False
 
     def __str__(self):
         return self.code
@@ -42,12 +41,12 @@ class SimulationCase(models.Model):
 
 class CaseVersion(models.Model):
     simulation_case = models.ForeignKey(
-        SimulationCase, on_delete=models.CASCADE, related_name="versions",
+        SimulationCase, on_delete=models.DB_CASCADE, related_name="versions",
         db_column="simulation_case_id",
     )
-    semantic_version = models.CharField(max_length=20)
+    semantic_version = models.CharField(max_length=32)
     status = models.CharField(
-        max_length=20, choices=CaseVersionStatus.choices, default=CaseVersionStatus.DRAFT
+        max_length=24, choices=CaseVersionStatus.choices, default=CaseVersionStatus.DRAFT
     )
     narrative_context = models.TextField(blank=True, null=True)
     cloned_from = models.ForeignKey(
@@ -60,12 +59,18 @@ class CaseVersion(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     # Optimistic-lock column (Spring @Version) + world schema version.
-    version = models.BigIntegerField(default=0)
-    world_schema_version = models.IntegerField(default=1)
+    version = models.BigIntegerField(default=0, db_default=0)
+    world_schema_version = models.IntegerField(default=1, db_default=1)
 
     class Meta:
         db_table = "case_versions"
-        managed = False
+        constraints = [
+            models.CheckConstraint(condition=models.Q(status__in=CaseVersionStatus.values), name="case_versions_status_check"),
+            models.UniqueConstraint(fields=["simulation_case", "semantic_version"], name="case_versions_simulation_case_id_semantic_version_key"),
+        ]
+        indexes = [
+            models.Index(fields=["simulation_case", "status"], name="idx_case_versions_case_status"),
+        ]
 
     def __str__(self):
         return f"{self.simulation_case.code} v{self.semantic_version}"
@@ -73,24 +78,26 @@ class CaseVersion(models.Model):
 
 class SimulationNode(models.Model):
     case_version = models.ForeignKey(
-        CaseVersion, on_delete=models.CASCADE, related_name="nodes", db_column="case_version_id"
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="nodes", db_column="case_version_id"
     )
-    node_key = models.CharField(max_length=100)
+    node_key = models.CharField(max_length=120)
     title = models.CharField(max_length=255)
     narrative = models.TextField()
-    support_resources_json = models.TextField(default="[]")
-    required_tools_json = models.TextField(default="[]")
-    sensitive_content = models.BooleanField(default=False)
-    safe_exit_required = models.BooleanField(default=False)
+    support_resources_json = models.TextField(default="[]", db_default="[]")
+    required_tools_json = models.TextField(default="[]", db_default="[]")
+    sensitive_content = models.BooleanField(default=False, db_default=False)
+    safe_exit_required = models.BooleanField(default=False, db_default=False)
     warning_message = models.TextField(blank=True, null=True)
-    start_node = models.BooleanField(default=False)
-    terminal_node = models.BooleanField(default=False)
+    start_node = models.BooleanField(default=False, db_default=False)
+    terminal_node = models.BooleanField(default=False, db_default=False)
     position_x = models.IntegerField(null=True, blank=True, default=0)
     position_y = models.IntegerField(null=True, blank=True, default=0)
 
     class Meta:
         db_table = "simulation_nodes"
-        managed = False
+        constraints = [
+            models.UniqueConstraint(fields=["case_version", "node_key"], name="simulation_nodes_case_version_id_node_key_key"),
+        ]
 
     def __str__(self):
         return self.node_key
@@ -98,28 +105,31 @@ class SimulationNode(models.Model):
 
 class DecisionOption(models.Model):
     case_version = models.ForeignKey(
-        CaseVersion, on_delete=models.CASCADE, related_name="decisions", db_column="case_version_id"
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="decisions", db_column="case_version_id"
     )
-    option_key = models.CharField(max_length=100)
+    option_key = models.CharField(max_length=120)
     source_node = models.ForeignKey(
-        SimulationNode, on_delete=models.CASCADE, related_name="options", db_column="source_node_id"
+        SimulationNode, on_delete=models.DB_CASCADE, related_name="options", db_column="source_node_id"
     )
     target_node = models.ForeignKey(
-        SimulationNode, on_delete=models.DO_NOTHING, related_name="incoming_options",
+        SimulationNode, on_delete=models.DB_CASCADE, related_name="incoming_options",
         db_column="target_node_id",
     )
     text = models.TextField()
-    classification = models.CharField(max_length=20, choices=DecisionClassification.choices)
-    score_delta = models.IntegerField(default=0)
-    stress_delta = models.IntegerField(default=0)
-    prohibited_penalty = models.IntegerField(default=0)
+    classification = models.CharField(max_length=24, choices=DecisionClassification.choices)
+    score_delta = models.IntegerField(default=0, db_default=0)
+    stress_delta = models.IntegerField(default=0, db_default=0)
+    prohibited_penalty = models.IntegerField(default=0, db_default=0)
     immediate_feedback = models.TextField(default="")
-    prohibited_conduct = models.BooleanField(default=False)
+    prohibited_conduct = models.BooleanField(default=False, db_default=False)
     prohibition_reason = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = "decision_options"
-        managed = False
+        constraints = [
+            models.CheckConstraint(condition=models.Q(classification__in=DecisionClassification.values), name="decision_options_classification_check"),
+            models.UniqueConstraint(fields=["case_version", "option_key"], name="decision_options_case_version_id_option_key_key"),
+        ]
 
     def __str__(self):
         return self.option_key

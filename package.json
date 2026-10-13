@@ -9,12 +9,15 @@
     "db:bootstrap": "node scripts/db-bootstrap.mjs",
     "install:all": "npm install --prefix frontend",
     "check:backend": "node scripts/run-backend.mjs check",
-    "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "test:backend": "node scripts/test-backend.mjs",
     "test:backend:down": "node scripts/test-backend.mjs --down",
     "test:api:e2e": "node scripts/test-e2e.mjs --api-only",
     "test:e2e": "node scripts/test-e2e.mjs",
     "test:frontend": "npm test --prefix frontend",
-    "build:frontend": "npm run build --prefix frontend"
+    "build:frontend": "npm run build --prefix frontend",
+    "baseline:backend": "node scripts/baseline/measure-backend.mjs",
+    "verify:estructural": "node scripts/verify-estructural.mjs",
+    "load:aula": "node scripts/load/aula.mjs"
   }
 }

@@ -20,7 +20,8 @@ GCM_VECTOR = (
     "AAECAwQFBgcICQoLrvm0tZXtFNp4AtGSIKbVtKjufnr5+8rtteUA9igpJ73jaxO+"
     "1/rHBzRxNS19drUNiJ39fRZA6CUIUYrXec6qkrmpZg=="
 )
-# Hash de `admin@psychosim.edu.co` copiado de deploy/db_seed.sql ($2b$, 10 rondas).
+# Hash BCrypt ($2b$, 10 rondas) de `admin@psychosim.edu.co` con la contraseña de abajo: un hash de otra
+# implementación (la de Spring) que Django debe seguir verificando.
 SEED_ADMIN_HASH = "$2b$10$nLO9mYIN3iuPaqDg4Ef5quG0zE2jAHr.m.SsVGlVLa/YlEka0FbGK"
 SEED_ADMIN_PASSWORD = "Admin123!"
 BCRYPT_VECTOR = "$2b$04$Ifw5J5/KSorEeVNEjn2bj.84yCd5J0Ybp2SI9QV2CTTNT81uvb7fC"
