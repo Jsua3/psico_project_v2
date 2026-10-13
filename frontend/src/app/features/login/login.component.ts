@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { AfterViewInit, Component, ElementRef, computed, inject, isDevMode, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, computed, inject, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -21,6 +21,8 @@ import { safeReturnUrl } from '../../core/auth/return-url';
 import { APP_BRAND } from '../../core/config/brand.config';
 
 import { LOGIN_ASSETS, LOGIN_PEDAGOGY_PILLARS, LOGIN_REMEMBER_EMAIL_KEY } from './login-assets.config';
+
+import type { DemoCredentials } from './login-demo.dev';
 
 import { findLoginRole, LOGIN_ROLES, LoginRole } from './login-role.config';
 
@@ -58,7 +60,11 @@ export class LoginComponent implements AfterViewInit {
 
   readonly loginHeroImage = LOGIN_ASSETS.images.hero;
 
-  readonly isDev = isDevMode();
+  /**
+   * «Usar demo»: credenciales de la semilla, solo en desarrollo (RNF-01, VD-22). Se cargan con import() dentro de
+   * ngDevMode, que el build de producción pliega: el módulo no llega al dist (check-dist-dev-only lo comprueba).
+   */
+  readonly demo = signal<Readonly<Record<LoginRole, DemoCredentials>> | null>(null);
 
 
 
@@ -134,7 +140,9 @@ export class LoginComponent implements AfterViewInit {
 
 
 
-    if (!this.isDev) {
+    const demo = this.demo();
+
+    if (!demo) {
 
       return;
 
@@ -142,15 +150,13 @@ export class LoginComponent implements AfterViewInit {
 
 
 
-    const option = findLoginRole(role);
-
     const currentEmail = this.form.controls.email.value.trim().toLowerCase();
 
-    const knownDemoEmails = new Set(LOGIN_ROLES.map(item => item.demoEmail));
+    const knownDemoEmails = new Set(Object.values(demo).map(credentials => credentials.email));
 
     if (!currentEmail || knownDemoEmails.has(currentEmail)) {
 
-      this.form.controls.email.setValue(option.demoEmail);
+      this.form.controls.email.setValue(demo[role].email);
 
     }
 
@@ -188,19 +194,26 @@ export class LoginComponent implements AfterViewInit {
 
   fillDemoCredentials(): void {
 
-    const option = this.activeRole();
+    const credentials = this.demo()?.[this.selectedRole()];
 
-    this.form.patchValue({
+    if (!credentials) {
 
-      email: option.demoEmail,
+      return;
 
-      password: option.demoPassword,
+    }
 
-    });
+    this.form.patchValue({ email: credentials.email, password: credentials.password });
 
   }
 
 
+
+  constructor() {
+    // El build de producción pliega ngDevMode a false y descarta la rama: el import() y su chunk no existen.
+    if (typeof ngDevMode === 'undefined' || ngDevMode) {
+      void import('./login-demo.dev').then(module => this.demo.set(module.LOGIN_DEMO_CREDENTIALS));
+    }
+  }
 
   ngAfterViewInit(): void {
     // Pide el client id público; si está configurado, monta el botón de Google.

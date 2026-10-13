@@ -7,7 +7,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const DEV_ONLY_MARKERS = ['Galería de componentes', 'Banco de la barra', '[axe-core]'];
+export const DEV_ONLY_MARKERS = [
+  'Galería de componentes', 'Banco de la barra', '[axe-core]',
+  // Credenciales de «Usar demo» (RNF-01, VD-22; plan visual F4-2): viven en un módulo de solo desarrollo.
+  'Estudiante123!', 'Profesor123!', 'Admin123!',
+  'estudiante@psychosim.edu.co', 'profesora@psychosim.edu.co', 'admin@psychosim.edu.co',
+];
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

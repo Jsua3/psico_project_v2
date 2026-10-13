@@ -11,8 +11,6 @@ export interface LoginRoleOption {
   narrative: string;
   previewCase: string;
   previewScene: string;
-  demoEmail: string;
-  demoPassword: string;
 }
 
 export const LOGIN_ROLES: LoginRoleOption[] = [
@@ -28,8 +26,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
       'Entrena decisiones en casos de VBG, feminicidio, NNA y rutas de protección con retroalimentación formativa.',
     previewCase: 'SIM-VBG-001',
     previewScene: 'Hospital · Comisaría',
-    demoEmail: 'estudiante@psychosim.edu.co',
-    demoPassword: 'Estudiante123!',
   },
   {
     id: 'PROFESOR',
@@ -43,8 +39,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
       'Supervisa intentos, evalúa competencias y acompaña el aprendizaje con evidencia clínica trazable.',
     previewCase: 'Panel docente',
     previewScene: 'Grupos · Reportes',
-    demoEmail: 'profesora@psychosim.edu.co',
-    demoPassword: 'Profesor123!',
   },
   {
     id: 'ADMIN',
@@ -58,8 +52,6 @@ export const LOGIN_ROLES: LoginRoleOption[] = [
       'Configura la plataforma, publica versiones de casos y garantiza el acceso seguro por rol.',
     previewCase: 'Autoría',
     previewScene: 'Usuarios · Casos',
-    demoEmail: 'admin@psychosim.edu.co',
-    demoPassword: 'Admin123!',
   },
 ];
 

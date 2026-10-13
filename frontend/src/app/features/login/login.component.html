@@ -99,10 +99,10 @@
 
         <p class="auth-role-hint">{{ activeRole().hint }}</p>
 
-        @if (isDev) {
+        @if (demo(); as demo) {
           <div class="auth-demo-hint">
             <span>Credenciales demo ({{ activeRole().label }}):</span>
-            <code>{{ activeRole().demoEmail }}</code>
+            <code>{{ demo[selectedRole()].email }}</code>
             <button type="button" class="auth-demo-fill" (click)="fillDemoCredentials()">Usar demo</button>
           </div>
         }

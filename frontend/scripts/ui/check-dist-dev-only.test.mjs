@@ -25,6 +25,19 @@ test('los marcadores cubren la galería de desarrollo, el banco de la barra y el
   assert.ok(DEV_ONLY_MARKERS.includes('[axe-core]'));
 });
 
+// RNF-01 / VD-22 (plan visual F4-2): «Usar demo» existe solo en desarrollo; sus credenciales no viajan a producción.
+test('las credenciales de demostración son marcadores de solo desarrollo (contraseñas y correos)', () => {
+  for (const secret of ['Estudiante123!', 'Profesor123!', 'Admin123!', 'estudiante@psychosim.edu.co', 'profesora@psychosim.edu.co', 'admin@psychosim.edu.co']) {
+    assert.ok(DEV_ONLY_MARKERS.includes(secret), secret);
+  }
+  const root = distWith({ 'browser/chunk-login.js': 'demoPassword:"Estudiante123!"' });
+  try {
+    assert.deepEqual(findDevOnlyLeaks(root), [{ file: 'browser/chunk-login.js', marker: 'Estudiante123!' }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('findDevOnlyLeaks informa archivo y marcador cuando el dist contiene código de desarrollo', () => {
   const root = distWith({ 'browser/chunk-a.js': 'x="Galería de componentes"', 'browser/main.js': 'ok' });
   try {
