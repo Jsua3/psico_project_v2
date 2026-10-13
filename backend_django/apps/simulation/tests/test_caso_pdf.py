@@ -5,6 +5,8 @@ Corre contra el caso publicado por seed_caso_pdf (SIM-VBG-001 v2.x):
 hospital-urgencias ⇄ hospital-sala-escucha → comisaria-recepcion ⇄
 comisaria-consultorio, con 6 decisiones canónicas.
 """
+import uuid
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -108,9 +110,12 @@ def _enter(client, attempt_id, token, target, door_key=None):
 
 def _decide(client, attempt_id, token, option_key, case_version_id):
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
+    # Cada llamada es una respuesta deliberada: lleva su requestId, como el cliente real (E1-3);
+    # sin él, la misma opción dos veces en menos de 2 s es un doble clic y no gasta el reintento.
     resp = client.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",
-        {"attemptToken": token, "decisionOptionId": option.id}, format="json",
+        {"attemptToken": token, "decisionOptionId": option.id, "requestId": uuid.uuid4().hex},
+        format="json",
     )
     assert resp.status_code == 200, f"decisión {option_key}: {resp.data}"
     return resp.data["data"]

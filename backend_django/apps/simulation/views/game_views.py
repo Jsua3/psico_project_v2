@@ -109,6 +109,7 @@ class DecisionsView(APIView):
             ser.validated_data["decisionOptionId"], request.user,
             evidence_override=ser.validated_data["evidenceOverride"],
             missing_evidence=ser.validated_data["missingEvidence"],
+            request_id=ser.validated_data.get("requestId"),
         )
         return api_ok(state, message="Decision procesada")
 
@@ -122,6 +123,7 @@ class ReflectionsView(APIView):
         saved = game_service.save_reflection(
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["nodeId"], ser.validated_data["text"], request.user,
+            request_id=ser.validated_data.get("requestId"),
         )
         return api_ok(saved, message="Bitacora guardada")
 
@@ -198,6 +200,7 @@ class ToolUseView(APIView):
             request.data.get("toolCode"),
             request.data.get("targetInteractionKey"),
             request.user,
+            request_id=request.data.get("requestId"),
         )
         return api_ok(result, message="Herramienta usada")
 
@@ -222,6 +225,7 @@ class EnterRoomView(APIView):
             request.data.get("targetNodeKey"),
             request.user,
             door_key=request.data.get("doorKey"),
+            request_id=request.data.get("requestId"),
         )
         return api_ok(result, message="Sala cambiada")
 

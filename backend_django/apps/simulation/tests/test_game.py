@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -313,13 +314,15 @@ def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_i
 
     # 1ª respuesta mala -> reintento, no avanza, retryRequired True
     r1 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
-                {"attemptToken": token, "decisionOptionId": bad.id}, format="json").data["data"]
+                {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
+                format="json").data["data"]
     assert r1["currentNode"]["key"] == node_key
     assert r1["feedback"]["retryRequired"] is True
 
     # 2ª respuesta mala -> se registra y avanza, retryRequired False
     r2 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
-                {"attemptToken": token, "decisionOptionId": bad.id}, format="json").data["data"]
+                {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
+                format="json").data["data"]
     assert r2["currentNode"]["key"] != node_key
     assert r2["feedback"]["retryRequired"] is False
     assert AttemptEvent.objects.filter(
@@ -542,9 +545,11 @@ def _world(c, attempt_id, token):
 
 def _decide(c, attempt_id, token, case_version_id, option_key):
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
+    # Respuesta deliberada: lleva su requestId como el cliente real (E1-3); sin él, la misma opción
+    # dos veces en menos de 2 s es un doble clic y no gasta la segunda oportunidad.
     resp = c.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",
-        {"attemptToken": token, "decisionOptionId": option.id},
+        {"attemptToken": token, "decisionOptionId": option.id, "requestId": uuid.uuid4().hex},
         format="json",
     )
     assert resp.status_code == 200, f"{option_key}: {resp.data}"

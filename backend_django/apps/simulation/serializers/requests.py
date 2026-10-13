@@ -6,9 +6,15 @@ class StartAttemptRequest(serializers.Serializer):
     forceNew = serializers.BooleanField(required=False, default=False)
 
 
+def _request_id_field():
+    """Idempotencia (E1-3): clave opcional de la orden; el formato lo valida ``normalize_request_id``."""
+    return serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)
+
+
 class SelectDecisionRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
     decisionOptionId = serializers.IntegerField()
+    requestId = _request_id_field()
     evidenceOverride = serializers.BooleanField(required=False, default=False)
     missingEvidence = serializers.ListField(
         child=serializers.CharField(max_length=160),
@@ -22,6 +28,7 @@ class ReflectionRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
     nodeId = serializers.IntegerField()
     text = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    requestId = _request_id_field()
 
 
 class SafeExitRequest(serializers.Serializer):

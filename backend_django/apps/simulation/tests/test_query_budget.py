@@ -37,10 +37,12 @@ pytestmark = pytest.mark.req("RNF-05")
 #: Presupuesto de consultas por request. Solo baja (E5-1).
 QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
+    # E1-3 (cerrojo del intento, R4): +1 consulta (SELECT … FOR UPDATE) por orden que muta el
+    # intento; decidir suma otra por la búsqueda de repetición. E5-1 las consolida.
     "get_world": 16,  # (2) una LECTURA que escribe: D-15, lo corrige E1-6
-    "patch_world_state": 19,  # (3) E5-1 apunta a ≤ 6
-    "enter_room": 25,  # (3)
-    "post_decision": 9,  # (4)
+    "patch_world_state": 20,  # (3) era 19; E5-1 apunta a ≤ 6
+    "enter_room": 26,  # (3) era 25
+    "post_decision": 11,  # (4) era 9
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina
 }

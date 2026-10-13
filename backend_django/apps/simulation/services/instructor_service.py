@@ -22,6 +22,7 @@ from ..models import (
 from . import attempt_lifecycle as lifecycle
 from . import crypto_service, world_service
 from . import rubric_service
+from .attempt_lock import lock_attempt_row
 from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
@@ -147,7 +148,7 @@ def replace_attempt(attempt_id, reason, instructor):
     bloqueada y quién y por qué lo reemplazó.
     """
     # Cerrojo de la fila: serializa el reemplazo con las órdenes del estudiante sobre el intento.
-    SimulationAttempt.objects.select_for_update().filter(pk=attempt_id).first()
+    lock_attempt_row(attempt_id)
     attempt = _require_attempt(attempt_id, instructor)
     if not lifecycle.state_of(attempt).is_open:
         raise ApiError(

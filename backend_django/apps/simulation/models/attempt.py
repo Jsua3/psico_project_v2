@@ -123,9 +123,15 @@ class AttemptEvent(models.Model):
     stress_delta = models.IntegerField(default=0, db_default=0)
     detail = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
+    # Idempotencia (E1-3): el ``requestId`` que el cliente puso a la orden, en el evento primario de
+    # esa orden. Único por intento: la misma orden dos veces deja un solo evento. NULL = sin clave.
+    request_id = models.CharField(max_length=64, null=True, blank=True)
 
     class Meta:
         db_table = "attempt_events"
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "request_id"], name="uq_attempt_events_attempt_request"),
+        ]
         indexes = [
             models.Index(fields=["attempt", "occurred_at"], name="idx_attempt_events_att_time"),
         ]

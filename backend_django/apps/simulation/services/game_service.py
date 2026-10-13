@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import secrets
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -28,7 +29,9 @@ from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from .attempt_duration import active_duration_seconds
 from shared.exceptions import ApiError
+from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
+from .attempt_lock import locked_attempt
 from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
@@ -44,7 +47,7 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _save_event(attempt, event_type, node, decision, score_delta, stress_delta, detail):
+def _save_event(attempt, event_type, node, decision, score_delta, stress_delta, detail, request_id=None):
     AttemptEvent.objects.create(
         attempt=attempt,
         event_type=event_type,
@@ -53,6 +56,17 @@ def _save_event(attempt, event_type, node, decision, score_delta, stress_delta, 
         score_delta=score_delta,
         stress_delta=stress_delta,
         detail=detail,
+        request_id=request_id,
+    )
+
+
+def request_id_reused():
+    """409 REQUEST_ID_REUSED: el mismo ``requestId`` llegó con otra orden (error del cliente)."""
+    return ApiError(
+        "REQUEST_ID_REUSED",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "El requestId ya se usó en otra orden de este intento.",
+        status.HTTP_409_CONFLICT,
     )
 
 
@@ -362,12 +376,60 @@ def _override_evidence_labels(missing_evidence):
     return labels
 
 
-@transaction.atomic
+_DECISION_EVENT_TYPES = case_effects.REGISTERED_DECISION_EVENT_TYPES + case_effects.RETRY_EVENT_TYPES
+
+
+def _find_decision_replay(attempt, decision_option_id, request_id):
+    """El evento de una decisión ya procesada que esta orden repite, o ``None`` (E1-3).
+
+    Con ``requestId`` la clave es exacta (el mismo id con otra opción es un error del cliente:
+    409). Sin él, la misma opción elegida otra vez dentro de ``DUPLICATE_WINDOW_SECONDS`` es un
+    doble clic, no una respuesta nueva: no gasta la segunda oportunidad.
+    """
+    events = AttemptEvent.objects.filter(attempt_id=attempt.id).select_related(
+        "decision_option__target_node"
+    )
+    if request_id:
+        event = events.filter(request_id=request_id).first()
+        if event is None:
+            return None
+        if event.event_type not in _DECISION_EVENT_TYPES or event.decision_option_id != decision_option_id:
+            raise request_id_reused()
+        return event
+    since = timezone.now() - timedelta(seconds=DUPLICATE_WINDOW_SECONDS)
+    last = (
+        events.filter(event_type__in=_DECISION_EVENT_TYPES, occurred_at__gte=since)
+        .order_by("-occurred_at", "-id")
+        .first()
+    )
+    if last is not None and last.decision_option_id == decision_option_id:
+        return last
+    return None
+
+
+def _replayed_decision_state(attempt, attempt_token, event):
+    """La respuesta de una decisión ya procesada, reconstruida desde su evento y el estado actual."""
+    decision = event.decision_option
+    effects = decision_effects.resolve(decision)
+    if event.event_type in case_effects.RETRY_EVENT_TYPES:
+        feedback = dto.feedback_dto(decision, effects, event.detail, retry_required=True)
+    else:
+        feedback = dto.feedback_dto(decision, effects, decision_effects.format_feedback(decision, effects))
+    return dto.attempt_state(attempt, attempt_token, feedback)
+
+
+@locked_attempt
 def choose_decision(
     attempt_id, attempt_token, decision_option_id, actor,
-    evidence_override=False, missing_evidence=None,
+    evidence_override=False, missing_evidence=None, request_id=None,
 ):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
+    request_id = normalize_request_id(request_id)
+    # La repetición se resuelve ANTES de la guarda de estado: un doble clic sobre la decisión que
+    # cerró el intento recibe la respuesta de la primera vez, no «el intento ya no acepta decisiones».
+    replay = _find_decision_replay(attempt, decision_option_id, request_id)
+    if replay is not None:
+        return _replayed_decision_state(attempt, attempt_token, replay)
     if not lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento ya no acepta decisiones")
 
@@ -406,7 +468,7 @@ def choose_decision(
                 else "DECISION_RETRY_REQUIRED"
             )
             # Trazado para revisión/rúbrica docente; sin cambios de métricas ni avance.
-            _save_event(attempt, event_type, decision.source_node, decision, 0, 0, message)
+            _save_event(attempt, event_type, decision.source_node, decision, 0, 0, message, request_id)
             feedback = dto.feedback_dto(decision, effects, message, retry_required=True)
             return dto.attempt_state(attempt, attempt_token, feedback)
 
@@ -427,7 +489,10 @@ def choose_decision(
             event_detail = f"{message} | Override de evidencia: {', '.join(labels)}"
     attempt.current_node = decision.target_node
 
-    _save_event(attempt, event_type, decision.source_node, decision, effects.score_delta, effects.stress_delta, event_detail)
+    _save_event(
+        attempt, event_type, decision.source_node, decision,
+        effects.score_delta, effects.stress_delta, event_detail, request_id,
+    )
     _save_event(attempt, "NODE_ENTERED", decision.target_node, None, 0, 0, "Nodo visitado")
 
     if decision.target_node.terminal_node:
@@ -449,9 +514,17 @@ def choose_decision(
     return dto.attempt_state(attempt, attempt_token, feedback)
 
 
-@transaction.atomic
-def save_reflection(attempt_id, attempt_token, node_id, text, actor):
+@locked_attempt
+def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=None):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
+    request_id = normalize_request_id(request_id)
+    if request_id:
+        previous = AttemptEvent.objects.filter(attempt_id=attempt.id, request_id=request_id).first()
+        if previous is not None:
+            if previous.event_type != "REFLECTION_SAVED" or previous.node_id != node_id:
+                raise request_id_reused()
+            saved = ReflectionJournal.objects.filter(attempt_id=attempt.id, node_id=node_id).first()
+            return {"nodeId": node_id, "locked": bool(saved and saved.locked)}
     if not lifecycle.state_of(attempt).plays:
         raise ValidationError("La bitácora ya está bloqueada")
     if not text or not text.strip():
@@ -472,11 +545,11 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor):
     reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 
-    _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada")
+    _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada", request_id)
     return {"nodeId": node.id, "locked": reflection.locked}
 
 
-@transaction.atomic
+@locked_attempt
 def safe_exit(attempt_id, attempt_token, reason, actor):
     """Pausa reanudable real (ETH-02, opción A).
 
@@ -494,7 +567,7 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     return dto.attempt_state(attempt, attempt_token, None)
 
 
-@transaction.atomic
+@locked_attempt
 def resume_attempt(attempt_id, attempt_token, actor):
     """Reanuda un intento pausado (mismo attemptId, estado intacto).
 

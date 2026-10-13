@@ -53,6 +53,7 @@ UNIQUE_COLUMNS = {
     "simulation_nodes": [("case_version_id", "node_key")],
     "decision_options": [("case_version_id", "option_key")],
     "reflection_journals": [("attempt_id", "node_id")],
+    "attempt_events": [("attempt_id", "request_id")],
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
