@@ -55,6 +55,10 @@ urlpatterns = [
     path("api/grupos/<int:pk>/casos/<int:case_version_id>", GrupoCasoDetailView.as_view()),
     path("api/reportes/", include("apps.reportes.urls")),
     path("api/simulation/", include("apps.simulation.urls")),
+    # ED-9 (por defecto): ``/api/authoring/**`` es el espacio canónico de la autoría y
+    # ``/api/admin/cases/**`` queda como alias del mismo urlconf hasta que el visual migre.
+    path("api/authoring/cases", AdminCaseListCreateView.as_view()),
+    path("api/authoring/cases/", include("apps.simulation.urls_admin")),
     path("api/admin/cases", AdminCaseListCreateView.as_view()),
     path("api/admin/cases/", include("apps.simulation.urls_admin")),
     path("api/admin/users", AdminUserListCreateView.as_view()),

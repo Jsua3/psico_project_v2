@@ -158,9 +158,20 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     (await request('GET', '/reportes/dashboard', { token: tokens.PROFESOR })).status,
     200,
   );
+  // E2-4: el profesor autora sus casos (la lista es suya); publicar sigue siendo del ADMIN.
   expectStatus(
-    'PROFESOR GET /admin/cases -> 403',
+    'PROFESOR GET /admin/cases -> 200',
     (await request('GET', '/admin/cases', { token: tokens.PROFESOR })).status,
+    200,
+  );
+  expectStatus(
+    'PROFESOR GET /authoring/cases -> 200',
+    (await request('GET', '/authoring/cases', { token: tokens.PROFESOR })).status,
+    200,
+  );
+  expectStatus(
+    'PROFESOR POST /authoring/cases/1/publish -> 403',
+    (await request('POST', '/authoring/cases/1/publish', { token: tokens.PROFESOR, body: {} })).status,
     403,
   );
   expectStatus(

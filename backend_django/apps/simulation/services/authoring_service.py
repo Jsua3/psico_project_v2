@@ -37,10 +37,11 @@ from .authoring import (
 
 
 # ─── Cases ───────────────────────────────────────────────────────────────────
-def list_authoring_cases():
-    return cases.list_authoring_cases()
+def list_authoring_cases(actor):
+    return cases.list_authoring_cases(actor)
 
 
+@auditable("CASE_CREATED", "CASE_VERSION", -1)
 def create_case(request, actor):
     return cases.create_case(request, actor)
 

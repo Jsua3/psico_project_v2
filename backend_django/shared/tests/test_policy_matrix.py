@@ -189,3 +189,10 @@ def test_policy_permission_without_authentication_is_401():
 def test_policy_permission_exposes_its_policy_for_introspection():
     assert policy_permission("case", "publish").policy == ("case", "publish")
     assert _PublishView.permission_classes[0].policy == ("case", "publish")
+
+
+def test_scope_of_exposes_the_role_scope_for_filtering_lists():
+    assert policies.scope_of(actor(PROFESOR), "case", "author") == "own"
+    assert policies.scope_of(actor(ADMIN), "case", "author") == "all"
+    assert policies.scope_of(actor(ESTUDIANTE), "case", "author") is None
+    assert policies.scope_of(None, "case", "author") is None

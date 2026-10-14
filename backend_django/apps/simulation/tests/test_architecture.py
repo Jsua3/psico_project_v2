@@ -204,3 +204,39 @@ def test_el_codigo_real_respeta_las_fronteras_con_trinquete():
         "El baseline lista violaciones que ya no existen; bórralas de "
         f"architecture_baseline.json (el trinquete solo baja): {json.dumps(stale, indent=2)}"
     )
+
+
+# ── E2-4 · Toda vista pasa por la política (permisos-por-politica) ───────────────────────
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "from shared.permissions import IsAdmin\nclass V:\n    permission_classes = [IsAdmin]\n",
+        "from rest_framework.permissions import IsAuthenticated\nclass V:\n    permission_classes = [IsAuthenticated]\n",
+        "class V:\n    permission_classes = [SomethingCustom]\n",
+        "from shared.permissions import policy_permission\nclass V:\n    def get_permissions(self):\n        return [Custom()]\n",
+        "from shared.permissions import IsProfesorOrAdmin as Boss\n",
+    ],
+)
+def test_permisos_por_politica_no_se_evade(tmp_path, snippet):
+    assert "permisos-por-politica" in _rules(tmp_path, {"apps/x/views.py": snippet})
+
+
+def test_permisos_por_politica_acepta_policy_permission(tmp_path):
+    source = (
+        "from rest_framework.permissions import AllowAny\n"
+        "from shared.permissions import policy_permission\n"
+        "_CAN = policy_permission('case', 'author')\n"
+        "class A:\n    permission_classes = [_CAN]\n"
+        "class B:\n    permission_classes = [policy_permission('case', 'publish')]\n"
+        "class C:\n    def get_permissions(self):\n"
+        "        if self.request.method == 'GET':\n            return [_CAN()]\n"
+        "        return [policy_permission('case', 'publish')()]\n"
+    )
+    found = check_architecture(_tree(tmp_path, {"apps/x/views.py": source}))
+    assert [v for v in found if v.rule == "permisos-por-politica"] == []
+
+
+def test_permisos_por_politica_no_aplica_fuera_de_las_vistas(tmp_path):
+    files = {"apps/x/services.py": "class V:\n    permission_classes = [Custom]\n"}
+    assert "permisos-por-politica" not in _rules(tmp_path, files)

@@ -97,6 +97,17 @@ def allowed_roles(resource: str, action: str) -> frozenset[str]:
     return frozenset(_scopes_of(resource, action))
 
 
+def scope_of(actor, resource: str, action: str) -> str | None:
+    """El alcance del actor sobre la acción (``all``/``own``/``member``) o ``None``.
+
+    Sirve para filtrar listas con el mismo criterio que ``can``: ``own`` → solo lo suyo.
+    """
+    scopes = _scopes_of(resource, action)
+    if actor is None or not getattr(actor, "is_authenticated", False):
+        return None
+    return scopes.get(getattr(actor, "role", None))
+
+
 def can(actor, resource: str, action: str, *, owner_id=None, member: bool = False) -> bool:
     """¿Puede el actor hacer ``action`` sobre ``resource``?
 

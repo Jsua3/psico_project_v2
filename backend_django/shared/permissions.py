@@ -4,9 +4,8 @@
 una vista nunca decide por su cuenta quién entra. Las decisiones sobre un objeto concreto
 (el dueño, el alcance) las toma el servicio con ``shared.policies.can``.
 
-Las clases ``IsAdmin``, ``IsProfesor`` e ``IsProfesorOrAdmin`` son las de rol que aún usan
-las vistas de autoría; E2-4 las reemplaza por política y añade la regla de arquitectura que
-prohíbe volver a declararlas.
+La regla de arquitectura ``permisos-por-politica`` prohíbe declarar en una vista una clase
+de rol suelta: toda puerta sale de aquí.
 """
 from rest_framework.permissions import BasePermission
 
@@ -29,22 +28,4 @@ def policy_permission(resource: str, action: str):
         {"policy": (resource, action), "roles": policies.allowed_roles(resource, action)},
     )
 
-
-def _has_role(request, *roles):
-    return policies.has_role(request.user, *roles)
-
-
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return _has_role(request, "ADMIN")
-
-
-class IsProfesor(BasePermission):
-    def has_permission(self, request, view):
-        return _has_role(request, "PROFESOR")
-
-
-class IsProfesorOrAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return _has_role(request, "PROFESOR", "ADMIN")
 

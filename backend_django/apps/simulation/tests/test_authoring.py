@@ -1,7 +1,8 @@
 """T14 — Authoring (/api/admin/cases). Contract-faithful to Spring
 SimulationAuthoringController + SimulationAuthoringService + WorldValidationService.
 
-All endpoints are ADMIN-only. Runs against the real psychosim DB (rolled back per
+Endpoints are for ADMIN (any case) and PROFESOR (only their own, E2-4: ver
+test_authoring_ownership.py). Runs against the real psychosim DB (rolled back per
 test). Uses the seeded PUBLISHED SIM-VBG-001 as the source case version; the
 clone-version flow produces an editable DRAFT to exercise mutations/publish.
 
@@ -52,8 +53,9 @@ def published_cv(db):
 
 
 # --- permissions / editor --------------------------------------------------
-def test_editor_forbidden_for_profesor(profesor, published_cv):
-    assert cl(profesor).get(f"{BASE}/{published_cv}/editor").status_code == 403
+def test_editor_of_a_case_that_is_not_theirs_is_404_for_profesor(profesor, published_cv):
+    # E2-4: el profesor autora sus casos; el sembrado es del ADMIN y no se le confirma.
+    assert cl(profesor).get(f"{BASE}/{published_cv}/editor").status_code == 404
 
 
 def test_editor_missing_version_404(admin):
@@ -123,9 +125,18 @@ def test_create_case_builds_editable_draft(admin):
     assert version.simulation_case.code == "PRACTICA-DOCENTE"
 
 
-def test_create_case_forbidden_for_profesor(profesor):
-    resp = cl(profesor).post(BASE, {"title": "No permitido"}, format="json")
+def test_create_case_forbidden_for_estudiante(db):
+    estudiante = User.objects.create_user(
+        email="est_auth@x.com", password="x", nombre="Es", apellido="Tu", role="ESTUDIANTE"
+    )
+    resp = cl(estudiante).post(BASE, {"title": "No permitido"}, format="json")
     assert resp.status_code == 403
+
+
+def test_create_case_allowed_for_profesor_and_owned_by_them(profesor):
+    resp = cl(profesor).post(BASE, {"title": "Caso del profesor"}, format="json")
+    assert resp.status_code == 200
+    assert CaseVersion.objects.get(pk=resp.data["data"]["caseVersionId"]).simulation_case.created_by_id == profesor.id
 
 
 # --- ensureDraft guard -----------------------------------------------------

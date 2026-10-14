@@ -5,8 +5,9 @@ Mapeo de errores (decisión del mantenedor — códigos semánticos):
 - la entidad no pertenece a la versión               -> ValidationError (400)
 - la versión no es un borrador (``ensure_draft``)    -> ValidationError (400)
 """
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from shared import policies
 from apps.simulation.models import (
     CaseVersion,
     ClinicalTool,
@@ -23,6 +24,26 @@ def require_version(case_version_id):
     if not version:
         raise NotFound("Version de caso no encontrada")
     return version
+
+
+def authorize_case_version(actor, case_version_id, *, mutate, action="author"):
+    """La versión, si el actor puede ``action`` sobre su caso; si no, 404 al leer y 403 al mutar.
+
+    El dueño del caso es ``simulation_cases.created_by``; el ADMIN puede todo (matriz de
+    políticas, ``case.<acción>``). Leer lo ajeno no confirma que exista (404); mutarlo es
+    403 (E2-4, R3 del plan). Una versión que no existe es 404 para todos.
+    """
+    version = (
+        CaseVersion.objects.select_related("simulation_case").filter(pk=case_version_id).first()
+    )
+    if not version:
+        raise NotFound("Version de caso no encontrada")
+    if policies.can(actor, "case", action, owner_id=version.simulation_case.created_by_id):
+        return version
+    if mutate:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise PermissionDenied("Solo quien autora el caso puede modificarlo")
+    raise NotFound("Version de caso no encontrada")
 
 
 def ensure_draft(case_version_id):
