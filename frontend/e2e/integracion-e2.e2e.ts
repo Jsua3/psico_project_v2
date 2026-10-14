@@ -301,3 +301,69 @@ test.describe('@integracion-e2 rúbricas con dueño (E2-2)', () => {
     await expect(page.locator('.rb-readonly')).toHaveCount(0);
   });
 });
+
+/**
+ * Un intento ABIERTO de un estudiante propio de esta prueba (no el sembrado: las pruebas del juego comparten su
+ * intento): el administrador crea la cuenta, el docente crea un grupo, lo invita y le asigna el caso publicado, el
+ * estudiante acepta e inicia el intento, todo por API contra el servidor real.
+ */
+async function openAttemptOfNewStudent(request: APIRequestContext): Promise<{ attemptId: string; alias: string; cleanup: () => Promise<void> }> {
+  const stamp = Date.now().toString(36);
+  const email = `reemplazo-${stamp}@siep.test`;
+  const password = `Clave-${stamp}-2026`;
+  const admin = { Authorization: `Bearer ${await apiToken(request, process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!')}` };
+  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reemplazo', apellido: stamp, role: 'ESTUDIANTE', activo: true } });
+  expect(user.status(), 'crear estudiante').toBeLessThan(300);
+
+  const { groupId, headers: teacher } = await (async () => {
+    const token = await apiToken(request, process.env['E2E_PROFESOR_EMAIL'] ?? 'profesora@psychosim.edu.co', process.env['E2E_PROFESOR_PASSWORD'] ?? 'Profesor123!');
+    const headers = { Authorization: `Bearer ${token}` };
+    const created = await request.post('/api/grupos', { headers, data: { nombre: `Reemplazo e2e ${stamp}`, codigo: `REP-${stamp}` } });
+    expect(created.status(), 'crear grupo').toBeLessThan(300);
+    return { groupId: (await created.json()).data.id as number, headers };
+  })();
+  expect((await request.post(`/api/grupos/${groupId}/estudiantes`, { headers: teacher, data: { email } })).status()).toBeLessThan(300);
+  const cases = (await (await request.get('/api/simulation/cases', { headers: teacher })).json()).data as Array<{ caseVersionId: number }>;
+  expect(cases.length, 'hay un caso publicado').toBeGreaterThan(0);
+  expect((await request.post(`/api/grupos/${groupId}/casos`, { headers: teacher, data: { caseVersionId: cases[0].caseVersionId } })).status()).toBeLessThan(300);
+
+  const student = { Authorization: `Bearer ${await apiToken(request, email, password)}` };
+  expect((await request.post(`/api/me/invitations/${groupId}/accept`, { headers: student, data: {} })).status(), 'aceptar').toBe(200);
+  const started = await request.post('/api/simulation/attempts', { headers: student, data: { caseVersionId: cases[0].caseVersionId } });
+  expect(started.status(), 'iniciar intento').toBe(200);
+  const attemptId = (await started.json()).data.attemptId as string;
+  return {
+    attemptId,
+    alias: `Reemplazo ${stamp}`,
+    cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); },
+  };
+}
+
+// req: RN-07
+test.describe('@integracion-e2 reemplazo docente (E1-2)', () => {
+  test('el docente reemplaza un intento abierto con motivo y la traza lo muestra reemplazado; contra el servidor real', async ({ page, request }) => {
+    const { attemptId, cleanup } = await openAttemptOfNewStudent(request);
+    try {
+      await loginAs(page, 'profesor');
+      await page.goto(`/portal/docente/trazabilidad?intento=${attemptId}`);
+      const replace = page.getByRole('button', { name: 'Reemplazar intento', exact: true });
+      await expect(replace).toBeVisible();
+      await replace.click();
+
+      const dialog = page.getByRole('dialog', { name: 'Reemplazar intento' });
+      await expect(dialog).toBeVisible();
+      await settle(page);
+      expect(await blockingViolations(page, '[role="dialog"]')).toEqual([]);
+      await dialog.getByRole('button', { name: 'Reemplazar intento', exact: true }).click();
+      await expect(dialog.getByText('Escribe el motivo del reemplazo.')).toBeVisible();
+      await dialog.getByRole('textbox', { name: /Motivo del reemplazo/ }).fill('El mundo se trabó en la sala de espera');
+      await dialog.getByRole('button', { name: 'Reemplazar intento', exact: true }).click();
+
+      await expect(dialog).toHaveCount(0);
+      await expect(page.locator('.tr-overview')).toContainText('Reemplazado por un intento nuevo');
+      await expect(page.getByRole('button', { name: 'Reemplazar intento', exact: true })).toHaveCount(0);
+    } finally {
+      await cleanup();
+    }
+  });
+});

@@ -3,7 +3,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { apiErrorMessage } from '../../core/api/api-error.util';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
@@ -26,6 +28,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { DRAFT_COPY } from './draft-copy';
 import { RECONSIDERED_LABEL, isRetryEventType } from './reconsidered.util';
+import { ReplaceAttemptDialogComponent, ReplaceAttemptDialogData } from './replace-attempt-dialog.component';
 import {
   FeedbackPanelView, SummaryFeedbackKey, TraceFeedbackDialogComponent, TraceFeedbackDialogData,
 } from './trace-feedback-dialog.component';
@@ -101,8 +104,11 @@ export class InstructorTraceComponent implements OnInit {
     if (this.listState() === 'loading') return 'Cargando intentos…';
     if (this.detailState() === 'loading') return 'Cargando la trazabilidad…';
     // El aviso de guardado o de fallo se anuncia aquí: la región existe antes de que cambie su texto.
-    return this.rubricMessage();
+    return this.replaceMessage() || this.rubricMessage();
   });
+  /** E1-2: resultado del reemplazo docente del intento abierto (se dice tras recargar la traza). */
+  readonly replaceMessage = signal('');
+  readonly replacing = signal(false);
 
   /** Rótulo del total de la rúbrica (RN-09): la evaluación es formativa, no una nota oficial. */
   protected readonly valuationLabel = DRAFT_COPY.formativeValuationLabel.text;
@@ -174,6 +180,45 @@ export class InstructorTraceComponent implements OnInit {
         this.attemptsError.set('No fue posible cargar los intentos recientes.');
         this.loadingAttempts.set(false);
       }
+    });
+  }
+
+  // ── Reemplazo docente (E1-2, RN-07) ────────────────────────────────────────────────────────────────────────────
+  /** Solo un intento abierto (en curso o en pausa) se reemplaza; el servidor responde 409 a uno cerrado. */
+  canReplace(item: AttemptTrace): boolean {
+    const status = this.clean(item.status, '').toUpperCase();
+    return status === 'IN_PROGRESS' || status === 'PAUSED';
+  }
+
+  /** Pide el motivo en un diálogo y reemplaza el intento; al terminar recarga la traza y la lista, y lo anuncia. */
+  replace(item: AttemptTrace): void {
+    if (this.replacing()) return;
+    const ref = this.dialog.open<string | undefined, ReplaceAttemptDialogData>(ReplaceAttemptDialogComponent, {
+      data: { studentAlias: this.clean(item.studentAlias, 'Estudiante'), caseTitle: this.clean(item.caseTitle, 'Caso sin título') },
+      size: 'md',
+    });
+    ref.closed.pipe(take(1)).subscribe(reason => {
+      if (!reason) return;
+      this.replacing.set(true);
+      this.replaceMessage.set('');
+      this.instructorApi.replaceAttempt(item.attemptId, reason).subscribe({
+        next: () => {
+          this.replacing.set(false);
+          const done = `Intento reemplazado: ${this.clean(item.studentAlias, 'el estudiante')} empezará uno nuevo la próxima vez que entre.`;
+          this.notify.success(done);
+          if (this.selectedAttemptId() === item.attemptId) this.reopen();
+          this.loadAttempts();
+          this.replaceMessage.set(done);
+        },
+        error: (err: unknown) => {
+          this.replacing.set(false);
+          const text = apiErrorMessage(err, 'No fue posible reemplazar el intento.');
+          if (text) {
+            this.replaceMessage.set(text);
+            this.notify.error(text);
+          }
+        },
+      });
     });
   }
 
