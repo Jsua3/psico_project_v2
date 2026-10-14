@@ -2939,7 +2939,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const attempt = this.attempt();
     if (!attempt || this.consentState() === 'saving') return;
     this.consentState.set('saving');
-    this.announce('Registrando tu consentimiento…');
+    this.announce(DRAFT_COPY.consentSaving.text);
     this.consentRecorder.record(this.caseConsentStorageKey(attempt)).then(
       () => {
         // El aviso pudo cerrarse mientras se registraba («Volver al catálogo»): una respuesta tardía no arranca nada.

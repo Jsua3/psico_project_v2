@@ -3,18 +3,32 @@
  * y VD-24). Ninguno es texto validado: viven aquí, juntos, cada uno con su decisión, su responsable y dónde se usa,
  * para poder listarlos al usuario y cambiarlos en un solo sitio cuando Psicología fije la redacción definitiva.
  * Los textos YA validados (aviso de contenido, pausa, reintentos, opciones, ayuda…) no pasan por aquí: no se tocan.
+ *
+ * Cada borrador dice qué se espera de Psicología (`review`): `validar` (decide la redacción: tono, terminología) o
+ * `conocimiento` (microtexto de funcionamiento que se les enseña, sin que lo decidan). La hoja de revisión que se les
+ * entrega sale de esta lista.
  */
+export type DraftReview = 'validar' | 'conocimiento';
+
 export interface DraftCopyEntry {
-  /** Decisión del plan visual (§9) o regla de negocio que lo origina. */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}`;
+  /**
+   * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` cuando el texto nace de una tarea del
+   * plan y no de una decisión.
+   */
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
+  /** Qué se espera de Psicología; sin indicar, `validar`. */
+  readonly review?: DraftReview;
   /** Dónde se usa (para revisarlo en su contexto). */
   readonly where: string;
   /** Título, si el texto lo lleva (un diálogo). */
   readonly title?: string;
   readonly text: string;
 }
+
+/** Nombre del ajuste: lo usan la fila de Ajustes y la nota de la ayuda (una sola palabra para los dos sitios). */
+const SHORTCUTS_SETTING_LABEL = 'Atajos de una tecla';
 
 export const DRAFT_COPY = {
   /**
@@ -94,7 +108,7 @@ export const DRAFT_COPY = {
     decision: 'VD-18',
     owner: 'Psicología',
     where: 'Pantalla de ayuda: nota sobre los atajos de una tecla (fuera del bloque validado)',
-    text: 'Los atajos de una tecla (J, E, WASD y los números de las opciones) se pueden apagar en Ajustes, en «Atajos de una tecla».',
+    text: `Los atajos de una tecla (J, E, WASD y los números de las opciones) se pueden apagar en Ajustes, en «${SHORTCUTS_SETTING_LABEL}».`,
   },
   /** Cuando el navegador no deja registrar el consentimiento (F6-2, ETH-01): no se arranca nada y se puede reintentar. */
   consentStorageError: {
@@ -103,11 +117,56 @@ export const DRAFT_COPY = {
     where: 'Aviso de contenido: error al registrar el consentimiento',
     text: 'No pudimos registrar tu consentimiento en este navegador. Revisa que no tenga bloqueado el almacenamiento e inténtalo de nuevo.',
   },
+
+  // ── Microtextos de funcionamiento (revisión de F6): se enseñan a Psicología, no los decide ─────────────────────
+  /** Lo anuncia el lector de pantalla mientras se guarda el consentimiento (F6-2). */
+  consentSaving: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Aviso de contenido: anuncio del lector de pantalla mientras se guarda el consentimiento',
+    text: 'Registrando tu consentimiento…',
+  },
+  /** Motivo por el que «Guardar» espera en la bitácora reflexiva: sin texto no hay nada que guardar (F6-5). */
+  journalSaveReason: {
+    decision: 'F6-5',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Bitácora reflexiva: motivo por el que «Guardar» espera',
+    text: 'Escribe tu reflexión para guardar',
+  },
+  /** Nombre del ajuste que enciende o apaga J, E, WASD y los números (F6-10, WCAG 2.1.4). */
+  shortcutsSettingLabel: {
+    decision: 'VD-18',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ajustes del juego: nombre del ajuste que enciende o apaga J, E, WASD y los números',
+    text: SHORTCUTS_SETTING_LABEL,
+  },
+  /**
+   * Pista de teclas de la barra de contexto con los atajos apagados (F6-10). La plantilla la repite con <kbd> en las
+   * teclas; una prueba impide que las dos diverjan. Con los atajos activos la pista es la de siempre.
+   */
+  keysHintArrows: {
+    decision: 'VD-18',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Barra de contexto del juego: pista de teclas cuando los atajos de una tecla están apagados',
+    text: 'Flechas mover · Enter interactuar · Esc salida segura',
+  },
+  /** Nombre accesible del botón de la cabecera que abre la lista «Ir a…» (F6-11). */
+  placesButtonLabel: {
+    decision: 'VD-19',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Cabecera del juego: nombre accesible del botón que abre la lista «Ir a…»',
+    text: 'Ir a… personas y puertas de la sala',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;
 
-/** Todos los borradores con su clave: lo que hay que llevarle a Psicología. */
-export function draftCopyList(): Array<DraftCopyEntry & { key: DraftCopyKey }> {
-  return (Object.keys(DRAFT_COPY) as DraftCopyKey[]).map(key => ({ key, ...DRAFT_COPY[key] }));
+/** Todos los borradores con su clave y qué se espera de Psicología: lo que hay que llevarles. */
+export function draftCopyList(): Array<DraftCopyEntry & { key: DraftCopyKey; review: DraftReview }> {
+  return (Object.keys(DRAFT_COPY) as DraftCopyKey[]).map(key => ({ key, review: 'validar' as DraftReview, ...DRAFT_COPY[key] }));
 }

@@ -117,7 +117,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 
             <div class="hud-actions">
               <button type="button" class="hud-action" data-hud-places (click)="openPlaces.emit()"
-                aria-label="Ir a… personas y puertas de la sala" title="Ir a…">
+                [attr.aria-label]="placesLabel" [attr.title]="placesTitle">
                 <mat-icon aria-hidden="true">near_me</mat-icon>
               </button>
               <button type="button" class="hud-action" (click)="openHelp.emit()"
@@ -165,7 +165,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                   <!-- WCAG 2.1.4 (F6-10): las teclas de una letra o un número se pueden apagar. -->
                   <button type="button" [attr.aria-pressed]="shortcuts()" (click)="toggleShortcuts.emit()">
                     <mat-icon aria-hidden="true">accessibility</mat-icon>
-                    <span>Atajos de una tecla</span>
+                    <span>{{ shortcutsLabel }}</span>
                     <strong>{{ shortcuts() ? 'On' : 'Off' }}</strong>
                   </button>
                   <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
@@ -514,6 +514,10 @@ export class SimulationHudComponent {
   readonly musicMuted = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input(false);
+  /** Textos nuevos de F6 que viven en el registro de borradores (una sola fuente para Psicología). */
+  protected readonly placesLabel = DRAFT_COPY.placesButtonLabel.text;
+  protected readonly placesTitle = DRAFT_COPY.placesDialog.title;
+  protected readonly shortcutsLabel = DRAFT_COPY.shortcutsSettingLabel.text;
   /** «Atajos de una tecla» activos (F6-10, WCAG 2.1.4): con ellos apagados ningún texto promete la J. */
   readonly shortcuts = input(true);
   /** La bitácora se anuncia con su tecla solo donde hay teclado y los atajos están activos. */

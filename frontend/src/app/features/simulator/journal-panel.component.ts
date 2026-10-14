@@ -4,6 +4,7 @@ import { Component, effect, inject, input, output, ChangeDetectionStrategy } fro
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
+import { DRAFT_COPY } from './draft-copy';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 
@@ -286,7 +287,7 @@ export class JournalPanelComponent {
 
   text = '';
   /** Por qué «Guardar» espera: sin texto no hay nada que guardar. */
-  protected readonly saveReason = 'Escribe tu reflexión para guardar';
+  protected readonly saveReason = DRAFT_COPY.journalSaveReason.text;
   private readonly audio = inject(AudioDirectorService);
 
   constructor() {
