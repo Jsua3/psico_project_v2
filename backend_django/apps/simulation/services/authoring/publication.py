@@ -19,6 +19,7 @@ from apps.simulation.models import (
     DialogueTree,
     MapObject,
     PublicationChecklist,
+    PublicationChecklistItem,
     Rubric,
     RubricCriterion,
     SceneMap,
@@ -27,6 +28,7 @@ from apps.simulation.models import (
 from apps.simulation.services import case_cloning as cloning
 from shared.exceptions import ApiError
 
+from . import checklist as checklist_rules
 from . import lifecycle
 from .editor_view import editor, latest_checklist_ratio
 from .guards import bump_revision, ensure_draft, require_version
@@ -38,13 +40,9 @@ from .world_definition import run_world_validation
 @transaction.atomic
 def update_checklist(case_version_id, request, actor):
     version = ensure_draft(case_version_id, request.get("revision"))
-    true_count = sum(
-        1 for key in (
-            "contentOriginal", "ethicsReviewed", "safetyProtocols",
-            "noStigmatizing", "triggerWarnings", "accessibilityOk",
-        ) if flag(request, key)
-    )
-    ratio = round(true_count * 100.0 / 6)
+    strict_mode = checklist_rules.strict()
+    marked = {code for code in checklist_rules.CODES if flag(request, code)}
+    ratio = checklist_rules.ratio(marked, strict_mode)
     checklist = PublicationChecklist(
         case_version=version,
         submitted_by=actor,
@@ -54,6 +52,15 @@ def update_checklist(case_version_id, request, actor):
     if ratio >= 100:
         checklist.completed_at = timezone.now()
     checklist.save()
+    # E2-7: se guarda **qué** casillas se marcaron, no solo el porcentaje.
+    required = set(checklist_rules.required_codes(strict_mode))
+    PublicationChecklistItem.objects.bulk_create(
+        PublicationChecklistItem(
+            checklist=checklist, code=code, label=label,
+            required=code in required, fulfilled=code in marked,
+        )
+        for code, label, _, _ in checklist_rules.CHECKLIST_ITEMS
+    )
     bump_revision(case_version_id)
     return editor(case_version_id)
 

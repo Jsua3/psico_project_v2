@@ -4,6 +4,7 @@ Cada mutación de autoría devuelve esta vista completa, así que casi todo el
 subsistema depende de este módulo.
 """
 from apps.simulation.models import (
+    CaseReview,
     ClinicalTool,
     DecisionOption,
     MapObject,
@@ -15,6 +16,7 @@ from apps.simulation.models import (
 )
 from shared.jsonutils import read_string_list as _read_string_list
 
+from . import checklist as checklist_rules
 from .guards import require_version
 
 
@@ -36,7 +38,8 @@ def editor(case_version_id):
         objects.extend(
             MapObject.objects.filter(scene_map_id=scene_map.id).order_by("id")
         )
-    checklist = latest_checklist_ratio(case_version_id)
+    latest = _latest_checklist(case_version_id)
+    checklist = _ratio_of(latest)
 
     return {
         "caseVersionId": version.id,
@@ -58,16 +61,73 @@ def editor(case_version_id):
         ],
         "checklistCompletion": checklist,
         "publishable": checklist >= 100,
+        "checklist": checklist_view(case_version_id, latest),
     }
 
 
-def latest_checklist_ratio(case_version_id):
-    latest = (
+def _latest_checklist(case_version_id):
+    return (
         PublicationChecklist.objects.filter(case_version_id=case_version_id)
-        .order_by("-submitted_at")
+        .prefetch_related("items")
+        .order_by("-submitted_at", "-id")
         .first()
     )
-    return int(latest.completion_ratio) if latest else 0
+
+
+def _fulfilled_codes(latest):
+    return {item.code for item in latest.items.all() if item.fulfilled} if latest else set()
+
+
+def _ratio_of(latest):
+    """El porcentaje de la última lista, con la obligatoriedad vigente (E2-7).
+
+    Una lista anterior a los ítems (sin filas) conserva el porcentaje que guardó.
+    """
+    if latest is None:
+        return 0
+    if not latest.items.all():
+        return int(latest.completion_ratio)
+    return checklist_rules.ratio(_fulfilled_codes(latest), checklist_rules.strict())
+
+
+def latest_checklist_ratio(case_version_id):
+    return _ratio_of(_latest_checklist(case_version_id))
+
+
+def checklist_view(case_version_id, latest=None):
+    """La lista de publicación para el editor: ítems, ítem derivado de la constancia y modo."""
+    if latest is None:
+        latest = _latest_checklist(case_version_id)
+    strict_mode = checklist_rules.strict()
+    required = set(checklist_rules.required_codes(strict_mode))
+    fulfilled = _fulfilled_codes(latest)
+    review = (
+        CaseReview.objects.filter(case_version_id=case_version_id, content_reference__isnull=False)
+        .order_by("-id")
+        .first()
+    )
+    content_review = {"fulfilled": False}
+    if review is not None:
+        content_review = {
+            "fulfilled": True,
+            "reviewer": review.content_reviewer,
+            "reviewedOn": review.content_reviewed_on.isoformat() if review.content_reviewed_on else None,
+            "reference": review.content_reference,
+        }
+    return {
+        "items": [
+            {
+                "code": code,
+                "label": label,
+                "required": code in required,
+                "fulfilled": code in fulfilled,
+                "draft": is_draft,
+            }
+            for code, label, _, is_draft in checklist_rules.CHECKLIST_ITEMS
+        ],
+        "contentReview": content_review,
+        "strict": strict_mode,
+    }
 
 
 # ─── editor-state DTO builders ────────────────────────────────────────────────
