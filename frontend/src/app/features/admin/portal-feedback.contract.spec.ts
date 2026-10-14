@@ -16,8 +16,11 @@ describe('portal: feedback de acciones', () => {
     expect(users).not.toContain("this.message.set(selected ? 'La información se guardó correctamente.'");
   });
 
-  it('Usuarios cierra el diálogo si falla el cambio de estado', () => {
-    expect(users).toMatch(/error: \(err: unknown\) => \{\s*this\.statusConfirmTarget\.set\(null\);/);
+  it('Usuarios confirma el cambio de estado con el diálogo de la biblioteca y avisa si falla', () => {
+    expect(users).not.toContain('app-confirm-dialog');
+    expect(users).not.toContain('statusConfirmTarget');
+    expect(users).toContain('this.dialog.confirm({');
+    expect(users).toContain("apiErrorMessage(err, 'No fue posible actualizar el estado del usuario.')");
   });
 
   it('Grupos ya no usa window.confirm ni el diálogo antiguo: confirma con el diálogo de la biblioteca', () => {

@@ -443,6 +443,93 @@ test.describe('@docencia rubricas', () => {
   });
 });
 
+const USUARIOS = [
+  { id: 5, email: 'ana@siep.test', nombre: 'Ana', apellido: 'Pérez', role: 'ESTUDIANTE', activo: true },
+  { id: 6, email: 'beto@siep.test', nombre: 'Beto', apellido: 'Ríos', role: 'PROFESOR', activo: false },
+];
+
+interface UsersMock {
+  users?: unknown[];
+  usersStatus?: number;
+  requestsStatus?: number;
+}
+
+async function openUsers(page: Page, mock: UsersMock = {}): Promise<void> {
+  await loginAs(page, 'admin');
+  await page.route('**/api/admin/users', route => route.request().method() !== 'GET'
+    ? route.continue()
+    : mock.usersStatus
+      ? route.fulfill({ status: mock.usersStatus, json: { success: false, message: 'Error simulado' } })
+      : route.fulfill({ json: { success: true, data: mock.users ?? USUARIOS } }));
+  await page.route('**/api/admin/access-requests**', route => mock.requestsStatus
+    ? route.fulfill({ status: mock.requestsStatus, json: { success: false, message: 'Error simulado' } })
+    : route.fulfill({ json: { success: true, data: [] } }));
+  await page.goto('/portal/admin/usuarios');
+}
+
+// req: RNF-04, BLOQUE-H
+test.describe('@docencia usuarios', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con usuarios: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openUsers(page);
+      await expect(page.getByRole('heading', { level: 1, name: 'Usuarios' })).toBeVisible();
+      await expect(page.getByRole('rowheader', { name: 'Ana Pérez' })).toBeVisible();
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-admin-users')).toEqual([]);
+    });
+  }
+
+  test('si la lista falla: un error con «Reintentar» y NO «Aún no hay usuarios»', async ({ page }) => {
+    await openUsers(page, { usersStatus: 500 });
+    await expect(page.locator('app-admin-users ui-error-state')).toHaveCount(1);
+    await expect(page.getByText('Aún no hay usuarios')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+  });
+
+  test('si las solicitudes de acceso no cargan, se ve el error en su sección', async ({ page }) => {
+    await openUsers(page, { requestsStatus: 500 });
+    await expect(page.locator('.us-requests ui-error-state')).toContainText('No pudimos cargar las solicitudes de acceso.');
+  });
+
+  test('el formulario va en una hoja: foco en el primer campo, Esc la cierra y el foco vuelve al botón', async ({ page }) => {
+    await openUsers(page);
+    const opener = page.getByRole('button', { name: 'Nuevo usuario' }).first();
+    await opener.click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: 'Crear usuario' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
+
+    // Enviar vacío: errores en línea, el foco al primer campo inválido y nada se envía.
+    await sheet.getByRole('button', { name: 'Guardar' }).click();
+    await expect(sheet.locator('.ui-field__message--error')).toHaveCount(4);
+    await expect(sheet.getByRole('textbox', { name: /Nombre/ })).toBeFocused();
+    await settle(page);
+    expect(await blockingViolations(page, '[role="dialog"]')).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test('desactivar pide confirmar con el diálogo y «Cancelar» no cambia nada', async ({ page }) => {
+    const patches: string[] = [];
+    page.on('request', request => {
+      if (request.method() === 'PATCH') patches.push(request.url());
+    });
+    await openUsers(page);
+    await page.getByRole('button', { name: 'Más acciones de Ana Pérez' }).click();
+    await page.getByRole('menuitem', { name: 'Desactivar usuario' }).click();
+
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog.getByRole('heading', { name: 'Desactivar usuario' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(patches).toEqual([]);
+  });
+});
+
 // req: RNF-04, BLOQUE-H, RQ-NEG-006
 test.describe('@docencia panel', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
