@@ -18,7 +18,7 @@ SPECS = {
 
 def test_el_modulo_declara_una_copia_por_entidad_del_caso():
     assert set(SPECS) == {
-        "CASE_VERSION", "NODE", "DECISION", "MAP", "COLLISION_ZONE", "MAP_OBJECT",
+        "CASE_VERSION", "NODE", "DECISION", "MAP", "COLLISION_ZONE", "CHARACTER", "MAP_OBJECT",
         "DIALOGUE_TREE", "DIALOGUE_LINE", "DIALOGUE_CHOICE", "CLINICAL_TOOL", "RUBRIC",
         "RUBRIC_CRITERION",
     }
