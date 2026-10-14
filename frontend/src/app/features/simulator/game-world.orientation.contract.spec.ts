@@ -80,12 +80,116 @@ describe('game-world: nada nuevo por cuadro (F§7.2, 59 FPS)', () => {
     expect(update).not.toContain('updateNpcHints');
   });
 
+  // req: BLOQUE-H (H-12)
+  it('con el foco en una región con scroll las flechas la desplazan y el jugador no camina', () => {
+    expect(source).toMatch(/const typing = isTextEntryTarget\(focus\) \|\| isScrollRegionTarget\(focus\);/);
+    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown/);
+  });
+
   it('la pulsación corta de E, Espacio y Enter no se pierde (T0.2) y respeta las mismas reglas de foco', () => {
     expect(source).toMatch(/this\.keys\['E'\]\?\.on\('down', \(\) => \{ this\.tappedKeys\.e = true; \}\);/);
     expect(source).toMatch(/this\.keys\['SPACE'\]\?\.on\('down', \(\) => \{ this\.tappedKeys\.space = true; \}\);/);
     expect(source).toMatch(/this\.keys\['ENTER'\]\?\.on\('down', \(\) => \{ this\.tappedKeys\.enter = true; \}\);/);
     expect(source).toMatch(/const tapped = resolveInteractPress\(focus, this\.tappedKeys\);/);
     expect(source).toMatch(/this\.interactPending = !typing && \(this\.interactPending \|\| pressed \|\| tapped\);/);
+  });
+});
+
+describe('game-world: ratón (F6-7, VD-5)', () => {
+  // req: BLOQUE-H, RNF-04
+  it('el hover va por eventos del puntero, no por cuadro: update() no sabe nada de él', () => {
+    expect(source).toMatch(/this\.input\.on\('pointermove', this\.handlePointerMove, this\);/);
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).not.toMatch(/hover|Hover|pickHoverTarget|handlePointerMove/);
+  });
+
+  it('con dedo o con una capa abierta no se resalta nada y el contorno solo sale de lo elegible', () => {
+    const target = bodyOf(/\n  private hoverTargetAt\(pointer: Phaser\.Input\.Pointer\): string \| null \{/, /\n  private handlePointerMove\(/);
+    expect(target).toContain('pointer.wasTouch || this.motionPaused');
+    expect(target).toContain('pickHoverTarget(');
+    expect(target).toContain('this.examinedKeys');
+    const move = bodyOf(/\n  private handlePointerMove\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  private setHover\(/);
+    expect(move).toContain('this.setHover(this.hoverTargetAt(pointer));');
+  });
+
+  // req: BLOQUE-H, RNF-04 (revisión de F6)
+  it('el clic vuelve a decidir qué hay bajo el puntero: con el cursor quieto el objetivo marcado puede estar viejo', () => {
+    const handler = bodyOf(/\n  private handlePointerDown\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  \}\n/);
+    expect(handler).toContain('const key = this.hoverTargetAt(pointer);');
+    expect(handler).toContain('this.setHover(key);');
+    expect(handler).not.toContain('this.hoverKey');
+  });
+
+  // req: BLOQUE-H, RNF-04 (VD-5)
+  it('el clic con puntero fino camina; con dedo, capa abierta o botón secundario no', () => {
+    const handler = bodyOf(/\n  private handlePointerDown\(pointer: Phaser\.Input\.Pointer\): void \{/, /\n  \}\n/);
+    expect(handler).toContain('pointer.wasTouch || this.motionPaused');
+    expect(handler).toMatch(/pointer\.button !== 0/);
+    // Sobre algo señalado camina hasta su alcance de interacción; en el suelo, hasta el punto clicado.
+    expect(handler).toContain('startWalk({ x: aimed.x, y: aimed.y, radius: aimed.reach })');
+    expect(handler).toContain('WALK_GROUND_RADIUS_PX');
+  });
+
+  it('en update() el teclado o la cruceta cancelan la caminata antes de aplicarla y el paso es el de siempre', () => {
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain('cancelWalkOnKeys(');
+    expect(update.indexOf('cancelWalkOnKeys(')).toBeLessThan(update.indexOf('tickWalk('));
+    expect(update).toContain('computePlayerStep(input, this.lastDirection, delta)');
+    expect(update).toContain('this.movePlayer(part.dx, part.dy)');
+  });
+
+  it('un paso de la cruceta suelta la caminata y una sala nueva no la arrastra', () => {
+    const nudge = bodyOf(/\n  nudge\(direction: 'up' \| 'down' \| 'left' \| 'right'\) \{\n    if \(!this\.player\) return;/, /\n  \/\*\* Punto de pies/);
+    expect(nudge).toContain('this.walk = NO_WALK;');
+    expect(source).toContain('if (!keepPosition) { this.walk = NO_WALK; this.walkGoal = null; }');
+  });
+
+  it('el hover no lee clasificación ni datos clínicos de lo que señala', () => {
+    const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
+    expect(hover).not.toMatch(/classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId|effect\b/);
+  });
+
+  it('el mundo no pide nada al servidor al pasar el puntero (solo callbacks de la propia escena)', () => {
+    const hover = bodyOf(/\n  \/\*\* Lo ya examinado llega de Angular/, /\n  focus\(key: string\) \{/);
+    expect(hover).not.toMatch(/http|fetch|simulation\.|onInteract|onNpcInteract/);
+  });
+});
+
+describe('game-world: atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
+  // req: BLOQUE-H (H-07)
+  it('WASD y E solo con el ajuste activo y con el foco en el juego; flechas, Enter y Espacio no dependen de él', () => {
+    expect(source).toContain('const letters = this.shortcutsEnabled && isShortcutContext(focus);');
+    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
+    expect(source).toMatch(/up:    !typing && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
+    expect(source).toContain('e: justE && letters,');
+    expect(source).toContain('if (!letters) this.tappedKeys.e = false;');
+    // Enter y Espacio siguen sin pasar por «letters».
+    expect(source).toMatch(/space: Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['SPACE'\]\),\s*enter: Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['ENTER'\]\),/);
+  });
+
+  it('el ajuste llega a la escena al arrancar y al cambiar', () => {
+    expect(source).toContain("if (changes['shortcuts']) this.scene?.setShortcutsEnabled(this.shortcuts());");
+    expect(source).toContain('this.scene?.setShortcutsEnabled(this.shortcuts());');
+  });
+});
+
+describe('game-world: «Ir a…» (F6-11)', () => {
+  // req: BLOQUE-H H-06, DM-5.8
+  it('los candidatos son solo clave, nombre y tipo: nada clínico ni la clasificación de una opción', () => {
+    const block = bodyOf(/\n  placeCandidates\(\): PlaceCandidate\[\] \{/, /\n  private finishWalkGoal\(/);
+    expect(block).not.toMatch(/classification|prohibitedConduct|isRecommended|isProhibited|decisionOptionId|effect\b/);
+    expect(block).toContain("kind: 'person'");
+    expect(block).toContain("obj.type === 'EXIT' ? 'door'");
+  });
+
+  it('la caminata a un lugar elegido pasa por la misma caminata del clic y avisa al terminar', () => {
+    const walk = bodyOf(/\n  walkToKey\(key: string\): boolean \{/, /\n  private finishWalkGoal\(/);
+    expect(walk).toContain('startWalk({ x: anchor.x, y: anchor.y, radius: anchor.reach })');
+    expect(walk).toContain('this.walkGoal = { key, label: anchor.label };');
+    // Pedida con la lista aún cerrándose (la escena figura pausada): espera a reanudarse en vez de soltarse.
+    expect(walk).toContain('this.walkWaitsForResume = this.motionPaused;');
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain("this.finishWalkGoal(tick.arrived ? 'arrived' : 'blocked')");
   });
 });
 
@@ -109,9 +213,16 @@ describe('game-world: señales iguales para todos (límite 1 de producto)', () =
     expect(source).not.toContain('const DIMMED_ALPHA');
   });
 
-  it('en táctil la pista de una persona y el rótulo de una puerta no mencionan la tecla E', () => {
-    expect(source).toMatch(/private npcHintGlyph\(\): string \{\s*return this\.touchPointer\(\) \? '▲' : '▲ E';\s*\}/);
-    expect(source).toMatch(/private doorHintText\(label: string\): string \{\s*return this\.touchPointer\(\) \? `\$\{label\} →` : `E  \$\{label\} →`;\s*\}/);
+  it('en táctil o con los atajos apagados la pista de una persona y el rótulo de una puerta no mencionan la tecla E', () => {
+    expect(source).toMatch(/private npcHintGlyph\(\): string \{\s*return this\.touchPointer\(\) \|\| !this\.shortcutsEnabled \? '▲' : '▲ E';\s*\}/);
+    expect(source).toMatch(/private doorHintText\(label: string\): string \{\s*return this\.touchPointer\(\) \|\| !this\.shortcutsEnabled \? `\$\{label\} →` : `E  \$\{label\} →`;\s*\}/);
     expect(source).not.toContain("'▲ E', {");
+  });
+
+  // req: BLOQUE-H (H-07), RNF-04 (revisión de F6)
+  it('el nombre accesible del mundo solo promete las teclas que el ajuste deja activas', () => {
+    expect(source).toContain('[attr.aria-label]="worldLabel()"');
+    expect(source).not.toMatch(/\n\s+aria-label="Mapa explorable/);
+    expect(source).toMatch(/protected readonly worldLabel = computed\(\(\) => \(this\.shortcuts\(\)\s*\? 'Mapa explorable de la simulación\. Usa WASD o flechas para moverte, E para interactuar\.'\s*: 'Mapa explorable de la simulación\. Usa las flechas para moverte, Enter para interactuar\.'/);
   });
 });

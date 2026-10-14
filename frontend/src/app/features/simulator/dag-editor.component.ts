@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnChanges, SimpleChanges, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { DecisionEdgeState, NodeEditorState, WorldValidationIssue } from '../../core/models/simulation.model';
+import { plural } from '../../shared/ui/labels';
 
 interface LayoutNode {
   node: NodeEditorState;
@@ -423,7 +424,7 @@ export class DagEditorComponent implements OnChanges {
     if (ns.length > 0 && startNodes.length > 1) warnings.push('Multiples nodos iniciales');
     if (ns.length > 0 && terminalNodes.length === 0) warnings.push('Sin nodo terminal');
     const orphans = ns.filter(n => !n.terminal && !es.some(e => e.sourceNodeId === n.id));
-    if (orphans.length > 0) warnings.push(`${orphans.length} nodo(s) sin decisiones salientes`);
+    if (orphans.length > 0) warnings.push(`${plural(orphans.length, 'nodo')} sin decisiones salientes`);
     return warnings;
   });
 

@@ -229,13 +229,13 @@ import {
       color: rgba(232,240,244,.92);
     }
 
-    /* Plegar y desplegar: objetivo de 32 px (mínimo AA 24) con zona de toque ampliada a 44 px. */
+    /* Plegar y desplegar: objetivo de 44 px de verdad con cualquier puntero (F6-3). */
     .checklist__toggle,
     .checklist__chip {
       position: relative;
       box-sizing: border-box;
       min-width: 44px;
-      min-height: 32px;
+      min-height: 44px;
       padding: 4px 10px;
       border: 1px solid rgba(182,156,255,.7);
       border-radius: 8px;
@@ -248,8 +248,6 @@ import {
       transition: border-color 150ms ease, background-color 150ms ease;
     }
     .checklist__toggle { margin-left: auto; }
-    .checklist__toggle::after,
-    .checklist__chip::after { content: ''; position: absolute; inset: -6px -2px; }
     /* El chip se sostiene solo: lleva su propio fondo oscuro porque el envoltorio de la pantalla de
        juego puede quitarle el suyo al plegarse y el texto claro no se lee sobre un mapa claro. */
     .checklist__chip {
@@ -266,10 +264,9 @@ import {
       background: #cdbcff;
       box-shadow: 0 0 0 2px rgba(8,12,18,.9);
     }
-    .checklist__toggle:focus-visible,
-    .checklist__chip:focus-visible,
-    .checklist__summary:focus-visible,
-    .checklist__scroll:focus-visible { outline: 2px solid #c9b3ff; outline-offset: 2px; }
+    /* El anillo de foco es el de la piel del juego (--ds-focus); la región con scroll lo lleva hacia adentro para que
+       el recorte de la tarjeta no lo corte. */
+    .checklist__scroll:focus-visible { outline-offset: -3px; }
     @media (hover: hover) and (pointer: fine) {
       .checklist__toggle:hover { border-color: rgba(182,156,255,.85); background: rgba(124,77,255,.18); }
       .checklist__chip:hover { border-color: rgba(182,156,255,.85); background: #1d1738; }
@@ -335,7 +332,7 @@ import {
       display: flex;
       align-items: center;
       gap: 6px;
-      min-height: 32px;
+      min-height: 44px;
       font-size: .75rem;
       font-weight: 800;
       color: rgba(232,240,244,.9);

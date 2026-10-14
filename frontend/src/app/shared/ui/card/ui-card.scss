@@ -1,0 +1,38 @@
+@use 'mixins' as m;
+
+// Tarjeta (plan visual F2-3; VD-3: sin sombras duras ni bordes punteados). Elevación e0 en reposo (solo borde).
+.ui-card {
+  display: block;
+  padding: var(--ds-space-5);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-1);
+  box-shadow: var(--ds-shadow-e0);
+  color: var(--ds-text-1);
+}
+
+// Clicable: el hover cambia borde y sombra (no desplaza, motion.contract) y la pulsación escala 0,97 (§2.6).
+.ui-card--interactive {
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--ds-dur-fast) ease,
+    box-shadow var(--ds-dur-fast) ease,
+    scale var(--ds-dur-press) var(--ds-ease-out);
+
+  @include m.ds-hover {
+    border-color: var(--ds-border-strong);
+    box-shadow: var(--ds-shadow-e1);
+  }
+
+  &:active {
+    scale: 0.97;
+  }
+}
+
+button.ui-card {
+  inline-size: 100%;
+}

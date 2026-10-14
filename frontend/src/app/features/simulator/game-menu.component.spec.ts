@@ -19,7 +19,7 @@ import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { EMPTY } from 'rxjs';
+import { EMPTY, NEVER, of, throwError } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { CatalogItem } from '../../core/models/simulation.model';
@@ -27,7 +27,10 @@ import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { GameHelpComponent } from './game-help.component';
-import { GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
+import Phaser from 'phaser';
+
+import { ClinicMenuScene, GameMenuComponent, lobbyKeyboardHint } from './game-menu.component';
+import { lobbyMotion } from './lobby-avatar.util';
 import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import type { Mock } from 'vitest';
 
@@ -71,6 +74,13 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     expect(component.entering()).toBe('Caso demo');
     vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
+  });
+
+  // req: RNF-04 (plan visual F5-3: sin la espera ficticia de 900 ms)
+  it('entrar navega al instante, sin espera ficticia', () => {
+    component.catalog.set([makeItem()]);
+    component.enter(7);
     expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
   });
 
@@ -171,13 +181,28 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
   });
 
   describe('texto de teclado', () => {
+    // req: BLOQUE-H (H-07), WCAG 2.1.4
+    it('A, D y E del lobby solo con el ajuste activo y con el foco en la sala; flechas, Enter y Espacio no dependen', () => {
+      expect(source).toContain('const letters = (this.cb.shortcutsEnabled?.() ?? true) && isShortcutContext(focus);');
+      expect(source).toContain('e: justE && letters,');
+      expect(source).toContain('shortcutsEnabled: () => this.shortcuts.enabled(),');
+      expect(source).toMatch(/\(letters && this\.keys\['A'\]\?\.isDown\)/);
+      expect(source).toMatch(/\(letters && this\.keys\['D'\]\?\.isDown\)/);
+    });
+
     it('lobbyKeyboardHint: con puntero fino devuelve el recordatorio y con puntero grueso nada', () => {
       expect(lobbyKeyboardHint(false)).toBe('← → / A D  mover · E entrar');
       expect(lobbyKeyboardHint(true)).toBeNull();
     });
 
+    // req: BLOQUE-H (H-07), WCAG 2.1.4
+    it('sin los atajos de una tecla la pista del lobby promete flechas y Enter, no A, D ni E', () => {
+      expect(lobbyKeyboardHint(false, false)).toBe('← →  mover · Enter entrar');
+      expect(lobbyKeyboardHint(true, false)).toBeNull();
+    });
+
     it('la pista del lobby es DOM (no texto de Phaser) y solo sale si lobbyKeyboardHint la devuelve', () => {
-      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\)\)\);/);
+      expect(source).toMatch(/readonly keyboardHint = computed\(\(\) => lobbyKeyboardHint\(this\.coarsePointer\(\), this\.shortcuts\.enabled\(\)\)\);/);
       expect(source).toContain('@if (keyboardHint(); as hint) { <p class="lobby-help" aria-hidden="true">{{ hint }}</p> }');
       expect(source).not.toMatch(/add\.text\(12, 12, '← →/);
     });
@@ -296,7 +321,11 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       const { fixture, root } = mount(false);
       helpButton(root)!.click();
       fixture.detectChanges();
-      expect(add.mock.calls.filter(([type]) => String(type).startsWith('key'))).toEqual([]);
+      // El detector de modalidad del CDK (oyente pasivo en captura) que usan los botones del sistema (F5-3) no reacciona
+      // a ninguna tecla: no cuenta. Lo que se vigila es que la sala no escuche el teclado de toda la página.
+      const own = add.mock.calls.filter(([type, , options]) =>
+        String(type).startsWith('key') && !(typeof options === 'object' && options?.capture && options?.passive));
+      expect(own).toEqual([]);
       expect(source).not.toMatch(/HostListener\('document:/);
       add.mockRestore();
     });
@@ -305,6 +334,132 @@ describe('GameMenuComponent: ayuda y textos de teclado en el lobby (T7.4)', () =
       expect(source).toMatch(/\.menu-help-layer \{\s*position: absolute; inset: 0;/);
       expect(source).toMatch(/\.menu-help-btn \{[^}]*min-height: 44px;/);
     });
+  });
+});
+
+/**
+ * Sala (plan visual F5-3), en DOM: la salida al panel siempre visible (la barra está oculta en la sala), UNA señal de
+ * carga hasta que la sala está lista y el error con «Reintentar» que vuelve a pedir el catálogo.
+ */
+// req: BLOQUE-H, RNF-04
+describe('GameMenuComponent: salida, carga y error de la sala (F5-3)', () => {
+  function mountWith(getCatalog: () => unknown) {
+    TestBed.configureTestingModule({
+      imports: [GameMenuComponent],
+      providers: [
+        { provide: SimulationService, useValue: { getCatalog: vi.fn(getCatalog) } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
+      ],
+    });
+    TestBed.overrideComponent(GameMenuComponent, {
+      remove: { imports: [GameHelpComponent] },
+      add: { imports: [GameHelpStubComponent] },
+    });
+    const fixture = TestBed.createComponent(GameMenuComponent);
+    fixture.detectChanges();
+    const service = TestBed.inject(SimulationService) as unknown as { getCatalog: Mock };
+    const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+    return { fixture, root: fixture.nativeElement as HTMLElement, service, router };
+  }
+  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  // Lo que se lee de un enlace: sin la ligadura del icono (aria-hidden).
+  const spoken = (el: Element) => {
+    const copy = el.cloneNode(true) as Element;
+    copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
+    return text(copy);
+  };
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.useRealTimers();
+  });
+
+  it('«Volver al panel» es un enlace visible al panel, también mientras carga', () => {
+    const { root, router } = mountWith(() => NEVER);
+    const exit = [...root.querySelectorAll('a')].find(link => spoken(link) === 'Volver al panel')!;
+    expect(exit.getAttribute('href')).toBe('/portal/dashboard');
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    exit.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/dashboard']);
+  });
+
+  // Síncrona a propósito: en este archivo (con vi.mock) una función async hace que el builder reescriba el módulo y
+  // Vitest ya no encuentre el vi.mock en el nivel superior.
+  it('carga unificada: una sola señal («Preparando la sala…») pasado el umbral, sin barra de progreso', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const { fixture, root } = mountWith(() => NEVER);
+    expect(root.querySelector('.menu-loading')).toBeNull();
+    vi.advanceTimersByTime(200);
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.menu-loading')).toHaveLength(1);
+    expect(text(root.querySelector('[role="status"]'))).toBe('Preparando la sala…');
+    expect(root.querySelector('mat-progress-bar')).toBeNull();
+  });
+
+  // req: SIEP-RF-12 (gancho de interfaz), BLOQUE-H (plan visual F5-5)
+  it('F5-5: la puerta bloqueada nombra el caso anterior y su botón queda deshabilitado CON motivo', () => {
+    const { fixture, root } = mountWith(() => NEVER);
+    const first = makeItem({ caseVersionId: 7, title: 'Caso uno', order: 1 } as Partial<CatalogItem>);
+    const second = makeItem({ caseVersionId: 8, title: 'Caso dos', order: 2, unlocked: false } as Partial<CatalogItem>);
+    fixture.componentInstance.catalog.set([first, second]);
+    fixture.componentInstance.focused.set(second);
+    fixture.detectChanges();
+    expect(text(root.querySelector('.case-banner span'))).toBe('Bloqueado: completa «Caso uno» para abrirlo.');
+    const button = root.querySelector<HTMLButtonElement>('.banner-enter')!;
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('F5-5: sin casos asignados, la sala lo dice (sin pasillo vacío) y la salida sigue a mano', () => {
+    const { fixture, root } = mountWith(() => of([]));
+    fixture.detectChanges();
+    const empty = root.querySelector('ui-empty-state')!;
+    expect(text(empty)).toContain('Aún no tienes casos asignados');
+    expect(root.querySelector('.menu-loading')).toBeNull();
+    expect([...root.querySelectorAll('a')].some(link => spoken(link) === 'Volver al panel')).toBe(true);
+  });
+
+  // Revisión de F5 (WCAG 2.4.11): bajo una capa que se queda, el lienzo no puede recibir un foco que nadie vería.
+  it('el lienzo sale del orden de foco bajo el error y bajo «sin casos»; cargando, no', () => {
+    const host = (root: HTMLElement) => root.querySelector('.phaser-host')!;
+    let mounted = mountWith(() => throwError(() => ({ status: 500 })));
+    mounted.fixture.detectChanges();
+    expect(host(mounted.root).hasAttribute('inert')).toBe(true);
+    TestBed.resetTestingModule();
+    mounted = mountWith(() => of([]));
+    mounted.fixture.detectChanges();
+    expect(host(mounted.root).hasAttribute('inert')).toBe(true);
+    TestBed.resetTestingModule();
+    mounted = mountWith(() => NEVER);
+    expect(host(mounted.root).hasAttribute('inert')).toBe(false);
+  });
+
+  // Sin async a propósito (vi.mock en el archivo): la prueba devuelve la promesa.
+  it('si la navegación no se completa, la tarjeta «Entrando al caso» se retira y la sala vuelve a estar a mano', () => {
+    const { fixture, router } = mountWith(() => NEVER);
+    router.navigate.mockResolvedValue(false);
+    fixture.componentInstance.catalog.set([makeItem()]);
+    fixture.componentInstance.enter(7);
+    expect(fixture.componentInstance.entering()).toBe('Caso demo');
+    return Promise.resolve().then(() => Promise.resolve()).then(() => {
+      expect(fixture.componentInstance.entering()).toBe('');
+    });
+  });
+
+  it('si falla el catálogo: error con «Reintentar» que vuelve a pedirlo, y la salida sigue a mano', () => {
+    let calls = 0;
+    const { fixture, root, service } = mountWith(() => (++calls === 1 ? throwError(() => ({ status: 500 })) : NEVER));
+    fixture.detectChanges();
+    const error = root.querySelector('ui-error-state')!;
+    expect(text(error)).toContain('No pudimos cargar la sala.');
+    expect([...root.querySelectorAll('a')].some(link => spoken(link) === 'Volver al panel')).toBe(true);
+    (error.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(service.getCatalog).toHaveBeenCalledTimes(2);
+    expect(root.querySelector('ui-error-state')).toBeNull();
   });
 });
 
@@ -320,5 +475,66 @@ describe('GameMenuComponent: el observador del contenedor', () => {
     expect(order).toEqual(['detach', 'destroy']);
     component.ngOnDestroy();
     expect(detach).toHaveBeenCalledTimes(1);
+  });
+});
+
+// req: BLOQUE-H (H-22: movimiento reducido; revisión de F5)
+describe('lobby: la sacudida ante una puerta bloqueada respeta el movimiento reducido', () => {
+  const justDown = Phaser.Input.Keyboard.JustDown;
+  afterEach(() => { (Phaser.Input.Keyboard as { JustDown: unknown }).JustDown = justDown; });
+
+  function sceneAtLockedDoor(reduceMotion: boolean) {
+    // La tecla E «acaba de bajar» en este cuadro.
+    (Phaser.Input.Keyboard as { JustDown: unknown }).JustDown = () => true;
+    const shake = vi.fn();
+    const key = { isDown: false };
+    const scene = Object.create(ClinicMenuScene.prototype) as Record<string, unknown> & { update(t: number, dt: number): void };
+    Object.assign(scene, {
+      player: { x: 220, y: 382, setPosition: vi.fn() },
+      keys: { A: key, D: key, E: key, SPACE: key, ENTER: key },
+      cursors: undefined,
+      pointerTargetX: null,
+      doors: [{ item: makeItem({ unlocked: false }), x: 220 }],
+      nearestId: null,
+      worldW: 960,
+      view: 'right',
+      walking: false,
+      cb: { onEnter: vi.fn(), onFocus: vi.fn(), onReady: vi.fn() },
+      motion: lobbyMotion(reduceMotion),
+      cameras: { main: { shake } },
+    });
+    scene.update(0, 16);
+    return { shake, onEnter: (scene['cb'] as { onEnter: Mock }).onEnter };
+  }
+
+  it('sin «reducir movimiento», E ante la puerta bloqueada sacude la cámara y no entra', () => {
+    const { shake, onEnter } = sceneAtLockedDoor(false);
+    expect(shake).toHaveBeenCalledTimes(1);
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+
+  it('con «reducir movimiento», no hay sacudida (y tampoco entra)', () => {
+    const { shake, onEnter } = sceneAtLockedDoor(true);
+    expect(shake).not.toHaveBeenCalled();
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+});
+
+// req: REGLA-009 (F0-8, PHA-2: rótulos nítidos con zoom de cámara)
+describe('lobby: rótulos de Phaser nítidos con zoom (PHA-2)', () => {
+  it('al fijar el zoom entero, los textos de la sala toman la resolución de ese zoom', () => {
+    const scene = Object.create(ClinicMenuScene.prototype) as {
+      cameras: { main: Record<string, unknown> };
+      worldW: number;
+      pixelRender: { refreshTexts: ReturnType<typeof vi.fn> };
+      applyCamera(): void;
+    };
+    const cam = { width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }), setBounds: vi.fn() };
+    scene.cameras = { main: cam };
+    scene.worldW = 960;
+    scene.pixelRender = { refreshTexts: vi.fn() };
+    scene.applyCamera();
+    expect(cam.setZoom).toHaveBeenCalledWith(2);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
   });
 });

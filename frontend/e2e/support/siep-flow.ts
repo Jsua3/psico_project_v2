@@ -49,6 +49,18 @@ export async function loginStudent(page: Page, options: { seedHelp?: boolean } =
   await page.waitForURL(/\/portal\//, { timeout: scaled(30_000) });
 }
 
+/**
+ * Descarta el intento abierto que dejó otra prueba: «Iniciar nuevo intento» en la tarjeta de reanudar nombra lo que se
+ * pierde y pide confirmar (RN-07, plan visual F6-2); aquí se confirma en el cuadro de consecuencia.
+ */
+export async function startFreshAttempt(page: Page, startFresh: Locator): Promise<void> {
+  await startFresh.click();
+  const consequence = page.getByRole('alertdialog');
+  await expect(consequence).toBeVisible({ timeout: scaled(15_000) });
+  await consequence.getByRole('button', { name: /^iniciar nuevo intento$/i }).click();
+  await expect(consequence).toHaveCount(0, { timeout: scaled(15_000) });
+}
+
 export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
@@ -57,7 +69,7 @@ export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
   // vez de heredar su sala y posición (un fallo previo no arrastra a este).
   const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
   await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(30_000) });
-  if (await startFresh.isVisible().catch(() => false)) await startFresh.click();
+  if (await startFresh.isVisible().catch(() => false)) await startFreshAttempt(page, startFresh);
   await expect(consent).toBeVisible({ timeout: scaled(30_000) });
   return consent;
 }

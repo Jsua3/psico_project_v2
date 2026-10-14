@@ -138,7 +138,8 @@ describe('barra contextual (T9.3, T9.5)', () => {
   });
 
   it('la <kbd> «E» del botón no se pinta en modo compacto ni sin puntero fino', () => {
-    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">E<\/kbd> \}/);
+    // La tecla que se rotula sale del ajuste «Atajos de una tecla» (F6-10): E con ellos activos, Enter sin ellos.
+    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">\{\{ shortcuts\.enabled\(\) \? 'E' : 'Enter' \}\}<\/kbd> \}/);
     expect(source).toMatch(/@media not all and \(hover: hover\) and \(pointer: fine\) \{\s*\.context-bar__interaction kbd \{ display: none; \}/);
   });
 
@@ -151,10 +152,57 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(rule('.bottom-zone')).not.toMatch(/min-height/);
   });
 
+  // req: RNF-04, BLOQUE-H
+  it('las acciones de la barra de contexto miden 44 px con cualquier puntero', () => {
+    expect(rule('.context-bar__interaction')).toMatch(/min-height: 44px;/);
+  });
+
   it('el botón no hace crecer el pie: una línea con puntos suspensivos', () => {
     expect(rule('.context-bar__copy strong')).toMatch(/white-space: nowrap;/);
     expect(rule('.context-bar__copy strong')).toMatch(/text-overflow: ellipsis;/);
     expect(rule('.context-bar__interaction')).toMatch(/max-height: 100%;/);
+  });
+});
+
+describe('«Ir a…» (F6-11, VD-19)', () => {
+  // req: BLOQUE-H H-06, RNF-04
+  it('abierta, el resto del juego queda inerte y Esc la cierra antes que la ayuda, la bitácora, el diálogo y la pausa', () => {
+    expect(source).toMatch(/this\.showCaseIntro\(\) \|\| this\.dialogue\(\) !== null \|\| this\.journalOpen\(\) \|\| this\.placesOpen\(\)/);
+    const chain = source.slice(source.indexOf('if (this.placesOpen())  {'));
+    expect(chain.indexOf('if (this.placesOpen())')).toBeLessThan(chain.indexOf('if (this.helpOpen())'));
+    expect(source).toMatch(/<app-world-places-list \[places\]="placeOptions\(\)" \[pausing\]="pausing\(\)"\s*\(choose\)="choosePlace\(\$event\)" \(closed\)="closePlaces\(\)" \(safeExit\)="pauseFromOverlay\(\)" \/>/);
+  });
+
+  it('solo se ofrecen personas, puertas y lo examinado (misma regla que el hover) y la llegada se anuncia', () => {
+    expect(source).toContain('selectPlaces(this.gameWorld?.places() ?? [], examined)');
+    expect(source).toContain('new Set(this.world()?.inspectedObjectKeys ?? [])');
+    expect(source).toMatch(/onWalkEnded\(event: \{ key: string; label: string; outcome: 'arrived' \| 'blocked' \}\): void \{/);
+    expect(source).toContain('DRAFT_COPY.placesArrived');
+  });
+
+  it('al cerrarla el foco vuelve a su acceso de la cabecera', () => {
+    expect(source).toMatch(/afterNextRender\(\(\) => document\.querySelector<HTMLElement>\('\[data-hud-places\]'\)\?\.focus\(\)/);
+  });
+});
+
+describe('texto de la pantalla de juego (F6-3)', () => {
+  // req: RNF-04, BLOQUE-H
+  it('ningún texto del componente baja de 12 px, ni en las entradas ni en el pie ni en el panel de escena', () => {
+    const styles = source.slice(source.indexOf('styles: [`'));
+    const small: string[] = [];
+    for (const chunk of styles.split('}')) {
+      const [selector, body] = chunk.split('{');
+      if (!body) continue;
+      for (const match of body.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) {
+        const px = match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]);
+        if (px < 12) small.push(selector.trim().split('\n').pop() + ' → ' + match[0]);
+      }
+    }
+    expect(small).toEqual([]);
+  });
+
+  it('el foco del pie es el anillo global del juego, sin anillo local con literales', () => {
+    expect(source).not.toMatch(/\.context-bar__interaction:focus-visible/);
   });
 });
 
@@ -241,11 +289,15 @@ describe('modo compacto (T10)', () => {
 
   it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda', () => {
     expect(compactCss).toMatch(/\.bottom-zone \{[^}]*flex-wrap: nowrap;[^}]*height: 56px;/);
-    expect(compactCss).toMatch(/\.safe-exit__copy kbd, \.context-bar__hint \{ display: none; \}/);
+    expect(compactCss).toMatch(/\.context-bar__hint \{ display: none; \}/);
+    // «Salida segura» es el componente compartido (F6-6): en compacto va en su variante densa, sin la pista de tecla.
+    expect(source).toMatch(/<app-safe-exit-button \[compact\]="compactMode\(\)" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>/);
   });
 
   it('los controles del pie miden al menos 44 px', () => {
-    expect(compactCss).toMatch(/\.safe-exit \{[^}]*min-height: 44px;/);
+    // «Salida segura» mide 44 px en el propio componente, también compacto (su spec lo fija).
+    expect(readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8'))
+      .toMatch(/\.safe-exit-btn \{[^}]*min-height: 44px;/);
     expect(compactCss).toMatch(/\.context-bar__interaction \{[^}]*min-height: 44px;/);
   });
 

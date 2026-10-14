@@ -7,16 +7,23 @@ import { join } from 'path';
  */
 const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
 
+/**
+ * F6-12: el comportamiento (qué se anuncia, cuándo y por dónde) lo fija `simulation-play.live-notices.spec.ts`
+ * pintando la plantilla; aquí quedan los contratos de forma que no se ven en el DOM de una pantalla sin mundo.
+ */
 describe('F6: anuncios de las regiones vivas, una sola vez', () => {
-  it('la leyenda de teclado sale de la lectura de la barra (que es una región viva): aria-hidden', () => {
-    expect(source).toMatch(/<div class="context-bar" aria-live="polite" aria-atomic="true">/);
+  it('la barra de contexto ya no es una región viva y la leyenda de teclado sigue fuera de la lectura', () => {
+    expect(source).toMatch(/<div class="context-bar">/);
+    expect(source).not.toMatch(/<div class="context-bar" aria-live/);
     expect(source).toMatch(/<p class="context-bar__hint" aria-hidden="true">WASD mover/);
   });
 
-  it('el aviso de puerta no es role="alert": showDoorNotice ya lo anuncia por la región viva', () => {
-    expect(source).toMatch(/<div class="door-notice">\s*<mat-icon aria-hidden="true">lock<\/mat-icon>/);
-    expect(source).not.toMatch(/<div class="door-notice"[^>]*role=/);
-    expect(source).toMatch(/private showDoorNotice\(message: string\): void \{\s*this\.doorNotice\.set\(message\);\s*this\.announce\(message\);/);
+  it('el aviso de puerta no es una región viva del juego: es un aviso del sistema que anuncia su anfitrión, una vez', () => {
+    expect(source).not.toMatch(/class="door-notice"/);
+    expect(source).not.toMatch(/class="action-toast"/);
+    const showDoorNotice = source.slice(source.indexOf('private showDoorNotice('), source.indexOf('private dismissDoorNotice('));
+    expect(showDoorNotice).toContain("this.notifications.show('warning', message, 0)");
+    expect(showDoorNotice).not.toContain('this.announce(');
   });
 
   it('la herramienta no se anuncia dos veces: el panel de diálogo ya anuncia su línea', () => {
@@ -25,10 +32,12 @@ describe('F6: anuncios de las regiones vivas, una sola vez', () => {
     expect(toolFeedback).toContain('lines: [');
   });
 
-  it('la tarjeta «Qué hacer» y el aviso suave siguen con su única región viva (no se tocan)', () => {
-    expect(source).toMatch(/<div class="soft-notice" role="status">\{\{ softNotice\(\) \}\}<\/div>/);
+  it('el juego no trae región viva propia: ni el aviso suave ni la tarjeta «Qué hacer» llevan role', () => {
+    expect(source).toMatch(/<div class="soft-notice">\{\{ softNotice\(\) \}\}<\/div>/);
     expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">/);
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
+    expect(source).not.toMatch(/aria-live="assertive" role="status"/);
+    expect(source).not.toContain('a11yAnnouncement');
   });
 });
 
@@ -43,7 +52,7 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
   const reduceRule = source.slice(source.indexOf(selectors[0]), source.indexOf('}', source.indexOf(selectors[3])) + 1);
 
   it('el contenedor lleva la clase mientras el interruptor (reduceMotion) está activo', () => {
-    expect(source).toMatch(/<div class="game-container" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)">/);
+    expect(source).toMatch(/<div class="game-container" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)">/);
   });
 
   it('la regla alcanza al contenedor y a todos sus descendientes, también a los componentes hijos', () => {
@@ -55,15 +64,17 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
     expect(reduceRule).toContain('animation-iteration-count: 1 !important;');
     expect(reduceRule).toContain('transition-duration: 1ms !important;');
     expect(reduceRule).toContain('scroll-behavior: auto !important;');
-    const globalRule = readFileSync(join(__dirname, '../../../styles/styles.scss'), 'utf-8');
-    const media = globalRule.slice(globalRule.indexOf('@media (prefers-reduced-motion: reduce) {\n  *,'));
+    // La red de seguridad global vive en styles/base/_motion.scss desde F1-6.
+    const globalRule = readFileSync(join(__dirname, '../../../styles/base/_motion.scss'), 'utf-8');
+    const media = globalRule.slice(globalRule.indexOf('@media (prefers-reduced-motion: reduce) {'));
     for (const declaration of ['animation-duration: 1ms !important;', 'animation-iteration-count: 1 !important;', 'transition-duration: 1ms !important;']) {
       expect(media).toContain(declaration);
     }
   });
 
   it('las animaciones que la revisión encontró encendidas existen y quedan dentro del alcance de la regla', () => {
-    for (const name of ['sheet-up', 'panel-in', 'door-notice-in', 'fade-in']) {
+    // `door-notice-in` salió con el aviso de puerta propio (F6-12): ahora lo pinta ui-toast-host.
+    for (const name of ['sheet-up', 'panel-in', 'fade-in']) {
       expect(source).toContain(`@keyframes ${name}`);
     }
     const dialogue = readFileSync(join(__dirname, 'dialogue-panel.component.ts'), 'utf-8');

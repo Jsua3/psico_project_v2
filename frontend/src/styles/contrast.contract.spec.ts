@@ -23,14 +23,17 @@ describe('contraste: simulador', () => {
   const play = source('../app/features/simulator/simulation-play.component.ts');
   const styles = source('./styles.scss');
 
-  it('la tarjeta de reanudar no usa el vidrio claro', () => {
-    expect(play).not.toContain('resume-card liquid-glass');
-    expect(play).toMatch(/\.resume-card \{[^}]*linear-gradient\(180deg, rgba\(18,24,42,\.96\), rgba\(8,12,18,\.98\)\)/);
+  it('la tarjeta de reanudar es la tarjeta oscura de las entradas del juego, sin el vidrio claro', () => {
+    expect(play).not.toContain('resume-card');
+    expect(play).not.toContain('liquid-glass');
+    expect(play).toMatch(/\.case-intro-card \{[^}]*background: linear-gradient\(180deg, rgba\(18,24,42,\.96\), rgba\(8,12,18,\.98\)\)/);
   });
 
-  it('el encabezado pequeño se aclara en modo juego', () => {
-    expect(styles).toContain('body.game-mode .psy-eyebrow {');
-    expect(styles).toMatch(/body\.game-mode \.psy-eyebrow \{\s*color: #B69CFF;/);
+  // req: REGLA-010 (F6-1): el CSS del juego vive en `.game-container` o en sus componentes, nunca en `<body>`.
+  it('el encabezado pequeño se aclara dentro del juego con el primario de la piel, sin reglas en body', () => {
+    expect(styles).not.toContain('body.game-mode');
+    expect(play).toMatch(/\.game-container \.psy-eyebrow \{\s*color: var\(--ds-primary\);/);
+    // El primario de la piel juego (#B69CFF) sobre la superficie más clara del juego.
     expect(contrast('#B69CFF', '#12182A')).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -40,16 +43,18 @@ describe('contraste: simulador', () => {
 });
 
 describe('contraste: avisos', () => {
-  const styles = source('./styles.scss');
+  const toast = source('../app/shared/ui/toast/ui-toast-host.scss');
 
-  it('el foco del botón de cerrar contrasta sobre la tarjeta blanca también en modo juego', () => {
-    // El anillo global de body.game-mode (#C9B3FF) no llega a 3:1 sobre blanco (WCAG 1.4.11).
-    expect(contrast('#C9B3FF', '#FFFFFF')).toBeLessThan(3);
+  // F6-1: el anfitrión de avisos vive en la capa superior, fuera de `.game-container`: hereda los tokens del portal
+  // (tarjeta blanca y anillo #004876) también dentro del juego, así que el anillo claro del juego no le aplica.
+  it('los avisos van sobre la tarjeta blanca del portal también en el juego: su anillo supera 3:1', () => {
+    expect(toast).toMatch(/\.ui-toast \{[^}]*background: var\(--ds-surface-1\);/);
     expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
-    // Tres clases/pseudoclases + un elemento (0,3,1) superan a body.game-mode :focus-visible (0,2,1).
-    expect(styles).toMatch(
-      /\.siep-notifications \.siep-notification button:focus-visible \{[^}]*outline: 2px solid var\(--siep-blue\);[^}]*outline-offset: -2px;[^}]*border-radius: 50%;/,
-    );
+    expect(contrast('#C9B3FF', '#FFFFFF')).toBeLessThan(3);
+  });
+
+  it('el foco del botón de cerrar sale del anillo global: el anfitrión no declara contornos propios', () => {
+    expect(toast).not.toMatch(/outline\s*:/);
   });
 });
 
@@ -59,11 +64,11 @@ describe('contraste: portada', () => {
   const html = source('../app/features/public/landing.component.html');
   const accents = ['#6D28D9', '#115E59', '#9A3412', '#1D4ED8'];
 
-  it('no quedan acentos claros que fallan AA', () => {
-    for (const old of ['#7c3aed', '#14b8a6', '#f97316', '#3b82f6']) {
-      expect(data).not.toContain(`'${old}'`);
+  it('no quedan acentos claros que fallan AA (F4-1: ya no hay acentos por tarjeta, solo tokens)', () => {
+    for (const color of ['#7c3aed', '#14b8a6', '#f97316', '#3b82f6', ...accents]) {
+      expect(data).not.toContain(`'${color}'`);
     }
-    for (const accent of accents) expect(data).toContain(`'${accent}'`);
+    expect(data).not.toMatch(/\baccent:/);
   });
 
   it('los acentos pasan AA como texto y como fondo de texto blanco', () => {
@@ -72,37 +77,54 @@ describe('contraste: portada', () => {
     }
   });
 
-  it('el titular no usa el tramo oscuro del degradado', () => {
-    expect(scss).toContain('background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);');
-    expect(contrast('#a78bfa', '#151d32')).toBeGreaterThanOrEqual(4.5);
+  it('el titular no usa degradado: su palabra destacada es el primario sólido de la piel (F4-1)', () => {
+    // Un texto con background-clip: text desaparece con colores forzados (§2.3 del plan visual).
+    expect(scss).not.toContain('background-clip');
+    expect(scss).toMatch(/\.landing-accent \{\s*color: var\(--ds-primary\);/);
+    expect(contrast('#B69CFF', '#0E1322')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#004876', '#F5F7FA')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('la cabecera tiene fondo sólido y el enlace Ingresar es visible', () => {
+  it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
+    // F3-4: «Ingresar» vive en app-public-bar (ui-button en el módulo de cuenta; probado en public-bar.component.spec.ts).
     expect(scss).not.toContain('rgba(12, 18, 34, 0.72) 70%, transparent 100%');
-    expect(html).toContain('class="landing-btn landing-btn--sm landing-btn--outline" routerLink="/login"');
+    expect(html).toContain('<app-public-bar [anchors]="anchors" />');
+    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a ui-button size="md" routerLink="/login">Ingresar</a>');
   });
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {
-    expect(scss).toMatch(/\.landing-nav,\s*\.landing-hero,\s*\.landing-cta__inner \{\s*--psy-focus: #C9B3FF;/);
+    // Revisión de F1 (C1): el token que mueve el anillo es --ds-focus (+ halo), no el alias --psy-focus.
+    // F3-4: la cabecera oscura dejó paso a la barra de vidrio clara (anillo global). F4-1: el único tramo oscuro es el
+    // héroe, en la piel juego, que trae su propio anillo (#C9B3FF): ya no hace falta el parche --ds-focus-on-dark.
+    expect(html).toMatch(/<section class="landing-hero"[^>]*data-skin="game"/);
+    expect(scss).not.toContain('--ds-focus-on-dark');
+    expect(scss).not.toContain('.landing-nav');
     expect(scss).not.toContain('--siep-primary-glow');
-    for (const bg of ['#151d32', '#0c1222', '#1a1040']) {
-      expect(contrast('#C9B3FF', bg)).toBeGreaterThanOrEqual(3);
-    }
+    expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#C9B3FF', '#151B2E')).toBeGreaterThanOrEqual(3);
   });
 });
 
 describe('contraste: login', () => {
   const scss = source('../app/features/login/login.component.scss');
 
-  it('el foco se adapta a cada superficie', () => {
-    expect(scss).toMatch(/\.siep-login \{\s*--psy-focus: #C9B3FF;\s*\}/);
-    expect(scss).toMatch(/\.auth-container \.form-container \{\s*--psy-focus: rgba\(0, 72, 118, \.72\);\s*\}/);
-    expect(scss).toMatch(/\.toggle-container \{\s*--psy-focus: #FFFFFF;\s*\}/);
-    expect(contrast('#FFFFFF', '#5c6bc0')).toBeGreaterThanOrEqual(3);
+  it('el foco se adapta a cada superficie: cada piel trae su anillo (F4-2, sin parches por zona)', () => {
+    // Antes: tres reasignaciones de --ds-focus (fondo oscuro, tarjeta blanca y panel índigo). Ahora la tarjeta va en
+    // la piel portal (#004876) y el panel del simulador en la piel juego (#C9B3FF).
+    const html = source('../app/features/login/login.component.html');
+    expect(scss).not.toContain('--ds-focus');
+    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el checkbox recupera su contorno de foco', () => {
-    expect(scss).toMatch(/\.auth-remember input:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
+  it('el checkbox conserva su contorno de foco (nada lo apaga; lo pinta el anillo global)', () => {
+    // Antes el acceso quitaba los contornos y una regla propia los devolvía; F4-2 ya no los quita.
+    const html = source('../app/features/login/login.component.html');
+    expect(scss).not.toMatch(/outline:\s*(none|0)\b/);
+    expect(html).toContain('<label ui-check><input type="checkbox" formControlName="remember" /> Recordar sesión</label>');
+    expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
+    expect(source('./mixins/_focus.scss')).toMatch(/@mixin ds-focus-ring[^{]*\{[^}]*outline:/);
   });
 });
 
@@ -117,16 +139,26 @@ describe('contraste: portal', () => {
 });
 
 describe('contraste: navegación lateral', () => {
+  // F3-3: el menú lateral morado desapareció (VD-1). La barra de vidrio es clara: hereda el anillo global y su
+  // texto usa los tokens propios de la barra. El velo es el 72 % del fondo de la página sobre lo que pase debajo.
   const shell = source('../app/shared/layout/shell.component.ts');
+  const barTokens = source('./tokens/_glass-bar.scss');
+  const page = '#F5F7FA';
+  const veilOver = (under: string) => blend(page, 0.72, under);
+  const underneath = [page, '#FFFFFF', '#004876', '#14202E']; // fondo, tarjeta, primario y el texto más oscuro
 
-  it('el menú lateral morado define un foco blanco propio, no el azul marino global', () => {
-    expect(shell).toMatch(/\.portal-sidenav \{\s*--psy-focus: #FFFFFF;\s*\}/);
+  it('la barra no redefine el foco: vale el anillo global azul marino de la piel portal', () => {
+    expect(shell).not.toMatch(/--ds-focus\s*:/);
   });
 
-  it('el foco blanco supera 3:1 sobre cada tramo del degradado del menú lateral', () => {
-    const stops = ['#2a006b', '#4b00b5', '#3a0090'];
-    stops.forEach(stop => expect(shell).toContain(stop));
-    stops.forEach(stop => expect(contrast('#FFFFFF', stop)).toBeGreaterThanOrEqual(3));
+  it('el anillo global (#004876) supera 3:1 sobre el velo de la barra con cualquier contenido debajo', () => {
+    underneath.forEach(under => expect(contrastRatio('#004876', veilOver(under)), under).toBeGreaterThanOrEqual(3));
+  });
+
+  it('el texto tenue de la barra supera 4,5:1 sobre el velo encima del fondo y de las superficies claras', () => {
+    const tenue = barTokens.match(/--asb-cromo-tinta-tenue:\s*(#[0-9A-Fa-f]{6});/)?.[1] ?? '';
+    expect(tenue).toBe('#3D4B59');
+    [page, '#FFFFFF', '#E6F0F7'].forEach(under => expect(contrastRatio(tenue, veilOver(under)), under).toBeGreaterThanOrEqual(4.5));
   });
 });
 

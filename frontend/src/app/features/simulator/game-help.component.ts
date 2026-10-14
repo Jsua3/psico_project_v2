@@ -1,6 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
+import { DRAFT_COPY } from './draft-copy';
 import { HELP_TEXT, HelpModality, firstTimeHelpLines, helpSections } from './game-help.content';
 
 let nextHelpId = 0;
@@ -59,6 +60,11 @@ let nextHelpId = 0;
               <p class="help-section__text">{{ section.text }}</p>
             </section>
           }
+          <!-- Fuera del bloque validado (F6-10, VD-18): nota en borrador sobre los atajos de una tecla. -->
+          <aside class="help-draft" data-help-draft="shortcuts" aria-label="Nota sobre los atajos de una tecla (borrador)">
+            <p class="help-draft__tag">Borrador</p>
+            <p class="help-section__text">{{ shortcutsNote }}</p>
+          </aside>
         </div>
       </section>
     }
@@ -146,6 +152,18 @@ let nextHelpId = 0;
       overscroll-behavior: contain;
     }
     .help-screen__body:focus-visible { outline: 3px solid #c9b3ff; outline-offset: -3px; }
+    /* Fuera del bloque validado: borde discontinuo (la forma, no solo el color, dice «borrador»). */
+    .help-draft {
+      display: grid;
+      gap: 4px;
+      padding: 8px 12px;
+      border: 1px dashed var(--ds-border-strong);
+      border-radius: var(--ds-radius-md);
+    }
+    .help-draft__tag {
+      margin: 0; font-size: var(--ds-type-caption-size); font-weight: 900; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--ds-primary);
+    }
     .help-section__title { margin: 0 0 2px; font-size: .8rem; font-weight: 900; color: #cdbcff; }
     .help-section__text { margin: 0; font-size: .82rem; line-height: 1.5; }
 
@@ -172,6 +190,7 @@ export class GameHelpComponent {
   readonly closed = output<void>();
 
   protected readonly text = HELP_TEXT;
+  protected readonly shortcutsNote = DRAFT_COPY.shortcutsHelpNote.text;
   protected readonly titleId = `game-help-title-${nextHelpId++}`;
 
   protected readonly cardLines = computed(() =>

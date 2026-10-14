@@ -144,13 +144,15 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       expect(component.softNotice()).toBe('');
     });
 
-    it('el error de una acción se apaga a los 4500 ms', () => {
+    // VD-29 (H-23, WCAG 2.2.1): un error informa algo accionable y ya no se apaga solo; se cierra con «Cerrar» del aviso
+    // del sistema que lo pinta (`ui-toast-host`).
+    it('el error de una acción NO se apaga solo (permanece hasta cerrarse)', () => {
       internals().showActionError('No pudimos completar la acción.');
       expect(component.actionError()).toBe('No pudimos completar la acción.');
 
-      advance(4499);
+      advance(60_000);
       expect(component.actionError()).toBe('No pudimos completar la acción.');
-      advance(1);
+      internals().dismissActionError();
       expect(component.actionError()).toBe('');
     });
 
@@ -298,16 +300,18 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 180, 360, 'hospital-sala-escucha');
     });
 
-    it('el anuncio para lector de pantalla se emite 50 ms después de vaciar la región', () => {
-      component.a11yAnnouncement.set('Mensaje anterior');
+    // F6-12: el juego anuncia por las regiones vivas persistentes de la app (LiveRegionAnnouncer), no por una propia.
+    it('el anuncio para lector de pantalla se emite 50 ms después de vaciar la región de cortesía', () => {
+      const polite = () => document.querySelector<HTMLElement>('[data-live-region="polite"]')!;
+      polite().textContent = 'Mensaje anterior';
 
       internals().announce('Introducción completada.');
-      expect(component.a11yAnnouncement()).toBe('');
+      expect(polite().textContent).toBe('');
 
       advance(49);
-      expect(component.a11yAnnouncement()).toBe('');
+      expect(polite().textContent).toBe('');
       advance(1);
-      expect(component.a11yAnnouncement()).toBe('Introducción completada.');
+      expect(polite().textContent).toBe('Introducción completada.');
     });
   });
 });

@@ -4,6 +4,8 @@ import { Component, effect, inject, input, output, ChangeDetectionStrategy } fro
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
+import { DRAFT_COPY } from './draft-copy';
+import { UiButton } from '../../shared/ui/button/ui-button';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -15,7 +17,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 @Component({
   selector: 'app-journal-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, FormsModule, MatIconModule, SafeExitButtonComponent],
+  imports: [A11yModule, CommonModule, FormsModule, MatIconModule, SafeExitButtonComponent, UiButton],
   template: `
     <div class="journal-modal"
       [cdkTrapFocus]="open()"
@@ -29,7 +31,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       <div class="sheet-header">
         <mat-icon aria-hidden="true">menu_book</mat-icon>
         <div class="sheet-header__copy">
-          <h3 id="journal-heading">Bitácora reflexiva</h3>
+          <h2 id="journal-heading">Bitácora reflexiva</h2>
           <p class="psy-eyebrow sheet-sub">Razonamiento ético y formativo</p>
         </div>
         <button cdkFocusInitial class="sheet-close psy-icon-button" type="button" aria-label="Cerrar bitácora y continuar la simulación" (click)="onCloseClick()">
@@ -52,10 +54,12 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
             aria-labelledby="journal-heading"
             aria-describedby="encrypt-note journal-status"></textarea>
 
-          <button class="psy-button psy-button--primary" type="button"
-            (click)="save.emit(text)"
-            [disabled]="!text.trim() || disabled() || saveState() === 'saving'">
-            <mat-icon aria-hidden="true">{{ saveState() === 'saving' ? 'hourglass_top' : 'encrypted' }}</mat-icon>
+          <!-- Nunca «disabled»: sin texto queda aria-disabled y dice por qué (se lee por aria-describedby y sale en un
+               globo); guardando o con una acción en curso queda ocupado, sin doble envío. -->
+          <button ui-button variant="primary" type="button" icon="encrypted"
+            [loading]="saveState() === 'saving' || (disabled() && !!text.trim())"
+            [disabledReason]="text.trim() ? null : saveReason"
+            (click)="save.emit(text)">
             {{ saveState() === 'saving' ? 'Guardando…' : 'Guardar bitácora' }}
           </button>
 
@@ -100,7 +104,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
         </p>
         <div class="footer-actions">
           <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->
-          <app-safe-exit-button data-hide-key (pause)="safeExit.emit()" />
+          <app-safe-exit-button data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
           <button class="psy-button psy-button--ghost continue-btn" type="button" (click)="onCloseClick()">
             Continuar simulación
           </button>
@@ -149,7 +153,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     }
     .sheet-header > mat-icon { color: #B69CFF; flex-shrink: 0; }
     .sheet-header__copy { flex: 1; min-width: 0; }
-    .sheet-header h3 {
+    .sheet-header h2 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       font-size: 1.1rem;
@@ -189,15 +193,14 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       min-height: 96px;
       resize: none;
       padding: 12px 14px;
-      border: 1px solid rgba(182,156,255,.22);
+      /* El borde delimita el campo: token de borde fuerte de la piel (≥ 3:1, WCAG 1.4.11). El foco es el anillo global. */
+      border: 1px solid var(--ds-border-strong);
       border-radius: 12px;
       background: rgba(255,255,255,.04);
       color: #e8f0f4;
       font: inherit;
       line-height: 1.55;
-      outline: none;
     }
-    textarea:focus { border-color: rgba(182,156,255,.55); box-shadow: 0 0 0 3px rgba(124,77,255,.12); }
     textarea:disabled { opacity: .4; cursor: not-allowed; }
     .journal-message { margin: 0; font-weight: 800; font-size: .84rem; color: #6EC67A; }
     .journal-message--error { color: #c97a86; }
@@ -218,7 +221,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     .context-title {
       margin: 0;
       color: #B69CFF;
-      font-size: .68rem;
+      font-size: .75rem;
       font-weight: 900;
       letter-spacing: .08em;
       text-transform: uppercase;
@@ -237,7 +240,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
     }
     .encrypt-note {
       display: flex; gap: 8px; align-items: center; flex: 1 1 0; min-width: 0;
-      margin: 0; font-size: .7rem;
+      margin: 0; font-size: .75rem;
       color: rgba(232,240,244,.62);
     }
     .encrypt-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
@@ -263,6 +266,8 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
 })
 export class JournalPanelComponent {
   readonly open = input(false);
+  /** Hay una salida segura pedida que espera: el botón «Salida segura» de la bitácora dice «Pausando…» (F6-6). */
+  readonly pausing = input(false);
   readonly disabled = input(false);
   readonly message = input('');
   readonly saveState = input<JournalSaveState>('idle');
@@ -281,6 +286,8 @@ export class JournalPanelComponent {
   readonly safeExit = output<void>();
 
   text = '';
+  /** Por qué «Guardar» espera: sin texto no hay nada que guardar. */
+  protected readonly saveReason = DRAFT_COPY.journalSaveReason.text;
   private readonly audio = inject(AudioDirectorService);
 
   constructor() {

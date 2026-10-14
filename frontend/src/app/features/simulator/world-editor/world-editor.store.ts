@@ -413,7 +413,7 @@ export class WorldEditorStore {
       catchError(err => {
         if (err?.status === 409) {
           this.conflictDetected.set(true);
-          this.error.set('Este caso cambio en otra sesion. Tus cambios locales se conservan. Recarga para ver la version mas reciente.');
+          this.error.set('Este caso cambió en otra sesión. Tus cambios locales se conservan. Recarga para ver la versión más reciente.');
         } else {
           this.error.set('No se pudo guardar el borrador.');
         }
@@ -502,7 +502,7 @@ export class WorldEditorStore {
         this.dirty.set(false);
       },
       error: () => {
-        this.error.set('No se pudo cargar el mundo para edicion.');
+        this.error.set('No se pudo cargar el mundo para edición.');
         this.loading.set(false);
       }
     });
@@ -585,7 +585,7 @@ export class WorldEditorStore {
   validate(): void {
     this.authoringApi.validateWorld(this.caseVersionId).subscribe({
       next: vs => this.validationState.set(vs),
-      error: () => this.error.set('No se pudo ejecutar la validacion.')
+      error: () => this.error.set('No se pudo ejecutar la validación.')
     });
   }
 

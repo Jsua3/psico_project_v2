@@ -15,6 +15,16 @@ export function lobbyFacadeBand(worldWidth: number): { x: number; width: number 
   return { x: -LOBBY_BLEED, width: worldWidth + 2 * LOBBY_BLEED };
 }
 
+/** Movimiento decorativo de la sala (plan visual F5-3, H-22): con «reducir movimiento» ni pulso ni sacudida. */
+export function lobbyMotion(reduceMotion: boolean): { doorPulse: boolean; lockedShake: boolean } {
+  return { doorPulse: !reduceMotion, lockedShake: !reduceMotion };
+}
+
+/** Cursor sobre una puerta: la mano si se puede entrar, «prohibido» si está bloqueada. */
+export function lobbyDoorCursor(item: { unlocked: boolean }): 'pointer' | 'not-allowed' {
+  return item.unlocked ? 'pointer' : 'not-allowed';
+}
+
 export interface LobbyPose {
   /** Vista a la que mira al caminar; null = quieto (conserva la que tenía). */
   view: 'left' | 'right' | null;

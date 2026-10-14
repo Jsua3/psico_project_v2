@@ -31,9 +31,11 @@ describe.each(Object.entries(sources))('%s: teclado sin captura de Phaser', (_na
   });
 
   it('lee JustDown de E, Espacio y Enter en cada cuadro, sin cortocircuito', () => {
-    // Un objeto literal evalúa las tres lecturas siempre; un `||` dejaría teclas latentes.
+    // La E se lee SIEMPRE en su propia línea y después se enmascara con «letters» (los atajos de una tecla pueden estar
+    // apagados, F6-10); las tres lecturas ocurren cada cuadro. Un `||` dejaría teclas latentes.
+    expect(source).toMatch(/const justE = Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['E'\]\);/);
     expect(source).toMatch(
-      /resolveInteractPress\(\s*focus\s*,\s*\{\s*e:\s*Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['E'\]\)\s*,\s*space:\s*Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['SPACE'\]\)\s*,\s*enter:\s*Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['ENTER'\]\)\s*,?\s*\}\s*\)/,
+      /resolveInteractPress\(\s*focus\s*,\s*\{\s*e:\s*justE\s*&&\s*letters\s*,\s*space:\s*Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['SPACE'\]\)\s*,\s*enter:\s*Phaser\.Input\.Keyboard\.JustDown\(this\.keys\['ENTER'\]\)\s*,?\s*\}\s*\)/,
     );
     expect(source).not.toMatch(/JustDown\(this\.keys\['E'\]\)\s*\|\|/);
   });

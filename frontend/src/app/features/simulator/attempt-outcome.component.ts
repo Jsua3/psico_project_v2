@@ -1,8 +1,9 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
+import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { AvatarStore } from '../character/avatar.store';
 import { toAvatarV2 } from '../character/kit/avatar-v2';
 import { resolveCharacter } from '../character/kit/character-visual.resolver';
@@ -21,21 +22,22 @@ import { reconsideredChip } from './reconsidered.util';
 @Component({
   selector: 'app-attempt-outcome',
   standalone: true,
-  imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent],
+  imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent, UiScopeNotice],
   template: `
     @if (status() !== 'IN_PROGRESS') {
       <section class="outcome liquid-glass"
         [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'"
-        [class.outcome--pause]="status() === 'PAUSED'" role="alertdialog"
+        [class.outcome--pause]="status() === 'PAUSED'" role="alertdialog" aria-modal="true"
         aria-labelledby="outcome-title"
-        [cdkTrapFocus]="status() === 'PAUSED'">
+        cdkTrapFocus>
         <header class="oc-head">
           <div class="oc-avatar" aria-hidden="true">
             <app-kit-figure [visual]="playerVisual()" portrait="neutral" [scale]="3" />
           </div>
           <div class="oc-head__copy">
             <p class="oc-eyebrow">{{ eyebrow() }}</p>
-            <h3 id="outcome-title">{{ title() }}</h3>
+            <!-- tabindex -1: el foco inicial del resultado va al título (H-05); en la pausa va a «Reanudar». -->
+            <h3 id="outcome-title" tabindex="-1">{{ title() }}</h3>
           </div>
         </header>
 
@@ -80,6 +82,8 @@ import { reconsideredChip } from './reconsidered.util';
         }
 
         <ng-template #board>
+        <!-- Aviso de alcance (RN-01, borrador de Psicología): fuera de los textos validados del resultado. -->
+        <ui-scope-notice />
         @if (report(); as r) {
           @if (r.ending; as ending) {
             <div class="oc-ending" [attr.data-tone]="ending.tone" role="status">
@@ -206,7 +210,7 @@ import { reconsideredChip } from './reconsidered.util';
       display: grid; gap: 4px; padding: 12px; border-radius: 14px;
       background: var(--sim-surface, rgba(27,33,51,.72)); border: 1px solid var(--sim-border, rgba(182,156,255,.22));
     }
-    .oc-metric span { font-size: .68rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); text-transform: uppercase; letter-spacing: .05em; }
+    .oc-metric span { font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); text-transform: uppercase; letter-spacing: .05em; }
     .oc-metric strong { font-size: 1.3rem; color: var(--sim-ink, #F4F7FB); font-weight: 800; }
     .oc-metric--hi strong { color: var(--sim-lavender, #B69CFF); }
     .oc-block {
@@ -223,7 +227,7 @@ import { reconsideredChip } from './reconsidered.util';
     .oc-ending__title { margin: 0; font-weight: 900; letter-spacing: .04em; font-size: .95rem; color: var(--sim-ink, #F4F7FB); }
     .oc-ending__message { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.55; }
     .oc-bar__f--mid { background: #B69CFF; }
-    .oc-label { margin: 0 0 10px; color: var(--sim-lavender, #B69CFF); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .oc-label { margin: 0 0 10px; color: var(--sim-lavender, #B69CFF); font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
     .oc-bars { display: grid; gap: 8px; }
     .oc-bar { display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 10px; }
     .oc-bar__k { font-size: .8rem; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
@@ -254,7 +258,7 @@ import { reconsideredChip } from './reconsidered.util';
     .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
     .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
     .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
-    .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .72rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
+    .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
@@ -264,6 +268,12 @@ import { reconsideredChip } from './reconsidered.util';
     }
     .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
+    /* Hover solo con puntero fino (un híbrido táctil no queda pegado) y estilo de pulsado en todas las acciones. */
+    @media (hover: hover) and (pointer: fine) {
+      .oc-btn:hover { border-color: rgba(182,156,255,.55); background: rgba(124,77,255,.18); }
+      .oc-btn--go:hover { filter: brightness(1.08); }
+    }
+    .oc-btn:active { transform: translateY(1px); }
     .oc-btn:focus-visible, .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
 
     /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
@@ -276,6 +286,19 @@ import { reconsideredChip } from './reconsidered.util';
       color: var(--sim-ink-soft, rgba(244,247,251,.74));
     }
     .oc-details > :not(summary) { margin-top: 12px; }
+
+    /* Columna útil a 360 px (F6-6): métricas en dos columnas, barras y línea de tiempo que no desbordan, acciones
+       a todo el ancho. Sin desplazamiento horizontal ni con el zoom del navegador al 200 %. */
+    @media (max-width: 480px) {
+      .outcome { padding: 16px 14px; gap: 12px; }
+      .oc-head { gap: 12px; }
+      .oc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .oc-bar { grid-template-columns: minmax(0, 84px) 1fr 28px; gap: 8px; }
+      .oc-tl { grid-template-columns: 44px minmax(0, 1fr); }
+      .oc-tl__delta { grid-column: 2; white-space: normal; }
+      .oc-actions { flex-direction: column; align-items: stretch; }
+      .oc-btn { width: 100%; }
+    }
   `]
 })
 export class AttemptOutcomeComponent {
@@ -289,15 +312,63 @@ export class AttemptOutcomeComponent {
     return bundle ? resolveCharacter(bundle, { kind: 'jugador', avatar: toAvatarV2(this.avatarStore.avatar()) }) : null;
   });
 
+  /** Dónde estaba el foco antes de abrirse el resultado o la pausa: a ese sitio vuelve al cerrarse (H-05, 2.4.3). */
+  private returnFocusTo: HTMLElement | null = null;
+  private opened = false;
+
   constructor() {
     this.kit.load().catch(() => undefined);
-    // Al entrar en pausa el foco va a «Reanudar este intento» (cdkFocusInitial): lo primero es poder volver.
+    // El resultado es un diálogo modal (H-05). En pausa el foco va a «Reanudar este intento» (lo primero es poder
+    // volver); en los demás cierres, al título. Al volver el intento a «en curso» el foco regresa a donde estaba, o a
+    // un elemento visible del juego: nunca queda en <body>.
     effect(() => {
-      if (this.status() !== 'PAUSED') return;
-      afterNextRender(() => {
-        this.host.nativeElement.querySelector<HTMLElement>('[cdkFocusInitial]')?.focus();
-      }, { injector: this.injector });
+      const status = this.status();
+      untracked(() => {
+        if (status === 'IN_PROGRESS') {
+          this.restoreFocus();
+          return;
+        }
+        this.rememberFocus();
+        afterNextRender(() => this.focusEntry(status), { injector: this.injector });
+      });
     });
+  }
+
+  private rememberFocus(): void {
+    if (this.opened) return; // un cambio de estado con el resultado ya abierto no cambia a dónde se vuelve
+    this.opened = true;
+    const active = document.activeElement;
+    this.returnFocusTo = active instanceof HTMLElement && active !== document.body
+      && !this.host.nativeElement.contains(active) ? active : null;
+  }
+
+  private focusEntry(status: SimulationAttemptState['status']): void {
+    const root = this.host.nativeElement;
+    const target = status === 'PAUSED'
+      ? root.querySelector<HTMLElement>('[cdkFocusInitial]')
+      : root.querySelector<HTMLElement>('#outcome-title');
+    target?.focus({ preventScroll: true });
+  }
+
+  private restoreFocus(): void {
+    if (!this.opened) return;
+    this.opened = false;
+    const back = this.returnFocusTo;
+    this.returnFocusTo = null;
+    afterNextRender(() => {
+      // Si otra capa ya tomó el foco (p. ej. la introducción que reaparece tras reanudar, con su propia trampa), no se
+      // le roba: solo se restaura cuando el foco se perdió con el resultado.
+      const active = document.activeElement;
+      if (active && active !== document.body && !this.host.nativeElement.contains(active)) return;
+      const usable = back && back.isConnected && !back.closest('[aria-hidden="true"], [inert], [hidden]') ? back : null;
+      // El mundo no es enfocable (es un contenedor): se prueba cada candidato hasta que uno recibe el foco de verdad
+      // y se termina en el contenedor del juego (#main-content, tabindex -1), nunca en <body>.
+      for (const candidate of [usable, document.getElementById('game-area'), document.getElementById('main-content')]) {
+        if (!candidate) continue;
+        candidate.focus({ preventScroll: true });
+        if (document.activeElement === candidate) break;
+      }
+    }, { injector: this.injector });
   }
 
   readonly report = input<AttemptCompletionReport | null>(null);

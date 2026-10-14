@@ -50,7 +50,14 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { interactionVerb } from './interaction-verb.util';
+import { InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
+import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
+import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
+import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
+import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
+import { PlaceCandidate } from './world-places.util';
+import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 import {
   NUDGE_SUBSTEPS,
   PlayerDirection,
@@ -64,10 +71,11 @@ import {
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
-import { attachScrollKeyGuard, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
+import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import { cameraBounds, integerZoom } from './pixel-scale.util';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
+import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
@@ -103,6 +111,10 @@ interface WorldCallbacks {
   onRoomExit:    (targetRoomKey: string, entryX: number, entryY: number) => void;
   onEnterRoom:   (targetNodeKey: string, entryX: number, entryY: number) => void;
   onNpcInteract: (npc: NpcConfig) => void;
+  /** El puntero está sobre esta clave (marcador o `npc:{clave}`) o sobre nada (F6-7, VD-5). */
+  onHover?:      (key: string | null) => void;
+  /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
+  onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
   onLoadProgress: (percent: number) => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
@@ -137,6 +149,8 @@ interface NpcMover {
 const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
+/** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
+const BOOT_WATCHDOG_MS = 25_000;
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
 /** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
 const RING_COLOR = 0xcdbcff;
@@ -212,6 +226,24 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private dimmedKeys: ReadonlySet<string> = NO_KEYS;
   /** Puntero táctil o modo compacto: en los rótulos solo el destino y el más cercano. */
   private compactLabels = false;
+  // ── Ratón (F6-7, VD-5): contorno, verbo y cursor solo sobre lo que el jugador ya podría saber ──
+  private hoverKey: string | null = null;
+  private hoverOutline?: Phaser.GameObjects.Graphics;
+  private hoverLabel?: Phaser.GameObjects.Text;
+  /** Lo ya examinado (objetos inspeccionados y personas con las que ya habló): se resalta aunque esté lejos. */
+  private examinedKeys: ReadonlySet<string> = NO_KEYS;
+  /** «Atajos de una tecla» activos (F6-10): con ellos apagados WASD y E no hacen nada; flechas, Enter y Espacio siguen. */
+  private shortcutsEnabled = true;
+  /** Caminata pedida con un clic (F6-7): sus «teclas» salen de `tickWalk` y pasan por el movimiento de siempre. */
+  private walk: WalkState = NO_WALK;
+  /** Destino pedido con «Ir a…» (F6-11): al llegar o rendirse la escena lo avisa; un clic o una tecla lo sueltan. */
+  private walkGoal: { key: string; label: string } | null = null;
+  /**
+   * «Ir a…» pide la caminata MIENTRAS su lista sigue abierta: la escena aún figura pausada (Angular le avisa del cierre
+   * en el siguiente ciclo). Esa caminata espera a que se reanude en vez de cancelarse; una pausa que llega con la
+   * caminata ya en marcha (un diálogo, la bitácora) sí la suelta.
+   */
+  private walkWaitsForResume = false;
   private targetRing?: { halo: Phaser.GameObjects.Ellipse; ring: Phaser.GameObjects.Ellipse };
   /** Escala de los rótulos para medir ≥ 12 px de pantalla; se recalcula al cambiar el tamaño del canvas. */
   private labelScale = 1;
@@ -228,16 +260,20 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Claves de los rótulos visibles cuyo dueño se desplaza: son los únicos que se recolocan por cuadro. */
   private readonly followLabels: string[] = [];
   private ready = false;
+  /** Vértices al píxel con zoom de cámara (PHA-1) y resolución de los textos (PHA-2). */
+  private pixelRender?: PixelRender;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
   /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
   private stressLevel = 0;
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
-  private crisisVignette?: Phaser.GameObjects.Graphics;
+  private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
   private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
-  private toneVignette?: Phaser.GameObjects.Graphics;
+  private toneVignette?: Phaser.GameObjects.Image;
+  /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
+  private readonly vignetteKeys = new Map<'tone' | 'crisis', string>();
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -350,6 +386,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   create() {
+    this.pixelRender = new PixelRender(this).attach();
     this.ready = true;
     // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
     // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
@@ -365,6 +402,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
     this.keys['SPACE']?.on('down', () => { this.tappedKeys.space = true; });
     this.keys['ENTER']?.on('down', () => { this.tappedKeys.enter = true; });
+    // Ratón (F6-7): por eventos del puntero, nunca por cuadro (`update()` no cambia).
+    this.input.on('pointermove', this.handlePointerMove, this);
+    this.input.on('pointerdown', this.handlePointerDown, this);
+    this.input.on('gameout', () => this.setHover(null));
     // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
     this.scale.on('resize', () => this.refitCamera());
     this.scale.on('resize', this.onScaleResize, this);
@@ -408,13 +449,35 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Sin captura de Phaser, las teclas también llegan mientras se escribe en la bitácora o se
     // activa un botón. El foco se lee una vez por cuadro y decide qué teclas cuentan.
     const focus = document.activeElement;
-    const typing = isTextEntryTarget(focus);
-    const input: PlayerMotionInput = heldInput({
-      left:  !typing && (this.cursors.left.isDown  || this.keys['A'].isDown),
-      right: !typing && (this.cursors.right.isDown || this.keys['D'].isDown),
-      up:    !typing && (this.cursors.up.isDown    || this.keys['W'].isDown),
-      down:  !typing && (this.cursors.down.isDown  || this.keys['S'].isDown),
+    // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
+    const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
+    // Las letras (WASD y E) solo con el ajuste activo y con el foco en el juego o en el cuerpo (F6-10, WCAG 2.1.4).
+    const letters = this.shortcutsEnabled && isShortcutContext(focus);
+    const keyInput: PlayerMotionInput = heldInput({
+      left:  !typing && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
+      right: !typing && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
+      up:    !typing && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
+      down:  !typing && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
     }, this.heldDirection, this.time.now - this.heldSince);
+    // Caminata del ratón (F6-7): el teclado o la cruceta mandan sobre el destino y una capa abierta lo suelta.
+    // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.
+    let input = keyInput;
+    if (this.walk.target) {
+      if (this.motionPaused && this.walkWaitsForResume) {
+        // Pedida desde una lista que se está cerrando: espera, sin soltarse ni mover al jugador.
+      } else {
+        this.walkWaitsForResume = false;
+        this.walk = this.motionPaused ? NO_WALK : cancelWalkOnKeys(this.walk, keyInput);
+        if (this.walk.target) {
+          const tick = tickWalk(this.walk, { x: this.player.x, y: this.player.y }, delta);
+          this.walk = tick.state;
+          input = tick.input;
+          if (tick.arrived || tick.gaveUp) this.finishWalkGoal(tick.arrived ? 'arrived' : 'blocked');
+        } else {
+          this.walkGoal = null; // lo soltaron las teclas o una capa: nadie espera un aviso de llegada
+        }
+      }
+    }
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
@@ -454,12 +517,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // JustDown se lee SIEMPRE, los tres, aunque el resultado se descarte: `Key._justDown` sigue
     // en true hasta que alguien lo lee, y una «e» escrita en la bitácora dispararía
     // `interactNearest()` en cuanto el foco saliera del campo.
+    // La E se lee SIEMPRE (como las otras dos) y después se enmascara: sin leerla quedaría latente.
+    const justE = Phaser.Input.Keyboard.JustDown(this.keys['E']);
     const pressed = resolveInteractPress(focus, {
-      e: Phaser.Input.Keyboard.JustDown(this.keys['E']),
+      e: justE && letters,
       space: Phaser.Input.Keyboard.JustDown(this.keys['SPACE']),
       enter: Phaser.Input.Keyboard.JustDown(this.keys['ENTER']),
     });
     // El toque corto cuenta igual que `JustDown` (mismas reglas de foco) y se consume en este cuadro.
+    if (!letters) this.tappedKeys.e = false;
     const tapped = resolveInteractPress(focus, this.tappedKeys);
     this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
     // Una pulsación durante el enfriamiento espera a que termine (como cuando JustDown
@@ -496,6 +562,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // al jugador junto a la puerta de regreso antes de resolver ScenarioConfig.
     if (!this.world || this.world.map.key !== world.map.key) {
       this.currentRoomKey = '';
+      // La caminata del ratón y el destino de «Ir a…» eran de la sala anterior: en el render heredado (casos del
+      // editor, sin ScenarioConfig) nada más los suelta y el jugador caminaría solo hacia coordenadas ajenas.
+      this.walk = NO_WALK;
+      this.walkGoal = null;
       // Recién entrado a una sala: desarmar hasta alejarse de la puerta de regreso
       // (la histéresis de checkDbDoorTriggers re-arma al superar doorRearmDist).
       this.dbDoorArmed = false;
@@ -516,7 +586,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Pausa el movimiento del mundo (NPCs y ambient) sin congelar al jugador. */
   setMotionPaused(paused: boolean) {
     this.motionPaused = paused;
-    if (paused) this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+    if (paused) {
+      this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
+      this.setHover(null);
+    }
     this.applyCrisisState();
   }
 
@@ -628,7 +701,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       sprite = this.add.circle(0, -20, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
     }
     const name = this.add.text(0, KIT_LABEL_OFFSET_Y, entry.guideName, {
-      fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#cdd9ff',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#cdd9ff',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1);
 
@@ -664,7 +737,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   private buildGuideBubble(hint: string): Phaser.GameObjects.Container {
     const text = this.add.text(0, 0, hint, {
-      fontFamily: 'Arial, sans-serif', fontSize: '10px', color: '#eef3ff',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '10px', color: '#eef3ff',
       align: 'center', wordWrap: { width: 168 }, padding: { x: 8, y: 6 },
     }).setOrigin(0.5, 1);
     const b = text.getBounds();
@@ -726,6 +799,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') {
     if (!this.player) return;
+    this.walk = NO_WALK; // un paso de la cruceta manda sobre el destino del ratón
+    this.walkGoal = null;
     // Mismo contrato que WASD (player-motion.util): sub-pasos con colisión y
     // sliding, pose/dirección estables, sin caminar en el sitio contra paredes.
     let moved = false;
@@ -791,6 +866,174 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Puntero táctil o ventana compacta: rótulos mínimos (destino y el más cercano). */
   setCompactLabels(compact: boolean): void {
     this.compactLabels = compact || this.touchPointer();
+  }
+
+  /** «Atajos de una tecla» activos o no (F6-10): llega de Angular. */
+  setShortcutsEnabled(enabled: boolean): void {
+    this.shortcutsEnabled = enabled;
+  }
+
+  /** Lo ya examinado llega de Angular: objetos inspeccionados y personas con las que ya se habló (`npc:{clave}`). */
+  setExamined(keys: ReadonlySet<string>): void {
+    this.examinedKeys = keys;
+  }
+
+  /**
+   * El puntero se mueve (F6-7, VD-5). Con dedo no hay «pasar por encima» y con una capa abierta el mundo no
+   * responde. Solo se resalta lo que el jugador ya podría saber (`pickHoverTarget`: dentro del radio de percepción
+   * o ya examinado): nada por descubrir se ilumina. Va por eventos del puntero, nunca por cuadro.
+   */
+  private handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    this.setHover(this.hoverTargetAt(pointer));
+  }
+
+  /**
+   * Qué elegible tiene el puntero encima ahora mismo (null si nada o si el mundo no responde: dedo, capa abierta, sin
+   * jugador). Lo usan el movimiento del puntero y el clic: con el cursor quieto la cámara o una persona pueden moverse
+   * y el objetivo marcado en el último movimiento ya no es el que está debajo.
+   */
+  private hoverTargetAt(pointer: Phaser.Input.Pointer): string | null {
+    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return null;
+    const px = this.player.x;
+    const py = this.player.y;
+    const candidates: HoverCandidate[] = [];
+    this.markers.forEach((marker, key) => {
+      const obj = this.markerData.get(key);
+      if (!obj || !this.isInteractive(obj)) return;
+      const moving = this.ambientMovers.has(key);
+      const x = moving ? marker.x : obj.x;
+      const y = moving ? marker.y : obj.y;
+      candidates.push({ key, x, y, playerDistance: Math.hypot(px - x, py - y) });
+    });
+    this.npcMarkers.forEach((container, key) => {
+      candidates.push({
+        key: this.npcKeyOf(key), x: container.x, y: container.y,
+        playerDistance: Math.hypot(px - container.x, py - container.y),
+      });
+    });
+    return pickHoverTarget({ x: pointer.worldX, y: pointer.worldY }, candidates, this.examinedKeys);
+  }
+
+  private setHover(key: string | null): void {
+    if (key === this.hoverKey) return;
+    this.hoverKey = key;
+    this.drawHover();
+    // `input` ya no existe tras destruir la escena (cambio de ruta): el cursor se deja como esté.
+    this.input?.setDefaultCursor(key === null ? 'default' : 'pointer');
+    this.callbacks.onHover?.(key);
+  }
+
+  /** Dónde y con qué verbo se anuncia lo que tiene el puntero encima (el mismo verbo que la barra de contexto). */
+  private hoverAnchor(key: string): { x: number; y: number; verb: InteractionVerb; reach: number; label: string } | null {
+    const obj = this.proximityObjectFor(key);
+    if (!obj) return null;
+    let x = obj.x;
+    let y = obj.y;
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const container = this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (!container) return null;
+      x = container.x;
+      y = container.y;
+    } else {
+      const marker = this.markers.get(key);
+      if (!marker) return null;
+      if (this.ambientMovers.has(key)) { x = marker.x; y = marker.y; }
+    }
+    const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
+    const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
+    const radius = key.startsWith(NPC_KEY_PREFIX) ? NPC_INTERACT_RADIUS : MARKER_INTERACT_RADIUS;
+    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius), label: obj.label };
+  }
+
+  /**
+   * Lo que «Ir a…» puede ofrecer en la sala actual (F6-11): las personas, las puertas y los objetos con los que se
+   * puede actuar. La regla de lo examinado la aplica quien muestra la lista (`selectPlaces`): aquí no se filtra por
+   * lo que el jugador sabe y no sale nada clínico, solo clave, nombre y tipo.
+   */
+  placeCandidates(): PlaceCandidate[] {
+    const out: PlaceCandidate[] = [];
+    this.npcMarkers.forEach((_container, key) => {
+      const candidateKey = this.npcKeyOf(key);
+      const npc = this.npcConfigFor(candidateKey);
+      if (npc) out.push({ key: candidateKey, label: npc.displayName, kind: 'person' });
+    });
+    const mapKey = this.world?.map.key ?? '';
+    this.markers.forEach((_marker, key) => {
+      const obj = this.markerData.get(key);
+      if (!obj || !this.isInteractive(obj)) return;
+      out.push({
+        key,
+        label: getSceneDisplayLabel(obj, mapKey),
+        kind: obj.type === 'EXIT' ? 'door' : obj.type === 'PERSON' ? 'person' : 'object',
+      });
+    });
+    return out;
+  }
+
+  /** Camina hasta lo elegido en «Ir a…» (F6-11) y lo avisa al llegar o si no pudo. false si ya no está en la sala. */
+  walkToKey(key: string): boolean {
+    const anchor = this.player ? this.hoverAnchor(key) : null;
+    if (!anchor) return false;
+    this.walkGoal = { key, label: anchor.label };
+    this.walkWaitsForResume = this.motionPaused;
+    this.walk = startWalk({ x: anchor.x, y: anchor.y, radius: anchor.reach });
+    return true;
+  }
+
+  private finishWalkGoal(outcome: 'arrived' | 'blocked'): void {
+    const goal = this.walkGoal;
+    this.walkGoal = null;
+    if (goal) this.callbacks.onWalkEnded?.(goal.key, goal.label, outcome);
+  }
+
+  /**
+   * Clic con el puntero fino (F6-7, VD-5): el jugador camina hasta ahí; sobre algo señalado, hasta su alcance de
+   * interacción (la barra de contexto ofrece entonces la acción de siempre). Con dedo, con una capa abierta o con
+   * un botón que no es el principal no camina. La caminata la aplica `update()` con el movimiento del teclado.
+   */
+  private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+    if (pointer.wasTouch || this.motionPaused || !this.player || !this.world) return;
+    if (pointer.button !== 0) return;
+    // Se vuelve a decidir qué hay bajo el puntero (el último movimiento pudo quedar atrás: cámara o persona en marcha).
+    const key = this.hoverTargetAt(pointer);
+    this.setHover(key);
+    const aimed = key === null ? null : this.hoverAnchor(key);
+    this.walkGoal = null;
+    this.walkWaitsForResume = false;
+    this.walk = aimed
+      ? startWalk({ x: aimed.x, y: aimed.y, radius: aimed.reach })
+      : startWalk({ x: pointer.worldX, y: pointer.worldY, radius: WALK_GROUND_RADIUS_PX });
+  }
+
+  /** Contorno y verbo sobre lo señalado: la forma (borde y texto) lleva el mensaje, no solo el color. */
+  private drawHover(): void {
+    const anchor = this.hoverKey === null ? null : this.hoverAnchor(this.hoverKey);
+    if (!anchor) {
+      this.hoverOutline?.setVisible(false);
+      this.hoverLabel?.setVisible(false);
+      return;
+    }
+    const outline = this.hoverOutline?.active
+      ? this.hoverOutline
+      : (this.hoverOutline = this.add.graphics().setDepth(LABEL_DEPTH));
+    const left = anchor.x - HOVER_HIT.halfWidth;
+    const top = anchor.y - HOVER_HIT.above;
+    const width = HOVER_HIT.halfWidth * 2;
+    const height = HOVER_HIT.above + HOVER_HIT.below;
+    outline.clear();
+    outline.lineStyle(4, RING_HALO_COLOR, 0.85).strokeRect(left - 1, top - 1, width + 2, height + 2);
+    // Una puerta bloqueada lo dice también en el rótulo: el contorno no depende solo del color.
+    outline.lineStyle(2, RING_COLOR, 1).strokeRect(left, top, width, height);
+    outline.setVisible(true);
+
+    const label = this.hoverLabel?.active
+      ? this.hoverLabel
+      : (this.hoverLabel = this.add.text(0, 0, '', {
+          fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+          backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
+        }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
+    label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
+    label.setPosition(anchor.x, top - 4).setVisible(true);
   }
 
   focus(key: string) {
@@ -957,11 +1200,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.add.rectangle(mapW/2, mapH/2, mapW-36, mapH-38)
       .setStrokeStyle(3, 0x4f7cac, .3).setFillStyle(0x000000, 0).setDepth(5);
     this.add.text(16, 12, this.world.map.title, {
-      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
+      fontFamily: WORLD_FONT_FAMILY, fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
     }).setDepth(6).setScrollFactor(0);   // pin to screen — stays top-left as camera scrolls
     if (isComisariaMap(mapKey)) {
       this.add.text(56, 66, 'Comisaría — Restablecimiento de derechos', {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: 'rgba(157,192,232,.72)',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '11px', color: 'rgba(157,192,232,.72)',
       }).setDepth(6);
     }
 
@@ -1020,6 +1263,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
+    // Un refresco de la misma sala conserva la caminata; una sala nueva no la arrastra.
+    if (!keepPosition) { this.walk = NO_WALK; this.walkGoal = null; }
     this.wallsLayer = undefined;
     this.interactionCooldown = 0;
     this.cameras.main.setBackgroundColor('#0e141a');
@@ -1037,7 +1282,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       // Title pinned to screen (la sala autoría no lleva título pegado al mapa;
       // la ubicación ya vive en la top bar del HUD)
       this.add.text(16, 12, roomConfig.displayName, {
-        fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '16px', color: '#9dc0e8', fontStyle: 'bold'
       }).setDepth(6).setScrollFactor(0);
     }
 
@@ -1157,6 +1402,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
     cam.setZoom(k);
+    this.pixelRender?.refreshTexts(k);
     const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
     cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
     if (this.player) {
@@ -1409,9 +1655,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return ((container as unknown as Record<string, unknown>)['__npcConfig'] as NpcConfig | undefined) ?? null;
   }
 
-  /** Pista sobre una persona a su alcance: sin la letra E donde no hay teclado. */
+  /** Pista sobre una persona a su alcance: sin la letra E donde no hay teclado ni con los atajos apagados. */
   private npcHintGlyph(): string {
-    return this.touchPointer() ? '▲' : '▲ E';
+    return this.touchPointer() || !this.shortcutsEnabled ? '▲' : '▲ E';
   }
 
   /** Puntero táctil (sin teclado): evita atajos de teclado en los textos del mundo. */
@@ -1433,11 +1679,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
   ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
     const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
       fontStyle: 'bold', align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     hint.setY(label.y - label.displayHeight - 2);
@@ -1501,7 +1747,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         .setStrokeStyle(1, 0x5b4f8f, 0.38)
         .setDepth(3.5);
       this.add.text(zone.x + 8, zone.y + 6, zone.label, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: WORLD_FONT_FAMILY,
         fontSize: '9px',
         color: 'rgba(184,168,232,.75)',
         backgroundColor: 'rgba(8,12,18,.5)',
@@ -1518,7 +1764,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     g.strokeRect(640, 48, 270, 140);
 
     this.add.text(72, 392, 'COMISARÍA DE FAMILIA', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: WORLD_FONT_FAMILY,
       fontSize: '12px',
       color: '#e8f0f4',
       fontStyle: 'bold',
@@ -1529,22 +1775,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Figurantes (spec §7.2): la receta de figurantes, con los pies donde antes terminaba el sprite.
     this.addExtra(180, 236);
     this.add.text(180, 248, 'Sobreviviente', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#ffd4c0',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#ffd4c0',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(280, 215);
     this.add.text(280, 228, 'Psicóloga social', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#a8c8ff',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#a8c8ff',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(760, 106);
     this.add.text(760, 118, 'Funcionario de derechos', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#9dc0e8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
     this.addExtra(760, 415);
     this.add.text(760, 428, 'Trabajadora social', {
-        fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#b8e8c8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#b8e8c8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 0).setDepth(8);
 
@@ -1577,26 +1823,42 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       tone === 'clinical' ? 0x1a2433 :
       tone === 'tense' ? 0x2a1420 :
       0x141a2e; // calm (default)
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING_FLOOR);
-    // Borde oscuro suave en los 4 lados — viñeta barata sin shaders.
-    // Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
-    this.strokeVignetteBand(g, tint, 0.12, 0.3);
-    this.toneVignette = g;
+    // Borde oscuro suave en los 4 lados. Banda corta y alpha bajo: enmarca sin leerse como overlay técnico.
+    this.toneVignette = this.addVignette('tone', tint, 0.12, 0.3, DEPTH.LIGHTING_FLOOR);
   }
 
   /**
-   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra: opacidad
-   * `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no anula el
-   * zoom de la cámara; por eso se pinta sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
+   * Banda de viñeta en los cuatro bordes del rectángulo que la cámara muestra (F6-8): UNA textura de lienzo por
+   * tamaño —reutilizada, y regenerada solo si cambia el tamaño— dibujada como imagen, en vez de decenas de
+   * `strokeRect` por re-render. Opacidad `edgeAlpha` en el borde, que cae al cuadrado hacia dentro. scrollFactor 0 no
+   * anula el zoom de la cámara; por eso se coloca sobre `vignetteFrame` y no sobre (0,0)-(ancho,alto).
    */
-  private strokeVignetteBand(g: Phaser.GameObjects.Graphics, tint: number, bandRatio: number, edgeAlpha: number): void {
+  private addVignette(
+    role: 'tone' | 'crisis', tint: number, bandRatio: number, edgeAlpha: number, depth: number,
+  ): Phaser.GameObjects.Image {
     const cam = this.cameras.main;
     const frame = vignetteFrame(cam.width, cam.height, cam.zoom);
-    const band = Math.round(Math.min(frame.width, frame.height) * bandRatio);
-    for (let i = 0; i < band; i++) {
-      g.lineStyle(1, tint, edgeAlpha * (1 - i / band) ** 2);
-      g.strokeRect(frame.x + i, frame.y + i, frame.width - i * 2, frame.height - i * 2);
+    const spec = {
+      width: Math.max(1, Math.round(frame.width)), height: Math.max(1, Math.round(frame.height)),
+      tint, bandRatio, edgeAlpha,
+    };
+    const key = vignetteTextureKey(spec);
+    if (!this.textures.exists(key)) {
+      const texture = this.textures.createCanvas(key, spec.width, spec.height);
+      if (texture) {
+        paintVignette(texture.getContext(), spec);
+        texture.refresh();
+      }
     }
+    // La textura de otro tamaño de este mismo papel ya no hace falta.
+    const previous = this.vignetteKeys.get(role);
+    if (previous && previous !== key && this.textures.exists(previous)) this.textures.remove(previous);
+    this.vignetteKeys.set(role, key);
+    return this.add.image(frame.x, frame.y, key)
+      .setOrigin(0, 0)
+      .setDisplaySize(frame.width, frame.height)
+      .setScrollFactor(0)
+      .setDepth(depth);
   }
 
   /**
@@ -1609,9 +1871,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.crisisPulse?.stop();
     this.crisisPulse = undefined;
     this.crisisStateKey = '';
-    const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.LIGHTING + 1);
-    this.strokeVignetteBand(g, CRISIS_VIGNETTE_TINT, 0.18, 1);
-    this.crisisVignette = g;
+    this.crisisVignette = this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1);
     this.applyCrisisState();
   }
 
@@ -1666,7 +1926,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .setDepth(4);
     if (zone.label) {
       this.add.text(zone.x+5, zone.y+3, zone.label, {
-        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#9dc0e8',
+        fontFamily: WORLD_FONT_FAMILY, fontSize: '11px', color: '#9dc0e8',
         backgroundColor: 'rgba(8,12,18,.72)', padding: { x:4, y:2 }
       }).setDepth(5);
     }
@@ -1779,7 +2039,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
     const label  = isExit ? null : this.add.text(object.x, object.y + 28, displayLabel, {
-      fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
@@ -1865,7 +2125,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     if (isExit) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
-        fontFamily: 'Arial, sans-serif', fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
+        fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
       // Ancho a la medida del texto + relleno + hueco del candado (a la izquierda, solo si está bloqueada).
       const hintWidth = Math.ceil(hintTx.width) + 38;
@@ -1895,9 +2155,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     hint.x = Math.max(reach, Math.min(960 - reach, x));
   }
 
-  /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado. */
+  /** Texto del rótulo de una puerta: sin la letra E donde no hay teclado ni con los atajos apagados. */
   private doorHintText(label: string): string {
-    return this.touchPointer() ? `${label} →` : `E  ${label} →`;
+    return this.touchPointer() || !this.shortcutsEnabled ? `${label} →` : `E  ${label} →`;
   }
 
   /**
@@ -1983,6 +2243,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private resetOrientationVisuals(): void {
     this.targetRing = undefined;
     this.revealed.length = 0;
+    // El contorno y el verbo del puntero también los destruye `children.removeAll`: se vuelven a crear al usarlos.
+    this.hoverOutline = undefined;
+    this.hoverLabel = undefined;
+    this.hoverKey = null;
   }
 
   private isInteractive(o: MapObjectState): boolean {
@@ -2093,7 +2357,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .setStrokeStyle(3, 0xffffff, .92);
     const shine = this.add.rectangle(-7, -7, 22, 3, 0xffffff, .28);
     const text = this.add.text(0, 0, label.slice(0, 4).toUpperCase(), {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: WORLD_FONT_FAMILY,
       fontSize: '10px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -2353,17 +2617,23 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!displayScale) return false;
     const zoom = this.cameras?.main?.zoom ?? 1;
     const next = labelScaleFor(displayScale, zoom);
-    if (Math.abs(next - this.labelScale) < 0.01) return false;
+    if (Math.abs(next - this.labelScale) < 0.01) {
+      // La escala no cambió, pero el zoom de la sala sí pudo: la resolución de los textos lo sigue (PHA-2).
+      this.pixelRender?.refreshTexts(zoom);
+      return false;
+    }
     this.labelScale = next;
     // Ancho máximo del rótulo: 168 px de pantalla (en coordenadas locales del texto).
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
+    this.hoverLabel?.setScale(next);
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;
       (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
       (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
     });
+    this.pixelRender?.refreshTexts(zoom);
     return true;
   }
 
@@ -2385,14 +2655,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   selector: 'app-game-world',
   standalone: true,
   imports: [CommonModule, MatIconModule],
+  host: { '[class.touch-input]': 'touchInput()' },
   template: `
     <div #gameHost class="phaser-host" role="application"
       [attr.data-world-ready]="renderReady()"
       [attr.data-rendered-map-key]="renderedMapKey()"
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
-      aria-label="Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.">
+      [attr.aria-label]="worldLabel()">
     </div>
-    @if (!assetsReady()) {
+    @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
         <p class="world-loading__label" role="status">Preparando la escena…</p>
         <div class="world-loading__track" role="progressbar" aria-label="Carga de la escena"
@@ -2556,14 +2827,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     .world-load-warning__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     @keyframes world-loading-in { from { opacity: 0; } to { opacity: 1; } }
     /* Por tipo de puntero: tabletas en horizontal sí; ventanas de escritorio estrechas no. */
-    @media (pointer: coarse) { .touch-controls { display: grid; } }
+    /* La cruceta sigue a la ENTRADA real (F6-7): el primer toque la muestra y mover el ratón la oculta; sin entrada
+       aún, vale el puntero principal. Lo decide la clase touch-input del anfitrión. */
+    :host(.touch-input) .touch-controls { display: grid; }
     /* En anchos cortos (< 700 px) la cruz ya no cabe en las bandas negras y se encima al mundo:
        se hace semitransparente para que el piso se siga viendo por debajo. */
-    @media (pointer: coarse) and (max-width: 699px) {
-      .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
+    @media (max-width: 699px) {
+      :host(.touch-input) .touch-btn { background: rgba(8,12,18,.45); border-color: rgba(79,163,165,.55); }
       /* Fondo oscuro translúcido: el texto pasa a claro (el vidrio claro de escritorio lleva texto oscuro). */
-      .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
-      .touch-interact--idle { color: rgba(232,240,244,.8); border-style: dashed; }
+      :host(.touch-input) .touch-interact { background: rgba(8,12,18,.6); border-color: rgba(232,240,244,.5); color: #e8f0f4; }
+      :host(.touch-input) .touch-interact--idle { color: rgba(232,240,244,.8); border-style: dashed; }
     }
   `]
 })
@@ -2581,6 +2854,14 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     return interactionVerb(nearby, door).text;
   });
   readonly guide = input<SceneGuideEntry | null>(null);
+  /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
+  readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
+  /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): con false WASD y E no hacen nada en el mundo. */
+  readonly shortcuts = input(true);
+  /** Nombre accesible del mundo: solo promete las teclas que «Atajos de una tecla» deja activas (F6-10, revisión de F6). */
+  protected readonly worldLabel = computed(() => (this.shortcuts()
+    ? 'Mapa explorable de la simulación. Usa WASD o flechas para moverte, E para interactuar.'
+    : 'Mapa explorable de la simulación. Usa las flechas para moverte, Enter para interactuar.'));
   /** true mientras hay diálogo/journal/outcome: congela NPCs y ambient. */
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
@@ -2595,6 +2876,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
   /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */
   readonly compact = input(false);
+  /**
+   * Con false el mundo no pinta su propio indicador de carga: el anfitrión ya muestra UNO desde el intento hasta el
+   * primer cuadro (`worldReady`), y dos en secuencia eran tres señales distintas (plan visual F6-1).
+   */
+  readonly showLoader = input(true);
+  /** Primer cuadro pintado del mapa actual: el anfitrión retira su indicador de carga. */
+  readonly worldReady = output<void>();
   /** Candidato PRINCIPAL en rango; un NPC llega como `MapObjectState` sintético con key `npc:{clave}`. */
   readonly proximity = output<MapObjectState | null>();
   /** Candidato secundario en rango (otra persona u objeto), o null. */
@@ -2606,6 +2894,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly roomExit = output<{ targetRoomKey: string; entryX: number; entryY: number }>();
   readonly enterRoom = output<{ targetNodeKey: string; entryX: number; entryY: number }>();
   readonly npcInteract = output<NpcConfig>();
+  /** Phaser no pintó ni un cuadro en `BOOT_WATCHDOG_MS` (contexto perdido, recurso colgado): quien lo aloja ofrece reintentar. */
+  readonly bootFailed = output<void>();
+  /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
+  readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
   readonly renderedMapKey = signal<string | null>(null);
   readonly renderedScenarioKey = signal<string | null>(null);
@@ -2617,6 +2909,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly criticalLoadFailed = signal(false);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
+  private bootWatchdog?: number;
   private gameHost?: ElementRef<HTMLDivElement>;
   /** Deja de seguir el tamaño del contenedor y el devicePixelRatio. */
   private detachHostWatch?: () => void;
@@ -2628,7 +2921,23 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private destroyed = false;
   private booting = false;
 
-  constructor(private readonly zone: NgZone) {}
+  /** La última entrada real (dedo o ratón): decide la cruceta junto con el puntero principal (F6-7, VD-5). */
+  private lastInput: InputKind = null;
+  readonly touchInput = signal(touchControlsVisible(null, matchesMedia(COARSE_POINTER_QUERY)));
+  private readonly onPointerKind = (event: PointerEvent): void => {
+    const next = nextInputKind(this.lastInput, event.pointerType, matchesMedia('(any-pointer: fine)'));
+    if (next === this.lastInput) return;
+    this.lastInput = next;
+    this.zone.run(() => this.touchInput.set(touchControlsVisible(next, matchesMedia(COARSE_POINTER_QUERY))));
+  };
+
+  constructor(private readonly zone: NgZone) {
+    // Fuera de Angular: el puntero se mueve ~60 veces por segundo y solo un cambio de entrada entra a la zona.
+    zone.runOutsideAngular(() => {
+      document.addEventListener('pointerdown', this.onPointerKind, { capture: true, passive: true });
+      document.addEventListener('pointermove', this.onPointerKind, { capture: true, passive: true });
+    });
+  }
 
   @ViewChild('gameHost')
   set host(value: ElementRef<HTMLDivElement> | undefined) {
@@ -2649,6 +2958,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.renderedScenarioKey.set(null);
       this.scene?.setWorld(this.world()!);
     }
+    if (changes['world'] || changes['viewedNpcKeys']) this.pushExamined();
+    if (changes['shortcuts']) this.scene?.setShortcutsEnabled(this.shortcuts());
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
     if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
@@ -2657,6 +2968,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
     if (changes['compact']) this.scene?.setCompactLabels(this.compact());
     if (changes['nextTargetKey'] || changes['doorStates'] || changes['dimmedKeys']) this.pushOrientation();
+  }
+
+  /** Lo ya examinado: los objetos que el servidor da por inspeccionados y las personas con quienes ya se habló. */
+  private pushExamined(): void {
+    const examined = new Set<string>(this.world()?.inspectedObjectKeys ?? []);
+    for (const key of this.viewedNpcKeys()) examined.add(NPC_KEY_PREFIX + key);
+    this.scene?.setExamined(examined);
   }
 
   /** Lleva a la escena el destino, el estado de las puertas y los atenuados. */
@@ -2680,6 +2998,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy() {
     this.destroyed = true;
+    this.clearBootWatchdog();
+    document.removeEventListener('pointerdown', this.onPointerKind, true);
+    document.removeEventListener('pointermove', this.onPointerKind, true);
     this.detachScrollKeyGuard?.();
     this.detachScrollKeyGuard = undefined;
     this.detachHostWatch?.();
@@ -2729,6 +3050,21 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   interactNearest() { this.scene?.interactNearest(); }
 
+  /** Personas, puertas y objetos de la sala a los que «Ir a…» puede llevar (F6-11). */
+  places(): PlaceCandidate[] { return this.scene?.placeCandidates() ?? []; }
+
+  /** Camina hasta una de ellas; false si ya no está (cambió la sala). */
+  walkToKey(key: string): boolean { return this.scene?.walkToKey(key) ?? false; }
+
+  /** Qué tiene el puntero encima, como `data-world-hover` del host (contrato del e2e: el contorno y el cursor viven en
+   *  el lienzo). Directo al DOM: cambia con el puntero y no debe disparar la detección de cambios. */
+  private writeHover(key: string | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (key === null) host.removeAttribute('data-world-hover');
+    else host.setAttribute('data-world-hover', key);
+  }
+
   /** Reinicia Phaser desde cero: vuelve a pedir lo que falló (lo demás sale de la caché
    *  del navegador) sin recargar la página ni perder el intento. */
   retryLoad(): void {
@@ -2743,6 +3079,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.assetsReady.set(false);
     this.loadPercent.set(0);
     this.criticalLoadFailed.set(false);
+    // «Reintentar» desaparece con el aviso: el foco no queda perdido en <body> (F6-8, H-05).
+    document.getElementById('main-content')?.focus({ preventScroll: true });
     this.boot();
   }
 
@@ -2762,7 +3100,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.booting = true;
     // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
     // actores caen a su marcador (KitService lo reintenta en el próximo boot).
-    this.kit.load().then(bundle => bundle, () => null).then(bundle => {
+    // También se espera a Poppins (con plazo): Phaser mide el texto al crearlo y con la fuente aún sin cargar queda mal medido.
+    Promise.all([
+      this.kit.load().then(bundle => bundle, () => null),
+      whenWorldFontsReady(),
+    ]).then(([bundle]) => {
       this.booting = false;
       if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
     });
@@ -2775,10 +3117,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         reduceMotion,
         kit,
         onReady:       () => this.zone.run(() => {
+          this.clearBootWatchdog();
           this.renderedMapKey.set(this.world()?.map.key ?? null);
           this.renderedScenarioKey.set(this.scenarioConfig()?.startRoomKey ?? null);
           this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
+          this.worldReady.emit();
         }),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),
@@ -2791,7 +3135,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onEnterRoom:   (targetNodeKey, entryX, entryY) =>
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
-        onLoadProgress: percent => this.zone.run(() => this.loadPercent.set(percent)),
+        onHover:       key => this.writeHover(key),
+        onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
+        onLoadProgress: percent => this.zone.run(() => {
+          this.loadPercent.set(percent);
+          // Una carga que avanza no está colgada: el plazo cuenta desde el último avance, no desde el arranque.
+          if (!this.renderReady()) this.armBootWatchdog();
+        }),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);
@@ -2801,12 +3151,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         sfxMuted: this.sfxMuted(),
       });
       this.scene.setStressLevel(this.stressLevel());
+      this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,
         backgroundColor: '#0e141a',
         pixelArt: true,    // vecino más cercano: el pixel art no se suaviza
-        roundPixels: true, // 2.5D: evita el temblor sub-píxel con el y-sort y el seguimiento
+        // Cámaras con roundPixels; en Phaser 4 eso solo redondea traslaciones puras, así que con zoom de
+        // cámara ≥ 2 los vértices los alinea PixelRender (vertexRoundMode 'fullAuto', F0-7).
+        roundPixels: true,
         scale: pixelScaleConfig(this.gameHost!.nativeElement),
         scene: this.scene
       });
@@ -2827,8 +3180,25 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene?.setSfxMuted(this.sfxMuted());
       this.scene?.setReduceMotion(this.effectiveReduceMotion());
       this.scene?.setCompactLabels(this.compact());
+      this.scene?.setShortcutsEnabled(this.shortcuts());
+      this.pushExamined();
       this.pushOrientation();
     }, 0);
+  }
+
+  /** Si en `BOOT_WATCHDOG_MS` el mundo no se pintó, avisa: el indicador de carga no puede quedar eterno. */
+  private armBootWatchdog(): void {
+    this.clearBootWatchdog();
+    this.bootWatchdog = window.setTimeout(() => {
+      this.bootWatchdog = undefined;
+      if (this.destroyed || this.renderReady()) return;
+      this.zone.run(() => this.bootFailed.emit());
+    }, BOOT_WATCHDOG_MS);
+  }
+
+  private clearBootWatchdog(): void {
+    if (this.bootWatchdog !== undefined) window.clearTimeout(this.bootWatchdog);
+    this.bootWatchdog = undefined;
   }
 
   private effectiveReduceMotion(): boolean {

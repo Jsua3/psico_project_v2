@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
+import { DRAFT_COPY } from './draft-copy';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { Heart, stressToHearts } from './stress-hearts.util';
-import { StressTier, stressTier as resolveStressTier } from './stress-tier.util';
+import { STRESS_TIER_LABELS, StressTier, stressTier as resolveStressTier } from './stress-tier.util';
 
 /** Marca de «ayuda vista» (la escribe la tarjeta de primera vez; aquí solo se borra desde Ajustes). */
 const HELP_MEMORY_KEY = 'siep.ayuda.v1';
@@ -79,14 +81,14 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                   <div class="patient-bar-row">
                     <span class="bar-label">Confianza</span>
                     <div class="mini-track" role="meter" [attr.aria-valuenow]="ps.trustLevel" aria-valuemin="0" aria-valuemax="100" aria-label="Confianza de la paciente">
-                      <span [style.width.%]="ps.trustLevel" [style.background]="trustColor(ps.trustLevel)"></span>
+                      <span [style.transform]="fillScale(ps.trustLevel)" [style.background]="trustColor(ps.trustLevel)"></span>
                     </div>
                     <span class="bar-value">{{ ps.trustLevel }}%</span>
                   </div>
                   <div class="patient-bar-row">
                     <span class="bar-label">Bienestar</span>
                     <div class="mini-track" role="meter" [attr.aria-valuenow]="ps.emotionalState" aria-valuemin="0" aria-valuemax="100" aria-label="Bienestar emocional de la paciente">
-                      <span [style.width.%]="ps.emotionalState" [style.background]="emotionColor(ps.emotionalState)"></span>
+                      <span [style.transform]="fillScale(ps.emotionalState)" [style.background]="emotionColor(ps.emotionalState)"></span>
                     </div>
                     <span class="bar-value">{{ ps.emotionalState }}%</span>
                   </div>
@@ -94,21 +96,38 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
               </div>
             }
 
-            <div class="hud-score" role="group" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
-              [title]="progressLabel()">
-              <mat-icon aria-hidden="true">fact_check</mat-icon>
-              <strong>{{ game.accumulatedScore }}</strong>
-            </div>
+            @switch (scoreMarker()) {
+              @case ('points') {
+                <div class="hud-score" role="group" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
+                  [title]="progressLabel()">
+                  <mat-icon aria-hidden="true">fact_check</mat-icon>
+                  <strong>{{ game.accumulatedScore }}</strong>
+                </div>
+              }
+              @case ('progress') {
+                <!-- Sin cifra de puntos: solo el avance que quien integra el HUD declara en progressLabel. -->
+                @if (progressLabel(); as progress) {
+                  <div class="hud-score hud-score--progress">
+                    <mat-icon aria-hidden="true">fact_check</mat-icon>
+                    <span>{{ progress }}</span>
+                  </div>
+                }
+              }
+            }
 
             <div class="hud-actions">
+              <button type="button" class="hud-action" data-hud-places (click)="openPlaces.emit()"
+                [attr.aria-label]="placesLabel" [attr.title]="placesTitle">
+                <mat-icon aria-hidden="true">near_me</mat-icon>
+              </button>
               <button type="button" class="hud-action" (click)="openHelp.emit()"
                 aria-label="Abrir cómo se juega" title="Cómo se juega">
                 <mat-icon aria-hidden="true">help</mat-icon>
               </button>
               <button type="button" class="hud-action" [class.hud-action--active]="journalOpen()"
                 (click)="toggleJournal.emit()"
-                [attr.aria-label]="coarsePointer() ? 'Abrir bitácora reflexiva' : 'Abrir bitácora reflexiva (J)'"
-                [title]="coarsePointer() ? 'Bitácora' : 'Bitácora (J)'">
+                [attr.aria-label]="journalKey() ? 'Abrir bitácora reflexiva (J)' : 'Abrir bitácora reflexiva'"
+                [title]="journalKey() ? 'Bitácora (J)' : 'Bitácora'">
                 <mat-icon aria-hidden="true">menu_book</mat-icon>
               </button>
               <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
@@ -143,10 +162,16 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                     <span>Movimiento reducido</span>
                     <strong>{{ reduceMotion() ? 'On' : 'Off' }}</strong>
                   </button>
+                  <!-- WCAG 2.1.4 (F6-10): las teclas de una letra o un número se pueden apagar. -->
+                  <button type="button" [attr.aria-pressed]="shortcuts()" (click)="toggleShortcuts.emit()">
+                    <mat-icon aria-hidden="true">accessibility</mat-icon>
+                    <span>{{ shortcutsLabel }}</span>
+                    <strong>{{ shortcuts() ? 'On' : 'Off' }}</strong>
+                  </button>
                   <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
                     <mat-icon aria-hidden="true">menu_book</mat-icon>
                     <span>Bitácora</span>
-                    <strong>{{ coarsePointer() ? '' : 'J' }}</strong>
+                    <strong>{{ journalKey() ? 'J' : '' }}</strong>
                   </button>
                   <button type="button" (click)="showHelp()">
                     <mat-icon aria-hidden="true">help_outline</mat-icon>
@@ -235,6 +260,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
     .hud-score strong { font-family: 'JetBrains Mono', monospace; font-size: .9rem; letter-spacing: .04em; }
+    .hud-score--progress span { font-size: .75rem; font-weight: 800; white-space: nowrap; }
 
     .hud-stress { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
     .hud-stress--pulse { animation: stress-pulse .6s ease-out; }
@@ -264,7 +290,12 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .bar-label { font-size: .75rem; text-transform: none; letter-spacing: 0; }
     .bar-value { color: rgba(232,240,244,.58); font-family: 'JetBrains Mono', monospace; font-size: .75rem; text-align: right; }
     .mini-track { width: 56px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
-    .mini-track span { display: block; height: 100%; border-radius: inherit; transition: width .5s ease, background .5s ease; }
+    /* El relleno es la proporción del ancho con transform (compositor): animar width obligaba a recalcular el diseño. */
+    .mini-track span {
+      display: block; width: 100%; height: 100%; border-radius: inherit;
+      transform-origin: left center;
+      transition: transform .5s ease, background-color .5s ease;
+    }
 
     .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
     .hud-scene mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
@@ -281,8 +312,8 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-action {
       display: grid;
       place-items: center;
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
       border: 1px solid rgba(182,156,255,.28);
       border-radius: 9px;
       background: rgba(8,12,18,.5);
@@ -291,14 +322,13 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       text-decoration: none;
       transition: border-color 160ms, color 160ms, background 160ms;
     }
-    .hud-action:hover { border-color: rgba(182,156,255,.6); color: #B69CFF; background: rgba(124,77,255,.1); }
-    .hud-action:focus-visible {
-      outline: 2px solid rgba(182,156,255,.7);
-      outline-offset: 2px;
+    /* El anillo de foco lo da la piel del juego (--ds-focus): sin anillo propio. */
+    @media (hover: hover) and (pointer: fine) {
+      .hud-action:hover { border-color: rgba(182,156,255,.6); color: #B69CFF; background: rgba(124,77,255,.1); }
     }
     .hud-action:active { transform: translateY(1px); }
     .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
-    .hud-action mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .hud-action mat-icon { font-size: 22px; width: 22px; height: 22px; }
     /* popover="manual": el menú vive en la capa superior del navegador, por encima de los controles
        táctiles del mundo (z 48), que si no lo tapaban. Sin soporte de popover se ve igual, fijo y con z-index. */
     .settings-menu {
@@ -348,22 +378,24 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .settings-menu__header button {
       display: grid;
       place-items: center;
-      width: 28px;
-      height: 28px;
+      width: 44px;
+      height: 44px;
       border: 0;
       border-radius: 8px;
       background: transparent;
       color: rgba(232,240,244,.7);
       cursor: pointer;
     }
-    .settings-menu__header button:hover { background: rgba(255,255,255,.08); color: #fff; }
+    @media (hover: hover) and (pointer: fine) {
+      .settings-menu__header button:hover { background: rgba(255,255,255,.08); color: #fff; }
+    }
     .settings-menu > button,
     .settings-menu > a {
       display: grid;
       grid-template-columns: 24px minmax(0, 1fr) 34px;
       align-items: center;
       gap: 9px;
-      min-height: 38px;
+      min-height: 44px;
       padding: 7px 8px;
       border: 1px solid rgba(182,156,255,.14);
       border-radius: 9px;
@@ -372,10 +404,15 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       text-decoration: none;
       cursor: pointer;
     }
-    .settings-menu > button:hover,
-    .settings-menu > a:hover {
-      border-color: rgba(182,156,255,.38);
-      background: rgba(124,77,255,.12);
+    /* Responde al presionar: todas las filas de Ajustes (botones y el enlace al catálogo). */
+    .settings-menu > button:active,
+    .settings-menu > a:active { transform: translateY(1px); }
+    @media (hover: hover) and (pointer: fine) {
+      .settings-menu > button:hover,
+      .settings-menu > a:hover {
+        border-color: rgba(182,156,255,.38);
+        background: rgba(124,77,255,.12);
+      }
     }
     .settings-menu mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
     .settings-menu span {
@@ -448,17 +485,11 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
       .settings-menu__header { grid-column: 1 / -1; }
     }
-    /* Objetivos táctiles de 44 px donde hay dedo (HUD-17): cabecera y menú de Ajustes. */
-    @media (pointer: coarse) {
-      .hud-action { width: 44px; height: 44px; }
-      .hud-action mat-icon { font-size: 22px; width: 22px; height: 22px; }
-      .settings-menu__header button { width: 44px; height: 44px; }
-      .settings-menu > button,
-      .settings-menu > a { min-height: 44px; }
-    }
+    /* Las acciones de la cabecera y de Ajustes miden 44 px con cualquier puntero (no solo con dedo): HUD-17, F6-3. */
     @media (prefers-reduced-motion: reduce) {
       .hud-stress--pulse { animation: none; }
       .hud-action:active { transform: none; }
+      .mini-track span { transition: none; }
     }
   `]
 })
@@ -471,18 +502,34 @@ export class SimulationHudComponent {
   /** Contador único del chip central («Decisión k de 6»); lo calcula quien integra el HUD. Sin valor, no hay chip. */
   readonly stageLabel = input<string | null>(null);
   readonly progressLabel = input('');
+  /**
+   * Qué marca el HUD del avance formativo (RN-08 y RN-09 siguen a decidir por el equipo): `points` muestra los puntos
+   * («Seguimiento formativo: N puntos», el texto vigente); `progress` no muestra cifra y dice el avance con
+   * `progressLabel`; `hidden` no pinta nada y no deja hueco.
+   */
+  readonly scoreMarker = input<'points' | 'progress' | 'hidden'>('points');
   /** Sala física actual (world.map.title); con puertas puede diferir del nodo DAG. */
   readonly locationLabel = input('');
   readonly journalOpen = input(false);
   readonly musicMuted = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input(false);
+  /** Textos nuevos de F6 que viven en el registro de borradores (una sola fuente para Psicología). */
+  protected readonly placesLabel = DRAFT_COPY.placesButtonLabel.text;
+  protected readonly placesTitle = DRAFT_COPY.placesDialog.title;
+  protected readonly shortcutsLabel = DRAFT_COPY.shortcutsSettingLabel.text;
+  /** «Atajos de una tecla» activos (F6-10, WCAG 2.1.4): con ellos apagados ningún texto promete la J. */
+  readonly shortcuts = input(true);
+  /** La bitácora se anuncia con su tecla solo donde hay teclado y los atajos están activos. */
+  readonly journalKey = computed(() => !this.coarsePointer() && this.shortcuts());
   readonly settingsOpen = signal(false);
   /** Sin teclado de por medio: los nombres accesibles y textos de este HUD no prometen atajos (J). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
   /** Tras «Ver la ayuda otra vez»: lo confirma la fila y una región viva (sin temporizadores). */
   readonly helpResetDone = signal(false);
   readonly toggleJournal = output<void>();
+  /** Botón «Ir a…» de la cabecera (F6-11): pide la lista de personas y puertas de la sala. */
+  readonly openPlaces = output<void>();
   /** Botón «?» de la cabecera y fila «Cómo se juega» de Ajustes: piden abrir la pantalla de ayuda. */
   readonly openHelp = output<void>();
   /** «Ver la ayuda otra vez» ya borró la marca de ayuda vista: quien integra puede volver a mostrar la tarjeta de primera vez. */
@@ -490,9 +537,13 @@ export class SimulationHudComponent {
   readonly toggleMusic = output<void>();
   readonly toggleSfx = output<void>();
   readonly toggleReduceMotion = output<void>();
+  readonly toggleShortcuts = output<void>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
+  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
+  /** Último tramo visto de un intento: el cambio de tramo es lo único que se anuncia (nunca el primer valor). */
+  private lastStressSeen: { attemptId: string; tier: StressTier } | null = null;
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
   private readonly settingsMenu = viewChild<ElementRef<HTMLElement>>('settingsMenu');
   /** Borde superior del menú (px): justo bajo la cabecera, medido al abrirlo porque su alto cambia en compacto. */
@@ -500,6 +551,13 @@ export class SimulationHudComponent {
   private stopPointerListener: (() => void) | null = null;
 
   constructor() {
+    // El estrés se anuncia solo al CRUZAR 30, 60 u 85 (H-08, VD-20 borrador): en cortesía, con el rótulo del medidor y
+    // sin anunciar el valor de un intento recién cargado ni cada punto.
+    effect(() => {
+      const attempt = this.attempt();
+      const tier = this.stressTier();
+      untracked(() => this.announceStressCrossing(attempt?.attemptId ?? null, tier));
+    });
     // El oyente de clic fuera existe solo mientras Ajustes está abierto: uno global y
     // permanente hace entrar en la zona de Angular cada toque de toda la pantalla de juego.
     effect(() => {
@@ -523,6 +581,13 @@ export class SimulationHudComponent {
       this.unlistenOutsidePointer();
       stopWatchingPointer();
     });
+  }
+
+  private announceStressCrossing(attemptId: string | null, tier: StressTier): void {
+    const previous = this.lastStressSeen;
+    this.lastStressSeen = attemptId === null ? null : { attemptId, tier };
+    if (!previous || previous.attemptId !== attemptId || previous.tier === tier) return;
+    this.liveAnnouncer.announce(`${DRAFT_COPY.stressAnnouncementPrefix.text} ${STRESS_TIER_LABELS[tier]}`, 'polite');
   }
 
   /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
@@ -590,12 +655,13 @@ export class SimulationHudComponent {
     critical: '#E25A4F'
   })[this.stressTier()]);
 
-  readonly stressLabel = computed(() => ({
-    calm:     'Situación estable',
-    moderate: 'Tensión moderada',
-    high:     'Estrés elevado — considere herramientas de contención',
-    critical: 'Nivel crítico — priorice seguridad y autocuidado'
-  })[this.stressTier()]);
+  readonly stressLabel = computed(() => STRESS_TIER_LABELS[this.stressTier()]);
+
+  /** Relleno de una barra de 0 a 100 como proporción del ancho (transform: el compositor, nunca width). */
+  fillScale(percent: number): string {
+    const ratio = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0)) / 100;
+    return `scaleX(${ratio})`;
+  }
 
   trustColor(v: number): string {
     if (v >= 60) return '#4fa3a5';

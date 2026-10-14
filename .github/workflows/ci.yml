@@ -115,6 +115,8 @@ jobs:
       - run: npm run test:kit --prefix frontend
       - run: npm run kit:check --prefix frontend
       - run: npm run test:world-art --prefix frontend
+      - run: npm run test:ui --prefix frontend
+      - run: npm run ui:lint
       - run: npm run build:frontend
 
   e2e:

@@ -268,7 +268,7 @@ const OBJECT_COLORS: Record<string, string> = {
               <label><span>Prompt</span>
                 <input [ngModel]="obj.interactionPrompt" (ngModelChange)="updateObjectField(obj.key, 'interactionPrompt', $event)" />
               </label>
-              <label><span>Codigo corto</span>
+              <label><span>Código corto</span>
                 <input [ngModel]="obj.shortCode" maxlength="12" (ngModelChange)="updateObjectField(obj.key, 'shortCode', $event)" />
               </label>
               <label><span>Color</span>
@@ -487,7 +487,7 @@ const OBJECT_COLORS: Record<string, string> = {
             <div class="we-validation">
               <h4>
                 <mat-icon>{{ vs.canPublish ? 'check_circle' : 'error' }}</mat-icon>
-                Validacion
+                Validación
               </h4>
               @if (vs.errors.length) {
                 <div class="we-val-section we-val-errors">

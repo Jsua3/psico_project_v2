@@ -1,507 +1,185 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs';
+
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { AttemptCompletionReport, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
-import { historyDurationSeconds } from './attempt-history-duration.util';
+import { CatalogItem, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
+import { plural, statusLabel } from '../../shared/ui/labels';
+import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { attemptTone, formatDate, openAttempt } from '../dashboard/student-dashboard.util';
+import { formatAttemptDuration, historyDurationSeconds } from './attempt-history-duration.util';
+import { blockedNotice, lockReason } from './case-lock.util';
+import { StudentReportDialogComponent, StudentReportDialogData } from './student-report-dialog.component';
 
+type HttpLikeError = { status?: number };
+
+/**
+ * Catálogo, historial y reporte propio (plan visual F5-2). Lo abierto se continúa (RN-07, parte de interfaz): la
+ * tarjeta de un caso con un intento en curso o en pausa ofrece «Continuar» y no «Iniciar»; sin abierto, «Iniciar
+ * simulación» o, si ya hubo intentos, «Iniciar nuevo intento». El historial tiene su propio error con «Reintentar»,
+ * distinto de «sin intentos» (RF-24), y el reporte se abre en un diálogo con sus propios estados. Para el estudiante,
+ * cada caso dice si está bloqueado y por qué, o si ya lo resolvió (F5-5, con `/catalog`); si llegó aquí desde un caso
+ * bloqueado pedido por dirección (`caseUnlockedGuard`), un aviso dice cuál y por qué.
+ */
 @Component({
   selector: 'app-simulation-catalog',
-  standalone: true,
-  imports: [CommonModule, MatIconModule, MatProgressBarModule],
-  template: `
-    <section class="sim-catalog">
-      <header class="catalog-hero liquid-glass">
-        <div>
-          <p class="psy-eyebrow">Entrenamiento psicosocial</p>
-          <h2>Casos publicados para simulación formativa.</h2>
-          <p>
-            Inicia un intento, toma decisiones en casos simulados, registra tu bitácora reflexiva y recibe
-            retroalimentación formativa sobre impacto, riesgo y rutas de atención.
-          </p>
-        </div>
-        <div class="hero-mark" aria-hidden="true">
-          <mat-icon>account_tree</mat-icon>
-        </div>
-      </header>
-
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-      }
-
-      @if (error()) {
-        <div class="state-card error-state" role="alert">
-          <mat-icon>error</mat-icon>
-          <span>{{ error() }}</span>
-        </div>
-      }
-
-      <div class="case-grid">
-        @for (item of cases(); track item.caseVersionId) {
-          <article class="case-card liquid-glass">
-            <div class="case-topline">
-              <span class="psy-chip">{{ item.code }}</span>
-              <span class="psy-mono">v{{ item.semanticVersion }}</span>
-            </div>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.description }}</p>
-            <div class="case-meta">
-              <span><mat-icon>route</mat-icon>{{ item.nodeCount }} escenas</span>
-              <span><mat-icon>verified</mat-icon>{{ statusLabel(item.status) }}</span>
-            </div>
-            @if (canPlay()) {
-              <button class="psy-button psy-button--primary" type="button" (click)="start(item)">
-                <mat-icon>play_arrow</mat-icon>
-                Iniciar simulación
-              </button>
-            }
-            @if (canEdit()) {
-              <button class="psy-button psy-button--glass" type="button" (click)="openEditor(item)">
-                <mat-icon>edit_note</mat-icon>
-                Editor visual
-              </button>
-            }
-          </article>
-        }
-      </div>
-
-      @if (!loading() && !cases().length && !error()) {
-        <div class="state-card">
-          <mat-icon>inventory_2</mat-icon>
-          <span>
-            <strong>No tienes simulaciones asignadas en este momento.</strong>
-            Cuando tu docente asigne un caso, aparecerá aquí para iniciar el entrenamiento.
-          </span>
-        </div>
-      }
-
-      @if (isStudent()) {
-        <section class="history-panel liquid-glass" aria-labelledby="attempt-history-title">
-          <div class="history-head">
-            <div>
-              <p class="psy-eyebrow">Historial real</p>
-              <h3 id="attempt-history-title">Historial de intentos</h3>
-            </div>
-            @if (historyLoading()) {
-              <span class="psy-mono">Cargando...</span>
-            }
-          </div>
-
-          @if (!historyLoading() && !history().length) {
-            <div class="state-card">
-              <mat-icon>history</mat-icon>
-              <span>Aún no tienes intentos registrados. Cuando inicies una simulación, aparecerá aquí.</span>
-            </div>
-          }
-
-          <div class="history-list">
-            @for (attempt of history(); track attempt.attemptId) {
-              <article class="history-card">
-                <div>
-                  <strong>{{ attempt.caseTitle }}</strong>
-                  <span>{{ formatDate(attempt.startedAt) }}</span>
-                </div>
-                <div class="history-metrics">
-                  <span>{{ statusLabel(attempt.status) }}</span>
-                  <span>{{ attempt.accumulatedScore }} pts</span>
-                  <span>{{ attempt.adequateDecisions }} adecuadas</span>
-                  <span>{{ attempt.prohibitedDecisions }} alertas éticas</span>
-                  <span>{{ formatDuration(historyDurationSeconds(attempt)) }}</span>
-                </div>
-                <div class="history-actions">
-                  @if (attempt.status === 'IN_PROGRESS') {
-                    <button class="psy-button psy-button--primary" type="button" (click)="continueAttempt(attempt)">
-                      <mat-icon>play_arrow</mat-icon>
-                      Continuar
-                    </button>
-                  } @else {
-                    <button class="psy-button psy-button--glass" type="button" (click)="openReport(attempt)" [disabled]="reportLoading()">
-                      <mat-icon>description</mat-icon>
-                      Ver resumen
-                    </button>
-                  }
-                </div>
-              </article>
-            }
-          </div>
-        </section>
-      }
-
-      @if (selectedReport(); as report) {
-        <section class="report-panel liquid-glass" aria-labelledby="student-report-title">
-          <div class="history-head">
-            <div>
-              <p class="psy-eyebrow">Reporte final</p>
-              <h3 id="student-report-title">{{ report.caseTitle }}</h3>
-              <p>Resumen formativo. La trazabilidad queda disponible para revisión docente; no equivale a diagnóstico automático.</p>
-            </div>
-            <button class="psy-button psy-button--ghost" type="button" (click)="selectedReport.set(null)">Cerrar</button>
-          </div>
-          <div class="report-grid">
-            <span><strong>Estado</strong>{{ statusLabel(report.status) }}</span>
-            <span><strong>Puntaje</strong>{{ report.finalScore }}</span>
-            <span><strong>Estrés final</strong>{{ report.finalStress }}%</span>
-            <span><strong>Tiempo total</strong>{{ formatDuration(report.totalDurationSeconds) }}</span>
-            <span><strong>Adecuadas</strong>{{ report.adequateDecisions }}</span>
-            <span><strong>Riesgosas/críticas</strong>{{ report.riskyDecisions + report.inadequateDecisions + report.prohibitedDecisions }}</span>
-            <span><strong>Reflexiones</strong>{{ report.reflectionsCount }}</span>
-          </div>
-          @if (report.phaseDurations.length) {
-            <div class="phase-list">
-              <strong>Tiempo por escenario</strong>
-              @for (phase of report.phaseDurations; track phase.nodeId + '-' + $index) {
-                <span>{{ phase.nodeTitle }}: {{ formatDuration(phase.durationSeconds) }}</span>
-              }
-            </div>
-          }
-          @if (report.recommendations.length) {
-            <ul class="report-list">
-              @for (recommendation of report.recommendations; track recommendation) {
-                <li>{{ recommendation }}</li>
-              }
-            </ul>
-          } @else {
-            <p class="timeline-empty">Recomendaciones pendientes de retroalimentación docente.</p>
-          }
-        </section>
-      }
-    </section>
-  `,
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .sim-catalog {
-      display: grid;
-      gap: 24px;
-    }
-    .catalog-hero {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      padding: clamp(24px, 4vw, 42px);
-      border-radius: 22px;
-    }
-    .catalog-hero h2 {
-      max-width: 820px;
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      font-size: clamp(2rem, 4vw, 3.2rem);
-      line-height: 1.02;
-      letter-spacing: 0;
-    }
-    .catalog-hero p:not(.psy-eyebrow) {
-      max-width: 760px;
-      margin: 14px 0 0;
-      color: var(--psy-muted);
-      line-height: 1.7;
-    }
-    .hero-mark {
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      width: 92px;
-      height: 92px;
-      border-radius: 24px;
-      background: rgba(79,124,172,.12);
-      color: var(--psy-blue-deep);
-    }
-    .hero-mark mat-icon {
-      font-size: 46px;
-      width: 46px;
-      height: 46px;
-    }
-    .case-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 18px;
-    }
-    .case-card {
-      display: grid;
-      gap: 16px;
-      padding: 22px;
-      border-radius: 18px;
-    }
-    .case-topline,
-    .case-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .case-card h3 {
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      font-size: 1.85rem;
-      line-height: 1.05;
-      letter-spacing: 0;
-    }
-    .case-card p {
-      margin: 0;
-      color: var(--psy-muted);
-      line-height: 1.58;
-    }
-    .case-meta span {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--psy-muted);
-      font-weight: 700;
-      font-size: .9rem;
-    }
-    .case-meta mat-icon {
-      color: var(--psy-teal-deep);
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-    }
-    .state-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      min-height: 72px;
-      padding: 18px;
-      border: 1px solid var(--psy-border);
-      border-radius: 16px;
-      background: rgba(255,255,255,.72);
-      color: var(--psy-muted);
-      font-weight: 700;
-    }
-    .state-card strong {
-      display: block;
-      color: var(--psy-blue-deep);
-      margin-bottom: 4px;
-    }
-    .error-state {
-      color: #8F2F3D;
-      border-color: rgba(143,47,61,.22);
-      background: rgba(143,47,61,.08);
-    }
-    .history-panel,
-    .report-panel {
-      display: grid;
-      gap: 16px;
-      padding: 20px;
-      border-radius: 18px;
-    }
-    .history-head,
-    .history-card,
-    .history-metrics,
-    .history-actions,
-    .report-grid,
-    .phase-list {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .history-head {
-      justify-content: space-between;
-    }
-    .history-head h3 {
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      font-size: 1.45rem;
-      letter-spacing: 0;
-    }
-    .history-head p:not(.psy-eyebrow) {
-      margin: 6px 0 0;
-      color: var(--psy-muted);
-      line-height: 1.5;
-    }
-    .history-list {
-      display: grid;
-      gap: 10px;
-    }
-    .history-card {
-      justify-content: space-between;
-      padding: 14px;
-      border: 1px solid var(--psy-border);
-      border-radius: 14px;
-      background: rgba(255,255,255,.74);
-    }
-    .history-card strong,
-    .history-card span {
-      display: block;
-    }
-    .history-card > div:first-child {
-      min-width: 220px;
-      flex: 1 1 240px;
-    }
-    .history-card > div:first-child span {
-      color: var(--psy-muted);
-      font-weight: 700;
-      font-size: .86rem;
-      margin-top: 4px;
-    }
-    .history-metrics span,
-    .report-grid span,
-    .phase-list span {
-      padding: 7px 10px;
-      border-radius: 999px;
-      background: rgba(79,124,172,.1);
-      color: var(--psy-blue-deep);
-      font-weight: 800;
-      font-size: .84rem;
-    }
-    .report-grid span {
-      display: grid;
-      border-radius: 12px;
-      min-width: 130px;
-    }
-    .report-grid strong {
-      font-size: .74rem;
-      color: var(--psy-muted);
-      text-transform: uppercase;
-    }
-    .phase-list {
-      align-items: flex-start;
-    }
-    .phase-list > strong {
-      width: 100%;
-      color: var(--psy-blue-deep);
-    }
-    .report-list {
-      margin: 0;
-      padding-left: 18px;
-      color: var(--psy-muted);
-      line-height: 1.55;
-    }
-    .timeline-empty {
-      margin: 0;
-      color: var(--psy-muted);
-      font-weight: 700;
-    }
-    @media (max-width: 620px) {
-      .catalog-hero {
-        display: grid;
-      }
-      .hero-mark {
-        width: 64px;
-        height: 64px;
-        border-radius: 18px;
-      }
-      .history-card,
-      .history-actions .psy-button {
-        width: 100%;
-      }
-    }
-  `]
+  imports: [
+    MatIconModule, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiPageHeader, UiSection, UiSkeleton, UiTable, UiTableRow,
+    UiTableTable,
+  ],
+  templateUrl: './simulation-catalog.component.html',
+  styleUrl: './simulation-catalog.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SimulationCatalogComponent implements OnInit {
+export class SimulationCatalogComponent {
   private readonly simulationService = inject(SimulationService);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly dialog = inject(UiDialog);
+  /** ?bloqueado=<id> de la guardia: reactivo (la guardia puede redirigir a esta misma ruta y Angular la reutiliza). */
+  private readonly query = toSignal(inject(ActivatedRoute).queryParamMap);
+  private readonly blockedId = computed(() => Number(this.query()?.get('bloqueado')) || null);
 
-  readonly historyDurationSeconds = historyDurationSeconds;
-  readonly cases = signal<SimulationCaseSummary[]>([]);
-  readonly loading = signal(true);
-  readonly error = signal('');
-  readonly history = signal<StudentAttemptSummary[]>([]);
-  readonly historyLoading = signal(false);
-  readonly reportLoading = signal(false);
-  readonly selectedReport = signal<AttemptCompletionReport | null>(null);
+  protected readonly isStudent = this.auth.hasRole('ESTUDIANTE');
+  protected readonly canPlay = this.auth.hasRole('ESTUDIANTE', 'ADMIN');
+  protected readonly canEdit = this.auth.hasRole('ADMIN');
 
-  canPlay() {
-    return this.auth.hasRole('ESTUDIANTE', 'ADMIN');
-  }
+  private readonly cases = signal<SimulationCaseSummary[]>([]);
+  private readonly casesLoading = signal(true);
+  private readonly casesError = signal<HttpLikeError | null>(null);
+  private readonly history = signal<StudentAttemptSummary[]>([]);
+  private readonly historyLoading = signal(false);
+  private readonly historyError = signal<HttpLikeError | null>(null);
+  /** Desbloqueo lineal del estudiante (SIEP-RF-12): si no llega, no se inventa ningún bloqueo. */
+  private readonly catalogItems = signal<CatalogItem[]>([]);
+  private readonly catalogSettled = signal(!this.isStudent);
+  /** El historial respondió al menos una vez (bien o mal): hasta entonces las tarjetas no saben si hay algo abierto. */
+  private readonly historySettled = signal(!this.isStudent);
 
-  canEdit() {
-    return this.auth.hasRole('ADMIN');
-  }
+  /** Las tarjetas esperan al primer historial (el botón de cada caso depende de él); un reintento no las recarga. */
+  protected readonly casesState = uiDataState({
+    loading: computed(() => this.casesLoading() || !this.historySettled() || !this.catalogSettled()),
+    error: this.casesError,
+    isEmpty: computed(() => this.cases().length === 0),
+  });
+  protected readonly historyState = uiDataState({
+    loading: this.historyLoading,
+    error: this.historyError,
+    isEmpty: computed(() => this.history().length === 0),
+  });
+  protected readonly statusText = computed(() => (this.casesState() === 'loading' ? 'Cargando los casos…' : ''));
+  protected readonly casesErrorKind = computed(() => errorKindFromStatus(this.casesError()?.status));
+  protected readonly historyErrorKind = computed(() => errorKindFromStatus(this.historyError()?.status));
 
-  isStudent() {
-    return this.auth.hasRole('ESTUDIANTE');
-  }
+  protected readonly cards = computed(() => this.cases().map(item => {
+    const attempts = this.history().filter(attempt => attempt.caseVersionId === item.caseVersionId);
+    const open = openAttempt(attempts);
+    // Sin historial no se sabe si hay algo abierto: un rótulo neutro y no «Iniciar» (RN-07); el juego ofrece reanudar.
+    const startLabel = this.historyError() ? 'Abrir caso' : attempts.length ? 'Iniciar nuevo intento' : 'Iniciar simulación';
+    // Un intento abierto se puede continuar aunque el caso haya quedado bloqueado (p. ej. el docente asignó uno
+    // anterior): continuar, pausar o terminar (RN-07) manda sobre el desbloqueo lineal.
+    const lock = open ? null : lockReason(this.catalogItems(), item.caseVersionId);
+    const done = !open && !!this.catalogItems().find(entry => entry.caseVersionId === item.caseVersionId)?.completed;
+    return { item, open, startLabel, lock, done };
+  }));
+  protected readonly rows = computed(() => this.history().map(attempt => ({
+    attempt,
+    open: attempt.status === 'IN_PROGRESS' || attempt.status === 'PAUSED',
+    duration: formatAttemptDuration(historyDurationSeconds(attempt)),
+  })));
 
-  ngOnInit() {
-    this.simulationService.listCases().subscribe({
-      next: cases => {
-        this.cases.set(cases);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set('No pudimos cargar los casos publicados.');
-        this.loading.set(false);
-      }
-    });
-    if (this.isStudent()) {
+  protected readonly emptyCases = this.isStudent
+    ? { title: 'Aún no tienes casos asignados', description: 'Cuando tu docente te asigne un caso, aparecerá aquí para que puedas empezar.' }
+    : { title: 'Aún no hay casos publicados', description: 'Cuando se publique un caso, aparecerá aquí.' };
+
+  protected readonly notice = computed(() => {
+    const id = this.blockedId();
+    return id ? blockedNotice(this.catalogItems(), id) : null;
+  });
+
+  protected readonly plural = plural;
+  protected readonly tone = attemptTone;
+  protected readonly formatDate = formatDate;
+
+  constructor() {
+    this.loadCases();
+    if (this.isStudent) {
       this.loadHistory();
+      this.loadUnlocks();
     }
-  }
-
-  start(item: SimulationCaseSummary) {
-    this.router.navigate(['/portal/simulador', item.caseVersionId]);
-  }
-
-  openEditor(item: SimulationCaseSummary) {
-    this.router.navigate(['/portal/casos', item.caseVersionId, 'editor']);
-  }
-
-  continueAttempt(attempt: StudentAttemptSummary) {
-    this.router.navigate(['/portal/simulador', attempt.caseVersionId]);
-  }
-
-  openReport(attempt: StudentAttemptSummary) {
-    this.reportLoading.set(true);
-    this.simulationService.studentReport(attempt.attemptId).subscribe({
-      next: report => {
-        this.selectedReport.set(report);
-        this.reportLoading.set(false);
-      },
-      error: () => {
-        this.error.set('No pudimos cargar el reporte del intento seleccionado.');
-        this.reportLoading.set(false);
-      }
-    });
   }
 
   /** Etiqueta en español de un estado: el de un intento (historial) o el de una versión de caso. */
-  statusLabel(status: string) {
-    switch (status) {
-      case 'PUBLISHED': return 'Publicado';
-      case 'DRAFT': return 'Borrador';
-      case 'IN_REVIEW': return 'En revisión';
-      case 'ARCHIVED': return 'Archivado';
-      case 'COMPLETED': return 'Finalizado';
-      case 'PAUSED': return 'En pausa (reanudable)';
-      case 'SAFE_EXITED': return 'Cerrado con salida segura';
-      case 'REPLACED': return 'Reemplazado por un intento nuevo';
-      case 'IN_PROGRESS': return 'En curso';
-      default: return status || 'Sin estado';
-    }
+  statusLabel(status: string): string {
+    return statusLabel(status);
   }
 
-  formatDate(value: string | null) {
-    if (!value) return 'Fecha no disponible';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
+  protected loadCases(): void {
+    this.casesLoading.set(true);
+    this.simulationService.listCases().subscribe({
+      next: cases => {
+        this.cases.set(cases);
+        this.casesError.set(null);
+        this.casesLoading.set(false);
+      },
+      error: (error: HttpLikeError) => {
+        this.casesError.set(error ?? {});
+        this.casesLoading.set(false);
+      },
     });
   }
 
-  formatDuration(seconds: number | null) {
-    if (seconds == null) return 'No disponible';
-    const minutes = Math.floor(seconds / 60);
-    const rest = seconds % 60;
-    return minutes > 0 ? `${minutes} min ${rest} s` : `${rest} s`;
-  }
-
-  private loadHistory() {
+  protected loadHistory(): void {
     this.historyLoading.set(true);
     this.simulationService.attemptHistory().subscribe({
       next: history => {
         this.history.set(history);
+        this.historyError.set(null);
         this.historyLoading.set(false);
+        this.historySettled.set(true);
       },
-      error: () => {
-        this.history.set([]);
+      error: (error: HttpLikeError) => {
+        this.historyError.set(error ?? {});
         this.historyLoading.set(false);
-      }
+        this.historySettled.set(true);
+      },
+    });
+  }
+
+  private loadUnlocks(): void {
+    // Con tiempo límite: el desbloqueo solo matiza las tarjetas; si no llega, se pintan sin bloqueos.
+    this.simulationService.getCatalog().pipe(timeout(4000)).subscribe({
+      next: items => { this.catalogItems.set(items); this.catalogSettled.set(true); },
+      error: () => this.catalogSettled.set(true),
+    });
+  }
+
+  /** Entrar al caso: con un intento abierto, el juego ofrece reanudarlo (la tarjeta de reanudar es F6-2). */
+  protected openCase(caseVersionId: number): void {
+    void this.router.navigate(['/portal/simulador', caseVersionId]);
+  }
+
+  protected openEditor(caseVersionId: number): void {
+    void this.router.navigate(['/portal/casos', caseVersionId, 'editor']);
+  }
+
+  protected openReport(attempt: StudentAttemptSummary): void {
+    this.dialog.open<void, StudentReportDialogData>(StudentReportDialogComponent, {
+      data: { attemptId: attempt.attemptId, caseTitle: attempt.caseTitle },
+      size: 'md',
     });
   }
 }

@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
@@ -12,6 +14,8 @@ import {
   isFinalDialogueLine,
   nextDialogueLineIndex,
 } from './dialogue-progression.util';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { DRAFT_COPY } from './draft-copy';
 import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 
@@ -25,7 +29,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, SafeExitButtonComponent],
+  imports: [A11yModule, CommonModule, SafeExitButtonComponent, UiButton],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -46,11 +50,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             <button type="button" class="panel-back" (click)="close.emit()">
               <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
             </button>
-            <app-safe-exit-button class="panel-head__exit" data-hide-key (pause)="safeExit.emit()" />
+            <app-safe-exit-button class="panel-head__exit" data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
           </div>
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
-              <span class="panel-chip">Decisión clínica</span>
+              <span class="panel-chip">{{ decisionLabel }}</span>
               <span>Tu elección queda registrada en tu seguimiento formativo.</span>
             </p>
           }
@@ -79,7 +83,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             }
           </p>
           <p class="dialogue-text" aria-hidden="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()">▋</span></p>
-          <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{{ fullText() }}</p>
+          <!-- Texto completo de la línea para el cursor de lectura. Sin role ni aria-live (H-09): una región que
+               nace dentro del @if con su texto no se anuncia; la línea la anuncia el servicio de regiones vivas. -->
+          <p class="visually-hidden">{{ fullText() }}</p>
 
           @if (staleNote(d); as note) {
             <p class="stale-note" role="note">{{ note }}</p>
@@ -122,21 +128,21 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           }
 
           @if (!isTypingComplete()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="skipTypewriter()"
               aria-label="Saltar animación de texto">
               Saltar <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && !isLastLine()) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="advanceLine()"
               aria-label="Mostrar siguiente intervención">
               Siguiente <span aria-hidden="true">▶</span>
             </button>
           }
           @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
-            <button type="button" class="close-btn psy-button psy-button--ghost" cdkFocusInitial
+            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
               (click)="close.emit()">
               Continuar <span aria-hidden="true">▶</span>
             </button>
@@ -207,7 +213,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       border: 1px solid rgba(182,156,255,.5);
       background: rgba(124,77,255,.16);
       color: #d6c6ff;
-      font-size: .72rem;
+      font-size: .75rem;
       font-weight: 800;
       letter-spacing: .04em;
     }
@@ -226,9 +232,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       font-weight: 800;
       cursor: pointer;
     }
-    .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
-    .panel-back:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 2px; }
-    .panel-back__arrow { font-size: .62rem; }
+    @media (hover: hover) and (pointer: fine) {
+      .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
+    }
+    .panel-back:active { transform: translateY(1px); }
+    .panel-back__arrow { font-size: .75rem; }
 
     .portrait {
       position: relative;
@@ -273,7 +281,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       display: flex;
       align-items: baseline;
       gap: 8px;
-      font-size: .7rem;
+      font-size: .75rem;
       font-weight: 900;
       letter-spacing: .12em;
       text-transform: uppercase;
@@ -282,7 +290,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .strip--supervisory .speaker-name { color: #5d9278; }
     .strip--warning .speaker-name { color: #d9798e; }
     .emotion-tag {
-      font-size: .6rem;
+      font-size: .75rem;
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: lowercase;
@@ -354,10 +362,6 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
     .choice-btn:active {
       transform: scale(.97);
-    }
-    .choice-btn:focus-visible {
-      outline: 3px solid #C9B3FF;
-      outline-offset: 3px;
     }
     /* Entrada escalonada de opciones (sutil, una sola vez). */
     .choice-btn {
@@ -453,13 +457,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (hover: hover) and (pointer: fine) {
       .keyboard-hint { display: block; }
     }
-    .close-btn {
-      align-self: flex-end;
-      font-size: .88rem;
-      padding: 9px 20px;
-      min-height: 42px;
-      cursor: pointer;
-    }
+    .close-btn { align-self: flex-end; }
 
     @keyframes strip-rise {
       from { transform: translateY(100%); opacity: 0; }
@@ -547,8 +545,13 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * hasta que cambiaba el diálogo y el panel se quedaba atrapado (DLG-01).
    */
   readonly releaseToken = input(0);
+  /** Hay una salida segura pedida que espera: el botón «Salida segura» del panel dice «Pausando…» (F6-6). */
+  readonly pausing = input(false);
 
   readonly close   = output<void>();
+  /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
+  protected readonly decisionLabel = DRAFT_COPY.decisionLabel.text;
+  private readonly shortcuts = inject(ShortcutSettings);
   /** Pausa reanudable pedida desde el panel (REGLA-004): el anfitrión llama a la salida segura real. */
   readonly safeExit = output<void>();
   readonly execute = output<number>();
@@ -579,6 +582,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
   private readonly kit = inject(KitService);
+  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -602,6 +606,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     });
     effect(() => {
       if (this.choicesVisible()) this.choicesShownAt = Date.now();
+    });
+    // La línea activa se anuncia por la región viva persistente de la app (F6-12, H-09). Cuenta la línea completa, no
+    // la máquina de escribir, y solo cuando cambia el diálogo o la línea.
+    effect(() => {
+      const text = this.dialogue() ? this.activeLine()?.text ?? '' : '';
+      untracked(() => { if (text) this.liveAnnouncer.announce(text, 'polite'); });
     });
     // Liberación: cada token nuevo suelta la elección en curso (y su ejecución pendiente).
     effect(() => {
@@ -666,7 +676,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return !d.stale && d.choices.length > 0;
   }
 
-  /** Alguna opción activa registra una decisión clínica (cabecera con el chip «Decisión clínica»). */
+  /** Alguna opción activa registra una decisión (cabecera con el chip de decisión: VD-24). */
   hasDecisionOptions(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null);
   }
@@ -698,14 +708,14 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const firstDecision = d.choices.findIndex(isDecision);
     if (firstTool < 0 || firstDecision < 0) return null;
     if (index === firstTool) return 'Usar una herramienta';
-    if (index === firstDecision) return 'Decisión clínica';
+    if (index === firstDecision) return DRAFT_COPY.decisionLabel.text;
     return null;
   }
 
-  /** Pista de teclado (solo se pinta con puntero fino). */
+  /** Pista de teclado (solo se pinta con puntero fino); sin los atajos de una tecla no promete los números. */
   keyboardHint(d: DialogueState): string {
     const count = this.hasChoices(d) ? d.choices.length : 0;
-    if (count === 0) return 'Enter: continuar · Esc: volver al mapa';
+    if (count === 0 || !this.shortcuts.enabled()) return 'Enter: continuar · Esc: volver al mapa';
     const range = count === 1 ? '1' : `1 a ${count}`;
     return `Enter: continuar · ${range}: elegir · Esc: volver al mapa`;
   }
@@ -728,13 +738,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     // La cabecera conserva su propia activación: sin esto, Enter o Espacio sobre «Volver al mapa»
     // o «Salida segura» avanzarían el texto y el preventDefault cancelaría el clic nativo.
     if (e.key !== 'Escape' && (e.target as HTMLElement | null)?.closest?.('.panel-head')) return;
-    const action = dialogueKeyAction(
+    let action = dialogueKeyAction(
       e.key,
       this.isTypingComplete(),
       this.isLastLine(),
       this.hasChoices(d) ? d.choices.length : 0,
       e.repeat,
     );
+    // Los números de las opciones son atajos de una tecla (F6-10, WCAG 2.1.4): apagados, ni eligen ni se consumen.
+    if (action === 'choose' && !this.shortcuts.enabled()) action = 'none';
 
     if (action === 'none') return;
     e.preventDefault();

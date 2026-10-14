@@ -98,6 +98,42 @@ describe('SafeExitButtonComponent (T1.1)', () => {
     expect(kbd?.textContent?.trim()).toBe('Esc');
     expect(kbd?.getAttribute('aria-hidden')).toBe('true');
   });
+
+  // F6-6 (REGLA-004, BLOQUE-H): es LA implementación de «Salida segura» —el pie y las superposiciones la comparten—:
+  // con una pausa pedida (en cola tras una petición en curso) el mismo botón dice «Pausando…».
+  describe('pausa pedida', () => {
+    it('dice «Pausando…» con aria-busy, sigue siendo un solo botón y su nombre accesible es ese texto', () => {
+      writeInputSignal(fixture.componentInstance.pausing, true);
+      fixture.detectChanges();
+
+      expect(host().querySelectorAll('button')).toHaveLength(1);
+      expect(visibleLabel(button())).toBe('Pausando…');
+      expect(accessibleName(button())).toBe('Pausando…');
+      expect(button().getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('no se deshabilita: el toque se acepta y la cola de la pausa se decide arriba', () => {
+      writeInputSignal(fixture.componentInstance.pausing, true);
+      fixture.detectChanges();
+      const spy = vi.fn();
+      fixture.componentInstance.pause.subscribe(spy);
+
+      expect(button().disabled).toBe(false);
+      button().click();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('sin pausa pedida no lleva aria-busy', () => {
+      expect(button().hasAttribute('aria-busy')).toBe(false);
+      writeInputSignal(fixture.componentInstance.pausing, true);
+      fixture.detectChanges();
+      writeInputSignal(fixture.componentInstance.pausing, false);
+      fixture.detectChanges();
+      expect(button().hasAttribute('aria-busy')).toBe(false);
+      expect(visibleLabel(button())).toBe('Salida segura');
+    });
+  });
 });
 
 describe('SafeExitButtonComponent: contratos de fuente (T1.1)', () => {
@@ -123,13 +159,32 @@ describe('SafeExitButtonComponent: contratos de fuente (T1.1)', () => {
     expect(source).not.toContain('backdrop-filter');
   });
 
-  it('el anillo de foco #f1a79f llega a 3:1 sobre el fondo del juego y sobre el panel de diálogo', () => {
-    const ring = source.match(/\.safe-exit-btn:focus-visible \{\s*outline: 2px solid (#[0-9A-Fa-f]{6});\s*outline-offset: 2px;/)?.[1] ?? '';
-    expect(ring.toLowerCase()).toBe('#f1a79f');
+  // F6-6: el anillo local (#f1a79f, 2 px) anulaba el global de la piel (`--ds-focus`, 3 px con halo): se retira y manda
+  // el global, que llega a 3:1 sobre el fondo del juego y sobre el peor caso del panel de diálogo.
+  it('no pinta un anillo de foco propio: el global de la piel juego (--ds-focus) manda', () => {
+    expect(source).not.toMatch(/:focus-visible/);
+    const GLOBAL_RING = '#C9B3FF'; // `--ds-focus` en la piel juego (lo fija el contrato de tokens)
     // Fondo del juego y peor caso del panel de diálogo (rgba(8,12,18,.95) sobre un píxel blanco del mapa).
     for (const surface of ['#0E1322', blend('#080C12', 0.95, '#FFFFFF')]) {
-      expect(contrastRatio(ring, surface)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(GLOBAL_RING, surface)).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it('el texto del botón y la pista Esc no bajan de 12 px', () => {
+    const rem = (selector: string) => {
+      const block = source.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`))?.[1] ?? '';
+      return Number(/font-size:\s*([0-9.]+)rem/.exec(block)?.[1]);
+    };
+    expect(rem('.safe-exit-btn') * 16).toBeGreaterThanOrEqual(12);
+    expect(rem('.safe-exit-btn__kbd') * 16).toBeGreaterThanOrEqual(12);
+    expect(rem('.safe-exit-btn--compact') * 16).toBeGreaterThanOrEqual(12);
+  });
+
+  it('el hover va detrás de (hover: hover) and (pointer: fine) y el pulsado tiene su estilo', () => {
+    expect(source).not.toMatch(/\n {4}\.safe-exit-btn:hover/); // a nivel de hoja, sin la consulta
+    expect(source).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{[\s\S]*?\.safe-exit-btn:hover \{/);
+    expect(source).toMatch(/\.safe-exit-btn:active \{ transform: translateY\(1px\); \}/);
+    expect(source).toMatch(/\.safe-exit-btn\[aria-busy='true'\]/);
   });
 
   it('el texto llega a 4,5:1 sobre su propio fondo (rojo translúcido sobre el panel más claro)', () => {

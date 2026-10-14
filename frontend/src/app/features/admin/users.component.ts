@@ -16,6 +16,7 @@ import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.comp
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { roleLabel } from '../../shared/ui/labels';
 
 interface UserFormValue {
   nombre: string;
@@ -113,7 +114,7 @@ interface UserFormValue {
 
               <ng-container matColumnDef="role">
                 <th mat-header-cell *matHeaderCellDef>Rol</th>
-                <td mat-cell *matCellDef="let user">{{ user.role }}</td>
+                <td mat-cell *matCellDef="let user">{{ roleLabel(user.role) }}</td>
               </ng-container>
 
               <ng-container matColumnDef="activo">
@@ -185,7 +186,7 @@ interface UserFormValue {
                 <mat-label>Rol</mat-label>
                 <mat-select formControlName="role">
                   @for (role of roles; track role) {
-                    <mat-option [value]="role">{{ role }}</mat-option>
+                    <mat-option [value]="role">{{ roleLabel(role) }}</mat-option>
                   }
                 </mat-select>
                 <mat-error>Elige un rol.</mat-error>
@@ -274,6 +275,7 @@ export class UsersComponent implements OnInit {
   @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
+  readonly roleLabel = roleLabel;
   readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
   readonly users = signal<AdminUser[]>([]);
   readonly accessRequests = signal<AccessRequest[]>([]);

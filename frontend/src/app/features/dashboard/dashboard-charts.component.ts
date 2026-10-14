@@ -1,25 +1,22 @@
 import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { AdminUser } from '../../core/api/user-admin.service';
 import { Dashboard } from '../../core/models/sesion.model';
-import { RecentAttempt, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { RecentAttempt } from '../../core/models/simulation.model';
 import {
   ChartBar,
-  ChartPoint,
-  DecisionSlice,
   attemptStatusBars,
-  caseCompletionBars,
   chartHasData as seriesHasData,
-  lineChartPath as buildLinePath,
   ringProgress as toRingProgress
 } from './dashboard-charts.util';
 
-type DashboardRole = 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE';
+type DashboardRole = 'ADMIN' | 'PROFESOR';
 
 /**
- * Gráficas formativas del dashboard, extraídas de DashboardComponent.
+ * Gráficas formativas del panel de docencia y administración, extraídas de DashboardComponent (las del estudiante
+ * viven en su propio panel desde el plan visual F5-1).
  *
  * Presentacional: recibe el `role`, el estado de `loading` y los datos crudos
- * (usuarios, dashboard agregado, intentos recientes e historial del estudiante)
+ * (usuarios, dashboard agregado e intentos recientes)
  * y deriva internamente las series de cada gráfica. No realiza ninguna llamada
  * de red; toda la obtención de datos sigue en el componente padre.
  */
@@ -36,7 +33,6 @@ export class DashboardChartsComponent {
   readonly adminUsers = input<AdminUser[]>([]);
   readonly dashboard = input<Dashboard | null>(null);
   readonly recentAttempts = input<RecentAttempt[]>([]);
-  readonly studentHistory = input<StudentAttemptSummary[]>([]);
 
   isAdmin(): boolean {
     return this.role() === 'ADMIN';
@@ -159,64 +155,11 @@ export class DashboardChartsComponent {
     return { completed, inProgress, label: total > 0 ? `${pct}% completado` : 'Sin datos suficientes todavía' };
   }
 
-  studentScoreChart(): ChartPoint[] {
-    return [...this.studentHistory()]
-      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-      .slice(-8)
-      .map((attempt, index) => ({
-        label: `I${index + 1}`,
-        value: attempt.accumulatedScore > 0 ? attempt.accumulatedScore : 0
-      }));
-  }
-
-  studentCaseProgressChart(): ChartBar[] {
-    return caseCompletionBars(this.studentHistory());
-  }
-
-  studentDecisionChart(): DecisionSlice[] {
-    const history = this.studentHistory();
-    if (!history.length) return [];
-
-    const totals = history.reduce(
-      (acc, h) => ({
-        adequate: acc.adequate + h.adequateDecisions,
-        risky: acc.risky + h.riskyDecisions,
-        inadequate: acc.inadequate + h.inadequateDecisions,
-        prohibited: acc.prohibited + h.prohibitedDecisions
-      }),
-      { adequate: 0, risky: 0, inadequate: 0, prohibited: 0 }
-    );
-
-    return [
-      { label: 'Adecuadas', value: totals.adequate, tone: 'green' as const },
-      { label: 'Riesgosas', value: totals.risky, tone: 'orange' as const },
-      { label: 'Inadecuadas', value: totals.inadequate, tone: 'purple' as const },
-      { label: 'Prohibidas', value: totals.prohibited, tone: 'red' as const }
-    ].filter(item => item.value > 0);
-  }
-
-  lineChartPath(points: ChartPoint[]): string {
-    return buildLinePath(points);
-  }
-
   ringProgress(value: number, max = 100): number {
     return toRingProgress(value, max);
   }
 
-  scoreChartPointX(index: number): number {
-    const points = this.studentScoreChart();
-    if (points.length <= 1) return 140;
-    return (index / (points.length - 1)) * 280;
-  }
-
-  scoreChartPointY(index: number): number {
-    const points = this.studentScoreChart();
-    if (!points.length) return 86;
-    const max = Math.max(...points.map(p => p.value), 1);
-    return 90 - (points[index].value / max) * 82 - 4;
-  }
-
-  chartHasData(bars: ChartBar[] | ChartPoint[] | DecisionSlice[]): boolean {
+  chartHasData(bars: ChartBar[]): boolean {
     return seriesHasData(bars);
   }
 }

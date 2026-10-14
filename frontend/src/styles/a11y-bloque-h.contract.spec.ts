@@ -10,38 +10,51 @@ function source(relativePath: string): string {
 describe('bloque H: portada', () => {
   const scss = source('../app/features/public/landing.component.scss');
 
-  it('el botón primario no baja de 4,5:1 con texto blanco en ningún tramo del degradado', () => {
-    // Antes: #8b5cf6 → #7c3aed; el inicio daba 4,23:1.
+  it('el botón primario no baja de 4,5:1 en ninguna de las dos pieles (ya no hay degradado propio)', () => {
+    // Antes: un degradado propio (#8b5cf6 → #7c3aed; el inicio daba 4,23:1). F4-1: los llamados a la acción son
+    // ui-button, con el primario y su texto de cada piel: juego (héroe) y portal (cierre).
     expect(scss).not.toContain('#8b5cf6');
-    expect(scss).toMatch(/\.landing-btn--primary \{[^}]*background: linear-gradient\(135deg, #7c3aed 0%, #6d28d9 100%\);/);
-    for (const stop of ['#7c3aed', '#6d28d9']) {
-      expect(contrastRatio('#FFFFFF', stop)).toBeGreaterThanOrEqual(4.5);
-    }
+    expect(scss).not.toContain('landing-btn');
+    expect(scss).not.toContain('linear-gradient');
+    expect(contrastRatio('#0E1322', '#B69CFF')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#FFFFFF', '#004876')).toBeGreaterThanOrEqual(4.5);
   });
 });
 
 describe('bloque H: login (contraste)', () => {
   const scss = source('../app/features/login/login.component.scss');
-  const muted = source('./styles.scss').match(/--siep-muted:\s*(#[0-9A-Fa-f]{6});/)?.[1] ?? '';
+  // --siep-muted es alias de --ds-text-2 (F1-1); el valor sale del mapa de la piel portal.
+  const alias = source('./_aliases.scss').match(/--siep-muted:\s*var\(--ds-([a-z0-9-]+)\);/)?.[1] ?? '';
+  const muted = source('./tokens/_color.scss').match(new RegExp(`\\n\\s*${alias}:\\s*(#[0-9A-Fa-f]{6}),`))?.[1] ?? '';
 
-  it('el divisor y el estado de Google usan el token --siep-muted (≥ 4,5:1 sobre blanco)', () => {
-    // Antes: rgba(120,120,140,.85) = 3,31:1 y rgba(120,120,140,.95) = 3,92:1.
-    expect(muted).toBe('#5F6B76');
-    expect(scss).toMatch(/\.auth-divider \{[^}]*color: var\(--siep-muted\);/);
-    expect(scss).toMatch(/\.auth-google__status \{[^}]*color: var\(--siep-muted\);/);
+  it('el divisor y el estado de Google usan el texto secundario del lenguaje (≥ 4,5:1 sobre blanco)', () => {
+    // Antes: rgba(120,120,140,.85) = 3,31:1 y rgba(120,120,140,.95) = 3,92:1. F4-2: tokens --ds-* directos
+    // (--siep-muted era alias de --ds-text-2).
+    expect(alias).toBe('text-2');
+    expect(muted).toBe('#4A5A6A');
+    expect(scss).toMatch(/\.acceso__divider \{[^}]*color: var\(--ds-text-2\);/);
+    expect(scss).toMatch(/\.acceso__google-status \{[^}]*color: var\(--ds-text-2\);/);
     expect(contrastRatio(muted, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('el placeholder tiene color propio y llega a 4,5:1 sobre el campo gris', () => {
-    // Sin regla, Chrome pinta #757575: 4,19:1 sobre #f3f4f6.
-    expect(scss).toMatch(/\.auth-container input::placeholder \{\s*color: var\(--siep-muted\);\s*opacity: 1;\s*\}/);
-    expect(contrastRatio(muted, '#F3F4F6')).toBeGreaterThanOrEqual(4.5);
+  it('el placeholder tiene color propio y llega a 4,5:1, y el borde del campo a 3:1 (H-28)', () => {
+    // Sin regla, Chrome pinta #757575: 4,19:1 sobre #f3f4f6. F4-2: los campos son ui-field + uiControl, que fija el
+    // placeholder en --ds-text-2 sobre --ds-surface-1 y el borde en --ds-border-strong.
+    const field = source('../app/shared/ui/field/ui-field.scss');
+    const html = source('../app/features/login/login.component.html');
+    expect(field).toMatch(/&::placeholder \{\s*color: var\(--ds-text-2\);\s*opacity: 1;/);
+    expect(field).toContain('border: 1px solid var(--ds-border-strong);');
+    expect((html.match(/<input uiControl /g) ?? []).length).toBe(5);
+    expect(contrastRatio(muted, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#6F8296', '#FFFFFF')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el texto pequeño del panel índigo es blanco puro (4,86:1 incluso en el tramo más claro)', () => {
-    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0.
-    expect(scss).toMatch(/\.toggle-brand small \{[^}]*color: #fff;/);
-    expect(contrastRatio('#FFFFFF', '#5C6BC0')).toBeGreaterThanOrEqual(4.5);
+  it('el texto pequeño del panel del simulador llega a 4,5:1 (F4-2: piel juego en vez del panel índigo)', () => {
+    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado).
+    const html = source('../app/features/login/login.component.html');
+    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(scss).toMatch(/\.acceso__panel p \{[^}]*color: var\(--ds-text-2\);/);
+    expect(contrastRatio('#A9B3CC', '#0E1322')).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -52,18 +65,24 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
   // Peor caso del panel de diálogo: rgba(8,12,18,.95) sobre un píxel blanco del mapa.
   const DIALOGUE_BG = blend('#080C12', 0.95, '#FFFFFF');
 
-  it('el anillo de las opciones del diálogo llega a 3:1', () => {
-    // Antes: rgba(182,156,255,.5) = 2,89:1.
-    const ring = dialogue.match(/\.choice-btn:focus-visible \{\s*outline: 3px solid (#[0-9A-Fa-f]{6});\s*outline-offset: 3px;\s*\}/)?.[1] ?? '';
-    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(contrastRatio(ring, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
+  it('el anillo de las opciones del diálogo es el global de la piel del juego y llega a 3:1', () => {
+    // Antes: rgba(182,156,255,.5) = 2,89:1 y luego un anillo local literal que anulaba el global (F6-4).
+    expect(dialogue).not.toMatch(/\.choice-btn:focus-visible \{[^}]*outline:\s*\d+px solid/);
+    const gameRing = [...source('tokens/_color.scss').matchAll(/focus: (#[0-9A-Fa-f]{6}),/g)].map(match => match[1])[1];
+    expect(gameRing).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(gameRing, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
-  it('el anillo del botón de salida segura llega a 3:1', () => {
-    // Antes: rgba(226,90,79,.6) = 2,55:1.
-    const ring = play.match(/\.safe-exit:focus-visible \{ outline: 2px solid (#[0-9A-Fa-f]{6}); outline-offset: 2px; \}/)?.[1] ?? '';
-    expect(ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(contrastRatio(ring, GAME_BG)).toBeGreaterThanOrEqual(3);
+  it('el botón de salida segura no pinta un anillo propio y el global de la piel llega a 3:1', () => {
+    // Antes: rgba(226,90,79,.6) = 2,55:1 y luego un anillo local #f1a79f de 2 px que anulaba el global (F6-6).
+    expect(source('../app/features/simulator/safe-exit-button.component.ts')).not.toContain(':focus-visible');
+    expect(play).not.toMatch(/\.safe-exit[\w-]*:focus-visible/);
+    // El foco de la piel juego es el segundo «focus:» de los tokens de color (el primero es el del portal).
+    const focusTokens = [...source('tokens/_color.scss').matchAll(/focus: (#[0-9A-Fa-f]{6}),/g)].map(match => match[1]);
+    const gameRing = focusTokens[1];
+    expect(gameRing).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(contrastRatio(gameRing, GAME_BG)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(gameRing, DIALOGUE_BG)).toBeGreaterThanOrEqual(3);
   });
 
   it('el nombre del hablante de una advertencia llega a 4,5:1', () => {
