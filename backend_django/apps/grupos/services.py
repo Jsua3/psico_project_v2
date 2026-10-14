@@ -31,7 +31,7 @@ from .import_contract import (
 )
 from shared import policies
 
-from . import memberships
+from . import memberships, notifications
 from .models import Grupo, GrupoCaseVersion, GrupoEstudiante, MembershipStatus
 
 User = get_user_model()
@@ -530,6 +530,9 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
         row, changed = memberships.invite(grupo, user, profesor)
         if changed:
             assigned += 1
+            # Una cuenta pendiente aún no puede entrar: recibe su aviso al aprobarse (E2-9).
+            if user.activo:
+                notifications.notify_invitation(user, grupo, profesor)
         else:
             skipped += 1
         imported_students.append(_student_dto(user, row.status))
@@ -622,7 +625,9 @@ def agregar_estudiante(grupo_id, email, actor):
     grupo = _require_grupo_to_invite(grupo_id, actor)
     estudiante = User.objects.filter(email=normalize_email_value(email)).first()
     if estudiante is not None and estudiante.role == "ESTUDIANTE":
-        memberships.invite(grupo, estudiante, actor)
+        _, changed = memberships.invite(grupo, estudiante, actor)
+        if changed and estudiante.activo:
+            notifications.notify_invitation(estudiante, grupo, actor)
     return grupo_dto(grupo)
 
 

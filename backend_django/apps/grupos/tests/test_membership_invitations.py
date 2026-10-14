@@ -257,3 +257,52 @@ def test_an_orm_row_without_a_status_is_the_least_privileged_one(grupo, estudian
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante)
 
     assert _status(grupo, estudiante) == "INVITED"
+
+
+# ─── E2-12 · el aviso por correo de una invitación ──────────────────────────────────────
+@pytest.fixture
+def locmem(settings):
+    from django.core import mail
+
+    settings.MAILERS = {"default": {"BACKEND": "django.core.mail.backends.locmem.EmailBackend"}}
+    mail.outbox.clear()
+    return mail
+
+
+@pytest.mark.req("DJA-3")
+def test_an_invitation_emails_the_student_and_nobody_else(profesor, grupo, estudiante, locmem):
+    teacher = _user("inv_otro_docente@x.com", "PROFESOR")
+
+    _invite(cl(profesor), grupo, estudiante.email)
+    _invite(cl(profesor), grupo, "nadie.registrado@x.com")
+    _invite(cl(profesor), grupo, teacher.email)
+
+    assert len(locmem.outbox) == 1
+    message = locmem.outbox[0]
+    assert message.to == [estudiante.email]
+    assert "G inv" in message.body and "Nom Ape" in message.body
+    # Una orden repetida no reenvía el aviso.
+    _invite(cl(profesor), grupo, estudiante.email)
+    assert len(locmem.outbox) == 1
+
+
+@pytest.mark.req("DJA-3")
+def test_the_answer_is_the_same_whether_or_not_an_email_went_out(profesor, grupo, estudiante, locmem):
+    with_mail = _invite(cl(profesor), grupo, estudiante.email)
+    without_mail = _invite(cl(profesor), grupo, "tampoco.existe@x.com")
+
+    assert with_mail.status_code == without_mail.status_code == 200
+    assert with_mail.data == without_mail.data
+
+
+@pytest.mark.req("DJA-3")
+def test_a_failing_mail_server_does_not_break_the_invitation(profesor, grupo, estudiante, monkeypatch):
+    def boom(*args, **kwargs):
+        raise ConnectionError("SMTP caído")
+
+    monkeypatch.setattr("apps.grupos.notifications.send_mail", boom)
+
+    response = _invite(cl(profesor), grupo, estudiante.email)
+
+    assert response.status_code == 200
+    assert _status(grupo, estudiante) == "INVITED"

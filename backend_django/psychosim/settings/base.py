@@ -191,13 +191,33 @@ ACCESS_REQUEST_NOTIFY_EMAILS = [
 ]
 # Django 6.1: MAILERS reemplaza a EMAIL_BACKEND/EMAIL_HOST/... (deprecados, se
 # retiran en Django 7.0). Por defecto el correo sale por consola; en producción
-# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y, si hace falta, sus OPTIONS.
+# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y sus OPTIONS salen de variables
+# (E2-12): EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, EMAIL_USE_TLS,
+# EMAIL_USE_SSL y EMAIL_TIMEOUT. Una opción sin definir no se pasa al backend.
+def _mailer_options():
+    options = {}
+    text = {"EMAIL_HOST": "host", "EMAIL_HOST_USER": "username", "EMAIL_HOST_PASSWORD": "password"}
+    for variable, option in text.items():
+        value = os.environ.get(variable, "")
+        if value.strip():
+            options[option] = value.strip() if option != "password" else value
+    for variable, option in {"EMAIL_PORT": "port", "EMAIL_TIMEOUT": "timeout"}.items():
+        value = os.environ.get(variable, "").strip()
+        if value:
+            options[option] = int(value)
+    for variable, option in {"EMAIL_USE_TLS": "use_tls", "EMAIL_USE_SSL": "use_ssl"}.items():
+        if os.environ.get(variable, "").strip():
+            options[option] = _env_flag(variable)
+    return options
+
+
 MAILERS = {
     "default": {
         "BACKEND": os.environ.get(
             "EMAIL_BACKEND",
             "django.core.mail.backends.console.EmailBackend",
         ),
+        **({"OPTIONS": _mailer_options()} if _mailer_options() else {}),
     },
 }
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "siep@psychosim.edu.co")

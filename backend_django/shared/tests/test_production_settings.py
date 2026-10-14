@@ -1,9 +1,12 @@
 """Los settings de producción que el despliegue necesita (E0-3, revisión de fase)."""
+import importlib
 import runpy
 from pathlib import Path
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+
+from psychosim.settings import base as base_settings
 
 pytestmark = pytest.mark.req("RNF-06")
 
@@ -12,16 +15,31 @@ BASE_ENV = {
     "DJANGO_ALLOWED_HOSTS": "siep.example.edu.co",
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
     "JWT_SECRET": "otra-clave-de-prueba-de-al-menos-sesenta-y-cuatro-caracteres-0123456789",
+    # E2-12: el correo de producción es real y el aviso de solicitudes tiene destino.
+    "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+    "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co",
 }
+
+
+@pytest.fixture(autouse=True)
+def _restore_base_settings():
+    """``production`` hace ``from .base import *``: se recarga ``base`` con el entorno de la prueba
+    y, al terminar (con el entorno ya restaurado), se vuelve a su estado normal."""
+    yield
+    importlib.reload(base_settings)
 
 
 def _production(monkeypatch, **overrides):
     env = {**BASE_ENV, **overrides}
-    for name in ("RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL"):
+    for name in (
+        "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
+        "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
+    ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         if value is not None:
             monkeypatch.setenv(name, value)
+    importlib.reload(base_settings)  # production hace ``from .base import *``
     return runpy.run_module("psychosim.settings.production", run_name="production_bajo_prueba")
 
 
