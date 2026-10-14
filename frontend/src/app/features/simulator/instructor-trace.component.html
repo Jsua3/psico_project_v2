@@ -239,7 +239,7 @@
                   }
 
                   @for (criterion of rub.criteria; track criterion.id) {
-                    <article class="tr-criterion" role="group" [attr.aria-labelledby]="'criterion-title-' + criterion.id">
+                    <div class="tr-criterion" role="group" [attr.aria-labelledby]="'criterion-title-' + criterion.id">
                       <div class="tr-criterion__copy">
                         <p class="tr-eyebrow">{{ clean(criterion.competency, 'Criterio') }}</p>
                         <h3 class="tr-criterion__title" [id]="'criterion-title-' + criterion.id">{{ clean(criterion.title, 'Criterio de evaluación') }}</h3>
@@ -260,7 +260,7 @@
                             placeholder="Observación breve sobre evidencia, decisiones o mejora."></textarea>
                         </ui-field>
                       </div>
-                    </article>
+                    </div>
                   }
 
                   <ui-field label="Retroalimentación docente"

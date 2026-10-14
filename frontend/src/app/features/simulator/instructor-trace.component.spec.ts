@@ -466,6 +466,9 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(group.getAttribute('role')).toBe('group');
       const labelledBy = group.getAttribute('aria-labelledby')!;
       expect(text(host().querySelector('#' + labelledBy))).toBe('Ruta de atención');
+      // `article` no admite role="group" (Axe: aria-allowed-role, 16 nodos en la línea base de F7): el grupo va sobre un
+      // elemento que sí lo admite.
+      expect(group.tagName).not.toBe('ARTICLE');
     });
 
     it('el mensaje de un fallo al guardar se anuncia en la región de estado de la pantalla', async () => {
