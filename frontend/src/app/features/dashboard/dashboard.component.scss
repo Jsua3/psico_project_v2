@@ -27,39 +27,6 @@
   gap: var(--ds-space-4);
 }
 
-// ── Retoma tu caso ──────────────────────────────────────────────────────────────────────────────────────────────
-.td-continue {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ds-space-4);
-}
-
-.td-continue__text {
-  display: grid;
-  gap: var(--ds-space-2);
-  min-width: 0;
-}
-
-.td-continue__case {
-  margin: 0;
-  font-size: var(--ds-type-h3-size);
-  line-height: var(--ds-type-h3-line);
-  font-weight: var(--ds-type-h3-weight);
-}
-
-.td-continue__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ds-space-3);
-  margin: 0;
-  color: var(--ds-text-2);
-  font-size: var(--ds-type-body-s-size);
-  line-height: var(--ds-type-body-s-line);
-}
-
 // ── Tabla y lectura docente ─────────────────────────────────────────────────────────────────────────────────────
 .td-split {
   display: grid;

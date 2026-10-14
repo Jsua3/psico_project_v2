@@ -1,4 +1,8 @@
+import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+
 import { routes } from './app.routes';
+import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
@@ -80,6 +84,34 @@ describe('app.routes: editor de avatar', () => {
     const children = routes.find(route => route.path === 'portal')!.children ?? [];
     expect(children.find(child => child.path === 'personaje')!.canDeactivate).toEqual([canLeaveGuard]);
   });
+});
+
+/**
+ * ED-5 (E2): el ADMIN no juega. Las órdenes de juego (`attempt.play`) son solo del ESTUDIANTE y el servidor responde 403
+ * a PROFESOR y ADMIN; la sala y el caso tampoco se abren para ellos (antes la guardia dejaba pasar al ADMIN y cada
+ * petición del juego terminaba en «No tienes permisos»).
+ */
+// req: ED-5, RNF-002
+describe('app.routes: solo el estudiante juega', () => {
+  const children = routes.find(route => route.path === 'portal')!.children ?? [];
+  const guardFor = (path: string) => children.find(child => child.path === path)!.canActivate![0] as (...args: unknown[]) => unknown;
+
+  for (const path of ['jugar', 'simulador/:caseVersionId']) {
+    it(`«${path}»: el administrador y el docente van a «Sin permiso»; el estudiante pasa`, () => {
+      const decide = (role: string) => {
+        const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
+          hasRole: (...roles: string[]) => roles.includes(role) };
+        const router = { createUrlTree: (commands: unknown[]) => ({ commands }) };
+        TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: auth }, { provide: Router, useValue: router }] });
+        const result = TestBed.runInInjectionContext(() => guardFor(path)({}, { url: '/portal/jugar' }));
+        TestBed.resetTestingModule();
+        return result;
+      };
+      expect(decide('ESTUDIANTE')).toBe(true);
+      expect(decide('ADMIN')).toEqual({ commands: ['/portal/sin-permiso'] });
+      expect(decide('PROFESOR')).toEqual({ commands: ['/portal/sin-permiso'] });
+    });
+  }
 });
 
 /** La galería `/dev/ui` y el banco `/dev/barra` existen en desarrollo y en pruebas (ngDevMode) y nunca los tapa el comodín. */

@@ -92,7 +92,8 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
   it('cambiar de sesión sin recargar actualiza destinos y plegados (Review Focus 3)', async () => {
     currentUser.set(user('ADMIN'));
     await fixture.whenStable();
-    expect(folded()).toEqual(['Mi personaje', 'Rúbricas', 'Usuarios']);
+    // ED-5 (E2): el administrador ya no tiene «Mi personaje» (no juega).
+    expect(folded()).toEqual(['Rúbricas', 'Usuarios']);
     currentUser.set(user('ESTUDIANTE'));
     await fixture.whenStable();
     expect(labels()).toEqual(['Panel', 'Simulador', 'Mi personaje']);

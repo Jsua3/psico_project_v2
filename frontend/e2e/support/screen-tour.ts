@@ -98,10 +98,9 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'grupos', role: 'profesor', routePattern: 'portal/grupos', path: '/portal/grupos' },
   { id: 'reportes', role: 'profesor', routePattern: 'portal/reportes', path: '/portal/reportes' },
 
+  // ED-5 (E2): el administrador no juega; la sala y «Mi personaje» ya no son suyos.
   { id: 'panel', role: 'admin', routePattern: 'portal/dashboard', path: '/portal/dashboard' },
-  { id: 'sala', role: 'admin', routePattern: 'portal/jugar', path: '/portal/jugar', ready: waitForCanvas },
   { id: 'catalogo', role: 'admin', routePattern: 'portal/simulador', path: '/portal/simulador' },
-  { id: 'personaje', role: 'admin', routePattern: 'portal/personaje', path: '/portal/personaje' },
   { id: 'casos', role: 'admin', routePattern: 'portal/casos', path: '/portal/casos' },
   { id: 'editor-caso', role: 'admin', routePattern: 'portal/casos/:caseVersionId/editor', resolvePath: firstEditorPath },
   { id: 'trazabilidad', role: 'admin', routePattern: 'portal/docente/trazabilidad', path: '/portal/docente/trazabilidad' },

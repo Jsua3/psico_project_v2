@@ -48,7 +48,8 @@ export const routes: Routes = [
         path: 'jugar',
         title: 'Sala de simulación',
         data: { chrome: 'hidden' },
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
+        // ED-5 (E2): solo el estudiante juega (`attempt.play`); al resto el servidor le responde 403.
+        canActivate: [roleGuard('ESTUDIANTE')],
         loadComponent: () => import('./features/simulator/game-menu.component').then(m => m.GameMenuComponent)
       },
       {
@@ -60,7 +61,7 @@ export const routes: Routes = [
         path: 'simulador/:caseVersionId',
         title: 'Simulación',
         data: { chrome: 'hidden' },
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN'), caseUnlockedGuard],
+        canActivate: [roleGuard('ESTUDIANTE'), caseUnlockedGuard],
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
       },
       {

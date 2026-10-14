@@ -10,11 +10,10 @@ import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_BRAND } from '../../core/config/brand.config';
 import { Dashboard } from '../../core/models/sesion.model';
-import { RecentAttempt, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { RecentAttempt, SimulationCaseSummary } from '../../core/models/simulation.model';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
-import { statusLabel } from '../../shared/ui/labels';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -27,7 +26,6 @@ import { DashboardChartsComponent } from './dashboard-charts.component';
 import { NO_DATA_LABEL, attemptStateLabel, metricDisplay } from './dashboard-metrics.util';
 import { QuickAction, QuickActionsComponent } from './quick-actions.component';
 import { StudentDashboardComponent } from './student-dashboard.component';
-import { openAttempt } from './student-dashboard.util';
 
 /** Cada carga de la que depende algún conteo del tablero (docencia y administración). */
 type DashboardSource = 'dashboard' | 'users' | 'cases' | 'recent' | 'grupos';
@@ -53,8 +51,8 @@ const TRACE_ROUTE = '/portal/docente/trazabilidad';
  * Panel de inicio. El estudiante tiene el suyo (`app-student-dashboard`, plan visual F5-1); este componente pinta el
  * de docencia y administración (F7-1): una cabecera, UN bloque que resuelve sus cuatro estados de a uno
  * (`uiDataState`: esqueleto, error con «Reintentar», primer uso o el contenido), cada cifra una sola vez y cada
- * destino una sola vez (antes salían tres: cabecera, tarjeta de estado y acciones rápidas). «Retoma tu caso» ofrece
- * solo el intento abierto DE QUIEN MIRA, nunca el de un estudiante.
+ * destino una sola vez (antes salían tres: cabecera, tarjeta de estado y acciones rápidas). Nunca ofrece continuar un
+ * intento: desde E2 (ED-5) ni el docente ni el administrador juegan («Retoma tu caso» del administrador se retiró).
  */
 @Component({
   selector: 'app-dashboard',
@@ -82,15 +80,12 @@ export class DashboardComponent implements OnInit {
   readonly grupos = signal<Grupo[]>([]);
   readonly simulationCases = signal<SimulationCaseSummary[]>([]);
   readonly recentAttempts = signal<RecentAttempt[]>([]);
-  /** El historial PROPIO de quien mira (no el de sus estudiantes): de ahí sale «Retoma tu caso». */
-  readonly ownHistory = signal<StudentAttemptSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
   /** Cargas secundarias que fallaron sin tumbar el tablero: sus conteos no se pueden mostrar. */
   private readonly failedSources = signal<ReadonlySet<DashboardSource>>(new Set());
 
   readonly traceRoute = TRACE_ROUTE;
-  readonly statusLabel = statusLabel;
 
   /** Primer uso: sin grupos ni intentos (docencia) o sin usuarios, casos ni intentos (administración). */
   protected readonly firstUse = computed(() => {
@@ -104,8 +99,6 @@ export class DashboardComponent implements OnInit {
   readonly state = uiDataState({ loading: this.loading, error: this.error, isEmpty: this.firstUse });
   /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
   protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando el panel…' : ''));
-  /** El intento abierto propio, si lo hay. */
-  protected readonly ownOpen = computed(() => openAttempt(this.ownHistory()));
 
   ngOnInit() {
     if (this.auth.hasRole('ESTUDIANTE')) {
@@ -354,14 +347,12 @@ export class DashboardComponent implements OnInit {
       users: this.userAdminService.list().pipe(catchError(() => this.sourceFailed('users', [] as AdminUser[]))),
       cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[]))),
       recent: this.instructorApi.recentAttempts().pipe(catchError(() => this.sourceFailed('recent', [] as RecentAttempt[]))),
-      own: this.ownAttempts(),
     }).subscribe({
-      next: ({ dashboard, users, cases, recent, own }) => {
+      next: ({ dashboard, users, cases, recent }) => {
         this.dashboard.set(dashboard);
         this.adminUsers.set(users);
         this.simulationCases.set(cases);
         this.recentAttempts.set(recent);
-        this.ownHistory.set(own);
         this.error.set(!dashboard && !users.length);
         this.loading.set(false);
       },
@@ -373,8 +364,8 @@ export class DashboardComponent implements OnInit {
   }
 
   private loadProfessorDashboard() {
-    // Sin historial propio: el docente no juega y el servidor se lo niega (403), lo que avisaría de un permiso que
-    // falta en cada carga del panel. Solo quien puede jugar (estudiante y administrador) tiene intento propio.
+    // Sin historial propio: ni el docente ni el administrador juegan (ED-5) y el servidor se lo niega (403), lo que
+    // avisaría de un permiso que falta en cada carga del panel. Solo el estudiante tiene intento propio.
     forkJoin({
       dashboard: this.reporteService.getDashboard(),
       grupos: this.grupoService.listar().pipe(catchError(() => this.sourceFailed('grupos', [] as Grupo[]))),
@@ -389,11 +380,6 @@ export class DashboardComponent implements OnInit {
         this.loading.set(false);
       }
     });
-  }
-
-  /** El historial del administrador (el único del personal que juega): si falla, solo desaparece «Retoma tu caso» (no es un conteo del panel). */
-  private ownAttempts(): Observable<StudentAttemptSummary[]> {
-    return this.simulationService.attemptHistory().pipe(catchError(() => of([] as StudentAttemptSummary[])));
   }
 
   /** Anota que una carga falló y devuelve su valor de reserva; sus conteos pasan a «Sin datos». */

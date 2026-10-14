@@ -30,21 +30,6 @@
       <ui-empty-state kind="first-use" [title]="copy.title" [description]="copy.description" [actionLabel]="copy.action" (action)="goToFirstUse()" />
     }
     @case ('ready') {
-      @if (ownOpen(); as attempt) {
-        <ui-section title="Retoma tu caso">
-          <ui-card class="td-continue">
-            <div class="td-continue__text">
-              <p class="td-continue__case">{{ attempt.caseTitle }}</p>
-              <p class="td-continue__meta">
-                <ui-badge tone="info">{{ statusLabel(attempt.status) }}</ui-badge>
-                <span>Tu propio intento</span>
-              </p>
-            </div>
-            <a ui-button variant="primary" icon="play_arrow" [routerLink]="['/portal/simulador', attempt.caseVersionId]">Continuar</a>
-          </ui-card>
-        </ui-section>
-      }
-
       <ui-section title="Resumen">
         <div class="td-stats">
           @for (metric of metrics(); track metric.label) {

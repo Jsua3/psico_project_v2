@@ -54,7 +54,8 @@ export class SimulationCatalogComponent {
   private readonly blockedId = computed(() => Number(this.query()?.get('bloqueado')) || null);
 
   protected readonly isStudent = this.auth.hasRole('ESTUDIANTE');
-  protected readonly canPlay = this.auth.hasRole('ESTUDIANTE', 'ADMIN');
+  /** ED-5 (E2): solo el estudiante juega; el administrador ve el catálogo para editarlo. */
+  protected readonly canPlay = this.auth.hasRole('ESTUDIANTE');
   protected readonly canEdit = this.auth.hasRole('ADMIN');
 
   private readonly cases = signal<SimulationCaseSummary[]>([]);

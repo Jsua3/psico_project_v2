@@ -1,4 +1,9 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import { NAV_ITEMS, navItemsFor, rolesFor } from './nav-items';
+
+const REPO_ROOT = join(__dirname, '..', '..', '..', '..', '..');
 
 /**
  * NAV_ITEMS es la ÚNICA fuente del menú y de los roles de los guards (plan visual F3-3, contrato F3 → F4…F8; gancho
@@ -21,9 +26,10 @@ describe('NAV_ITEMS', () => {
     expect(folded('PROFESOR')).toEqual(['Rúbricas', 'Grupos', 'Reportes']);
   });
 
-  it('el administrador ve 7 destinos y pliega Mi personaje, Rúbricas y Usuarios', () => {
-    expect(visible('ADMIN')).toEqual(['Panel', 'Simulador', 'Mi personaje', 'Trazabilidad', 'Rúbricas', 'Editar casos', 'Usuarios']);
-    expect(folded('ADMIN')).toEqual(['Mi personaje', 'Rúbricas', 'Usuarios']);
+  // req: ED-5 (E2: el ADMIN no juega; su avatar solo existía para jugar)
+  it('el administrador ve 6 destinos, sin «Mi personaje», y pliega Rúbricas y Usuarios', () => {
+    expect(visible('ADMIN')).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Editar casos', 'Usuarios']);
+    expect(folded('ADMIN')).toEqual(['Rúbricas', 'Usuarios']);
   });
 
   it('sin rol no hay destinos', () => {
@@ -44,9 +50,34 @@ describe('NAV_ITEMS', () => {
     expect(NAV_ITEMS.some(item => /continuar/i.test(item.label))).toBe(false);
   });
 
-  it('rolesFor devuelve EXACTAMENTE los roles que tenía cada guard de app.routes.ts antes de F3', () => {
+  it('rolesFor coincide con la matriz de políticas del servidor (E2-1): ningún destino se ofrece a un rol que el servidor niega', () => {
+    // Qué fila de `shared/policy-matrix.json` gobierna cada destino. «casos» queda en ADMIN hasta F8 (el editor se
+    // rehace contra /api/authoring), aunque el servidor ya deja autorar al PROFESOR: un subconjunto, nunca de más.
+    const matrix = JSON.parse(readFileSync(join(REPO_ROOT, 'backend_django', 'shared', 'policy-matrix.json'), 'utf-8')) as {
+      rows: Array<{ resource: string; action: string } & Record<string, string | null>>;
+    };
+    const policyOf: Record<string, [string, string]> = {
+      panel: ['account', 'self'],
+      simulador: ['catalog', 'read'],
+      personaje: ['attempt', 'play'],
+      trazabilidad: ['attempt', 'review'],
+      rubricas: ['rubric', 'read'],
+      grupos: ['group', 'manage'],
+      reportes: ['analytics', 'read'],
+      casos: ['case', 'author'],
+      usuarios: ['user', 'manage'],
+    };
+    for (const item of NAV_ITEMS) {
+      const policy = policyOf[item.id];
+      expect(policy, `${item.id} sin fila de política`).toBeDefined();
+      const row = matrix.rows.find(entry => entry.resource === policy[0] && entry.action === policy[1])!;
+      for (const role of item.roles) expect(row[role], `${item.id} para ${role}`).not.toBeNull();
+    }
+  });
+
+  it('rolesFor devuelve los roles de cada guard de app.routes.ts (los de F3, salvo «personaje», que desde ED-5 es solo del estudiante)', () => {
     const before: Record<string, string[]> = {
-      personaje: ['ESTUDIANTE', 'ADMIN'],
+      personaje: ['ESTUDIANTE'],
       trazabilidad: ['PROFESOR', 'ADMIN'],
       rubricas: ['PROFESOR', 'ADMIN'],
       grupos: ['PROFESOR'],
