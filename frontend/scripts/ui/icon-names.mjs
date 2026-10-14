@@ -143,7 +143,10 @@ export function projectIconNames() {
   const read = full => ({ path: relative(REPO, full).split(sep).join('/'), text: readFileSync(full, 'utf8') });
   const files = [
     ...walk(join(FRONTEND, 'src'), name => /\.(ts|html)$/.test(name)).map(read),
-    ...walk(join(REPO, 'backend_django', 'apps'), name => /\.(py|json)$/.test(name)).map(read),
+    // Las pruebas del backend no son semillas: E2-6 valida los iconos mandando nombres falsos a propósito.
+    ...walk(join(REPO, 'backend_django', 'apps'), name => /\.(py|json)$/.test(name))
+      .filter(full => !full.split(sep).includes('tests'))
+      .map(read),
   ];
   const names = iconNamesIn(files);
   for (const name of JSON.parse(readFileSync(join(here, 'icons-extra.json'), 'utf8'))) names.add(name);
