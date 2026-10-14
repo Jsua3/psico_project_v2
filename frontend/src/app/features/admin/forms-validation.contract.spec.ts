@@ -28,7 +28,8 @@ describe('formularios: validar al enviar — Usuarios', () => {
 });
 
 describe('formularios: validar al enviar — Rúbricas', () => {
-  const rubrics = source('rubrics.component.ts');
+  // La plantilla vive en su propio archivo desde F7-5: el contrato mira la clase y la plantilla juntas.
+  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
 
   it('el botón Guardar solo se deshabilita mientras guarda', () => {
     expect(rubrics).not.toContain('[disabled]="form.invalid || saving()"');
@@ -41,10 +42,13 @@ describe('formularios: validar al enviar — Rúbricas', () => {
     expect(rubrics).toContain('focusFirstInvalid(this.host.nativeElement);');
   });
 
-  it('explica por qué Activar y Predeterminada están deshabilitados', () => {
+  it('explica por qué Activar y Predeterminada no se pueden usar: pista visible y motivo en cada botón (F7-5)', () => {
     expect(rubrics).toContain('id="rubric-weight-hint"');
     expect(rubrics).toContain('Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.');
-    expect((rubrics.match(/\[attr\.aria-describedby\]="totalWeight\(\) !== 100 \? 'rubric-weight-hint' : null"/g) ?? []).length).toBe(2);
+    expect(rubrics).toContain("'La ponderación debe sumar 100 %.'");
+    expect((rubrics.match(/\[disabledReason\]="activateReason\(\)"/g) ?? []).length).toBe(2);
+    // Los botones ya no se apagan con `disabled` sin decir por qué.
+    expect(rubrics).not.toMatch(/\[disabled\]="!selected\(\)/);
   });
 });
 

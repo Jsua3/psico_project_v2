@@ -1,13 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AbstractControl, FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -15,213 +7,35 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiControl, UiField } from '../../shared/ui/field/ui-field';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
+/**
+ * Pantalla Rúbricas (plan visual F7-5): campos `ui-field`, esqueleto y error con «Reintentar» en la lista, lista vacía
+ * con su acción, y cada botón que no se puede pulsar dice POR QUÉ («La ponderación debe sumar 100 %.», «Guarda la
+ * rúbrica primero.») en vez de quedar apagado sin explicación. Mientras guarda dice «Guardando…».
+ */
 @Component({
   selector: 'app-rubrics',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-    MatButtonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatProgressBarModule,
-    MatSelectModule,
+    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiPageActions, UiPageHeader, UiSection, UiSkeleton,
+    UiEmptyState, UiErrorState,
   ],
-  template: `
-    <section class="rubrics-page">
-      <header class="rubrics-header">
-        <div>
-          <p class="psy-eyebrow">Evaluación</p>
-          <h1>Rúbricas</h1>
-        </div>
-        <button class="psy-button psy-button--primary" type="button" (click)="newRubric()">
-          <mat-icon>add</mat-icon>
-          Nueva rúbrica
-        </button>
-      </header>
-
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate" />
-      }
-      @if (message()) {
-        <p class="state-message" [class.state-message--error]="messageIsError()">{{ message() }}</p>
-      }
-
-      <div class="rubrics-grid">
-        <mat-card>
-          <mat-card-content>
-            <div class="filters">
-              <mat-form-field appearance="outline">
-                <mat-label>Buscar</mat-label>
-                <input matInput [value]="query()" (input)="query.set($any($event.target).value)">
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>Estado</mat-label>
-                <select matNativeControl [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
-                  <option value="ALL">Todas</option>
-                  <option value="ACTIVE">Activas</option>
-                  <option value="INACTIVE">Inactivas</option>
-                </select>
-              </mat-form-field>
-            </div>
-
-            <div class="rubric-list">
-              @for (rubric of filteredRubrics(); track rubric.id) {
-                <button type="button" class="rubric-row" [class.rubric-row--active]="selected()?.id === rubric.id" (click)="openRubric(rubric.id)">
-                  <span>
-                    <strong>{{ rubric.name }}</strong>
-                    <small>{{ rubric.criteriaCount }} criterios · {{ rubric.totalWeight }}%</small>
-                  </span>
-                  <span class="badge" [class.badge--default]="rubric.isDefault">
-                    {{ rubric.isDefault ? 'Predeterminada' : (rubric.active ? 'Activa' : 'Inactiva') }}
-                  </span>
-                </button>
-              }
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card>
-          <mat-card-content>
-            <form [formGroup]="form" (ngSubmit)="save()">
-              <div class="form-row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Nombre</mat-label>
-                  <input matInput formControlName="name">
-                  <mat-error>Escribe el nombre de la rúbrica.</mat-error>
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Versión</mat-label>
-                  <input matInput formControlName="version">
-                  <mat-error>Escribe la versión.</mat-error>
-                </mat-form-field>
-              </div>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Descripción</mat-label>
-                <textarea matInput rows="3" formControlName="description"></textarea>
-              </mat-form-field>
-
-              <div class="weight-line" [class.weight-line--bad]="totalWeight() !== 100">
-                Ponderación total: {{ totalWeight() }} %
-              </div>
-              @if (totalWeight() !== 100) {
-                <p id="rubric-weight-hint" class="weight-hint">Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.</p>
-              }
-
-              <div formArrayName="criteria" class="criteria">
-                @for (criterion of criteria.controls; track criterion; let i = $index) {
-                  <section class="criterion" [formGroupName]="i">
-                    <div class="criterion__top">
-                      <strong>Criterio {{ i + 1 }}</strong>
-                      <button mat-icon-button type="button" aria-label="Eliminar criterio" (click)="removeCriterion(i)">
-                        <mat-icon>delete_outline</mat-icon>
-                      </button>
-                    </div>
-                    <div class="form-row">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Nombre</mat-label>
-                        <input matInput formControlName="title">
-                        <mat-error>Escribe el nombre del criterio.</mat-error>
-                      </mat-form-field>
-                      <mat-form-field appearance="outline">
-                        <mat-label>Peso %</mat-label>
-                        <input matInput type="number" min="0" max="100" formControlName="weight">
-                        <mat-error>El peso va de 0 a 100.</mat-error>
-                      </mat-form-field>
-                      <mat-form-field appearance="outline">
-                        <mat-label>Orden</mat-label>
-                        <input matInput type="number" min="1" formControlName="displayOrder">
-                        <mat-error>El orden empieza en 1.</mat-error>
-                      </mat-form-field>
-                    </div>
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>Descripción</mat-label>
-                      <textarea matInput rows="2" formControlName="description"></textarea>
-                    </mat-form-field>
-                  </section>
-                }
-              </div>
-
-              <div class="actions">
-                <button mat-stroked-button type="button" (click)="addCriterion()">
-                  <mat-icon>playlist_add</mat-icon>
-                  Agregar criterio
-                </button>
-                <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
-                  <mat-icon>save</mat-icon>
-                  Guardar
-                </button>
-                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" [attr.aria-describedby]="totalWeight() !== 100 ? 'rubric-weight-hint' : null" (click)="activate()">
-                  Activar
-                </button>
-                <button mat-stroked-button type="button" [disabled]="!selected()" (click)="deactivate()">
-                  Desactivar
-                </button>
-                <button mat-stroked-button type="button" [disabled]="!selected() || totalWeight() !== 100" [attr.aria-describedby]="totalWeight() !== 100 ? 'rubric-weight-hint' : null" (click)="setDefault()">
-                  Predeterminada
-                </button>
-                <button mat-stroked-button type="button" [disabled]="!selected()" (click)="duplicate()">
-                  Duplicar
-                </button>
-              </div>
-            </form>
-
-            <section class="assignment">
-              <h2>Asignar a simulación</h2>
-              <div class="form-row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Simulación publicada</mat-label>
-                  <select matNativeControl [value]="caseVersionId()" (change)="selectCaseVersion($any($event.target).value)">
-                    <option [value]="0">Selecciona una simulación</option>
-                    @for (caseItem of cases(); track caseItem.caseVersionId) {
-                      <option [value]="caseItem.caseVersionId">{{ caseItem.title }} · v{{ caseItem.semanticVersion }}</option>
-                    }
-                  </select>
-                </mat-form-field>
-                <button class="psy-button psy-button--primary" type="button" [disabled]="!selected() || !caseVersionId()" (click)="assign()">
-                  <mat-icon>assignment_turned_in</mat-icon>
-                  Asignar
-                </button>
-              </div>
-            </section>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </section>
-  `,
+  templateUrl: './rubrics.component.html',
+  styleUrl: './rubrics.component.scss',
+  // Eager: los errores de los campos salen de `control.touched`, que no es una señal.
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .rubrics-page { display: grid; gap: 16px; }
-    .rubrics-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    .rubrics-header h1 { margin: 0; color: var(--siep-blue); font-size: 2rem; letter-spacing: 0; }
-    .rubrics-grid { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
-    .filters, .form-row, .actions { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
-    .filters mat-form-field, .form-row mat-form-field { flex: 1 1 190px; }
-    .full-width { width: 100%; }
-    .rubric-list { display: grid; gap: 8px; }
-    .rubric-row { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 12px; border: 1px solid rgba(0,72,118,.14); border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
-    .rubric-row--active { border-color: var(--siep-blue); box-shadow: 0 0 0 2px rgba(0,72,118,.12); }
-    .rubric-row span:first-child { display: grid; gap: 3px; min-width: 0; }
-    .rubric-row strong { color: var(--psy-ink); overflow-wrap: anywhere; }
-    .rubric-row small { color: var(--psy-muted); }
-    .badge { align-self: start; padding: 4px 8px; border-radius: 999px; background: rgba(0,72,118,.1); color: var(--siep-blue); font-size: .74rem; font-weight: 800; white-space: nowrap; }
-    .badge--default { background: rgba(60,140,96,.14); color: var(--psy-green-deep); }
-    .weight-line { margin: 8px 0 12px; font-weight: 900; color: var(--psy-green-deep); }
-    .weight-line--bad { color: #8f2f3d; }
-    .weight-hint { margin: 4px 0 0; color: var(--psy-muted); font-size: .85rem; }
-    .criteria { display: grid; gap: 10px; }
-    .criterion { padding: 12px; border: 1px solid rgba(0,72,118,.12); border-radius: 8px; background: rgba(255,255,255,.74); }
-    .criterion__top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .assignment { margin-top: 18px; border-top: 1px solid rgba(0,72,118,.12); padding-top: 14px; }
-    .assignment h2 { margin: 0 0 10px; color: var(--psy-ink); font-size: 1rem; letter-spacing: 0; }
-    .state-message { margin: 0; padding: 10px 12px; border-radius: 8px; background: rgba(60,140,96,.1); color: var(--psy-green-deep); font-weight: 800; }
-    .state-message--error { color: #8f2f3d; background: rgba(143,47,61,.1); }
-    @media (max-width: 980px) { .rubrics-grid { grid-template-columns: 1fr; } }
-  `]
 })
 export class RubricsComponent implements OnInit {
   private readonly rubricService = inject(RubricService);
@@ -242,6 +56,17 @@ export class RubricsComponent implements OnInit {
   saving = signal(false);
   message = signal('');
   messageIsError = signal(false);
+  /** La LISTA no pudo cargarse (distinto de no poder abrir una rúbrica: eso queda junto al formulario). */
+  listError = signal(false);
+
+  /** Estado de la lista (esqueleto, error con «Reintentar», primer uso o lista): una sola señal, de a uno. */
+  readonly listState = uiDataState({
+    loading: this.loading,
+    error: this.listError,
+    isEmpty: computed(() => this.rubrics().length === 0),
+  });
+  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
+  protected readonly statusText = computed(() => (this.listState() === 'loading' ? 'Cargando rúbricas…' : ''));
 
   form = this.fb.group({
     name: ['', Validators.required],
@@ -278,6 +103,7 @@ export class RubricsComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
+    this.listError.set(false);
     this.rubricService.list().subscribe({
       next: rubrics => {
         this.rubrics.set(rubrics);
@@ -289,9 +115,44 @@ export class RubricsComponent implements OnInit {
       error: () => {
         this.message.set('No fue posible cargar las rúbricas.');
         this.messageIsError.set(true);
+        this.listError.set(true);
         this.loading.set(false);
       },
     });
+  }
+
+  /** Mensaje de error de un campo, solo cuando ya se tocó o se intentó enviar. */
+  fieldError(control: AbstractControl, message: string): string | null {
+    return control.touched && control.invalid ? message : null;
+  }
+
+  clearFilters(): void {
+    this.query.set('');
+    this.statusFilter.set('ALL');
+  }
+
+  /** Por qué no se puede activar ni marcar como predeterminada la rúbrica abierta (null si se puede). */
+  activateReason(): string | null {
+    if (!this.selected()) return 'Guarda la rúbrica primero.';
+    return this.totalWeight() !== 100 ? 'La ponderación debe sumar 100 %.' : null;
+  }
+
+  /** Por qué no se puede actuar sobre la rúbrica abierta (null si hay una guardada). */
+  selectedReason(): string | null {
+    return this.selected() ? null : 'Guarda la rúbrica primero.';
+  }
+
+  assignReason(): string | null {
+    if (!this.selected()) return 'Guarda la rúbrica primero.';
+    return this.caseVersionId() ? null : 'Elige una simulación publicada.';
+  }
+
+  rowLabel(rubric: RubricAdmin): string {
+    return rubric.isDefault ? 'Predeterminada' : (rubric.active ? 'Activa' : 'Inactiva');
+  }
+
+  rowTone(rubric: RubricAdmin): UiBadgeTone {
+    return rubric.isDefault ? 'success' : (rubric.active ? 'info' : 'neutral');
   }
 
   openRubric(id: number): void {
@@ -393,8 +254,8 @@ export class RubricsComponent implements OnInit {
   }
 
   /**
-   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
-   * y Material seguiría mostrando los errores en un formulario recién abierto.
+   * Reinicia valores Y el estado «enviado» del formulario (`form.reset()` deja `submitted` en true): así un formulario
+   * recién abierto no hereda el envío fallido del anterior.
    */
   private resetRubricForm(value: { name: string; description: string; version: string }): void {
     if (this.formDirective) this.formDirective.resetForm(value);

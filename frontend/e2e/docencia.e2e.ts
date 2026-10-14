@@ -381,6 +381,68 @@ test.describe('@docencia traza', () => {
   });
 });
 
+const RUBRICS = [
+  { id: 4, name: 'Entrevista inicial', description: 'Valora la entrevista.', active: true, version: '1.0', isDefault: true, totalWeight: 100, criteriaCount: 2,
+    criteria: [
+      { id: 41, title: 'Escucha activa', description: '', weight: 60, displayOrder: 1, active: true },
+      { id: 42, title: 'Encuadre', description: '', weight: 40, displayOrder: 2, active: true },
+    ] },
+  { id: 7, name: 'Observación de aula', description: null, active: false, version: '1.0', isDefault: false, totalWeight: 90, criteriaCount: 2,
+    criteria: [
+      { id: 71, title: 'Participación', description: '', weight: 60, displayOrder: 1, active: true },
+      { id: 72, title: 'Cierre', description: '', weight: 30, displayOrder: 2, active: true },
+    ] },
+];
+
+async function openRubrics(page: Page, list: unknown[] = RUBRICS): Promise<void> {
+  await loginAs(page, 'profesor');
+  await page.route('**/api/rubrics/**', route => {
+    // `/api/rubrics/` es la lista; `/api/rubrics/<id>` es el detalle.
+    const id = Number(new URL(route.request().url()).pathname.match(/rubrics\/(\d+)/)?.[1]);
+    const data = Number.isInteger(id) ? list.find(item => (item as { id: number }).id === id) : list;
+    return route.fulfill({ json: { success: true, data } });
+  });
+  await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
+  await page.goto('/portal/rubricas');
+}
+
+// req: RNF-04, BLOQUE-H
+test.describe('@docencia rubricas', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con rúbricas: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openRubrics(page);
+      await expect(page.getByRole('heading', { level: 1, name: 'Rúbricas' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Editar rúbrica' })).toBeVisible();
+      // Los botones pasan de «sin rúbrica abierta» a «abierta» con una transición de color: Axe la mediría a medias.
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
+    });
+  }
+
+  test('sin rúbricas: lista vacía con «Nueva rúbrica» y Axe sin hallazgos serios', async ({ page }) => {
+    await openRubrics(page, []);
+    await expect(page.locator('app-rubrics .rb-list ui-empty-state')).toContainText('Aún no hay rúbricas');
+    await settle(page);
+    expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
+    await page.locator('app-rubrics .rb-list ui-empty-state').getByRole('button', { name: 'Nueva rúbrica' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Nueva rúbrica' })).toBeVisible();
+  });
+
+  test('con la ponderación en 90 %: Activar dice por qué no se puede, sin desactivarse en silencio', async ({ page }) => {
+    await openRubrics(page);
+    await page.getByRole('button', { name: /Observación de aula/ }).click();
+    await expect(page.locator('#rubric-weight-hint')).toContainText('la ponderación debe sumar 100 %');
+
+    const activate = page.getByRole('button', { name: 'Activar', exact: true });
+    await expect(activate).toHaveAttribute('aria-disabled', 'true');
+    await activate.focus();
+    // La ayuda del botón bloqueado sale con el teclado y también al pulsarlo: no hay un botón mudo.
+    await expect(page.getByText('La ponderación debe sumar 100 %.', { exact: true }).first()).toBeAttached();
+  });
+});
+
 // req: RNF-04, BLOQUE-H, RQ-NEG-006
 test.describe('@docencia panel', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

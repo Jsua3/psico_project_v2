@@ -1,0 +1,172 @@
+@use 'mixins' as m;
+
+// Pantalla Rúbricas (plan visual F7-5): piel portal, solo tokens --ds-*, superficies con borde y sin sombras duras ni
+// bordes punteados (VD-3). El foco lo pinta el anillo global. Reglas de F7-2…F7-4: el host de `ui-section` se queda en
+// bloque y toda rejilla lleva `minmax(0, 1fr)`.
+:host {
+  display: block;
+  color: var(--ds-text-1);
+}
+
+.rb-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  align-items: start;
+  margin-block-start: var(--ds-space-6);
+}
+
+@media (min-width: 64rem) {
+  .rb-layout {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+.rb-list,
+.rb-form {
+  min-width: 0;
+}
+
+.rb-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.rb-filters,
+.rb-row-fields,
+.rb-criterion-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+}
+
+@media (min-width: 40rem) {
+  .rb-filters,
+  .rb-row-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rb-criterion-fields {
+    grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  }
+}
+
+// ── Lista ───────────────────────────────────────────────────────────────────────────────────────────────────────
+.rb-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rb-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  inline-size: 100%;
+  min-height: var(--ds-target-min);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-1);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast) ease, background-color var(--ds-dur-fast) ease;
+
+  @include m.ds-hover {
+    border-color: var(--ds-border-strong);
+  }
+
+  &:active {
+    background: var(--ds-surface-2);
+  }
+
+  // Después del hover y con la misma especificidad: la rúbrica abierta conserva su borde aunque el puntero pase.
+  &[aria-current='true'] {
+    border-color: var(--ds-primary);
+    background: var(--ds-primary-subtle);
+  }
+}
+
+.rb-row__text {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rb-row__text small {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Formulario ──────────────────────────────────────────────────────────────────────────────────────────────────
+.rb-weight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.rb-hint,
+.rb-message {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.rb-message--error {
+  color: var(--ds-danger);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.criterion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+}
+
+.criterion__legend {
+  padding-inline: var(--ds-space-1);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.criterion__remove {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.rb-assign__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  align-items: end;
+}
+
+@media (min-width: 40rem) {
+  .rb-assign__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

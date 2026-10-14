@@ -9,7 +9,7 @@ describe('portal: feedback de acciones', () => {
   const users = source('users.component.ts');
   // La plantilla vive en su propio archivo desde F7-2: el contrato mira la clase y la plantilla juntas.
   const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
-  const rubrics = source('rubrics.component.ts');
+  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
 
   it('Usuarios avisa el éxito con un aviso que no se borra', () => {
     expect(users).toContain("this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');");

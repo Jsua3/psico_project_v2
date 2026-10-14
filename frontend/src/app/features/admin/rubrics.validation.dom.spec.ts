@@ -1,7 +1,6 @@
 import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { of } from 'rxjs';
 
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
@@ -11,14 +10,12 @@ import { RubricsComponent } from './rubrics.component';
 import type { Mock } from 'vitest';
 
 /**
- * Validar al enviar, con Material real y el DOM renderizado.
+ * Validar al enviar, con los campos de la biblioteca y el DOM renderizado.
  *
- * `form.reset()` no reinicia `FormGroupDirective.submitted`, y el
- * `ErrorStateMatcher` de Material muestra el error si el campo es inválido y
- * está tocado O el formulario fue enviado. Estas pruebas comprueban lo que ve
- * el usuario: tras enviar con errores, abrir otra rúbrica o crear una nueva no
- * debe dejar ningún `mat-error` visible en un formulario recién cargado. Y la
- * regla del 100 % de la ponderación debe estar explicada en el DOM.
+ * `form.reset()` no reinicia `FormGroupDirective.submitted`: el reinicio pasa por la directiva del formulario. Estas
+ * pruebas comprueban lo que ve el usuario: tras enviar con errores, abrir otra rúbrica o crear una nueva no debe
+ * dejar ningún mensaje de error visible en un formulario recién cargado. Y la regla del 100 % de la ponderación debe
+ * estar explicada en el DOM y en cada botón que depende de ella (F7-5: motivo en vez de botón apagado en silencio).
  */
 function rubric(id: number, name: string, weights: number[]): RubricAdmin {
   return {
@@ -38,18 +35,23 @@ const completa = rubric(4, 'Entrevista clínica', [60, 40]);
 const incompleta = rubric(7, 'Observación', [60, 30]);
 const sinNombre = { ...rubric(9, 'Con hueco', [100]), criteria: [{ id: 91, title: '', weight: 100, displayOrder: 1, active: true }] } as RubricAdmin;
 
-describe('rúbricas: validar al enviar (DOM con Material)', () => {
+describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
   let fixture: ComponentFixture<RubricsComponent>;
   let component: RubricsComponent;
   let root: HTMLElement;
   let service: { list: Mock; detail: Mock; create: Mock; update: Mock };
 
-  const errorTexts = () => Array.from(root.querySelectorAll('mat-error')).map(node => (node.textContent ?? '').trim());
+  const errorTexts = () => Array.from(root.querySelectorAll('.ui-field__message--error')).map(node => (node.textContent ?? '').trim());
   const actionButton = (label: string) =>
     Array.from(root.querySelectorAll<HTMLButtonElement>('.actions button')).find(candidate => (candidate.textContent ?? '').trim().includes(label))!;
   const button = (label: string) =>
     Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(candidate => (candidate.textContent ?? '').includes(label))!;
   const hint = () => root.querySelector('#rubric-weight-hint');
+  /** Lo que el botón dice de por qué no se puede pulsar (el texto al que apunta su aria-describedby). */
+  const reasonOf = (button: HTMLButtonElement) => {
+    const id = (button.getAttribute('aria-describedby') ?? '').split(' ').find(Boolean);
+    return id ? (root.querySelector(`#${id}`)?.textContent ?? '').trim() : '';
+  };
   const formSubmitted = () => fixture.debugElement.query(By.directive(FormGroupDirective)).injector.get(FormGroupDirective).submitted;
   const submit = () => {
     root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
@@ -76,7 +78,6 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: RubricService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
@@ -142,19 +143,22 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
       expect(service.create).not.toHaveBeenCalled();
     });
 
-    it('el botón Guardar no se deshabilita por un formulario inválido', () => {
+    it('el botón Guardar no se bloquea por un formulario inválido', () => {
       component.newRubric();
       fixture.detectChanges();
 
       expect(component.form.invalid).toBe(true);
-      expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
+      expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')!.getAttribute('aria-disabled')).toBeNull();
     });
 
-    it('el botón Guardar se deshabilita solo mientras guarda', () => {
+    it('el botón Guardar queda bloqueado (aria-disabled, ocupado y con «Guardando…») solo mientras guarda', () => {
       component.saving.set(true);
       fixture.detectChanges();
 
-      expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+      const save = root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      expect(save.getAttribute('aria-disabled')).toBe('true');
+      expect(save.getAttribute('aria-busy')).toBe('true');
+      expect((save.textContent ?? '')).toContain('Guardando…');
     });
   });
 
@@ -234,8 +238,8 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
       expect(hint()).toBeNull();
       expect(actionButton('Activar').hasAttribute('aria-describedby')).toBe(false);
       expect(actionButton('Predeterminada').hasAttribute('aria-describedby')).toBe(false);
-      expect(actionButton('Activar').disabled).toBe(false);
-      expect(actionButton('Predeterminada').disabled).toBe(false);
+      expect(actionButton('Activar').getAttribute('aria-disabled')).toBeNull();
+      expect(actionButton('Predeterminada').getAttribute('aria-disabled')).toBeNull();
     });
 
     it('con la ponderación distinta de 100 explica por qué Activar y Predeterminada están deshabilitados', () => {
@@ -244,17 +248,17 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
       expect(hint()).not.toBeNull();
       expect((hint()!.textContent ?? '').trim()).toBe('Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.');
       expect(root.querySelectorAll('#rubric-weight-hint').length).toBe(1);
-      expect(actionButton('Activar').disabled).toBe(true);
-      expect(actionButton('Predeterminada').disabled).toBe(true);
-      expect(actionButton('Activar').getAttribute('aria-describedby')).toBe('rubric-weight-hint');
-      expect(actionButton('Predeterminada').getAttribute('aria-describedby')).toBe('rubric-weight-hint');
+      for (const label of ['Activar', 'Predeterminada']) {
+        expect(actionButton(label).getAttribute('aria-disabled'), label).toBe('true');
+        expect(reasonOf(actionButton(label)), label).toBe('La ponderación debe sumar 100 %.');
+      }
     });
 
-    it('la pista solo se enlaza desde Activar y Predeterminada', () => {
+    it('solo Activar y Predeterminada dependen de la ponderación: Desactivar y Duplicar no lo dicen', () => {
       open(incompleta);
 
-      const describedBy = Array.from(root.querySelectorAll('[aria-describedby="rubric-weight-hint"]'));
-      expect(describedBy).toEqual([actionButton('Activar'), actionButton('Predeterminada')]);
+      expect(actionButton('Desactivar').getAttribute('aria-disabled')).toBeNull();
+      expect(actionButton('Duplicar').getAttribute('aria-disabled')).toBeNull();
     });
 
     it('la pista aparece y desaparece al cambiar la ponderación', () => {
@@ -264,7 +268,7 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
       component.criteria.at(0).patchValue({ weight: 50 });
       fixture.detectChanges();
       expect(hint()).not.toBeNull();
-      expect(actionButton('Activar').getAttribute('aria-describedby')).toBe('rubric-weight-hint');
+      expect(reasonOf(actionButton('Activar'))).toBe('La ponderación debe sumar 100 %.');
 
       component.criteria.at(0).patchValue({ weight: 60 });
       fixture.detectChanges();

@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { of } from 'rxjs';
 
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
@@ -34,7 +33,7 @@ function rubric(id: number, name: string, criteria: Array<[string, number, numbe
 const primera = rubric(4, 'Primera', [['Escucha', 60, 1], ['Empatía', 40, 2]]);
 const segunda = rubric(5, 'Segunda', [['Encuadre', 10, 1], ['Cierre', 90, 2]]);
 
-describe('rúbricas: criterios enlazados a su control (DOM con Material)', () => {
+describe('rúbricas: criterios enlazados a su control (DOM con la biblioteca)', () => {
   let fixture: ComponentFixture<RubricsComponent>;
   let component: RubricsComponent;
   let root: HTMLElement;
@@ -60,7 +59,6 @@ describe('rúbricas: criterios enlazados a su control (DOM con Material)', () =>
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: RubricService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
@@ -128,7 +126,7 @@ describe('rúbricas: criterios enlazados a su control (DOM con Material)', () =>
   it('eliminar el primer criterio deja en pantalla el segundo y editarlo actualiza el formulario', () => {
     open(primera);
 
-    root.querySelector<HTMLButtonElement>('.criterion button[aria-label="Eliminar criterio"]')!.click();
+    root.querySelector<HTMLButtonElement>('.criterion button[aria-label^="Eliminar criterio"]')!.click();
     fixture.detectChanges();
 
     expect(shown()).toEqual(['Empatía', '40', '2']);
