@@ -28,6 +28,7 @@ interface Api {
   listar: () => Observable<Grupo[]>;
   estudiantes: () => Observable<GrupoEstudiante[]>;
   casosAsignados: () => Observable<SimulationCaseSummary[]>;
+  casosPublicados: () => Observable<SimulationCaseSummary[]>;
 }
 
 describe('pantalla Grupos (F7-2)', () => {
@@ -59,7 +60,7 @@ describe('pantalla Grupos (F7-2)', () => {
       providers: [
         provideZonelessChangeDetection(), provideRouter([]),
         { provide: GrupoService, useValue: service },
-        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso, otroCaso])) } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(api.casosPublicados ?? (() => of([caso, otroCaso]))) } },
         { provide: NotificationService, useValue: notify },
         { provide: UiDialog, useValue: dialog },
       ],
@@ -289,7 +290,7 @@ describe('pantalla Grupos (F7-2)', () => {
       zone().dispatchEvent(drop(new File(['x'], 'lista.pdf')));
       fixture.detectChanges();
       expect(component().archivoImportacion()).toBeNull();
-      expect(text(host().querySelector('.gl-detail [role="status"].gl-message'))).toBe('Selecciona un archivo .xlsx.');
+      expect(text(host().querySelector('.gl-detail .gl-message'))).toBe('Selecciona un archivo .xlsx.');
     });
 
     it('arrastrar sobre la zona la resalta y salir de ella lo quita', async () => {
@@ -318,6 +319,69 @@ describe('pantalla Grupos (F7-2)', () => {
       expect(summary).toHaveLength(1);
       expect(text(summary[0])).toContain('1 asociados · 1 creados · 0 existentes · 0 omitidos');
       expect(text(summary[0]).match(/Contraseña por defecto/g)).toHaveLength(1);
+    });
+  });
+
+  // req: RNF-04, BLOQUE-H (revisión de F7)
+  describe('arreglos de la revisión de F7', () => {
+    it('«Casos publicados» no muestra un 0 falso mientras los casos no han respondido', async () => {
+      const pending = new Subject<SimulationCaseSummary[]>();
+      await render({ casosPublicados: () => pending });
+      expect(stats()['Grupos activos']).toBe('2');
+      expect(stats()['Casos publicados']).toBeUndefined();
+
+      pending.next([caso, otroCaso]);
+      pending.complete();
+      fixture.detectChanges();
+      expect(stats()['Casos publicados']).toBe('2');
+    });
+
+    it('si los casos no cargan, esa cifra no aparece (en vez de un 0 que parece verdad)', async () => {
+      await render({ casosPublicados: () => throwError(() => new Error('HTTP 500')) });
+      expect(stats()['Grupos activos']).toBe('2');
+      expect(stats()['Casos publicados']).toBeUndefined();
+    });
+
+    it('un refresco silencioso que falla conserva la lista y avisa, no la reemplaza por un error', async () => {
+      await render();
+      service['listar'].mockReturnValue(throwError(() => new Error('HTTP 500')));
+
+      component().cargar(true);
+      fixture.detectChanges();
+
+      expect(rows()).toHaveLength(2);
+      expect(host().querySelector('ui-error-state')).toBeNull();
+      expect(notify.warning).toHaveBeenCalledWith('No pudimos actualizar la lista de grupos.');
+    });
+
+    it('agregar un estudiante con el correo vacío o inválido lleva el foco al campo', async () => {
+      await render();
+      document.body.appendChild(host());
+      try {
+        component().agregarEstudiante(grupoA);
+        await fixture.whenStable();
+        fixture.detectChanges();
+        const input = host().querySelector('.gl-add input[type="email"]') as HTMLInputElement;
+        const form = host().querySelector('.gl-add') as HTMLFormElement;
+
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+        fixture.detectChanges();
+
+        expect(text(host().querySelector('.gl-add .ui-field__message--error'))).toBe('Escribe un correo válido.');
+        expect(document.activeElement).toBe(input);
+      } finally {
+        host().remove();
+      }
+    });
+
+    it('el mensaje de la importación se anuncia en la región de estado de la pantalla', async () => {
+      await render();
+      await openDetail();
+      component().mensajeEstudiante.set('Importación completada: 3 asignados.');
+      fixture.detectChanges();
+
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Importación completada: 3 asignados.');
+      expect(text(host().querySelector('.gl-detail .gl-message'))).toBe('Importación completada: 3 asignados.');
     });
   });
 

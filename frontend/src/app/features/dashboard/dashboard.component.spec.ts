@@ -374,6 +374,9 @@ describe('DashboardComponent', () => {
         intentosRecientes: [{ id: 'x', casoTitulo: 'Caso de otra', estudiante: 'Carla', puntaje: 0, estado: 'IN_PROGRESS' }],
       });
       await render('ADMIN', { reporte: { getDashboard: () => of(others) } });
+      // La tabla de «Intentos recientes» sí lista el intento de otra persona; lo que no puede salir es la tarjeta
+      // «Retoma tu caso» ni un acceso a continuarlo.
+      expect(host().querySelector('.td-continue')).toBeNull();
       expect(host().textContent).not.toMatch(/Continuar (entrenamiento|simulación)/);
       expect(host().querySelector('a[href="/portal/simulador"]')).toBeNull();
 
@@ -385,8 +388,8 @@ describe('DashboardComponent', () => {
       const resume = host().querySelector('a[href="/portal/simulador/7"]');
       expect(resume).not.toBeNull();
       expect(spoken(resume!)).toBe('Continuar');
-      expect(host().textContent).toContain('Caso propio');
-      expect(host().textContent).not.toContain('Caso de otra persona');
+      expect(text(host().querySelector('.td-continue'))).toContain('Caso propio');
+      expect(text(host().querySelector('.td-continue'))).not.toContain('Caso de otra');
     });
 
     it('el docente no pide su historial de intentos (el servidor se lo niega con 403 y saldría un aviso de permiso en cada carga); el administrador sí', async () => {

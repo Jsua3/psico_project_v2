@@ -204,10 +204,6 @@
   color: var(--ds-text-2);
   font-size: var(--ds-type-body-s-size);
   line-height: var(--ds-type-body-s-line);
-
-  &:empty {
-    display: none;
-  }
 }
 
 .gl-message--error {

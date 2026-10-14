@@ -68,6 +68,8 @@ export class GrupoListComponent implements OnInit {
   busquedaGrupo = signal('');
   busquedaEstudiante = signal('');
   casosDisponibles = signal<SimulationCaseSummary[]>([]);
+  /** Los casos publicados ya respondieron (una cifra de 0 solo es verdad después de que respondan). */
+  casosCargados = signal(false);
   casosAsignados = signal<SimulationCaseSummary[]>([]);
   mensajeEstudiante = signal('');
   importSpec = signal<GrupoImportSpec | null>(null);
@@ -113,8 +115,11 @@ export class GrupoListComponent implements OnInit {
     error: this.error,
     isEmpty: computed(() => this.grupos().length === 0),
   });
-  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
-  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando grupos…' : ''));
+  /**
+   * Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia): la carga de la lista y
+   * el resultado de las acciones del detalle (importar, agregar, quitar).
+   */
+  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando grupos…' : this.mensajeEstudiante()));
 
   /** Acciones del menú de cada fila (lo que no es «Ver detalle» ni «Ver reporte»). */
   protected readonly rowActions: UiMenuItem[] = [
@@ -141,7 +146,10 @@ export class GrupoListComponent implements OnInit {
       })
     });
     this.simulationService.listCases().subscribe({
-      next: cases => this.casosDisponibles.set(cases),
+      next: cases => {
+        this.casosDisponibles.set(cases);
+        this.casosCargados.set(true);
+      },
       error: () => this.casosDisponibles.set([])
     });
   }
@@ -164,8 +172,13 @@ export class GrupoListComponent implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('No fue posible cargar la información.');
         this.loading.set(false);
+        // Un refresco silencioso que falla no tira una lista válida: se conserva y se avisa.
+        if (silencioso) {
+          this.notify.warning('No pudimos actualizar la lista de grupos.');
+          return;
+        }
+        this.error.set('No fue posible cargar la información.');
       }
     });
   }
@@ -390,6 +403,7 @@ export class GrupoListComponent implements OnInit {
         this.estudianteForm.markAllAsTouched();
         this.mensajeEstudiante.set('Revisa el correo del estudiante.');
         this.mensajeEsError.set(true);
+        focusFirstInvalid(this.host.nativeElement.querySelector<HTMLElement>('.gl-add') ?? this.host.nativeElement);
       }
       return;
     }

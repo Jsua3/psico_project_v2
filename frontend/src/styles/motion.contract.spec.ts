@@ -33,8 +33,9 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
   const files: Record<string, string> = {
     shell: source('../app/shared/layout/shell.component.ts'),
     quickActions: source('../app/features/dashboard/quick-actions.component.ts'),
-    trace: source('../app/features/simulator/instructor-trace.component.ts'),
-    grupos: source('../app/features/grupos/grupo-list.component.ts'),
+    // F7: la clase y sus estilos viven en archivos distintos; el contrato mira los dos.
+    trace: source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss'),
+    grupos: source('../app/features/grupos/grupo-list.component.ts') + source('../app/features/grupos/grupo-list.component.scss'),
     preview: source('../app/features/simulator/world-preview.component.ts'),
     dashboard: source('../app/features/dashboard/dashboard.component.scss'),
   };

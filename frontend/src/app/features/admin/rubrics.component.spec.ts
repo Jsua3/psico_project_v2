@@ -93,6 +93,25 @@ describe('pantalla Rúbricas (F7-5)', () => {
       expect(rows()[1].getAttribute('aria-current')).toBeNull();
     });
 
+    it('en el primer instante de la carga (antes del esqueleto) no pinta «sin resultados» ni ningún vacío', async () => {
+      const pending = new Subject<RubricAdmin[]>();
+      await render({ list: () => pending }, { stable: false });
+
+      expect(host().querySelector('.rb-list ui-empty-state')).toBeNull();
+      expect(rows()).toHaveLength(0);
+    });
+
+    it('si no se puede abrir una rúbrica, el aviso queda junto al formulario y se anuncia en la región de estado', async () => {
+      let calls = 0;
+      await render({ detail: id => (++calls === 1 ? of(id === 7 ? incompleta : completa) : throwError(() => new Error('HTTP 500'))) });
+      (rows()[1] as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(text(host().querySelector('.rb-form .rb-message--error'))).toBe('No fue posible abrir la rúbrica.');
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('No fue posible abrir la rúbrica.');
+    });
+
     it('mientras carga: esqueleto con aria-busy, el estado leído y ninguna fila', async () => {
       vi.useFakeTimers();
       const pending = new Subject<RubricAdmin[]>();

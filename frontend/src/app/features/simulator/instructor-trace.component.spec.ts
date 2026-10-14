@@ -7,6 +7,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { InstructorApi } from '../../core/api/instructor.api';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { AttemptTrace, RecentAttempt, RubricCriterionView, RubricEvaluationView } from '../../core/models/simulation.model';
@@ -373,6 +374,108 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
       expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
       expect(scoreInput(0).value).toBe('4');
+    });
+  });
+
+  // req: SIEP-CU-04, RNF-04 (revisión de F7)
+  describe('arreglos de la revisión de F7', () => {
+    it('un ?intento= fuera de la lista falla en el detalle con «Reintentar» que pide ESE mismo intento', async () => {
+      let calls = 0;
+      await render({
+        trace: id => (++calls === 1 ? throwError(() => new HttpErrorResponse({ status: 500 })) : of(traceFixture(id))),
+      }, { query: { intento: 'a-viejo' } });
+
+      expect(api.attemptTrace).toHaveBeenCalledWith('a-viejo');
+      const error = host().querySelector('.tr-detail ui-error-state')!;
+      expect(error).not.toBeNull();
+
+      (error.querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(api.attemptTrace).toHaveBeenLastCalledWith('a-viejo');
+      expect(text(host().querySelector('.tr-overview h2'))).toBe('Caso a-viejo');
+    });
+
+    it('un ?intento= que no existe (404) lo dice en el detalle sin ofrecer reintentar algo que no va a aparecer', async () => {
+      await render({ trace: () => throwError(() => new HttpErrorResponse({ status: 404 })) }, { query: { intento: 'a-borrado' } });
+
+      const error = host().querySelector('.tr-detail ui-error-state')!;
+      expect(error).not.toBeNull();
+      expect(error.querySelector('button')).toBeNull();
+      expect(host().querySelectorAll('.tr-attempt')).toHaveLength(2);
+    });
+
+    it('«Evaluación» solo dice «Aplicada» con una evaluación concluida: una a medias es «Pendiente»', async () => {
+      const partial = { id: 1, rubricName: 'Rúbrica', totalScore: null, overallLevel: null, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
+      await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [partial] })) });
+      const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
+      expect(text(card.querySelector('.ui-stat__value'))).toBe('Pendiente');
+
+      (card as HTMLButtonElement).click();
+      expect(dialog.open.mock.calls.at(-1)![1].data.panel.intro).toContain('a medias');
+    });
+
+    it('con una evaluación concluida «Evaluación» dice «Aplicada»', async () => {
+      const done = { id: 1, rubricName: 'Rúbrica', totalScore: null, overallLevel: 'LOGRADO' as const, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
+      await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [done] })) });
+      const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
+      expect(text(card.querySelector('.ui-stat__value'))).toBe('Aplicada');
+    });
+
+    it('la rúbrica de un intento que se abandonó no pisa la del abierto', async () => {
+      const slowRubric = new Subject<RubricEvaluationView>();
+      const rubrics: Record<string, Observable<RubricEvaluationView>> = {
+        'a-1': slowRubric,
+        'a-2': of(rubricFixture({ rubricId: 99, rubricName: 'Rúbrica del segundo' })),
+      };
+      await render({ rubric: id => rubrics[id] });
+      (host().querySelectorAll('.tr-attempt')[1] as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.rubric()?.rubricName).toBe('Rúbrica del segundo');
+
+      slowRubric.next(rubricFixture({ rubricId: 7, rubricName: 'Rúbrica del primero' }));
+      slowRubric.complete();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.rubric()?.rubricName).toBe('Rúbrica del segundo');
+      expect(fixture.componentInstance.selectedAttemptId()).toBe('a-2');
+    });
+
+    it('la calificación pide pasos de 0,5: 2,3 se rechaza en línea y 2,5 es válido', async () => {
+      await render();
+      type(scoreInput(0), '2.3');
+      expect(text(criteriaCards()[0].querySelector('.ui-field__message--error'))).toBe('Usa pasos de 0,5 (por ejemplo, 3,5).');
+
+      type(scoreInput(0), '2.5');
+      expect(criteriaCards()[0].querySelector('.ui-field__message--error')).toBeNull();
+    });
+
+    it('un valor inválido se ANUNCIA al lector de pantalla con el nombre del criterio', async () => {
+      await render();
+      const announce = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
+
+      type(scoreInput(0), '0.5');
+
+      expect(announce).toHaveBeenCalledWith('Ética profesional: Debe estar entre 1,0 y 5.', 'polite');
+    });
+
+    it('cada criterio es un grupo con nombre: sus campos «Calificación» no quedan sueltos', async () => {
+      await render();
+      const group = criteriaCards()[1];
+      expect(group.getAttribute('role')).toBe('group');
+      const labelledBy = group.getAttribute('aria-labelledby')!;
+      expect(text(host().querySelector('#' + labelledBy))).toBe('Ruta de atención');
+    });
+
+    it('el mensaje de un fallo al guardar se anuncia en la región de estado de la pantalla', async () => {
+      await render({ save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
+      type(scoreInput(0), '4');
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(status()).toContain('No fue posible guardar la evaluación');
     });
   });
 

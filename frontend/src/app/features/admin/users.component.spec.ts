@@ -117,6 +117,17 @@ describe('pantalla Usuarios (F7-6)', () => {
       expect(rows()).toHaveLength(1);
     });
 
+    it('con la lista fallida, abrir «Nuevo usuario» no la convierte en un vacío: sigue el error y su «Reintentar»', async () => {
+      await render({ users: () => throwError(() => new Error('HTTP 500')) });
+      expect(host().querySelectorAll('ui-error-state')).toHaveLength(1);
+
+      labelled('Nuevo usuario')!.click();
+      fixture.detectChanges();
+
+      expect(host().querySelectorAll('ui-error-state')).toHaveLength(1);
+      expect(text(host())).not.toContain('Aún no hay usuarios');
+    });
+
     it('sin usuarios: «Aún no hay usuarios» con la acción «Nuevo usuario», que abre la hoja', async () => {
       await render({ users: () => of([]) });
       const empty = host().querySelector('ui-table ui-empty-state')!;
@@ -142,7 +153,7 @@ describe('pantalla Usuarios (F7-6)', () => {
       expect(component().selectedUser()).toBeNull();
     });
 
-    it('cada fila: un botón de editar con ayuda y un menú «Más acciones» con activar o desactivar', async () => {
+    it('cada fila: un botón de editar con el nombre de la persona y un menú «Más acciones» con activar o desactivar', async () => {
       await render();
       const row = rows()[0];
       const edit = row.querySelector('button[aria-label="Editar a Ana Pérez"]') as HTMLButtonElement;
@@ -177,6 +188,46 @@ describe('pantalla Usuarios (F7-6)', () => {
       await fixture.whenStable();
 
       expect(service['updateStatus']).not.toHaveBeenCalled();
+    });
+  });
+
+  // req: RNF-04, BLOQUE-H
+  describe('la hoja y un guardado que tarda', () => {
+    const fill = () => component().form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', password: '12345678' });
+
+    it('si guardar falla con la hoja ya cerrada, la hoja vuelve a abrirse con lo que se escribió', async () => {
+      await render();
+      const pending = new Subject<AdminUser>();
+      service['create'].mockReturnValue(pending);
+      component().newUser();
+      fill();
+      component().save();
+      component().closeForm();
+      expect(dialog.sheet).toHaveBeenCalledTimes(1);
+
+      pending.error(new Error('HTTP 500'));
+
+      expect(dialog.sheet).toHaveBeenCalledTimes(2);
+      expect(component().form.getRawValue().nombre).toBe('Luis');
+    });
+
+    it('un guardado que llega tarde no pisa el formulario nuevo ni cierra la hoja nueva', async () => {
+      await render();
+      const pending = new Subject<AdminUser>();
+      service['create'].mockReturnValue(pending);
+      component().newUser();
+      fill();
+      component().save();
+      component().closeForm();
+      component().newUser();
+      const second = dialog.sheet.mock.results[1].value as { close: ReturnType<typeof vi.fn> };
+
+      pending.next({ ...ana, id: 9, nombre: 'Luis', email: 'luis@siep.test' });
+      pending.complete();
+
+      expect(second.close).not.toHaveBeenCalled();
+      expect(component().selectedUser()).toBeNull();
+      expect(component().form.getRawValue().nombre).toBe('');
     });
   });
 

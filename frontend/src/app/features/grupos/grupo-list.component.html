@@ -9,7 +9,9 @@
   <div class="gl-stats">
     <ui-card><ui-stat label="Grupos activos" [value]="grupos().length" /></ui-card>
     <ui-card><ui-stat label="Estudiantes asignados" [value]="totalEstudiantes()" /></ui-card>
-    <ui-card><ui-stat label="Casos publicados" [value]="casosDisponibles().length" /></ui-card>
+    @if (casosCargados()) {
+      <ui-card><ui-stat label="Casos publicados" [value]="casosDisponibles().length" /></ui-card>
+    }
   </div>
 }
 
@@ -132,7 +134,9 @@
             }
           </div>
 
-          <p class="gl-message" role="status" [class.gl-message--error]="mensajeEsError()">{{ mensajeEstudiante() }}</p>
+          @if (mensajeEstudiante()) {
+            <p class="gl-message" [class.gl-message--error]="mensajeEsError()">{{ mensajeEstudiante() }}</p>
+          }
 
           @if (resultadoImportacion(); as result) {
             <div class="gl-import-result" [class.gl-import-result--warning]="result.errors.length">

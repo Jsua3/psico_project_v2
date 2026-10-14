@@ -105,7 +105,7 @@
                 <span class="tr-metric__cta">Ver bitácoras</span>
               </button>
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('EVALUATION', item)">
-                <ui-stat label="Evaluación" [value]="item.rubricEvaluations.length ? 'Aplicada' : 'Pendiente'" />
+                <ui-stat label="Evaluación" [value]="evaluationApplied(item) ? 'Aplicada' : 'Pendiente'" />
                 <span class="tr-metric__cta">Ver evaluación</span>
               </button>
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('TIME', item)">
@@ -239,10 +239,10 @@
                   }
 
                   @for (criterion of rub.criteria; track criterion.id) {
-                    <article class="tr-criterion">
+                    <article class="tr-criterion" role="group" [attr.aria-labelledby]="'criterion-title-' + criterion.id">
                       <div class="tr-criterion__copy">
                         <p class="tr-eyebrow">{{ clean(criterion.competency, 'Criterio') }}</p>
-                        <h3 class="tr-criterion__title">{{ clean(criterion.title, 'Criterio de evaluación') }}</h3>
+                        <h3 class="tr-criterion__title" [id]="'criterion-title-' + criterion.id">{{ clean(criterion.title, 'Criterio de evaluación') }}</h3>
                         <p class="tr-hint">{{ clean(criterion.description, 'Sin descripción adicional.') }}</p>
                         @if (criterionLevel(criterion.id); as level) {
                           <ui-badge [tone]="levelTone(level)">{{ levelLabel(level) }}</ui-badge>
@@ -275,13 +275,17 @@
                       (click)="saveRubric()">
                       {{ savingRubric() ? 'Guardando evaluación' : 'Guardar evaluación' }}
                     </button>
-                    <p class="tr-rubric__message" role="status" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                    @if (rubricMessage()) {
+                      <p class="tr-rubric__message" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                    }
                   </div>
                 </div>
               } @else {
                 <div class="tr-stack">
                   <p class="tr-empty">No hay rúbrica disponible para este caso.</p>
-                  <p class="tr-rubric__message" role="status" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                  @if (rubricMessage()) {
+                    <p class="tr-rubric__message" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                  }
                 </div>
               }
             </ui-section>

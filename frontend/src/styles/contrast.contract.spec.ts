@@ -131,7 +131,7 @@ describe('contraste: login', () => {
 describe('contraste: portal', () => {
   it('los anillos locales usan el foco global', () => {
     const dash = source('../app/features/dashboard/dashboard.component.scss');
-    const trace = source('../app/features/simulator/instructor-trace.component.ts');
+    const trace = source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss');
     expect(dash).not.toContain('outline: 3px solid rgba(124, 77, 255, 0.45);');
     // F7-1: el panel ya no trae botones propios (`.pixel-button` con su anillo local): sus enlaces son `ui-button` y
     // `a[ui-card]` y heredan el anillo global; ninguna regla local lo reasigna ni lo apaga.

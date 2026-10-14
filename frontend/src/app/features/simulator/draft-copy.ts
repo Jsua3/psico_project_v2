@@ -200,28 +200,24 @@ export const DRAFT_COPY = {
   levelEnInicio: {
     decision: 'RN-09',
     owner: 'Psicología',
-    review: 'conocimiento',
     where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
     text: 'En inicio',
   },
   levelEnProceso: {
     decision: 'RN-09',
     owner: 'Psicología',
-    review: 'conocimiento',
     where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
     text: 'En proceso',
   },
   levelLogrado: {
     decision: 'RN-09',
     owner: 'Psicología',
-    review: 'conocimiento',
     where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
     text: 'Logrado',
   },
   levelDestacado: {
     decision: 'RN-09',
     owner: 'Psicología',
-    review: 'conocimiento',
     where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
     text: 'Destacado',
   },

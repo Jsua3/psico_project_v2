@@ -57,11 +57,11 @@ describe('traza del docente: intento elegido desde el panel (F7-1)', () => {
   });
 
   // req: RQ-NEG-006
-  it('con un id que no está en la lista cae al más reciente en vez de dejar la pantalla vacía', () => {
-    const { component, attemptTrace } = openTrace('no-existe');
+  it('con un id fuera de la lista (p. ej. de un caso republicado) pide ESE intento y no abre el de otra persona', () => {
+    const { component, attemptTrace } = openTrace('a-fuera-de-la-lista');
 
-    expect(component.selectedAttemptId()).toBe('a-1');
+    expect(component.selectedAttemptId()).toBe('a-fuera-de-la-lista');
     expect(attemptTrace).toHaveBeenCalledTimes(1);
-    expect(attemptTrace).toHaveBeenCalledWith('a-1');
+    expect(attemptTrace).toHaveBeenCalledWith('a-fuera-de-la-lista');
   });
 });

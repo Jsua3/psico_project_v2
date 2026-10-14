@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
@@ -60,9 +61,15 @@ export class InstructorTraceComponent implements OnInit {
   private readonly notify = inject(NotificationService);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly destroyRef = inject(DestroyRef);
+  private readonly announcer = inject(LiveRegionAnnouncer);
 
-  /** La traza que se está abriendo: elegir otro intento cancela la anterior (solo cuenta la última). */
+  /**
+   * Lo que se está pidiendo del intento abierto: su traza, su rúbrica y la traza refrescada tras guardar. Elegir otro
+   * intento las cancela todas (solo cuenta el último) y cada respuesta comprueba además que siga siendo el abierto.
+   */
   private opening: Subscription | null = null;
+  private rubricRequest: Subscription | null = null;
+  private refreshing: Subscription | null = null;
 
   readonly attempts = signal<RecentAttempt[]>([]);
   readonly trace = signal<AttemptTrace | null>(null);
@@ -92,7 +99,9 @@ export class InstructorTraceComponent implements OnInit {
   /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
   protected readonly statusText = computed(() => {
     if (this.listState() === 'loading') return 'Cargando intentos…';
-    return this.detailState() === 'loading' ? 'Cargando la trazabilidad…' : '';
+    if (this.detailState() === 'loading') return 'Cargando la trazabilidad…';
+    // El aviso de guardado o de fallo se anuncia aquí: la región existe antes de que cambie su texto.
+    return this.rubricMessage();
   });
 
   /** Rótulo del total de la rúbrica (RN-09): la evaluación es formativa, no una nota oficial. */
@@ -105,12 +114,19 @@ export class InstructorTraceComponent implements OnInit {
   rubricComment = '';
 
   ngOnInit() {
-    this.destroyRef.onDestroy(() => this.opening?.unsubscribe());
+    this.destroyRef.onDestroy(() => this.cancelRequests());
     this.loadAttempts();
   }
 
-  open(attempt: RecentAttempt) {
+  private cancelRequests(): void {
     this.opening?.unsubscribe();
+    this.rubricRequest?.unsubscribe();
+    this.refreshing?.unsubscribe();
+  }
+
+  /** Abre un intento. Basta su id: un intento fuera de la lista reciente (p. ej. de un caso republicado) también se abre. */
+  open(attempt: Pick<RecentAttempt, 'attemptId'>) {
+    this.cancelRequests();
     this.loadingTrace.set(true);
     this.traceError.set(null);
     this.rubricMessage.set('');
@@ -135,8 +151,7 @@ export class InstructorTraceComponent implements OnInit {
   /** «Reintentar» del detalle: vuelve a pedir el intento que estaba abierto. */
   reopen() {
     const wanted = this.selectedAttemptId();
-    const attempt = this.attempts().find(item => item.attemptId === wanted);
-    if (attempt) this.open(attempt);
+    if (wanted) this.open({ attemptId: wanted });
   }
 
   loadAttempts() {
@@ -147,10 +162,12 @@ export class InstructorTraceComponent implements OnInit {
         attempts = attempts ?? [];
         this.attempts.set(attempts);
         this.loadingAttempts.set(false);
-        if (attempts.length && !this.trace()) {
-          // «Ver detalle» del panel docente llega con `?intento=<id>`; sin él (o con un id fuera de la lista) abre el más reciente.
+        if (!this.trace()) {
+          // «Ver detalle» del panel docente llega con `?intento=<id>`: se abre ESE intento aunque ya no esté en la
+          // lista reciente (nunca se abre en silencio el de otra persona); sin el parámetro, el más reciente.
           const requested = this.route?.snapshot.queryParamMap.get('intento');
-          this.open(attempts.find(item => item.attemptId === requested) ?? attempts[0]);
+          if (requested) this.open({ attemptId: requested });
+          else if (attempts.length) this.open(attempts[0]);
         }
       },
       error: () => {
@@ -166,6 +183,11 @@ export class InstructorTraceComponent implements OnInit {
       data: { panel: this.buildFeedbackPanel(key, item) },
       size: 'lg',
     });
+  }
+
+  /** Hay al menos una evaluación CONCLUIDA (con nivel global); una a medias no cuenta como aplicada. */
+  evaluationApplied(item: AttemptTrace): boolean {
+    return item.rubricEvaluations.some(evaluation => !!evaluation.overallLevel);
   }
 
   totalDecisions(item: AttemptTrace): number {
@@ -241,9 +263,11 @@ export class InstructorTraceComponent implements OnInit {
       return {
         key,
         title: 'Evaluación docente',
-        intro: item.rubricEvaluations.length
+        intro: this.evaluationApplied(item)
           ? 'Evaluaciones de rúbrica ya aplicadas a este intento.'
-          : 'Aún no hay evaluación guardada. Completa la rúbrica al final de esta pantalla.',
+          : item.rubricEvaluations.length
+            ? 'Hay una evaluación a medias: faltan criterios por calificar. Completa la rúbrica al final de esta pantalla.'
+            : 'Aún no hay evaluación guardada. Completa la rúbrica al final de esta pantalla.',
         ...empty,
         evaluations: item.rubricEvaluations,
         emptyTitle: 'Evaluación pendiente',
@@ -378,8 +402,13 @@ export class InstructorTraceComponent implements OnInit {
     this.rubricScores[criterion.id] = parsed;
     const next = { ...this.rubricValidationErrors() };
     const problem = this.scoreProblem(criterion, parsed);
-    if (problem) next[criterion.id] = problem;
-    else delete next[criterion.id];
+    if (problem) {
+      next[criterion.id] = problem;
+      // El error en línea aparece al teclear: se anuncia con el nombre del criterio (el campo no es una región viva).
+      this.announcer.announce(`${this.clean(criterion.title, 'Criterio')}: ${problem}`, 'polite');
+    } else {
+      delete next[criterion.id];
+    }
     this.rubricValidationErrors.set(next);
     if (!Object.keys(next).length && this.rubricMessageIsError()) {
       this.rubricMessage.set('');
@@ -391,6 +420,10 @@ export class InstructorTraceComponent implements OnInit {
     if (score === null) return null;
     if (Number.isNaN(score) || score < RUBRIC_MIN_SCORE || score > criterion.maxScore) {
       return `Debe estar entre ${RUBRIC_MIN_LABEL} y ${criterion.maxScore}.`;
+    }
+    // El contrato pide pasos de 0,5: 2,3 no es una calificación de la escala.
+    if (Math.abs(score / RUBRIC_SCORE_STEP - Math.round(score / RUBRIC_SCORE_STEP)) > 1e-9) {
+      return 'Usa pasos de 0,5 (por ejemplo, 3,5).';
     }
     return null;
   }
@@ -427,11 +460,13 @@ export class InstructorTraceComponent implements OnInit {
 
     this.instructorApi.saveRubric(trace.attemptId, rubric.rubricId, this.rubricComment, scores).subscribe({
       next: saved => {
+        this.savingRubric.set(false);
+        this.notify.success('Evaluación guardada correctamente.');
+        // Si en el entretanto se abrió otro intento, el resultado no se pinta sobre él.
+        if (this.selectedAttemptId() !== trace.attemptId) return;
         const normalized = this.normalizeRubric(saved);
         this.rubric.set(normalized);
         this.seedRubricForm(normalized);
-        this.savingRubric.set(false);
-        this.notify.success('Evaluación guardada correctamente.');
         this.refreshTrace(trace.attemptId);
       },
       error: () => {
@@ -461,14 +496,16 @@ export class InstructorTraceComponent implements OnInit {
   }
 
   private loadRubric(attemptId: string) {
-    this.instructorApi.rubric(attemptId).subscribe({
+    this.rubricRequest = this.instructorApi.rubric(attemptId).subscribe({
       next: rubric => {
+        if (this.selectedAttemptId() !== attemptId) return;
         const normalized = this.normalizeRubric(rubric);
         this.rubric.set(normalized);
         this.seedRubricForm(normalized);
         this.loadingTrace.set(false);
       },
       error: (err: HttpErrorResponse) => {
+        if (this.selectedAttemptId() !== attemptId) return;
         this.rubric.set(null);
         if (err.status === 404) {
           this.rubricMessage.set('Este caso aún no tiene rúbrica configurada. La trazabilidad sigue disponible abajo.');
@@ -486,8 +523,11 @@ export class InstructorTraceComponent implements OnInit {
   }
 
   private refreshTrace(attemptId: string) {
-    this.instructorApi.attemptTrace(attemptId).subscribe({
-      next: trace => this.trace.set(this.normalizeTrace(trace)),
+    this.refreshing?.unsubscribe();
+    this.refreshing = this.instructorApi.attemptTrace(attemptId).subscribe({
+      next: trace => {
+        if (this.selectedAttemptId() === attemptId) this.trace.set(this.normalizeTrace(trace));
+      },
       error: () => undefined
     });
   }

@@ -37,7 +37,7 @@
             description="Crea la primera para valorar los intentos de tus estudiantes con criterios y ponderación."
             actionLabel="Nueva rúbrica" (action)="newRubric()" />
         }
-        @default {
+        @case ('ready') {
           @if (!filteredRubrics().length) {
             <ui-empty-state kind="no-results" title="No hay rúbricas con ese filtro"
               description="Prueba con otro nombre o con otro estado." actionLabel="Limpiar filtros" (action)="clearFilters()" />
@@ -66,7 +66,7 @@
     <ui-card>
       <div class="rb-stack">
         @if (messageIsError() && message() && listState() !== 'error') {
-          <p class="rb-message rb-message--error" role="status">{{ message() }}</p>
+          <p class="rb-message rb-message--error">{{ message() }}</p>
         }
 
         <form [formGroup]="form" novalidate class="rb-stack" (ngSubmit)="save()">

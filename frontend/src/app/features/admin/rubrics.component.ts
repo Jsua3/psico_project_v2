@@ -65,8 +65,14 @@ export class RubricsComponent implements OnInit {
     error: this.listError,
     isEmpty: computed(() => this.rubrics().length === 0),
   });
-  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
-  protected readonly statusText = computed(() => (this.listState() === 'loading' ? 'Cargando rúbricas…' : ''));
+  /**
+   * Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia): la carga de la lista y
+   * el aviso de no poder abrir una rúbrica (la lista caída ya la dice su propio estado de error).
+   */
+  protected readonly statusText = computed(() => {
+    if (this.listState() === 'loading') return 'Cargando rúbricas…';
+    return this.messageIsError() && this.listState() !== 'error' ? this.message() : '';
+  });
 
   form = this.fb.group({
     name: ['', Validators.required],

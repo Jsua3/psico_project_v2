@@ -228,29 +228,25 @@ test.describe('@docencia reportes', () => {
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
   });
 
-  test('RQ-NEG-006: del panel del docente al reporte de un grupo en 3 clics o menos', async ({ page }) => {
+  test('RQ-NEG-006: del panel del docente al reporte de un grupo en 3 gestos o menos', async ({ page }) => {
     await mockReports(page);
     await openPanel(page);
-    let clicks = 0;
 
-    // Camino corto: Grupos → «Ver reporte» del grupo (2 clics).
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Gestionar grupos' }).click();
-    clicks += 1;
-    await page.getByRole('link', { name: 'Ver reporte de Psicología Jurídica · 2026-2' }).click();
-    clicks += 1;
+    // Camino corto: Grupos → «Ver reporte» del grupo, dos clics. Cada gesto se comprueba por la pantalla a la que
+    // llega: si se interpone un paso (un aviso, un menú), el enlace siguiente no existe y la prueba falla.
+    await page.locator('app-quick-actions').getByRole('link', { name: 'Gestionar grupos' }).click(); // gesto 1
+    await expect(page).toHaveURL(/\/portal\/grupos$/);
+    await page.getByRole('link', { name: 'Ver reporte de Psicología Jurídica · 2026-2' }).click(); // gesto 2
     await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1$/);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
-    expect(clicks).toBeLessThanOrEqual(3);
 
-    // Camino por Reportes: el acceso, abrir la lista y elegir el grupo (3 gestos; el reporte sale al elegir).
+    // Camino por Reportes: el acceso (gesto 1) y, con un <select> nativo, abrir la lista y elegir el grupo (gestos
+    // 2 y 3). El reporte sale al elegir, sin un botón «Consultar» de por medio.
     await page.goto('/portal/dashboard');
-    clicks = 0;
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Ver reportes' }).click();
-    clicks += 1;
-    await page.locator('app-reporte-grupo select').first().selectOption({ label: 'Intervención en Crisis · 2026-2 · IC-2026' });
-    clicks += 2; // abrir la lista y elegir la opción
+    await page.locator('app-quick-actions').getByRole('link', { name: 'Ver reportes' }).click(); // gesto 1
+    await expect(page).toHaveURL(/\/portal\/reportes$/);
+    await page.locator('app-reporte-grupo select').first().selectOption({ label: 'Intervención en Crisis · 2026-2 · IC-2026' }); // gestos 2 y 3
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
-    expect(clicks).toBeLessThanOrEqual(3);
   });
 });
 
@@ -295,7 +291,7 @@ async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promi
     const id = route.request().url().match(/attempts\/([^/]+)\/trace/)![1];
     return route.fulfill({ json: { success: true, data: traceOf(id) } });
   });
-  await page.route('**/api/instructor/attempts/*/rubric-evaluation/', route => {
+  await page.route('**/api/instructor/attempts/*/rubric-evaluation', route => {
     if (route.request().method() === 'PUT') {
       saved.push(route.request().postDataJSON());
       return route.fulfill({ json: { success: true, data: { ...RUBRIC, overallLevel: 'LOGRADO' } } });

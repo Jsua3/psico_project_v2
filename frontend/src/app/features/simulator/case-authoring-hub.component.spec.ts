@@ -147,13 +147,19 @@ describe('hub de edición de casos (F7-7)', () => {
 
     it('enviar sin título lo explica en línea, lleva el foco al campo y no llama al servidor', async () => {
       await render();
-      await open();
+      document.body.appendChild(host());
+      try {
+        await open();
+        field('code').focus();
 
-      submit();
+        submit();
 
-      expect(text(host().querySelector('.hub-create .ui-field__message--error'))).toBe('Escribe el título del caso.');
-      expect(api.createCase).not.toHaveBeenCalled();
-      expect(document.activeElement === field('title') || field('title').getAttribute('aria-invalid') === 'true').toBe(true);
+        expect(text(host().querySelector('.hub-create .ui-field__message--error'))).toBe('Escribe el título del caso.');
+        expect(api.createCase).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(field('title'));
+      } finally {
+        host().remove();
+      }
     });
 
     it('con título crea el caso y abre su editor', async () => {

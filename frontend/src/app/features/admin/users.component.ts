@@ -18,7 +18,6 @@ import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
-import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
 import { UserFormSheetComponent, UserFormSheetData } from './user-form-sheet.component';
 
 interface UserFormValue {
@@ -40,7 +39,7 @@ interface UserFormValue {
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    UiBadge, UiButton, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection, UiTooltip,
+    UiBadge, UiButton, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection,
     UiEmptyState, UiErrorState, UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable,
   ],
   templateUrl: './users.component.html',
@@ -70,6 +69,7 @@ export class UsersComponent implements OnInit {
   readonly selectedUser = signal<AdminUser | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  /** El fallo de la CARGA de la lista (solo `load()` lo toca: abrir un formulario o guardar no lo borra). */
   readonly error = signal('');
   readonly message = signal('');
 
@@ -144,7 +144,6 @@ export class UsersComponent implements OnInit {
     });
     this.setPasswordRules(true);
     this.message.set(`Solicitud de ${request.nombre} ${request.apellido} lista para crear usuario.`);
-    this.error.set('');
     this.openForm();
   }
 
@@ -203,14 +202,12 @@ export class UsersComponent implements OnInit {
     });
     this.setPasswordRules(true);
     this.message.set('');
-    this.error.set('');
     this.openForm();
   }
 
   editUser(user: AdminUser) {
     this.populateEdit(user);
     this.message.set('');
-    this.error.set('');
     this.openForm();
   }
 
@@ -257,8 +254,9 @@ export class UsersComponent implements OnInit {
     const selected = this.selectedUser();
     const value = this.form.getRawValue();
     const email = value.email.trim().toLowerCase();
+    // La hoja desde la que se envía: al responder el servidor puede haberse cerrado o haber otra (formulario nuevo).
+    const sheetAtSave = this.sheet;
     this.saving.set(true);
-    this.error.set('');
     this.message.set('');
 
     const request$ = selected
@@ -286,14 +284,19 @@ export class UsersComponent implements OnInit {
         });
         this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
         this.saving.set(false);
-        this.populateEdit(saved);
-        this.closeForm();
+        // Solo se toca el formulario y la hoja si siguen siendo los del envío: una respuesta tardía no pisa otro formulario.
+        if (this.sheet === sheetAtSave) {
+          this.populateEdit(saved);
+          this.closeForm();
+        }
         this.loadAccessRequests();
       },
       error: (err: unknown) => {
         const text = apiErrorMessage(err, 'No fue posible guardar los cambios.');
         if (text) this.notify.error(text);
         this.saving.set(false);
+        // Si la hoja se cerró mientras se guardaba, vuelve con lo que se escribió (el formulario no se perdió).
+        this.openForm();
       }
     });
   }
@@ -337,7 +340,6 @@ export class UsersComponent implements OnInit {
   private applyStatus(user: AdminUser): void {
     if (this.saving()) return;
     this.saving.set(true);
-    this.error.set('');
     this.message.set('');
     this.service.updateStatus(user.id, !user.activo).subscribe({
       next: saved => {

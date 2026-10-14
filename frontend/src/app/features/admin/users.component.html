@@ -53,7 +53,7 @@
             <td><ui-badge [tone]="user.activo ? 'success' : 'neutral'">{{ user.activo ? 'Activo' : 'Inactivo' }}</ui-badge></td>
             <td class="us-actions">
               <button ui-icon-button type="button" icon="edit" [label]="'Editar a ' + user.nombre + ' ' + user.apellido"
-                uiTooltip="Editar" (click)="editUser(user)"></button>
+                (click)="editUser(user)"></button>
               <ui-menu iconOnly [label]="'Más acciones de ' + user.nombre + ' ' + user.apellido" [items]="rowActions(user)"
                 (itemSelected)="rowAction(user, $event)" />
             </td>
