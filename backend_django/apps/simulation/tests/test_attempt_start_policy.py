@@ -166,7 +166,7 @@ def test_dos_inicios_concurrentes_crean_un_solo_intento(real_commits):
         email=f"conc_{suffix}@x.com", password="pass1234", nombre="Conc", apellido="Inicio", role="ESTUDIANTE"
     )
     grupo = Grupo.objects.create(nombre=f"Conc {suffix}", codigo=f"CI-{suffix}", profesor=profesor)
-    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante)
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
     GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
 
@@ -227,7 +227,7 @@ def test_force_new_espera_el_cerrojo_y_no_pisa_un_intento_que_se_completo(real_c
         email=f"fn_{suffix}@x.com", password="pass1234", nombre="Fn", apellido="Cerrojo", role="ESTUDIANTE"
     )
     grupo = Grupo.objects.create(nombre=f"Fn {suffix}", codigo=f"FN-{suffix}", profesor=profesor)
-    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante)
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
     GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
     first_id = game_service.start_attempt(version.id, estudiante)["attemptId"]

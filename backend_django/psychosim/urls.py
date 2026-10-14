@@ -20,12 +20,16 @@ from apps.grupos.views import (
     GrupoCasoDetailView,
     GrupoCasosView,
     GrupoDetailView,
+    GrupoEstudianteActivarView,
     GrupoEstudianteDetailView,
     GrupoEstudiantesImportView,
     GrupoEstudiantesImportSpecView,
     GrupoEstudiantesImportTemplateView,
     GrupoEstudiantesView,
     GrupoListCreateView,
+    MeInvitationAcceptView,
+    MeInvitationDeclineView,
+    MeInvitationsView,
 )
 from apps.users.views import (
     AdminAccessRequestListView,
@@ -46,6 +50,11 @@ urlpatterns = [
     path("api/grupos/<int:pk>", GrupoDetailView.as_view()),
     path("api/grupos/<int:pk>/estudiantes", GrupoEstudiantesView.as_view()),
     path("api/grupos/<int:pk>/estudiantes/<int:estudiante_id>", GrupoEstudianteDetailView.as_view()),
+    path("api/grupos/<int:pk>/estudiantes/<int:estudiante_id>/activar", GrupoEstudianteActivarView.as_view()),
+    # C5 · invitaciones del estudiante a grupos (E2-10).
+    path("api/me/invitations", MeInvitationsView.as_view()),
+    path("api/me/invitations/<int:group_id>/accept", MeInvitationAcceptView.as_view()),
+    path("api/me/invitations/<int:group_id>/decline", MeInvitationDeclineView.as_view()),
     path("api/grupos/<int:pk>/estudiantes/import", GrupoEstudiantesImportView.as_view()),
     path("api/grupos/<int:pk>/estudiantes/import/", GrupoEstudiantesImportView.as_view()),
     path("api/grupos/estudiantes/import/spec", GrupoEstudiantesImportSpecView.as_view()),

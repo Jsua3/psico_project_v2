@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
+from apps.grupos.models import GrupoEstudiante
 from apps.simulation.models import CaseVersion
 
 User = get_user_model()
@@ -131,14 +132,17 @@ def test_create_duplicate_codigo_400(profesor):
     assert resp.data["message"] == "Ya existe un grupo con el código: DUP1"
 
 
-def test_add_student_increments_total(profesor, estudiante):
+def test_add_student_invites_and_the_total_counts_only_active_members(profesor, estudiante):
     grupo = cl(profesor).post("/api/grupos", {"nombre": "G", "codigo": "ADD1"}, format="json").data["data"]
     resp = cl(profesor).post(
         f"/api/grupos/{grupo['id']}/estudiantes", {"email": estudiante.email}, format="json"
     )
     assert resp.status_code == 200
-    assert resp.data["message"] == "Estudiante agregado"
-    assert resp.data["data"]["totalEstudiantes"] == 1
+    # E2-10: la invitación aún no suma; cuenta cuando el estudiante acepta.
+    assert resp.data["data"]["totalEstudiantes"] == 0
+    cl(estudiante).post(f"/api/me/invitations/{grupo['id']}/accept", {}, format="json")
+    after = cl(profesor).get("/api/grupos").data["data"]
+    assert next(g for g in after if g["id"] == grupo["id"])["totalEstudiantes"] == 1
 
 
 def test_import_students_from_xlsx_creates_and_assigns(profesor, estudiante):
@@ -164,7 +168,8 @@ def test_import_students_from_xlsx_creates_and_assigns(profesor, estudiante):
     assert data["associated"] == 3
     assert data["skipped"] == 0
     assert data["duplicated"] == 0
-    assert data["grupo"]["totalEstudiantes"] == 3
+    assert data["grupo"]["totalEstudiantes"] == 0  # E2-10: invitados, aún no aceptaron
+    assert {s["membershipStatus"] for s in data["students"]} == {"INVITED"}
     # E2-9 (RN-10, D-5): ninguna contraseña viaja ni se fija: las cuentas nuevas quedan pendientes.
     assert "defaultPassword" not in data
     assert data["pendingApproval"] == 2
@@ -221,7 +226,7 @@ def test_import_students_from_institutional_xlsx_template(profesor):
     data = resp.data["data"]
     assert data["created"] == 2
     assert data["assigned"] == 2
-    assert data["grupo"]["totalEstudiantes"] == 2
+    assert data["grupo"]["totalEstudiantes"] == 0  # invitados: el total cuenta a quien aceptó
     assert User.objects.get(email=f"sofia.garcia.{suffix}@institucion.edu.co").nombre == "Sofía"
     # La columna «Contraseña temporal» del archivo institucional se ignora y se informa (E2-9).
     mateo = User.objects.get(email=f"mateo.martinez.{suffix}@institucion.edu.co")
@@ -270,6 +275,7 @@ def test_list_students_in_group(profesor, estudiante):
         "email": estudiante.email,
         "role": "ESTUDIANTE",
         "activo": True,
+        "membershipStatus": "INVITED",
     }]
 
 
@@ -311,13 +317,18 @@ def test_add_student_to_foreign_group_400(profesor, otro_profesor, estudiante):
     assert resp.data["message"] == "No tiene permiso sobre este grupo"
 
 
-def test_add_non_student_400(profesor, otro_profesor):
+def test_add_non_student_is_indistinguishable_from_any_other_email(profesor, otro_profesor, estudiante):
+    """E2-10 (D-14): «agregar por correo» no revela si la cuenta existe ni si es de estudiante."""
     grupo = cl(profesor).post("/api/grupos", {"nombre": "G", "codigo": "NS1"}, format="json").data["data"]
-    resp = cl(profesor).post(
+    non_student = cl(profesor).post(
         f"/api/grupos/{grupo['id']}/estudiantes", {"email": otro_profesor.email}, format="json"
     )
-    assert resp.status_code == 400
-    assert resp.data["message"] == "El usuario no tiene rol de estudiante"
+    unknown = cl(profesor).post(
+        f"/api/grupos/{grupo['id']}/estudiantes", {"email": "nadie@x.com"}, format="json"
+    )
+    assert non_student.status_code == unknown.status_code == 200
+    assert non_student.data == unknown.data
+    assert not GrupoEstudiante.objects.filter(estudiante_id=otro_profesor.id).exists()
 
 
 def test_add_student_missing_group_404(profesor, estudiante):

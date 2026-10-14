@@ -19,6 +19,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import CaseVersion, SimulationNode
 from apps.simulation.serializers import game_dtos as simulation_dto
+from apps.simulation.services.audit_service import auditable
 from apps.users.serializers import normalize_email_value, validate_common_email_domain
 from shared.exceptions import ApiError
 
@@ -28,7 +29,10 @@ from .import_contract import (
     STUDENT_IMPORT_COLUMNS,
     STUDENT_IMPORT_TEMPLATE_FILENAME,
 )
-from .models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from shared import policies
+
+from . import memberships
+from .models import Grupo, GrupoCaseVersion, GrupoEstudiante, MembershipStatus
 
 User = get_user_model()
 
@@ -67,7 +71,8 @@ class ImportValidationError(Exception):
 
 
 def _total_estudiantes(grupo_id):
-    return GrupoEstudiante.objects.filter(grupo_id=grupo_id).count()
+    """Los estudiantes del grupo: solo los que aceptaron (``ACTIVE``)."""
+    return GrupoEstudiante.objects.filter(grupo_id=grupo_id, status=MembershipStatus.ACTIVE).count()
 
 
 def grupo_dto(grupo):
@@ -98,8 +103,18 @@ def _require_grupo(grupo_id, profesor):
     return grupo
 
 
-def _student_dto(user):
-    return {
+def _require_grupo_to_invite(grupo_id, actor):
+    """El grupo, si el actor puede invitar a él: su profesor o el ADMIN (``membership.invite``)."""
+    grupo = Grupo.objects.filter(pk=grupo_id).first()
+    if not grupo:
+        raise NotFound(f"Grupo no encontrado: {grupo_id}")
+    if not policies.can(actor, "membership", "invite", owner_id=grupo.profesor_id):
+        raise ValidationError("No tiene permiso sobre este grupo")
+    return grupo
+
+
+def _student_dto(user, membership_status=None):
+    dto = {
         "id": user.id,
         "nombre": user.nombre,
         "apellido": user.apellido,
@@ -107,6 +122,9 @@ def _student_dto(user):
         "role": user.role,
         "activo": user.activo,
     }
+    if membership_status is not None:
+        dto["membershipStatus"] = str(membership_status)
+    return dto
 
 
 def _normalize_header(value):
@@ -381,14 +399,14 @@ def _parse_student_import(uploaded_file):
 
 def listar_estudiantes(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    ids = list(
+    rows = list(
         GrupoEstudiante.objects.filter(grupo_id=grupo.id)
+        .exclude(status=MembershipStatus.REMOVED)
         .order_by("estudiante__apellido", "estudiante__nombre", "estudiante__email")
-        .values_list("estudiante_id", flat=True)
+        .values_list("estudiante_id", "status")
     )
-    users = User.objects.filter(id__in=ids)
-    by_id = {u.id: u for u in users}
-    return [_student_dto(by_id[user_id]) for user_id in ids if user_id in by_id]
+    by_id = {u.id: u for u in User.objects.filter(id__in=[uid for uid, _ in rows])}
+    return [_student_dto(by_id[uid], st) for uid, st in rows if uid in by_id]
 
 
 def _import_result(
@@ -458,7 +476,9 @@ def _validate_import_rows(grupo, rows, ignored_columns=None):
 
         user = User.objects.filter(email=email).first()
         if user and user.role != "ESTUDIANTE":
-            errors.append({"row": row_number, "field": "email", "email": email, "message": "El usuario existe, pero no tiene rol ESTUDIANTE.", "error": "El usuario existe, pero no tiene rol ESTUDIANTE."})
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            # Un mensaje genérico: no se confirma al docente que ese correo tiene otra cuenta (D-14).
+            errors.append({"row": row_number, "field": "email", "email": email, "message": "Este correo no se puede agregar como estudiante.", "error": "Este correo no se puede agregar como estudiante."})
             continue
 
         normalized_rows.append({
@@ -479,6 +499,7 @@ def _validate_import_rows(grupo, rows, ignored_columns=None):
     return normalized_rows
 
 
+@auditable("STUDENTS_IMPORTED", "GRUPO")
 @transaction.atomic
 def importar_estudiantes(grupo_id, uploaded_file, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -505,12 +526,13 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
             )
             created += 1
 
-        _, joined = GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=user.id)
-        if joined:
+        # E2-10: la importación INVITA; el estudiante entra al grupo cuando acepta (decisión 22).
+        row, changed = memberships.invite(grupo, user, profesor)
+        if changed:
             assigned += 1
         else:
             skipped += 1
-        imported_students.append(_student_dto(user))
+        imported_students.append(_student_dto(user, row.status))
 
     return _import_result(
         grupo,
@@ -584,22 +606,23 @@ def eliminar(grupo_id, profesor):
     return {"id": grupo_id}
 
 
+@auditable("MEMBERSHIP_REMOVED", "GRUPO")
 @transaction.atomic
 def quitar_estudiante(grupo_id, estudiante_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    GrupoEstudiante.objects.filter(grupo_id=grupo.id, estudiante_id=estudiante_id).delete()
+    memberships.remove(grupo, estudiante_id)
     return grupo_dto(grupo)
 
 
+@auditable("MEMBERSHIP_INVITED", "GRUPO")
 @transaction.atomic
-def agregar_estudiante(grupo_id, email, profesor):
-    grupo = _require_grupo(grupo_id, profesor)
-    estudiante = User.objects.filter(email=email).first()
-    if not estudiante:
-        raise NotFound(f"Usuario no encontrado: {email}")
-    if estudiante.role != "ESTUDIANTE":
-        raise ValidationError("El usuario no tiene rol de estudiante")
-    GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=estudiante.id)
+def agregar_estudiante(grupo_id, email, actor):
+    """Invita al estudiante con ese correo. La respuesta es la misma exista o no la cuenta, sea o
+    no de un estudiante y ya sea o no miembro: no se enumeran cuentas (D-14, E2-10)."""
+    grupo = _require_grupo_to_invite(grupo_id, actor)
+    estudiante = User.objects.filter(email=normalize_email_value(email)).first()
+    if estudiante is not None and estudiante.role == "ESTUDIANTE":
+        memberships.invite(grupo, estudiante, actor)
     return grupo_dto(grupo)
 
 

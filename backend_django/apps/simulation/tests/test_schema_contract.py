@@ -80,6 +80,7 @@ INDEXES = {
     "uq_active_case_version_rubric_assignment",
     "uq_attempts_open_per_student_case",
     "uq_case_reviews_one_pending",
+    "idx_grupo_est_student_status",
 }
 
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
@@ -105,6 +106,7 @@ ON_DELETE = {
     ("grupo_case_version", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "estudiante_id"): "CASCADE",
     ("grupo_estudiante", "grupo_id"): "CASCADE",
+    ("grupo_estudiante", "invited_by"): "SET NULL",
     ("map_objects", "decision_option_id"): "SET NULL",
     ("map_objects", "scene_map_id"): "CASCADE",
     ("publication_checklist_items", "checklist_id"): "CASCADE",
@@ -163,6 +165,13 @@ def _publication_checklists_status():
     )
 
 
+def _grupo_estudiante_status():
+    from apps.grupos.models import Grupo, GrupoEstudiante
+
+    grupo = Grupo.objects.create(nombre="G", codigo="SCH-CK", profesor=_admin())
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=_admin(), status="TALVEZ")
+
+
 def _case_review(**fields):
     CaseReview.objects.create(case_version=_published_version(), requested_by=_admin(), **fields)
 
@@ -216,6 +225,7 @@ CHECKS = {
     "ck_attempts_stress_range": _attempts_stress_range,
     "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
     "ck_attempts_user_trust_range": _attempts_user_trust_range,
+    "grupo_estudiante_status_check": _grupo_estudiante_status,
     "case_reviews_decision_check": _case_reviews_decision,
     "case_reviews_reason_check": _case_reviews_reason,
     "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,

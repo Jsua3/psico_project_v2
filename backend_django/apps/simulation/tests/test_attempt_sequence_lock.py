@@ -77,7 +77,7 @@ def second_version(admin):
 
 def _assign(estudiante, profesor, *versions):
     grupo = Grupo.objects.create(nombre="G-sec", codigo=f"SEC{uuid.uuid4().hex[:6].upper()}", profesor=profesor)
-    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante)
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
     for version in versions:
         GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
     return grupo
