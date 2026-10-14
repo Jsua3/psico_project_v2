@@ -137,9 +137,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # E2-9 · Límites de la importación de estudiantes (.xlsx): se comprueban ANTES de leer el
 # libro (tamaño, firma ZIP, tamaño descomprimido, filas y tiempo).
 IMPORT_MAX_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_BYTES", str(2 * 1024 * 1024)))
-IMPORT_MAX_UNCOMPRESSED_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_UNCOMPRESSED_BYTES", str(20 * 1024 * 1024)))
+IMPORT_MAX_UNCOMPRESSED_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_UNCOMPRESSED_BYTES", str(8 * 1024 * 1024)))
 IMPORT_MAX_ZIP_MEMBERS = 64
 IMPORT_MAX_ROWS = int(os.environ.get("SIEP_IMPORT_MAX_ROWS", "1000"))
+IMPORT_MAX_COLUMNS = int(os.environ.get("SIEP_IMPORT_MAX_COLUMNS", "32"))
 IMPORT_MAX_SECONDS = float(os.environ.get("SIEP_IMPORT_MAX_SECONDS", "5"))
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con

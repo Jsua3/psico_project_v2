@@ -7,6 +7,7 @@ import io
 import re
 import time
 import zipfile
+import zlib
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
@@ -14,6 +15,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.db import transaction
+from django.db.models import Count
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -63,6 +65,10 @@ IMPORT_HEADER_ALIASES = {
     "#": "_skip",
 }
 REQUIRED_IMPORT_FIELDS = {"email", "nombre", "apellido"}
+#: Largos de las columnas de ``users`` (nombre/apellido 100, email 255): un valor más largo rompía
+#: la importación entera con un 500 en vez de señalar la fila.
+_NAME_MAX = 100
+_EMAIL_MAX = 255
 
 
 @dataclass
@@ -75,23 +81,49 @@ def _total_estudiantes(grupo_id):
     return GrupoEstudiante.objects.filter(grupo_id=grupo_id, status=MembershipStatus.ACTIVE).count()
 
 
-def grupo_dto(grupo):
+def _membership_counts(grupo_ids):
+    """``{grupo_id: {"ACTIVE": n, "INVITED": m}}`` en UNA consulta, para varios grupos a la vez."""
+    counts = {}
+    rows = (
+        GrupoEstudiante.objects.filter(
+            grupo_id__in=list(grupo_ids),
+            status__in=[MembershipStatus.ACTIVE, MembershipStatus.INVITED],
+        )
+        .values("grupo_id", "status")
+        .annotate(total=Count("estudiante_id"))
+    )
+    for row in rows:
+        counts.setdefault(row["grupo_id"], {})[row["status"]] = row["total"]
+    return counts
+
+
+def grupo_dto(grupo, counts=None):
+    """``totalEstudiantes`` cuenta a quienes aceptaron; ``totalInvitados``, a quienes aún no
+    respondieron (el docente ve que su invitación sigue pendiente sin que sea un miembro)."""
+    if counts is None:
+        counts = _membership_counts([grupo.id])
+    mine = counts.get(grupo.id, {})
     return {
         "id": grupo.id,
         "nombre": grupo.nombre,
         "codigo": grupo.codigo,
-        "totalEstudiantes": _total_estudiantes(grupo.id),
+        "totalEstudiantes": mine.get(MembershipStatus.ACTIVE, 0),
+        "totalInvitados": mine.get(MembershipStatus.INVITED, 0),
     }
 
 
+def _grupo_dtos(grupos):
+    grupos = list(grupos)
+    counts = _membership_counts([g.id for g in grupos])
+    return [grupo_dto(g, counts) for g in grupos]
+
+
 def listar_de_profesor(profesor_id):
-    grupos = Grupo.objects.filter(profesor_id=profesor_id, activo=True)
-    return [grupo_dto(g) for g in grupos]
+    return _grupo_dtos(Grupo.objects.filter(profesor_id=profesor_id, activo=True))
 
 
 def listar_activos():
-    grupos = Grupo.objects.filter(activo=True).order_by("nombre", "codigo")
-    return [grupo_dto(g) for g in grupos]
+    return _grupo_dtos(Grupo.objects.filter(activo=True).order_by("nombre", "codigo"))
 
 
 def _require_grupo(grupo_id, profesor):
@@ -113,18 +145,38 @@ def _require_grupo_to_invite(grupo_id, actor):
     return grupo
 
 
-def _student_dto(user, membership_status=None):
+def _student_dto(user, membership_status):
+    """Fila del listado del grupo.
+
+    Solo quien ya aceptó (``ACTIVE``) muestra su nombre y su estado de cuenta: de una invitación
+    pendiente, rechazada o retirada el docente ve el correo que él mismo escribió y el estado, no
+    los datos de una cuenta que quizá nunca vio (si no, invitar por correo sirve para averiguar el
+    nombre de cualquier persona; D-14).
+    """
     dto = {
         "id": user.id,
-        "nombre": user.nombre,
-        "apellido": user.apellido,
+        "nombre": "",
+        "apellido": "",
         "email": user.email,
         "role": user.role,
-        "activo": user.activo,
+        "membershipStatus": str(membership_status),
     }
-    if membership_status is not None:
-        dto["membershipStatus"] = str(membership_status)
+    if membership_status == MembershipStatus.ACTIVE:
+        dto.update(nombre=user.nombre, apellido=user.apellido, activo=user.activo)
     return dto
+
+
+def _imported_student_dto(item, membership_status):
+    """Fila del resultado de una importación: lo que el docente escribió en el archivo, no lo que
+    hay en la cuenta (que, si ya existía, no es suyo para verlo; D-14)."""
+    return {
+        "row": item["row"],
+        "nombre": item["nombre"],
+        "apellido": item["apellido"],
+        "email": item["email"],
+        "role": "ESTUDIANTE",
+        "membershipStatus": str(membership_status),
+    }
 
 
 def _normalize_header(value):
@@ -178,6 +230,29 @@ def _guard_upload(uploaded_file):
     uploaded_file.seek(0)
 
 
+#: Lo que puede fallar al abrir y leer un ZIP corrupto, cifrado, con un método no soportado o con
+#: referencias rotas: todo es «el archivo no sirve» (400), nunca un 500.
+_UNREADABLE_BOOK = (
+    zipfile.BadZipFile,
+    zipfile.LargeZipFile,
+    zlib.error,
+    EOFError,
+    RuntimeError,
+    NotImplementedError,
+    KeyError,
+    ValueError,
+    IndexError,
+    OverflowError,
+    ET.ParseError,
+)
+_XML_ENCODING = re.compile(
+    rb"""^(?:\xef\xbb\xbf)?\s*<\?xml[^>]*?encoding\s*=\s*["']([A-Za-z0-9._-]+)["']""", re.I
+)
+_UTF8_NAMES = (b"utf-8", b"utf8", b"us-ascii", b"ascii")
+#: Referencia de celda de OOXML: hasta 3 letras de columna (A..XFD) y la fila.
+_CELL_REF = re.compile(r"^([A-Za-z]{1,3})[0-9]*$")
+
+
 def _read_xml(zf, name):
     """El XML de un componente del libro, sin declaraciones de tipo de documento (DOCTYPE).
 
@@ -185,6 +260,17 @@ def _read_xml(zf, name):
     («billion laughs») y a las entidades externas (XXE).
     """
     data = zf.read(name)
+    # La comprobación de DOCTYPE mira bytes ASCII: solo vale si el XML está en UTF-8. En UTF-16/32
+    # (o con NUL, o declarando otra codificación) la cadena ``<!DOCTYPE`` no aparecería tal cual y
+    # expat la procesaría igual: se rechaza todo lo que no sea UTF-8.
+    declared = _XML_ENCODING.match(data[:256])
+    if (
+        b"\x00" in data
+        or data[:2] in (b"\xff\xfe", b"\xfe\xff")
+        or (declared and declared.group(1).lower() not in _UTF8_NAMES)
+    ):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise _import_invalid("El libro de Excel debe estar codificado en UTF-8.")
     lowered = data.lower()
     if b"<!doctype" in lowered or b"<!entity" in lowered:
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
@@ -231,11 +317,19 @@ def _xlsx_first_sheet_path(zf):
 
 
 def _column_index(ref):
-    letters = "".join(ch for ch in ref if ch.isalpha()).upper()
+    """Índice (desde 0) de la columna de una referencia ``A1``; ``ValueError`` si no es una."""
+    match = _CELL_REF.match(ref or "")
+    if not match:
+        raise ValueError("referencia de celda no válida")
     idx = 0
-    for ch in letters:
+    for ch in match.group(1).upper():
         idx = idx * 26 + (ord(ch) - ord("A") + 1)
-    return max(0, idx - 1)
+    return idx - 1
+
+
+def _too_slow():
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    return _import_invalid("El archivo tardó demasiado en leerse: divídelo en partes más pequeñas.")
 
 
 def _parse_xlsx_rows(uploaded_file):
@@ -245,33 +339,49 @@ def _parse_xlsx_rows(uploaded_file):
             shared = _xlsx_shared_strings(zf)
             sheet_path = _xlsx_first_sheet_path(zf)
             root = ET.fromstring(_read_xml(zf, sheet_path))
-    except zipfile.BadZipFile:
-        raise _import_invalid("El archivo .xlsx no es válido") from None
-    except ET.ParseError:
-        raise _import_invalid("El libro de Excel no se puede leer.") from None
+        return _sheet_rows(root, shared, started)
+    except _UNREADABLE_BOOK:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise _import_invalid("El libro de Excel no se puede leer: revisa que el archivo no esté dañado.") from None
 
+
+def _sheet_rows(root, shared, started):
     ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     rows = []
+    cells_read = 0
     for row in root.findall(".//x:sheetData/x:row", ns):
         if len(rows) > settings.IMPORT_MAX_ROWS:
             raise _import_invalid(f"El archivo supera el máximo de {settings.IMPORT_MAX_ROWS} filas.")
         if time.monotonic() - started > settings.IMPORT_MAX_SECONDS:
-            raise _import_invalid("El archivo tardó demasiado en leerse: divídelo en partes más pequeñas.")
+            raise _too_slow()
         values = []
         for cell in row.findall("x:c", ns):
-            idx = _column_index(cell.attrib.get("r", "A"))
-            while len(values) <= idx:
-                values.append("")
+            cells_read += 1
+            if cells_read % 256 == 0 and time.monotonic() - started > settings.IMPORT_MAX_SECONDS:
+                raise _too_slow()
+            ref = cell.attrib.get("r")
+            idx = _column_index(ref) if ref else len(values)
             cell_type = cell.attrib.get("t")
             value_node = cell.find("x:v", ns)
             inline_node = cell.find("x:is/x:t", ns)
             if cell_type == "s" and value_node is not None:
                 raw = value_node.text or ""
-                value = shared[int(raw)] if raw.isdigit() and int(raw) < len(shared) else ""
+                value = shared[int(raw)] if raw.isdecimal() and int(raw) < len(shared) else ""
             elif inline_node is not None:
                 value = inline_node.text or ""
             else:
                 value = value_node.text if value_node is not None else ""
+            if idx >= settings.IMPORT_MAX_COLUMNS:
+                # Una celda lejana sin dato (formato, ancho de columna) se ignora; una con dato no
+                # se carga: rellenar hasta ahí con vacíos agotaría la memoria (``XFD1`` = 16 384).
+                if _cell_text(value):
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                    raise _import_invalid(
+                        f"El libro trae datos más allá de la columna {settings.IMPORT_MAX_COLUMNS}."
+                    )
+                continue
+            while len(values) <= idx:
+                values.append("")
             values[idx] = _cell_text(value)
         rows.append(values)
     return rows
@@ -455,6 +565,11 @@ def _validate_import_rows(grupo, rows, ignored_columns=None):
             errors.append({"row": row_number, "field": "nombre", "email": email_raw, "message": "El nombre es obligatorio.", "error": "El nombre es obligatorio."})
         if not apellido:
             errors.append({"row": row_number, "field": "apellido", "email": email_raw, "message": "El apellido es obligatorio.", "error": "El apellido es obligatorio."})
+        for field, text in (("nombre", nombre), ("apellido", apellido)):
+            if len(text) > _NAME_MAX:
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                message = f"El {field} no puede pasar de {_NAME_MAX} caracteres."
+                errors.append({"row": row_number, "field": field, "email": email_raw, "message": message, "error": message})
         if not email_raw:
             errors.append({"row": row_number, "field": "email", "email": "", "message": "El email es obligatorio.", "error": "El email es obligatorio."})
             continue
@@ -462,6 +577,8 @@ def _validate_import_rows(grupo, rows, ignored_columns=None):
         try:
             email = validate_common_email_domain(normalize_email_value(email_raw))
             validate_email(email)
+            if len(email) > _EMAIL_MAX:
+                raise ValueError(f"El email no puede pasar de {_EMAIL_MAX} caracteres.")
         except Exception as exc:
             detail = exc.detail if isinstance(exc, ValidationError) else str(exc)
             if isinstance(detail, list):
@@ -535,7 +652,7 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
                 notifications.notify_invitation(user, grupo, profesor)
         else:
             skipped += 1
-        imported_students.append(_student_dto(user, row.status))
+        imported_students.append(_imported_student_dto(item, row.status))
 
     return _import_result(
         grupo,

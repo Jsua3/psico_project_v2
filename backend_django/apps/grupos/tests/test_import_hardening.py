@@ -140,3 +140,171 @@ def test_the_time_budget_is_a_wall_clock_of_a_few_seconds_by_default():
     assert 0 < settings.IMPORT_MAX_BYTES <= 5 * 1024 * 1024
     assert 0 < settings.IMPORT_MAX_ROWS <= 5000
     assert time.monotonic() >= 0
+
+
+# ─── Revisión de fase E2 · lo que un libro hostil todavía lograba ────────────────────────────────────
+def _cell(ref, text):
+    return f'<c r="{ref}" t="inlineStr"><is><t>{text}</t></is></c>'
+
+
+def _row(number, *texts, extra=""):
+    cells = "".join(_cell(f"{'ABC'[i]}{number}", text) for i, text in enumerate(texts))
+    return f'<row r="{number}">{cells}{extra}</row>'
+
+
+def _sheet(*rows):
+    return f'<?xml version="1.0"?><worksheet xmlns="{NS}"><sheetData>{"".join(rows)}</sheetData></worksheet>'
+
+
+HEADER_ROW = _row(1, "nombre", "apellido", "email")
+
+
+def _book(sheet, target="worksheets/sheet1.xml"):
+    """Como ``_workbook`` pero con el destino de la relación a la hoja a elección."""
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        zf.writestr("xl/workbook.xml", f'<?xml version="1.0"?><workbook xmlns="{NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="E" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        zf.writestr("xl/_rels/workbook.xml.rels", f'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="{target}"/></Relationships>')
+        zf.writestr("xl/worksheets/sheet1.xml", sheet)
+    return data.getvalue()
+
+
+def _upload(raw):
+    return SimpleUploadedFile("hostil.xlsx", raw, content_type=XLSX)
+
+
+def _central_entry(raw, name):
+    """Posición del registro del directorio central del componente ``name``."""
+    marker = b"PK\x01\x02"
+    at = raw.find(marker)
+    while at != -1:
+        name_len = int.from_bytes(raw[at + 28:at + 30], "little")
+        if raw[at + 46:at + 46 + name_len] == name.encode():
+            return at
+        at = raw.find(marker, at + 4)
+    raise AssertionError(f"{name} no está en el directorio central")
+
+
+def _bad_request(response):
+    assert response.status_code == 400, response.data
+    assert response.data["code"] == "IMPORT_INVALID"
+    assert _no_accounts_were_created()
+
+
+def test_a_value_far_to_the_right_is_refused_instead_of_padding_the_row(grupo):
+    far = _cell("XFD2", "x")
+    sheet = _sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana@hostil.test", extra=far))
+
+    _bad_request(_post(grupo, _upload(_book(sheet))))
+
+
+def test_the_parsed_rows_never_grow_past_the_column_cap(settings):
+    sheet = _sheet(f'<row r="1">{_cell("A1", "nombre")}<c r="ZZZ1" s="1"/></row>')
+
+    rows = services._parse_xlsx_rows(io.BytesIO(_book(sheet)))
+
+    assert max(len(row) for row in rows) <= settings.IMPORT_MAX_COLUMNS
+
+
+def test_an_empty_styled_cell_far_to_the_right_is_harmless(grupo):
+    far = '<c r="ZZ2" s="3"/>'
+    sheet = _sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana.styled@hostil.test", extra=far))
+
+    response = _post(grupo, _upload(_book(sheet)))
+
+    assert response.status_code == 200
+    assert response.data["data"]["created"] == 1
+
+
+def test_a_cell_reference_with_a_huge_column_is_an_import_error_not_a_hang(grupo):
+    sheet = _sheet(f'<row r="1">{_cell("ZZZZZZZZ1", "x")}</row>')
+
+    _bad_request(_post(grupo, _upload(_book(sheet))))
+
+
+def test_a_corrupt_deflate_stream_is_an_import_error_not_a_500(grupo):
+    raw = bytearray(_book(_sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana@hostil.test"))))
+    name = b"xl/worksheets/sheet1.xml"
+    at = raw.find(name)
+    extra_len = int.from_bytes(raw[at - 2:at], "little")
+    start = at + len(name) + extra_len
+    raw[start:start + 12] = b"\xff" * 12
+
+    _bad_request(_post(grupo, _upload(bytes(raw))))
+
+
+def test_an_encrypted_member_is_an_import_error_not_a_500(grupo):
+    raw = bytearray(_book(_sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana@hostil.test"))))
+    entry = _central_entry(bytes(raw), "xl/worksheets/sheet1.xml")
+    raw[entry + 8] |= 0x01  # bit de «cifrado» de las banderas generales
+
+    _bad_request(_post(grupo, _upload(bytes(raw))))
+
+
+def test_an_unsupported_compression_method_is_an_import_error_not_a_500(grupo):
+    raw = bytearray(_book(_sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana@hostil.test"))))
+    entry = _central_entry(bytes(raw), "xl/worksheets/sheet1.xml")
+    raw[entry + 10:entry + 12] = (9).to_bytes(2, "little")  # Deflate64: no soportado
+
+    _bad_request(_post(grupo, _upload(bytes(raw))))
+
+
+def test_a_relationship_to_a_missing_sheet_is_an_import_error_not_a_500(grupo):
+    sheet = _sheet(HEADER_ROW, _row(2, "Ana", "Rojas", "ana@hostil.test"))
+
+    _bad_request(_post(grupo, _upload(_book(sheet, target="worksheets/no-existe.xml"))))
+
+
+def test_a_superscript_digit_as_a_shared_string_index_is_not_a_500(grupo):
+    sheet = _sheet('<row r="1"><c r="A1" t="s"><v>²</v></c></row>')
+
+    response = _post(grupo, _upload(_book(sheet)))
+
+    assert response.status_code == 400
+    assert response.data["code"] != "INTERNAL_ERROR"
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-16-le", "utf-16-be"])
+def test_an_xml_in_utf16_cannot_smuggle_a_doctype(grupo, encoding):
+    text = (
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE lolz [<!ENTITY lol "ana">]>'
+        f'<worksheet xmlns="{NS}"><sheetData>{HEADER_ROW}{_row(2, "&lol;", "Rojas", "ana@hostil.test")}'
+        "</sheetData></worksheet>"
+    )
+
+    _bad_request(_post(grupo, _upload(_book(text.encode(encoding)))))
+
+
+def test_an_xml_declaring_another_ascii_compatible_encoding_is_refused(grupo):
+    text = (
+        '<?xml version="1.0" encoding="cp037"?>'
+        f'<worksheet xmlns="{NS}"><sheetData>{HEADER_ROW}</sheetData></worksheet>'
+    )
+
+    _bad_request(_post(grupo, _upload(_book(text.encode("utf-8")))))
+
+
+def test_a_name_longer_than_the_column_is_a_row_error_not_a_500(grupo):
+    response = _post(grupo, _xlsx_upload([["nombre", "apellido", "email"], ["N" * 101, "Rojas", "largo@hostil.test"]]))
+
+    assert response.status_code == 400
+    errors = response.data["data"]["errors"]
+    assert [(e["row"], e["field"]) for e in errors] == [(2, "nombre")]
+    assert _no_accounts_were_created()
+
+
+def test_an_email_longer_than_the_column_is_a_row_error_not_a_500(grupo):
+    long_email = "a" * 250 + "@hostil.test"
+
+    response = _post(grupo, _xlsx_upload([["nombre", "apellido", "email"], ["Ana", "Rojas", long_email]]))
+
+    assert response.status_code == 400
+    assert [e["field"] for e in response.data["data"]["errors"]] == ["email"]
+
+
+def test_the_uncompressed_cap_is_small_enough_for_the_memory_of_a_worker():
+    from django.conf import settings
+
+    assert settings.IMPORT_MAX_UNCOMPRESSED_BYTES <= 10 * 1024 * 1024
+    assert settings.IMPORT_MAX_COLUMNS <= 64

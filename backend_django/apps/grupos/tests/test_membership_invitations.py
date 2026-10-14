@@ -306,3 +306,75 @@ def test_a_failing_mail_server_does_not_break_the_invitation(profesor, grupo, es
 
     assert response.status_code == 200
     assert _status(grupo, estudiante) == "INVITED"
+
+
+# ─── Revisión de fase E2 · lo que el docente ve de una cuenta que no es suya (D-14) ──────────────────
+def _import_file(client, grupo, rows):
+    from apps.grupos.tests.test_grupos import _xlsx_upload
+
+    return client.post(
+        f"/api/grupos/{grupo.id}/estudiantes/import/",
+        {"file": _xlsx_upload([["nombre", "apellido", "email"], *rows])},
+        format="multipart",
+    )
+
+
+def _named_user(email, nombre, apellido):
+    return User.objects.create_user(
+        email=email, password="Clave-Segura-2026!", nombre=nombre, apellido=apellido, role="ESTUDIANTE"
+    )
+
+
+def test_the_import_result_echoes_what_the_teacher_typed_not_the_account(profesor, grupo):
+    account = _named_user("inv_priv@x.com", "Maria Real", "Perez Real")
+
+    response = _import_file(cl(profesor), grupo, [["Tecleado", "ComoQuiso", account.email]])
+
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["students"] == [{
+        "row": 2, "nombre": "Tecleado", "apellido": "ComoQuiso", "email": account.email,
+        "role": "ESTUDIANTE", "membershipStatus": "INVITED",
+    }]
+    assert "Real" not in str(response.data)
+
+
+def test_the_roster_hides_the_name_of_whoever_has_not_accepted(profesor, grupo):
+    account = _named_user("inv_priv2@x.com", "Maria Real", "Perez Real")
+    _invite(cl(profesor), grupo, account.email)
+
+    pending = cl(profesor).get(f"/api/grupos/{grupo.id}/estudiantes").data["data"]
+
+    assert pending == [{
+        "id": account.id, "nombre": "", "apellido": "", "email": account.email,
+        "role": "ESTUDIANTE", "membershipStatus": "INVITED",
+    }]
+    assert "Real" not in str(pending)
+    cl(account).post(f"/api/me/invitations/{grupo.id}/accept", {}, format="json")
+    accepted = cl(profesor).get(f"/api/grupos/{grupo.id}/estudiantes").data["data"]
+    assert (accepted[0]["nombre"], accepted[0]["apellido"], accepted[0]["activo"]) == (
+        "Maria Real", "Perez Real", True,
+    )
+
+
+def test_the_group_counts_the_pending_invitations_apart(profesor, grupo):
+    first, second = _named_user("inv_cnt1@x.com", "A", "A"), _named_user("inv_cnt2@x.com", "B", "B")
+    _invite(cl(profesor), grupo, first.email)
+    _invite(cl(profesor), grupo, second.email)
+
+    before = next(g for g in cl(profesor).get("/api/grupos").data["data"] if g["id"] == grupo.id)
+    cl(first).post(f"/api/me/invitations/{grupo.id}/accept", {}, format="json")
+    after = next(g for g in cl(profesor).get("/api/grupos").data["data"] if g["id"] == grupo.id)
+
+    assert (before["totalEstudiantes"], before["totalInvitados"]) == (0, 2)
+    assert (after["totalEstudiantes"], after["totalInvitados"]) == (1, 1)
+
+
+def test_listing_the_groups_counts_memberships_in_one_query(profesor, django_assert_max_num_queries):
+    for index in range(8):
+        Grupo.objects.create(nombre=f"G{index}", codigo=f"CNT{index}", profesor=profesor)
+
+    with django_assert_max_num_queries(6):
+        response = cl(profesor).get("/api/grupos")
+
+    assert response.status_code == 200
+    assert len(response.data["data"]) == 8

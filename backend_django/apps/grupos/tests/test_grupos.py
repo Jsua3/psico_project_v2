@@ -121,7 +121,8 @@ def test_create_grupo_201(profesor):
     assert resp.status_code == 201
     assert resp.data["message"] == "Grupo creado"
     assert resp.data["data"] == {
-        "id": resp.data["data"]["id"], "nombre": "G1", "codigo": "ABC123", "totalEstudiantes": 0
+        "id": resp.data["data"]["id"], "nombre": "G1", "codigo": "ABC123",
+        "totalEstudiantes": 0, "totalInvitados": 0,
     }
 
 
@@ -270,11 +271,10 @@ def test_list_students_in_group(profesor, estudiante):
     assert resp.status_code == 200
     assert resp.data["data"] == [{
         "id": estudiante.id,
-        "nombre": estudiante.nombre,
-        "apellido": estudiante.apellido,
+        "nombre": "",  # D-14: de una invitación pendiente el docente solo ve el correo
+        "apellido": "",
         "email": estudiante.email,
         "role": "ESTUDIANTE",
-        "activo": True,
         "membershipStatus": "INVITED",
     }]
 
