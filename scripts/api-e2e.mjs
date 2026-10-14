@@ -70,11 +70,16 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
 
   const request = createRequester(config.apiBase, fetchImpl);
   const failures = [];
+  let checks = 0;
   const fail = (name, detail) => {
+    checks += 1;
     failures.push({ name, detail });
     console.error(`  FAIL  ${name}: ${detail}`);
   };
-  const pass = (name) => console.log(`  OK    ${name}`);
+  const pass = (name) => {
+    checks += 1;
+    console.log(`  OK    ${name}`);
+  };
   const expectStatus = (name, actual, expected) => {
     const accepted = Array.isArray(expected) ? expected.includes(actual) : actual === expected;
     if (accepted) pass(name);
@@ -153,9 +158,20 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     (await request('GET', '/reportes/dashboard', { token: tokens.PROFESOR })).status,
     200,
   );
+  // E2-4: el profesor autora sus casos (la lista es suya); publicar sigue siendo del ADMIN.
   expectStatus(
-    'PROFESOR GET /admin/cases -> 403',
+    'PROFESOR GET /admin/cases -> 200',
     (await request('GET', '/admin/cases', { token: tokens.PROFESOR })).status,
+    200,
+  );
+  expectStatus(
+    'PROFESOR GET /authoring/cases -> 200',
+    (await request('GET', '/authoring/cases', { token: tokens.PROFESOR })).status,
+    200,
+  );
+  expectStatus(
+    'PROFESOR POST /authoring/cases/1/publish -> 403',
+    (await request('POST', '/authoring/cases/1/publish', { token: tokens.PROFESOR, body: {} })).status,
     403,
   );
   expectStatus(
@@ -167,6 +183,15 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     'ADMIN GET /admin/users -> 200',
     (await request('GET', '/admin/users', { token: tokens.ADMIN })).status,
     200,
+  );
+  // ED-5 (E2-3): el ADMIN administra, no juega; la vista previa del editor no crea intento.
+  expectStatus(
+    'ADMIN POST /simulation/attempts -> 403',
+    (await request('POST', '/simulation/attempts', {
+      token: tokens.ADMIN,
+      body: { caseVersionId: 1 },
+    })).status,
+    403,
   );
   expectStatus(
     'PROFESOR GET /instructor/attempts/recent -> 200',
@@ -192,7 +217,7 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     console.error(`[siep] ${failures.length} fallo(s) en la matriz API.`);
     return 1;
   }
-  console.log('[siep] Matriz API e2e: PASS (16/16)');
+  console.log(`[siep] Matriz API e2e: PASS (${checks}/${checks})`);
   return 0;
 }
 

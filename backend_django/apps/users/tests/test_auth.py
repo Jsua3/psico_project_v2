@@ -41,8 +41,9 @@ def test_login_returns_token_and_user(client, admin_user):
     assert resp.data["data"]["user"]["email"] == admin_user.email
     # UserSummary field order/contents
     assert set(resp.data["data"]["user"].keys()) == {
-        "id", "nombre", "apellido", "email", "role"
+        "id", "nombre", "apellido", "email", "role", "mustChangePassword"
     }
+    assert resp.data["data"]["user"]["mustChangePassword"] is False
 
 
 def test_login_bad_credentials_401(client, admin_user):
@@ -116,7 +117,7 @@ def test_login_then_me_with_bearer(client, admin_user):
 def test_register_requires_authentication(client):
     resp = client.post(
         "/api/auth/register",
-        {"email": "x@x.com", "password": "Passw0rd!", "nombre": "N",
+        {"email": "x@x.com", "password": "Passw0rd-2026!", "nombre": "N",
          "apellido": "A", "role": "ESTUDIANTE"},
         format="json",
     )
@@ -125,13 +126,13 @@ def test_register_requires_authentication(client):
 
 def test_register_forbidden_for_non_admin(client, db):
     student = User.objects.create_user(
-        email="stu_t4@x.com", password="Passw0rd!", nombre="S", apellido="T",
+        email="stu_t4@x.com", password="Passw0rd-2026!", nombre="S", apellido="T",
         role="ESTUDIANTE",
     )
     client.force_authenticate(user=student)
     resp = client.post(
         "/api/auth/register",
-        {"email": "y@x.com", "password": "Passw0rd!", "nombre": "N",
+        {"email": "y@x.com", "password": "Passw0rd-2026!", "nombre": "N",
          "apellido": "A", "role": "ESTUDIANTE"},
         format="json",
     )
@@ -143,7 +144,7 @@ def test_register_creates_user(client, admin_user):
     client.force_authenticate(user=admin_user)
     resp = client.post(
         "/api/auth/register",
-        {"email": "new_t4@x.com", "password": "Passw0rd!", "nombre": "Nuevo",
+        {"email": "new_t4@x.com", "password": "Passw0rd-2026!", "nombre": "Nuevo",
          "apellido": "Usuario", "role": "ESTUDIANTE"},
         format="json",
     )
@@ -157,7 +158,7 @@ def test_register_duplicate_email_400(client, admin_user):
     client.force_authenticate(user=admin_user)
     resp = client.post(
         "/api/auth/register",
-        {"email": admin_user.email, "password": "Passw0rd!", "nombre": "N",
+        {"email": admin_user.email, "password": "Passw0rd-2026!", "nombre": "N",
          "apellido": "A", "role": "ESTUDIANTE"},
         format="json",
     )
@@ -183,7 +184,7 @@ def test_admin_users_endpoint_creates_user(client, admin_user):
         "/api/admin/users",
         {
             "email": "admin_panel_new_t4@x.com",
-            "password": "Passw0rd!",
+            "password": "Passw0rd-2026!",
             "nombre": "Panel",
             "apellido": "Nuevo",
             "role": "PROFESOR",
@@ -206,7 +207,7 @@ def test_admin_users_endpoint_rejects_common_email_domain_typo(client, admin_use
         "/api/admin/users",
         {
             "email": "nuevo@gamil.com",
-            "password": "Passw0rd!",
+            "password": "Passw0rd-2026!",
             "nombre": "Panel",
             "apellido": "Typo",
             "role": "ESTUDIANTE",
@@ -227,7 +228,7 @@ def test_admin_created_user_can_login_with_assigned_role(client, admin_user):
         "/api/admin/users",
         {
             "email": email,
-            "password": "Passw0rd!",
+            "password": "Passw0rd-2026!",
             "nombre": "Panel",
             "apellido": "Login",
             "role": "PROFESOR",
@@ -240,7 +241,7 @@ def test_admin_created_user_can_login_with_assigned_role(client, admin_user):
     login_client = APIClient()
     login = login_client.post(
         "/api/auth/login",
-        {"email": email, "password": "Passw0rd!"},
+        {"email": email, "password": "Passw0rd-2026!"},
         format="json",
     )
 
@@ -254,7 +255,7 @@ def test_admin_created_user_can_login_with_assigned_role(client, admin_user):
 def test_login_normalizes_email_whitespace_and_case(client, admin_user):
     user = User.objects.create_user(
         email="normalizado_t4@x.com",
-        password="Passw0rd!",
+        password="Passw0rd-2026!",
         nombre="Email",
         apellido="Normalizado",
         role="ESTUDIANTE",
@@ -262,7 +263,7 @@ def test_login_normalizes_email_whitespace_and_case(client, admin_user):
 
     login = client.post(
         "/api/auth/login",
-        {"email": f"  {user.email.upper()}  ", "password": "Passw0rd!"},
+        {"email": f"  {user.email.upper()}  ", "password": "Passw0rd-2026!"},
         format="json",
     )
 
@@ -320,7 +321,7 @@ def test_google_login_requires_backend_client_id(client):
 def test_admin_users_endpoint_updates_user_and_optional_password(client, admin_user):
     user = User.objects.create_user(
         email="admin_panel_update_t4@x.com",
-        password="Passw0rd!",
+        password="Passw0rd-2026!",
         nombre="Antes",
         apellido="Usuario",
         role="ESTUDIANTE",
@@ -343,13 +344,13 @@ def test_admin_users_endpoint_updates_user_and_optional_password(client, admin_u
     assert resp.data["data"]["nombre"] == "Despues"
     assert resp.data["data"]["role"] == "PROFESOR"
     user.refresh_from_db()
-    assert user.check_password("Passw0rd!")
+    assert user.check_password("Passw0rd-2026!")
 
 
 def test_admin_users_endpoint_updates_status(client, admin_user):
     user = User.objects.create_user(
         email="admin_panel_status_t4@x.com",
-        password="Passw0rd!",
+        password="Passw0rd-2026!",
         nombre="Estado",
         apellido="Usuario",
         role="ESTUDIANTE",

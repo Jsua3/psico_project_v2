@@ -1,21 +1,23 @@
 """Asignación de casos a estudiantes por sus grupos (RN-04, RF-15).
 
-Un estudiante accede a una versión de caso si es miembro de un grupo **activo** al que
-se le asignó esa versión. Es la política de acceso provisional de E1: E2-10 le añade la
-membresía ``ACTIVE`` y E3 las ventanas de apertura y cierre (``access_decision``).
+Un estudiante accede a una versión de caso si es miembro **``ACTIVE``** (E2-10: aceptó la
+invitación) de un grupo **activo** al que se le asignó esa versión. Es la política de acceso
+provisional: E3 le añade las ventanas de apertura y cierre (``access_decision``).
 Vive en ``grupos`` —de quien son ambas tablas de unión— para que el simulador y la
 progresión lo usen sin depender el uno del otro.
 """
 from django.db.models import Exists
 
-from .models import GrupoCaseVersion
+from .models import GrupoCaseVersion, MembershipStatus
 
 
 def assigned_case_version_ids(student_id):
     """Versiones de caso asignadas al estudiante por sus grupos activos (RN-04)."""
     return list(
         GrupoCaseVersion.objects.filter(
-            grupo__activo=True, grupo__grupoestudiante__estudiante_id=student_id
+            grupo__activo=True,
+            grupo__grupoestudiante__estudiante_id=student_id,
+            grupo__grupoestudiante__status=MembershipStatus.ACTIVE,
         )
         .values_list("case_version_id", flat=True)
         .distinct()
@@ -28,6 +30,7 @@ def student_has_assignment(student_id, case_version_id):
         case_version_id=case_version_id,
         grupo__activo=True,
         grupo__grupoestudiante__estudiante_id=student_id,
+        grupo__grupoestudiante__status=MembershipStatus.ACTIVE,
     ).exists()
 
 
@@ -42,5 +45,6 @@ def assignment_exists(student_ref, case_version_ref):
             case_version_id=case_version_ref,
             grupo__activo=True,
             grupo__grupoestudiante__estudiante_id=student_ref,
+            grupo__grupoestudiante__status=MembershipStatus.ACTIVE,
         )
     )

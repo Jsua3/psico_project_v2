@@ -1,13 +1,14 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
-from shared.permissions import IsAdmin
+from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
 from .serializers import (
@@ -17,6 +18,8 @@ from .serializers import (
     AdminUserStatusSerializer,
     AdminUserSerializer,
     AdminUserWriteSerializer,
+    ApproveUsersSerializer,
+    ChangePasswordSerializer,
     GoogleLoginSerializer,
     LoginSerializer,
     RegisterSerializer,
@@ -24,7 +27,7 @@ from .serializers import (
     generate_access_token,
     normalize_email_value,
 )
-from .services import access_request_service
+from .services import access_request_service, account_service
 
 User = get_user_model()
 
@@ -114,6 +117,14 @@ class GoogleLoginView(APIView):
         if not user or not user.activo:
             raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo")
 
+        if user.must_change_password:
+            # Entró con su cuenta de Google: la contraseña temporal del correo ya no hace falta y
+            # no debe seguir sirviendo (quien interceptara ese correo entraría sin el cambio
+            # obligatorio). La cuenta queda sin contraseña propia hasta que la persona fije una.
+            user.must_change_password = False
+            user.set_password(None)
+            user.save(update_fields=["must_change_password", "password"])
+
         return api_ok({
             "token": generate_access_token(user),
             "user": UserSummarySerializer(user).data,
@@ -123,7 +134,7 @@ class GoogleLoginView(APIView):
 class RegisterView(APIView):
     """POST /api/auth/register — ADMIN only. Mirrors Spring AuthController.register."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
@@ -153,7 +164,7 @@ class AccessRequestCreateView(APIView):
 class AdminAccessRequestListView(APIView):
     """GET /api/admin/access-requests — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def get(self, request):
         status = request.query_params.get("status")
@@ -164,7 +175,7 @@ class AdminAccessRequestListView(APIView):
 class AdminAccessRequestStatusView(APIView):
     """PATCH /api/admin/access-requests/<id>/status — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, request_id):
         ser = AccessRequestStatusSerializer(data=request.data)
@@ -178,10 +189,36 @@ class AdminAccessRequestStatusView(APIView):
         )
 
 
+class ChangePasswordView(APIView):
+    """POST /api/auth/change-password — la propia persona, también con el cambio obligatorio."""
+
+    permission_classes = [policy_permission("account", "self")]
+
+    def post(self, request):
+        ser = ChangePasswordSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        account_service.change_password(
+            request.user, ser.validated_data["currentPassword"], ser.validated_data["newPassword"]
+        )
+        return api_ok(None, message="Contraseña actualizada")
+
+
+class AdminUserApproveView(APIView):
+    """POST /api/admin/users/approve — ADMIN aprueba por lote las cuentas pendientes (E2-9)."""
+
+    permission_classes = [policy_permission("user", "manage")]
+
+    def post(self, request):
+        ser = ApproveUsersSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        result = account_service.approve_pending(ser.validated_data["userIds"], request.user)
+        return api_ok(result, message="Cuentas procesadas")
+
+
 class MeView(APIView):
     """GET /api/auth/me — authenticated."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("account", "self")]
 
     def get(self, request):
         return api_ok(UserSummarySerializer(request.user).data)
@@ -190,7 +227,7 @@ class MeView(APIView):
 class AdminUserListCreateView(APIView):
     """GET/POST /api/admin/users — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def get(self, request):
         users = User.objects.order_by("id")
@@ -207,25 +244,55 @@ class AdminUserListCreateView(APIView):
 class AdminUserDetailView(APIView):
     """PUT /api/admin/users/<id> — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def put(self, request, user_id):
-        user = get_object_or_404(User, pk=user_id)
-        ser = AdminUserWriteSerializer(instance=user, data=request.data)
-        ser.is_valid(raise_exception=True)
-        user = ser.save()
+        approve_after = False
+        with transaction.atomic():
+            account_service.lock_admins()
+            user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            ser = AdminUserWriteSerializer(instance=user, data=request.data)
+            ser.is_valid(raise_exception=True)
+            if ser.validated_data.get("activo") and user.is_pending_approval:
+                # «Activar» una cuenta pendiente es aprobarla: la activa y manda la contraseña
+                # temporal por correo (abajo). Aquí solo se guardan los demás cambios.
+                approve_after = True
+                ser.validated_data.pop("activo")
+            account_service.ensure_not_last_admin(
+                user, role=ser.validated_data.get("role"), activo=ser.validated_data.get("activo")
+            )
+            user = ser.save()
+        if approve_after:
+            outcome = account_service.approve_if_pending(user.id, request.user)
+            if outcome is not None and outcome["failed"]:
+                raise account_service.approval_email_failed()
+            user = get_object_or_404(User, pk=user.id)
         return api_ok(AdminUserSerializer(user).data, message="Usuario actualizado correctamente")
 
 
 class AdminUserStatusView(APIView):
     """PATCH /api/admin/users/<id>/status — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, user_id):
-        user = get_object_or_404(User, pk=user_id)
         ser = AdminUserStatusSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        user.activo = ser.validated_data["activo"]
-        user.save(update_fields=["activo"])
+        if ser.validated_data["activo"]:
+            # «Activar» una cuenta pendiente es aprobarla (correo con la contraseña temporal): no
+            # se deja activa y sin contraseña usable.
+            outcome = account_service.approve_if_pending(user_id, request.user)
+            if outcome is not None and outcome["failed"]:
+                raise account_service.approval_email_failed()
+            if outcome is not None and outcome["approved"]:
+                return api_ok(
+                    AdminUserSerializer(get_object_or_404(User, pk=user_id)).data,
+                    message="Cuenta aprobada: la contraseña temporal se envió por correo",
+                )
+        with transaction.atomic():
+            account_service.lock_admins()
+            user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            account_service.ensure_not_last_admin(user, activo=ser.validated_data["activo"])
+            user.activo = ser.validated_data["activo"]
+            user.save(update_fields=["activo"])
         return api_ok(AdminUserSerializer(user).data, message="Estado actualizado correctamente")

@@ -12,10 +12,13 @@ from .attempt import (  # noqa: F401
     SimulationAttempt,
 )
 from .case import (  # noqa: F401
+    CaseReview,
     CaseVersion,
     CaseVersionStatus,
     DecisionClassification,
     DecisionOption,
+    ReviewDecision,
+    ReviewReason,
     SimulationCase,
     SimulationNode,
 )

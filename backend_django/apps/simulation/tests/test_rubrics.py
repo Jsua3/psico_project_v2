@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.simulation.models import CaseVersion, Rubric, SimulationRubricAssignment
+from apps.simulation.models import CaseVersion, Rubric, SimulationCase, SimulationRubricAssignment
 from apps.simulation.services.rubric_service import seed_default_rubric
 
 User = get_user_model()
@@ -97,7 +97,11 @@ def test_seed_default_rubric_is_idempotent_and_assigns_published_case(admin):
 def test_assign_rubric_to_case_version(profesor):
     rubric = cl(profesor).post("/api/rubrics/", _rubric_payload("Rubrica asignable"), format="json").data["data"]
     cl(profesor).post(f"/api/rubrics/{rubric['id']}/activate", {}, format="json")
-    case_version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    # Asignar una rúbrica exige ser dueño del caso (E2-2, D-17): se asigna a uno propio.
+    case = SimulationCase.objects.create(code="RUB-OWN", title="Caso propio", created_by=profesor)
+    case_version = CaseVersion.objects.create(
+        simulation_case=case, semantic_version="0.1.0", status="DRAFT", created_by=profesor
+    )
 
     resp = cl(profesor).put(
         f"/api/rubrics/case-versions/{case_version.id}",

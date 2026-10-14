@@ -1,10 +1,9 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
-from shared.permissions import IsEstudianteOrAdmin
+from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from apps.simulation.serializers.requests import (
@@ -30,14 +29,14 @@ def _private_ok(data):
 
 
 class CasesView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
         return api_ok(game_service.list_published_cases(request.user))
 
 
 class StartAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request):
         ser = StartAttemptRequest(data=request.data)
@@ -50,7 +49,7 @@ class StartAttemptView(APIView):
 
 
 class ActiveAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, case_version_id):
         state = game_service.find_active_attempt(case_version_id, request.user)
@@ -60,7 +59,7 @@ class ActiveAttemptView(APIView):
 
 
 class AttemptView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt(
@@ -69,7 +68,7 @@ class AttemptView(APIView):
 
 
 class CompletionReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_completion_report(
@@ -80,7 +79,7 @@ class CompletionReportView(APIView):
 class AttemptReportView(APIView):
     """El reporte congelado de un intento completado (C2); 409 ``ATTEMPT_NOT_COMPLETED`` si no."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt_report(
@@ -91,28 +90,28 @@ class AttemptReportView(APIView):
 class AttemptEvaluationView(APIView):
     """La evaluación del docente para el dueño del intento: comentario y niveles, sin números."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return api_ok(rubric_service.owner_evaluation_view(attempt_id, request.user))
 
 
 class AttemptHistoryView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request):
         return api_ok(game_service.list_attempt_history(request.user))
 
 
 class StudentReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "report")]
 
     def get(self, request, attempt_id):
         return api_ok(game_service.get_student_report(attempt_id, request.user))
 
 
 class ProgressMapView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_progress_map(
@@ -121,7 +120,7 @@ class ProgressMapView(APIView):
 
 
 class DecisionsView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = SelectDecisionRequest(data=request.data)
@@ -137,7 +136,7 @@ class DecisionsView(APIView):
 
 
 class ReflectionsView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = ReflectionRequest(data=request.data)
@@ -151,7 +150,7 @@ class ReflectionsView(APIView):
 
 
 class SafeExitView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = SafeExitRequest(data=request.data)
@@ -164,7 +163,7 @@ class SafeExitView(APIView):
 
 
 class ResumeAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = ResumeAttemptRequest(data=request.data)
@@ -177,7 +176,7 @@ class ResumeAttemptView(APIView):
 
 # ─── Explorable world (SimulationWorldService) ───────────────────────────────
 class WorldView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(world_service.get_world(
@@ -186,7 +185,7 @@ class WorldView(APIView):
 
 
 class WorldStateView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def patch(self, request, attempt_id):
         # Valores crudos a propósito: la validación estricta (entero finito,
@@ -203,7 +202,7 @@ class WorldStateView(APIView):
 
 
 class InteractionView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id, interaction_key):
         result = world_service.open_interaction(
@@ -213,7 +212,7 @@ class InteractionView(APIView):
 
 
 class ToolUseView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         result = world_service.use_tool(
@@ -228,7 +227,7 @@ class ToolUseView(APIView):
 
 
 class NpcInteractionView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id, npc_key):
         result = world_service.record_npc_interaction(
@@ -238,7 +237,7 @@ class NpcInteractionView(APIView):
 
 
 class EnterRoomView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         result = world_service.enter_room(
@@ -253,7 +252,7 @@ class EnterRoomView(APIView):
 
 
 class CatalogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
         from apps.progression.catalog import build_catalog

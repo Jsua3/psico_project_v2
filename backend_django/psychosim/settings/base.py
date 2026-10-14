@@ -96,14 +96,27 @@ PASSWORD_HASHERS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # JWT + el cambio de contraseña obligatorio de las cuentas aprobadas (E2-9).
+        "apps.users.authentication.SiepJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # JSON solo como objeto (``request.data.get`` es la norma de las vistas) + formularios.
+    "DEFAULT_PARSER_CLASSES": [
+        "shared.parsers.ObjectJSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
+
+# La revisión del caso puede viajar en la cabecera ``X-Case-Revision`` (E2-6): con el frontend en
+# otro origen el navegador hace antes una consulta de verificación (preflight) y debe constar.
+from corsheaders.defaults import default_headers  # noqa: E402
+
+CORS_ALLOW_HEADERS = (*default_headers, "x-case-revision")
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
@@ -122,13 +135,25 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
-# Contraseña con la que se crean los estudiantes importados desde Excel que no traen
-# una propia. Si la variable no existe o está en blanco se conserva el valor de
-# siempre: nunca se crea una cuenta con la contraseña vacía. Es la misma para todos
-# los importados y la ve el docente; ver CAMBIOS_ADSI.md (A-06) para el rediseño.
-IMPORTED_STUDENT_DEFAULT_PASSWORD = (
-    os.environ.get("IMPORTED_STUDENT_DEFAULT_PASSWORD", "").strip() or "Siep2026!"
-)
+# E2-9 · Contraseñas: longitud mínima y lista de contraseñas comunes (LS-16). Se aplican donde
+# alguien fija una (alta por el ADMIN, registro, cambio de contraseña); las cuentas que importa
+# el docente ya no llevan contraseña: nacen pendientes de aprobación (RN-10, D-5).
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    # BCrypt solo admite 72 bytes: más largo es un 400 con su campo, no un 500.
+    {"NAME": "apps.users.password_validators.MaximumLengthBytesValidator"},
+]
+
+# E2-9 · Límites de la importación de estudiantes (.xlsx): se comprueban ANTES de leer el
+# libro (tamaño, firma ZIP, tamaño descomprimido, filas y tiempo).
+IMPORT_MAX_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_BYTES", str(2 * 1024 * 1024)))
+IMPORT_MAX_UNCOMPRESSED_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_UNCOMPRESSED_BYTES", str(8 * 1024 * 1024)))
+IMPORT_MAX_ZIP_MEMBERS = 64
+IMPORT_MAX_ROWS = int(os.environ.get("SIEP_IMPORT_MAX_ROWS", "1000"))
+IMPORT_MAX_COLUMNS = int(os.environ.get("SIEP_IMPORT_MAX_COLUMNS", "32"))
+IMPORT_MAX_SECONDS = float(os.environ.get("SIEP_IMPORT_MAX_SECONDS", "5"))
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
 # un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.
@@ -154,6 +179,24 @@ FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
 #: nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
 RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
+#: E2-5 · la publicación pasa por revisión: solo se publica desde ``IN_REVIEW`` (``POST …/publish``
+#: sobre un borrador responde 409 ``REVIEW_REQUIRED``), con la lista completa de siete ítems y la
+#: constancia de revisión de contenido de Psicología. Apagada: ``/publish`` del ADMIN sigue
+#: publicando un borrador y la constancia es opcional (el editor de hoy tiene seis casillas).
+REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
+#: E2-6 · ``revision`` es obligatoria en toda mutación de autoría (400 ``REVISION_REQUIRED`` si falta).
+#: Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409
+#: ``REVISION_CONFLICT``.
+REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
+#: E2-10 · PUENTE transitorio (revisión de fase): invitar a un estudiante lo une al grupo de una
+#: vez, sin aceptación ni correo, como hasta E1. Apagada (por defecto): la invitación espera la
+#: respuesta del estudiante (decisión 22). Se enciende solo mientras el visual no tenga la bandeja
+#: de invitaciones (F7+) y se retira cuando la tenga.
+INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
+#: R16 · máximo de avisos de invitación que sale de UNA importación (el resto queda invitado y lo
+#: ve en su bandeja): acota el tiempo de la petición y el volumen de correo.
+INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25"))
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
@@ -171,13 +214,36 @@ ACCESS_REQUEST_NOTIFY_EMAILS = [
 ]
 # Django 6.1: MAILERS reemplaza a EMAIL_BACKEND/EMAIL_HOST/... (deprecados, se
 # retiran en Django 7.0). Por defecto el correo sale por consola; en producción
-# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y, si hace falta, sus OPTIONS.
+# se fija EMAIL_BACKEND (p. ej. el backend SMTP) y sus OPTIONS salen de variables
+# (E2-12): EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, EMAIL_USE_TLS,
+# EMAIL_USE_SSL y EMAIL_TIMEOUT. Una opción sin definir no se pasa al backend.
+def _mailer_options():
+    options = {}
+    text = {"EMAIL_HOST": "host", "EMAIL_HOST_USER": "username", "EMAIL_HOST_PASSWORD": "password"}
+    for variable, option in text.items():
+        value = os.environ.get(variable, "")
+        if value.strip():
+            options[option] = value.strip() if option != "password" else value
+    for variable, option in {"EMAIL_PORT": "port", "EMAIL_TIMEOUT": "timeout"}.items():
+        value = os.environ.get(variable, "").strip()
+        if value:
+            options[option] = int(value)
+    for variable, option in {"EMAIL_USE_TLS": "use_tls", "EMAIL_USE_SSL": "use_ssl"}.items():
+        if os.environ.get(variable, "").strip():
+            options[option] = _env_flag(variable)
+    if "host" in options:
+        # Sin tiempo de espera un servidor SMTP colgado retiene la petición indefinidamente.
+        options.setdefault("timeout", 10)
+    return options
+
+
 MAILERS = {
     "default": {
         "BACKEND": os.environ.get(
             "EMAIL_BACKEND",
             "django.core.mail.backends.console.EmailBackend",
         ),
+        **({"OPTIONS": _mailer_options()} if _mailer_options() else {}),
     },
 }
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "siep@psychosim.edu.co")

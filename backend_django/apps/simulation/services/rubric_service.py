@@ -3,8 +3,11 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+
+from shared import policies
 
 from apps.simulation.models import (
     LEVEL_INDEX,
@@ -175,15 +178,40 @@ def rubric_detail(rubric):
     return data
 
 
-def list_rubrics():
-    return [_rubric_summary(r) for r in Rubric.objects.order_by("-is_default", "-active", "name", "id")]
+def _visible(actor):
+    """Las rúbricas que el actor ve: el ADMIN todas; el profesor las suyas y las del ADMIN (R12)."""
+    rubrics = Rubric.objects.all()
+    if getattr(actor, "role", None) == "ADMIN":
+        return rubrics
+    return rubrics.filter(Q(created_by_id=actor.id) | Q(created_by__role="ADMIN"))
 
 
-def get_rubric(rubric_id):
-    rubric = Rubric.objects.filter(pk=rubric_id).first()
+def _load_visible(rubric_id, actor):
+    """Una rúbrica visible o 404: no se confirma la existencia de la de otro docente (R3)."""
+    rubric = _visible(actor).filter(pk=rubric_id).first()
     if not rubric:
         raise NotFound("Rubrica no encontrada")
-    return rubric_detail(rubric)
+    return rubric
+
+
+def _load_editable(rubric_id, actor):
+    """Una rúbrica que el actor puede modificar: la suya (o cualquiera, si es ADMIN)."""
+    rubric = _load_visible(rubric_id, actor)
+    if not policies.can(actor, "rubric", "edit", owner_id=rubric.created_by_id):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise PermissionDenied("Esta rúbrica es de solo lectura: duplícala para personalizarla")
+    return rubric
+
+
+def list_rubrics(actor):
+    return [
+        _rubric_summary(r)
+        for r in _visible(actor).order_by("-is_default", "-active", "name", "id")
+    ]
+
+
+def get_rubric(rubric_id, actor):
+    return rubric_detail(_load_visible(rubric_id, actor))
 
 
 def _write_criteria(rubric, criteria_payload):
@@ -216,8 +244,15 @@ def _write_criteria(rubric, criteria_payload):
         RubricCriterion.objects.filter(rubric_id=rubric.id).update(active=False)
 
 
+def _require_can_set_default(actor, wants_default):
+    if wants_default and not policies.can(actor, "rubric", "default"):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise PermissionDenied("Solo un administrador fija la rúbrica predeterminada")
+
+
 @transaction.atomic
 def create_rubric(data, user):
+    _require_can_set_default(user, data.get("isDefault"))
     rubric = Rubric.objects.create(
         name=str(data.get("name") or "").strip(),
         description=data.get("description") or "",
@@ -236,10 +271,9 @@ def create_rubric(data, user):
 
 
 @transaction.atomic
-def update_rubric(rubric_id, data):
-    rubric = Rubric.objects.filter(pk=rubric_id).first()
-    if not rubric:
-        raise NotFound("Rubrica no encontrada")
+def update_rubric(rubric_id, data, actor):
+    rubric = _load_editable(rubric_id, actor)
+    _require_can_set_default(actor, data.get("isDefault"))
     if "name" in data:
         rubric.name = str(data.get("name") or "").strip()
     if "description" in data:
@@ -260,10 +294,8 @@ def update_rubric(rubric_id, data):
 
 
 @transaction.atomic
-def activate(rubric_id, active):
-    rubric = Rubric.objects.filter(pk=rubric_id).first()
-    if not rubric:
-        raise NotFound("Rubrica no encontrada")
+def activate(rubric_id, active, actor):
+    rubric = _load_editable(rubric_id, actor)
     if active:
         _validate_weights(list(_criteria_qs(rubric)))
     rubric.active = active
@@ -276,9 +308,7 @@ def activate(rubric_id, active):
 
 @transaction.atomic
 def duplicate(rubric_id, user):
-    source = Rubric.objects.filter(pk=rubric_id).first()
-    if not source:
-        raise NotFound("Rubrica no encontrada")
+    source = _load_visible(rubric_id, user)
     clone = Rubric.objects.create(
         name=f"Copia de {source.name}",
         description=source.description,
@@ -303,7 +333,10 @@ def duplicate(rubric_id, user):
 
 
 @transaction.atomic
-def set_default(rubric_id):
+def set_default(rubric_id, actor=None):
+    """Fija la rúbrica global por defecto. ``actor=None`` es el sembrado interno del sistema."""
+    if actor is not None:
+        _require_can_set_default(actor, True)
     rubric = Rubric.objects.filter(pk=rubric_id).first()
     if not rubric:
         raise NotFound("Rubrica no encontrada")
@@ -319,10 +352,16 @@ def set_default(rubric_id):
 
 @transaction.atomic
 def assign_to_case_version(case_version_id, rubric_id, user):
-    case_version = CaseVersion.objects.filter(pk=case_version_id).first()
+    case_version = (
+        CaseVersion.objects.filter(pk=case_version_id).select_related("simulation_case").first()
+    )
     if not case_version:
         raise NotFound("Version de caso no encontrada")
-    rubric = Rubric.objects.filter(pk=rubric_id, active=True).first()
+    # Cambiar la rúbrica de una versión afecta a quienes la evalúan: solo la autora del caso (o ADMIN).
+    if not policies.can(user, "case", "author", owner_id=case_version.simulation_case.created_by_id):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise PermissionDenied("Solo quien autora el caso puede asignarle una rúbrica")
+    rubric = _visible(user).filter(pk=rubric_id, active=True).first()
     if not rubric:
         raise NotFound("Rubrica activa no encontrada")
     _validate_weights(list(_criteria_qs(rubric)))
@@ -353,8 +392,20 @@ def rubric_for_case_version(case_version_id):
     raise NotFound("No existe rubrica activa para esta simulacion")
 
 
-def case_version_rubric(case_version_id):
-    return rubric_detail(rubric_for_case_version(case_version_id))
+def case_version_rubric(case_version_id, actor):
+    """La rúbrica de una versión, solo si el actor puede verla: es la de su propio caso (o es
+    ADMIN) o es una que ya ve (la suya o la de un ADMIN). Lo demás es 404, igual que una versión
+    que no existe: no se confirma la rúbrica privada de otro docente (R3)."""
+    case_version = (
+        CaseVersion.objects.filter(pk=case_version_id).select_related("simulation_case").first()
+    )
+    if not case_version:
+        raise NotFound("Rubrica no encontrada")
+    rubric = rubric_for_case_version(case_version.id)
+    owns_the_case = policies.can(actor, "case", "author", owner_id=case_version.simulation_case.created_by_id)
+    if not owns_the_case and not _visible(actor).filter(pk=rubric.pk).exists():
+        raise NotFound("Rubrica no encontrada")
+    return rubric_detail(rubric)
 
 
 def attempt_rubric_view(attempt_id, instructor=None):

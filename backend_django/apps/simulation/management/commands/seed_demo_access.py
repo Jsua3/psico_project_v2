@@ -104,7 +104,9 @@ class Command(BaseCommand):
             },
         )
 
-        GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=users["ESTUDIANTE"].id)
+        GrupoEstudiante.objects.get_or_create(
+            grupo_id=grupo.id, estudiante_id=users["ESTUDIANTE"].id, defaults={"status": "ACTIVE"}
+        )
         GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
 
         self.stdout.write(

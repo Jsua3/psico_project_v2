@@ -55,6 +55,15 @@ def _resolve_actor():
     return None, "ANONYMOUS"
 
 
+def current_actor_id():
+    """El id (entero) de quien hace la petición en curso, o ``None`` fuera de una petición."""
+    actor_id, _ = _resolve_actor()
+    try:
+        return int(actor_id) if actor_id is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _client_ip(request):
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
     if forwarded and forwarded.strip():
@@ -90,13 +99,33 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
 
 
 # ─── @auditable decorator (Spring SimulationAuditAspect) ─────────────────────
-def auditable(action, resource_type="", resource_id_param_index=0):
+def arg(args, kwargs, index, name):
+    """El argumento ``name`` de una llamada, venga posicional (``index``) o por nombre."""
+    if name in kwargs:
+        return kwargs[name]
+    return args[index] if index < len(args) else None
+
+
+def auditable(action, resource_type="", resource_id_param_index=0, context=None):
+    """Registra ``action`` DESPUÉS de que la operación termine bien.
+
+    ``context`` (opcional) es ``(args, kwargs, result) -> dict``: lo que devuelve se suma al
+    contexto de la fila (p. ej. los ids de las cuentas aprobadas en un lote). Si falla, la fila se
+    escribe sin esos datos: la auditoría nunca rompe la operación.
+    """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)  # always run the operation first
             try:
-                _write_audit(func, action, resource_type, resource_id_param_index, args)
+                extra = None
+                if context is not None:
+                    try:
+                        extra = context(args, kwargs, result)
+                    except Exception as ex:  # noqa: BLE001
+                        logger.warning("Audit context error [action=%s]: %s", action, ex)
+                _write_audit(func, action, resource_type, resource_id_param_index, args, extra)
             except Exception as ex:  # audit errors never reach the caller
                 logger.warning("Audit aspect error [action=%s]: %s", action, ex)
             return result
@@ -106,7 +135,7 @@ def auditable(action, resource_type="", resource_id_param_index=0):
     return decorator
 
 
-def _write_audit(func, action, resource_type, idx, args):
+def _write_audit(func, action, resource_type, idx, args, extra=None):
     actor_id, actor_role = _resolve_actor()
 
     resource_id = None
@@ -118,6 +147,8 @@ def _write_audit(func, action, resource_type, idx, args):
     user_agent = request.META.get("HTTP_USER_AGENT") if request is not None else None
 
     context = {"method": func.__name__, "class": func.__module__.rsplit(".", 1)[-1]}
+    if extra:
+        context.update(extra)
 
     append(
         actor_id,

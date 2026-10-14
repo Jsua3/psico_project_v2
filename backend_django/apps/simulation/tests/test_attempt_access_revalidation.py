@@ -114,17 +114,21 @@ def test_un_caso_dado_de_baja_se_deja_terminar_pero_no_se_inicia_otro(estudiante
     assert started.status_code == 403
 
 
-def test_el_profesor_y_el_admin_no_dependen_de_la_asignacion_del_estudiante(estudiante, case_version_id):
+def test_el_profesor_y_el_admin_revisan_por_la_traza_sin_depender_de_la_asignacion(estudiante, case_version_id):
+    """La revisión docente (``/api/instructor``) no pasa por la asignación del estudiante; por
+    token solo lee el dueño (E2-2): el docente y el ADMIN reciben 403."""
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    _remove_from_group(estudiante)
-    profesor = User.objects.create_user(
-        email="prof_revisa@x.com", password="x", nombre="P", apellido="R", role="PROFESOR"
+    _unassign_case(estudiante)
+    profesor = Grupo.objects.get(codigo=GROUP_CODE).profesor
+    admin = User.objects.create_user(
+        email="admin_revisa@x.com", password="x", nombre="A", apellido="R", role="ADMIN"
     )
 
-    response = cl(profesor).get(f"{BASE}/attempts/{attempt_id}", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
-
-    assert response.status_code == 200
+    assert cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace").status_code == 200
+    assert cl(admin).get(f"/api/instructor/attempts/{attempt_id}/trace").status_code == 200
+    by_token = cl(profesor).get(f"{BASE}/attempts/{attempt_id}", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
+    assert by_token.status_code == 403
 
 
 def test_un_intento_cerrado_se_sigue_pudiendo_leer_sin_asignacion(estudiante, case_version_id):

@@ -15,6 +15,9 @@ Reglas (``Violation.rule``):
 - ``serializers-sin-all``: sin ``fields = "__all__"`` ni ``exclude`` en serializadores.
 - ``allowany-solo-publicas``: ``AllowAny`` (o ``permission_classes`` vacío) solo en ``PUBLIC_VIEWS``.
 - ``uniones-por-orm``: sin SQL sobre ``grupo_estudiante`` ni ``grupo_case_version`` (E0-8).
+- ``permisos-por-politica``: en las vistas, ``permission_classes`` y ``get_permissions`` solo
+  nombran ``policy_permission(...)`` (o una variable asignada de él) y ``AllowAny`` de las
+  públicas; ninguna clase de rol suelta (E2-4: «ninguna vista decide por su cuenta»).
 
 Las evasiones que la revisión de la fase E0 encontró (imports relativos, alias y
 atributos de ``AllowAny``, SQL en una variable, querysets guardados) están
@@ -51,6 +54,11 @@ QUERYSET_HINTS = {"objects", "filter", "exclude", "all", "get"}
 WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "TRUNCATE", "CREATE")
 EXECUTE_NAMES = {"execute", "executemany"}
 JOIN_TABLES = ("grupo_estudiante", "grupo_case_version")
+#: Clases de rol que ya no se declaran en una vista: la puerta sale de ``policy_permission``.
+ROLE_PERMISSION_CLASSES = {
+    "IsAuthenticated", "IsAdminUser", "IsAdmin", "IsProfesor", "IsProfesorOrAdmin",
+    "IsEstudianteOrAdmin", "IsEstudiante",
+}
 
 
 @dataclass(frozen=True)
@@ -315,6 +323,75 @@ def _uniones_por_orm(rel, tree):
     return sorted(found, key=lambda v: v.detail)
 
 
+def _is_view_module(rel: str) -> bool:
+    return bool(re.fullmatch(r"apps/[^/]+/(views\.py|views/[^/]+\.py)", rel))
+
+
+def _policy_variables(tree) -> set[str]:
+    """Nombres de módulo asignados de ``policy_permission(...)`` (p. ej. ``_CAN_READ``)."""
+    names: set[str] = set()
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and _call_name(node.value) == "policy_permission"
+        ):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return names
+
+
+def _is_policy_class_ref(node, policy_names: set[str]) -> bool:
+    """¿``node`` es una clase de permiso válida? ``policy_permission(...)``, su variable o AllowAny."""
+    if isinstance(node, ast.Call) and _call_name(node) == "policy_permission":
+        return True
+    if isinstance(node, ast.IfExp):  # (_CAN_READ if GET else _CAN_EDIT)
+        return _is_policy_class_ref(node.body, policy_names) and _is_policy_class_ref(node.orelse, policy_names)
+    if isinstance(node, ast.Name):
+        return node.id in policy_names or node.id == "AllowAny"
+    return isinstance(node, ast.Attribute) and node.attr == "AllowAny"
+
+
+def _is_policy_instance(node, policy_names: set[str]) -> bool:
+    """Una instancia devuelta por ``get_permissions``: ``_CAN()`` o ``policy_permission(...)()``."""
+    return isinstance(node, ast.Call) and _is_policy_class_ref(node.func, policy_names)
+
+
+def _permisos_por_politica(rel, tree):
+    if not _is_view_module(rel):
+        return []
+    policy_names = _policy_variables(tree)
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            found += [
+                Violation("permisos-por-politica", rel, f"importa {alias.name}")
+                for alias in node.names
+                if alias.name in ROLE_PERMISSION_CLASSES
+            ]
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        for stmt in cls.body:
+            targets = []
+            value = None
+            if isinstance(stmt, ast.Assign):
+                targets, value = stmt.targets, stmt.value
+            elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+                targets, value = [stmt.target], stmt.value
+            if any(isinstance(t, ast.Name) and t.id == "permission_classes" for t in targets):
+                elements = value.elts if isinstance(value, (ast.List, ast.Tuple)) else []
+                if any(not _is_policy_class_ref(el, policy_names) for el in elements):
+                    found.append(Violation(
+                        "permisos-por-politica", rel, f"{cls.name} declara permission_classes sin policy_permission",
+                    ))
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "get_permissions":
+                for ret in (n for n in ast.walk(stmt) if isinstance(n, ast.Return)):
+                    elements = ret.value.elts if isinstance(ret.value, (ast.List, ast.Tuple)) else [ret.value]
+                    if any(not _is_policy_instance(el, policy_names) for el in elements):
+                        found.append(Violation(
+                            "permisos-por-politica", rel, f"{cls.name}.get_permissions devuelve algo ajeno a la política",
+                        ))
+    return found
+
+
 def check_architecture(root: Path) -> list[Violation]:
     violations: list[Violation] = []
     for rel, tree in _source_files(root):
@@ -348,4 +425,5 @@ def check_architecture(root: Path) -> list[Violation]:
         violations += _serializers_sin_all(rel, tree)
         violations += _allowany_solo_publicas(rel, tree)
         violations += _uniones_por_orm(rel, tree)
+        violations += _permisos_por_politica(rel, tree)
     return violations
