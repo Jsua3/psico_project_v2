@@ -4,10 +4,10 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
-from shared.permissions import IsAdmin
+from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
 from .serializers import (
@@ -123,7 +123,7 @@ class GoogleLoginView(APIView):
 class RegisterView(APIView):
     """POST /api/auth/register — ADMIN only. Mirrors Spring AuthController.register."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
@@ -153,7 +153,7 @@ class AccessRequestCreateView(APIView):
 class AdminAccessRequestListView(APIView):
     """GET /api/admin/access-requests — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def get(self, request):
         status = request.query_params.get("status")
@@ -164,7 +164,7 @@ class AdminAccessRequestListView(APIView):
 class AdminAccessRequestStatusView(APIView):
     """PATCH /api/admin/access-requests/<id>/status — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, request_id):
         ser = AccessRequestStatusSerializer(data=request.data)
@@ -181,7 +181,7 @@ class AdminAccessRequestStatusView(APIView):
 class MeView(APIView):
     """GET /api/auth/me — authenticated."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("account", "self")]
 
     def get(self, request):
         return api_ok(UserSummarySerializer(request.user).data)
@@ -190,7 +190,7 @@ class MeView(APIView):
 class AdminUserListCreateView(APIView):
     """GET/POST /api/admin/users — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def get(self, request):
         users = User.objects.order_by("id")
@@ -207,7 +207,7 @@ class AdminUserListCreateView(APIView):
 class AdminUserDetailView(APIView):
     """PUT /api/admin/users/<id> — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def put(self, request, user_id):
         user = get_object_or_404(User, pk=user_id)
@@ -220,7 +220,7 @@ class AdminUserDetailView(APIView):
 class AdminUserStatusView(APIView):
     """PATCH /api/admin/users/<id>/status — ADMIN only."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, user_id):
         user = get_object_or_404(User, pk=user_id)

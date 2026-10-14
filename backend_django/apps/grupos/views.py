@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import FormParser, MultiPartParser
 
-from shared.permissions import IsProfesor, IsProfesorOrAdmin
+from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from . import services
@@ -18,12 +18,16 @@ from .serializers import (
 )
 
 
+_CAN_LIST_GROUPS = policy_permission("group", "list")
+_CAN_MANAGE_GROUP = policy_permission("group", "manage")
+
+
 class GrupoListCreateView(APIView):
     def get_permissions(self):
         # ADMIN puede LISTAR todos los grupos activos; crear sigue siendo solo PROFESOR.
         if self.request.method == "GET":
-            return [IsProfesorOrAdmin()]
-        return [IsProfesor()]
+            return [_CAN_LIST_GROUPS()]
+        return [_CAN_MANAGE_GROUP()]
 
     def get(self, request):
         if request.user.role == "ADMIN":
@@ -38,7 +42,7 @@ class GrupoListCreateView(APIView):
 
 
 class GrupoDetailView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
 
     def put(self, request, pk):
         ser = ActualizarGrupoSerializer(data=request.data)
@@ -59,7 +63,7 @@ class GrupoDetailView(APIView):
 
 
 class GrupoEstudiantesView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
 
     def get(self, request, pk):
         return api_ok(services.listar_estudiantes(pk, request.user))
@@ -72,7 +76,7 @@ class GrupoEstudiantesView(APIView):
 
 
 class GrupoEstudianteDetailView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
 
     def delete(self, request, pk, estudiante_id):
         dto = services.quitar_estudiante(pk, estudiante_id, request.user)
@@ -80,7 +84,7 @@ class GrupoEstudianteDetailView(APIView):
 
 
 class GrupoEstudiantesImportView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, pk):
@@ -98,14 +102,14 @@ class GrupoEstudiantesImportView(APIView):
 
 
 class GrupoEstudiantesImportSpecView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
 
     def get(self, request):
         return api_ok(services.import_spec())
 
 
 class GrupoEstudiantesImportTemplateView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("group", "manage")]
 
     def get(self, request):
         response = HttpResponse(
@@ -117,7 +121,7 @@ class GrupoEstudiantesImportTemplateView(APIView):
 
 
 class GrupoCasosView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("assignment", "manage")]
 
     def get(self, request, pk):
         return api_ok(services.listar_casos_asignados(pk, request.user))
@@ -132,7 +136,7 @@ class GrupoCasosView(APIView):
 
 
 class GrupoCasoDetailView(APIView):
-    permission_classes = [IsProfesor]
+    permission_classes = [policy_permission("assignment", "manage")]
 
     def delete(self, request, pk, case_version_id):
         return api_ok(
