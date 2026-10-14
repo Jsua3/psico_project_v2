@@ -45,7 +45,9 @@ class CopySpec:
         return self.model.objects.create(**values, **links)
 
 
-CASE_VERSION = CopySpec(CaseVersion, ("narrative_context", "world_schema_version", "rules"))
+CASE_VERSION = CopySpec(CaseVersion, (
+    "narrative_context", "learning_objectives", "world_schema_version", "rules",
+))
 
 NODE = CopySpec(SimulationNode, (
     "node_key", "title", "narrative", "support_resources_json", "required_tools_json",

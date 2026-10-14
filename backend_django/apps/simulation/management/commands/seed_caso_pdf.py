@@ -74,13 +74,19 @@ CASE_DESCRIPTION = (
     "en Comisaría de Familia (Resolución 459 de 2012, Ley 1257 de 2008, "
     "Ley 2126 de 2021, Ley 1098 de 2006)."
 )
-NARRATIVE_CONTEXT = (
-    "Barrio con altas condiciones de vulnerabilidad. Un hombre de 28 años "
-    "ataca con arma cortopunzante a su pareja de 22 años (28 heridas) y a la "
-    "hija de ambos de 3 años, quien fallece. El recorrido cubre la urgencia "
-    "vital y la crisis familiar en el hospital y, quince días después, el "
-    "restablecimiento de derechos en la Comisaría de Familia."
-)
+#: El contexto inicial del caso, párrafo por párrafo (separados por una línea en blanco). Son los
+#: párrafos validados por Psicología que hasta E3 estaban escritos a mano en el cliente
+#: (``CASE_INTRO_PARAGRAPHS``): se trasladan tal cual para que la ficha del caso (C8) los sirva el
+#: servidor y un caso autorado tenga la suya.
+NARRATIVE_PARAGRAPHS = [
+    "Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.",
+    "Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.",
+    "En horas de la tarde, el hombre había tenido un altercado verbal con su pareja. Hubo groserías, maltrato psicológico y chantaje emocional: le dijo que sin él no era nadie, que era una mujer mantenida y que estaba seguro de que ella le era infiel.",
+    "Esa noche, cuando él entra a la residencia, la mujer le reclama por llegar tarde y haberse perdido toda la tarde.",
+    "El hombre, sin mediar palabra, saca una navaja y hiere a la niña de 3 años, causándole la muerte de manera inmediata. Luego hiere a la mujer con 28 heridas de arma cortopunzante, dejándola gravemente herida.",
+    "Tu intervención inicia en urgencias. Lee el contexto con cuidado: cada conversación, herramienta y decisión puede cambiar el curso de la atención.",
+]
+NARRATIVE_CONTEXT = "\n\n".join(NARRATIVE_PARAGRAPHS)
 
 ROOM_W, ROOM_H = 960, 528
 
@@ -134,6 +140,11 @@ DEFAULT_RUBRIC = {
         },
     ],
 }
+
+#: Los objetivos de aprendizaje del caso (RF-16). Psicología aún no redactó los propios (decisión
+#: 16): hasta entonces se listan, tal cual, las competencias que la rúbrica sembrada ya declara
+#: para este caso (``DEFAULT_RUBRIC``), que son texto validado y no inventado aquí.
+LEARNING_OBJECTIVES = [criterion["description"] for criterion in DEFAULT_RUBRIC["criteria"]]
 
 LOCKED_ESCUCHA = (
     "Primero identifica la necesidad de contención: habla con la familia en crisis."
@@ -1147,6 +1158,7 @@ class Command(BaseCommand):
                 semantic_version=options["semantic_version"],
                 status="PUBLISHED",
                 narrative_context=NARRATIVE_CONTEXT,
+                learning_objectives=json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False),
                 published_at=timezone.now(),
                 created_by=case.created_by,
                 rules=json.dumps(CASE_RULES),
@@ -1155,6 +1167,7 @@ class Command(BaseCommand):
             version.status = "PUBLISHED"
             version.rules = json.dumps(CASE_RULES)
             version.narrative_context = NARRATIVE_CONTEXT
+            version.learning_objectives = json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False)
             version.published_at = version.published_at or timezone.now()
             version.save()
 

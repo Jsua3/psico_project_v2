@@ -245,6 +245,14 @@ class ToolDetailView(_AuthoringView):
         )
 
 
+# ─── Ficha del caso (E3-4) ──────────────────────────────────────────────────
+class BriefView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.BriefRequest)
+        return api_ok(svc.update_brief(case_version_id, body), "Ficha del caso actualizada")
+
+
 # ─── Character CRUD (E3-3) ──────────────────────────────────────────────────
 class CharacterListView(_AuthoringView):
     def post(self, request, case_version_id):

@@ -61,6 +61,9 @@ class CaseVersion(models.Model):
         max_length=24, choices=CaseVersionStatus.choices, default=CaseVersionStatus.DRAFT
     )
     narrative_context = models.TextField(blank=True, null=True)
+    # Los objetivos de aprendizaje del caso (E3-4, RF-16): una lista de textos planos en JSON
+    # (como los demás ``*_json``). Los redacta Psicología; ``[]`` = el caso aún no los tiene.
+    learning_objectives = models.TextField(default="[]", db_default="[]")
     cloned_from = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.DO_NOTHING, db_column="cloned_from_id"
     )

@@ -147,6 +147,12 @@ def delete_tool(case_version_id, tool_id, revision=None):
     return tools.delete_tool(case_version_id, tool_id, revision)
 
 
+# ─── Ficha del caso (E3-4) ───────────────────────────────────────────────────
+@auditable("ADMIN_UPDATE_BRIEF", "CASE_VERSION")
+def update_brief(case_version_id, request):
+    return cases.update_brief(case_version_id, request)
+
+
 # ─── Personajes del caso (E3-3) ──────────────────────────────────────────────
 @auditable("ADMIN_CREATE_CHARACTER", "CASE_VERSION")
 def create_character(case_version_id, request):

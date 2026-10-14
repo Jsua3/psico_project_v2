@@ -13,7 +13,7 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import game_service, rubric_service, world_service
+from apps.simulation.services import case_brief, game_service, rubric_service, world_service
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
@@ -41,6 +41,15 @@ class CasesView(APIView):
         for case in cases:
             case["access"] = decisions[case["caseVersionId"]].as_dict()
         return api_ok(cases)
+
+
+class CaseBriefView(APIView):
+    """C8 · La ficha del caso antes de jugar: contexto, personajes y objetivos, sin crear intento."""
+
+    permission_classes = [policy_permission("catalog", "read")]
+
+    def get(self, request, case_version_id):
+        return api_ok(case_brief.brief_for(request.user, case_version_id))
 
 
 class StartAttemptView(APIView):

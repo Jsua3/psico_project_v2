@@ -48,6 +48,8 @@ def editor(case_version_id):
         "title": version.simulation_case.title,
         "semanticVersion": version.semantic_version,
         "status": version.status,
+        "context": version.narrative_context or "",
+        "learningObjectives": _read_string_list(version.learning_objectives),
         "nodes": [node_editor_state(n) for n in nodes],
         "decisions": [decision_edge(d) for d in decisions],
         "maps": [map_editor_state(m) for m in maps],

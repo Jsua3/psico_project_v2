@@ -173,6 +173,16 @@ class CharacterRequest(serializers.Serializer):
     displayOrder = _number()
 
 
+class BriefRequest(serializers.Serializer):
+    """La ficha del caso (E3-4): contexto y objetivos; el servicio valida el texto y los topes."""
+
+    context = _text()
+    learningObjectives = serializers.ListField(
+        child=serializers.CharField(allow_blank=True, trim_whitespace=False),
+        required=False, allow_null=True,
+    )
+
+
 class ChecklistRequest(serializers.Serializer):
     contentOriginal = _flag()
     ethicsReviewed = _flag()
