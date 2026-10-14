@@ -1,56 +1,52 @@
-"""Builds the per-actor case catalog with linear unlock state.
+"""El catálogo de casos por actor, con su estado de acceso (E1-11, E3-2).
 
-Published cases form the linear sequence, ordered by **case** (its creation order) and then
-by version: a new version of an earlier case keeps that case's place (E1-11; the order used
-to follow the version's ``created_at``). A student sees only the cases assigned to them by
-their active groups (RF-15, RN-04); within that sequence, case i is unlocked iff the student
-completed case i-1 (the first is always unlocked). PROFESOR/ADMIN see everything unlocked.
+El estudiante ve solo los casos que tiene asignados por sus grupos activos o directamente
+(RF-15, RN-04) y publicados; en el orden de su secuencia (``sort_order`` de la asignación, luego
+caso y versión). Cada elemento trae ``access`` —la decisión de ``progression.access``— y
+``unlocked``/``locked`` siguen diciendo si puede iniciarlo (la interfaz actual lee solo eso):
+una ventana que aún no abre o ya cerró también deja el caso «bloqueado» para ella.
 
-The server enforces the same rule when a student starts an attempt (``is_case_unlocked``);
-``sort_order`` on the assignment replaces this ordering in E3-1.
+PROFESOR y ADMIN ven todo desbloqueado. El servidor aplica la misma decisión al iniciar un
+intento (``access.access_decision``); ``is_case_unlocked`` queda como atajo de lectura.
 """
-from apps.grupos.assignments import assigned_case_version_ids
 from apps.simulation.models import CaseVersion
 
-from .models import StudentCaseCompletion
+from .access import access_map, is_staff, sequence_of
 
 
-def _is_staff(actor):
-    return getattr(actor, "role", None) in ("PROFESOR", "ADMIN")
+def _item(version, order, *, unlocked, completed, access):
+    return {
+        "caseVersionId": version.id,
+        "code": version.simulation_case.code,
+        "title": version.simulation_case.title,
+        "description": version.simulation_case.description,
+        "order": order,
+        "unlocked": unlocked,
+        "completed": completed,
+        "locked": not unlocked,
+        "access": access,
+    }
 
 
-def unlock_states(actor):
-    """Los casos publicados del actor, en orden de secuencia, con su estado de desbloqueo."""
-    versions = CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
-    is_staff = _is_staff(actor)
-    if not is_staff:
-        versions = versions.filter(id__in=assigned_case_version_ids(actor.id))
-    versions = list(versions.select_related("simulation_case").order_by("simulation_case_id", "id"))
-    completed_ids = set()
-    if not is_staff:
-        completed_ids = set(
-            StudentCaseCompletion.objects.filter(student_id=actor.id)
-            .values_list("simulation_case_id", flat=True)
+def unlock_states(actor, now=None):
+    """Los casos publicados del actor, en orden de secuencia, con su estado de acceso."""
+    if is_staff(actor):
+        versions = (
+            CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
+            .select_related("simulation_case")
+            .order_by("simulation_case_id", "id")
         )
-
-    items = []
-    prev_completed = True  # case 0 always unlocked
-    for order, v in enumerate(versions):
-        case_id = v.simulation_case_id
-        completed = case_id in completed_ids
-        unlocked = True if is_staff else prev_completed
-        items.append({
-            "caseVersionId": v.id,
-            "code": v.simulation_case.code,
-            "title": v.simulation_case.title,
-            "description": v.simulation_case.description,
-            "order": order,
-            "unlocked": unlocked,
-            "completed": completed,
-            "locked": not unlocked,
-        })
-        prev_completed = True if is_staff else completed
-    return items
+        return [
+            _item(v, order, unlocked=True, completed=False, access={"allowed": True})
+            for order, v in enumerate(versions)
+        ]
+    return [
+        _item(
+            item.version, item.order, unlocked=item.decision.allowed,
+            completed=item.completed, access=item.decision.as_dict(),
+        )
+        for item in sequence_of(actor, now)
+    ]
 
 
 def build_catalog(actor):
@@ -58,7 +54,7 @@ def build_catalog(actor):
 
 
 def is_case_unlocked(actor, case_version_id):
-    """¿Puede este actor iniciar esa versión según la secuencia lineal? (SIEP-RF-12).
+    """¿Puede este actor iniciar esa versión? (SIEP-RF-12 y la ventana de la asignación).
 
     Un caso que no está en su secuencia (no asignado, no publicado o dado de baja) no cuenta
     como desbloqueado: quien llama decide qué error corresponde a cada razón.
@@ -67,3 +63,6 @@ def is_case_unlocked(actor, case_version_id):
         if item["caseVersionId"] == case_version_id:
             return item["unlocked"]
     return False
+
+
+__all__ = ["access_map", "build_catalog", "is_case_unlocked", "unlock_states"]

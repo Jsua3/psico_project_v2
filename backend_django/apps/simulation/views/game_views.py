@@ -32,7 +32,15 @@ class CasesView(APIView):
     permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
-        return api_ok(game_service.list_published_cases(request.user))
+        cases = game_service.list_published_cases(request.user)
+        # La decisión de acceso es de progresión (asignación, ventana y secuencia): el servicio
+        # del juego no la conoce, la vista la suma a cada caso (``access``, aditivo).
+        from apps.progression.access import access_map
+
+        decisions = access_map(request.user, [case["caseVersionId"] for case in cases])
+        for case in cases:
+            case["access"] = decisions[case["caseVersionId"]].as_dict()
+        return api_ok(cases)
 
 
 class StartAttemptView(APIView):
