@@ -123,6 +123,25 @@ describe('NotificationService', () => {
     });
   });
 
+  // req: BLOQUE-H (H-23) — F6-12: quien emite un aviso accionable (el juego) necesita retirarlo cuando deja de valer.
+  describe('show() devuelve el id del aviso', () => {
+    it('el de uno nuevo y, si es un repetido, el del que ya estaba visible', async () => {
+      const first = service.show('error', 'Falló');
+      const repeated = service.show('error', 'Falló');
+      const [{ id }] = await firstValueFrom(service.messages$);
+      expect(first).toBe(id);
+      expect(repeated).toBe(id);
+    });
+
+    it('con ese id se puede retirar, y un aviso sin cierre automático (0) espera a que se cierre', async () => {
+      const id = service.show('warning', 'Habla con la familia', 0);
+      vi.advanceTimersByTime(60_000);
+      expect(await texts()).toEqual(['Habla con la familia']);
+      service.dismiss(id);
+      expect(await texts()).toEqual([]);
+    });
+  });
+
   it('dismiss cancela el temporizador pendiente', async () => {
     service.success('Guardado');
     const [{ id }] = await firstValueFrom(service.messages$);

@@ -119,13 +119,13 @@ describe('jwtInterceptor', () => {
   });
 
   describe('401', () => {
-    it('limpia la sesión, avisa y lleva al login', () => {
+    it('limpia la sesión, avisa y lleva al login con la ruta en la que estaba (returnUrl)', () => {
       const error = fail('/api/cosa', 401);
 
       expect(error?.status).toBe(401);
       expect(auth.clearSession).toHaveBeenCalledTimes(1);
       expect(notifications.warning).toHaveBeenCalledWith(SESSION_MESSAGE);
-      expect(router.navigate).toHaveBeenCalledWith(['/login']);
+      expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/dashboard' } });
     });
 
     it('si ya está en /login limpia la sesión pero no avisa ni navega', () => {

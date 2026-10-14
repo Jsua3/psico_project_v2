@@ -1,12 +1,15 @@
 import { ApplicationConfig, inject, provideAppInitializer } from '@angular/core';
-import { TitleStrategy, provideRouter } from '@angular/router';
+import { TitleStrategy, provideRouter, withNavigationErrorHandler, withPreloading } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { MAT_CARD_CONFIG } from '@angular/material/card';
+import { MatIconRegistry } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
 import { SimulationService } from './core/api/simulation.service';
 import { jwtInterceptor } from './core/auth/jwt.interceptor';
+import { offlineNavigationHandler } from './core/navigation/offline-navigation';
+import { PreloadMarkedRoutes } from './core/navigation/preload-marked';
 import { AuthService } from './core/auth/auth.service';
 import { settleWithin } from './core/auth/settle-within.util';
 import { User } from './core/models/user.model';
@@ -27,12 +30,16 @@ export function initializeAuthSession(): Promise<User | null | undefined> {
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(routes),
+    // Sin red, una navegación que no pudo descargar su código lleva a «Sin conexión», precargada con red (F4-3).
+    provideRouter(routes, withNavigationErrorHandler(offlineNavigationHandler), withPreloading(PreloadMarkedRoutes)),
     { provide: TitleStrategy, useClass: SiepTitleStrategy },
     provideHttpClient(withXhr(), withInterceptors([jwtInterceptor])),
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
     { provide: SimulationService, useExisting: CachedSimulationService },
-    provideAnimationsAsync(),
     provideAppInitializer(initializeAuthSession),
+    // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
+    provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
+    // Tarjetas con borde fino por token y elevación suave (F1-4): la apariencia «elevated» fija border-width 0.
+    { provide: MAT_CARD_CONFIG, useValue: { appearance: 'outlined' } },
   ]
 };

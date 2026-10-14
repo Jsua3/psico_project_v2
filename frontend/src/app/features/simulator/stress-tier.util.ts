@@ -14,6 +14,18 @@ export type StressTier = 'calm' | 'moderate' | 'high' | 'critical';
 /** Primer valor (inclusivo) de cada tramo; por debajo de `moderate` el tramo es `calm`. */
 export const STRESS_TIER_FLOORS = { moderate: 30, high: 60, critical: 85 } as const;
 
+/**
+ * Rótulo de cada tramo: el que lee el medidor del HUD (`aria-label`) y el que se anuncia al cruzar un umbral
+ * (F6-12, precedido de la frase en borrador de `draft-copy.ts`). Texto vigente del HUD, movido aquí sin cambios para
+ * tener UNA sola definición de los tramos y de cómo se llaman.
+ */
+export const STRESS_TIER_LABELS: Record<StressTier, string> = {
+  calm: 'Situación estable',
+  moderate: 'Tensión moderada',
+  high: 'Estrés elevado — considere herramientas de contención',
+  critical: 'Nivel crítico — priorice seguridad y autocuidado',
+};
+
 /** Tramo de un índice de estrés 0-100. Lo no numérico se trata como 0 y lo demás se acota. */
 export function stressTier(stress: number | null | undefined): StressTier {
   const value = typeof stress === 'number' && Number.isFinite(stress) ? Math.max(0, Math.min(100, stress)) : 0;

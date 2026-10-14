@@ -1,7 +1,10 @@
+import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
@@ -94,6 +97,8 @@ describe('DialoguePanelComponent - integración renderizada', () => {
       providers: [
         { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
         { provide: KitService, useValue: fakeKitService() },
+        // El anuncio de la línea tiene su propio describe (F6-12); aquí su temporizador de escritura no cuenta.
+        { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
@@ -362,7 +367,10 @@ describe('DialoguePanelComponent - liberación tras un error (T4.2, DLG-01)', ()
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DialoguePanelComponent],
-      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+      // Sin zone.js, como la app (Angular 22 es zoneless por defecto): con el planificador de zone.js el reloj
+      // falso de Vitest dejaba ticks a medias y, con el pool vmThreads (TOO-1), re-entraba en
+      // ApplicationRef.tick (NG0101). Aquí cada detectChanges() es explícito.
+      providers: [provideZonelessChangeDetection(), { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
     }).compileComponents();
     fixture = TestBed.createComponent(DialoguePanelComponent);
     component = fixture.componentInstance;
@@ -586,6 +594,33 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
     vi.advanceTimersByTime(200);
     expect(execute).toHaveBeenCalledWith(2);
   });
+
+  // req: BLOQUE-H (H-07), WCAG 2.1.4
+  it('con los atajos de una tecla apagados los dígitos no eligen ni se consumen', () => {
+    TestBed.inject(ShortcutSettings).set(false);
+    try {
+      const execute = vi.fn();
+      component.execute.subscribe(execute);
+      const event = new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      vi.advanceTimersByTime(600);
+      expect(execute).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      localStorage.removeItem('siep.atajos.v1');
+    }
+  });
+
+  it('apagados, la pista de teclado no promete los números; activos sí', () => {
+    const settings = TestBed.inject(ShortcutSettings);
+    try {
+      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · 1 a 2: elegir · Esc: volver al mapa');
+      settings.set(false);
+      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · Esc: volver al mapa');
+    } finally {
+      localStorage.removeItem('siep.atajos.v1');
+    }
+  });
 });
 
 describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
@@ -709,11 +744,12 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
     }
   });
 
-  it('muestra «Usar una herramienta» y «Decisión clínica» solo cuando conviven, sin reordenar', () => {
+  // req: RNF-04, RN-01 (VD-24: vocabulario educativo en borrador; el texto sale de draft-copy.ts)
+  it('muestra «Usar una herramienta» y «Decisión» solo cuando conviven, sin reordenar', () => {
     render(dialogueWith([tool('PAP', 'Aplicar material'), decision(1, 'Escuchar'), decision(2, 'Aconsejar')]));
     const children = Array.from(host().querySelector('.choices')!.children).map(el =>
       el.classList.contains('choices-subtitle') ? `# ${text(el)}` : text(el.querySelector('.choice-btn__label')));
-    expect(children).toEqual(['# Usar una herramienta', 'Aplicar material', '# Decisión clínica', 'Escuchar', 'Aconsejar']);
+    expect(children).toEqual(['# Usar una herramienta', 'Aplicar material', '# Decisión', 'Escuchar', 'Aconsejar']);
   });
 
   it('sin mezcla de herramienta y decisión no hay subtítulos', () => {
@@ -752,9 +788,9 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
     expect(host().querySelector('.stale-note')).toBeNull();
   });
 
-  it('la cabecera anuncia «Decisión clínica» solo si alguna opción registra una decisión', () => {
+  it('la cabecera anuncia «Decisión» solo si alguna opción registra una decisión', () => {
     render(dialogueWith([decision(1, 'Escuchar')]));
-    expect(text(host().querySelector('.panel-head__note'))).toContain('Decisión clínica');
+    expect(text(host().querySelector('.panel-chip'))).toBe('Decisión');
     expect(text(host().querySelector('.panel-head__note'))).toContain('Tu elección queda registrada en tu seguimiento formativo.');
     render(dialogueWith([tool('PAP', 'Aplicar material')]));
     expect(host().querySelector('.panel-head__note')).toBeNull();
@@ -866,6 +902,33 @@ describe('DialoguePanelComponent - «Continuar» y sonido de opciones (T4.7)', (
     expect(button.textContent?.replace(/\s+/g, ' ').trim()).toBe('Continuar ▶');
     expect(button.hasAttribute('aria-label')).toBe(false);
     expect(host().innerHTML).not.toMatch(/Cerrar diálogo/);
+  });
+
+  // req: RNF-04, BLOQUE-H
+  it('«Saltar», «Siguiente» y «Continuar» son el primario de la piel del juego y conservan clase y nombre accesible', () => {
+    writeInputSignal(component.reduceMotion, false);
+    const advanceButtons = () => Array.from(host().querySelectorAll<HTMLButtonElement>('button.close-btn'));
+    const expectPrimary = () => {
+      expect(advanceButtons()).toHaveLength(1);
+      const [button] = advanceButtons();
+      expect(button.classList).toContain('ui-button--primary');
+      expect(button.classList).not.toContain('psy-button--ghost');
+    };
+    // Línea 1 de 2, todavía escribiéndose: «Saltar».
+    render({ ...MULTI_LINE_DIALOGUE, choices: [] });
+    expectPrimary();
+    expect(advanceButtons()[0].getAttribute('aria-label')).toBe('Saltar animación de texto');
+    // Línea 1 completa: «Siguiente».
+    component.skipTypewriter();
+    fixture.detectChanges();
+    expectPrimary();
+    expect(advanceButtons()[0].getAttribute('aria-label')).toBe('Mostrar siguiente intervención');
+    // Última línea completa y sin opciones: «Continuar».
+    component.advanceLine();
+    component.skipTypewriter();
+    fixture.detectChanges();
+    expectPrimary();
+    expect(advanceButtons()[0].textContent?.replace(/\s+/g, ' ').trim()).toBe('Continuar ▶');
   });
 
   it('pasar el ratón por una opción no suena; el foco de teclado sí', () => {
@@ -1053,7 +1116,7 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
   };
   const hexOf = (body: string, property: string): string => body.match(new RegExp(`${property}: (#[0-9A-Fa-f]{6})`))?.[1] ?? '';
 
-  it('el aviso de evidencia, el chip de herramienta ausente y el chip «Decisión clínica» llegan a 4,5:1', () => {
+  it('el aviso de evidencia, el chip de herramienta ausente y el chip «Decisión» llegan a 4,5:1', () => {
     const notice = hexOf(rule('.choices-notice'), 'color');
     expect(contrastRatio(notice, blend('#F5B84B', 0.10, SIDE_BG))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(notice, blend('#F5B84B', 0.10, CINEMATIC_BG))).toBeGreaterThanOrEqual(4.5);
@@ -1082,6 +1145,126 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
     }
     const hintAlpha = Number(`0.${rule('.keyboard-hint').match(/rgba\(232,240,244,\.(\d+)\)/)?.[1]}`);
     expect(contrastRatio(blend('#E8F0F4', hintAlpha, CINEMATIC_BG), CINEMATIC_BG)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/**
+ * F6-12 (H-09, WCAG 4.1.3): la línea activa se anuncia por las regiones vivas persistentes de la app. La región que
+ * tenía el panel nacía DENTRO del `@if` con su texto y la primera línea no se anunciaba; ahora el panel solo la
+ * escribe como texto (visualmente oculto, para el cursor de lectura) y el servicio la anuncia.
+ */
+// req: BLOQUE-H (H-09), RNF-004
+describe('DialoguePanelComponent - texto de 12 px, estados y vocabulario educativo (F6-4)', () => {
+  const styles = source.slice(source.indexOf('styles: [`'));
+  const template = source.slice(source.indexOf('template: `'), source.indexOf('styles: [`'));
+
+  // req: RNF-04, BLOQUE-H
+  it('ningún texto del panel baja de 12 px (0,75 rem)', () => {
+    const small: string[] = [];
+    for (const chunk of styles.split('}')) {
+      const [selector, body] = chunk.split('{');
+      if (!body) continue;
+      for (const match of body.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) {
+        const px = match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]);
+        if (px < 12) small.push(selector.trim().split('\n').pop() + ' → ' + match[0]);
+      }
+    }
+    expect(small).toEqual([]);
+  });
+
+  it('«Volver al mapa» tiene hover protegido, respuesta al presionar y el anillo global de la piel', () => {
+    expect(styles).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.panel-back:hover \{/);
+    expect(styles).toMatch(/\.panel-back:active \{[^}]*transform:/);
+    expect(styles).not.toMatch(/\.panel-back:focus-visible/);
+    expect(styles).not.toMatch(/\.choice-btn:focus-visible \{[^}]*outline:\s*\d+px solid/);
+  });
+
+  it('el vocabulario educativo sale del registro de borradores y la cadena clínica vieja no reaparece (VD-24)', () => {
+    const offenders = readdirSync(__dirname)
+      .filter(name => name.endsWith('.ts') && !name.endsWith('.spec.ts') && name !== 'draft-copy.ts')
+      .filter(name => /Decisión clínica|Inventario clínico/.test(readFileSync(join(__dirname, name), 'utf-8')));
+    expect(offenders).toEqual([]);
+    expect(source).toContain('DRAFT_COPY.decisionLabel.text');
+    expect(template).toContain('{{ decisionLabel }}');
+  });
+
+  // req: DM-5.8 (la interfaz no anticipa la clasificación de una opción)
+  it('la plantilla de opciones no lee la clasificación ni el efecto de una opción antes de decidir', () => {
+    expect(template).not.toMatch(/\b(classification|prohibitedConduct|isRecommended|isProhibited|effect)\b/);
+    // Las únicas clases de una opción son de estado (elegida, sin herramienta): nada separa «adecuada» de «inadecuada».
+    const stateClasses = [...template.matchAll(/\[class\.(choice-btn--[\w-]+)\]/g)].map(match => match[1]).sort();
+    expect(stateClasses).toEqual(['choice-btn--chosen', 'choice-btn--unavailable']);
+  });
+});
+
+describe('DialoguePanelComponent - anuncio de la línea activa (F6-12)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let announce: Mock;
+
+  beforeEach(async () => {
+    announce = vi.fn();
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+        { provide: LiveRegionAnnouncer, useValue: { announce } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  function render(dialogue: DialogueState | null): void {
+    writeInputSignal(component.dialogue, dialogue);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+  }
+
+  it('la primera línea se anuncia al abrirse el diálogo, con cortesía y una sola vez', () => {
+    render(MULTI_LINE_DIALOGUE);
+
+    expect(announce.mock.calls).toEqual([['Primera', 'polite']]);
+  });
+
+  it('cada línea nueva se anuncia al avanzar, sin repetir la anterior', () => {
+    render(MULTI_LINE_DIALOGUE);
+    component.skipTypewriter();
+    component.advanceLine();
+    TestBed.flushEffects();
+
+    expect(announce.mock.calls).toEqual([['Primera', 'polite'], ['Segunda', 'polite']]);
+  });
+
+  it('teclear la máquina de escribir no anuncia nada: solo cuenta la línea completa', () => {
+    render(MULTI_LINE_DIALOGUE);
+    announce.mockClear();
+    fixture.detectChanges();
+
+    expect(component.isTypingComplete()).toBe(false);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('sin diálogo no se anuncia nada', () => {
+    render(null);
+
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('el panel ya no lleva una región viva propia: el texto queda para el cursor de lectura, sin role', () => {
+    render(MULTI_LINE_DIALOGUE);
+
+    const text = fixture.nativeElement.querySelector('.strip-body > .visually-hidden') as HTMLElement;
+    expect(text.textContent?.trim()).toBe('Primera');
+    expect(text.hasAttribute('role')).toBe(false);
+    expect(text.hasAttribute('aria-live')).toBe(false);
+    expect(fixture.nativeElement.querySelector('[aria-live]')).toBeNull();
   });
 });
 

@@ -52,7 +52,7 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
   const caseIntro = source.slice(source.indexOf('id="case-intro-title"'), source.indexOf('<header class="top-bar"'));
 
   it('las dos tarjetas de la introducción ofrecen «Salida segura» a la izquierda de «Continuar»', () => {
-    const intoPause = /<app-safe-exit-button \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFrom(IntroScene|CaseIntro)\(\)">/;
+    const intoPause = /<app-safe-exit-button \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFrom(IntroScene|CaseIntro)\(\)">/;
     expect(introScene).toMatch(intoPause);
     expect(caseIntro).toMatch(intoPause);
   });
@@ -75,21 +75,27 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     for (const panel of panels) expect(panel).toContain('[releaseToken]="dialogueReleaseToken()"');
   });
 
+  // F6-6: el pie usa la MISMA implementación que las superposiciones; el rótulo «Pausando…», aria-busy y la tecla
+  // (aria-hidden) viven en app-safe-exit-button (su spec y simulation-play.safe-exit-states.spec.ts los fijan).
+  const safeExitSource = readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8');
+
   it('el botón del pie acepta el toque con una petición en curso y su nombre no dice «(Escape)»', () => {
-    const footerButton = source.match(/<button class="safe-exit"[\s\S]*?<\/button>/)?.[0] ?? '';
-    expect(footerButton).toContain('(click)="pauseFromOverlay()"');
+    const footerButton = source.match(/<app-safe-exit-button \[compact\][^>]*\/>/)?.[0] ?? '';
+    expect(footerButton).toContain('(pause)="pauseFromOverlay()"');
+    expect(footerButton).toContain('[pausing]="pausing()"');
     expect(footerButton).not.toContain('[disabled]');
-    expect(footerButton).toContain("'Pausando…'");
+    expect(source).not.toMatch(/<button class="safe-exit"/);
+    expect(safeExitSource).toContain("{{ pausing() ? 'Pausando…' : 'Salida segura' }}");
     expect(source).not.toContain('Salida segura (Escape)');
   });
 
   it('el botón del pie no pisa su nombre con un aria-label: el texto visible es el nombre (WCAG 2.5.3)', () => {
-    const footerButton = source.match(/<button class="safe-exit"[\s\S]*?<\/button>/)?.[0] ?? '';
+    const footerButton = source.match(/<app-safe-exit-button \[compact\][^>]*\/>/)?.[0] ?? '';
     // Con aria-label «Salida segura» y la tecla «Esc» visible, axe 4.14 marca label-content-name-mismatch.
     expect(footerButton).not.toContain('aria-label');
-    // El texto que da el nombre sigue ahí, y la tecla queda fuera del árbol de accesibilidad.
-    expect(footerButton).toContain("<strong>{{ pausing() ? 'Pausando…' : 'Salida segura' }}</strong>");
-    expect(footerButton).toContain('<kbd aria-hidden="true">Esc</kbd>');
+    expect(safeExitSource).not.toContain('aria-label');
+    // La tecla queda fuera del árbol de accesibilidad.
+    expect(safeExitSource).toContain('<kbd class="safe-exit-btn__kbd" aria-hidden="true">Esc</kbd>');
   });
 
   it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {

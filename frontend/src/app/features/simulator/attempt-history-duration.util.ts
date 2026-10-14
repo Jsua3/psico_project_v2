@@ -10,3 +10,11 @@ export function historyDurationSeconds(
 ): number | null {
   return attempt.activeDurationSeconds ?? attempt.totalDurationSeconds;
 }
+
+/** Duración legible de un intento o de un escenario («12 min 34 s», «45 s»); «No disponible» sin dato. */
+export function formatAttemptDuration(seconds: number | null): string {
+  if (seconds == null) return 'No disponible';
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return minutes > 0 ? `${minutes} min ${rest} s` : `${rest} s`;
+}

@@ -35,8 +35,8 @@ export interface QuickAction {
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host {
-      --dash-purple-main: #4b00b5;
-      --dash-ink: #1a2b3c;
+      --dash-purple-main: #4b00b5; /* legado sin token: lo retira F5-1 (VD-2, violeta solo simulador) */
+      --dash-ink: var(--ds-text-1);
       --dash-pixel-shadow: 5px 5px 0 rgba(75, 0, 181, 0.06);
       --dash-border: 2px solid rgba(75, 0, 181, 0.14);
       display: block;

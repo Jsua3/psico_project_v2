@@ -183,7 +183,8 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
     function showAllNotices(): void {
       component.roomBanner.set('Nueva etapa: Marco normativo en salud');
-      component.doorNotice.set('Aún no puedes pasar.');
+      // El aviso de puerta es un aviso del sistema (F6-12): se emite por su camino real.
+      (component as unknown as { showDoorNotice(message: string): void }).showDoorNotice('Aún no puedes pasar.');
       component.transitionNote.set('Quince días después…');
       component.softNotice.set('Obtuviste: Kit PAP.');
     }
@@ -240,6 +241,28 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(component.transitionNote()).toBe('');
     });
 
+    // req: REGLA-004 (revisión de F6, «Ir a…» + «Salida segura»)
+    it('«Ir a…» abierto se cierra con la pausa: no queda bajo la pantalla de pausa ni reaparece al reanudar', () => {
+      sim['safeExit'].mockReturnValue(of(paused()));
+      component.placesOpen.set(true);
+
+      component.pauseFromOverlay();
+
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.placesOpen()).toBe(false);
+    });
+
+    it('si la pausa falla, «Ir a…» sigue abierta (se limpia al éxito, no antes) y se puede reintentar', () => {
+      const failing = new Subject<never>();
+      sim['safeExit'].mockReturnValue(failing);
+      component.placesOpen.set(true);
+
+      component.pauseFromOverlay();
+      failing.error(new Error('sin red'));
+
+      expect(component.placesOpen()).toBe(true);
+    });
+
     it('la nota de transición ya no es un temporizador anónimo: se puede cancelar', () => {
       expect(source).toMatch(/this\.transitionNoteTimer = window\.setTimeout\(\(\) => \{\s*this\.transitionNoteTimer = null;\s*this\.transitionNote\.set\(''\);/);
     });
@@ -274,8 +297,20 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       vi.advanceTimersByTime(60); // el anuncio se emite 50 ms después
 
       expect(component.slowPauseNotice).toBe('La acción en curso está tardando. Estamos pausando el caso igualmente.');
-      expect(component.a11yAnnouncement()).toBe(component.slowPauseNotice);
+      // La salida segura se anuncia en la región assertive de la app (F6-12): es de las pocas cosas que lo merecen.
+      expect(document.querySelector('[data-live-region="assertive"]')!.textContent).toBe(component.slowPauseNotice);
       expect(source).toContain("{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}");
+    });
+
+    it('una pausa en cola se anuncia en assertive (salida segura) y no en la región de cortesía', () => {
+      component.busy.set(true);
+
+      component.pauseFromOverlay();
+      vi.advanceTimersByTime(60);
+
+      expect(document.querySelector('[data-live-region="assertive"]')!.textContent)
+        .toBe('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
+      expect(document.querySelector('[data-live-region="polite"]')!.textContent).toBe('');
     });
 
     it('si la petición termina mucho después, su liberación de busy no repite la pausa', () => {
@@ -398,24 +433,29 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
   });
 });
 
-describe('F3: el aviso de reanudar conserva sus tres salidas en pantallas bajas (844x390)', () => {
-  it('la capa se desplaza por dentro y la tarjeta se centra con margen automático: si no cabe, no queda inalcanzable por arriba', () => {
-    expect(rule('.resume-overlay')).toMatch(/overflow-y: auto;/);
-    expect(rule('.resume-overlay')).toMatch(/place-items: start center;/);
-    expect(rule('.resume-card')).toMatch(/margin-block: auto;/);
-    // `place-items: center` con contenido más alto que la capa recortaba la parte de arriba sin scroll posible.
-    expect(rule('.resume-overlay')).not.toMatch(/place-items: center;/);
+// F6-2: «reanudar» es la misma tarjeta que las otras tres entradas. Lo que protegía F3 (que sus tres salidas no queden
+// inalcanzables en pantallas bajas) lo da ahora la estructura común: cabecera, cuerpo que se desplaza por dentro y pie
+// con las acciones siempre a la vista, con la tarjeta acotada al alto de la pantalla.
+describe('F3 y F6-2: el aviso de reanudar conserva sus tres salidas en pantallas bajas (844x390)', () => {
+  it('la tarjeta es de tres filas (cabecera, cuerpo con scroll propio, acciones) acotada a la pantalla', () => {
+    expect(rule('.case-intro-card')).toMatch(/grid-template-rows: auto minmax\(0, 1fr\) auto;/);
+    expect(rule('.case-intro-card')).toMatch(/max-height: min\(86vh, 720px\);/);
+    expect(rule('.case-intro-card__body')).toMatch(/overflow-y: auto;/);
+    expect(source).not.toMatch(/\.resume-(overlay|card|metrics|actions)/);
   });
 
-  it('en pantallas bajas la tarjeta se compacta: más ancha, con menos relleno y las tres salidas en una fila', () => {
-    const start = source.indexOf('@media (max-height: 520px) {\n      .resume-overlay');
-    expect(start).toBeGreaterThan(-1);
+  it('en pantallas bajas la tarjeta ocupa todo el alto disponible y las acciones siguen a la vista', () => {
+    // La consulta de pantallas bajas aparece varias veces en el archivo: se parte de la regla y se sube a SU consulta.
+    const rule = source.indexOf('.case-intro-card { max-height: 100%; border-radius: 14px; }');
+    expect(rule).toBeGreaterThan(-1);
+    const start = source.lastIndexOf('@media', rule);
+    expect(source.slice(start, rule)).toContain('(max-height: 520px), (pointer: coarse) and (orientation: landscape) {');
     const block = source.slice(start, source.indexOf('\n    }\n', start));
-    expect(block).toMatch(/\.resume-card \{ width: min\(760px, 100%\); padding: 14px 20px; \}/);
-    expect(block).toMatch(/\.resume-actions \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+    expect(block).toMatch(/\.case-intro-card \{ max-height: 100%; border-radius: 14px; \}/);
+    expect(block).toMatch(/\.case-intro-card__actions \{ padding: 8px 16px; gap: 10px; \}/);
   });
 
-  it('las tres salidas siguen en la plantilla: reanudar, iniciar uno nuevo y volver al catálogo', () => {
-    expect(source).toMatch(/resumeAttempt\(\)[\s\S]*?startNewAttempt\(\)[\s\S]*?routerLink="\/portal\/simulador">Volver al catálogo/);
+  it('las tres salidas siguen en la plantilla: volver al catálogo, iniciar uno nuevo (con confirmación) y reanudar', () => {
+    expect(source).toMatch(/routerLink="\/portal\/simulador">Volver al catálogo[\s\S]*?requestNewAttempt\(\)[\s\S]*?resumeAttempt\(\)/);
   });
 });

@@ -1,0 +1,240 @@
+// Panel del estudiante (plan visual F5-1): piel portal, solo tokens --ds-*, superficies con borde y sin sombras
+// duras, puntos de color ni bordes punteados (VD-3). Gráficos en SVG y HTML con los colores de estado de la piel;
+// el valor de cada barra entra como variable (`[style.--sd-ratio]`) y el relleno escala con transform.
+
+// minmax(0, 1fr): sin él, la tabla impone su ancho mínimo a la columna y la página desborda en un teléfono (la
+// tabla ya se desplaza dentro de ui-table).
+:host {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  color: var(--ds-text-1);
+}
+
+.sd-loading {
+  display: grid;
+  gap: var(--ds-space-5);
+}
+
+.sd-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--ds-space-4);
+}
+
+.sd-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--ds-space-4);
+}
+
+// ── Continuar ───────────────────────────────────────────────────────────────────────────────────────────────────
+.sd-continue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+}
+
+.sd-continue__text {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.sd-continue__case {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.sd-continue__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Gráficos ────────────────────────────────────────────────────────────────────────────────────────────────────
+.sd-chart {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.sd-chart__title {
+  margin: 0;
+  font-size: var(--ds-type-body-size);
+  line-height: var(--ds-type-body-line);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.sd-chart__sub,
+.sd-chart__empty {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.sd-chart__empty {
+  padding-block: var(--ds-space-5);
+}
+
+.sd-line {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sd-line__path {
+  fill: none;
+  stroke: var(--ds-primary);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sd-line__dot {
+  fill: var(--ds-surface-1);
+  stroke: var(--ds-primary);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+// Zona de puntero del punto (más grande que el punto): el globo sale con el ratón.
+.sd-chart__hit {
+  fill: transparent;
+  cursor: help;
+}
+
+.sd-bars,
+.sd-legend {
+  display: grid;
+  gap: var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track';
+  gap: var(--ds-space-1) var(--ds-space-3);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.sd-bar__label {
+  grid-area: label;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-bar__value {
+  grid-area: value;
+  color: var(--ds-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-bar__track {
+  grid-area: track;
+  height: 0.5rem;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-surface-2);
+  overflow: hidden;
+}
+
+.sd-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--ds-primary);
+  transform: scaleX(var(--sd-ratio, 0));
+  transform-origin: left center;
+}
+
+// Barra apilada de decisiones: una parte por clase, ancho proporcional (la leyenda lleva los números).
+.sd-stack {
+  display: flex;
+  height: 0.75rem;
+  border-radius: var(--ds-radius-pill);
+  overflow: hidden;
+  background: var(--ds-surface-2);
+}
+
+.sd-stack__part {
+  flex: var(--sd-ratio, 0) 0 0;
+}
+
+.sd-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.sd-legend__swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+}
+
+.sd-tone--adequate {
+  background: var(--ds-success);
+}
+
+.sd-tone--risky {
+  background: var(--ds-warning-text);
+}
+
+.sd-tone--inadequate {
+  background: var(--ds-danger);
+}
+
+.sd-tone--prohibited {
+  background: var(--ds-text-1);
+}
+
+// Con colores forzados los fondos desaparecen: las partes y muestras se dibujan con el color del texto del sistema.
+@media (forced-colors: active) {
+  .sd-bar__fill,
+  .sd-stack__part,
+  .sd-legend__swatch {
+    background: CanvasText;
+  }
+
+  .sd-stack__part + .sd-stack__part {
+    border-inline-start: 2px solid Canvas;
+  }
+}
+
+// ── Historial reciente ──────────────────────────────────────────────────────────────────────────────────────────
+.sd-num {
+  font-variant-numeric: tabular-nums;
+}
+
+// En un teléfono la fecha y el estado no se parten letra a letra: la tabla se desplaza dentro de ui-table.
+.sd-nowrap {
+  white-space: nowrap;
+}
+
+.sd-case {
+  min-width: 10rem;
+}
+
+.sd-more {
+  margin: var(--ds-space-3) 0 0;
+}

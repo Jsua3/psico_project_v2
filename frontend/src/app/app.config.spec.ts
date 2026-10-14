@@ -1,9 +1,12 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ANIMATION_MODULE_TYPE, ApplicationInitStatus } from '@angular/core';
+import { MAT_CARD_CONFIG } from '@angular/material/card';
+import { MatIconRegistry } from '@angular/material/icon';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of } from 'rxjs';
 
-import { initializeAuthSession } from './app.config';
+import { appConfig, initializeAuthSession } from './app.config';
 import { AuthService } from './core/auth/auth.service';
 import { User } from './core/models/user.model';
 
@@ -14,6 +17,28 @@ describe('app.config: arranque', () => {
     expect(source).not.toContain('APP_INITIALIZER');
     expect(source).toContain('const AUTH_SYNC_BUDGET_MS = 1500;');
     expect(source).toContain('provideAppInitializer(initializeAuthSession)');
+  });
+
+  it('no registra el motor de @angular/animations (ANG-2: Material anima con CSS)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    expect(TestBed.inject(ANIMATION_MODULE_TYPE, null)).toBeNull();
+  });
+
+  it('los iconos usan la clase de Material Symbols por defecto (sin font-family !important, F1-3)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    TestBed.inject(ApplicationInitStatus);
+    expect(TestBed.inject(MatIconRegistry).getDefaultFontSetClass()).toEqual(['material-symbols-rounded']);
+  });
+
+  it('las tarjetas de Material son «outlined»: borde fino por token en vez de border-width 0 (F1-4)', () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
+    });
+    expect(TestBed.inject(MAT_CARD_CONFIG, null)?.appearance).toBe('outlined');
   });
 
   describe('initializeAuthSession', () => {

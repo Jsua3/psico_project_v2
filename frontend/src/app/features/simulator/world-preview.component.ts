@@ -16,6 +16,7 @@ import { Component, OnInit, ViewChild, inject, input, signal, effect, ChangeDete
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthoringApi } from '../../core/api/authoring.api';
+import { objectTypeLabel, plural } from '../../shared/ui/labels';
 import {
   ClinicalToolState,
   CollisionZoneState,
@@ -60,7 +61,7 @@ interface EphemeralScore {
       <header class="preview-header">
         <div class="preview-badge">
           <mat-icon>visibility</mat-icon>
-          <span>Vista previa efimera</span>
+          <span>Vista previa efímera</span>
         </div>
         <div class="preview-info">
           @if (definition()) {
@@ -69,7 +70,7 @@ interface EphemeralScore {
           }
           @if (ephemeral(); as score) {
             <span class="info-chip score-chip">Puntaje: {{ score.accumulatedScore }}</span>
-            <span class="info-chip stress-chip">Estres: {{ score.stressIndex }}%</span>
+            <span class="info-chip stress-chip">Estrés: {{ score.stressIndex }}%</span>
             <span class="info-chip">Interacciones: {{ score.interactionsCount }}</span>
           }
         </div>
@@ -108,7 +109,7 @@ interface EphemeralScore {
 
       @if (worldState(); as currentWorld) {
         <div class="preview-board">
-          <main class="preview-main">
+          <div class="preview-main">
             <div class="preview-stage">
               <!-- Phaser canvas -->
               <app-game-world
@@ -141,11 +142,11 @@ interface EphemeralScore {
               @if (nearbyInteraction(); as nearby) {
                 <span class="proximity-indicator">
                   <mat-icon>touch_app</mat-icon>
-                  {{ nearby.label }} ({{ nearby.type }})
+                  {{ nearby.label }} ({{ objectTypeLabel(nearby.type) }})
                 </span>
               }
             </div>
-          </main>
+          </div>
 
           <aside class="preview-sidebar">
             <!-- Tools -->
@@ -158,7 +159,7 @@ interface EphemeralScore {
             <section class="interaction-log liquid-glass psy-game-panel">
               <div class="panel-title">
                 <p class="psy-eyebrow">Objetos del mapa</p>
-                <h3>Exploracion accesible</h3>
+                <h3>Exploración accesible</h3>
               </div>
               <div class="interaction-list">
                 @for (obj of currentWorld.objects; track obj.key) {
@@ -185,7 +186,7 @@ interface EphemeralScore {
         <div class="preview-empty">
           <mat-icon>map</mat-icon>
           <h3>Sin mapa configurado</h3>
-          <p>Este nodo no tiene un mapa asociado. Crea uno en la pestana "Mapas" para habilitar la vista previa.</p>
+          <p>Este nodo no tiene un mapa asociado. Crea uno en la pestaña «Mapas» para habilitar la vista previa.</p>
         </div>
       }
     </div>
@@ -419,6 +420,7 @@ interface EphemeralScore {
   `]
 })
 export class WorldPreviewComponent implements OnInit {
+  readonly objectTypeLabel = objectTypeLabel;
   private readonly authoringApi = inject(AuthoringApi);
 
   /** Case version ID to preview — passed from the parent case editor. */
@@ -604,7 +606,7 @@ export class WorldPreviewComponent implements OnInit {
           const errorCount = def.validation.errors?.length ?? 0;
           const warnCount = def.validation.warnings?.length ?? 0;
           this.validationWarning.set(
-            `Validacion: ${errorCount} error(es), ${warnCount} advertencia(s). Corrige los errores antes de publicar.`
+            `Validación: ${plural(errorCount, 'error', 'errores')}, ${plural(warnCount, 'advertencia')}. Corrige los errores antes de publicar.`
           );
         }
 
@@ -625,7 +627,7 @@ export class WorldPreviewComponent implements OnInit {
       error: (err) => {
         const status = err?.status;
         if (status === 404) {
-          this.previewError.set('No hay mapa configurado para este nodo. Crea uno en la pestana "Mapas".');
+          this.previewError.set('No hay mapa configurado para este nodo. Crea uno en la pestaña «Mapas».');
         } else if (status === 400) {
           this.previewError.set('El caso no tiene un nodo con mapa asociado.');
         } else {

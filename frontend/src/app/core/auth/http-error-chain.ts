@@ -48,12 +48,16 @@ function statusOf(ctx: HttpErrorContext): number | null {
   return ctx.error instanceof HttpErrorResponse ? ctx.error.status : null;
 }
 
-/** Sesión inválida: la limpia y, si no está ya en /login, avisa y lleva al login. */
-function expireSession(ctx: HttpErrorContext): void {
+/**
+ * Sesión inválida: la limpia y, si no está ya en /login, avisa y lleva al login. Con `returnTo`, el acceso vuelve
+ * luego a la pantalla en la que estaba (plan visual F3-6, H-34; el acceso valida la ruta).
+ */
+function expireSession(ctx: HttpErrorContext, returnTo = false): void {
   ctx.auth.clearSession();
   if (!ctx.router.url.startsWith('/login')) {
     ctx.notifications.warning(SESSION_MESSAGE);
-    ctx.router.navigate(['/login']);
+    if (returnTo) ctx.router.navigate(['/login'], { queryParams: { returnUrl: ctx.router.url } });
+    else ctx.router.navigate(['/login']);
   }
 }
 
@@ -80,7 +84,7 @@ export class UnauthorizedHandler extends HttpErrorHandler {
     return statusOf(ctx) === 401;
   }
   protected apply(ctx: HttpErrorContext): void {
-    expireSession(ctx);
+    expireSession(ctx, true);
   }
 }
 

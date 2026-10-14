@@ -18,8 +18,8 @@ describe('game-world: render a escala entera (spec §8.3)', () => {
   });
 
   it('la viñeta de tono va al suelo; solo la de crisis queda por encima', () => {
-    expect(source).toContain('setScrollFactor(0).setDepth(DEPTH.LIGHTING_FLOOR)');
+    expect(source).toContain("this.addVignette('tone', tint, 0.12, 0.3, DEPTH.LIGHTING_FLOOR);");
     expect(source.match(/DEPTH\.LIGHTING\b/g) ?? []).toHaveLength(1);
-    expect(source).toContain('setDepth(DEPTH.LIGHTING + 1)');
+    expect(source).toContain("DEPTH.LIGHTING + 1)");
   });
 });

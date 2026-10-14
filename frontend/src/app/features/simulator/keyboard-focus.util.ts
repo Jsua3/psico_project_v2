@@ -52,15 +52,52 @@ export function isActivatableTarget(el: Element | null): boolean {
 }
 
 /**
+ * El foco está en una región con scroll a la que se llegó con Tab (`tabindex` ≥ 0 y desborde real): sus flechas la
+ * desplazan (H-12). El mundo no las lee como pasos y la guarda de desplazamiento no las cancela.
+ */
+export function isScrollRegionTarget(el: Element | null): boolean {
+  if (!el || el === document.body) return false;
+  // El propio juego (host de Phaser, role="application") no es una región de lectura: sus flechas son del juego.
+  if (el.closest('[role="application"]')) return false;
+  const tabindex = el.getAttribute('tabindex');
+  if (tabindex === null || Number(tabindex) < 0) return false;
+  const node = el as HTMLElement;
+  return node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1;
+}
+
+/** Un botón o enlace de la interfaz: ninguna letra lo activa (solo Enter y Espacio), así que no «se queda» el atajo. */
+function isPlainButtonOrLink(el: Element): boolean {
+  if (el.tagName === 'BUTTON') return true;
+  if (el.tagName === 'A') return el.hasAttribute('href');
+  return el.getAttribute('role') === 'button';
+}
+
+/**
+ * ¿El foco está donde un atajo de una tecla puede actuar? (F6-10; WCAG 2.1.4). En el juego, en el cuerpo de la página
+ * o en un botón o enlace de la interfaz: cerrar Ajustes o «Ir a…» devuelve el foco a su botón del HUD, y WASD, E y J no
+ * pueden quedar mudas hasta hacer clic en el lienzo (revisión de F6; el ajuste «Atajos de una tecla» ya cumple 2.1.4).
+ * Nunca en un campo, una casilla u opción, una región con scroll, un diálogo, un menú, una barra de herramientas ni un
+ * popover: ahí la letra es del control y no dispara el juego por detrás.
+ */
+export function isShortcutContext(el: Element | null): boolean {
+  if (!el || el === document.body || el === document.documentElement) return true;
+  // El host del juego (role="application", p. ej. el lobby con tabindex 0) ES el juego.
+  if (el.closest('[role="application"]')) return true;
+  if (isTextEntryTarget(el) || isScrollRegionTarget(el)) return false;
+  if (isActivatableTarget(el) && !isPlainButtonOrLink(el)) return false;
+  return el.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="toolbar"], [popover]') === null;
+}
+
+/**
  * Flechas y Espacio sin modificadores desplazarían la página (la «Vista previa» del editor, el
  * lobby). Sin la captura de Phaser, algo tiene que cancelarlos; pero nunca cuando el destino los
- * necesita: un campo de texto (cursor, Espacio) o un control que se activa con teclado.
+ * necesita: un campo de texto (cursor, Espacio), un control que se activa con teclado o una región con scroll.
  */
 export function shouldBlockScrollKey(event: KeyboardEvent): boolean {
   if (!SCROLL_KEYS.has(event.key)) return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
   const target = event.target instanceof Element ? event.target : null;
-  return !isTextEntryTarget(target) && !isActivatableTarget(target);
+  return !isTextEntryTarget(target) && !isActivatableTarget(target) && !isScrollRegionTarget(target);
 }
 
 /** Lo que Phaser marcó como «recién pulsado» en este cuadro. */

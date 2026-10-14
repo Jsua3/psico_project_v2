@@ -4,9 +4,19 @@ import { join } from 'path';
 const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
 
 describe('game-world: controles táctiles', () => {
-  it('aparecen por tipo de puntero, no por ancho de ventana', () => {
-    expect(source).toContain('@media (pointer: coarse) { .touch-controls { display: grid; } }');
+  // req: BLOQUE-H, RNF-04 (VD-5: la cruceta se decide por la entrada real)
+  it('aparecen por la entrada real (toque o ratón), no por ancho de ventana ni solo por (pointer: coarse)', () => {
+    expect(source).toContain(":host(.touch-input) .touch-controls { display: grid; }");
+    expect(source).toContain("'[class.touch-input]': 'touchInput()'");
+    expect(source).not.toContain('@media (pointer: coarse) { .touch-controls { display: grid; } }');
     expect(source).not.toContain('@media (max-width: 900px) { .touch-controls');
+  });
+
+  it('la entrada real se lee de los eventos del puntero, fuera de Angular y con un ratón solo si hay puntero fino', () => {
+    expect(source).toMatch(/document\.addEventListener\('pointerdown', this\.onPointerKind, \{ capture: true, passive: true \}\);/);
+    expect(source).toMatch(/document\.addEventListener\('pointermove', this\.onPointerKind, \{ capture: true, passive: true \}\);/);
+    expect(source).toContain("matchesMedia('(any-pointer: fine)')");
+    expect(source).toMatch(/document\.removeEventListener\('pointerdown', this\.onPointerKind, true\);/);
   });
 
   it('cada flecha camina mientras se mantiene y el teclado conserva el paso único', () => {
@@ -27,12 +37,12 @@ describe('game-world: controles táctiles', () => {
   });
 
   it('la escena suma la dirección mantenida a la entrada de movimiento', () => {
-    expect(source).toMatch(/const input: PlayerMotionInput = heldInput\(\{/);
+    expect(source).toMatch(/const keyInput: PlayerMotionInput = heldInput\(\{/);
     expect(source).toMatch(/\}, this\.heldDirection, this\.time\.now - this\.heldSince\);/);
   });
 
   it('un overlay que congela el mundo suelta la dirección mantenida', () => {
-    expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{\s*this\.motionPaused = paused;\s*if \(paused\) this\.setHeldDirection\(null\);/);
+    expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{\s*this\.motionPaused = paused;\s*if \(paused\) \{\s*this\.setHeldDirection\(null\);/);
   });
 
   it('la cruceta es una cruz de 3x3 de 48 px abajo a la izquierda y «Interactuar» abajo a la derecha, sin tapar el piso', () => {
@@ -65,6 +75,6 @@ describe('game-world: controles táctiles', () => {
   });
 
   it('en anchos cortos (< 700 px) los controles se hacen semitransparentes sobre el mundo', () => {
-    expect(source).toMatch(/@media \(pointer: coarse\) and \(max-width: 699px\) \{\s*\.touch-btn \{ background: rgba\(8,12,18,\.45\);/);
+    expect(source).toMatch(/@media \(max-width: 699px\) \{\s*:host\(\.touch-input\) \.touch-btn \{ background: rgba\(8,12,18,\.45\);/);
   });
 });

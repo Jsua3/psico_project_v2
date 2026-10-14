@@ -1,13 +1,12 @@
 import { bootstrapApplication } from '@angular/platform-browser';
-import { isDevMode } from '@angular/core';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
 
 bootstrapApplication(AppComponent, appConfig)
   .then(() => {
-    // axe-core: run accessibility audits in dev mode only.
-    // Results appear in the browser DevTools console.
-    if (isDevMode()) {
+    // axe-core: auditoría de accesibilidad solo en desarrollo (resultado en la consola). La condición
+    // envuelve el import() para que el build de producción la pliegue y no emita el chunk de axe (F0-4).
+    if (typeof ngDevMode === 'undefined' || ngDevMode) {
       import('axe-core').then(({ default: axe }) => {
         axe.configure({ reporter: 'v2' });
         axe.run(document, (err, results) => {

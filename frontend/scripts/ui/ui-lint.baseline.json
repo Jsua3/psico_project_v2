@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13",
+  "counts": {
+    "colorLiterals": 867,
+    "transitionAll": 1,
+    "easeIn": 0,
+    "scale0": 1,
+    "hoverUnguarded": 5,
+    "important": 27,
+    "zIndexLiteral": 32,
+    "fontSizeLiteral": 305,
+    "backdropFilter": 6,
+    "clickableNoActive": 66,
+    "inlineStyleAttr": 2,
+    "bodyGameMode": 0,
+    "unaccentedCopy": 0
+  }
+}

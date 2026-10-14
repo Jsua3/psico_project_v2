@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { PUBLIC_ANCHORS } from '../../shared/layout/public-bar.component';
+
 const html = readFileSync(join(__dirname, 'landing.component.html'), 'utf-8');
 const ts = readFileSync(join(__dirname, 'landing.component.ts'), 'utf-8');
 
@@ -29,6 +31,8 @@ describe('portada honesta (T15.4)', () => {
   });
 
   it('solo quedan dos anclas a #casos, y ambas llevan a otra sección: el menú y el botón «Ver casos»', () => {
-    expect(html.match(/href="#casos"/g)).toHaveLength(2); // menú superior + «Ver casos» del titular
+    // F3-4: el ancla del menú la pinta la barra pública desde PUBLIC_ANCHORS; en la plantilla queda «Ver casos».
+    expect(html.match(/href="#casos"/g)).toHaveLength(1);
+    expect(PUBLIC_ANCHORS.filter(anchor => anchor.id === 'casos')).toHaveLength(1);
   });
 });

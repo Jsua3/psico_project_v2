@@ -8,6 +8,7 @@ import { InstructorApi } from '../../core/api/instructor.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptTrace, AttemptTimelineEntry, RecentAttempt, ReflectionTrace, RubricCriterionView, RubricEvaluationView, RubricSummary, TraceEvent } from '../../core/models/simulation.model';
 import { RECONSIDERED_LABEL, RECONSIDERED_TEACHER_HINT, isRetryEventType } from './reconsidered.util';
+import { statusLabel } from '../../shared/ui/labels';
 
 type SummaryFeedbackKey = 'TOTAL' | 'ADEQUATE' | 'RISKY' | 'INADEQUATE' | 'REFLECTIONS' | 'EVALUATION' | 'TIME' | 'RECORRIDO';
 
@@ -103,7 +104,8 @@ interface FeedbackPanelView {
           </div>
         </aside>
 
-        <main class="teacher-review-main">
+        <!-- Un solo <main> por página (plan visual F3-6): el del shell. -->
+        <div class="teacher-review-main">
           @if (trace(); as item) {
             <section class="attempt-overview pixel-panel" aria-labelledby="attempt-overview-title">
               <div class="panel-heading">
@@ -524,7 +526,7 @@ interface FeedbackPanelView {
               <p>El panel mostrará recorrido, decisiones, bitácoras, recursos de evaluación y rúbrica.</p>
             </section>
           }
-        </main>
+        </div>
       </div>
     </section>
   `,
@@ -1378,14 +1380,7 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(status: string | null | undefined): string {
-    const normalized = (status ?? '').toUpperCase();
-    if (normalized === 'COMPLETED') return 'Finalizado';
-    if (normalized === 'IN_PROGRESS') return 'En curso';
-    if (normalized === 'PAUSED') return 'En pausa (reanudable)';
-    if (normalized === 'PENDING') return 'Pendiente';
-    if (normalized === 'SAFE_EXITED') return 'Cerrado con salida segura';
-    if (normalized === 'REPLACED') return 'Reemplazado por un intento nuevo';
-    return this.clean(status, 'Sin estado');
+    return statusLabel(this.clean(status, ''));
   }
 
   statusClass(status: string | null | undefined): string {
