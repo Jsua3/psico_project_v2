@@ -12,7 +12,7 @@ from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from ..services import authoring_service as svc
-from ..services.authoring import guards
+from ..services.authoring import guards, lifecycle
 
 
 def _opt_long(value):
@@ -56,7 +56,22 @@ class PublishView(_AuthoringView):
 
     def post(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=True, action="publish")
-        return api_ok(svc.publish(case_version_id), "Caso publicado")
+        return api_ok(svc.publish(case_version_id, request.user, request.data), "Caso publicado")
+
+
+class LifecycleView(_AuthoringView):
+    """C4 · ``CaseLifecycle``: el estado de la versión y sus transiciones (E2-5)."""
+
+    def get(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=False)
+        return api_ok(svc.lifecycle_of(case_version_id, request.user))
+
+    def post(self, request, case_version_id):
+        policy_action = lifecycle.POLICY_ACTION.get(request.data.get("action"), "author")
+        self.version_for(request, case_version_id, mutate=True, action=policy_action)
+        return api_ok(
+            svc.transition_case(case_version_id, request.user, request.data), "Ciclo de vida actualizado"
+        )
 
 
 class CloneVersionView(_AuthoringView):

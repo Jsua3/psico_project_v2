@@ -24,11 +24,14 @@ función que decora el nombre y el módulo que guarda en el contexto del registr
 aquí como función propia y no se re-exporta desde el paquete.
 ``resource_id_param_index`` replica las anotaciones de Java.
 """
+from shared.exceptions import ApiError
+
 from .audit_service import auditable
 from .authoring import (
     cases,
     editor_view,
     graph,
+    lifecycle,
     publication,
     scenes,
     tools,
@@ -150,13 +153,65 @@ def update_checklist(case_version_id, request, actor):
 
 
 @auditable("ADMIN_PUBLISH_CASE", "CASE_VERSION")
-def publish(case_version_id):
-    return publication.publish(case_version_id)
+def publish(case_version_id, actor, payload=None):
+    return publication.publish(case_version_id, actor, payload)
 
 
 @auditable("ADMIN_CLONE_VERSION", "CASE_VERSION")
 def clone_version(case_version_id, actor):
     return publication.clone_version(case_version_id, actor)
+
+
+# ─── Ciclo de vida y revisión (C4) ───────────────────────────────────────────
+def lifecycle_of(case_version_id, actor):
+    return lifecycle.lifecycle_view(case_version_id, actor)
+
+
+@auditable("CASE_SUBMITTED", "CASE_VERSION")
+def submit_case(case_version_id, actor):
+    return lifecycle.submit(case_version_id, actor)
+
+
+@auditable("CASE_APPROVED", "CASE_VERSION")
+def approve_case(case_version_id, actor, note=None, content_review=None):
+    return lifecycle.approve(case_version_id, actor, note, content_review)
+
+
+@auditable("CASE_REJECTED", "CASE_VERSION")
+def reject_case(case_version_id, actor, reason, note):
+    return lifecycle.reject(case_version_id, actor, reason, note)
+
+
+@auditable("CASE_ARCHIVED", "CASE_VERSION")
+def archive_case(case_version_id, actor, scope="version"):
+    return lifecycle.archive(case_version_id, actor, scope)
+
+
+@auditable("CASE_CLONED", "CASE_VERSION")
+def clone_case(case_version_id, actor):
+    return lifecycle.clone(case_version_id, actor)
+
+
+def transition_case(case_version_id, actor, payload):
+    """Despacha ``POST …/lifecycle`` por su ``action`` y devuelve el ``CaseLifecycle`` resultante."""
+    action = payload.get("action")
+    if action == "submit":
+        return submit_case(case_version_id, actor)
+    if action == "approve":
+        return approve_case(case_version_id, actor, payload.get("note"), payload.get("contentReview"))
+    if action == "reject":
+        return reject_case(case_version_id, actor, payload.get("reason"), payload.get("note"))
+    if action == "archive":
+        return archive_case(case_version_id, actor, payload.get("scope") or "version")
+    if action == "clone":
+        return clone_case(case_version_id, actor)
+    raise ApiError(
+        "VALIDATION_ERROR",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "La acción debe ser submit, approve, reject, archive o clone.",
+        400,
+        field="action",
+    )
 
 
 # ─── WorldDefinition v2 ──────────────────────────────────────────────────────

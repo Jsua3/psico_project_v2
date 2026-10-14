@@ -3,8 +3,10 @@
 La versión publicada no se modifica nunca (REGLA-005): para cambiarla se clona a un
 borrador nuevo. La copia de las entidades está declarada en ``case_cloning``.
 """
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from rest_framework import status as http
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import (
@@ -23,7 +25,9 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services import case_cloning as cloning
+from shared.exceptions import ApiError
 
+from . import lifecycle
 from .editor_view import editor, latest_checklist_ratio
 from .guards import ensure_draft, require_version
 from .request_utils import flag
@@ -55,7 +59,14 @@ def update_checklist(case_version_id, request, actor):
 
 # ─── Publish ──────────────────────────────────────────────────────────────────
 @transaction.atomic
-def publish(case_version_id):
+def publish(case_version_id, actor, payload=None):
+    """``POST …/publish`` heredado: alias de ``approve`` del ciclo de vida (R9).
+
+    Conserva los mensajes y códigos de siempre (400 con la lista incompleta o con errores de
+    validación) y delega el cambio de estado en ``lifecycle.approve``, que deja la fila de
+    revisión. Con ``REVIEW_WORKFLOW_STRICT`` encendida, solo publica desde ``IN_REVIEW``.
+    """
+    payload = payload or {}
     version = require_version(case_version_id)
 
     if version.status == "PUBLISHED":
@@ -64,6 +75,13 @@ def publish(case_version_id):
         )
     if version.status == "ARCHIVED":
         raise ValidationError("No se puede publicar una versión archivada.")
+    if settings.REVIEW_WORKFLOW_STRICT and version.status != "IN_REVIEW":
+        raise ApiError(
+            "REVIEW_REQUIRED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El caso debe enviarse a revisión antes de publicarse.",
+            http.HTTP_409_CONFLICT,
+        )
 
     if latest_checklist_ratio(case_version_id) < 100:
         raise ValidationError(
@@ -79,9 +97,7 @@ def publish(case_version_id):
             f"El caso no puede publicarse con errores de validación: {summary}"
         )
 
-    version.status = "PUBLISHED"
-    version.published_at = timezone.now()
-    version.save()
+    lifecycle.approve(case_version_id, actor, payload.get("note"), payload.get("contentReview"))
     return editor(case_version_id)
 
 
