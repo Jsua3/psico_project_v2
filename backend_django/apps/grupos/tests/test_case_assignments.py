@@ -361,3 +361,20 @@ def test_a_direct_student_assignment_reaches_the_student_without_a_group(estudia
 
     assert assignments.student_has_assignment(estudiante.id, case_version_id) is True
     assert assignments.assigned_case_version_ids(estudiante.id) == [case_version_id]
+
+
+def test_privileged_fields_in_the_body_are_ignored_on_create(profesor, otro_profesor, grupo, case_version_id):
+    response = cl(profesor).post(
+        API,
+        {
+            "caseVersionId": case_version_id,
+            "target": {"type": "GROUP", "groupId": grupo.id},
+            "assignedBy": otro_profesor.id, "active": False, "grupo": 999, "estudiante": 1, "id": 12345,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+    row = CaseAssignment.objects.get(pk=response.data["data"]["id"])
+    assert (row.assigned_by_id, row.active, row.grupo_id, row.estudiante_id) == (profesor.id, True, grupo.id, None)
+    assert row.id != 12345
