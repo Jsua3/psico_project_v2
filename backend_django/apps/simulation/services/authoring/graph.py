@@ -17,6 +17,8 @@ from .request_utils import flag, write_string_list
 VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
 #: El enunciado de la decisión es un párrafo corto (E3-6); más largo es narrativa, no enunciado.
 MAX_DECISION_PROMPT_LENGTH = 1200
+#: La consecuencia, la retroalimentación y el fundamento teórico de una decisión (E3-7, RF-10).
+MAX_DECISION_TEXT_LENGTH = 1200
 
 
 # ─── Node CRUD ────────────────────────────────────────────────────────────────
@@ -180,5 +182,7 @@ def _apply_decision_request(decision, request, case_version_id):
         ("feedback_text", "feedbackText"),
     ):
         if key in request:
-            value = request.get(key)
-            setattr(decision, field, value.strip() or None if isinstance(value, str) else None)
+            text = validate_plain_text(
+                request.get(key), MAX_DECISION_TEXT_LENGTH, key, multiline=True
+            )
+            setattr(decision, field, text or None)

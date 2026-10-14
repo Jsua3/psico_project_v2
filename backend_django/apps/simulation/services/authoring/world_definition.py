@@ -333,6 +333,8 @@ def run_world_validation(version):
                 "targetNodeId": d.target_node_id,
                 "prohibitedConduct": d.prohibited_conduct,
                 "prohibitionReason": d.prohibition_reason,
+                "feedbackText": d.feedback_text,
+                "immediateFeedback": d.immediate_feedback,
             }
             for d in decisions
         ],
