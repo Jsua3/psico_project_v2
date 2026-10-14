@@ -18,6 +18,7 @@ from django.core import mail
 from rest_framework.test import APIClient
 
 from apps.grupos.tests.test_grupos import _xlsx_upload
+from apps.users.services import account_service
 
 pytestmark = [pytest.mark.req("RN-10"), pytest.mark.req("RNF-01"), pytest.mark.req("D-5")]
 
@@ -410,3 +411,28 @@ def test_a_failed_email_on_the_activate_button_is_a_409_and_the_account_stays_pe
     assert response.data["code"] == "APPROVAL_EMAIL_FAILED"
     user.refresh_from_db()
     assert user.is_pending_approval is True
+
+
+def test_a_batch_reports_the_accounts_whose_email_failed_and_keeps_them_pending(profesor, admin, monkeypatch):
+    _import(profesor, [["Ana", "Rojas", "ana.b1@x.com"], ["Beto", "Soto", "beto.b1@x.com"]], codigo="PEND18")
+    ana = User.objects.get(email="ana.b1@x.com")
+    beto = User.objects.get(email="beto.b1@x.com")
+    real_send = account_service.send_mail
+
+    def flaky(subject, body, sender, recipients, **kwargs):
+        if recipients == [ana.email]:
+            raise OSError("SMTP caído")
+        return real_send(subject, body, sender, recipients, **kwargs)
+
+    monkeypatch.setattr(account_service, "send_mail", flaky)
+    mail.outbox.clear()
+
+    response = cl(admin).post("/api/admin/users/approve", {"userIds": [ana.id, beto.id]}, format="json")
+
+    assert response.status_code == 200
+    data = response.data["data"]
+    assert (data["approved"], data["approvedIds"], data["failed"]) == (1, [beto.id], [ana.id])
+    ana.refresh_from_db()
+    beto.refresh_from_db()
+    assert ana.is_pending_approval is True and beto.activo is True
+    assert len(mail.outbox) == 1

@@ -112,6 +112,12 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
 
+# La revisión del caso puede viajar en la cabecera ``X-Case-Revision`` (E2-6): con el frontend en
+# otro origen el navegador hace antes una consulta de verificación (preflight) y debe constar.
+from corsheaders.defaults import default_headers  # noqa: E402
+
+CORS_ALLOW_HEADERS = (*default_headers, "x-case-revision")
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
         hours=int(os.environ.get("JWT_EXPIRATION_HOURS", "8"))

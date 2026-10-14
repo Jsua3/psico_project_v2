@@ -43,3 +43,10 @@ def test_an_object_body_still_works(admin):
     response = admin.post("/api/authoring/cases", {"title": "Un caso del analizador"}, format="json")
 
     assert response.status_code == 200
+
+
+def test_the_revision_header_is_allowed_for_cross_origin_clients():
+    from django.conf import settings
+
+    assert "x-case-revision" in settings.CORS_ALLOW_HEADERS
+    assert "authorization" in settings.CORS_ALLOW_HEADERS
