@@ -1,0 +1,304 @@
+@use 'mixins' as m;
+
+// Traza del docente (plan visual F7-4): piel portal, solo tokens --ds-*, superficies con borde y sin sombras duras ni
+// bordes punteados (VD-3). El foco lo pinta el anillo global. Reglas de F7-2/F7-3: el host de `ui-section` se queda en
+// bloque y toda rejilla lleva `minmax(0, 1fr)`.
+:host {
+  display: block;
+  color: var(--ds-text-1);
+}
+
+.tr-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  align-items: start;
+  margin-block-start: var(--ds-space-6);
+}
+
+// Lista a la izquierda y detalle a la derecha desde el escritorio; apilados en pantallas estrechas.
+@media (min-width: 64rem) {
+  .tr-layout {
+    grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
+  }
+}
+
+.tr-list,
+.tr-detail {
+  min-width: 0;
+}
+
+.tr-stack,
+.tr-loading,
+.tr-empty-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.tr-hint,
+.tr-empty {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.tr-empty {
+  padding-block: var(--ds-space-2);
+}
+
+.tr-eyebrow {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.tr-title,
+.tr-criterion__title {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+  overflow-wrap: anywhere;
+}
+
+// ── Lista de intentos ───────────────────────────────────────────────────────────────────────────────────────────
+.tr-attempts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  max-height: 28rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.tr-attempt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-1);
+  inline-size: 100%;
+  min-height: var(--ds-target-min);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-1);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: border-color var(--ds-dur-fast) ease, background-color var(--ds-dur-fast) ease;
+
+  // El hover solo con puntero fino (los táctiles no tienen «pasar por encima»); el intento abierto conserva su borde.
+  @include m.ds-hover {
+    border-color: var(--ds-border-strong);
+  }
+
+  &:active {
+    background: var(--ds-surface-2);
+  }
+
+  // Después del hover y con la misma especificidad: el intento abierto conserva su borde aunque el puntero pase.
+  &[aria-current='true'] {
+    border-color: var(--ds-primary);
+    background: var(--ds-primary-subtle);
+  }
+}
+
+.tr-attempt__top,
+.tr-event__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.tr-attempt__case {
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.tr-attempt__meta {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Detalle ─────────────────────────────────────────────────────────────────────────────────────────────────────
+.tr-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+}
+
+.tr-facts,
+.tr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.tr-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: var(--ds-space-3);
+}
+
+.tr-metric {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+  min-height: var(--ds-target-min);
+  width: 100%;
+}
+
+.tr-metric__cta {
+  color: var(--ds-primary);
+  font-size: var(--ds-type-body-s-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.tr-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.tr-rowhead {
+  min-width: 8rem;
+  font-weight: var(--ds-type-h3-weight);
+  text-align: start;
+}
+
+.tr-nowrap {
+  white-space: nowrap;
+}
+
+// ── Línea de tiempo y reflexiones ───────────────────────────────────────────────────────────────────────────────
+.tr-events,
+.tr-reflection-list,
+.tr-missing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-missing {
+  padding-inline-start: var(--ds-space-5);
+  list-style: disc;
+  font-size: var(--ds-type-body-s-size);
+}
+
+.tr-event,
+.tr-reflection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-inline-start: 4px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  overflow-wrap: anywhere;
+}
+
+.tr-event[data-accent='adequate'] { border-inline-start-color: var(--ds-success); }
+.tr-event[data-accent='risky'] { border-inline-start-color: var(--ds-warning-text); }
+.tr-event[data-accent='inadequate'] { border-inline-start-color: var(--ds-danger); }
+
+.tr-event__body {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+
+.tr-event small {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+}
+
+.tr-reflection p {
+  margin: 0;
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Rúbrica ─────────────────────────────────────────────────────────────────────────────────────────────────────
+.tr-valuation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-2);
+}
+
+.tr-valuation__label {
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.tr-criterion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+}
+
+@media (min-width: 48rem) {
+  .tr-criterion {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.tr-criterion__copy,
+.tr-criterion__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  align-content: start;
+  min-width: 0;
+}
+
+.tr-criterion__fields {
+  gap: var(--ds-space-3);
+}
+
+.tr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.tr-rubric__message {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+
+  &:empty {
+    display: none;
+  }
+}
+
+.tr-rubric__message--error {
+  color: var(--ds-danger);
+  font-weight: var(--ds-type-h3-weight);
+}

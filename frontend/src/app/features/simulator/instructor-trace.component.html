@@ -1,0 +1,297 @@
+<ui-page-header
+  eyebrow="Panel docente"
+  title="Revisión formativa del intento"
+  description="Analiza la trazabilidad del estudiante, sus decisiones y reflexiones para emitir una evaluación pedagógica." />
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+<div class="tr-layout">
+  <ui-section class="tr-list" title="Intentos recientes">
+    @switch (listState()) {
+      @case ('loading') {
+        <div class="tr-loading" aria-busy="true">
+          @for (bone of [1, 2, 3, 4]; track bone) {
+            <ui-skeleton shape="row" />
+          }
+        </div>
+      }
+      @case ('error') {
+        <ui-error-state kind="server" message="No pudimos cargar los intentos recientes." (retry)="loadAttempts()" />
+      }
+      @case ('empty') {
+        <ui-empty-state kind="first-use" title="No hay intentos recientes para tus grupos"
+          description="Cuando tus estudiantes completen simulaciones, aparecerán aquí para revisión." />
+      }
+      @default {
+        <ul class="tr-attempts">
+          @for (attempt of attempts(); track attempt.attemptId) {
+            <li>
+              <button type="button" class="tr-attempt"
+                [attr.aria-current]="selectedAttemptId() === attempt.attemptId ? 'true' : null" (click)="open(attempt)">
+                <span class="tr-attempt__top">
+                  <strong>{{ clean(attempt.studentAlias, 'Estudiante') }}</strong>
+                  <ui-badge [tone]="statusTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
+                </span>
+                <span class="tr-attempt__case">{{ clean(attempt.caseTitle, 'Caso sin título') }}</span>
+                <span class="tr-attempt__meta">Puntaje {{ attempt.accumulatedScore }} · {{ formatDate(attempt.startedAt) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </ui-section>
+
+  <div class="tr-detail">
+    @switch (detailState()) {
+      @case ('loading') {
+        <div class="tr-stack" aria-busy="true">
+          <ui-skeleton shape="card" [lines]="3" />
+          <div class="tr-summary">
+            @for (bone of [1, 2, 3, 4]; track bone) {
+              <ui-skeleton shape="stat" />
+            }
+          </div>
+          <ui-skeleton shape="row" />
+          <ui-skeleton shape="row" />
+        </div>
+      }
+      @case ('error') {
+        <ui-error-state [kind]="traceErrorKind()" [status]="traceError()?.status"
+          message="No pudimos cargar la trazabilidad de este intento." (retry)="reopen()" />
+      }
+      @case ('empty') {
+        @if (attempts().length) {
+          <ui-empty-state kind="first-use" title="Selecciona un intento"
+            description="El panel mostrará recorrido, decisiones, bitácoras, recursos de evaluación y rúbrica." />
+        }
+      }
+      @default {
+        @if (trace(); as item) {
+          <div class="tr-stack">
+            <ui-card class="tr-overview">
+              <p class="tr-eyebrow">{{ clean(item.studentAlias, 'Estudiante') }}</p>
+              <h2 class="tr-title">{{ clean(item.caseTitle, 'Caso sin título') }}</h2>
+              <p class="tr-hint">
+                Intento {{ statusLabel(item.status) }} · Inicio {{ formatDate(item.startedAt) }}
+                @if (item.endedAt) { · Cierre {{ formatDate(item.endedAt) }} }
+              </p>
+              <div class="tr-facts">
+                <ui-badge [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</ui-badge>
+                <ui-badge>Puntaje {{ item.accumulatedScore }}</ui-badge>
+                <ui-badge>Estrés {{ item.stressIndex }}%</ui-badge>
+              </div>
+            </ui-card>
+
+            <div class="tr-summary" role="group" aria-label="Resumen de revisión">
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('TOTAL', item)">
+                <ui-stat label="Total decisiones" [value]="totalDecisions(item)" />
+                <span class="tr-metric__cta">Ver retroalimentación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('ADEQUATE', item)">
+                <ui-stat label="Adecuadas" [value]="item.adequateDecisions" />
+                <span class="tr-metric__cta">Ver retroalimentación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('RISKY', item)">
+                <ui-stat label="Riesgosas" [value]="item.riskyDecisions" />
+                <span class="tr-metric__cta">Ver retroalimentación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('INADEQUATE', item)">
+                <ui-stat label="Inadecuadas" [value]="item.inadequateDecisions" />
+                <span class="tr-metric__cta">Ver retroalimentación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('REFLECTIONS', item)">
+                <ui-stat label="Reflexiones" [value]="item.reflections.length" />
+                <span class="tr-metric__cta">Ver bitácoras</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('EVALUATION', item)">
+                <ui-stat label="Evaluación" [value]="evaluationApplied(item) ? 'Aplicada' : 'Pendiente'" />
+                <span class="tr-metric__cta">Ver evaluación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('TIME', item)">
+                <ui-stat label="Tiempo total" [value]="formatDuration(item.totalDurationSeconds)" />
+                <span class="tr-metric__cta">Ver detalle</span>
+              </button>
+            </div>
+
+            @if (item.phaseDurations.length) {
+              <ui-section class="tr-phases" title="Duración por escenario">
+                <ui-table label="Tiempo por escenario" density="compact">
+                  <table ui-table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Escenario</th>
+                        <th scope="col">Inicio</th>
+                        <th scope="col">Fin</th>
+                        <th scope="col" class="tr-num">Duración</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (phase of item.phaseDurations; track phase.nodeId + '-' + $index) {
+                        <tr uiRow>
+                          <th scope="row" class="tr-rowhead">{{ clean(phase.nodeTitle, 'Escenario') }}</th>
+                          <td class="tr-nowrap">{{ formatDate(phase.startedAt) }}</td>
+                          <td class="tr-nowrap">{{ phase.endedAt ? formatDate(phase.endedAt) : '—' }}</td>
+                          <td class="tr-num">{{ formatDuration(phase.durationSeconds) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </ui-table>
+              </ui-section>
+            }
+
+            <ui-section class="tr-events-section" title="Línea de tiempo de eventos">
+              <div class="tr-stack">
+                <div class="tr-toolbar">
+                  <ui-badge>{{ timelineEntries(item).length }} eventos</ui-badge>
+                  @if (item.retries) {
+                    <ui-badge>Reconsideradas: {{ item.retries }}</ui-badge>
+                  }
+                  <button ui-button type="button" variant="secondary" size="sm" (click)="openFeedback('RECORRIDO', item)">
+                    Ver retroalimentación
+                  </button>
+                </div>
+
+                @if (!timelineEntries(item).length) {
+                  <p class="tr-empty">No hay eventos registrados para este intento.</p>
+                } @else {
+                  <ol class="tr-events">
+                    @for (entry of timelineEntries(item); track $index) {
+                      <li class="tr-event" [attr.data-accent]="timelineEntryAccent(entry)">
+                        <span class="tr-event__body">
+                          <span class="tr-event__top">
+                            <strong>{{ clean(entry.label, 'Evento registrado') }}</strong>
+                            <ui-badge [tone]="timelineEntryTone(entry)">{{ timelineEntryLabel(entry) }}</ui-badge>
+                          </span>
+                          <small>
+                            {{ entry.time }}
+                            @if (entry.scoreDelta || entry.stressDelta) {
+                              · Puntaje {{ signed(entry.scoreDelta) }} · Estrés {{ signed(entry.stressDelta) }}
+                            }
+                          </small>
+                        </span>
+                      </li>
+                    }
+                  </ol>
+                }
+              </div>
+            </ui-section>
+
+            <ui-section class="tr-reflections" title="Reflexiones del estudiante">
+              <div class="tr-stack">
+                <div class="tr-toolbar">
+                  <ui-badge>{{ item.reflections.length }} registradas</ui-badge>
+                  <button ui-button type="button" variant="secondary" size="sm" (click)="openFeedback('REFLECTIONS', item)">
+                    Ver retroalimentación
+                  </button>
+                </div>
+
+                @if (!item.reflections.length) {
+                  <div class="tr-empty-block">
+                    <p class="tr-empty">El estudiante aún no registró reflexiones en este intento.</p>
+                    <p class="tr-hint">
+                      La bitácora es opcional por escenario. Puedes evaluar con la trazabilidad de decisiones y la rúbrica
+                      del caso.
+                    </p>
+                    @if (nodesWithoutReflection(item).length) {
+                      <p class="tr-hint">Escenarios visitados sin bitácora:</p>
+                      <ul class="tr-missing">
+                        @for (nodeTitle of nodesWithoutReflection(item); track nodeTitle) {
+                          <li>{{ nodeTitle }}</li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                } @else {
+                  <ul class="tr-reflection-list">
+                    @for (reflection of item.reflections; track reflection.nodeId) {
+                      <li class="tr-reflection">
+                        <span class="tr-event__top">
+                          <strong>{{ clean(reflection.nodeTitle, 'Escenario') }}</strong>
+                          @if (reflection.locked) {
+                            <ui-badge>Bloqueada</ui-badge>
+                          }
+                        </span>
+                        <p>{{ clean(reflection.text, 'Sin texto registrado.') }}</p>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            </ui-section>
+
+            <ui-section class="tr-rubric" [title]="rubric() ? clean(rubric()!.rubricName, 'Rúbrica del caso') : 'Rúbrica'">
+              @if (rubric(); as rub) {
+                <div class="tr-stack">
+                  <p class="tr-hint">{{ clean(rub.description, 'Evalúa el desempeño formativo del intento.') }}</p>
+
+                  <p class="tr-valuation">
+                    <span class="tr-valuation__label">{{ valuationLabel }}</span>
+                    <ui-badge [tone]="levelTone(rub.overallLevel)">{{ levelLabel(rub.overallLevel) }}</ui-badge>
+                    @if (rub.totalScore !== null && rub.totalScore !== undefined) {
+                      <span class="tr-valuation__total">· {{ formatNumber(rub.totalScore) }} de {{ maxScoreOf(rub) }}</span>
+                    }
+                  </p>
+
+                  @if (!rub.criteria.length) {
+                    <p class="tr-empty">No hay rúbrica disponible para este caso.</p>
+                  }
+
+                  @for (criterion of rub.criteria; track criterion.id) {
+                    <div class="tr-criterion" role="group" [attr.aria-labelledby]="'criterion-title-' + criterion.id">
+                      <div class="tr-criterion__copy">
+                        <p class="tr-eyebrow">{{ clean(criterion.competency, 'Criterio') }}</p>
+                        <h3 class="tr-criterion__title" [id]="'criterion-title-' + criterion.id">{{ clean(criterion.title, 'Criterio de evaluación') }}</h3>
+                        <p class="tr-hint">{{ clean(criterion.description, 'Sin descripción adicional.') }}</p>
+                        @if (criterionLevel(criterion.id); as level) {
+                          <ui-badge [tone]="levelTone(level)">{{ levelLabel(level) }}</ui-badge>
+                        }
+                      </div>
+
+                      <div class="tr-criterion__fields">
+                        <ui-field label="Calificación" [hint]="scoreHint(criterion)" [error]="rubricFieldError(criterion.id)">
+                          <input uiControl type="number" inputmode="decimal" [attr.min]="minScore" [attr.max]="criterion.maxScore"
+                            [attr.step]="scoreStep" [ngModel]="rubricScores[criterion.id]"
+                            (ngModelChange)="onScoreChange(criterion, $event)">
+                        </ui-field>
+                        <ui-field label="Observación del criterio">
+                          <textarea uiControl rows="3" [(ngModel)]="rubricComments[criterion.id]"
+                            placeholder="Observación breve sobre evidencia, decisiones o mejora."></textarea>
+                        </ui-field>
+                      </div>
+                    </div>
+                  }
+
+                  <ui-field label="Retroalimentación docente"
+                    hint="Escribe una retroalimentación formativa orientada a decisiones, ética profesional y rutas de atención.">
+                    <textarea uiControl rows="4" [(ngModel)]="rubricComment"
+                      placeholder="Retroalimentación general para el estudiante."></textarea>
+                  </ui-field>
+
+                  <div class="tr-actions">
+                    <button ui-button type="button" icon="save" [loading]="savingRubric()"
+                      [disabledReason]="hasRubricErrors() ? 'Corrige los puntajes marcados para guardar.' : null"
+                      (click)="saveRubric()">
+                      {{ savingRubric() ? 'Guardando evaluación' : 'Guardar evaluación' }}
+                    </button>
+                    @if (rubricMessage()) {
+                      <p class="tr-rubric__message" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <div class="tr-stack">
+                  <p class="tr-empty">No hay rúbrica disponible para este caso.</p>
+                  @if (rubricMessage()) {
+                    <p class="tr-rubric__message" [class.tr-rubric__message--error]="rubricMessageIsError()">{{ rubricMessage() }}</p>
+                  }
+                </div>
+              }
+            </ui-section>
+          </div>
+        }
+      }
+    }
+  </div>
+</div>

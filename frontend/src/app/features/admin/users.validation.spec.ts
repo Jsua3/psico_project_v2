@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UsersComponent } from './users.component';
 import type { Mock } from 'vitest';
 
@@ -46,6 +47,8 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: { listPending: vi.fn(() => of([])), updateStatus: vi.fn() } },
         { provide: NotificationService, useValue: notify },
+        // La hoja del formulario no se abre en estas pruebas: aquí se ejercita la validación del formulario.
+        { provide: UiDialog, useValue: { sheet: vi.fn(() => ({ close: vi.fn() })), confirm: vi.fn(() => Promise.resolve(true)) } },
         { provide: ElementRef, useValue: new ElementRef(host) },
       ],
     });

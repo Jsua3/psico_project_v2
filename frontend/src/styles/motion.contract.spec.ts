@@ -33,8 +33,9 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
   const files: Record<string, string> = {
     shell: source('../app/shared/layout/shell.component.ts'),
     quickActions: source('../app/features/dashboard/quick-actions.component.ts'),
-    trace: source('../app/features/simulator/instructor-trace.component.ts'),
-    grupos: source('../app/features/grupos/grupo-list.component.ts'),
+    // F7: la clase y sus estilos viven en archivos distintos; el contrato mira los dos.
+    trace: source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss'),
+    grupos: source('../app/features/grupos/grupo-list.component.ts') + source('../app/features/grupos/grupo-list.component.scss'),
     preview: source('../app/features/simulator/world-preview.component.ts'),
     dashboard: source('../app/features/dashboard/dashboard.component.scss'),
   };
@@ -53,9 +54,14 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
     expect(files['trace']).not.toMatch(/\.review-summary-card--action:hover,\s*\.review-summary-card--action:focus-visible/);
   });
 
-  it('el botón pixel se hunde al presionar, no al pasar el cursor', () => {
-    expect(files['dashboard']).toMatch(/\.pixel-button:active \{\s*transform: translate\(2px, 2px\);/);
-    expect(files['dashboard']).not.toMatch(/\.pixel-button:hover \{\s*transform/);
+  it('el botón se hunde al presionar, no al pasar el cursor', () => {
+    // F7-1: el panel ya no define botones propios; sus enlaces son `ui-button`, que responde al presionar con `scale`
+    // y solo cambia de color en hover (con puntero fino). Ninguna regla del panel mueve nada al pasar el cursor.
+    const button = source('../app/shared/ui/button/ui-button.scss');
+    expect(button).toMatch(/&:active:not\(\[aria-disabled='true'\], :disabled\) \{[^}]*scale: 0\.97;/);
+    expect(button).not.toMatch(/ds-hover \{[^}]*(transform|scale|translate)/);
+    expect(files['dashboard']).not.toContain('.pixel-button');
+    expect(files['dashboard']).not.toMatch(/:hover[^{]*\{[^}]*(transform|translate|scale)/);
   });
 });
 

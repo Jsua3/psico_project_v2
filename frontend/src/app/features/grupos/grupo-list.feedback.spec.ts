@@ -7,6 +7,7 @@ import { Grupo, GrupoEstudiante, GrupoService } from '../../core/api/grupo.servi
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { GrupoListComponent } from './grupo-list.component';
 import type { Mock, MockInstance } from 'vitest';
 
@@ -25,6 +26,13 @@ function backendError(status: number, body: unknown) {
   return throwError(() => new HttpErrorResponse({ status, error: body }));
 }
 
+/** Respuesta del diálogo de confirmación que el test resuelve cuando quiere (el usuario decide más tarde). */
+function pendingAnswer() {
+  let resolve!: (confirmed: boolean) => void;
+  const promise = new Promise<boolean>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
 describe('grupos: feedback de acciones (comportamiento)', () => {
   let component: GrupoListComponent;
   let grupos: Record<
@@ -34,6 +42,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   >;
   let simulation: { listCases: Mock };
   let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
+  let dialog: { confirm: Mock };
   let confirmSpy: MockInstance;
 
   beforeEach(() => {
@@ -52,6 +61,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
     };
     simulation = { listCases: vi.fn(() => of([caso])) };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+    dialog = { confirm: vi.fn(() => Promise.resolve(true)) };
     confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     TestBed.configureTestingModule({
@@ -59,6 +69,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
         { provide: GrupoService, useValue: grupos },
         { provide: SimulationService, useValue: simulation },
         { provide: NotificationService, useValue: notify },
+        { provide: UiDialog, useValue: dialog },
         { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
@@ -138,25 +149,30 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   });
 
   describe('borrar grupo', () => {
-    it('ya no usa window.confirm: abre el diálogo propio sin llamar al backend', () => {
-      component.eliminarGrupo(grupoA);
+    it('ya no usa window.confirm: pide confirmar con el diálogo de la biblioteca y no llama al backend hasta confirmar', async () => {
+      const answer = pendingAnswer();
+      dialog.confirm.mockReturnValue(answer.promise);
+
+      const running = component.eliminarGrupo(grupoA);
 
       expect(confirmSpy).not.toHaveBeenCalled();
       expect(grupos.eliminar).not.toHaveBeenCalled();
-      expect(component.pendingConfirm()).toEqual(expect.objectContaining({
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Borrar grupo',
         confirmLabel: 'Borrar',
+        tone: 'danger',
         message: expect.stringContaining('"Cohorte A"'),
       }));
+
+      answer.resolve(false);
+      await running;
     });
 
-    it('al confirmar borra, avisa el éxito y limpia el detalle del grupo activo', () => {
+    it('al confirmar borra, avisa el éxito y limpia el detalle del grupo activo', async () => {
       grupos.eliminar.mockReturnValue(of({ id: 1 }));
-      component.eliminarGrupo(grupoA);
 
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
 
-      expect(component.pendingConfirm()).toBeNull();
       expect(grupos.eliminar).toHaveBeenCalledWith(1);
       expect(notify.success).toHaveBeenCalledWith('Grupo eliminado.');
       expect(component.grupos()).toEqual([grupoB]);
@@ -164,32 +180,34 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
       expect(confirmSpy).not.toHaveBeenCalled();
     });
 
-    it('una confirmación se ejecuta una sola vez', () => {
+    it('dos gestos seguidos abren un solo diálogo y borran una sola vez', async () => {
       grupos.eliminar.mockReturnValue(of({ id: 1 }));
-      component.eliminarGrupo(grupoA);
+      const answer = pendingAnswer();
+      dialog.confirm.mockReturnValue(answer.promise);
 
-      component.runPendingConfirm();
-      component.runPendingConfirm();
+      const first = component.eliminarGrupo(grupoA);
+      const second = component.eliminarGrupo(grupoA);
+      answer.resolve(true);
+      await Promise.all([first, second]);
 
+      expect(dialog.confirm).toHaveBeenCalledTimes(1);
       expect(grupos.eliminar).toHaveBeenCalledTimes(1);
       expect(notify.success).toHaveBeenCalledTimes(1);
     });
 
-    it('cancelar el diálogo no borra nada', () => {
-      component.eliminarGrupo(grupoA);
+    it('cancelar el diálogo no borra nada', async () => {
+      dialog.confirm.mockResolvedValue(false);
 
-      component.pendingConfirm.set(null);
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
 
       expect(grupos.eliminar).not.toHaveBeenCalled();
       expect(component.grupos()).toEqual([grupoA, grupoB]);
     });
 
-    it('con un error 500 avisa el mensaje del backend y conserva el grupo', () => {
+    it('con un error 500 avisa el mensaje del backend y conserva el grupo', async () => {
       grupos.eliminar.mockReturnValue(backendError(500, { message: 'El grupo tiene simulaciones en curso.' }));
-      component.eliminarGrupo(grupoA);
 
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
 
       expect(notify.error).toHaveBeenCalledTimes(1);
       expect(notify.error).toHaveBeenCalledWith('El grupo tiene simulaciones en curso.');
@@ -198,20 +216,18 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
       expect(component.error()).toBe('');
     });
 
-    it('con un error sin mensaje avisa el texto de respaldo', () => {
+    it('con un error sin mensaje avisa el texto de respaldo', async () => {
       grupos.eliminar.mockReturnValue(backendError(500, null));
-      component.eliminarGrupo(grupoA);
 
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
 
       expect(notify.error).toHaveBeenCalledWith('No fue posible borrar el grupo.');
     });
 
-    it('sin conexión (status 0) no duplica el aviso del interceptor', () => {
+    it('sin conexión (status 0) no duplica el aviso del interceptor', async () => {
       grupos.eliminar.mockReturnValue(backendError(0, null));
-      component.eliminarGrupo(grupoA);
 
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
 
       expect(notify.error).not.toHaveBeenCalled();
       expect(notify.success).not.toHaveBeenCalled();
@@ -219,24 +235,30 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   });
 
   describe('quitar estudiante', () => {
-    it('pide confirmación con el diálogo propio y no llama al backend hasta confirmar', () => {
-      component.quitarEstudiante(grupoA, marta);
+    it('pide confirmación con el diálogo de la biblioteca y no llama al backend hasta confirmar', async () => {
+      const answer = pendingAnswer();
+      dialog.confirm.mockReturnValue(answer.promise);
+
+      const running = component.quitarEstudiante(grupoA, marta);
 
       expect(confirmSpy).not.toHaveBeenCalled();
       expect(grupos.quitarEstudiante).not.toHaveBeenCalled();
-      expect(component.pendingConfirm()).toEqual(expect.objectContaining({
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Quitar estudiante',
         message: '¿Quitar a Marta Ríos del grupo?',
         confirmLabel: 'Quitar',
       }));
+
+      answer.resolve(false);
+      await running;
+      expect(grupos.quitarEstudiante).not.toHaveBeenCalled();
     });
 
-    it('al confirmar avisa el éxito con un aviso y no con el mensaje del formulario', () => {
+    it('al confirmar avisa el éxito con un aviso y no con el mensaje del formulario', async () => {
       const actualizado = { ...grupoA, totalEstudiantes: 2 };
       grupos.quitarEstudiante.mockReturnValue(of(actualizado));
-      component.quitarEstudiante(grupoA, marta);
 
-      component.runPendingConfirm();
+      await component.quitarEstudiante(grupoA, marta);
 
       expect(grupos.quitarEstudiante).toHaveBeenCalledWith(1, 11);
       expect(notify.success).toHaveBeenCalledWith('Estudiante retirado del grupo.');
@@ -245,22 +267,20 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
       expect(component.mensajeEstudiante()).toBe('');
     });
 
-    it('con error avisa el mensaje del backend', () => {
+    it('con error avisa el mensaje del backend', async () => {
       grupos.quitarEstudiante.mockReturnValue(backendError(404, { message: 'El estudiante ya no pertenece al grupo.' }));
-      component.quitarEstudiante(grupoA, marta);
 
-      component.runPendingConfirm();
+      await component.quitarEstudiante(grupoA, marta);
 
       expect(notify.error).toHaveBeenCalledWith('El estudiante ya no pertenece al grupo.');
       expect(component.mensajeEstudiante()).toBe('');
       expect(component.estudiantes()).toEqual([marta]);
     });
 
-    it('con error sin mensaje avisa el texto de respaldo', () => {
+    it('con error sin mensaje avisa el texto de respaldo', async () => {
       grupos.quitarEstudiante.mockReturnValue(backendError(500, null));
-      component.quitarEstudiante(grupoA, marta);
 
-      component.runPendingConfirm();
+      await component.quitarEstudiante(grupoA, marta);
 
       expect(notify.error).toHaveBeenCalledWith('No fue posible quitar al estudiante.');
     });

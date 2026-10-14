@@ -89,9 +89,9 @@ const CONTRACTS: Contract[] = [
   { method: 'attemptTrace', call: s => s.attemptTrace(ATTEMPT), verb: 'GET',
     url: `/api/instructor/attempts/${ATTEMPT}/trace` },
   { method: 'rubric', call: s => s.rubric(ATTEMPT), verb: 'GET',
-    url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation/` },
+    url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation` },
   { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, score: 3, comment: 'c' }]),
-    verb: 'PUT', url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation/`,
+    verb: 'PUT', url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation`,
     body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, score: 3, comment: 'c' }] } },
 
   // ── autoría ────────────────────────────────────────────────────────────────

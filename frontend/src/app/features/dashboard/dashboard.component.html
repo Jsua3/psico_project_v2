@@ -1,285 +1,139 @@
 @if (isEstudiante()) {
   <app-student-dashboard />
 } @else {
-<section class="dashboard-page psy-reveal" [attr.aria-label]="heroTitle()">
-  @if (loading()) {
-    <p class="dashboard-loading-banner" aria-live="polite">{{ loadingMessage() }}</p>
-  }
+  <ui-page-header [eyebrow]="eyebrow()" [title]="heroTitle()" [description]="heroLead()" />
 
-  <header class="dashboard-hero pixel-panel">
-    <div class="hero-copy">
-      <p class="psy-eyebrow">
-        @if (isAdmin()) { Administración · {{ brand.shortName }} }
-        @else { Seguimiento docente · {{ brand.shortName }} }
-      </p>
-      <h1 class="hero-title">{{ heroTitle() }}</h1>
-      <p class="hero-lead">{{ heroLead() }}</p>
-      <div class="hero-actions">
-        @if (continuarEntrenamiento()) {
-          <a class="pixel-button pixel-button--accent" routerLink="/portal/simulador">
-            <mat-icon aria-hidden="true">play_arrow</mat-icon>
-            Continuar entrenamiento
-          </a>
-        }
-        @for (action of quickActions().slice(0, 2); track action.route + action.label) {
-          <a
-            class="pixel-button"
-            [class.pixel-button--accent]="action.accent && !continuarEntrenamiento()"
-            [routerLink]="action.route"
-          >
-            <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
-            {{ action.label }}
-          </a>
-        }
-      </div>
-    </div>
+  <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
-    @let statusCard = heroStatusCard();
-    <aside class="hero-status-card" [attr.aria-label]="statusCard.title">
-      <div class="hero-status-card__frame">
-        <div class="hero-status-card__header">
-          <h2 class="hero-status-card__title">{{ statusCard.title }}</h2>
-          <div class="hero-status-card__chips">
-            @for (chip of statusCard.chips; track chip) {
-              <span class="hero-status-chip">{{ chip }}</span>
-            }
-          </div>
-        </div>
-        <dl class="hero-status-card__metrics">
-          @for (item of statusCard.items; track $index) {
-            <div class="hero-status-card__metric">
-              <dt>{{ item.label }}</dt>
-              <dd>{{ item.value }}</dd>
-            </div>
+  @switch (state()) {
+    @case ('loading') {
+      <div class="td-loading" aria-busy="true">
+        <div class="td-stats">
+          @for (bone of [1, 2, 3, 4]; track bone) {
+            <ui-skeleton shape="stat" />
           }
-        </dl>
-        @if (statusCard.action; as action) {
-          <a
-            class="pixel-button pixel-button--accent hero-status-card__action"
-            [routerLink]="action.route"
-          >
-            <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
-            {{ action.label }}
-          </a>
-        }
-      </div>
-    </aside>
-  </header>
-
-  <section class="metric-grid metric-grid--admin" aria-label="Métricas de entrenamiento">
-    @for (metric of metrics(); track metric.label) {
-      <article class="pixel-stat-card pixel-card">
-        <div class="pixel-stat-card__icon" aria-hidden="true">
-          <mat-icon>{{ metric.icon }}</mat-icon>
         </div>
-        @if (loading()) {
-          <div class="psy-skeleton skeleton-value"></div>
-          <div class="psy-skeleton skeleton-label"></div>
-        } @else {
-          <p class="pixel-stat-card__value">{{ metric.value }}</p>
-          <h2 class="pixel-stat-card__label">{{ metric.label }}</h2>
-          <span
-            class="pixel-badge"
-            [class.pixel-badge--blue]="metric.badgeClass === 'blue'"
-            [class.pixel-badge--purple]="metric.badgeClass === 'purple'"
-            [class.pixel-badge--green]="metric.badgeClass === 'green'"
-            [class.pixel-badge--orange]="metric.badgeClass === 'orange'"
-            [class.pixel-badge--neutral]="metric.badgeClass === 'neutral'"
-            [attr.title]="metric.status"
-          >{{ metric.status }}</span>
-        }
-      </article>
+        <div class="td-charts">
+          @for (bone of [1, 2, 3]; track bone) {
+            <ui-skeleton shape="chart" />
+          }
+        </div>
+        <ui-skeleton shape="row" />
+        <ui-skeleton shape="row" />
+      </div>
     }
-  </section>
-
-  @if (error()) {
-    <aside class="dashboard-error pixel-panel" role="alert">
-      <div class="dashboard-error__icon" aria-hidden="true"><mat-icon>cloud_off</mat-icon></div>
-      <div>
-        <strong>No fue posible cargar la información</strong>
-        <p>Revisa la conexión con el servidor e intenta recargar la página.</p>
-      </div>
-    </aside>
-  }
-
-  <app-quick-actions [actions]="quickActions()" />
-
-  <app-dashboard-charts
-    [loading]="loading()"
-    [role]="chartsRole()"
-    [adminUsers]="adminUsers()"
-    [dashboard]="dashboard()"
-    [recentAttempts]="recentAttempts()"
-  />
-
-  @if (isAdmin()) {
-    <section class="system-status pixel-panel" [class.system-status--ok]="systemStatus().ok" aria-label="Estado del sistema">
-      <div class="system-status__icon" aria-hidden="true"><mat-icon>{{ systemStatus().ok ? 'verified_user' : 'error_outline' }}</mat-icon></div>
-      <div>
-        <p class="pixel-section-title">Estado del sistema</p>
-        <h2>{{ systemStatus().label }}</h2>
-        <p>{{ systemStatus().detail }}</p>
-      </div>
-    </section>
-  }
-
-  @if (continuarEntrenamiento(); as training) {
-    <section class="training-panel pixel-panel training-panel--active" aria-labelledby="training-title">
-      <div class="training-panel__main">
-        <p class="pixel-section-title" id="training-title">Continuar entrenamiento</p>
-        <span class="pixel-badge pixel-badge--purple">Caso activo</span>
-        <h2 class="training-panel__case">{{ training.caso }}</h2>
-        <dl class="training-panel__meta">
-          <div><dt>Rol</dt><dd>{{ training.rol }}</dd></div>
-          <div><dt>Última acción</dt><dd>{{ training.ultimaAccion }}</dd></div>
-          <div><dt>Estado</dt><dd>{{ training.estado }}</dd></div>
-        </dl>
-      </div>
-      <div class="training-panel__progress">
-        <div class="progress-header">
-          <span>Progreso formativo</span>
-          <strong>{{ training.progreso > 0 ? training.progreso + '%' : 'Pendiente' }}</strong>
-        </div>
-        <div class="pixel-progress" aria-label="Progreso de entrenamiento">
-          <div class="pixel-progress__track">
-            @for (segment of progressSegments; track $index) {
-              <span class="pixel-progress__segment" [class.is-filled]="$index < filledProgressSegments()"></span>
-            }
-          </div>
-        </div>
-        <a class="pixel-button pixel-button--accent" routerLink="/portal/simulador">
-          <mat-icon aria-hidden="true">play_arrow</mat-icon>
-          Continuar simulación
-        </a>
-      </div>
-    </section>
-  } @else if (!loading() && !error() && !isAdmin()) {
-    <section class="dashboard-empty training-panel pixel-panel" aria-labelledby="training-empty-title">
-      <div class="dashboard-empty__icon" aria-hidden="true"><mat-icon>videogame_asset</mat-icon></div>
-      <div>
-        <h2 id="training-empty-title">Sin entrenamientos activos</h2>
-        <p>No hay simulaciones activas en este momento.</p>
-        <p class="dashboard-empty__hint">Cuando tus grupos inicien simulaciones, aparecerán aquí.</p>
-        <a class="pixel-button" routerLink="/portal/simulador">Explorar simulaciones</a>
-      </div>
-    </section>
-  }
-
-  <div class="dashboard-grid">
-    <article class="pixel-card dashboard-panel" aria-labelledby="attempts-title">
-      <header class="dashboard-panel__head">
-        <div>
-          <p class="psy-eyebrow">Últimas sesiones</p>
-          <h2 id="attempts-title">Intentos recientes</h2>
-        </div>
-        <span class="pixel-badge pixel-badge--blue">Trazabilidad</span>
-      </header>
-
-      @if (loading()) {
-        <div class="table-skeleton" aria-busy="true">
-          <div class="psy-skeleton"></div><div class="psy-skeleton"></div><div class="psy-skeleton"></div>
-        </div>
-      } @else if (!rows().length) {
-        <div class="dashboard-empty dashboard-empty--compact">
-          <mat-icon aria-hidden="true">history</mat-icon>
-          <p>Aún no hay intentos registrados.</p>
-        </div>
-      } @else {
-        <div class="table-wrap">
-          <table mat-table [dataSource]="rows()" class="attempts-table">
-            <ng-container matColumnDef="caso">
-              <th mat-header-cell *matHeaderCellDef scope="col">Caso</th>
-              <td mat-cell *matCellDef="let s">{{ s.casoTitulo }}</td>
-            </ng-container>
-            <ng-container matColumnDef="estudiante">
-              <th mat-header-cell *matHeaderCellDef scope="col">Estudiante</th>
-              <td mat-cell *matCellDef="let s">{{ s.estudiante }}</td>
-            </ng-container>
-            <ng-container matColumnDef="puntaje">
-              <th mat-header-cell *matHeaderCellDef scope="col">Puntaje</th>
-              <td mat-cell *matCellDef="let s" class="cell-mono">{{ s.puntajeLabel }}</td>
-            </ng-container>
-            <ng-container matColumnDef="estado">
-              <th mat-header-cell *matHeaderCellDef scope="col">Estado</th>
-              <td mat-cell *matCellDef="let s">
-                <span
-                  class="pixel-badge"
-                  [class.pixel-badge--green]="s.estado === 'Completado'"
-                  [class.pixel-badge--purple]="s.estado === 'En curso'"
-                  [class.pixel-badge--neutral]="s.estado === 'Pendiente'"
-                >{{ s.estado }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="accion">
-              <th mat-header-cell *matHeaderCellDef scope="col">Acción</th>
-              <td mat-cell *matCellDef="let s">
-                <a class="pixel-button pixel-button--mini" routerLink="/portal/docente/trazabilidad">Ver trazabilidad</a>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="tableColumns()"></tr>
-            <tr mat-row *matRowDef="let row; columns: tableColumns()"></tr>
-          </table>
-        </div>
+    @case ('error') {
+      <ui-error-state kind="server" message="No pudimos cargar el panel." (retry)="reload()" />
+    }
+    @case ('empty') {
+      @let copy = firstUseCopy();
+      <ui-empty-state kind="first-use" [title]="copy.title" [description]="copy.description" [actionLabel]="copy.action" (action)="goToFirstUse()" />
+    }
+    @case ('ready') {
+      @if (ownOpen(); as attempt) {
+        <ui-section title="Retoma tu caso">
+          <ui-card class="td-continue">
+            <div class="td-continue__text">
+              <p class="td-continue__case">{{ attempt.caseTitle }}</p>
+              <p class="td-continue__meta">
+                <ui-badge tone="info">{{ statusLabel(attempt.status) }}</ui-badge>
+                <span>Tu propio intento</span>
+              </p>
+            </div>
+            <a ui-button variant="primary" icon="play_arrow" [routerLink]="['/portal/simulador', attempt.caseVersionId]">Continuar</a>
+          </ui-card>
+        </ui-section>
       }
-    </article>
 
-    <aside class="dashboard-side">
-      <article class="pixel-card dashboard-panel" aria-labelledby="gaps-title">
-        <p class="psy-eyebrow">Alertas formativas</p>
-        <h2 id="gaps-title">Lectura docente</h2>
+      <ui-section title="Resumen">
+        <div class="td-stats">
+          @for (metric of metrics(); track metric.label) {
+            <ui-card><ui-stat [label]="metric.label" [value]="metric.value" [hint]="metric.status" /></ui-card>
+          }
+        </div>
+      </ui-section>
 
-        @if (loading()) {
-          <div class="table-skeleton" aria-busy="true"><div class="psy-skeleton"></div></div>
-        } @else if (brechasSinDatosSuficientes()) {
-          <div class="dashboard-empty dashboard-empty--compact">
-            <mat-icon aria-hidden="true">insights</mat-icon>
-            <p>Sin datos suficientes todavía.</p>
-          </div>
-        } @else {
-          <div class="learning-gap-list">
-            @for (brecha of brechas(); track brecha.titulo) {
-              <article
-                class="learning-gap-card"
-                [class.learning-gap-card--green]="brecha.color === 'green'"
-                [class.learning-gap-card--purple]="brecha.color === 'purple'"
-                [class.learning-gap-card--orange]="brecha.color === 'orange'"
-                [class.learning-gap-card--blue]="brecha.color === 'blue'"
-              >
-                <div class="learning-gap-card__icon" aria-hidden="true"><mat-icon>{{ brecha.icon }}</mat-icon></div>
-                <div class="learning-gap-card__body">
-                  <strong>{{ brecha.titulo }}</strong>
-                  <p>{{ brecha.texto }}</p>
-                </div>
-                <span class="learning-gap-card__status">{{ brecha.estado }}</span>
-              </article>
+      <ui-section title="Accesos">
+        <app-quick-actions [actions]="quickActions()" />
+      </ui-section>
+
+      <ui-section title="Gráficas formativas">
+        <app-dashboard-charts
+          [loading]="false"
+          [role]="chartsRole()"
+          [adminUsers]="adminUsers()"
+          [dashboard]="dashboard()"
+          [recentAttempts]="recentAttempts()"
+        />
+      </ui-section>
+
+      <div class="td-split">
+        <ui-section title="Intentos recientes">
+          <ui-table label="Tabla de intentos recientes" density="compact" [state]="rows().length ? 'ready' : 'empty'">
+            <table ui-table>
+              <thead>
+                <tr>
+                  <th scope="col">Caso</th>
+                  <th scope="col">Estudiante</th>
+                  <th scope="col">Puntaje</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of rows(); track row.id) {
+                  <tr uiRow>
+                    <td class="td-case">{{ row.casoTitulo }}</td>
+                    <td>{{ row.estudiante }}</td>
+                    <td class="td-num">{{ row.puntajeLabel }}</td>
+                    <td class="td-nowrap"><ui-badge [tone]="row.tone">{{ row.estado }}</ui-badge></td>
+                    <td class="td-nowrap">
+                      <a ui-button variant="ghost" size="sm" [routerLink]="traceRoute" [queryParams]="{ intento: row.id }"
+                        [attr.aria-label]="'Ver detalle de ' + row.casoTitulo + ' de ' + row.estudiante">Ver detalle</a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <p uiTableEmpty class="td-empty">Aún no hay intentos registrados.</p>
+          </ui-table>
+        </ui-section>
+
+        <aside class="td-side">
+          <ui-section title="Lectura docente">
+            @if (brechasSinDatosSuficientes()) {
+              <p class="td-empty">Sin datos suficientes todavía.</p>
+            } @else {
+              <ul class="td-gaps">
+                @for (brecha of brechas(); track brecha.titulo) {
+                  <li class="td-gap">
+                    <div class="td-gap__body">
+                      <strong>{{ brecha.titulo }}</strong>
+                      <span>{{ brecha.texto }}</span>
+                    </div>
+                    <ui-badge [tone]="brecha.tone">{{ brecha.estado }}</ui-badge>
+                  </li>
+                }
+              </ul>
             }
-          </div>
-        }
-      </article>
+          </ui-section>
 
-      <section class="teacher-activity-card pixel-panel" aria-labelledby="teacher-title">
-        <p class="psy-eyebrow">Actividad docente</p>
-        <h2 id="teacher-title">Panel de seguimiento</h2>
-
-        @if (loading()) {
-          <div class="table-skeleton" aria-busy="true"><div class="psy-skeleton"></div></div>
-        } @else if (actividadDocenteVacia()) {
-          <div class="dashboard-empty dashboard-empty--compact">
-            <mat-icon aria-hidden="true">school</mat-icon>
-            <p>No hay actividad docente registrada con los filtros actuales.</p>
-          </div>
-        } @else {
-          <div class="teacher-activity-grid">
-            @for (item of actividadDocente(); track item.titulo) {
-              <article class="teacher-activity-card__item">
-                <span class="pixel-badge pixel-badge--purple">{{ item.valor }}</span>
-                <strong>{{ item.titulo }}</strong>
-              </article>
+          <ui-section title="Actividad docente">
+            @if (actividadDocenteVacia()) {
+              <p class="td-empty">No hay actividad docente registrada con los filtros actuales.</p>
+            } @else {
+              <dl class="td-activity">
+                @for (item of actividadDocente(); track item.titulo) {
+                  <div class="td-activity__item">
+                    <dt>{{ item.titulo }}</dt>
+                    <dd>{{ item.valor }}</dd>
+                  </div>
+                }
+              </dl>
             }
-          </div>
-        }
-      </section>
-    </aside>
-  </div>
-</section>
+          </ui-section>
+        </aside>
+      </div>
+    }
+  }
 }

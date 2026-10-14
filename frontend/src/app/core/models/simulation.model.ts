@@ -335,10 +335,16 @@ export interface ReflectionTrace {
   locked: boolean;
 }
 
+/** Niveles cualitativos de la valoración formativa (RN-09, ED-2): no son una nota. */
+export type FormativeLevel = 'EN_INICIO' | 'EN_PROCESO' | 'LOGRADO' | 'DESTACADO';
+
 export interface RubricSummary {
   id: number;
   rubricName: string;
-  totalScore: number;
+  /** Solo viaja si el servidor tiene activo `RUBRIC_NUMERIC_TOTAL` (apagado por defecto: ED-2, RN-09). */
+  totalScore: number | null;
+  /** Nivel global de la evaluación; null mientras falte calificar algún criterio. */
+  overallLevel?: FormativeLevel | null;
   comment: string | null;
   evaluatedAt: string;
 }
@@ -378,7 +384,10 @@ export interface RubricEvaluationView {
   status?: string;
   criteria: RubricCriterionView[];
   scores: CriterionScoreView[];
+  /** Solo viaja con `RUBRIC_NUMERIC_TOTAL` encendido en el servidor; si es null la pantalla no muestra ningún número. */
   totalScore: number | null;
+  /** Nivel global de la valoración formativa (RN-09); null mientras falte calificar algún criterio. */
+  overallLevel?: FormativeLevel | null;
   comment: string | null;
 }
 
@@ -395,6 +404,8 @@ export interface RubricCriterionView {
 export interface CriterionScoreView {
   criterionId: number;
   score: number;
+  /** Nivel formativo de este criterio (el que se muestra; `score` es su índice interno o la calificación 1,0–5,0). */
+  level?: FormativeLevel | null;
   comment: string | null;
   evidence: Record<string, unknown>;
 }

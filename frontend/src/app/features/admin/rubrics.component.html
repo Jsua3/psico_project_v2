@@ -1,0 +1,146 @@
+<ui-page-header eyebrow="Evaluación" title="Rúbricas"
+  description="Define los criterios con los que el docente valora cada intento y asígnalos a una simulación publicada.">
+  <button ui-button uiPageActions type="button" icon="add" (click)="newRubric()">Nueva rúbrica</button>
+</ui-page-header>
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+<div class="rb-layout">
+  <ui-section class="rb-list" title="Lista de rúbricas">
+    <div class="rb-stack">
+      <div class="rb-filters">
+        <ui-field label="Buscar">
+          <input uiControl type="search" autocomplete="off" [value]="query()" (input)="query.set($any($event.target).value)">
+        </ui-field>
+        <ui-field label="Estado">
+          <select uiControl [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
+            <option value="ALL">Todas</option>
+            <option value="ACTIVE">Activas</option>
+            <option value="INACTIVE">Inactivas</option>
+          </select>
+        </ui-field>
+      </div>
+
+      @switch (listState()) {
+        @case ('loading') {
+          <div class="rb-stack" aria-busy="true">
+            @for (bone of [1, 2, 3]; track bone) {
+              <ui-skeleton shape="row" />
+            }
+          </div>
+        }
+        @case ('error') {
+          <ui-error-state kind="server" [message]="message()" (retry)="load()" />
+        }
+        @case ('empty') {
+          <ui-empty-state kind="first-use" title="Aún no hay rúbricas"
+            description="Crea la primera para valorar los intentos de tus estudiantes con criterios y ponderación."
+            actionLabel="Nueva rúbrica" (action)="newRubric()" />
+        }
+        @case ('ready') {
+          @if (!filteredRubrics().length) {
+            <ui-empty-state kind="no-results" title="No hay rúbricas con ese filtro"
+              description="Prueba con otro nombre o con otro estado." actionLabel="Limpiar filtros" (action)="clearFilters()" />
+          } @else {
+            <ul class="rb-rows">
+              @for (rubric of filteredRubrics(); track rubric.id) {
+                <li>
+                  <button type="button" class="rb-row" [attr.aria-current]="selected()?.id === rubric.id ? 'true' : null"
+                    (click)="openRubric(rubric.id)">
+                    <span class="rb-row__text">
+                      <strong>{{ rubric.name }}</strong>
+                      <small>{{ rubric.criteriaCount }} {{ rubric.criteriaCount === 1 ? 'criterio' : 'criterios' }} · {{ rubric.totalWeight }} %</small>
+                    </span>
+                    <ui-badge [tone]="rowTone(rubric)">{{ rowLabel(rubric) }}</ui-badge>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+      }
+    </div>
+  </ui-section>
+
+  <ui-section class="rb-form" [title]="selected() ? 'Editar rúbrica' : 'Nueva rúbrica'">
+    <ui-card>
+      <div class="rb-stack">
+        @if (messageIsError() && message() && listState() !== 'error') {
+          <p class="rb-message rb-message--error">{{ message() }}</p>
+        }
+
+        <form [formGroup]="form" novalidate class="rb-stack" (ngSubmit)="save()">
+          <div class="rb-row-fields">
+            <ui-field label="Nombre" required [error]="fieldError(form.controls.name, 'Escribe el nombre de la rúbrica.')">
+              <input uiControl type="text" formControlName="name" autocomplete="off">
+            </ui-field>
+            <ui-field label="Versión" required [error]="fieldError(form.controls.version, 'Escribe la versión.')">
+              <input uiControl type="text" formControlName="version" autocomplete="off">
+            </ui-field>
+          </div>
+
+          <ui-field label="Descripción">
+            <textarea uiControl rows="3" formControlName="description"></textarea>
+          </ui-field>
+
+          <div class="rb-weight">
+            <span>Ponderación total</span>
+            <ui-badge [tone]="totalWeight() === 100 ? 'success' : 'warning'">{{ totalWeight() }} %</ui-badge>
+          </div>
+          @if (totalWeight() !== 100) {
+            <p id="rubric-weight-hint" class="rb-hint">Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.</p>
+          }
+
+          <div formArrayName="criteria" class="rb-stack">
+            @for (criterion of criteria.controls; track criterion; let i = $index) {
+              <fieldset class="criterion" [formGroupName]="i">
+                <legend class="criterion__legend">Criterio {{ i + 1 }}</legend>
+                <div class="rb-criterion-fields">
+                  <ui-field label="Nombre" required [error]="fieldError(criterion.get('title')!, 'Escribe el nombre del criterio.')">
+                    <input uiControl type="text" formControlName="title" autocomplete="off">
+                  </ui-field>
+                  <ui-field label="Peso %" required [error]="fieldError(criterion.get('weight')!, 'El peso va de 0 a 100.')">
+                    <input uiControl type="number" min="0" max="100" formControlName="weight" inputmode="decimal">
+                  </ui-field>
+                  <ui-field label="Orden" required [error]="fieldError(criterion.get('displayOrder')!, 'El orden empieza en 1.')">
+                    <input uiControl type="number" min="1" formControlName="displayOrder" inputmode="numeric">
+                  </ui-field>
+                </div>
+                <ui-field label="Descripción del criterio">
+                  <textarea uiControl rows="2" formControlName="description"></textarea>
+                </ui-field>
+                <div class="criterion__remove">
+                  <button ui-icon-button type="button" icon="delete_outline" [label]="'Eliminar criterio ' + (i + 1)"
+                    (click)="removeCriterion(i)"></button>
+                </div>
+              </fieldset>
+            }
+          </div>
+
+          <div class="actions">
+            <button ui-button type="button" variant="secondary" icon="playlist_add" (click)="addCriterion()">Agregar criterio</button>
+            <button ui-button type="submit" icon="save" [loading]="saving()">{{ saving() ? 'Guardando…' : 'Guardar' }}</button>
+            <button ui-button type="button" variant="secondary" [disabledReason]="activateReason()" (click)="activate()">Activar</button>
+            <button ui-button type="button" variant="secondary" [disabledReason]="selectedReason()" (click)="deactivate()">Desactivar</button>
+            <button ui-button type="button" variant="secondary" [disabledReason]="activateReason()" (click)="setDefault()">Predeterminada</button>
+            <button ui-button type="button" variant="secondary" [disabledReason]="selectedReason()" (click)="duplicate()">Duplicar</button>
+          </div>
+        </form>
+
+        <ui-section class="rb-assign" title="Asignar a simulación" [level]="3">
+          <div class="rb-assign__row">
+            <ui-field label="Simulación publicada">
+              <select uiControl [value]="caseVersionId()" (change)="selectCaseVersion($any($event.target).value)">
+                <option [value]="0">Selecciona una simulación</option>
+                @for (caseItem of cases(); track caseItem.caseVersionId) {
+                  <option [value]="caseItem.caseVersionId">{{ caseItem.title }} · v{{ caseItem.semanticVersion }}</option>
+                }
+              </select>
+            </ui-field>
+            <button ui-button type="button" icon="assignment_turned_in" [disabledReason]="assignReason()" (click)="assign()">Asignar</button>
+          </div>
+        </ui-section>
+      </div>
+    </ui-card>
+  </ui-section>
+</div>

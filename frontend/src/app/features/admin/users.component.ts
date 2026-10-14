@@ -1,22 +1,24 @@
-import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
+import { DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AdminUser, UserAdminService, UserRole } from '../../core/api/user-admin.service';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
-import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { roleLabel } from '../../shared/ui/labels';
+import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { UserFormSheetComponent, UserFormSheetData } from './user-form-sheet.component';
 
 interface UserFormValue {
   nombre: string;
@@ -26,265 +28,59 @@ interface UserFormValue {
   password: string;
 }
 
+/**
+ * Pantalla Usuarios (plan visual F7-6): una tabla con el error separado del vacío, un botón de editar con ayuda y un
+ * menú por fila, el formulario en una hoja lateral (`UiDialog.sheet`) y las solicitudes de acceso con su error a la
+ * vista (antes un fallo se tragaba y parecía «no hay solicitudes»). Activar o desactivar confirma con el diálogo de la
+ * biblioteca.
+ */
 @Component({
   selector: 'app-admin-users',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-    MatButtonModule,
-    MatCardModule,
-    MatChipsModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatProgressBarModule,
-    MatSelectModule,
-    MatTableModule,
-    ConfirmDialogComponent
+    UiBadge, UiButton, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection,
+    UiEmptyState, UiErrorState, UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable,
   ],
-  template: `
-    <section class="admin-users">
-      <header class="page-header">
-        <div>
-          <p class="psy-eyebrow">Administración</p>
-          <h1 class="page-title">Usuarios</h1>
-        </div>
-        <button class="psy-button psy-button--primary" type="button" (click)="newUser()">
-          <mat-icon>person_add</mat-icon>
-          Nuevo usuario
-        </button>
-      </header>
-
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-      }
-
-      @if (message()) {
-        <p class="state-message" role="status">{{ message() }}</p>
-      }
-      @if (error()) {
-        <p class="state-message state-message--error" role="alert">{{ error() }}</p>
-      }
-
-      @if (accessRequests().length) {
-        <mat-card class="requests-card">
-          <mat-card-header>
-            <mat-card-title>Solicitudes de acceso pendientes</mat-card-title>
-            <mat-card-subtitle>Estudiantes que pidieron cuenta desde el login</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="requests-list">
-              @for (request of accessRequests(); track request.id) {
-                <article class="request-item">
-                  <div>
-                    <strong>{{ request.nombre }} {{ request.apellido }}</strong>
-                    <span>{{ request.email }}</span>
-                    <small>Solicitado: {{ formatDate(request.createdAt) }}</small>
-                  </div>
-                  <div class="request-actions">
-                    <button class="psy-button psy-button--primary" type="button" (click)="attendRequest(request)">
-                      <mat-icon>person_add</mat-icon>
-                      Crear usuario
-                    </button>
-                    <button class="psy-button psy-button--ghost" type="button" (click)="dismissRequest(request)" [disabled]="saving()">
-                      Descartar
-                    </button>
-                  </div>
-                </article>
-              }
-            </div>
-          </mat-card-content>
-        </mat-card>
-      }
-
-      <div class="admin-grid">
-        <mat-card>
-          <mat-card-content>
-            <table mat-table [dataSource]="users()" class="full-width">
-              <ng-container matColumnDef="nombre">
-                <th mat-header-cell *matHeaderCellDef>Nombre</th>
-                <td mat-cell *matCellDef="let user">{{ user.nombre }} {{ user.apellido }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="email">
-                <th mat-header-cell *matHeaderCellDef>Email</th>
-                <td mat-cell *matCellDef="let user">{{ user.email }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="role">
-                <th mat-header-cell *matHeaderCellDef>Rol</th>
-                <td mat-cell *matCellDef="let user">{{ roleLabel(user.role) }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="activo">
-                <th mat-header-cell *matHeaderCellDef>Estado</th>
-                <td mat-cell *matCellDef="let user">
-                  <mat-chip [color]="user.activo ? 'primary' : 'warn'" highlighted>
-                    {{ user.activo ? 'Activo' : 'Inactivo' }}
-                  </mat-chip>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="acciones">
-                <th mat-header-cell *matHeaderCellDef>Acciones</th>
-                <td mat-cell *matCellDef="let user">
-                  <button mat-icon-button type="button" aria-label="Editar usuario" (click)="editUser(user)">
-                    <mat-icon>edit</mat-icon>
-                  </button>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    [attr.aria-label]="user.activo ? 'Desactivar usuario' : 'Activar usuario'"
-                    (click)="toggleStatus(user)"
-                    [disabled]="saving()"
-                  >
-                    <mat-icon>{{ user.activo ? 'block' : 'check_circle' }}</mat-icon>
-                  </button>
-                </td>
-              </ng-container>
-
-              <tr mat-header-row *matHeaderRowDef="cols"></tr>
-              <tr mat-row *matRowDef="let row; columns: cols"></tr>
-            </table>
-
-            @if (!loading() && !users().length) {
-              <p class="empty-state">No hay usuarios registrados.</p>
-            }
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="form-card">
-          <mat-card-header>
-            <mat-card-title>{{ selectedUser() ? 'Editar usuario' : 'Crear usuario' }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <form [formGroup]="form" (ngSubmit)="save()" class="user-form">
-              <mat-form-field appearance="outline">
-                <mat-label>Nombre</mat-label>
-                <input matInput formControlName="nombre">
-                <mat-error>Escribe el nombre.</mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Apellido</mat-label>
-                <input matInput formControlName="apellido">
-                <mat-error>Escribe el apellido.</mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Email</mat-label>
-                <input matInput formControlName="email" type="email">
-                @if (form.controls.email.hasError('required')) {
-                  <mat-error>Escribe el correo.</mat-error>
-                } @else {
-                  <mat-error>Escribe un correo válido.</mat-error>
-                }
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Rol</mat-label>
-                <mat-select formControlName="role">
-                  @for (role of roles; track role) {
-                    <mat-option [value]="role">{{ roleLabel(role) }}</mat-option>
-                  }
-                </mat-select>
-                <mat-error>Elige un rol.</mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>{{ selectedUser() ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</mat-label>
-                <input matInput formControlName="password" type="password" autocomplete="new-password">
-                <mat-hint>Mínimo 8 caracteres.</mat-hint>
-                @if (form.controls.password.hasError('required')) {
-                  <mat-error>La contraseña es obligatoria al crear un usuario.</mat-error>
-                } @else {
-                  <mat-error>Usa al menos 8 caracteres.</mat-error>
-                }
-              </mat-form-field>
-
-              <div class="form-actions">
-                <button class="psy-button psy-button--primary" type="submit" [disabled]="saving()">
-                  <mat-icon>save</mat-icon>
-                  {{ saving() ? 'Guardando...' : 'Guardar' }}
-                </button>
-                <button class="psy-button psy-button--ghost" type="button" (click)="newUser()">
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    <app-confirm-dialog
-      [open]="!!statusConfirmTarget()"
-      [title]="statusConfirmTarget()?.activo ? 'Desactivar usuario' : 'Activar usuario'"
-      [message]="statusConfirmMessage()"
-      [confirmLabel]="statusConfirmTarget()?.activo ? 'Desactivar' : 'Activar'"
-      [loading]="saving()"
-      (cancel)="statusConfirmTarget.set(null)"
-      (confirm)="confirmToggleStatus()"
-    />
-    </section>
-  `,
+  templateUrl: './users.component.html',
+  styleUrl: './users.component.scss',
+  // Eager: los errores de los campos de la hoja salen de `control.touched`, que no es una señal.
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .admin-users { display: grid; gap: 18px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .page-title { margin: 0; color: var(--siep-blue); font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 800; letter-spacing: 0; }
-    .admin-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 16px; align-items: start; }
-    .full-width { width: 100%; }
-    .user-form { display: grid; gap: 12px; }
-    .form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .state-message { margin: 0; padding: 12px 14px; border-radius: 12px; color: var(--psy-green-deep); background: rgba(66, 141, 101, .1); font-weight: 700; }
-    .state-message--error { color: #8f2f3d; background: rgba(143, 47, 61, .1); }
-    .empty-state { margin: 16px 0 0; color: var(--psy-muted); font-weight: 700; }
-    .requests-card { border: 1px solid rgba(79, 124, 172, .18); }
-    .requests-list { display: grid; gap: 12px; }
-    .request-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      padding: 14px;
-      border-radius: 14px;
-      background: rgba(79, 124, 172, .06);
-      border: 1px solid rgba(79, 124, 172, .14);
-    }
-    .request-item strong,
-    .request-item span,
-    .request-item small { display: block; }
-    .request-item span { color: var(--psy-muted); font-weight: 700; font-size: .9rem; }
-    .request-item small { margin-top: 4px; color: var(--psy-muted); font-size: .78rem; }
-    .request-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    @media (max-width: 920px) {
-      .admin-grid { grid-template-columns: 1fr; }
-      .page-header { display: grid; }
-      .page-header .psy-button, .form-actions .psy-button { width: 100%; }
-    }
-  `]
 })
 export class UsersComponent implements OnInit {
   private readonly service = inject(UserAdminService);
   private readonly accessRequestsService = inject(AccessRequestAdminService);
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
+  private readonly dialog = inject(UiDialog);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
-  @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
+
+  /** La hoja abierta con el formulario (null si no hay). */
+  private sheet: DialogRef<void, UserFormSheetComponent> | null = null;
+  /** true mientras hay una confirmación abierta: un segundo gesto no abre otra ni repite la acción. */
+  private confirmando = false;
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly roleLabel = roleLabel;
-  readonly cols = ['nombre', 'email', 'role', 'activo', 'acciones'];
   readonly users = signal<AdminUser[]>([]);
   readonly accessRequests = signal<AccessRequest[]>([]);
+  /** Las solicitudes no pudieron cargarse (distinto de «no hay solicitudes»). */
+  readonly requestsError = signal(false);
   readonly selectedUser = signal<AdminUser | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  /** El fallo de la CARGA de la lista (solo `load()` lo toca: abrir un formulario o guardar no lo borra). */
   readonly error = signal('');
   readonly message = signal('');
-  readonly statusConfirmTarget = signal<AdminUser | null>(null);
+
+  /** Estado de la tabla (esqueleto, error con «Reintentar», primer uso o lista): una sola señal, de a uno. */
+  readonly state = uiDataState({
+    loading: this.loading,
+    error: this.error,
+    isEmpty: computed(() => this.users().length === 0),
+  });
+  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
+  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando usuarios…' : ''));
 
   readonly form = this.fb.nonNullable.group({
     nombre: ['', Validators.required],
@@ -294,21 +90,23 @@ export class UsersComponent implements OnInit {
     password: ['']
   });
 
-  statusConfirmMessage(): string {
-    const user = this.statusConfirmTarget();
-    if (!user) return '';
+  statusConfirmMessage(user: AdminUser): string {
     return user.activo
       ? `¿Desactivar a ${user.nombre} ${user.apellido}? No podrá iniciar sesión hasta reactivarlo.`
       : `¿Activar a ${user.nombre} ${user.apellido}?`;
   }
 
+  /** Mensaje de error de un campo, solo cuando ya se tocó o se intentó enviar. */
+  fieldError(control: AbstractControl, message: string): string | null {
+    return control.touched && control.invalid ? message : null;
+  }
+
   /**
-   * Reinicia valores Y el estado «enviado»: `form.reset()` deja `submitted` en true
-   * y Material seguiría mostrando los errores en un formulario recién abierto.
+   * Reinicia valores y marca los campos como no tocados: un formulario recién abierto no hereda los errores del envío
+   * fallido anterior (los errores de la hoja salen de `touched`; cada apertura trae además su propia directiva).
    */
   private resetUserForm(value: UserFormValue): void {
-    if (this.formDirective) this.formDirective.resetForm(value);
-    else this.form.reset(value);
+    this.form.reset(value);
   }
 
   /** Al crear, la contraseña es obligatoria; al editar, vacía significa «no cambiarla». */
@@ -325,9 +123,13 @@ export class UsersComponent implements OnInit {
   }
 
   loadAccessRequests() {
+    this.requestsError.set(false);
     this.accessRequestsService.listPending().subscribe({
       next: requests => this.accessRequests.set(requests),
-      error: () => this.accessRequests.set([]),
+      error: () => {
+        this.accessRequests.set([]);
+        this.requestsError.set(true);
+      },
     });
   }
 
@@ -342,7 +144,7 @@ export class UsersComponent implements OnInit {
     });
     this.setPasswordRules(true);
     this.message.set(`Solicitud de ${request.nombre} ${request.apellido} lista para crear usuario.`);
-    this.error.set('');
+    this.openForm();
   }
 
   dismissRequest(request: AccessRequest) {
@@ -400,10 +202,17 @@ export class UsersComponent implements OnInit {
     });
     this.setPasswordRules(true);
     this.message.set('');
-    this.error.set('');
+    this.openForm();
   }
 
   editUser(user: AdminUser) {
+    this.populateEdit(user);
+    this.message.set('');
+    this.openForm();
+  }
+
+  /** Deja el formulario con los datos del usuario (sin abrir la hoja). */
+  private populateEdit(user: AdminUser): void {
     this.selectedUser.set(user);
     this.resetUserForm({
       nombre: user.nombre,
@@ -413,22 +222,41 @@ export class UsersComponent implements OnInit {
       password: ''
     });
     this.setPasswordRules(false);
-    this.message.set('');
-    this.error.set('');
+  }
+
+  /** Abre la hoja con el formulario (si ya estaba abierta, la conserva: el formulario es el mismo). */
+  private openForm(): void {
+    if (this.sheet) return;
+    const ref = this.dialog.sheet<void, UserFormSheetData, UserFormSheetComponent>(UserFormSheetComponent, {
+      side: 'end',
+      data: { host: this },
+    });
+    this.sheet = ref;
+    ref.closed?.subscribe(() => {
+      if (this.sheet === ref) this.sheet = null;
+    });
+  }
+
+  closeForm(): void {
+    const ref = this.sheet;
+    this.sheet = null;
+    ref?.close();
   }
 
   save() {
     if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      focusFirstInvalid(this.host.nativeElement);
+      // El foco va al primer campo inválido: la hoja vive en la capa superior, no dentro de esta pantalla.
+      focusFirstInvalid(this.sheetElement() ?? this.host.nativeElement);
       return;
     }
     const selected = this.selectedUser();
     const value = this.form.getRawValue();
     const email = value.email.trim().toLowerCase();
+    // La hoja desde la que se envía: al responder el servidor puede haberse cerrado o haber otra (formulario nuevo).
+    const sheetAtSave = this.sheet;
     this.saving.set(true);
-    this.error.set('');
     this.message.set('');
 
     const request$ = selected
@@ -456,38 +284,71 @@ export class UsersComponent implements OnInit {
         });
         this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');
         this.saving.set(false);
-        this.editUser(saved);
+        // Solo se toca el formulario y la hoja si siguen siendo los del envío: una respuesta tardía no pisa otro formulario.
+        if (this.sheet === sheetAtSave) {
+          this.populateEdit(saved);
+          this.closeForm();
+        }
         this.loadAccessRequests();
       },
       error: (err: unknown) => {
         const text = apiErrorMessage(err, 'No fue posible guardar los cambios.');
         if (text) this.notify.error(text);
         this.saving.set(false);
+        // Si la hoja se cerró mientras se guardaba, vuelve con lo que se escribió (el formulario no se perdió).
+        this.openForm();
       }
     });
   }
 
-  toggleStatus(user: AdminUser) {
-    if (this.saving()) return;
-    this.statusConfirmTarget.set(user);
+  /** La capa de la hoja abierta (donde viven los campos), para llevar el foco al primer campo inválido. */
+  private sheetElement(): HTMLElement | null {
+    return (this.sheet?.overlayRef?.overlayElement as HTMLElement | undefined) ?? null;
   }
 
-  confirmToggleStatus() {
-    const user = this.statusConfirmTarget();
-    if (!user || this.saving()) return;
+  // ── Acciones de la fila ───────────────────────────────────────────────────────────────────────────────────────
+  rowActions(user: AdminUser): UiMenuItem[] {
+    return [{
+      value: 'estado',
+      label: user.activo ? 'Desactivar usuario' : 'Activar usuario',
+      icon: user.activo ? 'block' : 'check_circle',
+      tone: user.activo ? 'danger' : 'default',
+    }];
+  }
+
+  rowAction(user: AdminUser, action: string | undefined): void {
+    if (action === 'estado') void this.toggleStatus(user);
+  }
+
+  async toggleStatus(user: AdminUser): Promise<void> {
+    if (this.saving() || this.confirmando) return;
+    this.confirmando = true;
+    let confirmed = false;
+    try {
+      confirmed = await this.dialog.confirm({
+        title: user.activo ? 'Desactivar usuario' : 'Activar usuario',
+        message: this.statusConfirmMessage(user),
+        confirmLabel: user.activo ? 'Desactivar' : 'Activar',
+        tone: user.activo ? 'danger' : 'default',
+      });
+    } finally {
+      this.confirmando = false;
+    }
+    if (confirmed) this.applyStatus(user);
+  }
+
+  private applyStatus(user: AdminUser): void {
+    if (this.saving()) return;
     this.saving.set(true);
-    this.error.set('');
     this.message.set('');
     this.service.updateStatus(user.id, !user.activo).subscribe({
       next: saved => {
         this.users.update(users => users.map(item => item.id === saved.id ? saved : item));
         this.notify.success(saved.activo ? 'Usuario activado correctamente.' : 'Usuario desactivado correctamente.');
-        this.statusConfirmTarget.set(null);
         this.saving.set(false);
-        if (this.selectedUser()?.id === saved.id) this.editUser(saved);
+        if (this.selectedUser()?.id === saved.id) this.populateEdit(saved);
       },
       error: (err: unknown) => {
-        this.statusConfirmTarget.set(null);
         const text = apiErrorMessage(err, 'No fue posible actualizar el estado del usuario.');
         if (text) this.notify.error(text);
         this.saving.set(false);

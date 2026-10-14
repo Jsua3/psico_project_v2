@@ -2,11 +2,13 @@ import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { AdminUser } from '../../core/api/user-admin.service';
 import { Dashboard } from '../../core/models/sesion.model';
 import { RecentAttempt } from '../../core/models/simulation.model';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiProgress } from '../../shared/ui/progress/ui-progress';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import {
   ChartBar,
   attemptStatusBars,
-  chartHasData as seriesHasData,
-  ringProgress as toRingProgress
+  chartHasData as seriesHasData
 } from './dashboard-charts.util';
 
 type DashboardRole = 'ADMIN' | 'PROFESOR';
@@ -22,7 +24,7 @@ type DashboardRole = 'ADMIN' | 'PROFESOR';
  */
 @Component({
   selector: 'app-dashboard-charts',
-  standalone: true,
+  imports: [UiCard, UiProgress, UiSkeleton],
   templateUrl: './dashboard-charts.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard-charts.component.scss'
@@ -155,8 +157,9 @@ export class DashboardChartsComponent {
     return { completed, inProgress, label: total > 0 ? `${pct}% completado` : 'Sin datos suficientes todavía' };
   }
 
-  ringProgress(value: number, max = 100): number {
-    return toRingProgress(value, max);
+  /** Proporción 0–1 de una barra respecto de su máximo (el relleno escala con transform). */
+  ratio(bar: ChartBar): number {
+    return bar.max > 0 ? Math.min(1, Math.max(0, bar.value / bar.max)) : 0;
   }
 
   chartHasData(bars: ChartBar[]): boolean {

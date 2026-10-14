@@ -12,10 +12,10 @@ export type DraftReview = 'validar' | 'conocimiento';
 
 export interface DraftCopyEntry {
   /**
-   * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` cuando el texto nace de una tarea del
-   * plan y no de una decisión.
+   * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
+   * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -161,6 +161,65 @@ export const DRAFT_COPY = {
     review: 'conocimiento',
     where: 'Cabecera del juego: nombre accesible del botón que abre la lista «Ir a…»',
     text: 'Ir a… personas y puertas de la sala',
+  },
+  /**
+   * Retroalimentación de una decisión sin clasificación conocida en la traza docente (F7-4, VD-24). Antes decía
+   * «justificación clínica de la decisión»: el vocabulario de la interfaz es educativo, no clínico.
+   */
+  traceDecisionFallback: {
+    decision: 'VD-24',
+    owner: 'Psicología',
+    where: 'Traza docente: texto de apoyo de una decisión sin clasificación',
+    text: 'Revisar el contexto del escenario y la justificación de la decisión.',
+  },
+  /** Texto de apoyo de un paso adecuado del recorrido (F7-4, VD-24). Antes decía «recorrido clínico simulado». */
+  traceAdequateStep: {
+    decision: 'VD-24',
+    owner: 'Psicología',
+    where: 'Traza docente: línea de tiempo, paso adecuado',
+    text: 'Paso adecuado dentro del recorrido simulado.',
+  },
+  /** Vacío del panel de decisiones de la traza docente (F7-4, VD-24). Antes decía «decisiones clínicas guardadas». */
+  traceNoDecisions: {
+    decision: 'VD-24',
+    owner: 'Psicología',
+    where: 'Traza docente: diálogo de retroalimentación sin decisiones registradas',
+    text: 'Este intento aún no tiene decisiones guardadas.',
+  },
+  /**
+   * Rótulo del total de la rúbrica en la traza docente (F7-4, RN-09, decisión 9 del plan): la evaluación es formativa
+   * y no una nota oficial. Si el equipo decide otro rótulo, solo cambia este texto.
+   */
+  formativeValuationLabel: {
+    decision: 'RN-09',
+    owner: 'Psicología',
+    where: 'Traza docente: rúbrica, total de la evaluación',
+    text: 'Valoración formativa',
+  },
+  /** Nombres de los cuatro niveles de la valoración formativa (F7-4, RN-09, ED-2): no son una nota. */
+  levelEnInicio: {
+    decision: 'RN-09',
+    owner: 'Psicología',
+    where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
+    text: 'En inicio',
+  },
+  levelEnProceso: {
+    decision: 'RN-09',
+    owner: 'Psicología',
+    where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
+    text: 'En proceso',
+  },
+  levelLogrado: {
+    decision: 'RN-09',
+    owner: 'Psicología',
+    where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
+    text: 'Logrado',
+  },
+  levelDestacado: {
+    decision: 'RN-09',
+    owner: 'Psicología',
+    where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
+    text: 'Destacado',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

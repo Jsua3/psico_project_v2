@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { compileStylesFile } from './sass-test-utils.mjs';
 
@@ -123,12 +124,16 @@ test('el foco programático de main no deja halo (revisión de F1)', () => {
   assert.equal(props.get('box-shadow'), 'none');
 });
 
-test('la fila de la tabla de intentos del dashboard conserva su hover (revisión de F1: sin el !important global)', () => {
-  const dashboard = parseCss({ text: compileStylesFile('../app/features/dashboard/dashboard.component.scss').css, startLine: 1 });
-  const hover = dashboard.decls.find(d => d.selector.trim() === '.attempts-table .mat-mdc-row:hover');
+test('la fila de la tabla de intentos del dashboard conserva su hover (F7-1: ahora es la fila de ui-table, solo con puntero fino)', () => {
+  // Antes `.attempts-table .mat-mdc-row:hover` en el SCSS del dashboard; desde F7-1 el panel usa `tr[uiRow]` de la
+  // biblioteca, cuyo hover vive en `ui-table.scss` y no depende de ninguna regla local.
+  const table = parseCss({ text: compileStylesFile('../app/shared/ui/table/ui-table.scss').css, startLine: 1 });
+  const hover = table.decls.find(d => d.selector.trim() === '.ui-table__row:hover');
   assert.ok(hover, 'regla de hover de la fila');
   assert.ok(hover.ats.some(at => at.includes('(hover: hover) and (pointer: fine)')), 'solo con puntero fino');
-  assert.equal(hover.value, 'var(--ds-primary-subtle)');
+  assert.equal(hover.value, 'var(--ds-surface-2)');
+  const html = readFileSync(new URL('../../src/app/features/dashboard/dashboard.component.html', import.meta.url), 'utf8');
+  assert.match(html, /<tr uiRow>/, 'las filas del panel son filas de ui-table');
 });
 
 // ── F2-1: utilidad global .ds-sr-only (la usan los componentes de shared/ui y sus consumidores) ───────────────

@@ -1,137 +1,125 @@
-<section class="charts-grid" aria-label="Gráficas formativas">
+<div class="dc-grid">
   @if (loading()) {
     @for (i of [1, 2, 3]; track i) {
-      <article class="chart-card pixel-card"><div class="psy-skeleton chart-skeleton"></div></article>
+      <ui-skeleton shape="chart" />
     }
   } @else if (isAdmin()) {
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Usuarios por rol</h2>
-        <p>Distribución del registro académico</p>
-      </header>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Usuarios por rol</h3>
+      <p class="dc-chart__sub">Distribución del registro académico</p>
       @if (chartHasData(adminRoleChart())) {
-        <div class="bar-chart" role="img" [attr.aria-label]="'Gráfica de usuarios por rol'">
+        <ul class="dc-bars">
           @for (bar of adminRoleChart(); track bar.label) {
-            <div class="bar-chart__item">
-              <div class="bar-chart__bar-wrap">
-                <span class="bar-chart__bar bar-chart__bar--{{ bar.tone }}" [style.height.%]="(bar.value / bar.max) * 100"></span>
-              </div>
-              <strong>{{ bar.value }}</strong>
-              <span>{{ bar.label }}</span>
-            </div>
+            <li class="dc-bar">
+              <span class="dc-bar__label">{{ bar.label }}</span>
+              <span class="dc-bar__value">{{ bar.value }}</span>
+              <span class="dc-bar__track" aria-hidden="true">
+                <span class="dc-bar__fill dc-tone--{{ bar.tone }}" [style.--dc-ratio]="ratio(bar)"></span>
+              </span>
+            </li>
           }
-        </div>
+        </ul>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        <p class="dc-chart__empty">Sin datos suficientes todavía.</p>
       }
-    </article>
+    </ui-card>
 
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Intentos por estado</h2>
-        <p>Actividad reciente del sistema</p>
-      </header>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Intentos por estado</h3>
+      <p class="dc-chart__sub">Actividad reciente del sistema</p>
       @if (chartHasData(adminAttemptsChart())) {
-        <div class="bar-chart bar-chart--horizontal">
+        <ul class="dc-bars">
           @for (bar of adminAttemptsChart(); track bar.label) {
-            <div class="bar-row">
-              <span>{{ bar.label }}</span>
-              <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--{{ bar.tone }}" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
-              <strong>{{ bar.value }}</strong>
-            </div>
+            <li class="dc-bar">
+              <span class="dc-bar__label">{{ bar.label }}</span>
+              <span class="dc-bar__value">{{ bar.value }}</span>
+              <span class="dc-bar__track" aria-hidden="true">
+                <span class="dc-bar__fill dc-tone--{{ bar.tone }}" [style.--dc-ratio]="ratio(bar)"></span>
+              </span>
+            </li>
           }
-        </div>
+        </ul>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Aún no hay intentos registrados.</p></div>
+        <p class="dc-chart__empty">Aún no hay intentos registrados.</p>
       }
-    </article>
+    </ui-card>
 
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Simulaciones por día</h2>
-        <p>Últimos registros recientes</p>
-      </header>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Simulaciones por día</h3>
+      <p class="dc-chart__sub">Últimos registros recientes</p>
       @if (chartHasData(adminWeeklyChart())) {
-        <div class="bar-chart">
+        <ul class="dc-bars">
           @for (bar of adminWeeklyChart(); track bar.label) {
-            <div class="bar-chart__item">
-              <div class="bar-chart__bar-wrap">
-                <span class="bar-chart__bar bar-chart__bar--purple" [style.height.%]="(bar.value / bar.max) * 100"></span>
-              </div>
-              <strong>{{ bar.value }}</strong>
-              <span>{{ bar.label }}</span>
-            </div>
+            <li class="dc-bar">
+              <span class="dc-bar__label">{{ bar.label }}</span>
+              <span class="dc-bar__value">{{ bar.value }}</span>
+              <span class="dc-bar__track" aria-hidden="true">
+                <span class="dc-bar__fill dc-tone--purple" [style.--dc-ratio]="ratio(bar)"></span>
+              </span>
+            </li>
           }
-        </div>
+        </ul>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        <p class="dc-chart__empty">Sin datos suficientes todavía.</p>
       }
-    </article>
+    </ui-card>
   } @else if (isProfesor()) {
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Desempeño por estudiante</h2>
-        <p>Promedio de puntaje en tus grupos</p>
-      </header>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Desempeño por estudiante</h3>
+      <p class="dc-chart__sub">Promedio de puntaje en tus grupos</p>
       @if (chartHasData(professorStudentChart())) {
-        <div class="bar-chart">
+        <ul class="dc-bars">
           @for (bar of professorStudentChart(); track bar.label) {
-            <div class="bar-chart__item">
-              <div class="bar-chart__bar-wrap">
-                <span class="bar-chart__bar bar-chart__bar--blue" [style.height.%]="(bar.value / bar.max) * 100"></span>
-              </div>
-              <strong>{{ bar.value }}</strong>
-              <span>{{ bar.label }}</span>
-            </div>
+            <li class="dc-bar">
+              <span class="dc-bar__label">{{ bar.label }}</span>
+              <span class="dc-bar__value">{{ bar.value }}</span>
+              <span class="dc-bar__track" aria-hidden="true">
+                <span class="dc-bar__fill dc-tone--blue" [style.--dc-ratio]="ratio(bar)"></span>
+              </span>
+            </li>
           }
-        </div>
+        </ul>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Sin datos suficientes todavía.</p></div>
+        <p class="dc-chart__empty">Sin datos suficientes todavía.</p>
       }
-    </article>
+    </ui-card>
 
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Intentos recientes por caso</h2>
-        <p>Número de intentos en el periodo reciente</p>
-      </header>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Intentos recientes por caso</h3>
+      <p class="dc-chart__sub">Número de intentos en el periodo reciente</p>
       @if (chartHasData(professorCaseChart())) {
-        <div class="bar-chart bar-chart--horizontal">
+        <ul class="dc-bars">
           @for (bar of professorCaseChart(); track bar.label) {
-            <div class="bar-row">
-              <span>{{ bar.label }}</span>
-              <div class="bar-row__track"><i class="bar-row__fill bar-row__fill--{{ bar.tone }}" [style.width.%]="(bar.value / bar.max) * 100"></i></div>
-              <strong>{{ bar.value }}</strong>
-            </div>
+            <li class="dc-bar">
+              <span class="dc-bar__label">{{ bar.label }}</span>
+              <span class="dc-bar__value">{{ bar.value }}</span>
+              <span class="dc-bar__track" aria-hidden="true">
+                <span class="dc-bar__fill dc-tone--blue" [style.--dc-ratio]="ratio(bar)"></span>
+              </span>
+            </li>
           }
-        </div>
+        </ul>
       } @else {
-        <div class="dashboard-empty dashboard-empty--compact"><p>Aún no hay intentos recientes.</p></div>
+        <p class="dc-chart__empty">Aún no hay intentos recientes.</p>
       }
-    </article>
+    </ui-card>
 
-    <article class="chart-card pixel-card">
-      <header class="chart-card__head">
-        <h2>Avance del grupo</h2>
-        <p>{{ professorGroupProgress().label }}</p>
-      </header>
-      <div class="group-progress-ring">
-        <svg class="progress-ring" viewBox="0 0 120 120" role="img" aria-label="Avance del grupo">
-          <circle class="progress-ring__track" cx="60" cy="60" r="48"></circle>
-          <circle
-            class="progress-ring__fill"
-            cx="60"
-            cy="60"
-            r="48"
-            [attr.stroke-dasharray]="ringProgress(professorGroupProgress().completed, professorGroupProgress().completed + professorGroupProgress().inProgress) + ', 301'"
-          ></circle>
-        </svg>
-        <div class="group-progress-ring__meta">
-          <strong>{{ professorGroupProgress().completed }}</strong>
-          <span>Completadas</span>
-          <small>{{ professorGroupProgress().inProgress }} en progreso</small>
-        </div>
-      </div>
-    </article>
+    <ui-card class="dc-chart">
+      <h3 class="dc-chart__title">Avance del grupo</h3>
+      <p class="dc-chart__sub">{{ professorGroupProgress().label }}</p>
+      @if (professorGroupProgress().completed + professorGroupProgress().inProgress > 0) {
+        <ui-progress
+          label="Simulaciones completadas del grupo"
+          [value]="professorGroupProgress().completed"
+          [max]="professorGroupProgress().completed + professorGroupProgress().inProgress"
+        />
+        <p class="dc-chart__meta">
+          <strong>{{ professorGroupProgress().completed }}</strong> completadas ·
+          {{ professorGroupProgress().inProgress }} en progreso
+        </p>
+      } @else {
+        <p class="dc-chart__empty">Sin simulaciones registradas todavía.</p>
+      }
+    </ui-card>
   }
-</section>
+</div>

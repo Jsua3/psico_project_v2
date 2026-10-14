@@ -6,6 +6,7 @@ import { firstValueFrom, of, throwError } from 'rxjs';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UsersComponent } from './users.component';
 import type { Mock } from 'vitest';
 
@@ -26,9 +27,11 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
   let service: { list: Mock; create: Mock; update: Mock; updateStatus: Mock };
   let requests: { listPending: Mock; updateStatus: Mock };
   let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
+  let dialog: { sheet: Mock; confirm: Mock };
 
   beforeEach(() => {
     service = { list: vi.fn(() => of([ana])), create: vi.fn(), update: vi.fn(), updateStatus: vi.fn() };
+    dialog = { sheet: vi.fn(() => ({ close: vi.fn() })), confirm: vi.fn(() => Promise.resolve(true)) };
     requests = { listPending: vi.fn(() => of([])), updateStatus: vi.fn() };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
@@ -37,6 +40,7 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
         { provide: NotificationService, useValue: notify },
+        { provide: UiDialog, useValue: dialog },
         { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
@@ -193,38 +197,74 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
   });
 
   describe('cambiar el estado', () => {
-    it('éxito: avisa el resultado y cierra el diálogo', () => {
-      component.toggleStatus(ana);
-      expect(component.statusConfirmTarget()).toBe(ana);
+    it('pide confirmar con el diálogo de la biblioteca y no llama al servidor hasta que se confirma', async () => {
+      let answer!: (confirmed: boolean) => void;
+      dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
       service.updateStatus.mockReturnValue(of({ ...ana, activo: false }));
 
-      component.confirmToggleStatus();
+      const running = component.toggleStatus(ana);
+
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Desactivar usuario', confirmLabel: 'Desactivar', tone: 'danger',
+        message: expect.stringContaining('Ana Pérez'),
+      }));
+      expect(service.updateStatus).not.toHaveBeenCalled();
+
+      answer(true);
+      await running;
+      expect(service.updateStatus).toHaveBeenCalledWith(5, false);
+    });
+
+    it('éxito: avisa el resultado y libera saving', async () => {
+      service.updateStatus.mockReturnValue(of({ ...ana, activo: false }));
+
+      await component.toggleStatus(ana);
 
       expect(service.updateStatus).toHaveBeenCalledWith(5, false);
       expect(notify.success).toHaveBeenCalledWith('Usuario desactivado correctamente.');
-      expect(component.statusConfirmTarget()).toBeNull();
       expect(component.users()[0].activo).toBe(false);
       expect(component.saving()).toBe(false);
     });
 
-    it('éxito al activar usa el texto de activación', () => {
+    it('éxito al activar usa el texto de activación y el botón de confirmar no es de peligro', async () => {
       const inactivo = { ...ana, activo: false };
       component.users.set([inactivo]);
-      component.toggleStatus(inactivo);
       service.updateStatus.mockReturnValue(of(ana));
 
-      component.confirmToggleStatus();
+      await component.toggleStatus(inactivo);
 
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Activar usuario', confirmLabel: 'Activar', tone: 'default' }));
       expect(notify.success).toHaveBeenCalledWith('Usuario activado correctamente.');
     });
 
-    it('error: cierra el diálogo, avisa el mensaje del backend y libera saving', () => {
-      component.toggleStatus(ana);
+    it('cancelar la confirmación no cambia nada', async () => {
+      dialog.confirm.mockResolvedValue(false);
+
+      await component.toggleStatus(ana);
+
+      expect(service.updateStatus).not.toHaveBeenCalled();
+      expect(component.users()[0].activo).toBe(true);
+    });
+
+    it('dos gestos seguidos abren una sola confirmación y cambian el estado una sola vez', async () => {
+      let answer!: (confirmed: boolean) => void;
+      dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
+      service.updateStatus.mockReturnValue(of({ ...ana, activo: false }));
+
+      const first = component.toggleStatus(ana);
+      const second = component.toggleStatus(ana);
+      answer(true);
+      await Promise.all([first, second]);
+
+      expect(dialog.confirm).toHaveBeenCalledTimes(1);
+      expect(service.updateStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it('error: avisa el mensaje del backend y libera saving', async () => {
       service.updateStatus.mockReturnValue(backendError(409, { message: 'No se puede desactivar al último administrador.' }));
 
-      component.confirmToggleStatus();
+      await component.toggleStatus(ana);
 
-      expect(component.statusConfirmTarget()).toBeNull();
       expect(notify.error).toHaveBeenCalledTimes(1);
       expect(notify.error).toHaveBeenCalledWith('No se puede desactivar al último administrador.');
       expect(notify.success).not.toHaveBeenCalled();
@@ -233,23 +273,19 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
       expect(component.users()[0].activo).toBe(true);
     });
 
-    it('error sin mensaje útil: avisa el texto de respaldo', () => {
-      component.toggleStatus(ana);
+    it('error sin mensaje útil: avisa el texto de respaldo', async () => {
       service.updateStatus.mockReturnValue(backendError(500, null));
 
-      component.confirmToggleStatus();
+      await component.toggleStatus(ana);
 
       expect(notify.error).toHaveBeenCalledWith('No fue posible actualizar el estado del usuario.');
-      expect(component.statusConfirmTarget()).toBeNull();
     });
 
-    it('sin conexión (status 0): cierra el diálogo sin duplicar el aviso del interceptor', () => {
-      component.toggleStatus(ana);
+    it('sin conexión (status 0): no duplica el aviso del interceptor', async () => {
       service.updateStatus.mockReturnValue(backendError(0, null));
 
-      component.confirmToggleStatus();
+      await component.toggleStatus(ana);
 
-      expect(component.statusConfirmTarget()).toBeNull();
       expect(notify.error).not.toHaveBeenCalled();
       expect(component.saving()).toBe(false);
     });
@@ -263,13 +299,14 @@ describe('usuarios: el aviso de éxito no se borra al guardar (NotificationServi
     TestBed.resetTestingModule();
   });
 
-  it('guardar recarga el formulario con editUser y el aviso sigue visible', async () => {
+  it('guardar deja el formulario con el usuario guardado y el aviso sigue visible', async () => {
     const service = { update: vi.fn(() => of(ana)) };
     const requests = { listPending: vi.fn(() => of([])) };
     TestBed.configureTestingModule({
       providers: [
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
+        { provide: UiDialog, useValue: { sheet: vi.fn(() => ({ close: vi.fn() })), confirm: vi.fn(() => Promise.resolve(true)) } },
         { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });

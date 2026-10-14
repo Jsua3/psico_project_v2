@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -168,5 +170,12 @@ describe('uiControl con otras descripciones', () => {
     fixture.componentInstance.error.set(null);
     await fixture.whenStable();
     expect(ids()).toEqual(['formato']);
+  });
+  // req: RNF-004
+  it('un control ancho (un select con opciones largas) no ensancha el campo ni desborda la pantalla: la pista es minmax(0, 1fr)', () => {
+    // Hallado en un teléfono (F7-3): un <select> de casos con títulos largos medía 454 px y arrastraba etiqueta y
+    // mensaje, porque la pista `auto` del campo toma el ancho mínimo de su contenido.
+    const scss = readFileSync(join(__dirname, 'ui-field.scss'), 'utf-8');
+    expect(scss).toMatch(/\.ui-field \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
   });
 });

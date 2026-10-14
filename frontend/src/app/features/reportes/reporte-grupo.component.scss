@@ -1,0 +1,91 @@
+// Pantalla Reportes (plan visual F7-3): piel portal, solo tokens --ds-*, superficies con borde y sin sombras duras ni
+// bordes punteados (VD-3). El foco lo pinta el anillo global. Reglas de F7-2: el host de `ui-section` se queda en
+// bloque y toda rejilla lleva `minmax(0, 1fr)`.
+:host {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  color: var(--ds-text-1);
+}
+
+.rg-filter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+}
+
+.rg-hint {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// Grupo y caso lado a lado desde el escritorio; apilados en un teléfono.
+.rg-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  align-items: start;
+}
+
+@media (min-width: 48rem) {
+  .rg-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rg-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.rg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.rg-stack,
+.rg-loading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.rg-result {
+  min-width: 0;
+}
+
+.rg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--ds-space-4);
+}
+
+.rg-quality {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--ds-space-4);
+}
+
+.rg-quality ui-card {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.rg-name {
+  min-width: 9rem;
+  font-weight: var(--ds-type-h3-weight);
+  text-align: start;
+}
+
+.rg-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+// En un teléfono el estado no se parte letra a letra: la tabla se desplaza dentro de su marco.
+.rg-nowrap {
+  white-space: nowrap;
+}

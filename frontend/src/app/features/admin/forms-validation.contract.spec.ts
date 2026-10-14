@@ -6,29 +6,32 @@ function source(relative: string): string {
 }
 
 describe('formularios: validar al enviar — Usuarios', () => {
+  // Desde F7-6 el formulario vive en una hoja (`user-form-sheet`); la pantalla es dueña de su validación y de guardar.
   const users = source('users.component.ts');
+  const sheet = source('user-form-sheet.component.ts');
 
-  it('el botón solo se deshabilita mientras guarda', () => {
-    expect(users).not.toContain('[disabled]="form.invalid || saving()"');
-    expect(users).toMatch(/type="submit" \[disabled\]="saving\(\)"/);
+  it('el botón solo se bloquea mientras guarda (y lo dice con «Guardando…»)', () => {
+    expect(users + sheet).not.toContain('[disabled]="form.invalid || saving()"');
+    expect(sheet).toContain('type="submit" icon="save" [loading]="host.saving()"');
   });
 
   it('cada campo explica su error', () => {
     for (const text of ['Escribe el nombre.', 'Escribe el apellido.', 'Escribe el correo.', 'Escribe un correo válido.', 'Elige un rol.', 'La contraseña es obligatoria al crear un usuario.', 'Usa al menos 8 caracteres.']) {
-      expect(users).toContain(text);
+      expect(sheet).toContain(text);
     }
-    expect(users).toContain('<mat-hint>Mínimo 8 caracteres.</mat-hint>');
+    expect(sheet).toContain('hint="Mínimo 8 caracteres."');
   });
 
   it('la contraseña se valida con validadores según crear/editar', () => {
     expect(users).toContain('private setPasswordRules(creating: boolean): void {');
     expect(users).not.toContain("this.error.set('La contraseña es obligatoria al crear usuarios.');");
-    expect(users).toContain('focusFirstInvalid(this.host.nativeElement);');
+    expect(users).toContain('focusFirstInvalid(this.sheetElement() ?? this.host.nativeElement);');
   });
 });
 
 describe('formularios: validar al enviar — Rúbricas', () => {
-  const rubrics = source('rubrics.component.ts');
+  // La plantilla vive en su propio archivo desde F7-5: el contrato mira la clase y la plantilla juntas.
+  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
 
   it('el botón Guardar solo se deshabilita mientras guarda', () => {
     expect(rubrics).not.toContain('[disabled]="form.invalid || saving()"');
@@ -41,15 +44,19 @@ describe('formularios: validar al enviar — Rúbricas', () => {
     expect(rubrics).toContain('focusFirstInvalid(this.host.nativeElement);');
   });
 
-  it('explica por qué Activar y Predeterminada están deshabilitados', () => {
+  it('explica por qué Activar y Predeterminada no se pueden usar: pista visible y motivo en cada botón (F7-5)', () => {
     expect(rubrics).toContain('id="rubric-weight-hint"');
     expect(rubrics).toContain('Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.');
-    expect((rubrics.match(/\[attr\.aria-describedby\]="totalWeight\(\) !== 100 \? 'rubric-weight-hint' : null"/g) ?? []).length).toBe(2);
+    expect(rubrics).toContain("'La ponderación debe sumar 100 %.'");
+    expect((rubrics.match(/\[disabledReason\]="activateReason\(\)"/g) ?? []).length).toBe(2);
+    // Los botones ya no se apagan con `disabled` sin decir por qué.
+    expect(rubrics).not.toMatch(/\[disabled\]="!selected\(\)/);
   });
 });
 
 describe('formularios: validar al enviar — Grupos', () => {
-  const grupos = source('../grupos/grupo-list.component.ts');
+  // La plantilla vive en su propio archivo desde F7-2: el contrato mira la clase y la plantilla juntas.
+  const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
 
   it('el formulario de grupo valida al enviar', () => {
     expect(grupos).not.toContain('[disabled]="form.invalid || saving()"');
