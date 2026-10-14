@@ -22,6 +22,8 @@ from shared.jsonutils import (
     write_map as _write_map,
 )
 
+from .world_state import ensure_world_state
+
 #: Eventos de decisión REGISTRADA: los únicos que cuentan en el reporte y en el
 #: final. La primera respuesta riesgosa/inadecuada de una escena no se aplica
 #: (regla de reintento) y queda como evento *_RETRY_REQUIRED, que se reporta
@@ -261,6 +263,11 @@ def apply_case_effects(attempt, decision):
     if not entry:
         return
     state = _load_state(attempt)
+    if state is None:
+        # Desde E1-6 leer el mundo ya no lo guarda: una decisión tomada antes de cualquier orden
+        # que lo mute lo crea aquí para no perder los efectos del caso. Un nodo sin escena
+        # (motor genérico sin mundo) sigue siendo un no-op.
+        state = ensure_world_state(attempt)
     if state is None:
         return
     raw = _read_map(state.flags_json)

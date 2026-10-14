@@ -14,6 +14,8 @@ importar cómo se modele el reemplazo (evento propio o estado propio):
 """
 import uuid
 
+import pytest
+
 from django.utils import timezone
 
 from apps.simulation.models import AttemptEvent, SimulationAttempt, SimulationNode
@@ -28,6 +30,8 @@ from .test_reportes import (  # noqa: F401
     estudiante,
     profesor,
 )
+
+pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
 
 def _setup(profesor, estudiante, case_version_id):

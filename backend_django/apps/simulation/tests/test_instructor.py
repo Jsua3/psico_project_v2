@@ -9,6 +9,8 @@ from rest_framework.test import APIClient
 from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, DecisionOption
 
+pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
+
 User = get_user_model()
 
 
@@ -159,14 +161,17 @@ def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
     assert resp.status_code == 200
     assert resp.data["message"] == "Rubrica guardada"
     saved = resp.data["data"]
-    assert saved["totalScore"] == 3.0
+    # RN-09 / ED-2: el total numérico no viaja (RUBRIC_NUMERIC_TOTAL apagada); sí el nivel global.
+    assert saved["totalScore"] is None
+    assert saved["overallLevel"] == "LOGRADO"
     assert saved["comment"] == "Buen desempeño"
     assert len(saved["scores"]) == len(criteria)
 
     # appears in the trace's rubric evaluations
     trace = p.get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
     assert len(trace["rubricEvaluations"]) >= 1
-    assert trace["rubricEvaluations"][0]["totalScore"] == 3.0
+    assert trace["rubricEvaluations"][0]["totalScore"] is None
+    assert trace["rubricEvaluations"][0]["overallLevel"] == "LOGRADO"
 
 
 def test_trace_exposes_reconsidered_answers_apart_from_decisions(estudiante, profesor, case_version_id):

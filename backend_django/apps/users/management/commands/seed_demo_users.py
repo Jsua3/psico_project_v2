@@ -1,21 +1,7 @@
-"""Crea la tabla users y usuarios demo si la BD local está vacía."""
+"""Crea los usuarios demo si la BD local no los tiene (la tabla la crea ``migrate``)."""
 from django.core.management.base import BaseCommand
-from django.db import connection
 
 from apps.users.models import CustomUser, UserRole
-
-USERS_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    nombre VARCHAR(100) NOT NULL,
-    apellido VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL DEFAULT 'ESTUDIANTE',
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-"""
 
 DEMO_USERS = [
     {
@@ -43,12 +29,9 @@ DEMO_USERS = [
 
 
 class Command(BaseCommand):
-    help = "Crea tabla users (si falta) y sembrar credenciales demo de desarrollo."
+    help = "Siembra las credenciales demo de desarrollo."
 
     def handle(self, *args, **options):
-        with connection.cursor() as cursor:
-            cursor.execute(USERS_TABLE_SQL)
-
         created = 0
         for spec in DEMO_USERS:
             if CustomUser.objects.filter(email=spec["email"]).exists():

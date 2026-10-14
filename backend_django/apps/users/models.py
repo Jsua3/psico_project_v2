@@ -1,10 +1,10 @@
-"""CustomUser mapped to the existing Flyway-owned ``users`` table.
+"""CustomUser: la tabla ``users`` es de Django (migraciones; E0-8).
 
 The table has exactly these columns: id, email, password_hash, nombre,
 apellido, role, activo, created_at. It has NO ``last_login`` / ``is_superuser``
 / group / permission columns, so we inherit only ``AbstractBaseUser`` (which
 gives password handling + the auth interface) and drop the inherited
-``last_login`` field. ``managed = False`` keeps Django out of the schema.
+``last_login`` field.
 
 Passwords are BCrypt ($2b$, 10 rounds) to stay byte-compatible with Spring's
 ``BCryptPasswordEncoder`` — both directions (verify seeded users, write new ones
@@ -51,7 +51,7 @@ class CustomUser(AbstractBaseUser):
     role = models.CharField(
         max_length=20, choices=UserRole.choices, default=UserRole.ESTUDIANTE
     )
-    activo = models.BooleanField(default=True)
+    activo = models.BooleanField(default=True, db_default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     USERNAME_FIELD = "email"
@@ -61,7 +61,9 @@ class CustomUser(AbstractBaseUser):
 
     class Meta:
         db_table = "users"
-        managed = False
+        constraints = [
+            models.CheckConstraint(condition=models.Q(role__in=UserRole.values), name="users_role_check"),
+        ]
 
     def __str__(self):
         return f"{self.nombre} {self.apellido} <{self.email}>"

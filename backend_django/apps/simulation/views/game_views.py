@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from shared.idempotency import normalize_request_id
 from shared.permissions import IsEstudianteOrAdmin
 from shared.response import api_ok
 
@@ -13,7 +14,7 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import game_service, world_service
+from apps.simulation.services import game_service, rubric_service, world_service
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
@@ -41,6 +42,7 @@ class StartAttemptView(APIView):
     def post(self, request):
         ser = StartAttemptRequest(data=request.data)
         ser.is_valid(raise_exception=True)
+        normalize_request_id(ser.validated_data.get("requestId"))  # 400 si el formato no vale
         state = game_service.start_attempt(
             ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"]
         )
@@ -73,6 +75,26 @@ class CompletionReportView(APIView):
         return _private_ok(game_service.get_completion_report(
             attempt_id, _attempt_token(request), request.user,
         ))
+
+
+class AttemptReportView(APIView):
+    """El reporte congelado de un intento completado (C2); 409 ``ATTEMPT_NOT_COMPLETED`` si no."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        return _private_ok(game_service.get_attempt_report(
+            attempt_id, _attempt_token(request), request.user,
+        ))
+
+
+class AttemptEvaluationView(APIView):
+    """La evaluación del docente para el dueño del intento: comentario y niveles, sin números."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        return api_ok(rubric_service.owner_evaluation_view(attempt_id, request.user))
 
 
 class AttemptHistoryView(APIView):
@@ -109,6 +131,7 @@ class DecisionsView(APIView):
             ser.validated_data["decisionOptionId"], request.user,
             evidence_override=ser.validated_data["evidenceOverride"],
             missing_evidence=ser.validated_data["missingEvidence"],
+            request_id=ser.validated_data.get("requestId"),
         )
         return api_ok(state, message="Decision procesada")
 
@@ -122,6 +145,7 @@ class ReflectionsView(APIView):
         saved = game_service.save_reflection(
             attempt_id, ser.validated_data["attemptToken"],
             ser.validated_data["nodeId"], ser.validated_data["text"], request.user,
+            request_id=ser.validated_data.get("requestId"),
         )
         return api_ok(saved, message="Bitacora guardada")
 
@@ -198,6 +222,7 @@ class ToolUseView(APIView):
             request.data.get("toolCode"),
             request.data.get("targetInteractionKey"),
             request.user,
+            request_id=request.data.get("requestId"),
         )
         return api_ok(result, message="Herramienta usada")
 
@@ -222,6 +247,7 @@ class EnterRoomView(APIView):
             request.data.get("targetNodeKey"),
             request.user,
             door_key=request.data.get("doorKey"),
+            request_id=request.data.get("requestId"),
         )
         return api_ok(result, message="Sala cambiada")
 

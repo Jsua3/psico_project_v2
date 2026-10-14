@@ -2,9 +2,9 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection, transaction
+from django.db import transaction
 
-from apps.grupos.models import Grupo
+from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SceneMap, SimulationCase, SimulationNode
 
 User = get_user_model()
@@ -104,17 +104,8 @@ class Command(BaseCommand):
             },
         )
 
-        with connection.cursor() as cur:
-            cur.execute(
-                "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) "
-                "VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                [grupo.id, users["ESTUDIANTE"].id],
-            )
-            cur.execute(
-                "INSERT INTO grupo_case_version (grupo_id, case_version_id) "
-                "VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                [grupo.id, version.id],
-            )
+        GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=users["ESTUDIANTE"].id)
+        GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
 
         self.stdout.write(
             self.style.SUCCESS(

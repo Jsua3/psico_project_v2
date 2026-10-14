@@ -52,7 +52,9 @@ def test_login_bad_credentials_401(client, admin_user):
         format="json",
     )
     assert resp.status_code == 401
-    assert resp.data == {"success": False, "message": "Credenciales inválidas"}
+    assert resp.data == {
+        "success": False, "code": "INVALID_CREDENTIALS", "message": "Credenciales inválidas",
+    }
 
 
 def test_login_inactive_user_401(client, admin_user):

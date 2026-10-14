@@ -16,6 +16,8 @@ from rest_framework.test import APIClient
 from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt, SimulationNode
 
+pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
+
 User = get_user_model()
 
 DASHBOARD_KEYS = [

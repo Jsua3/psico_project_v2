@@ -24,7 +24,7 @@ REPORT_KEYS = {
     "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
     "toolsUsed", "retries", "prohibitedRetries", "reflectionsCount", "safeExitUsed",
     "visitedNodeTitles", "competencies", "recommendations", "summaryMessage",
-    "totalDurationSeconds", "timeline", "ending",
+    "totalDurationSeconds", "activeSeconds", "clockSeconds", "timeline", "ending",
 }
 TIMELINE_KEYS = {
     "atSeconds", "time", "type", "classification", "prohibited", "label", "scoreDelta", "stressDelta",

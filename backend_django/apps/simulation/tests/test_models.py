@@ -1,7 +1,8 @@
 """Validate that every simulation model's column mapping matches the live schema.
 
-Issuing a full SELECT (.first()) against each managed=False table will raise if
-any mapped column does not exist, so these double as schema-contract tests.
+Issuing a full SELECT (.first()) against each table will raise if any mapped column
+does not exist, so these double as schema-contract tests (the constraints themselves
+are pinned by test_schema_contract.py).
 """
 import pytest
 

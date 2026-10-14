@@ -51,6 +51,11 @@ if not ALLOWED_HOSTS:
 # CSRF: confía en el origen https del dominio público (por si algún flujo usa CSRF).
 CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h and h != "*"]
 
+# Railway sondea el healthcheck (/api/health) con «Host: healthcheck.railway.app»: sin este
+# host Django responde 400 (DisallowedHost) y el despliegue nunca se promueve. Va DESPUÉS de
+# calcular CSRF_TRUSTED_ORIGINS: es un host de sondeo, no un origen de navegador.
+ALLOWED_HOSTS.append("healthcheck.railway.app")
+
 # base.py already read SECRET_KEY from DJANGO_SECRET_KEY; require it explicitly
 # and refuse the insecure development default.
 SECRET_KEY = _require_env("DJANGO_SECRET_KEY")  # noqa: F811

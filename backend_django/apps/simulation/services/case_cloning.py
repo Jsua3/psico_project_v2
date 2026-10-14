@@ -44,7 +44,7 @@ class CopySpec:
         return self.model.objects.create(**values, **links)
 
 
-CASE_VERSION = CopySpec(CaseVersion, ("narrative_context", "world_schema_version"))
+CASE_VERSION = CopySpec(CaseVersion, ("narrative_context", "world_schema_version", "rules"))
 
 NODE = CopySpec(SimulationNode, (
     "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
@@ -55,6 +55,7 @@ NODE = CopySpec(SimulationNode, (
 DECISION = CopySpec(DecisionOption, (
     "option_key", "text", "classification", "score_delta", "stress_delta",
     "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
+    "consequence_text", "theory_basis", "feedback_text",
 ))
 
 MAP = CopySpec(SceneMap, (

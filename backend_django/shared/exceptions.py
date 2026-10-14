@@ -8,7 +8,9 @@ Spring maps:
     MethodArgumentNotValidException-> 400, "field: msg, field2: msg2"
     Exception (uncaught)           -> 500, "Error interno del servidor"
 
-All bodies use the ``{"success": false, "message": ...}`` envelope.
+All bodies use the ``{"success": false, "code": ..., "message": ...}`` envelope.
+``code`` is stable (the client decides by it, never by the text); a domain error can
+add its own fields at the root (``existingAttemptId``…), see ``ApiError``.
 """
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
@@ -16,8 +18,11 @@ from rest_framework import status
 from rest_framework.exceptions import (
     APIException,
     AuthenticationFailed,
+    MethodNotAllowed,
     NotAuthenticated,
+    NotFound,
     PermissionDenied,
+    Throttled,
     ValidationError,
 )
 from rest_framework.response import Response
@@ -30,6 +35,44 @@ class Conflict(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Conflicto"
     default_code = "conflict"
+    api_code = "CONFLICT"
+
+
+class ApiError(APIException):
+    """Error de dominio con ``code`` estable (§2.7 del plan estructural).
+
+    El cuerpo es ``{success: false, code, message, **extra}``: los campos extra
+    (``existingAttemptId``, ``field``, ``nodeId``…) viajan en la raíz junto a
+    ``message``. El estado HTTP por defecto es 400.
+    """
+
+    def __init__(self, code, message, status_code=status.HTTP_400_BAD_REQUEST, **extra):
+        super().__init__(detail=message, code=code)
+        self.status_code = status_code
+        self.api_code = code
+        self.extra = extra
+
+
+def _code_for(exc):
+    """Código estable del error: el declarado por el dominio o el que le toca a su clase."""
+    explicit = getattr(exc, "api_code", None)
+    if explicit:
+        return explicit
+    if isinstance(exc, ValidationError):
+        return "VALIDATION_ERROR"
+    if isinstance(exc, (PermissionDenied, DjangoPermissionDenied)):
+        return "FORBIDDEN"
+    if isinstance(exc, NotAuthenticated):
+        return "UNAUTHENTICATED"
+    if isinstance(exc, AuthenticationFailed):
+        return "TOKEN_INVALID" if exc.get_codes() == "token_not_valid" else "INVALID_CREDENTIALS"
+    if isinstance(exc, (NotFound, Http404)):
+        return "NOT_FOUND"
+    if isinstance(exc, Throttled):
+        return "THROTTLED"
+    if isinstance(exc, MethodNotAllowed):
+        return "METHOD_NOT_ALLOWED"
+    return str(getattr(exc, "default_code", "error")).upper()
 
 
 def _flatten(detail, prefix=""):
@@ -61,7 +104,7 @@ def custom_exception_handler(exc, context):
     # Uncaught -> 500 "Error interno del servidor" (Spring handleGeneric).
     if response is None:
         return Response(
-            {"success": False, "message": "Error interno del servidor"},
+            {"success": False, "code": "INTERNAL_ERROR", "message": "Error interno del servidor"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -81,5 +124,7 @@ def custom_exception_handler(exc, context):
             detail = response.data.get("detail")
         message = str(detail) if detail is not None else str(exc)
 
-    response.data = {"success": False, "message": message}
+    body = {"success": False, "code": _code_for(exc), "message": message}
+    body.update(getattr(exc, "extra", None) or {})
+    response.data = body
     return response

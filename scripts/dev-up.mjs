@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url';
 import {
   DEV_COMPOSE_PROJECT,
   assessContainerOwnership,
+  assessDevDataVolumeVersion,
   assessVolumeOwnership,
+  buildSchemaGateCommand,
   decideSchemaGateAction,
 } from './dev-environment-guard.mjs';
 
@@ -60,6 +62,9 @@ function venvPythonVersion() {
   return `${match[1]}.${match[2]}`;
 }
 
+// Versión de Python de la imagen y del CI (Dockerfile, ci.yml); local se alinea con ella (PYP-2).
+const TARGET_PYTHON = '3.14';
+
 function isSupportedPython(version) {
   // Django 6.1 exige Python >= 3.12; psycopg 3 ya tiene ruedas para 3.14.
   return version === '3.12' || version === '3.13' || version === '3.14';
@@ -84,6 +89,14 @@ function ensureVenv() {
   if (existingVersion && !isSupportedPython(existingVersion)) {
     console.log(`[siep] .venv usa Python ${existingVersion}; recreando con 3.12-3.14...`);
     rmSync(join(BACKEND, '.venv'), { recursive: true, force: true });
+  } else if (existingVersion && existingVersion !== TARGET_PYTHON) {
+    if (process.env.SIEP_UPGRADE_VENV === '1') {
+      console.log(`[siep] .venv usa Python ${existingVersion}; recreando con ${TARGET_PYTHON} (SIEP_UPGRADE_VENV=1)...`);
+      rmSync(join(BACKEND, '.venv'), { recursive: true, force: true });
+    } else {
+      console.warn(`[siep] .venv usa Python ${existingVersion}; el objetivo del proyecto es ${TARGET_PYTHON} (imagen y CI).`);
+      console.warn('[siep] Para pasarlo: SIEP_UPGRADE_VENV=1 npm run up  (recrea backend_django/.venv).');
+    }
   }
 
   const py = venvPython();
@@ -133,34 +146,13 @@ function ensureFrontendDeps() {
   run('npm', ['install'], { cwd: FRONTEND });
 }
 
-// Tablas jalonadoras del esquema del simulador, de la más antigua a la más
-// reciente (simulation_rubric_assignments la crea la migración simulation/0004).
-// Si falta cualquiera, la BD viene de una versión anterior y hay que correr
-// el bootstrap (idempotente) para completar el esquema.
-const REQUIRED_SIM_TABLES = [
-  'simulation_cases',
-  'grupo_case_version',
-  'simulation_rubric_assignments',
-];
-
 function simulationSchemaReady() {
-  const regclassList = REQUIRED_SIM_TABLES
-    .map((t) => `to_regclass('public.${t}')`)
-    .join(', ');
+  // `migrate --check` sale con 0 solo si no queda ninguna migración por aplicar
+  // (E1-0a, M-4 de la revisión de E0). Sin `shell: isWin` a propósito: spawnSync
+  // invoca el .exe directamente (ruta absoluta), igual que venvPythonVersion().
   const result = spawnSync(
     venvPython(),
-    [
-      'manage.py',
-      'shell',
-      '-c',
-      `from django.db import connection; c=connection.cursor(); c.execute("SELECT ${regclassList}"); raise SystemExit(0 if all(c.fetchone()) else 1)`,
-    ],
-    // NOTA: sin `shell: isWin` a propósito. Este argumento -c contiene
-    // comillas dobles embebidas; con shell:true en Windows, Node delega en
-    // cmd.exe /c, que no las escapa (ver DEP0190) y rompe el parseo del
-    // comando, haciendo que este chequeo falle SIEMPRE sin importar el
-    // esquema real. spawnSync invoca el .exe directamente (ruta absoluta),
-    // no necesita shell, igual que venvPythonVersion() más arriba.
+    buildSchemaGateCommand().args,
     { cwd: BACKEND, stdio: 'pipe', env: { ...process.env, DB_PORT } },
   );
   return result.status === 0;
@@ -173,8 +165,8 @@ function ensureDevDatabase() {
   if (action === 'start') {
     return;
   }
-  console.error('[siep] La base de datos no tiene el esquema del simulador.');
-  console.error(`[siep] Chequeo fallido: faltan una o más tablas centinela (${REQUIRED_SIM_TABLES.join(', ')}).`);
+  console.error('[siep] La base de datos no tiene el esquema al día.');
+  console.error('[siep] Chequeo fallido: `manage.py migrate --check` (faltan migraciones por aplicar o la base viene de un esquema anterior).');
   console.error('[siep] npm run up NO siembra bases de datos automáticamente.');
   console.error('[siep] Si esta base es local, propia de este checkout y reemplazable, ejecuta:');
   console.error('[siep]     npm run db:bootstrap -- --yes');
@@ -227,6 +219,40 @@ function resolveOwnDbContainer() {
     process.exit(1);
   }
   return id;
+}
+
+// Mayor de PostgreSQL de la imagen de desarrollo (docker-compose.yml).
+const PG_MAJOR = 18;
+
+// Un salto de versión mayor no arranca sobre el volumen anterior: se detiene ANTES de
+// tocar nada y explica el procedimiento (E0-6). No ejecuta nada destructivo.
+function ensureDevDataVolumeMatchesImage() {
+  const volume = `${DEV_COMPOSE_PROJECT}_postgres_data`;
+  const inspect = spawnSync('docker', ['volume', 'inspect', volume], { stdio: 'pipe' });
+  if (inspect.status !== 0) {
+    return; // volumen nuevo (o Docker apagado: lo dirá startDb)
+  }
+  const read = spawnSync(
+    'docker',
+    ['run', '--rm', '--entrypoint', 'cat', '-v', `${volume}:/pgdata:ro`, `postgres:${PG_MAJOR}-alpine`, '/pgdata/PG_VERSION'],
+    { stdio: 'pipe', encoding: 'utf8' },
+  );
+  const verdict = assessDevDataVolumeVersion({
+    pgVersionFile: read.status === 0 ? read.stdout : '',
+    expectedMajor: PG_MAJOR,
+  });
+  if (verdict.ok) {
+    return;
+  }
+  console.error(`[siep] ${verdict.reason}`);
+  console.error('[siep] Para recrearla (los datos de desarrollo se vuelven a sembrar; el volcado es solo para conservarlos como archivo):');
+  console.error(`[siep]   1. arranca el contenedor viejo:   docker start $(docker compose -p ${DEV_COMPOSE_PROJECT} ps -aq db)`);
+  console.error('[siep]   2. vuélcalo DENTRO del contenedor (sin redirecciones de shell, que corrompen el archivo en Windows):');
+  console.error('[siep]        docker exec <contenedor> pg_dump -U psychosim -Fc -f /tmp/dev.dump psychosim');
+  console.error('[siep]        docker cp <contenedor>:/tmp/dev.dump ./dev.dump     y comprueba que dev.dump NO esté vacío');
+  console.error(`[siep]   3. solo entonces:  docker compose -p ${DEV_COMPOSE_PROJECT} down -v`);
+  console.error('[siep]   4. npm run up   y después   npm run db:bootstrap -- --yes');
+  process.exit(1);
 }
 
 async function startDb() {
@@ -284,6 +310,7 @@ function spawnProc(label, cmd, args, cwd, env = process.env) {
 
 async function main() {
   ensureLocalSettings();
+  ensureDevDataVolumeMatchesImage();
   await startDb();
   ensureVenv();
   ensureDevDatabase();

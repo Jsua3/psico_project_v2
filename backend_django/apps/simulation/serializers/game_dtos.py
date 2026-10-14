@@ -77,6 +77,19 @@ def node_state(node, include_options):
     }
 
 
+def consequence_dto(decision):
+    """La consecuencia narrativa de una decisión registrada (C2, RN-08).
+
+    El texto propio de la opción (``consequence_text``) o, si no lo tiene, la narrativa del
+    nodo al que lleva: ``source`` dice cuál (``OPTION`` | ``NODE``). No es retroalimentación:
+    no dice si estuvo bien o mal.
+    """
+    text = (decision.consequence_text or "").strip()
+    if text:
+        return {"text": text, "source": "OPTION"}
+    return {"text": decision.target_node.narrative or "", "source": "NODE"}
+
+
 def feedback_dto(decision, effects, message, retry_required=False):
     return {
         "classification": decision.classification,
@@ -292,6 +305,10 @@ class CompletionReportBuilder:
 
     def build(self):
         attempt, events = self._attempt, self._events
+        clock_seconds = (
+            int((attempt.ended_at - attempt.started_at).total_seconds())
+            if attempt.started_at and attempt.ended_at else None
+        )
         return {
             "attemptId": str(attempt.id),
             "caseTitle": attempt.case_version.simulation_case.title,
@@ -317,10 +334,11 @@ class CompletionReportBuilder:
             "competencies": self.competencies,
             "recommendations": self.recommendations,
             "summaryMessage": self.summary,
-            "totalDurationSeconds": (
-                int((attempt.ended_at - attempt.started_at).total_seconds())
-                if attempt.started_at and attempt.ended_at else None
-            ),
+            "totalDurationSeconds": clock_seconds,
+            # Tiempo activo (acumulador del intento, E1-5) y de reloj: no es lo mismo, y el reporte
+            # no debe ofrecer uno por el otro.
+            "activeSeconds": int(round(attempt.active_seconds or 0)),
+            "clockSeconds": clock_seconds,
             "timeline": build_timeline(attempt, events),
             # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
             "ending": case_effects.compute_ending(attempt, events),
@@ -340,13 +358,19 @@ def build_completion_report(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, feedback, events=None):
+def attempt_state(attempt, raw_token, feedback, events=None, completion_report=None, include_report=True):
+    """El estado del intento. ``completion_report`` es el reporte ya resuelto (el congelado de un
+    intento completado, E1-8); sin él, un intento que no está en juego lo arma en vivo, salvo con
+    ``include_report=False`` (modo «retroalimentación al cierre»: ``completionReport`` va nulo)."""
     in_progress = attempt.status == AttemptStatus.IN_PROGRESS
-    completion_report = None
-    if not in_progress:
+    if not in_progress and completion_report is None and include_report:
         if events is None:
             from apps.simulation.models import AttemptEvent
-            events = list(AttemptEvent.objects.filter(attempt_id=attempt.id).order_by("occurred_at", "id"))
+            events = list(
+                AttemptEvent.objects.filter(attempt_id=attempt.id)
+                .select_related("node", "decision_option")
+                .order_by("occurred_at", "id")
+            )
         completion_report = build_completion_report(attempt, events)
     return {
         "attemptId": str(attempt.id),

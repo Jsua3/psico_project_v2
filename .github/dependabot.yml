@@ -44,7 +44,7 @@ updates:
       interval: weekly
       day: monday
     ignore:
-      # El volumen de desarrollo es PostgreSQL 16: una imagen de otra versión mayor no arranca sobre
+      # El volumen de desarrollo es PostgreSQL 18: una imagen de otra versión mayor no arranca sobre
       # sus datos. Un salto de mayor es una migración deliberada (dump/restore), no una actualización.
       - dependency-name: postgres
         update-types: ['version-update:semver-major']
