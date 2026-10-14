@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/auth/auth.guard';
+import { authGuard, passwordChangeGuard, roleGuard } from './core/auth/auth.guard';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { rolesFor } from './shared/layout/nav-items';
@@ -33,9 +33,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/login/login.component').then(m => m.LoginComponent)
   },
   {
+    // E2-9 (RN-10): fuera del portal (sin barra ni destinos que el servidor negaría con la contraseña temporal).
+    path: 'cambiar-contrasena',
+    title: 'Cambia tu contraseña',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/account/change-password.component').then(m => m.ChangePasswordComponent)
+  },
+  {
     path: 'portal',
     title: 'Portal',
-    canActivate: [authGuard],
+    canActivate: [authGuard, passwordChangeGuard],
     loadComponent: () => import('./shared/layout/shell.component').then(m => m.ShellComponent),
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },

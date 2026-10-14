@@ -5,6 +5,8 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE';
   activo?: boolean;
+  /** E2-9: entró con una contraseña temporal y el servidor le niega todo hasta cambiarla. */
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {

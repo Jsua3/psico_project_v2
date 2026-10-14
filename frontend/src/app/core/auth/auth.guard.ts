@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { AuthService } from './auth.service';
+import { CHANGE_PASSWORD_PATH } from './password-change';
 
 /** Motivo que el acceso explica en pantalla (plan visual F3-6, H-34). */
 export const EXPIRED_SESSION_REASON = 'sesion-expirada';
@@ -20,6 +21,15 @@ function loginRedirect(auth: AuthService, router: Router, url: string): UrlTree 
 
 export const authGuard: CanActivateFn = (_route, state) =>
   loginRedirect(inject(AuthService), inject(Router), state.url) ?? true;
+
+/**
+ * E2-9 (RN-10): con la contraseña temporal sin cambiar, el servidor niega todo salvo `/api/auth/**`; el portal no se
+ * abre y la persona va a «Cambia tu contraseña» con la ruta pedida (al terminar vuelve ahí). Va DESPUÉS de authGuard.
+ */
+export const passwordChangeGuard: CanActivateFn = (_route, state) => {
+  if (!inject(AuthService).mustChangePassword()) return true;
+  return inject(Router).createUrlTree([CHANGE_PASSWORD_PATH], { queryParams: { returnUrl: state.url } });
+};
 
 export const roleGuard = (...roles: string[]): CanActivateFn => (_route, state) => {
   const auth = inject(AuthService);

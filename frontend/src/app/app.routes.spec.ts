@@ -2,8 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 
 import { routes } from './app.routes';
+import { authGuard, passwordChangeGuard } from './core/auth/auth.guard';
 import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
+import { ChangePasswordComponent } from './features/account/change-password.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
@@ -112,6 +114,26 @@ describe('app.routes: solo el estudiante juega', () => {
       expect(decide('PROFESOR')).toEqual({ commands: ['/portal/sin-permiso'] });
     });
   }
+});
+
+/**
+ * E2-9 (RN-10): una cuenta aprobada entra con una contraseña temporal y el servidor le niega todo (403
+ * `PASSWORD_CHANGE_REQUIRED`) salvo `/api/auth/**`. «Cambia tu contraseña» vive FUERA del portal (sin barra ni
+ * destinos que el servidor negaría) y el portal no se abre hasta cambiarla.
+ */
+// req: RN-10
+describe('app.routes: cambio de contraseña obligatorio', () => {
+  it('«cambiar-contrasena» es de nivel superior, pide sesión y carga su pantalla', async () => {
+    const route = routes.find(entry => entry.path === 'cambiar-contrasena')!;
+    expect(route.canActivate).toEqual([authGuard]);
+    expect(await (route.loadComponent as () => Promise<unknown>)()).toBe(ChangePasswordComponent);
+    expect(routes.indexOf(route)).toBeLessThan(routes.findIndex(entry => entry.path === '**'));
+  });
+
+  it('el portal exige sesión y, después, que no haya un cambio de contraseña pendiente', () => {
+    const portal = routes.find(route => route.path === 'portal')!;
+    expect(portal.canActivate).toEqual([authGuard, passwordChangeGuard]);
+  });
 });
 
 /** La galería `/dev/ui` y el banco `/dev/barra` existen en desarrollo y en pruebas (ngDevMode) y nunca los tapa el comodín. */

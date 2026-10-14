@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
+import { CHANGE_PASSWORD_PATH, PASSWORD_CHANGE_REQUIRED } from './password-change';
 
 export const SESSION_MESSAGE = 'Tu sesión ya no es válida o tu usuario está inactivo. Contacta al administrador.';
 export const CONNECTION_MESSAGE = 'No fue posible conectar con el servidor. Intenta nuevamente.';
@@ -14,7 +15,7 @@ const ME_URL = '/api/auth/me';
 export interface HttpErrorContext {
   error: unknown;
   url: string;
-  auth: Pick<AuthService, 'clearSession'>;
+  auth: Pick<AuthService, 'clearSession' | 'requirePasswordChange'>;
   router: Pick<Router, 'url' | 'navigate'>;
   notifications: Pick<NotificationService, 'error' | 'warning'>;
 }
@@ -98,6 +99,23 @@ export class InactiveUserHandler extends HttpErrorHandler {
   }
 }
 
+/**
+ * E2-9 (RN-10): el 403 `PASSWORD_CHANGE_REQUIRED` no es falta de permisos: la cuenta entró con una contraseña temporal.
+ * Lleva a «Cambia tu contraseña» con la ruta en la que estaba (sin aviso de permiso ni cerrar la sesión).
+ */
+export class PasswordChangeRequiredHandler extends HttpErrorHandler {
+  protected canHandle(ctx: HttpErrorContext): boolean {
+    if (statusOf(ctx) !== 403) return false;
+    const body = (ctx.error as HttpErrorResponse).error as { code?: unknown } | null;
+    return body?.code === PASSWORD_CHANGE_REQUIRED;
+  }
+  protected apply(ctx: HttpErrorContext): void {
+    ctx.auth.requirePasswordChange();
+    if (ctx.router.url.startsWith(CHANGE_PASSWORD_PATH)) return;
+    ctx.router.navigate([CHANGE_PASSWORD_PATH], { queryParams: { returnUrl: ctx.router.url } });
+  }
+}
+
 export class ForbiddenHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
     return statusOf(ctx) === 403;
@@ -123,6 +141,7 @@ export function defaultHttpErrorHandlers(): HttpErrorHandler[] {
     new LoginErrorHandler(),
     new UnauthorizedHandler(),
     new InactiveUserHandler(),
+    new PasswordChangeRequiredHandler(),
     new ForbiddenHandler(),
     new NoConnectionHandler(),
   ];

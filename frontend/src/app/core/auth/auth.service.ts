@@ -18,6 +18,7 @@ interface UserSummary {
   apellido: string;
   email: string;
   role: User['role'];
+  mustChangePassword?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -117,6 +118,27 @@ export class AuthService {
     return isJwtMalformed(token);
   }
 
+  /** E2-9: la sesión entró con una contraseña temporal y debe cambiarla antes de usar el portal. */
+  mustChangePassword(): boolean {
+    return this.currentUser()?.mustChangePassword === true;
+  }
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.http.post<ApiResponse<null>>(`${this.API}/change-password`, { currentPassword, newPassword });
+  }
+
+  /** Tras cambiarla: la sesión sigue (el token no cambia) y deja de exigirlo. */
+  markPasswordChanged(): void {
+    const user = this.currentUser();
+    if (user) this.currentUser.set({ ...user, mustChangePassword: false });
+  }
+
+  /** Un 403 `PASSWORD_CHANGE_REQUIRED` lo dice aunque `/auth/me` no haya llegado (el JWT no lo lleva). */
+  requirePasswordChange(): void {
+    const user = this.currentUser() ?? this.loadUser();
+    if (user) this.currentUser.set({ ...user, mustChangePassword: true });
+  }
+
   hasRole(...roles: string[]): boolean {
     const user = this.currentUser() ?? this.loadUser();
     return user ? roles.includes(user.role) : false;
@@ -150,7 +172,8 @@ export class AuthService {
       nombre: summary.nombre,
       apellido: summary.apellido,
       email: summary.email,
-      role: summary.role
+      role: summary.role,
+      mustChangePassword: summary.mustChangePassword === true
     };
   }
 }
