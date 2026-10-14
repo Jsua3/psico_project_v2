@@ -14,7 +14,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6)-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');
@@ -38,13 +38,25 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(DRAFT_COPY.placesButtonLabel).toMatchObject({ text: 'Ir a… personas y puertas de la sala', decision: 'VD-19', review: 'conocimiento' });
   });
 
-  it('cada borrador dice si Psicología debe validarlo o solo conocerlo; los diez de la hoja se validan', () => {
+  it('cada borrador dice si Psicología debe validarlo o solo conocerlo; los de la hoja se validan', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
-    expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['consentSaving', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
-    );
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(10);
+    // F6: cinco microtextos de funcionamiento; F7-4: los cuatro nombres de nivel de la valoración formativa.
+    expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual([
+      'consentSaving', 'journalSaveReason', 'keysHintArrows', 'levelDestacado', 'levelEnInicio', 'levelEnProceso',
+      'levelLogrado', 'placesButtonLabel', 'shortcutsSettingLabel',
+    ]);
+    // Los diez de F6 y los cuatro de F7-4 (tres de vocabulario VD-24 y el rótulo de la valoración formativa).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(14);
+  });
+
+  // req: RN-09, BLOQUE-H (F7-4)
+  it('registra el vocabulario educativo de la traza docente (VD-24) y el rótulo de la valoración formativa (RN-09)', () => {
+    expect(DRAFT_COPY.traceDecisionFallback).toMatchObject({ decision: 'VD-24', text: 'Revisar el contexto del escenario y la justificación de la decisión.' });
+    expect(DRAFT_COPY.traceAdequateStep).toMatchObject({ decision: 'VD-24', text: 'Paso adecuado dentro del recorrido simulado.' });
+    expect(DRAFT_COPY.traceNoDecisions).toMatchObject({ decision: 'VD-24', text: 'Este intento aún no tiene decisiones guardadas.' });
+    expect(DRAFT_COPY.formativeValuationLabel).toMatchObject({ decision: 'RN-09', text: 'Valoración formativa' });
+    expect(draftCopyList().filter(entry => /clínic/i.test(entry.text))).toEqual([]);
   });
 
   it('la nota de ayuda nombra el ajuste con la misma palabra del registro (una sola fuente)', () => {

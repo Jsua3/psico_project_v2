@@ -8,9 +8,11 @@ import { RECONSIDERED_LABEL } from './reconsidered.util';
 /**
  * L-02: la primera respuesta que el juego no aplicó (reintento) ya no se pinta como «Contraindicada» mientras el
  * contador de contraindicadas dice 0. Se ejercitan los ayudantes de presentación sobre el prototipo (el componente
- * inyecta servicios que aquí no hacen falta) y la plantilla como texto, que Jest no renderiza.
+ * inyecta servicios que aquí no hacen falta) y la plantilla como texto. F7-4: la insignia y el acento salen de la
+ * biblioteca (tono de `ui-badge` y `data-accent`), no de clases de pixel art.
  */
-const source = readFileSync(join(__dirname, 'instructor-trace.component.ts'), 'utf-8');
+const html = readFileSync(join(__dirname, 'instructor-trace.component.html'), 'utf-8');
+const dialog = readFileSync(join(__dirname, 'trace-feedback-dialog.component.ts'), 'utf-8');
 const panel = Object.create(InstructorTraceComponent.prototype) as InstructorTraceComponent;
 
 const entry = (overrides: Partial<AttemptTimelineEntry>): AttemptTimelineEntry => ({
@@ -33,10 +35,11 @@ describe('panel del docente: respuestas reconsideradas (L-02)', () => {
   });
 
   it('la fila de reintento no se pinta de rojo ni con la insignia de contraindicación', () => {
-    expect(panel.timelineEntryClass(prohibitedRetry)).toBe('');
-    expect(panel.timelineBadgeClass(prohibitedRetry)).toBe('');
-    expect(panel.timelineEntryClass(prohibitedRegistered)).toBe('trace-event-card--inadequate');
-    expect(panel.timelineBadgeClass(prohibitedRegistered)).toBe('pixel-badge--pending');
+    expect(panel.timelineEntryAccent(prohibitedRetry)).toBe('');
+    expect(panel.timelineEntryTone(prohibitedRetry)).toBe('neutral');
+    expect(panel.timelineEntryTone(riskyRetry)).toBe('neutral');
+    expect(panel.timelineEntryAccent(prohibitedRegistered)).toBe('inadequate');
+    expect(panel.timelineEntryTone(prohibitedRegistered)).toBe('danger');
   });
 
   it('el texto de apoyo de la fila de reintento explica que no cuenta como decisión registrada', () => {
@@ -51,8 +54,9 @@ describe('panel del docente: respuestas reconsideradas (L-02)', () => {
     expect(panel.eventTitle({ type: 'DECISION_SELECTED', classification: 'RISKY' } as TraceEvent)).toBe('Decisión riesgosa');
   });
 
-  it('la plantilla usa la insignia propia de la línea de tiempo y muestra el contador de reconsideradas', () => {
-    expect(source.match(/\[ngClass\]="timelineBadgeClass\(entry\)"/g)?.length).toBe(2);
-    expect(source).toMatch(/@if \(item\.retries\) \{\s*<span class="pixel-badge">Reconsideradas: \{\{ item\.retries \}\}<\/span>/);
+  it('la plantilla y el diálogo usan el tono propio de la fila y la plantilla muestra el contador de reconsideradas', () => {
+    expect(html.match(/\[tone\]="timelineEntryTone\(entry\)"/g)?.length).toBe(1);
+    expect(dialog.match(/\[tone\]="entryTone\(entry\)"/g)?.length).toBe(1);
+    expect(html).toMatch(/@if \(item\.retries\) \{\s*<ui-badge>Reconsideradas: \{\{ item\.retries \}\}<\/ui-badge>/);
   });
 });

@@ -37,6 +37,24 @@ const RECENT = DASHBOARD.intentosRecientes.map(item => ({
 
 const overflowX = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
+/**
+ * Espera a que terminen las animaciones FINITAS (Axe mide el contraste a media entrada de un fundido y se equivoca);
+ * las infinitas, como un indicador de carga, no terminan nunca: tope de 3 s y un respiro para el repintado.
+ */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter(animation => {
+      const end = animation.effect?.getComputedTiming().endTime;
+      return typeof end === 'number' && Number.isFinite(end);
+    });
+    await Promise.race([
+      Promise.allSettled(finite.map(animation => animation.finished)),
+      new Promise(resolve => setTimeout(resolve, 3000)),
+    ]);
+  });
+  await page.waitForTimeout(150);
+}
+
 async function blockingViolations(page: Page, include: string): Promise<string[]> {
   const results = await runAxe(page, { tags: WCAG_TAGS, resultTypes: ['violations'], include });
   return results.violations
@@ -233,6 +251,133 @@ test.describe('@docencia reportes', () => {
     clicks += 2; // abrir la lista y elegir la opción
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
     expect(clicks).toBeLessThanOrEqual(3);
+  });
+});
+
+const RECENT_ATTEMPTS = [
+  { attemptId: 'a-1', studentAlias: 'Marta R.', caseTitle: CASE_TITLE, status: 'COMPLETED', accumulatedScore: 72, stressIndex: 30, startedAt: '2026-10-10T10:00:00Z' },
+  { attemptId: 'a-2', studentAlias: 'Luis G.', caseTitle: CASE_TITLE, status: 'IN_PROGRESS', accumulatedScore: 20, stressIndex: 55, startedAt: '2026-10-11T09:00:00Z' },
+];
+
+function traceOf(attemptId: string) {
+  return {
+    attemptId, studentAlias: attemptId === 'a-1' ? 'Marta R.' : 'Luis G.', caseTitle: CASE_TITLE, status: 'COMPLETED',
+    accumulatedScore: 72, stressIndex: 30, startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:25:00Z',
+    totalDurationSeconds: 1500, adequateDecisions: 3, riskyDecisions: 1, inadequateDecisions: 1, prohibitedDecisions: 0,
+    safeExitUsed: false, retries: 0, visitedNodeTitles: ['Recepción'],
+    phaseDurations: [{ nodeId: 1, nodeTitle: 'Recepción', startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:05:00Z', durationSeconds: 300 }],
+    timeline: [
+      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', classification: 'ADEQUATE', prohibited: false, label: 'Escucha activa', scoreDelta: 5, stressDelta: -2 },
+      { atSeconds: 90, time: '01:30', type: 'DECISION_SELECTED', classification: 'RISKY', prohibited: false, label: 'Interrumpir', scoreDelta: -3, stressDelta: 4 },
+    ],
+    events: [
+      { type: 'DECISION_SELECTED', classification: 'ADEQUATE', nodeTitle: 'Recepción', decisionText: 'Escuchar sin interrumpir', scoreDelta: 5, stressDelta: -2, detail: null, occurredAt: '2026-10-10T10:00:30Z' },
+    ],
+    reflections: [{ nodeId: 1, nodeTitle: 'Recepción', text: 'Me costó escuchar.', locked: false }],
+    rubricEvaluations: [], metrics: {}, world: {},
+  };
+}
+
+const RUBRIC = {
+  attemptId: 'a-1', rubricId: 7, rubricName: 'Rúbrica básica de desempeño', description: 'Evalúa el desempeño formativo.',
+  criteria: [
+    { id: 1, competency: 'ETICA', title: 'Ética profesional', description: 'Actúa con ética.', weight: 50, maxScore: 5, displayOrder: 1 },
+    { id: 2, competency: 'RUTA', title: 'Ruta de atención', description: 'Activa la ruta.', weight: 50, maxScore: 5, displayOrder: 2 },
+  ],
+  scores: [], totalScore: null, overallLevel: null, comment: '',
+};
+
+async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promise<{ saved: unknown[] }> {
+  const saved: unknown[] = [];
+  await loginAs(page, 'profesor');
+  await page.route('**/api/instructor/attempts/recent', route => route.fulfill({ json: { success: true, data: recent } }));
+  await page.route('**/api/instructor/attempts/*/trace', route => {
+    const id = route.request().url().match(/attempts\/([^/]+)\/trace/)![1];
+    return route.fulfill({ json: { success: true, data: traceOf(id) } });
+  });
+  await page.route('**/api/instructor/attempts/*/rubric-evaluation/', route => {
+    if (route.request().method() === 'PUT') {
+      saved.push(route.request().postDataJSON());
+      return route.fulfill({ json: { success: true, data: { ...RUBRIC, overallLevel: 'LOGRADO' } } });
+    }
+    return route.fulfill({ json: { success: true, data: RUBRIC } });
+  });
+  await page.goto('/portal/docente/trazabilidad');
+  return { saved };
+}
+
+// req: RNF-04, BLOQUE-H, SIEP-CU-04, RN-09
+test.describe('@docencia traza', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con un intento abierto: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openTrace(page);
+      await expect(page.getByRole('heading', { level: 2, name: CASE_TITLE })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Rúbrica básica de desempeño' })).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
+    });
+  }
+
+  test('sin intentos: el vacío de la lista y ningún «Selecciona un intento»', async ({ page }) => {
+    await openTrace(page, []);
+    await expect(page.locator('app-instructor-trace ui-empty-state')).toContainText('No hay intentos recientes para tus grupos');
+    await expect(page.getByText('Selecciona un intento')).toHaveCount(0);
+    expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
+  });
+
+  test('SIEP-CU-04: califica con 1,0 y con el máximo y rechaza 0,5 en línea sin enviarlo', async ({ page }) => {
+    const { saved } = await openTrace(page);
+    const first = page.locator('.tr-criterion').nth(0).locator('input[type="number"]');
+    const second = page.locator('.tr-criterion').nth(1).locator('input[type="number"]');
+    await expect(first).toBeVisible();
+    await expect(page.locator('.tr-criterion').nth(0)).toContainText('Rango 1,0 a 5');
+
+    await first.fill('0.5');
+    await expect(page.locator('.tr-criterion').nth(0)).toContainText('Debe estar entre 1,0 y 5.');
+    // El botón queda aria-disabled con su motivo: Playwright no lo pulsaría; un usuario sí, y el clic no envía nada.
+    await page.getByRole('button', { name: 'Guardar evaluación' }).click({ force: true });
+    expect(saved).toEqual([]);
+
+    await first.fill('1');
+    await second.fill('5');
+    await expect(page.locator('.tr-criterion .ui-field__message--error')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Guardar evaluación' }).click();
+    await expect.poll(() => saved.length).toBe(1);
+    expect(saved[0]).toMatchObject({
+      rubricId: 7,
+      scores: [{ criterionId: 1, score: 1 }, { criterionId: 2, score: 5 }],
+    });
+  });
+
+  test('RN-09: el total se rotula «Valoración formativa» con el nivel y sin números', async ({ page }) => {
+    await openTrace(page);
+    const valuation = page.locator('.tr-valuation');
+    await expect(valuation).toContainText('Valoración formativa');
+    await expect(valuation).toContainText('Pendiente');
+    await expect(valuation).not.toContainText(/\d/);
+  });
+
+  test('la retroalimentación abre un diálogo con el foco dentro; Tab no sale; Esc lo cierra y devuelve el foco', async ({ page }) => {
+    await openTrace(page);
+    const opener = page.getByRole('button', { name: /^Adecuadas/ });
+    await opener.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Decisiones adecuadas' })).toBeVisible();
+    await expect(dialog.getByText('Escuchar sin interrumpir')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
+
+    for (let i = 0; i < 6; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
+    }
+    await settle(page);
+    expect(await blockingViolations(page, '[role="dialog"]')).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
   });
 });
 

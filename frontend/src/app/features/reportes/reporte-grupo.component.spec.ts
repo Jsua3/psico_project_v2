@@ -301,12 +301,22 @@ describe('pantalla Reportes (F7-3)', () => {
     it('la tabla es una región con nombre, con una fila por estudiante y estados en insignias', async () => {
       await withReport();
       const region = host().querySelector('ui-table [role="region"]')!;
-      expect(region.getAttribute('aria-label')).toBe('Simulación por estudiante');
+      expect(region.getAttribute('aria-label')).toBe('Tabla de simulación por estudiante');
       const rows = [...host().querySelectorAll('ui-table tbody tr')];
       expect(rows).toHaveLength(2);
       expect(text(rows[0])).toContain('Marta Ríos');
       expect(text(rows[0].querySelector('ui-badge'))).toBe('Completado');
       expect(text(rows[1].querySelector('ui-badge'))).toBe('En pausa (reanudable)');
+    });
+
+    it('ninguna región de la pantalla repite el nombre de otra (landmark-unique)', async () => {
+      await withReport();
+      const names = [...host().querySelectorAll('section[aria-labelledby], [role="region"][aria-label]')].map(el => {
+        const labelledBy = el.getAttribute('aria-labelledby');
+        return labelledBy ? text(host().querySelector(`#${labelledBy}`)) : el.getAttribute('aria-label');
+      });
+      expect(names.length).toBeGreaterThan(2);
+      expect(new Set(names).size).toBe(names.length);
     });
 
     it('las dos medidas de calidad son barras con nombre y valor legible', async () => {

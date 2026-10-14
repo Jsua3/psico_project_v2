@@ -234,6 +234,17 @@ describe('pantalla Grupos (F7-2)', () => {
       expect(detail.querySelector('button[aria-label="Retirar «Caso doce» del grupo"]')).not.toBeNull();
     });
 
+    it('ninguna región de la pantalla repite el nombre de otra (landmark-unique): la tabla no se llama como su sección', async () => {
+      await render();
+      await openDetail();
+      const names = [...host().querySelectorAll('section[aria-labelledby], [role="region"][aria-label]')].map(el => {
+        const labelledBy = el.getAttribute('aria-labelledby');
+        return labelledBy ? text(host().querySelector(`#${labelledBy}`)) : el.getAttribute('aria-label');
+      });
+      expect(names.length).toBeGreaterThan(3);
+      expect(new Set(names).size).toBe(names.length);
+    });
+
     it('sin estudiantes ni casos: dos vacíos que dicen qué hacer, no cifras en cero', async () => {
       await render({ estudiantes: () => of([]), casosAsignados: () => of([]) });
       await openDetail();
