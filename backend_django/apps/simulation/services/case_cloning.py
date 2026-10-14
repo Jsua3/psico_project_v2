@@ -59,7 +59,7 @@ NODE = CopySpec(SimulationNode, (
 DECISION = CopySpec(DecisionOption, (
     "option_key", "text", "classification", "score_delta", "stress_delta",
     "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
-    "consequence_text", "theory_basis", "feedback_text",
+    "consequence_text", "theory_basis", "feedback_text", "effects",
 ))
 
 MAP = CopySpec(SceneMap, (

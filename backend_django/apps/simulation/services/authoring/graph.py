@@ -1,4 +1,5 @@
 """El grafo del caso: nodos y decisiones."""
+import json
 import time
 
 from django.db import models, transaction
@@ -6,6 +7,8 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import DecisionOption, SimulationNode
+from apps.simulation.services import case_rules
+from apps.simulation.services.case_effects import CASE_METRIC_KEYS
 from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 from shared.jsonutils import coerce_int as _int
@@ -126,7 +129,7 @@ def _apply_node_request(node, request):
 def create_decision(case_version_id, request):
     version = ensure_draft(case_version_id, request.get("revision"))
     decision = DecisionOption(case_version=version)
-    _apply_decision_request(decision, request, case_version_id)
+    _apply_decision_request(decision, request, case_version_id, version)
     decision.save()
     bump_revision(case_version_id)
     return editor(case_version_id)
@@ -134,9 +137,9 @@ def create_decision(case_version_id, request):
 
 @transaction.atomic
 def update_decision(case_version_id, decision_id, request):
-    ensure_draft(case_version_id, request.get("revision"))
+    version = ensure_draft(case_version_id, request.get("revision"))
     decision = in_version(DecisionOption, decision_id, case_version_id)
-    _apply_decision_request(decision, request, case_version_id)
+    _apply_decision_request(decision, request, case_version_id, version)
     decision.save()
     bump_revision(case_version_id)
     return editor(case_version_id)
@@ -151,7 +154,7 @@ def delete_decision(case_version_id, decision_id, revision=None):
     return editor(case_version_id)
 
 
-def _apply_decision_request(decision, request, case_version_id):
+def _apply_decision_request(decision, request, case_version_id, version):
     source_id, target_id = request.get("sourceNodeId"), request.get("targetNodeId")
     # RN-02: una decisión solo une nodos de su propia versión del caso.
     src = in_version(SimulationNode, source_id, case_version_id, not_found=f"Nodo origen: {source_id}")
@@ -186,3 +189,10 @@ def _apply_decision_request(decision, request, case_version_id):
                 request.get(key), MAX_DECISION_TEXT_LENGTH, key, multiline=True
             )
             setattr(decision, field, text or None)
+    # Los efectos de la opción son datos del caso (E3-8): «ausente = no tocar»; ``{}``/``null``
+    # los limpia; una forma rota o una métrica que el caso no declara es un 400 con el campo.
+    if "effects" in request:
+        declared = {key for key, _ in case_rules.rules_of(version).metrics} or set(CASE_METRIC_KEYS)
+        decision.effects = json.dumps(
+            case_rules.validate_effects(request.get("effects"), declared), ensure_ascii=False
+        )

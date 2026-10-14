@@ -95,8 +95,15 @@ def test_case_effects_acota_las_metricas_del_caso_a_0_100(monkeypatch):
     monkeypatch.setattr(case_effects, "_load_state", lambda attempt: state)
 
     # h1-pap-contencion: confianza +15, crisis_emocional -20, calidad_duelo +15 (resto fuera del caso).
+    pap_contencion = {
+        "severity": "recommended",
+        "flags": {"pap_aplicado": True, "familia_contenida": True},
+        "metrics": {"confianza": 15, "crisis_emocional": -20, "calidad_duelo": 15,
+                    "rigor_tecnico": 10, "etica_profesional": 10, "riesgo_victima": -5},
+    }
     case_effects.apply_case_effects(
-        SimpleNamespace(id=1), SimpleNamespace(option_key="h1-pap-contencion")
+        SimpleNamespace(id=1),
+        SimpleNamespace(option_key="h1-pap-contencion", effects=json.dumps(pap_contencion)),
     )
 
     metrics = json.loads(state.flags_json)["caseMetrics"]

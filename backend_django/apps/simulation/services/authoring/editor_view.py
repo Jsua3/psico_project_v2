@@ -16,7 +16,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from shared.jsonutils import read_string_list as _read_string_list
+from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
 from .guards import require_version
@@ -187,6 +187,7 @@ def decision_edge(d):
         "consequenceText": d.consequence_text,
         "theoryBasis": d.theory_basis,
         "feedbackText": d.feedback_text,
+        "effects": _read_map(d.effects),
     }
 
 

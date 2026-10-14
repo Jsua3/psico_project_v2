@@ -11,9 +11,13 @@ los datos (si la prueba los leyera de donde sale la respuesta, no detectaría un
 - ``EXPECTED_WALKS``: seis recorridos reales por la API —uno por final y dos mixtos— con el
   final, sus conteos de severidad, banderas, métricas y el estado clínico del HUD.
 """
-import pytest
+import importlib
+import json
 
-from apps.simulation.models import AttemptWorldState, DecisionOption, SimulationAttempt
+import pytest
+from django.apps import apps as live_apps
+
+from apps.simulation.models import AttemptWorldState, CaseVersion, DecisionOption, SimulationAttempt
 from apps.simulation.services import case_effects
 from shared.jsonutils import write_map
 
@@ -28,6 +32,23 @@ from .test_caso_pdf import (  # noqa: F401  (fixtures y ayudantes del recorrido)
 )
 
 pytestmark = [pytest.mark.req("RNF-008"), pytest.mark.req("TD-02")]
+
+
+@pytest.fixture(params=["seeded", "migrated"], autouse=True)
+def case_data(request, case_version_id):
+    """Los datos del caso tal como los siembra el comando y tal como los deja la migración 0021.
+
+    La variante «migrated» vuelve el caso al estado anterior a E3-8 (sin ``effects`` ni
+    ``rules.metrics/endings``) y le corre la migración de datos: debe producir lo mismo.
+    """
+    if request.param == "migrated":
+        CaseVersion.objects.filter(simulation_case__code="SIM-VBG-001").update(
+            rules=json.dumps({"secondChance": True})
+        )
+        DecisionOption.objects.filter(case_version__simulation_case__code="SIM-VBG-001").update(effects="{}")
+        module = importlib.import_module("apps.simulation.migrations.0021_caso_pdf_effects_as_data")
+        module.write_effects_and_rules(live_apps, None)
+    return request.param
 
 METRICS = (
     "confianza", "crisis_emocional", "riesgo_victima", "rigor_tecnico", "etica_profesional",

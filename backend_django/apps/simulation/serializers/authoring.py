@@ -104,6 +104,8 @@ class DecisionRequest(serializers.Serializer):
     consequenceText = _text()
     theoryBasis = _text()
     feedbackText = _text()
+    # Los efectos de la opción (E3-8): el servicio los valida con su forma y su campo.
+    effects = serializers.DictField(required=False, allow_null=True)
 
 
 class MapRequest(serializers.Serializer):

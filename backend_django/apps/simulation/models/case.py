@@ -221,6 +221,9 @@ class DecisionOption(models.Model):
     consequence_text = models.TextField(blank=True, null=True)
     theory_basis = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
+    # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
+    # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
+    effects = models.TextField(default="{}", db_default="{}")
 
     class Meta:
         db_table = "decision_options"
