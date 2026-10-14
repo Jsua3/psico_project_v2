@@ -8,6 +8,31 @@ from .case import CaseVersion
 PUBLICATION_STATUSES = ["PENDING", "COMPLETE", "REJECTED"]
 
 
+class FormativeLevel(models.TextChoices):
+    """Niveles cualitativos de la evaluación formativa (RN-09, ED-2): no son una nota."""
+
+    EN_INICIO = "EN_INICIO"
+    EN_PROCESO = "EN_PROCESO"
+    LOGRADO = "LOGRADO"
+    DESTACADO = "DESTACADO"
+
+
+#: Índice interno 1–4 de cada nivel (para promediar por ponderación); nunca se muestra como nota.
+LEVEL_INDEX = {
+    FormativeLevel.EN_INICIO: 1,
+    FormativeLevel.EN_PROCESO: 2,
+    FormativeLevel.LOGRADO: 3,
+    FormativeLevel.DESTACADO: 4,
+}
+
+
+class EvaluationOrigin(models.TextChoices):
+    """Quién produjo la evaluación: el docente o el sistema (evaluación automática, E6)."""
+
+    SISTEMA = "SISTEMA"
+    DOCENTE = "DOCENTE"
+
+
 class Rubric(models.Model):
     case_version = models.ForeignKey(
         CaseVersion, on_delete=models.DB_CASCADE, null=True, blank=True,
@@ -59,6 +84,10 @@ class RubricEvaluation(models.Model):
     comment = models.TextField(null=True, blank=True)
     status = models.CharField(max_length=20, default="PENDING", db_default="PENDING")
     snapshot_json = models.TextField(default="{}", db_default="{}")
+    origin = models.CharField(
+        max_length=10, choices=EvaluationOrigin.choices,
+        default=EvaluationOrigin.DOCENTE, db_default=EvaluationOrigin.DOCENTE,
+    )
     created_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(null=True, blank=True)
     evaluated_at = models.DateTimeField(auto_now_add=True)
@@ -67,6 +96,10 @@ class RubricEvaluation(models.Model):
         db_table = "rubric_evaluations"
         constraints = [
             models.UniqueConstraint(fields=["attempt", "rubric", "instructor"], name="rubric_evaluations_attempt_id_rubric_id_instructor_id_key"),
+            models.CheckConstraint(
+                condition=models.Q(origin__in=EvaluationOrigin.values),
+                name="rubric_evaluations_origin_check",
+            ),
         ]
 
 
@@ -79,6 +112,8 @@ class CriterionScore(models.Model):
         RubricCriterion, on_delete=models.DB_CASCADE, db_column="rubric_criterion_id"
     )
     score = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_default=0)
+    # Nivel formativo (E1-9): lo que se muestra; ``score`` queda como dato interno del docente.
+    level = models.CharField(max_length=20, choices=FormativeLevel.choices, null=True, blank=True)
     comment = models.TextField(null=True, blank=True)
     evidence_json = models.TextField(default="[]", db_default="[]")
 
@@ -86,6 +121,10 @@ class CriterionScore(models.Model):
         db_table = "criterion_scores"
         constraints = [
             models.UniqueConstraint(fields=["rubric_evaluation", "rubric_criterion"], name="criterion_scores_rubric_evaluation_id_rubric_criterion_id_key"),
+            models.CheckConstraint(
+                condition=models.Q(level__isnull=True) | models.Q(level__in=FormativeLevel.values),
+                name="criterion_scores_level_check",
+            ),
         ]
 
 

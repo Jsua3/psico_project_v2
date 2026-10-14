@@ -40,6 +40,7 @@ def _attempt(**overrides):
         revictimization_risk=False,
         started_at=datetime(2026, 10, 1, 10, 0, 0, tzinfo=timezone.utc),
         ended_at=datetime(2026, 10, 1, 10, 5, 30, tzinfo=timezone.utc),
+        active_seconds=0.0,
         case_version=SimpleNamespace(simulation_case=SimpleNamespace(title="Caso de prueba")),
     )
     base.update(overrides)
@@ -154,7 +155,7 @@ def test_build_ensambla_todo_en_el_orden_publico(sin_base_de_datos):
         "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
         "toolsUsed", "retries", "prohibitedRetries", "reflectionsCount", "safeExitUsed",
         "visitedNodeTitles", "competencies", "recommendations", "summaryMessage",
-        "totalDurationSeconds", "timeline", "ending",
+        "totalDurationSeconds", "activeSeconds", "clockSeconds", "timeline", "ending",
     ]
     assert report["reflectionsCount"] == 3
     assert report["totalDurationSeconds"] == 330

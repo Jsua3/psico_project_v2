@@ -46,6 +46,9 @@ from apps.simulation.models import (
 )
 
 CASE_CODE = "SIM-VBG-001"
+#: Reglas del caso (``case_versions.rules``, E1-7): la segunda oportunidad la conserva este caso
+#: por la decisión 10, una excepción explícita a RN-08; los casos nuevos nacen sin ella (ED-7).
+CASE_RULES = {"secondChance": True}
 #: Casos legacy del mismo dominio que deben retirarse del catálogo al sembrar
 #: el canónico (evita que aparezcan casos de feminicidio duplicados).
 LEGACY_DUPLICATE_CASE_CODES = ("SOC-FEM-001", "VBG-001")
@@ -1145,9 +1148,11 @@ class Command(BaseCommand):
                 narrative_context=NARRATIVE_CONTEXT,
                 published_at=timezone.now(),
                 created_by=case.created_by,
+                rules=json.dumps(CASE_RULES),
             )
         else:
             version.status = "PUBLISHED"
+            version.rules = json.dumps(CASE_RULES)
             version.narrative_context = NARRATIVE_CONTEXT
             version.published_at = version.published_at or timezone.now()
             version.save()

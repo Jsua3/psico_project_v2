@@ -132,6 +132,28 @@ IMPORTED_STUDENT_DEFAULT_PASSWORD = (
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
 # un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.
+def _env_flag(name, default=False):
+    """Bandera booleana por variable de entorno: 1/true/yes/on la encienden; ausente, ``default``."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8) ───────────
+# Apagadas por defecto: lo nuevo que cambia lo que el visual consume ya está en el servidor, pero
+# el comportamiento anterior sigue activo hasta que el visual migre. Cada una se retira (pasa a
+# «activa» y se borra lo viejo) en F9-10 del visual o en E5-10, lo que ocurra primero.
+#: E1-1 · con un intento abierto, `forceNew` de un ESTUDIANTE → 409 ATTEMPT_ALREADY_OPEN (RN-07).
+ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
+#: E1-7 · la respuesta de una decisión no trae clasificación, deltas ni mensaje evaluativo: la
+#: retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
+FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
+#: E1-9 · las vistas del docente incluyen el total numérico de la evaluación (``totalScore``).
+#: Apagada (ED-2, RN-09): la evaluación es formativa, por niveles; el total no viaja y el estudiante
+#: nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
+RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }

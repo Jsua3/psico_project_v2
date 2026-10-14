@@ -5,6 +5,7 @@ from .attempt import (  # noqa: F401
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptReport,
     AttemptStatus,
     AttemptWorldState,
     ReflectionJournal,
@@ -19,8 +20,11 @@ from .case import (  # noqa: F401
     SimulationNode,
 )
 from .rubric import (  # noqa: F401
+    LEVEL_INDEX,
     AuditLog,
     CriterionScore,
+    EvaluationOrigin,
+    FormativeLevel,
     PublicationChecklist,
     PublicationChecklistItem,
     Rubric,

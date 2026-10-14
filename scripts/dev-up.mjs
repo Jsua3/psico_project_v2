@@ -15,6 +15,7 @@ import {
   assessContainerOwnership,
   assessDevDataVolumeVersion,
   assessVolumeOwnership,
+  buildSchemaGateCommand,
   decideSchemaGateAction,
 } from './dev-environment-guard.mjs';
 
@@ -145,34 +146,13 @@ function ensureFrontendDeps() {
   run('npm', ['install'], { cwd: FRONTEND });
 }
 
-// Tablas jalonadoras del esquema del simulador, de la más antigua a la más
-// reciente (simulation_rubric_assignments la crea la migración simulation/0004).
-// Si falta cualquiera, la BD viene de una versión anterior y hay que correr
-// el bootstrap (idempotente) para completar el esquema.
-const REQUIRED_SIM_TABLES = [
-  'simulation_cases',
-  'grupo_case_version',
-  'simulation_rubric_assignments',
-];
-
 function simulationSchemaReady() {
-  const regclassList = REQUIRED_SIM_TABLES
-    .map((t) => `to_regclass('public.${t}')`)
-    .join(', ');
+  // `migrate --check` sale con 0 solo si no queda ninguna migración por aplicar
+  // (E1-0a, M-4 de la revisión de E0). Sin `shell: isWin` a propósito: spawnSync
+  // invoca el .exe directamente (ruta absoluta), igual que venvPythonVersion().
   const result = spawnSync(
     venvPython(),
-    [
-      'manage.py',
-      'shell',
-      '-c',
-      `from django.db import connection; c=connection.cursor(); c.execute("SELECT ${regclassList}"); raise SystemExit(0 if all(c.fetchone()) else 1)`,
-    ],
-    // NOTA: sin `shell: isWin` a propósito. Este argumento -c contiene
-    // comillas dobles embebidas; con shell:true en Windows, Node delega en
-    // cmd.exe /c, que no las escapa (ver DEP0190) y rompe el parseo del
-    // comando, haciendo que este chequeo falle SIEMPRE sin importar el
-    // esquema real. spawnSync invoca el .exe directamente (ruta absoluta),
-    // no necesita shell, igual que venvPythonVersion() más arriba.
+    buildSchemaGateCommand().args,
     { cwd: BACKEND, stdio: 'pipe', env: { ...process.env, DB_PORT } },
   );
   return result.status === 0;
@@ -185,8 +165,8 @@ function ensureDevDatabase() {
   if (action === 'start') {
     return;
   }
-  console.error('[siep] La base de datos no tiene el esquema del simulador.');
-  console.error(`[siep] Chequeo fallido: faltan una o más tablas centinela (${REQUIRED_SIM_TABLES.join(', ')}).`);
+  console.error('[siep] La base de datos no tiene el esquema al día.');
+  console.error('[siep] Chequeo fallido: `manage.py migrate --check` (faltan migraciones por aplicar o la base viene de un esquema anterior).');
   console.error('[siep] npm run up NO siembra bases de datos automáticamente.');
   console.error('[siep] Si esta base es local, propia de este checkout y reemplazable, ejecuta:');
   console.error('[siep]     npm run db:bootstrap -- --yes');

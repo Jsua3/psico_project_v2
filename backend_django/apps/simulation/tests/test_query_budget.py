@@ -37,10 +37,16 @@ pytestmark = pytest.mark.req("RNF-05")
 #: Presupuesto de consultas por request. Solo baja (E5-1).
 QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
-    "get_world": 16,  # (2) una LECTURA que escribe: D-15, lo corrige E1-6
-    "patch_world_state": 19,  # (3) E5-1 apunta a ≤ 6
-    "enter_room": 25,  # (3)
-    "post_decision": 9,  # (4)
+    # E1-3 (cerrojo del intento, R4): +1 consulta (SELECT … FOR UPDATE) por orden que muta el
+    # intento; decidir suma otra por la búsqueda de repetición. E5-1 las consolida.
+    "get_world": 14,  # (0) era 16 con 2 escrituras: una LECTURA que escribía (D-15); E1-6 la volvió pura
+    # El primer PATCH tras cargar el mundo ya persiste la sincronización que antes hacía el GET
+    # (+1 INSERT del estado): 19 → 20 por el cerrojo (E1-3) → 21 por esa sincronización (E1-6).
+    "patch_world_state": 21,  # (4) era 19 (3); E5-1 apunta a ≤ 6
+    "enter_room": 26,  # (3) era 25: +1 cerrojo (E1-3) y +1 UPDATE del tiempo (E1-5), −1 sync del GET (E1-6)
+    # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
+    # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
+    "post_decision": 12,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina
 }
@@ -114,6 +120,10 @@ def scenario_enter_room(estudiante, case_version_id):
 
 def scenario_post_decision(estudiante, case_version_id):
     _, client, attempt_id, token, data = _start(estudiante, case_version_id, "BUD-DECIDE")
+    # Un jugador real ya cargó y recorrió el mundo al decidir: sin estado del mundo los efectos del
+    # caso no se escribían y la medición subestimaba la decisión (E1-6 la hace con el estado creado).
+    map_key = _map_key(client, attempt_id, token)
+    _walk(client, attempt_id, token, map_key, PATH_TO_FAMILIA[:1])
     option = next(
         o for o in data["currentNode"]["options"]
         if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"

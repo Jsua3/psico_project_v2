@@ -25,6 +25,10 @@ class AttemptStatus(models.TextChoices):
     REPLACED = "REPLACED"
 
 
+#: Estados de un intento abierto: el «intento activo» del estudiante (se reanuda o se reemplaza).
+#: ``lifecycle.OPEN_STATUSES`` los deriva de la tabla de transiciones; una prueba exige que coincidan.
+OPEN_ATTEMPT_STATUSES = (AttemptStatus.IN_PROGRESS, AttemptStatus.PAUSED)
+
 #: Escala de los indicadores del intento: estrés, confianza en la persona y riesgo de la víctima.
 INDICATOR_MIN = 0
 INDICATOR_MAX = 100
@@ -66,11 +70,42 @@ class SimulationAttempt(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     locked_at = models.DateTimeField(null=True, blank=True)
+    # Quién y por qué cerró el intento como REPLACED (E1-2): el docente o el ADMIN en la acción
+    # docente, el propio estudiante en el ``forceNew`` heredado. Vacíos en cualquier otro estado.
+    replaced_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        db_column="replaced_by_id", related_name="+",
+    )
+    replace_reason = models.TextField(null=True, blank=True)
+    # Tiempo activo acumulado (E1-5, decisión 14): cada orden que cambia el intento suma
+    # ``min(ahora − last_activity_at, 300)``; la pausa no suma. Reemplaza los eventos
+    # WORLD_POSITION_UPDATED como fuente del tiempo (ver ``services/attempt_duration``).
+    active_seconds = models.FloatField(default=0.0, db_default=0)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "simulation_attempts_v2"
         constraints = [
             models.CheckConstraint(condition=models.Q(status__in=AttemptStatus.values), name="simulation_attempts_v2_status_check"),
+            # DM-5.4: un intento abierto por estudiante y caso. Última defensa de la política de
+            # inicio (E1-1): dos POST simultáneos no pueden crear dos intentos abiertos.
+            models.UniqueConstraint(
+                fields=["student", "case_version"],
+                condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES),
+                name="uq_attempts_open_per_student_case",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(stress_index__gte=INDICATOR_MIN, stress_index__lte=INDICATOR_MAX),
+                name="ck_attempts_stress_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(victim_risk__gte=INDICATOR_MIN, victim_risk__lte=INDICATOR_MAX),
+                name="ck_attempts_victim_risk_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(user_trust__gte=INDICATOR_MIN, user_trust__lte=INDICATOR_MAX),
+                name="ck_attempts_user_trust_range",
+            ),
         ]
         indexes = [
             models.Index(fields=["student", "status"], name="idx_attempts_student_status"),
@@ -93,13 +128,48 @@ class AttemptEvent(models.Model):
     stress_delta = models.IntegerField(default=0, db_default=0)
     detail = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
+    # Idempotencia (E1-3): el ``requestId`` que el cliente puso a la orden, en el evento primario de
+    # esa orden. Único por intento: la misma orden dos veces deja un solo evento. NULL = sin clave.
+    request_id = models.CharField(max_length=64, null=True, blank=True)
 
     class Meta:
         db_table = "attempt_events"
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "request_id"], name="uq_attempt_events_attempt_request"),
+        ]
         indexes = [
             models.Index(fields=["attempt", "occurred_at"], name="idx_attempt_events_att_time"),
         ]
         ordering = ["occurred_at", "id"]
+
+
+class AttemptReport(models.Model):
+    """El reporte del intento, congelado al completarse (E1-8, RF-22, CU-12, TD-08, N2).
+
+    Se escribe una sola vez, dentro de la transacción que completa el intento, y no se
+    vuelve a guardar: lo que la persona vio al cerrar no cambia cuando después cambian las
+    reglas o los textos del caso (Review Focus 5). ``report_json`` es un superconjunto del
+    reporte de cierre de siempre (más ``decisionReview[]``, el ordinal y el tiempo por escena);
+    ``definition_hash`` es la huella de la definición del caso con la que se cerró y
+    ``attempt_ordinal`` el n.º de intento del estudiante en el caso (RQ-NEG-001/003).
+    """
+
+    attempt = models.OneToOneField(
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="report", db_column="attempt_id",
+    )
+    report_json = models.TextField()
+    report_schema_version = models.IntegerField(default=1, db_default=1)
+    definition_hash = models.CharField(max_length=64)
+    attempt_ordinal = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attempt_reports"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise RuntimeError("attempt_reports es inmutable: un reporte cerrado no se vuelve a guardar")
+        super().save(*args, **kwargs)
 
 
 class ReflectionJournal(models.Model):

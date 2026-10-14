@@ -61,6 +61,11 @@ class CaseVersion(models.Model):
     # Optimistic-lock column (Spring @Version) + world schema version.
     version = models.BigIntegerField(default=0, db_default=0)
     world_schema_version = models.IntegerField(default=1, db_default=1)
+    # Reglas de la versión (JSON en TEXT, como los demás): ``secondChance`` (¿se concede una
+    # segunda oportunidad ante una primera respuesta riesgosa o inadecuada?) y ``feedbackTiming``
+    # (``IMMEDIATE`` | ``AT_CLOSE``). Ausente = segunda oportunidad apagada (ED-7). Ver
+    # ``services/case_rules.py``.
+    rules = models.TextField(default="{}", db_default="{}")
 
     class Meta:
         db_table = "case_versions"
@@ -123,6 +128,12 @@ class DecisionOption(models.Model):
     immediate_feedback = models.TextField(default="")
     prohibited_conduct = models.BooleanField(default=False, db_default=False)
     prohibition_reason = models.TextField(blank=True, null=True)
+    # Consecuencia narrativa (lo que se ve al elegir) frente a retroalimentación pedagógica (lo
+    # que se explica al cierre, con su fundamento): decisiones 6 y 10, RN-08 (E1-7). Vacíos: la
+    # consecuencia cae a la narrativa del nodo destino y la explicación a ``immediate_feedback``.
+    consequence_text = models.TextField(blank=True, null=True)
+    theory_basis = models.TextField(blank=True, null=True)
+    feedback_text = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = "decision_options"

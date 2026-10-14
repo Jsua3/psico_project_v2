@@ -1,9 +1,12 @@
 import json
+import uuid
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
@@ -296,7 +299,24 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
     assert advanced.data["data"]["currentNode"]["key"] != node_key
 
 
-def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_id):
+@pytest.fixture
+def time_passes(monkeypatch):
+    """Devuelve ``advance(segundos)``: adelanta el reloj entre dos respuestas deliberadas.
+
+    La misma opción dos veces en menos de 2 s es un doble clic (E1-3) y no gasta la segunda
+    oportunidad; las pruebas que simulan una respuesta deliberada dejan pasar el tiempo.
+    """
+    real_now = timezone.now
+    offset = {"seconds": 0}
+    monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=offset["seconds"]))
+
+    def advance(seconds):
+        offset["seconds"] += seconds
+
+    return advance
+
+
+def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_id, time_passes):
     """Regla de 2 oportunidades: la 1ª respuesta mala reintenta; la 2ª se registra
     y avanza (queda el registro), aunque siga siendo riesgosa/inadecuada."""
     assign_case_to_student(estudiante, case_version_id, "SIM-2STRIKE")
@@ -313,13 +333,16 @@ def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_i
 
     # 1ª respuesta mala -> reintento, no avanza, retryRequired True
     r1 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
-                {"attemptToken": token, "decisionOptionId": bad.id}, format="json").data["data"]
+                {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
+                format="json").data["data"]
     assert r1["currentNode"]["key"] == node_key
     assert r1["feedback"]["retryRequired"] is True
 
-    # 2ª respuesta mala -> se registra y avanza, retryRequired False
+    # 2ª respuesta mala (deliberada: pasan unos segundos) -> se registra y avanza, retryRequired False
+    time_passes(5)
     r2 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
-                {"attemptToken": token, "decisionOptionId": bad.id}, format="json").data["data"]
+                {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
+                format="json").data["data"]
     assert r2["currentNode"]["key"] != node_key
     assert r2["feedback"]["retryRequired"] is False
     assert AttemptEvent.objects.filter(
@@ -438,8 +461,8 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
 def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     estudiante, case_version_id
 ):
-    """Un intento cerrado informa un tiempo activo entero acotado por el total, y el
-    historial no carga eventos de intentos sin terminar (su duración activa es None)."""
+    """Un intento cerrado informa un tiempo activo entero acotado por el total (del acumulador
+    del intento, E1-5), y el de un intento sin terminar es None."""
     assign_case_to_student(estudiante, case_version_id, "SIM-HFIN")
     c = cl(estudiante)
     closed = c.post("/api/simulation/attempts",
@@ -463,17 +486,13 @@ def test_attempt_history_active_duration_and_events_only_for_finished_attempts(
     assert unfinished["status"] == "IN_PROGRESS"
     assert unfinished["activeDurationSeconds"] is None
 
-    # La consulta de marcas de tiempo es la única que LEE event_type de attempt_events
-    # (la de conteos de decisiones lo usa solo para filtrar, no lo selecciona).
+    # Desde E1-5 el tiempo activo sale del acumulador: ninguna consulta LEE event_type de
+    # attempt_events (la de conteos de decisiones lo usa solo para filtrar, no lo selecciona).
     marks_sql = [
         q["sql"] for q in queries.captured_queries
         if '"attempt_events"."event_type"' in q["sql"].split(" FROM ")[0]
     ]
-    assert len(marks_sql) == 1, "una sola consulta de eventos para el tiempo activo"
-    # Según el driver (psycopg 3) el UUID viaja sin guiones dentro del SQL literal.
-    sql_text = marks_sql[0].replace("-", "")
-    assert closed["attemptId"].replace("-", "") in sql_text
-    assert running["attemptId"].replace("-", "") not in sql_text, "no se cargan eventos del intento en curso"
+    assert marks_sql == [], "el historial ya no recorre los eventos para calcular el tiempo activo"
 
 
 def test_student_report_returns_completion_report(estudiante, case_version_id):
@@ -542,9 +561,11 @@ def _world(c, attempt_id, token):
 
 def _decide(c, attempt_id, token, case_version_id, option_key):
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
+    # Respuesta deliberada: lleva su requestId como el cliente real (E1-3); sin él, la misma opción
+    # dos veces en menos de 2 s es un doble clic y no gasta la segunda oportunidad.
     resp = c.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",
-        {"attemptToken": token, "decisionOptionId": option.id},
+        {"attemptToken": token, "decisionOptionId": option.id, "requestId": uuid.uuid4().hex},
         format="json",
     )
     assert resp.status_code == 200, f"{option_key}: {resp.data}"
@@ -672,7 +693,7 @@ def test_report_reports_zero_retries_when_none_happened(estudiante, case_version
     assert report["retries"] == 0
 
 
-def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_version_id):
+def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_version_id, time_passes):
     """La regla de reintento no cambia: la 2.ª respuesta mala sí queda registrada y cuenta."""
     assign_case_to_student(estudiante, case_version_id, "SIM-2NDCOUNTS")
     c = cl(estudiante)
@@ -681,6 +702,7 @@ def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_
     assert _world(c, attempt_id, token).status_code == 200
 
     _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # reintento
+    time_passes(5)  # una respuesta deliberada, no un doble clic
     _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # registrada
     c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
            {"attemptToken": token, "reason": "test"}, format="json")

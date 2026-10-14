@@ -35,6 +35,7 @@ TABLES = {
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
+    "attempt_reports",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -47,12 +48,14 @@ UNIQUE_COLUMNS = {
     "users": [("email",)],
     "grupos": [("codigo",)],
     "simulation_cases": [("code",)],
-    "simulation_attempts_v2": [("attempt_token_hash",)],
+    "simulation_attempts_v2": [("attempt_token_hash",), ("student_id", "case_version_id")],  # el 2.º, parcial: solo abiertos
     "student_case_completion": [("student_id", "simulation_case_id")],
     "case_versions": [("simulation_case_id", "semantic_version")],
     "simulation_nodes": [("case_version_id", "node_key")],
     "decision_options": [("case_version_id", "option_key")],
     "reflection_journals": [("attempt_id", "node_id")],
+    "attempt_events": [("attempt_id", "request_id")],
+    "attempt_reports": [("attempt_id",)],
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
@@ -73,11 +76,13 @@ INDEXES = {
     "idx_audit_logs_time",
     "idx_audit_logs_retention",
     "uq_active_case_version_rubric_assignment",
+    "uq_attempts_open_per_student_case",
 }
 
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
 ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
+    ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_versions", "simulation_case_id"): "CASCADE",
     ("clinical_tools", "case_version_id"): "CASCADE",
@@ -101,6 +106,7 @@ ON_DELETE = {
     ("publication_checklist_items", "checklist_id"): "CASCADE",
     ("publication_checklists", "case_version_id"): "CASCADE",
     ("reflection_journals", "attempt_id"): "CASCADE",
+    ("simulation_attempts_v2", "replaced_by_id"): "SET NULL",
     ("rubric_criteria", "rubric_id"): "CASCADE",
     ("rubric_evaluations", "attempt_id"): "CASCADE",
     ("rubrics", "case_version_id"): "CASCADE",
@@ -152,15 +158,31 @@ def _publication_checklists_status():
     )
 
 
-def _simulation_attempts_status():
+def _attempt_with(**fields):
     version = _published_version()
     SimulationAttempt.objects.create(
         attempt_token_hash=uuid.uuid4().hex,
         case_version=version,
         student=_admin(),
         current_node=SimulationNode.objects.filter(case_version=version, start_node=True).first(),
-        status="LOST",
+        **fields,
     )
+
+
+def _simulation_attempts_status():
+    _attempt_with(status="LOST")
+
+
+def _attempts_stress_range():
+    _attempt_with(stress_index=101)
+
+
+def _attempts_victim_risk_range():
+    _attempt_with(victim_risk=-1)
+
+
+def _attempts_user_trust_range():
+    _attempt_with(user_trust=101)
 
 
 CHECKS = {
@@ -170,6 +192,9 @@ CHECKS = {
     "map_objects_object_type_check": _map_objects_object_type,
     "publication_checklists_status_check": _publication_checklists_status,
     "simulation_attempts_v2_status_check": _simulation_attempts_status,
+    "ck_attempts_stress_range": _attempts_stress_range,
+    "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
+    "ck_attempts_user_trust_range": _attempts_user_trust_range,
 }
 
 
