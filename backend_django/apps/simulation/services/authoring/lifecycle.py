@@ -27,6 +27,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from apps.simulation.models import CaseReview, CaseVersion
 from apps.simulation.models.case import ReviewDecision, ReviewReason
+from apps.simulation.services import validation_issues
 from shared import policies
 from shared.exceptions import ApiError
 
@@ -120,7 +121,7 @@ def publishing_blockers(version):
             "code": "VALIDATION_ERRORS",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             "message": f"El caso tiene {len(errors)} error(es) de validación que impiden publicarlo.",
-            "issues": [{"code": e["code"], "message": e["message"]} for e in errors],
+            "issues": validation_issues.build_issues(errors),
         })
     return blockers
 

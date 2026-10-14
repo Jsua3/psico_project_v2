@@ -280,6 +280,14 @@ class WorldValidateView(_AuthoringView):
         return api_ok(svc.validate_world(case_version_id))
 
 
+class CaseValidateView(_AuthoringView):
+    """C6 · ``{issues: ValidationIssue[], canPublish}`` (E2-8)."""
+
+    def post(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=False)
+        return api_ok(svc.validate_case(case_version_id))
+
+
 class WorldPreviewView(_AuthoringView):
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)

@@ -17,7 +17,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from apps.simulation.services import world_validation
+from apps.simulation.services import validation_issues, world_validation
 from shared.jsonutils import (
     coerce_int as _int,
     read_map as _read_map,
@@ -101,6 +101,13 @@ def world_preview(case_version_id, node_id):
 def validate_world(case_version_id):
     version = require_version(case_version_id)
     return run_world_validation(version)
+
+
+def validate_case(case_version_id):
+    """C6: ``{issues: ValidationIssue[], canPublish}`` con mensajes llanos y sin ids."""
+    version = require_version(case_version_id)
+    issues, can_publish = validation_issues.issues_of(run_world_validation(version))
+    return {"issues": issues, "canPublish": can_publish}
 
 
 @transaction.atomic

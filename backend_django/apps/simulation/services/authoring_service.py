@@ -227,6 +227,10 @@ def validate_world(case_version_id):
     return world_definition.validate_world(case_version_id)
 
 
+def validate_case(case_version_id):
+    return world_definition.validate_case(case_version_id)
+
+
 @auditable("ADMIN_SAVE_WORLD", "CASE_VERSION")
 def save_world(case_version_id, node_id, request):
     return world_definition.save_world(case_version_id, node_id, request)

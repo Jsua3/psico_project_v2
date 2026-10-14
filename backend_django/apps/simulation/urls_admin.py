@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views.authoring_views import (
     AdminCaseListCreateView,
+    CaseValidateView,
     ChecklistView,
     CloneVersionView,
     DecisionDetailView,
@@ -32,6 +33,7 @@ urlpatterns = [
     path("<int:case_version_id>/publish", PublishView.as_view()),
     path("<int:case_version_id>/clone-version", CloneVersionView.as_view()),
     path("<int:case_version_id>/lifecycle", LifecycleView.as_view()),
+    path("<int:case_version_id>/validate", CaseValidateView.as_view()),
     path("<int:case_version_id>/nodes", NodeListView.as_view()),
     path("<int:case_version_id>/nodes/<int:node_id>", NodeDetailView.as_view()),
     path("<int:case_version_id>/decisions", DecisionListView.as_view()),

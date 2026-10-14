@@ -116,6 +116,7 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/checklist", {"contentOriginal": True}, 403),
     ("post", "<int:case_version_id>/publish", {}, 403),
     ("post", "<int:case_version_id>/clone-version", {}, 403),
+    ("post", "<int:case_version_id>/validate", {}, 404),
     ("get", "<int:case_version_id>/lifecycle", None, 404),
     ("post", "<int:case_version_id>/lifecycle", {"action": "submit"}, 403),
     ("post", "<int:case_version_id>/nodes", {"nodeKey": "x", "title": "t", "narrative": "n"}, 403),
