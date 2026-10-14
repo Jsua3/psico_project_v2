@@ -561,8 +561,13 @@ def _case_summary(case_version_id):
     return simulation_dto.case_summary(version, node_count)
 
 
-def listar_casos_asignados(grupo_id, profesor):
-    grupo = _require_grupo(grupo_id, profesor)
+def listar_casos_asignados(grupo_id, actor):
+    """Las versiones asignadas al grupo: su profesor o el ADMIN (``assignment.list``)."""
+    grupo = Grupo.objects.filter(pk=grupo_id).first()
+    if not grupo:
+        raise NotFound(f"Grupo no encontrado: {grupo_id}")
+    if not policies.can(actor, "assignment", "list", owner_id=grupo.profesor_id):
+        raise ValidationError("No tiene permiso sobre este grupo")
     ids = list(
         GrupoCaseVersion.objects.filter(grupo_id=grupo.id)
         .order_by("-assigned_at", "-case_version_id")

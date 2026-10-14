@@ -24,6 +24,8 @@ from .serializers import (
 _CAN_LIST_GROUPS = policy_permission("group", "list")
 _CAN_MANAGE_GROUP = policy_permission("group", "manage")
 _CAN_INVITE = policy_permission("membership", "invite")
+_CAN_LIST_ASSIGNMENTS = policy_permission("assignment", "list")
+_CAN_MANAGE_ASSIGNMENTS = policy_permission("assignment", "manage")
 _CAN_RESPOND = policy_permission("membership", "respond")
 
 
@@ -131,7 +133,9 @@ class GrupoEstudiantesImportTemplateView(APIView):
 
 
 class GrupoCasosView(APIView):
-    permission_classes = [policy_permission("assignment", "manage")]
+    def get_permissions(self):
+        # El ADMIN puede LISTAR las asignaciones de cualquier grupo; crearlas es del profesor.
+        return [(_CAN_LIST_ASSIGNMENTS if self.request.method == "GET" else _CAN_MANAGE_ASSIGNMENTS)()]
 
     def get(self, request, pk):
         return api_ok(services.listar_casos_asignados(pk, request.user))
