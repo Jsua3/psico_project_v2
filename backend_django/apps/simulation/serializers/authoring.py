@@ -78,6 +78,14 @@ class NodeRequest(serializers.Serializer):
     startNode = _flag()
     positionX = _number()
     positionY = _number()
+    # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
+    decisionPrompt = _text()
+
+
+class NodeReorderRequest(serializers.Serializer):
+    """``PATCH …/nodes/reorder``: los ids de todos los nodos, en el orden pedido (E3-6)."""
+
+    order = serializers.ListField(child=LenientIntegerField())
 
 
 class DecisionRequest(serializers.Serializer):

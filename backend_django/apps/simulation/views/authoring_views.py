@@ -127,6 +127,15 @@ class NodeListView(_AuthoringView):
         return api_ok(svc.create_node(case_version_id, body), "Nodo creado")
 
 
+class NodeReorderView(_AuthoringView):
+    """``PATCH …/nodes/reorder``: el orden informativo de todos los nodos (E3-6, RF-08)."""
+
+    def patch(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.NodeReorderRequest)
+        return api_ok(svc.reorder_nodes(case_version_id, body), "Orden de los nodos actualizado")
+
+
 class NodeDetailView(_AuthoringView):
     def put(self, request, case_version_id, node_id):
         self.version_for(request, case_version_id, mutate=True)

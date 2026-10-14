@@ -61,6 +61,11 @@ def create_node(case_version_id, request):
     return graph.create_node(case_version_id, request)
 
 
+@auditable("ADMIN_REORDER_NODES", "CASE_VERSION")
+def reorder_nodes(case_version_id, request):
+    return graph.reorder_nodes(case_version_id, request)
+
+
 @auditable("ADMIN_UPDATE_NODE", "NODE", 1)
 def update_node(case_version_id, node_id, request):
     return graph.update_node(case_version_id, node_id, request)

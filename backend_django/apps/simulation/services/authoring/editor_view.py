@@ -163,6 +163,8 @@ def node_editor_state(node):
         "startNode": node.start_node,
         "positionX": node.position_x,
         "positionY": node.position_y,
+        "decisionPrompt": node.decision_prompt,
+        "displayOrder": node.display_order,
     }
 
 

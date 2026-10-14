@@ -139,6 +139,7 @@ FOREIGN_ROUTES = [
     ("post", "<int:case_version_id>/tools", {"toolCode": "T", "label": "T"}, 403),
     ("put", "<int:case_version_id>/tools/<int:tool_id>", {"toolCode": "T", "label": "T"}, 403),
     ("delete", "<int:case_version_id>/tools/<int:tool_id>", None, 403),
+    ("patch", "<int:case_version_id>/nodes/reorder", {"order": []}, 403),
     ("put", "<int:case_version_id>/brief", {"context": "x"}, 403),
     ("post", "<int:case_version_id>/maps/<int:map_id>/hints", {"text": "x"}, 403),
     ("put", "<int:case_version_id>/hints/<int:hint_id>", {"text": "x"}, 403),

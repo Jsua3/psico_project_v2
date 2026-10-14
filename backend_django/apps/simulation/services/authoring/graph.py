@@ -1,11 +1,12 @@
 """El grafo del caso: nodos y decisiones."""
 import time
 
-from django.db import transaction
+from django.db import models, transaction
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import DecisionOption, SimulationNode
+from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 from shared.jsonutils import coerce_int as _int
 
@@ -14,6 +15,8 @@ from .guards import bump_revision, ensure_draft, in_version
 from .request_utils import flag, write_string_list
 
 VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
+#: El enunciado de la decisión es un párrafo corto (E3-6); más largo es narrativa, no enunciado.
+MAX_DECISION_PROMPT_LENGTH = 1200
 
 
 # ─── Node CRUD ────────────────────────────────────────────────────────────────
@@ -22,7 +25,41 @@ def create_node(case_version_id, request):
     version = ensure_draft(case_version_id, request.get("revision"))
     node = SimulationNode(case_version=version)
     _apply_node_request(node, request)
+    # Un nodo nuevo queda al final del orden informativo (E3-6).
+    last = SimulationNode.objects.filter(case_version_id=case_version_id).aggregate(
+        top=models.Max("display_order")
+    )["top"]
+    node.display_order = 0 if last is None else last + 1
     node.save()
+    bump_revision(case_version_id)
+    return editor(case_version_id)
+
+
+@transaction.atomic
+def reorder_nodes(case_version_id, request):
+    """``PATCH …/nodes/reorder``: el orden informativo de **todos** los nodos, de una vez (RF-08).
+
+    El cuerpo trae cada nodo de la versión exactamente una vez; ``display_order`` pasa a ser su
+    posición (0…n-1). No toca el grafo ni el nodo de inicio: es solo cómo el editor los lista.
+    """
+    ensure_draft(case_version_id, request.get("revision"))
+    order = request.get("order")
+    node_ids = set(
+        SimulationNode.objects.filter(case_version_id=case_version_id).values_list("id", flat=True)
+    )
+    if not isinstance(order, list) or len(order) != len(set(order)) or set(order) != node_ids:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El orden debe incluir cada nodo del caso exactamente una vez.",
+            status.HTTP_400_BAD_REQUEST,
+            field="order",
+        )
+    positions = models.Case(
+        *[models.When(pk=node_id, then=models.Value(position)) for position, node_id in enumerate(order)],
+        output_field=models.IntegerField(),
+    )
+    SimulationNode.objects.filter(case_version_id=case_version_id).update(display_order=positions)
     bump_revision(case_version_id)
     return editor(case_version_id)
 
@@ -75,6 +112,11 @@ def _apply_node_request(node, request):
     node.start_node = flag(request, "startNode")
     node.position_x = request.get("positionX")
     node.position_y = request.get("positionY")
+    # «Ausente = no tocar»; una cadena vacía borra el enunciado (es blando).
+    if "decisionPrompt" in request:
+        node.decision_prompt = validate_plain_text(
+            request.get("decisionPrompt"), MAX_DECISION_PROMPT_LENGTH, "decisionPrompt", multiline=True
+        )
 
 
 # ─── Decision CRUD ──────────────────────────────────────────────────────────

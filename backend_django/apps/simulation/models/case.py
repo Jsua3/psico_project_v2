@@ -179,6 +179,11 @@ class SimulationNode(models.Model):
     terminal_node = models.BooleanField(default=False, db_default=False)
     position_x = models.IntegerField(null=True, blank=True, default=0)
     position_y = models.IntegerField(null=True, blank=True, default=0)
+    # El enunciado de la decisión (E3-6, RF-06): lo que el estudiante lee antes de elegir. Texto
+    # plano y blando: vacío = la escena no lo declara.
+    decision_prompt = models.TextField(default="", db_default="")
+    # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
+    display_order = models.IntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "simulation_nodes"
