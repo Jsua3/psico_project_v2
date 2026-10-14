@@ -110,3 +110,56 @@ def test_student_report_keeps_its_own_scope(estudiante, profesor, admin, otro_es
     assert cl(admin).get(url).status_code == 200
     assert cl(ajeno).get(url).status_code == 403
     assert cl(otro_estudiante).get(url).status_code == 403
+
+
+# ─── E2-3 · El ADMIN (y el PROFESOR) no juegan (ED-5, RF-02) ────────────────────────────
+def _play_calls(attempt, case_version_id):
+    """(método, ruta, cuerpo) de las 12 órdenes de juego, con un intento ajeno real."""
+    token = {"attemptToken": attempt["attemptToken"]}
+    base = f"{BASE}/attempts/{attempt['attemptId']}"
+    return [
+        ("post", f"{BASE}/attempts", {"caseVersionId": case_version_id}),
+        ("get", f"{BASE}/cases/{case_version_id}/active-attempt", None),
+        ("get", f"{BASE}/attempts/history", None),
+        ("post", f"{base}/decisions", {**token, "decisionOptionId": 1}),
+        ("post", f"{base}/reflections", {**token, "nodeId": 1, "text": "x"}),
+        ("post", f"{base}/safe-exit", {**token, "reason": "x"}),
+        ("post", f"{base}/resume", token),
+        ("patch", f"{base}/world-state", {**token, "playerX": 1, "playerY": 1}),
+        ("post", f"{base}/enter-room", {**token, "targetNodeKey": "x"}),
+        ("post", f"{base}/interactions/x", token),
+        ("post", f"{base}/npcs/x", token),
+        ("post", f"{base}/tools/use", {**token, "toolCode": "x"}),
+    ]
+
+
+@pytest.mark.req("RF-02")
+@pytest.mark.parametrize("who", ["admin", "profesor"])
+def test_only_students_play(request, who, abierto, case_version_id):
+    actor = cl(request.getfixturevalue(who))
+    for method, path, body in _play_calls(abierto, case_version_id):
+        response = getattr(actor, method)(path, body, format="json") if body is not None else actor.get(path)
+        assert response.status_code == 403, (method, path)
+        assert response.data["code"] == "FORBIDDEN", (method, path)
+
+
+@pytest.mark.req("RF-02")
+def test_admin_cannot_create_an_attempt_even_with_the_case_published(admin, case_version_id):
+    from apps.simulation.models import SimulationAttempt
+
+    before = SimulationAttempt.objects.count()
+    response = cl(admin).post(f"{BASE}/attempts", {"caseVersionId": case_version_id}, format="json")
+
+    assert response.status_code == 403
+    assert SimulationAttempt.objects.count() == before
+
+
+@pytest.mark.req("RF-02")
+def test_the_editor_preview_still_works_for_the_admin_without_an_attempt(admin, case_version_id):
+    from apps.simulation.models import SimulationAttempt
+
+    before = SimulationAttempt.objects.count()
+    response = cl(admin).get(f"/api/admin/cases/{case_version_id}/world-preview")
+
+    assert response.status_code == 200
+    assert SimulationAttempt.objects.count() == before

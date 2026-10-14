@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
-from shared.permissions import IsEstudianteOrAdmin, policy_permission
+from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from apps.simulation.serializers.requests import (
@@ -36,7 +36,7 @@ class CasesView(APIView):
 
 
 class StartAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request):
         ser = StartAttemptRequest(data=request.data)
@@ -49,7 +49,7 @@ class StartAttemptView(APIView):
 
 
 class ActiveAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, case_version_id):
         state = game_service.find_active_attempt(case_version_id, request.user)
@@ -97,7 +97,7 @@ class AttemptEvaluationView(APIView):
 
 
 class AttemptHistoryView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request):
         return api_ok(game_service.list_attempt_history(request.user))
@@ -120,7 +120,7 @@ class ProgressMapView(APIView):
 
 
 class DecisionsView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = SelectDecisionRequest(data=request.data)
@@ -136,7 +136,7 @@ class DecisionsView(APIView):
 
 
 class ReflectionsView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = ReflectionRequest(data=request.data)
@@ -150,7 +150,7 @@ class ReflectionsView(APIView):
 
 
 class SafeExitView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = SafeExitRequest(data=request.data)
@@ -163,7 +163,7 @@ class SafeExitView(APIView):
 
 
 class ResumeAttemptView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         ser = ResumeAttemptRequest(data=request.data)
@@ -185,7 +185,7 @@ class WorldView(APIView):
 
 
 class WorldStateView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def patch(self, request, attempt_id):
         # Valores crudos a propósito: la validación estricta (entero finito,
@@ -202,7 +202,7 @@ class WorldStateView(APIView):
 
 
 class InteractionView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id, interaction_key):
         result = world_service.open_interaction(
@@ -212,7 +212,7 @@ class InteractionView(APIView):
 
 
 class ToolUseView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         result = world_service.use_tool(
@@ -227,7 +227,7 @@ class ToolUseView(APIView):
 
 
 class NpcInteractionView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id, npc_key):
         result = world_service.record_npc_interaction(
@@ -237,7 +237,7 @@ class NpcInteractionView(APIView):
 
 
 class EnterRoomView(APIView):
-    permission_classes = [IsEstudianteOrAdmin]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def post(self, request, attempt_id):
         result = world_service.enter_room(
