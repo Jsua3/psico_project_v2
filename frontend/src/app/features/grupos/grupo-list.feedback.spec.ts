@@ -393,7 +393,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
       component.confirmarAgregar();
 
       // E2-10: el docente invita; la persona entra al grupo cuando acepta.
-      expect(component.mensajeEstudiante()).toBe('Invitación enviada a nuevo@siep.test: verá el grupo cuando la acepte.');
+      expect(component.mensajeEstudiante()).toBe('Si nuevo@siep.test es de un estudiante registrado, recibirá la invitación y verá el grupo cuando la acepte.');
       expect(component.mensajeEsError()).toBe(false);
       expect(notify.success).not.toHaveBeenCalled();
       expect(notify.error).not.toHaveBeenCalled();

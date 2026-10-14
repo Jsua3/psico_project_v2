@@ -142,7 +142,9 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       }));
       expect(api.replaceAttempt).toHaveBeenCalledWith('a-1', 'Se trabó el mundo');
       expect(api.attemptTrace).toHaveBeenCalledTimes(2);
-      expect(status()).toContain('Intento reemplazado');
+      // Se anuncia UNA vez, por el aviso del sistema; la región de estado de la pantalla queda para lo suyo.
+      expect(notify.success).toHaveBeenCalledWith(expect.stringContaining('Intento reemplazado'));
+      expect(status()).not.toContain('Intento reemplazado');
     });
 
     it('si se cancela el diálogo no se envía nada', async () => {
@@ -162,7 +164,25 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       replaceButton()!.click();
       await fixture.whenStable();
       fixture.detectChanges();
-      expect(status()).toContain('El intento ya está cerrado y no puede reemplazarse.');
+      expect(notify.error).toHaveBeenCalledWith('El intento ya está cerrado y no puede reemplazarse.');
+    });
+
+    // Revisión de F7b: el resultado del reemplazo no se queda en la región de estado, donde tapaba los avisos de la
+    // rúbrica (WCAG 4.1.3) y se repetía en cada recarga de la traza.
+    it('tras un reemplazo, un fallo al guardar la rúbrica sí llega a la región de estado', async () => {
+      await render({ ...openTrace('IN_PROGRESS'), save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
+      api.replaceAttempt.mockReturnValue(of({ attemptId: 'a-1', status: 'REPLACED', reason: 'x', replacedAt: '2026-10-14T10:00:00Z' }));
+      dialog.open.mockReturnValue({ closed: of('Se trabó el mundo') });
+      replaceButton()!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      type(scoreInput(0), '4');
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(status()).toContain('No fue posible guardar la evaluación');
     });
   });
 

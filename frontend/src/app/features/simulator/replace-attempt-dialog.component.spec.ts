@@ -2,6 +2,7 @@ import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
+import { DRAFT_COPY, draftCopyList } from './draft-copy';
 import { ReplaceAttemptDialogComponent } from './replace-attempt-dialog.component';
 
 /**
@@ -59,5 +60,29 @@ describe('ReplaceAttemptDialogComponent', () => {
   it('«Cancelar» cierra sin motivo', () => {
     button('Cancelar').click();
     expect(close).toHaveBeenCalledWith(undefined);
+  });
+
+  // Revisión de F7b: enviar sin motivo lleva el foco al campo (como los demás formularios), no lo deja a la deriva.
+  // req: RNF-04, BLOQUE-H
+  it('sin motivo, el foco va al campo del motivo', () => {
+    document.body.appendChild(host());
+    try {
+      (document.activeElement as HTMLElement | null)?.blur();
+      button('Reemplazar intento').click();
+      fixture.detectChanges();
+      expect(document.activeElement).toBe(reason());
+    } finally {
+      host().remove();
+    }
+  });
+
+  // Revisión de F7b: lo que se le dice al docente sobre la bitácora del estudiante es hermano de RN-07 y pasa por
+  // Psicología: sale del registro de borradores, no de un texto suelto.
+  // req: RN-07
+  it('la consecuencia del reemplazo sale del registro de borradores', () => {
+    expect(text(host())).toContain(DRAFT_COPY.replaceAttemptConsequence.text);
+    expect(draftCopyList().find(entry => entry.key === 'replaceAttemptConsequence')).toMatchObject({
+      decision: 'RN-07', owner: 'Psicología', review: 'validar',
+    });
   });
 });

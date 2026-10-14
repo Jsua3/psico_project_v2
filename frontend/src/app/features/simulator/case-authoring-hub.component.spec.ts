@@ -71,9 +71,11 @@ describe('hub de edición de casos (F7-7)', () => {
       expect(text(cards()[1])).toContain('1 nodo');
       expect(text(host())).not.toMatch(/\bDRAFT\b|\bPUBLISHED\b/);
       const edit = cards()[0].querySelector('a[href="/portal/casos/1/editor"]');
-      const play = cards()[0].querySelector('a[href="/portal/simulador/1"]');
       expect(text(edit)).toContain('Abrir entorno de edición');
-      expect(text(play)).toContain('Probar caso');
+      // ED-5: el hub es del administrador y el administrador no juega: probar el caso es la «Vista previa» del editor,
+      // no un enlace a la sala (que lo mandaba a «Sin permiso» desde su propia pantalla).
+      expect(cards()[0].querySelector('a[href^="/portal/simulador"]')).toBeNull();
+      expect(text(cards()[0])).not.toContain('Probar caso');
     });
 
     it('mientras carga: esqueleto con aria-busy, el estado leído y ninguna tarjeta', async () => {

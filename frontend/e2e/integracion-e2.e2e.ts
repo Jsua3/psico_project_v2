@@ -248,6 +248,14 @@ test.describe('@integracion-e2 bandeja de invitaciones (E2-10, C5)', () => {
         await expect(item.getByText('Miembro')).toBeVisible();
         await expect.poll(() => membershipOf(request, groupId, headers)).toBe('ACTIVE');
 
+        // Revisión de F7b: aceptar cambia los casos del estudiante; el panel ya guardó su lista (30 s) y el catálogo
+        // debe volver a pedirla, no servirla vieja («Aún no tienes casos asignados» con el grupo ya aceptado).
+        const catalog = page.waitForRequest(req => req.method() === 'GET' && req.url().includes('/api/simulation/catalog'));
+        await page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link', { name: 'Simulador', exact: true }).click();
+        await catalog;
+        await page.goBack();
+        await page.waitForURL(/\/portal\/invitaciones$/);
+
         await item.getByRole('button', { name: `Salir del grupo ${groupName}` }).click();
         const dialog = page.getByRole('alertdialog');
         await expect(dialog.getByRole('heading', { name: 'Salir del grupo' })).toBeVisible();

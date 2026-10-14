@@ -109,6 +109,56 @@ describe('pantalla Rúbricas (F7-5)', () => {
       expect(service['duplicate']).toHaveBeenCalledWith(4);
     });
 
+    // Revisión de F7b: el aviso de solo lectura es de ESA rúbrica; al abrir otra, crear una nueva o duplicar no se queda.
+    it('tras un 403, abrir otra rúbrica o empezar una nueva retira el aviso de solo lectura', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['update'].mockImplementation(http(403));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
+
+      component().openRubric(7);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+      expect(text(host())).not.toContain('Esta rúbrica es de solo lectura');
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).not.toContain('solo lectura');
+
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.rb-readonly'))).toContain('solo lectura');
+      component().newRubric();
+      fixture.detectChanges();
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+    });
+
+    // «Duplicar para personalizar» es la salida que la propia pantalla recomienda tras el 403 de lo que se editó: la
+    // copia lleva LO ESCRITO, no la versión guardada de la ajena (que descartaba el trabajo del docente).
+    it('duplicar con cambios sin guardar crea la copia con lo que se escribió', async () => {
+      await render({}, { role: 'PROFESOR' });
+      component().form.patchValue({ name: 'Mi versión de la entrevista' });
+      component().form.markAsDirty();
+      service['update'].mockImplementation(http(403));
+      service['create'].mockReturnValue(of(rubric(9, 'Copia de Mi versión de la entrevista', [60, 40])));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      buttonLabelled('Duplicar para personalizar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(service['duplicate']).not.toHaveBeenCalled();
+      const sent = service['create'].mock.calls[0][0];
+      expect(sent.name).toBe('Copia de Mi versión de la entrevista');
+      expect(sent.criteria).toHaveLength(2);
+      expect(sent.criteria.every((criterion: { id?: number }) => criterion.id === undefined)).toBe(true);
+      expect(component().selected()?.id).toBe(9);
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+    });
+
     it('activar una ajena (403) también lo explica', async () => {
       await render({}, { role: 'PROFESOR' });
       service['deactivate'].mockImplementation(http(403));

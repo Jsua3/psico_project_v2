@@ -8,6 +8,8 @@
  * `conocimiento` (microtexto de funcionamiento que se les enseña, sin que lo decidan). La hoja de revisión que se les
  * entrega sale de esta lista.
  */
+import { statusLabel } from '../../shared/ui/labels';
+
 export type DraftReview = 'validar' | 'conocimiento';
 
 export interface DraftCopyEntry {
@@ -220,6 +222,17 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Traza docente: nivel formativo de un criterio y de la evaluación',
     text: 'Destacado',
+  },
+  /**
+   * Lo que el diálogo «Reemplazar intento» le dice al docente que pasa con el intento y su bitácora (F7b-7, E1-2, RN-07;
+   * revisión de F7b). Hermana de `newAttemptConsequence`, que ve el estudiante: habla de la bitácora de la persona, así
+   * que Psicología fija la redacción. El rótulo del estado es el mismo que ve la lista de intentos.
+   */
+  replaceAttemptConsequence: {
+    decision: 'RN-07',
+    owner: 'Psicología',
+    where: 'Traza docente: diálogo «Reemplazar intento», consecuencia para el intento y su bitácora',
+    text: `El intento se cerrará como «${statusLabel('REPLACED')}» y su bitácora quedará bloqueada; la próxima vez que la persona entre al caso empezará uno nuevo.`,
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

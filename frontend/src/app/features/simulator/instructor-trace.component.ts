@@ -103,11 +103,11 @@ export class InstructorTraceComponent implements OnInit {
   protected readonly statusText = computed(() => {
     if (this.listState() === 'loading') return 'Cargando intentos…';
     if (this.detailState() === 'loading') return 'Cargando la trazabilidad…';
-    // El aviso de guardado o de fallo se anuncia aquí: la región existe antes de que cambie su texto.
-    return this.replaceMessage() || this.rubricMessage();
+    // El aviso de guardado o de fallo se anuncia aquí: la región existe antes de que cambie su texto. (El resultado del
+    // reemplazo docente sale por el aviso del sistema: aquí taparía los de la rúbrica y se repetiría al recargar.)
+    return this.rubricMessage();
   });
-  /** E1-2: resultado del reemplazo docente del intento abierto (se dice tras recargar la traza). */
-  readonly replaceMessage = signal('');
+  /** E1-2: hay un reemplazo docente en curso (su resultado se dice con un aviso del sistema). */
   readonly replacing = signal(false);
 
   /** Rótulo del total de la rúbrica (RN-09): la evaluación es formativa, no una nota oficial. */
@@ -200,7 +200,6 @@ export class InstructorTraceComponent implements OnInit {
     ref.closed.pipe(take(1)).subscribe(reason => {
       if (!reason) return;
       this.replacing.set(true);
-      this.replaceMessage.set('');
       this.instructorApi.replaceAttempt(item.attemptId, reason).subscribe({
         next: () => {
           this.replacing.set(false);
@@ -208,15 +207,11 @@ export class InstructorTraceComponent implements OnInit {
           this.notify.success(done);
           if (this.selectedAttemptId() === item.attemptId) this.reopen();
           this.loadAttempts();
-          this.replaceMessage.set(done);
         },
         error: (err: unknown) => {
           this.replacing.set(false);
           const text = apiErrorMessage(err, 'No fue posible reemplazar el intento.');
-          if (text) {
-            this.replaceMessage.set(text);
-            this.notify.error(text);
-          }
+          if (text) this.notify.error(text);
         },
       });
     });

@@ -8,7 +8,8 @@ export function mapAgregarEstudianteError(err: AgregarEstudianteHttpError): stri
 
   switch (err.status) {
     case 404:
-      return 'No existe un usuario con ese correo.';
+      // D-14: el servidor no revela si una cuenta existe; un 404 al invitar es el GRUPO que ya no está.
+      return 'El grupo ya no existe o no tienes acceso a él.';
     case 400:
       if (apiMessage.includes('rol estudiante')) {
         return 'El usuario existe, pero no tiene rol estudiante.';

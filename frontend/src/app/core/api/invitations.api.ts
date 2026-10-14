@@ -1,9 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 
 import { ApiResponse } from './api-response';
+import { CaseListCache } from './case-list-cache';
 import { MembershipStatus } from './grupo.service';
 
 /** C5 (E2-10): una invitación a un grupo; `id` es el del grupo (la membresía es grupo + estudiante). */
@@ -23,6 +24,7 @@ export interface Invitation {
 @Injectable({ providedIn: 'root' })
 export class InvitationsApi {
   private readonly http = inject(HttpClient);
+  private readonly caseList = inject(CaseListCache);
   private readonly API = '/api/me/invitations';
 
   list() {
@@ -43,7 +45,14 @@ export class InvitationsApi {
     return this.respond(this.http.post<ApiResponse<Invitation>>(`${this.API}/${groupId}/leave`, {}));
   }
 
+  /**
+   * Responder (o dejar un grupo) cambia los casos que ve el estudiante: la lista guardada por 30 s del panel y del
+   * catálogo no puede servir la de antes (aceptar y abrir «Simulador» enseguida decía «sin casos asignados»).
+   */
   private respond(request: Observable<ApiResponse<Invitation>>): Observable<Invitation> {
-    return request.pipe(map(response => response.data));
+    return request.pipe(
+      tap(() => this.caseList.invalidate()),
+      map(response => response.data),
+    );
   }
 }

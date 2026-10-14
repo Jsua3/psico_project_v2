@@ -380,7 +380,7 @@ describe('pantalla Grupos (F7-2)', () => {
       component().estudianteForm.setValue({ email: 'nuevo@siep.test' });
       component().confirmarAgregar();
       fixture.detectChanges();
-      expect(component().mensajeEstudiante()).toBe('Invitación enviada a nuevo@siep.test: verá el grupo cuando la acepte.');
+      expect(component().mensajeEstudiante()).toBe('Si nuevo@siep.test es de un estudiante registrado, recibirá la invitación y verá el grupo cuando la acepte.');
       const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
       expect(menu.items().map(item => item.label)).toContain('Invitar estudiante');
     });

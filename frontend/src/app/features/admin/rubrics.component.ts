@@ -131,7 +131,8 @@ export class RubricsComponent implements OnInit {
           this.messageIsError.set(false);
         }
         this.loading.set(false);
-        if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id);
+        // `load` ya decidió qué hacer con el aviso (keepMessage): abrir la primera no lo retira.
+        if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id, true);
       },
       error: () => {
         this.message.set('No fue posible cargar las rúbricas.');
@@ -176,8 +177,10 @@ export class RubricsComponent implements OnInit {
     return rubric.isDefault ? 'success' : (rubric.active ? 'info' : 'neutral');
   }
 
-  openRubric(id: number): void {
+  /** Abre una rúbrica. Elegir otra retira el aviso de la anterior (salvo cuando la apertura es la de `load`). */
+  openRubric(id: number, keepMessage = false): void {
     this.readOnly.set(false);
+    if (!keepMessage) this.clearMessage();
     this.rubricService.detail(id).subscribe({
       next: rubric => {
         this.selected.set(rubric);
@@ -192,6 +195,7 @@ export class RubricsComponent implements OnInit {
 
   newRubric(): void {
     this.readOnly.set(false);
+    this.clearMessage();
     this.selected.set(null);
     this.resetRubricForm({ name: '', description: '', version: '1.0' });
     this.criteria.clear();
@@ -249,7 +253,33 @@ export class RubricsComponent implements OnInit {
   }
 
   duplicate(): void {
-    this.withSelected(id => this.rubricService.duplicate(id), 'Rúbrica duplicada.');
+    // Con cambios sin guardar (p. ej. tras el 403 de una rúbrica ajena, que es justo cuando la pantalla ofrece duplicar)
+    // la copia lleva LO ESCRITO: duplicar la versión guardada descartaría el trabajo del docente.
+    if (!this.form.dirty) {
+      this.withSelected(id => this.rubricService.duplicate(id), 'Rúbrica duplicada.');
+      return;
+    }
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      focusFirstInvalid(this.host.nativeElement);
+      return;
+    }
+    const draft = this.payload();
+    this.rubricService.create({
+      ...draft,
+      name: `Copia de ${draft.name}`,
+      criteria: (draft.criteria ?? []).map(criterion => ({ ...criterion, id: undefined })),
+    }).subscribe({
+      next: copy => {
+        this.readOnly.set(false);
+        this.clearMessage();
+        this.selected.set(copy);
+        this.populate(copy);
+        this.notify.success('Rúbrica duplicada con tus cambios.');
+        this.load();
+      },
+      error: (err: unknown) => this.explainError(err, 'No fue posible duplicar la rúbrica.'),
+    });
   }
 
   setDefault(): void {
@@ -323,12 +353,19 @@ export class RubricsComponent implements OnInit {
     };
   }
 
+  /** El aviso de una rúbrica no acompaña a otra: se retira al abrir, crear o duplicar. */
+  private clearMessage(): void {
+    this.message.set('');
+    this.messageIsError.set(false);
+  }
+
   private withSelected(action: (id: number) => Observable<RubricAdmin>, success: string): void {
     const rubric = this.selected();
     if (!rubric) return;
     action(rubric.id).subscribe({
       next: updated => {
         this.readOnly.set(false);
+        this.clearMessage();
         this.selected.set(updated);
         this.populate(updated);
         this.notify.success(success);

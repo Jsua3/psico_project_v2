@@ -1,11 +1,11 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiDialogActions, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
-import { statusLabel } from '../../shared/ui/labels';
+import { DRAFT_COPY } from './draft-copy';
 
 export interface ReplaceAttemptDialogData {
   studentAlias: string;
@@ -40,13 +40,14 @@ export const REPLACE_REASON_MAX = 500;
 export class ReplaceAttemptDialogComponent {
   private readonly ref = inject<DialogRef<string | undefined>>(DialogRef);
   private readonly data = inject<ReplaceAttemptDialogData>(DIALOG_DATA);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly max = REPLACE_REASON_MAX;
   protected readonly reason = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(REPLACE_REASON_MAX)] });
   protected readonly form = new FormGroup({ reason: this.reason });
+  /** De quién es el intento (operativo) y qué pasa con él y su bitácora (borrador de Psicología, RN-07). */
   protected readonly description =
-    `El intento de ${this.data.studentAlias} en «${this.data.caseTitle}» se cerrará como «${statusLabel('REPLACED')}» ` +
-    'y su bitácora quedará bloqueada; la próxima vez que entre al caso empezará uno nuevo.';
+    `Intento de ${this.data.studentAlias} en «${this.data.caseTitle}». ${DRAFT_COPY.replaceAttemptConsequence.text}`;
   protected readonly hint = `Queda registrado en el intento. Hasta ${REPLACE_REASON_MAX} caracteres.`;
 
   protected error(): string | null {
@@ -58,7 +59,11 @@ export class ReplaceAttemptDialogComponent {
   protected confirm(): void {
     this.reason.markAsTouched();
     const value = this.reason.value.trim();
-    if (!value || this.reason.invalid) return;
+    if (!value || this.reason.invalid) {
+      // El error se dice en línea; el foco va al campo, como en los demás formularios.
+      this.host.nativeElement.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+      return;
+    }
     this.ref.close(value);
   }
 

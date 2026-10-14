@@ -462,7 +462,8 @@ export class GrupoListComponent implements OnInit {
     this.grupoService.agregarEstudiante(this.grupoSeleccionado()!, email!.trim().toLowerCase()).subscribe({
       next: () => {
         // E2-10: el docente invita; la persona entra al grupo cuando acepta (su bandeja de invitaciones).
-        this.mensajeEstudiante.set(`Invitación enviada a ${email!.trim().toLowerCase()}: verá el grupo cuando la acepte.`);
+        // D-14: el servidor responde lo mismo exista o no la cuenta, así que el texto tampoco afirma que se envió.
+        this.mensajeEstudiante.set(`Si ${email!.trim().toLowerCase()} es de un estudiante registrado, recibirá la invitación y verá el grupo cuando la acepte.`);
         this.mensajeEsError.set(false);
         this.estudianteForm.reset();
         this.agregandoEstudiante.set(false);

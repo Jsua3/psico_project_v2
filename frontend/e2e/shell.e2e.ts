@@ -22,12 +22,12 @@ async function scrollDown(page: Page): Promise<void> {
 test.describe('@shell barra de vidrio del portal', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('estudiante: sus tres destinos, el activo marcado y sin barra en la sala de juego', async ({ page }) => {
+  test('estudiante: sus cuatro destinos, el activo marcado y sin barra en la sala de juego', async ({ page }) => {
     await loginAs(page, 'estudiante');
     const bar = page.locator('header.cromo');
     await expect(bar).toBeVisible();
     await expect(bar.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
-    await expect(bar.locator('.modulo-principal a.nav-enlace')).toHaveText(['Panel', 'Simulador', 'Mi personaje']);
+    await expect(bar.locator('.modulo-principal a.nav-enlace')).toHaveText(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     await bar.getByRole('link', { name: 'Simulador', exact: true }).click();
     await page.waitForURL(/\/portal\/simulador$/);
     await expect(bar.getByRole('link', { name: 'Simulador', exact: true })).toHaveAttribute('aria-current', 'page');
@@ -171,7 +171,7 @@ test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas',
     await loginAs(page, 'estudiante');
     const bar = page.locator('header.cromo');
     const bottom = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Mi personaje']);
+    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     await expect(bottom.getByRole('button', { name: 'Más' })).toHaveCount(0);
 
     // Al final de la página, el área de contenido de main (sin su relleno) termina por encima de la barra inferior.

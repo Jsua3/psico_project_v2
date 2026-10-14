@@ -1,11 +1,12 @@
 import { mapAgregarEstudianteError } from './grupo-error.utils';
 
 describe('mapAgregarEstudianteError', () => {
-  it('maps 404 to missing user message', () => {
+  // D-14 (E2-10): el servidor no revela si una cuenta existe; un 404 al invitar es el GRUPO que ya no está.
+  it('maps 404 to the group no longer existing, never to «no existe un usuario»', () => {
     expect(mapAgregarEstudianteError({
       status: 404,
-      error: { message: 'No existe un usuario con ese correo.' }
-    })).toBe('No existe un usuario con ese correo.');
+      error: { message: 'Grupo no encontrado.' }
+    })).toBe('El grupo ya no existe o no tienes acceso a él.');
   });
 
   it('maps 400 role mismatch', () => {
