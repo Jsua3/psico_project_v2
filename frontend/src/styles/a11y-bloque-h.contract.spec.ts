@@ -111,14 +111,20 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
 
 describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
   const grupos = source('../app/features/grupos/grupo-list.component.ts');
+  const groupsHtml = source('../app/features/grupos/grupo-list.component.html');
+  const groupsScss = source('../app/features/grupos/grupo-list.component.scss');
   const dag = source('../app/features/simulator/dag-editor.component.ts');
 
-  it('el buscador de Grupos dibuja el anillo en su contenedor cuando el campo tiene el foco', () => {
-    // El input conserva `outline: 0`; sin :focus-within no quedaba ningún indicador.
-    expect(grupos).toMatch(/\.search-box:focus-within \{\s*outline: 3px solid var\(--psy-focus\);\s*outline-offset: 2px;\s*\}/);
-    // --psy-focus = rgba(0, 72, 118, .72)
+  it('el buscador de Grupos es un campo de la biblioteca: el anillo es el global y la pantalla no apaga contornos', () => {
+    // Antes el input conservaba `outline: 0` y un `.search-box:focus-within` dibujaba el anillo en su contenedor.
+    // Desde F7-2 el buscador es un `ui-field` con `uiControl`: el foco lo pinta el anillo global.
+    expect(grupos).not.toContain('.search-box');
+    expect(groupsHtml).toContain('<input uiControl type="search"');
+    expect(groupsScss).not.toMatch(/outline\s*:/);
+    expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
+    // --ds-focus = #004876 sobre las superficies del portal
     for (const surface of ['#F2F2F2', '#FFFFFF']) {
-      expect(contrastRatio(blend('#004876', 0.72, surface), surface)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio('#004876', surface)).toBeGreaterThanOrEqual(3);
     }
   });
 

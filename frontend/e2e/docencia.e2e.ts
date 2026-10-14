@@ -60,6 +60,93 @@ async function openPanel(page: Page, data: PanelData = {}): Promise<void> {
   await page.goto('/portal/dashboard');
 }
 
+const ESTUDIANTES = [
+  { id: 11, nombre: 'Marta', apellido: 'Ríos', email: 'marta@siep.test', role: 'ESTUDIANTE', activo: true },
+  { id: 12, nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', role: 'ESTUDIANTE', activo: true },
+];
+
+const CASOS = [
+  { caseVersionId: 1, code: 'CASO-1', title: CASE_TITLE, description: '', semanticVersion: '1.0.0' },
+  { caseVersionId: 2, code: 'CASO-2', title: 'Duelo y pérdida', description: '', semanticVersion: '1.1.0' },
+];
+
+async function openGroups(page: Page, grupos: unknown[] = GRUPOS): Promise<void> {
+  await loginAs(page, 'profesor');
+  await page.route('**/api/grupos', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { success: true, data: grupos } })
+    : route.continue());
+  await page.route('**/api/grupos/*/estudiantes', route => route.fulfill({ json: { success: true, data: ESTUDIANTES } }));
+  await page.route('**/api/grupos/*/casos', route => route.fulfill({ json: { success: true, data: [CASOS[0]] } }));
+  await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
+  await page.goto('/portal/grupos');
+}
+
+// req: RNF-04, BLOQUE-H
+test.describe('@docencia grupos', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con grupos y el detalle abierto: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openGroups(page);
+      await expect(page.getByRole('heading', { level: 1, name: 'Grupos' })).toBeVisible();
+      await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
+      await expect(page.getByText('Marta Ríos')).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
+    });
+  }
+
+  test('sin grupos: un solo vacío de primer uso, sin cifras, y el formulario a la vista', async ({ page }) => {
+    await openGroups(page, []);
+    await expect(page.locator('app-grupo-list ui-empty-state')).toHaveCount(1);
+    await expect(page.locator('app-grupo-list ui-stat')).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: /Nombre del grupo/ })).toBeVisible();
+    expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
+  });
+
+  test('el menú de acciones de la fila abre con el teclado, Esc lo cierra y devuelve el foco', async ({ page }) => {
+    await openGroups(page);
+    const trigger = page.getByRole('button', { name: 'Más acciones de Psicología Jurídica · 2026-2' });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Copiar código' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Borrar' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menuitem', { name: 'Copiar código' })).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
+  test('«Borrar» pide confirmar y «Cancelar» no borra nada', async ({ page }) => {
+    const deletes: string[] = [];
+    page.on('request', request => {
+      if (request.method() === 'DELETE') deletes.push(request.url());
+    });
+    await openGroups(page);
+    await page.getByRole('button', { name: 'Más acciones de Intervención en Crisis · 2026-2' }).click();
+    await page.getByRole('menuitem', { name: 'Borrar' }).click();
+
+    const dialog = page.locator('.ui-dialog-frame');
+    await expect(dialog.getByRole('heading', { name: 'Borrar grupo' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(deletes).toEqual([]);
+    await expect(page.getByRole('row', { name: /Intervención en Crisis/ })).toBeVisible();
+  });
+
+  test('importar: soltar un archivo que no es .xlsx lo rechaza con un mensaje, y el control nativo sigue ahí', async ({ page }) => {
+    await openGroups(page);
+    await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
+    const zone = page.locator('.gl-drop');
+    await expect(zone.locator('input[type="file"]')).toHaveCount(1);
+
+    await zone.evaluate(element => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['x'], 'lista.pdf'));
+      element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    });
+    await expect(page.locator('.gl-message')).toHaveText('Selecciona un archivo .xlsx.');
+  });
+});
+
 // req: RNF-04, BLOQUE-H, RQ-NEG-006
 test.describe('@docencia panel', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

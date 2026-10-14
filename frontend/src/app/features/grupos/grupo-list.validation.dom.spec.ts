@@ -1,58 +1,40 @@
-import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { GrupoListComponent } from './grupo-list.component';
 import type { Mock } from 'vitest';
 
 /**
- * Validar al enviar el formulario de grupo, con Material real y el DOM renderizado.
+ * Validar al enviar el formulario de grupo, con los campos de la biblioteca y el DOM renderizado.
  *
- * `form.reset()` no reinicia `FormGroupDirective.submitted`, y el
- * `ErrorStateMatcher` de Material muestra el error si el campo es inválido y
- * está tocado O el formulario fue enviado. Estas pruebas comprueban lo que ve
- * el usuario: tras enviar con errores, cancelar, editar otro grupo o guardar
- * con éxito no debe quedar ningún `mat-error` visible en un formulario recién
- * cargado. Y, con el detalle de un grupo abierto (el formulario de casos nace
- * inválido), el foco debe ir al formulario del grupo y no al del caso.
+ * `form.reset()` no reinicia `FormGroupDirective.submitted`, así que el reinicio del formulario pasa por la
+ * directiva de ESE formulario. Estas pruebas comprueban lo que ve el usuario: tras enviar con errores, cancelar,
+ * editar otro grupo o guardar con éxito no debe quedar ningún mensaje de error visible en un formulario recién
+ * cargado. Y, con el detalle de un grupo abierto (el formulario de casos nace inválido), el foco debe ir al
+ * formulario del grupo y no al del caso.
  */
 const grupoA: Grupo = { id: 1, nombre: 'Cohorte A', codigo: 'COH-A', totalEstudiantes: 3 };
 const grupoB: Grupo = { id: 2, nombre: 'Cohorte B', codigo: 'COH-B', totalEstudiantes: 0 };
 const caso = { caseVersionId: 12, code: 'CASO-12', title: 'Caso doce', semanticVersion: '1.0.0' } as SimulationCaseSummary;
 
-// ts-jest no aplica la transformación JIT de Angular a los inputs con signals
-// (NG0303 al enlazar `[open]`, `[title]`...). El diálogo de confirmación no
-// interviene en el formulario, así que se sustituye por un doble con @Input.
-@Component({ selector: 'app-confirm-dialog', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
- template: '' })
-class ConfirmDialogStub {
-  @Input() open = false;
-  @Input() title = '';
-  @Input() message = '';
-  @Input() confirmLabel = '';
-  @Input() loading = false;
-  @Output() cancel = new EventEmitter<void>();
-  @Output() confirm = new EventEmitter<void>();
-}
-
-describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', () => {
+describe('grupos: validar al enviar el formulario de grupo (DOM con la biblioteca)', () => {
   let fixture: ComponentFixture<GrupoListComponent>;
   let component: GrupoListComponent;
   let root: HTMLElement;
   let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes' | 'listarCasos', Mock>;
 
-  const errorTexts = () => Array.from(root.querySelectorAll('mat-error')).map(node => (node.textContent ?? '').trim());
-  const groupForm = () => root.querySelector<HTMLFormElement>('.form-card form')!;
+  const errorTexts = () => Array.from(root.querySelectorAll('.ui-field__message--error')).map(node => (node.textContent ?? '').trim());
+  const groupForm = () => root.querySelector<HTMLFormElement>('.gl-form form')!;
   const groupSubmitButton = () => groupForm().querySelector<HTMLButtonElement>('button[type="submit"]')!;
-  const groupFormSubmitted = () => fixture.debugElement.query(By.css('.form-card form')).injector.get(FormGroupDirective).submitted;
+  const groupFormSubmitted = () => fixture.debugElement.query(By.css('.gl-form form')).injector.get(FormGroupDirective).submitted;
   const button = (label: string) =>
     Array.from(groupForm().querySelectorAll<HTMLButtonElement>('button')).find(candidate => (candidate.textContent ?? '').includes(label))!;
   const submit = () => {
@@ -81,15 +63,12 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
     TestBed.configureTestingModule({
       imports: [GrupoListComponent],
       providers: [
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        provideRouter([]),
         { provide: GrupoService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
+        { provide: UiDialog, useValue: { confirm: vi.fn(() => Promise.resolve(true)) } },
       ],
-    });
-    TestBed.overrideComponent(GrupoListComponent, {
-      remove: { imports: [ConfirmDialogComponent] },
-      add: { imports: [ConfirmDialogStub] },
     });
     fixture = TestBed.createComponent(GrupoListComponent);
     component = fixture.componentInstance;
@@ -171,17 +150,28 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
       expect(document.activeElement).toBe(groupForm().querySelector('input[formControlName="nombre"]'));
     });
 
-    it('el botón no se deshabilita por un formulario inválido', () => {
+    it('cada campo inválido queda marcado para el lector de pantalla y su error lo describe', () => {
+      submit();
+
+      const nombre = groupForm().querySelector<HTMLInputElement>('input[formControlName="nombre"]')!;
+      expect(nombre.getAttribute('aria-invalid')).toBe('true');
+      expect(nombre.getAttribute('aria-required')).toBe('true');
+      const described = nombre.getAttribute('aria-describedby') ?? '';
+      expect(root.querySelector(`#${described}`)?.textContent?.trim()).toBe('Escribe el nombre del grupo.');
+    });
+
+    it('el botón no se bloquea por un formulario inválido', () => {
       expect(component.form.invalid).toBe(true);
-      expect(groupSubmitButton().disabled).toBe(false);
+      expect(groupSubmitButton().getAttribute('aria-disabled')).toBeNull();
       expect((groupSubmitButton().textContent ?? '').trim()).toBe('Crear grupo');
     });
 
-    it('el botón se deshabilita solo mientras guarda', () => {
+    it('el botón queda bloqueado (aria-disabled, ocupado) solo mientras guarda', () => {
       component.saving.set(true);
       fixture.detectChanges();
 
-      expect(groupSubmitButton().disabled).toBe(true);
+      expect(groupSubmitButton().getAttribute('aria-disabled')).toBe('true');
+      expect(groupSubmitButton().getAttribute('aria-busy')).toBe('true');
     });
   });
 
@@ -246,7 +236,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
       expect(groupFormSubmitted()).toBe(false);
     });
 
-    it('borrar el grupo que se estaba editando tras un envío inválido no deja errores', () => {
+    it('borrar el grupo que se estaba editando tras un envío inválido no deja errores', async () => {
       edit(grupoA);
       component.form.patchValue({ nombre: '' });
       fixture.detectChanges();
@@ -254,8 +244,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
       expect(errorTexts().length).toBeGreaterThan(0);
       service.eliminar.mockReturnValue(of(undefined));
 
-      component.eliminarGrupo(grupoA);
-      component.runPendingConfirm();
+      await component.eliminarGrupo(grupoA);
       fixture.detectChanges();
 
       expect(service.eliminar).toHaveBeenCalledWith(1);

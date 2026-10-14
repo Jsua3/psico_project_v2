@@ -7,7 +7,8 @@ function source(relative: string): string {
 
 describe('portal: feedback de acciones', () => {
   const users = source('users.component.ts');
-  const grupos = source('../grupos/grupo-list.component.ts');
+  // La plantilla vive en su propio archivo desde F7-2: el contrato mira la clase y la plantilla juntas.
+  const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
   const rubrics = source('rubrics.component.ts');
 
   it('Usuarios avisa el éxito con un aviso que no se borra', () => {
@@ -19,11 +20,12 @@ describe('portal: feedback de acciones', () => {
     expect(users).toMatch(/error: \(err: unknown\) => \{\s*this\.statusConfirmTarget\.set\(null\);/);
   });
 
-  it('Grupos ya no usa window.confirm', () => {
+  it('Grupos ya no usa window.confirm ni el diálogo antiguo: confirma con el diálogo de la biblioteca', () => {
     expect(grupos).not.toMatch(/\bconfirm\(`/);
-    expect(grupos).toContain('<app-confirm-dialog');
-    expect(grupos).toContain('(cancel)="pendingConfirm.set(null)"');
-    expect(grupos).toContain('(confirm)="runPendingConfirm()"');
+    expect(grupos).not.toContain('app-confirm-dialog');
+    expect(grupos).not.toContain('pendingConfirm');
+    expect(grupos).toContain('this.dialog.confirm(options)');
+    expect(grupos).toContain("tone: 'danger'");
   });
 
   it('Usuarios avisa el resultado de descartar una solicitud', () => {

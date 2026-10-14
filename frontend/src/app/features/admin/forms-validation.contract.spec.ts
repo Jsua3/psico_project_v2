@@ -49,7 +49,8 @@ describe('formularios: validar al enviar — Rúbricas', () => {
 });
 
 describe('formularios: validar al enviar — Grupos', () => {
-  const grupos = source('../grupos/grupo-list.component.ts');
+  // La plantilla vive en su propio archivo desde F7-2: el contrato mira la clase y la plantilla juntas.
+  const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
 
   it('el formulario de grupo valida al enviar', () => {
     expect(grupos).not.toContain('[disabled]="form.invalid || saving()"');
