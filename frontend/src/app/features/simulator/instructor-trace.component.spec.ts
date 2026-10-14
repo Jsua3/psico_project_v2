@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -371,6 +373,23 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
       expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
       expect(scoreInput(0).value).toBe('4');
+    });
+  });
+
+  // req: RN-09
+  describe('la valoración formativa no llega al estudiante (RN-09)', () => {
+    it('ninguna vista del estudiante lee la evaluación de rúbrica, su nivel ni su total', () => {
+      const studentViews = [
+        'attempt-outcome.component.ts',
+        'student-report-dialog.component.ts',
+        'simulation-catalog.component.ts',
+        '../dashboard/student-dashboard.component.ts',
+        '../dashboard/student-dashboard.component.html',
+      ];
+      for (const file of studentViews) {
+        const source = readFileSync(join(__dirname, file), 'utf-8');
+        expect(source, file).not.toMatch(/overallLevel|RubricEvaluationView|rubricEvaluations|formativeValuationLabel|Valoración formativa/);
+      }
     });
   });
 });
