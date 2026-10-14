@@ -39,6 +39,15 @@ def required_codes(strict_mode):
     return tuple(code for code, _, required_always, _ in CHECKLIST_ITEMS if strict_mode or required_always)
 
 
+def legacy_strict_cap():
+    """El tope de una lista guardada ANTES de los ítems (sin filas) cuando rige el modo estricto.
+
+    Esa lista da «100 %» con las seis casillas de entonces; el modo estricto exige siete. No puede
+    quedar completa sin volver a marcarse: se topa en lo que cubren los seis.
+    """
+    return round(100.0 * len(required_codes(False)) / len(required_codes(True)))
+
+
 def ratio(fulfilled_codes, strict_mode):
     """Porcentaje (entero) de ítems obligatorios cumplidos."""
     required = required_codes(strict_mode)

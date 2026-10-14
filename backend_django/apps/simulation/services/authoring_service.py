@@ -168,23 +168,23 @@ def lifecycle_of(case_version_id, actor):
 
 
 @auditable("CASE_SUBMITTED", "CASE_VERSION")
-def submit_case(case_version_id, actor):
-    return lifecycle.submit(case_version_id, actor)
+def submit_case(case_version_id, actor, revision=None):
+    return lifecycle.submit(case_version_id, actor, revision)
 
 
 @auditable("CASE_APPROVED", "CASE_VERSION")
-def approve_case(case_version_id, actor, note=None, content_review=None):
-    return lifecycle.approve(case_version_id, actor, note, content_review)
+def approve_case(case_version_id, actor, note=None, content_review=None, revision=None):
+    return lifecycle.approve(case_version_id, actor, note, content_review, revision)
 
 
 @auditable("CASE_REJECTED", "CASE_VERSION")
-def reject_case(case_version_id, actor, reason, note):
-    return lifecycle.reject(case_version_id, actor, reason, note)
+def reject_case(case_version_id, actor, reason, note, revision=None):
+    return lifecycle.reject(case_version_id, actor, reason, note, revision)
 
 
 @auditable("CASE_ARCHIVED", "CASE_VERSION")
-def archive_case(case_version_id, actor, scope="version"):
-    return lifecycle.archive(case_version_id, actor, scope)
+def archive_case(case_version_id, actor, scope="version", revision=None):
+    return lifecycle.archive(case_version_id, actor, scope, revision)
 
 
 @auditable("CASE_CLONED", "CASE_VERSION")
@@ -195,14 +195,17 @@ def clone_case(case_version_id, actor):
 def transition_case(case_version_id, actor, payload):
     """Despacha ``POST …/lifecycle`` por su ``action`` y devuelve el ``CaseLifecycle`` resultante."""
     action = payload.get("action")
+    revision = payload.get("revision")
     if action == "submit":
-        return submit_case(case_version_id, actor)
+        return submit_case(case_version_id, actor, revision)
     if action == "approve":
-        return approve_case(case_version_id, actor, payload.get("note"), payload.get("contentReview"))
+        return approve_case(
+            case_version_id, actor, payload.get("note"), payload.get("contentReview"), revision
+        )
     if action == "reject":
-        return reject_case(case_version_id, actor, payload.get("reason"), payload.get("note"))
+        return reject_case(case_version_id, actor, payload.get("reason"), payload.get("note"), revision)
     if action == "archive":
-        return archive_case(case_version_id, actor, payload.get("scope") or "version")
+        return archive_case(case_version_id, actor, payload.get("scope") or "version", revision)
     if action == "clone":
         return clone_case(case_version_id, actor)
     raise ApiError(

@@ -10,7 +10,7 @@ Mapeo de errores (decisión del mantenedor — códigos semánticos):
 objeto, decisión, herramienta o diálogo solo se admite si es de la versión que se edita.
 """
 from django.conf import settings
-from django.db.models import F
+from django.db.models import BigIntegerField, Case, F, When
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -23,6 +23,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from apps.simulation.services.audit_service import current_actor_id
 from shared import policies
 from shared.exceptions import ApiError
 
@@ -72,12 +73,31 @@ def authorize_case_version(actor, case_version_id, *, mutate, action="author"):
 
 
 # ─── Revisión optimista (E2-6) ───────────────────────────────────────────────────────────
-def check_revision(version, revision):
+def _same_editing_run(version, requested, actor_id):
+    """¿``requested`` es una revisión vencida pero **de la misma tanda de quien edita**?
+
+    Una tanda es la racha de ediciones seguidas de una misma persona: empieza en la revisión que
+    esa persona vio antes de su primera edición (``edited_alone_since``) y llega hasta la actual.
+    Si nadie más editó en ese tramo, quien reenvía una revisión de la tanda (otra pestaña, un
+    guardado cuya respuesta se canceló, un autoguardado que no esperó al anterior) no está
+    pisando a nadie. Si otra persona editó después, no cabe: conflicto.
+    """
+    return (
+        actor_id is not None
+        and version.last_edited_by_id == actor_id
+        and version.edited_alone_since <= requested <= version.version
+    )
+
+
+def check_revision(version, revision, actor_id=None):
     """409 ``REVISION_CONFLICT`` si ``revision`` está vencida; 400 si falta y es obligatoria.
 
     Sin ``REVISION_REQUIRED`` la revisión es opcional pero **se compara cuando viene**: un
-    cliente que la manda está pidiendo la protección.
+    cliente que la manda está pidiendo la protección. Una revisión vencida de la misma persona
+    que editó por última vez (y sin ediciones ajenas desde entonces) se acepta (R15).
     """
+    if actor_id is None:
+        actor_id = current_actor_id()
     if revision is None or revision == "":
         if settings.REVISION_REQUIRED:
             raise ApiError(
@@ -98,7 +118,7 @@ def check_revision(version, revision):
             status.HTTP_400_BAD_REQUEST,
             field="revision",
         ) from None
-    if requested != version.version:
+    if requested != version.version and not _same_editing_run(version, requested, actor_id):
         from .editor_view import editor  # perezoso: editor_view importa este módulo
 
         raise ApiError(
@@ -111,9 +131,28 @@ def check_revision(version, revision):
         )
 
 
-def bump_revision(case_version_id):
+def revision_bump(actor_id=None):
+    """Los campos de un ``UPDATE`` que avanza la revisión y registra quién edita.
+
+    Todo en una sola sentencia (las expresiones ven la fila de antes): si quien edita es otra
+    persona, la tanda nueva empieza en la revisión que existía antes de esta edición.
+    """
+    if actor_id is None:
+        actor_id = current_actor_id()
+    return {
+        "version": F("version") + 1,
+        "edited_alone_since": Case(
+            When(last_edited_by_id=actor_id, then=F("edited_alone_since")),
+            default=F("version"),
+            output_field=BigIntegerField(),
+        ),
+        "last_edited_by_id": actor_id,
+    }
+
+
+def bump_revision(case_version_id, actor_id=None):
     """Avanza la revisión del caso (versión optimista): una escritura atómica sin leer."""
-    CaseVersion.objects.filter(pk=case_version_id).update(version=F("version") + 1)
+    CaseVersion.objects.filter(pk=case_version_id).update(**revision_bump(actor_id))
 
 
 def ensure_draft(case_version_id, revision=None):

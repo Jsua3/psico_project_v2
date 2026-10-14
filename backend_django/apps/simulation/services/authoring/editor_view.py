@@ -86,7 +86,10 @@ def _ratio_of(latest):
     if latest is None:
         return 0
     if not latest.items.all():
-        return int(latest.completion_ratio)
+        legacy = int(latest.completion_ratio)
+        if checklist_rules.strict():
+            legacy = min(legacy, checklist_rules.legacy_strict_cap())
+        return legacy
     return checklist_rules.ratio(_fulfilled_codes(latest), checklist_rules.strict())
 
 

@@ -160,3 +160,27 @@ def test_assigning_a_rubric_requires_owning_the_case(prof_a, prof_b, admin):
         f"{BASE}/case-versions/{foreign_published.id}", {"rubricId": rubric_id}, format="json"
     ).status_code == 403
     assert cl(admin).put(f"{BASE}/case-versions/{theirs.id}", {"rubricId": rubric_id}, format="json").status_code == 200
+
+
+def test_a_professor_reads_the_rubric_of_a_case_version_only_if_it_is_visible_to_them(
+    prof_a, prof_b, admin, global_default
+):
+    private = _create(prof_a)
+    cl(prof_a).post(f"{BASE}/{private}/activate", {}, format="json")
+    mine = _owned_case_version(prof_a, "RUB-READ-A")
+    cl(prof_a).put(f"{BASE}/case-versions/{mine.id}", {"rubricId": private}, format="json")
+    shared = _owned_case_version(admin, "RUB-READ-ADM")
+    cl(admin).put(f"{BASE}/case-versions/{shared.id}", {"rubricId": global_default.id}, format="json")
+
+    owner = cl(prof_a).get(f"{BASE}/case-versions/{mine.id}")
+    boss = cl(admin).get(f"{BASE}/case-versions/{mine.id}")
+    hidden = cl(prof_b).get(f"{BASE}/case-versions/{mine.id}")
+    missing = cl(prof_b).get(f"{BASE}/case-versions/999999999")
+    global_one = cl(prof_b).get(f"{BASE}/case-versions/{shared.id}")
+
+    assert owner.status_code == 200 and owner.data["data"]["id"] == private
+    assert boss.status_code == 200
+    # Lo que otro docente no ve se comporta como lo que no existe: ni código ni texto lo delatan.
+    assert hidden.status_code == missing.status_code == 404
+    assert (hidden.data["code"], hidden.data["message"]) == (missing.data["code"], missing.data["message"])
+    assert global_one.status_code == 200 and global_one.data["data"]["id"] == global_default.id

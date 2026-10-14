@@ -78,6 +78,15 @@ class CaseVersion(models.Model):
     # (``IMMEDIATE`` | ``AT_CLOSE``). Ausente = segunda oportunidad apagada (ED-7). Ver
     # ``services/case_rules.py``.
     rules = models.TextField(default="{}", db_default="{}")
+    # E2 (revisión de fase, R15): quién editó por última vez y desde qué revisión lo hace en
+    # solitario. Una revisión vencida de la MISMA persona (otra pestaña, un guardado cuya respuesta
+    # se canceló) no es un conflicto mientras nadie más haya editado después
+    # (``authoring.guards.check_revision``). Un clon empieza sin historial.
+    last_edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        db_column="last_edited_by", related_name="+",
+    )
+    edited_alone_since = models.BigIntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "case_versions"

@@ -295,3 +295,136 @@ def test_an_unknown_action_is_a_validation_error(prof_a):
 
     assert response.status_code == 400
     assert response.data["field"] == "action"
+
+
+# ─── Revisión de fase E2 · revisión en las transiciones, cuerpos mal formados, constancia, clon ────────
+def _revision(cv):
+    return CaseVersion.objects.get(pk=cv).version
+
+
+def test_a_transition_checks_the_revision_it_is_given(prof_a, admin):
+    cv = _draft_owned_by(prof_a)
+    seen = _revision(cv)
+    # Otra persona toca el caso después de que prof_a lo viera: la revisión avanza.
+    assert cl(admin).put(f"{AUTHORING}/{cv}/checklist", CHECKLIST, format="json").status_code == 200
+
+    stale = _post(cl(prof_a), cv, action="submit", revision=seen)
+    fresh = _post(cl(prof_a), cv, action="submit", revision=_revision(cv))
+
+    assert stale.status_code == 409 and stale.data["code"] == "REVISION_CONFLICT"
+    assert stale.data["current"]["status"] == "DRAFT"
+    assert fresh.status_code == 200 and fresh.data["data"]["state"] == "IN_REVIEW"
+
+
+def test_a_transition_takes_the_revision_from_a_header_too(prof_a, admin):
+    cv = _draft_owned_by(prof_a)
+    seen = _revision(cv)
+    cl(admin).put(f"{AUTHORING}/{cv}/checklist", CHECKLIST, format="json")
+
+    response = cl(prof_a).post(
+        f"{AUTHORING}/{cv}/lifecycle", {"action": "submit"}, format="json", HTTP_X_CASE_REVISION=str(seen)
+    )
+
+    assert response.status_code == 409 and response.data["code"] == "REVISION_CONFLICT"
+
+
+def test_every_transition_advances_the_revision_and_records_who_did_it(prof_a, admin):
+    cv = _draft_owned_by(prof_a)
+    assert CaseVersion.objects.get(pk=cv).last_edited_by_id == prof_a.id  # la lista la marcó ella
+
+    submitted = _revision(cv)
+    _post(cl(prof_a), cv, action="submit")
+    assert _revision(cv) == submitted + 1
+    assert CaseVersion.objects.get(pk=cv).last_edited_by_id == prof_a.id
+
+    _post(cl(admin), cv, action="approve", contentReview=CONTENT_REVIEW)
+    assert _revision(cv) == submitted + 2
+    assert CaseVersion.objects.get(pk=cv).last_edited_by_id == admin.id
+
+
+_LIFECYCLE_BAD_BODIES = [
+    [],
+    "texto",
+    7,
+    {"action": ["submit"]},
+    {"action": {"x": 1}},
+    {"action": "teleport"},
+    {"action": "reject", "reason": ["FORMA"], "note": "n"},
+    {"action": "reject", "reason": "FORMA", "note": {"x": 1}},
+    {"action": "approve", "note": ["x"]},
+    {"action": "archive", "scope": "todo"},
+    {"action": "approve", "contentReview": "acta"},
+    {"action": "approve", "contentReview": ["a"]},
+]
+
+
+@pytest.mark.parametrize("body", _LIFECYCLE_BAD_BODIES)
+def test_a_malformed_lifecycle_body_is_a_400_never_a_500(prof_a, admin, body):
+    cv = _draft_owned_by(prof_a)
+    _post(cl(prof_a), cv, action="submit")
+
+    response = cl(admin).post(f"{AUTHORING}/{cv}/lifecycle", body, format="json")
+
+    assert response.status_code == 400, response.data
+    assert CaseVersion.objects.get(pk=cv).status == "IN_REVIEW"
+
+
+@pytest.mark.parametrize("body", [[], "texto", 7, {"note": ["x"]}, {"contentReview": "acta"}, {"contentReview": ["a"]}])
+def test_a_malformed_publish_body_is_a_400_and_publishes_nothing(prof_a, admin, body):
+    cv = _draft_owned_by(prof_a)
+
+    response = cl(admin).post(f"{AUTHORING}/{cv}/publish", body, format="json")
+
+    assert response.status_code == 400, response.data
+    assert CaseVersion.objects.get(pk=cv).status == "DRAFT"
+
+
+@pytest.mark.parametrize("body", [[], "texto", 7])
+def test_a_non_object_body_is_a_400_on_case_creation(admin, body):
+    response = cl(admin).post(AUTHORING, body, format="json")
+
+    assert response.status_code == 400, response.data
+
+
+def test_a_review_date_in_the_future_is_refused(prof_a, admin, settings):
+    import datetime
+
+    settings.REVIEW_WORKFLOW_STRICT = True
+    cv = _draft_owned_by(prof_a)
+    _post(cl(prof_a), cv, action="submit")
+    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+
+    response = _post(cl(admin), cv, action="approve", contentReview={**CONTENT_REVIEW, "reviewedOn": tomorrow})
+
+    assert response.status_code == 400
+    assert response.data["code"] == "CONTENT_REVIEW_REQUIRED"
+    assert CaseVersion.objects.get(pk=cv).status == "IN_REVIEW"
+
+
+def test_cloning_a_version_keeps_who_owns_its_rubrics(prof_a, admin):
+    from apps.simulation.models import Rubric
+
+    cv = _draft_owned_by(prof_a)
+    Rubric.objects.create(name="Privada de la autora", case_version_id=cv, created_by=prof_a, active=True)
+
+    cloned = cl(admin).post(f"{AUTHORING}/{cv}/clone-version", {}, format="json")
+
+    assert cloned.status_code == 200, cloned.data
+    copy = Rubric.objects.get(
+        case_version_id=cloned.data["data"]["caseVersionId"], name="Privada de la autora"
+    )
+    assert copy.created_by_id == prof_a.id  # no pasa a ser «del ADMIN» (visible para todos)
+
+
+def test_archiving_the_whole_case_archives_and_revises_the_published_siblings(prof_a, admin):
+    seeded = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    sibling = CaseVersion.objects.create(
+        simulation_case=seeded.simulation_case, semantic_version="9.9.0", status="PUBLISHED", created_by=admin
+    )
+    before = (_revision(seeded.id), _revision(sibling.id))
+
+    response = _post(cl(admin), seeded.id, action="archive", scope="case")
+
+    assert response.status_code == 200
+    assert CaseVersion.objects.get(pk=sibling.id).status == "ARCHIVED"
+    assert (_revision(seeded.id), _revision(sibling.id)) == (before[0] + 1, before[1] + 1)

@@ -20,7 +20,6 @@ from types import SimpleNamespace
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F
 from django.utils import timezone
 from rest_framework import status as http
 from rest_framework.exceptions import PermissionDenied
@@ -32,6 +31,7 @@ from shared import policies
 from shared.exceptions import ApiError
 
 from .editor_view import latest_checklist_ratio
+from .guards import check_revision, revision_bump
 from .world_definition import run_world_validation
 
 DRAFT = "DRAFT"
@@ -134,10 +134,10 @@ def _require_publishable(version):
         )
 
 
-def _set_status(version, new_status, **fields):
-    """Cambia el estado y avanza la revisión (versión optimista) en una sola escritura."""
+def _set_status(version, new_status, actor, **fields):
+    """Cambia el estado, avanza la revisión y anota quién lo hizo, en una sola escritura."""
     CaseVersion.objects.filter(pk=version.pk).update(
-        status=new_status, version=F("version") + 1, **fields
+        status=new_status, **revision_bump(actor.id), **fields
     )
     version.refresh_from_db()
 
@@ -147,22 +147,23 @@ def _pending_review(version):
 
 
 @transaction.atomic
-def submit(case_version_id, actor):
+def submit(case_version_id, actor, revision=None):
     version = _lock_version(case_version_id)
+    check_revision(version, revision, actor.id)
     _require_transition(version, "submit", actor)
     _require_publishable(version)
     CaseReview.objects.create(case_version=version, requested_by=actor)
-    _set_status(version, IN_REVIEW)
+    _set_status(version, IN_REVIEW, actor)
     return lifecycle_view(version.pk, actor)
 
 
 def _parse_content_review(payload, *, required):
     """La constancia de revisión de contenido: ``{reviewer, reviewedOn, reference}`` o ``None``."""
-    def invalid():
+    def invalid(message=None):
         return ApiError(
             "CONTENT_REVIEW_REQUIRED",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-            "Falta la constancia de revisión de contenido de Psicología "
+            message or "Falta la constancia de revisión de contenido de Psicología "
             "(revisor, fecha y referencia o acta).",
             http.HTTP_400_BAD_REQUEST,
             field="contentReview",
@@ -183,13 +184,17 @@ def _parse_content_review(payload, *, required):
         reviewed_on = datetime.date.fromisoformat(raw_date)
     except ValueError:
         raise invalid() from None
+    if reviewed_on > timezone.now().date():
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise invalid("La fecha de la revisión de contenido no puede ser posterior a hoy.")
     return {"reviewer": reviewer[:255], "reviewed_on": reviewed_on, "reference": reference[:255]}
 
 
 @transaction.atomic
-def approve(case_version_id, actor, note="", content_review=None):
+def approve(case_version_id, actor, note="", content_review=None, revision=None):
     """Publica la versión: la decide el ADMIN, con la constancia de Psicología si es estricta."""
     version = _lock_version(case_version_id)
+    check_revision(version, revision, actor.id)
     strict = settings.REVIEW_WORKFLOW_STRICT
     if version.status == DRAFT and not strict:
         # El atajo del editor de hoy: el ADMIN publica un borrador (con su fila de revisión).
@@ -211,14 +216,15 @@ def approve(case_version_id, actor, note="", content_review=None):
         review.content_reviewed_on = constancia["reviewed_on"]
         review.content_reference = constancia["reference"]
     review.save()
-    _set_status(version, PUBLISHED, published_at=now)
+    _set_status(version, PUBLISHED, actor, published_at=now)
     return lifecycle_view(version.pk, actor)
 
 
 @transaction.atomic
-def reject(case_version_id, actor, reason, note):
+def reject(case_version_id, actor, reason, note, revision=None):
     """Devuelve la versión a borrador con motivo (FORMA | CONTENIDO) y una nota (consejo §9.1-B)."""
     version = _lock_version(case_version_id)
+    check_revision(version, revision, actor.id)
     _require_transition(version, "reject", actor)
     if reason not in ReviewReason.values:
         raise ApiError(
@@ -244,25 +250,55 @@ def reject(case_version_id, actor, reason, note):
     review.reason = reason
     review.note = note
     review.save()
-    _set_status(version, DRAFT)
+    _set_status(version, DRAFT, actor)
     return lifecycle_view(version.pk, actor)
 
 
+def _lock_case_versions(case_version_id):
+    """Cerrojo sobre TODAS las versiones del caso, en orden de id y antes que nada.
+
+    Archivar «todo el caso» toca varias filas: dos órdenes sobre versiones distintas del mismo
+    caso, si cada una tomara primero la suya, se cruzarían (interbloqueo). Con el mismo orden se
+    serializan.
+    """
+    case_id = (
+        CaseVersion.objects.filter(pk=case_version_id).values_list("simulation_case_id", flat=True).first()
+    )
+    if case_id is not None:
+        list(
+            CaseVersion.objects.select_for_update(of=("self",))
+            .filter(simulation_case_id=case_id)
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+
+
 @transaction.atomic
-def archive(case_version_id, actor, scope="version"):
+def archive(case_version_id, actor, scope="version", revision=None):
     """Archiva la versión; con ``scope="case"``, también todas las demás versiones publicadas del caso.
 
     Los intentos abiertos de una versión archivada se pueden terminar; solo se cierra la puerta
     a los nuevos (decisión 11).
     """
+    if scope not in ("version", "case"):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El alcance debe ser version o case.",
+            http.HTTP_400_BAD_REQUEST,
+            field="scope",
+        )
+    if scope == "case":
+        _lock_case_versions(case_version_id)
     version = _lock_version(case_version_id)
+    check_revision(version, revision, actor.id)
     _require_transition(version, "archive", actor)
-    _set_status(version, ARCHIVED)
+    _set_status(version, ARCHIVED, actor)
     if scope == "case":
         siblings = CaseVersion.objects.filter(
             simulation_case_id=version.simulation_case_id, status=PUBLISHED
         ).exclude(pk=version.pk)
-        siblings.update(status=ARCHIVED, version=F("version") + 1)
+        siblings.update(status=ARCHIVED, **revision_bump(actor.id))
     return lifecycle_view(version.pk, actor)
 
 

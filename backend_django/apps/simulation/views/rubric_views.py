@@ -79,7 +79,7 @@ class CaseVersionRubricView(APIView):
         return [(_CAN_READ if self.request.method == "GET" else _CAN_EDIT)()]
 
     def get(self, request, case_version_id):
-        return api_ok(rubric_service.case_version_rubric(case_version_id))
+        return api_ok(rubric_service.case_version_rubric(case_version_id, request.user))
 
     def put(self, request, case_version_id):
         return api_ok(

@@ -392,8 +392,20 @@ def rubric_for_case_version(case_version_id):
     raise NotFound("No existe rubrica activa para esta simulacion")
 
 
-def case_version_rubric(case_version_id):
-    return rubric_detail(rubric_for_case_version(case_version_id))
+def case_version_rubric(case_version_id, actor):
+    """La rúbrica de una versión, solo si el actor puede verla: es la de su propio caso (o es
+    ADMIN) o es una que ya ve (la suya o la de un ADMIN). Lo demás es 404, igual que una versión
+    que no existe: no se confirma la rúbrica privada de otro docente (R3)."""
+    case_version = (
+        CaseVersion.objects.filter(pk=case_version_id).select_related("simulation_case").first()
+    )
+    if not case_version:
+        raise NotFound("Rubrica no encontrada")
+    rubric = rubric_for_case_version(case_version.id)
+    owns_the_case = policies.can(actor, "case", "author", owner_id=case_version.simulation_case.created_by_id)
+    if not owns_the_case and not _visible(actor).filter(pk=rubric.pk).exists():
+        raise NotFound("Rubrica no encontrada")
+    return rubric_detail(rubric)
 
 
 def attempt_rubric_view(attempt_id, instructor=None):

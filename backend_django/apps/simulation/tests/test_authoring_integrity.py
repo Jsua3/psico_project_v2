@@ -38,6 +38,19 @@ def api(admin):
     return cl(admin)
 
 
+@pytest.fixture
+def second_admin(db):
+    return User.objects.create_user(
+        email="integ_second@x.com", password="pass1234", nombre="Se", apellido="Gundo", role="ADMIN"
+    )
+
+
+@pytest.fixture
+def other_api(second_admin):
+    """OTRA persona editando el mismo caso (la misma persona no choca consigo misma, R15)."""
+    return cl(second_admin)
+
+
 def _new_case(api, title):
     data = api.post(BASE, {"title": title}, format="json").data["data"]
     return data
@@ -126,9 +139,9 @@ def test_the_world_save_advances_the_revision_too(api, case):
 
 
 # ─── conflicto y cadena sin conflicto ───────────────────────────────────────────────────
-def test_a_stale_revision_conflicts_with_the_current_state_and_changes_nothing(api, case):
+def test_a_stale_revision_conflicts_with_the_current_state_and_changes_nothing(api, other_api, case):
     cv = case["caseVersionId"]
-    node, after_first = _add_node(api, cv, "n2", revision=case["revision"])
+    node, after_first = _add_node(other_api, cv, "n2", revision=case["revision"])  # otra persona guarda
     stale = case["revision"]
 
     response = api.put(
@@ -145,9 +158,9 @@ def test_a_stale_revision_conflicts_with_the_current_state_and_changes_nothing(a
 
 
 @pytest.mark.parametrize("transport", ["query", "header"])
-def test_a_delete_carries_its_revision_in_the_query_or_a_header(api, case, transport):
+def test_a_delete_carries_its_revision_in_the_query_or_a_header(api, other_api, case, transport):
     cv = case["caseVersionId"]
-    node, current = _add_node(api, cv, "n2")
+    node, current = _add_node(other_api, cv, "n2")  # la revisión la avanza otra persona
     stale = current["revision"] - 1
     kwargs = {"HTTP_X_CASE_REVISION": str(stale)} if transport == "header" else {}
     suffix = f"?revision={stale}" if transport == "query" else ""
@@ -177,10 +190,10 @@ def test_saves_chained_with_each_responses_revision_never_conflict(api, case):
     assert revision == current["revision"] + 6
 
 
-def test_the_world_save_conflicts_with_the_same_code(api, case):
+def test_the_world_save_conflicts_with_the_same_code(api, other_api, case):
     cv = case["caseVersionId"]
     world = api.get(f"{BASE}/{cv}/world-editor").data["data"]
-    api.put(f"{BASE}/{cv}/world", {"revision": world["revision"], "objects": []}, format="json")
+    other_api.put(f"{BASE}/{cv}/world", {"revision": world["revision"], "objects": []}, format="json")
 
     stale = api.put(f"{BASE}/{cv}/world", {"revision": world["revision"], "objects": []}, format="json")
 
@@ -408,3 +421,90 @@ def test_the_local_icon_list_matches_the_frontends():
         pytest.skip("el frontend no está en este checkout")
 
     assert sorted(local) == sorted(json.loads(source.read_text(encoding="utf-8")))
+
+
+# ─── R15 · la misma persona no choca consigo misma (otra pestaña, un guardado cuya respuesta se canceló) ──
+def test_a_stale_revision_from_the_same_last_editor_is_accepted(api, case):
+    """El guardado cuya respuesta se canceló (o la otra pestaña) reenvía una revisión vieja: no es
+    un conflicto si quien editó por última vez es la misma persona."""
+    cv = case["caseVersionId"]
+    node, current = _add_node(api, cv, "n2", revision=case["revision"])
+    stale = case["revision"]
+
+    response = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}", _node_body("n2", title="Mi propio cambio", revision=stale), format="json"
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["revision"] == current["revision"] + 1
+
+
+def test_a_stale_revision_after_another_persons_edit_still_conflicts(api, other_api, case):
+    cv = case["caseVersionId"]
+    node, first = _add_node(api, cv, "n2", revision=case["revision"])
+    renamed = other_api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}",
+        _node_body("n2", title="Cambio de la otra persona", revision=first["revision"]),
+        format="json",
+    )
+    assert renamed.status_code == 200
+
+    stale = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}",
+        _node_body("n2", title="Pisaría a la otra persona", revision=first["revision"]),
+        format="json",
+    )
+
+    assert stale.status_code == 409
+    assert stale.data["code"] == "REVISION_CONFLICT"
+    current_title = next(n for n in stale.data["current"]["nodes"] if n["id"] == node["id"])["title"]
+    assert current_title == "Cambio de la otra persona"
+
+
+def test_a_revision_older_than_another_persons_edit_conflicts_even_for_the_last_editor(api, other_api, case):
+    """A edita, B edita, A vuelve a editar: una pestaña de A que quedó ANTES del cambio de B no puede
+    pisarlo aunque A sea quien editó por última vez."""
+    cv = case["caseVersionId"]
+    node, first = _add_node(api, cv, "n2", revision=case["revision"])
+    before_b = first["revision"]
+    by_b = other_api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}", _node_body("n2", title="Cambio de B", revision=before_b), format="json"
+    )
+    assert by_b.status_code == 200
+    after_b = by_b.data["data"]["revision"]
+    mine = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}", _node_body("n2", title="Tras B", revision=after_b), format="json"
+    )
+    assert mine.status_code == 200
+
+    stale_tab = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}", _node_body("n2", title="Pestaña vieja", revision=before_b), format="json"
+    )
+    fresh_enough_tab = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}", _node_body("n2", title="Pestaña al día", revision=after_b), format="json"
+    )
+
+    assert stale_tab.status_code == 409 and stale_tab.data["code"] == "REVISION_CONFLICT"
+    assert fresh_enough_tab.status_code == 200
+
+
+def test_a_future_revision_is_always_a_conflict(api, case):
+    cv = case["caseVersionId"]
+    node, current = _add_node(api, cv, "n2", revision=case["revision"])
+
+    response = api.put(
+        f"{BASE}/{cv}/nodes/{node['id']}",
+        _node_body("n2", title="Del futuro", revision=current["revision"] + 5),
+        format="json",
+    )
+
+    assert response.status_code == 409 and response.data["code"] == "REVISION_CONFLICT"
+
+
+def test_the_last_editor_is_recorded_on_every_mutation(api, admin, other_api, second_admin, case):
+    cv = case["caseVersionId"]
+
+    _add_node(api, cv, "n2")
+    assert CaseVersion.objects.get(pk=cv).last_edited_by_id == admin.id
+    _add_node(other_api, cv, "n3")
+    assert CaseVersion.objects.get(pk=cv).last_edited_by_id == second_admin.id

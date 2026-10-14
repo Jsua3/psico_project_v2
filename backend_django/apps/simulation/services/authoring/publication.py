@@ -105,7 +105,9 @@ def publish(case_version_id, actor, payload=None):
             f"El caso no puede publicarse con errores de validación: {summary}"
         )
 
-    lifecycle.approve(case_version_id, actor, payload.get("note"), payload.get("contentReview"))
+    lifecycle.approve(
+        case_version_id, actor, payload.get("note"), payload.get("contentReview"), payload.get("revision")
+    )
     return editor(case_version_id)
 
 
@@ -129,7 +131,7 @@ def clone_version(case_version_id, actor):
     object_copies = _clone_map_objects(map_copies, decision_copies)
     _clone_dialogues(map_copies, object_copies, decision_copies)
     _clone_clinical_tools(source, clone)
-    _clone_rubrics(source, clone, actor)
+    _clone_rubrics(source, clone)
     create_draft_checklist(clone, actor)
 
     return editor(clone.id)
@@ -202,9 +204,11 @@ def _clone_clinical_tools(source, clone):
         cloning.CLINICAL_TOOL.copy(tool, case_version=clone)
 
 
-def _clone_rubrics(source, clone, actor):
+def _clone_rubrics(source, clone):
+    # La copia conserva a quién pertenece la rúbrica: quien clona no se vuelve su dueño (un ADMIN que
+    # clona la rúbrica privada de una autora la haría visible para todos los docentes).
     for rubric in Rubric.objects.filter(case_version_id=source.id).order_by("id"):
-        rubric_copy = cloning.RUBRIC.copy(rubric, case_version=clone, created_by=actor)
+        rubric_copy = cloning.RUBRIC.copy(rubric, case_version=clone, created_by=rubric.created_by)
         for criterion in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order"):
             cloning.RUBRIC_CRITERION.copy(criterion, rubric=rubric_copy)
 

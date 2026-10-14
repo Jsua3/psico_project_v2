@@ -89,6 +89,7 @@ ON_DELETE = {
     ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_reviews", "case_version_id"): "CASCADE",
+    ("case_versions", "last_edited_by"): "SET NULL",
     ("case_versions", "simulation_case_id"): "CASCADE",
     ("clinical_tools", "case_version_id"): "CASCADE",
     ("collision_zones", "scene_map_id"): "CASCADE",

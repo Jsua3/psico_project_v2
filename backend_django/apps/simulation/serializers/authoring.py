@@ -44,6 +44,23 @@ def _number(**kwargs):
     return LenientIntegerField(**kwargs)
 
 
+class LifecycleRequest(serializers.Serializer):
+    """``POST …/lifecycle``: la acción y lo que cada una lleva (``revision`` va aparte)."""
+
+    action = serializers.ChoiceField(choices=["submit", "approve", "reject", "archive", "clone"])
+    note = _text(4000)
+    reason = _text(20)
+    scope = serializers.ChoiceField(choices=["version", "case"], required=False, allow_null=True)
+    contentReview = serializers.DictField(required=False, allow_null=True)
+
+
+class PublishRequest(serializers.Serializer):
+    """``POST …/publish`` (alias de aprobar): nota y constancia opcionales."""
+
+    note = _text(4000)
+    contentReview = serializers.DictField(required=False, allow_null=True)
+
+
 class NodeRequest(serializers.Serializer):
     nodeKey = serializers.CharField(max_length=120)
     title = serializers.CharField(max_length=255)

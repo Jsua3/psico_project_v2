@@ -185,3 +185,24 @@ def test_a_six_item_list_does_not_satisfy_the_strict_mode(owner, cv, settings):
 
     assert data["checklistCompletion"] == 86
     assert data["publishable"] is False
+
+
+def test_a_legacy_checklist_without_items_cannot_reach_100_in_strict_mode(db, settings):
+    """Una lista guardada antes de E2-7 (sin ítems, «100 %» de seis casillas) no cubre el séptimo
+    ítem obligatorio del modo estricto: no puede quedar completa sin volver a marcarse."""
+    from apps.simulation.models import CaseVersion, PublicationChecklist
+    from apps.simulation.services.authoring.editor_view import latest_checklist_ratio
+
+    version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    PublicationChecklist.objects.filter(case_version_id=version.id).delete()
+    PublicationChecklist.objects.create(
+        case_version=version, submitted_by=version.created_by, completion_ratio=100, status="COMPLETE"
+    )
+
+    settings.REVIEW_WORKFLOW_STRICT = False
+    relaxed = latest_checklist_ratio(version.id)
+    settings.REVIEW_WORKFLOW_STRICT = True
+    strict = latest_checklist_ratio(version.id)
+
+    assert relaxed == 100
+    assert 0 < strict < 100

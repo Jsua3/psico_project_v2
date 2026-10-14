@@ -91,7 +91,8 @@ class PublishView(_AuthoringView):
 
     def post(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=True, action="publish")
-        return api_ok(svc.publish(case_version_id, request.user, request.data), "Caso publicado")
+        payload = self.payload(request, inputs.PublishRequest)
+        return api_ok(svc.publish(case_version_id, request.user, payload), "Caso publicado")
 
 
 class LifecycleView(_AuthoringView):
@@ -102,10 +103,13 @@ class LifecycleView(_AuthoringView):
         return api_ok(svc.lifecycle_of(case_version_id, request.user))
 
     def post(self, request, case_version_id):
-        policy_action = lifecycle.POLICY_ACTION.get(request.data.get("action"), "author")
+        # La autorización va primero y depende de la acción; la acción solo cuenta si es un texto.
+        action = request.data.get("action") if hasattr(request.data, "get") else None
+        policy_action = lifecycle.POLICY_ACTION.get(action, "author") if isinstance(action, str) else "author"
         self.version_for(request, case_version_id, mutate=True, action=policy_action)
+        payload = self.payload(request, inputs.LifecycleRequest)
         return api_ok(
-            svc.transition_case(case_version_id, request.user, request.data), "Ciclo de vida actualizado"
+            svc.transition_case(case_version_id, request.user, payload), "Ciclo de vida actualizado"
         )
 
 

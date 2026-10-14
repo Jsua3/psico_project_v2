@@ -55,6 +55,15 @@ def _resolve_actor():
     return None, "ANONYMOUS"
 
 
+def current_actor_id():
+    """El id (entero) de quien hace la petición en curso, o ``None`` fuera de una petición."""
+    actor_id, _ = _resolve_actor()
+    try:
+        return int(actor_id) if actor_id is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _client_ip(request):
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
     if forwarded and forwarded.strip():
