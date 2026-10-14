@@ -4,10 +4,16 @@ Mapeo de errores (decisión del mantenedor — códigos semánticos):
 - la versión o la entidad no existe                  -> NotFound (404)
 - la entidad no pertenece a la versión               -> ValidationError (400)
 - la versión no es un borrador (``ensure_draft``)    -> ValidationError (400)
+- la ``revision`` vencida (``check_revision``)       -> ApiError ``REVISION_CONFLICT`` (409)
+
+**Toda** búsqueda del editor pasa por ``in_version`` (E2-6): una referencia a un nodo, mapa,
+objeto, decisión, herramienta o diálogo solo se admite si es de la versión que se edita.
 """
+from django.conf import settings
+from django.db.models import F
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from shared import policies
 from apps.simulation.models import (
     CaseVersion,
     ClinicalTool,
@@ -17,6 +23,25 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from shared import policies
+from shared.exceptions import ApiError
+
+#: modelo → (mensaje de «no existe», mensaje de «es de otra versión», ruta hasta la versión).
+#: Los textos son los que fijan las pruebas de contrato de la autoría (P-05b).
+_REFERENCES = {
+    SimulationNode: ("Nodo no encontrado: {id}", "El nodo {id} no pertenece a la versión {version}",
+                     "case_version_id", None),
+    DecisionOption: ("Decision no encontrada: {id}", "La decisión {id} no pertenece a la versión {version}",
+                     "case_version_id", None),
+    SceneMap: ("Mapa no encontrado: {id}", "El mapa {id} no pertenece a la versión {version}",
+               "case_version_id", None),
+    MapObject: ("Objeto no encontrado: {id}", "El objeto {id} no pertenece a la versión {version}",
+                "scene_map__case_version_id", "scene_map"),
+    ClinicalTool: ("Herramienta no encontrada: {id}", "La herramienta {id} no pertenece a la versión {version}",
+                   "case_version_id", None),
+    DialogueTree: ("Diálogo no encontrado: {id}", "El diálogo {id} no pertenece a la versión {version}",
+                   "scene_map__case_version_id", "scene_map"),
+}
 
 
 def require_version(case_version_id):
@@ -46,66 +71,125 @@ def authorize_case_version(actor, case_version_id, *, mutate, action="author"):
     raise NotFound("Version de caso no encontrada")
 
 
-def ensure_draft(case_version_id):
-    version = require_version(case_version_id)
+# ─── Revisión optimista (E2-6) ───────────────────────────────────────────────────────────
+def check_revision(version, revision):
+    """409 ``REVISION_CONFLICT`` si ``revision`` está vencida; 400 si falta y es obligatoria.
+
+    Sin ``REVISION_REQUIRED`` la revisión es opcional pero **se compara cuando viene**: un
+    cliente que la manda está pidiendo la protección.
+    """
+    if revision is None or revision == "":
+        if settings.REVISION_REQUIRED:
+            raise ApiError(
+                "REVISION_REQUIRED",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Falta la revisión del caso: recarga el editor para obtenerla.",
+                status.HTTP_400_BAD_REQUEST,
+                field="revision",
+            )
+        return
+    try:
+        requested = int(revision)
+    except (TypeError, ValueError):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "La revisión debe ser un número entero.",
+            status.HTTP_400_BAD_REQUEST,
+            field="revision",
+        ) from None
+    if requested != version.version:
+        from .editor_view import editor  # perezoso: editor_view importa este módulo
+
+        raise ApiError(
+            "REVISION_CONFLICT",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Este caso fue modificado en otra sesión. Recarga el editor para continuar.",
+            status.HTTP_409_CONFLICT,
+            revision=version.version,
+            current=editor(version.id),
+        )
+
+
+def bump_revision(case_version_id):
+    """Avanza la revisión del caso (versión optimista): una escritura atómica sin leer."""
+    CaseVersion.objects.filter(pk=case_version_id).update(version=F("version") + 1)
+
+
+def ensure_draft(case_version_id, revision=None):
+    """La versión como borrador, bajo ``FOR UPDATE`` y con su revisión comprobada.
+
+    Debe llamarse dentro de una transacción: el cerrojo serializa dos guardados del mismo caso
+    (el segundo espera, relee la revisión y, si es vieja, recibe el 409).
+    """
+    version = CaseVersion.objects.select_for_update().filter(pk=case_version_id).first()
+    if not version:
+        raise NotFound("Version de caso no encontrada")
     if version.status != "DRAFT":
         raise ValidationError(
             "Solo se puede modificar una versión en estado DRAFT. "
             f"Estado actual: {version.status}. "
             "Use 'Clonar versión' para crear una copia editable."
         )
+    check_revision(version, revision)
     return version
 
 
+# ─── Referencias acotadas a la versión ───────────────────────────────────────────────────
+def in_version(model, pk, case_version_id, *, not_found=None):
+    """La instancia de ``model`` con ese ``pk`` **si es de la versión**.
+
+    404 si no existe (con su mensaje de siempre, o ``not_found``) y 400 «… no pertenece a la
+    versión …» si existe pero es de otra: nunca se acepta una referencia a otro caso.
+    """
+    not_found_message, other_version_message, version_path, related = _REFERENCES[model]
+    queryset = model.objects.filter(pk=pk)
+    if related:
+        queryset = queryset.select_related(related)
+    instance = queryset.first()
+    if instance is None:
+        raise NotFound(not_found or not_found_message.format(id=pk))
+    actual = instance
+    for part in version_path.split("__"):
+        actual = getattr(actual, part)
+    if actual != case_version_id:
+        raise ValidationError(other_version_message.format(id=pk, version=case_version_id))
+    return instance
+
+
 def require_node_in_version(node_id, case_version_id):
-    node = SimulationNode.objects.filter(pk=node_id).first()
-    if not node:
-        raise NotFound(f"Nodo no encontrado: {node_id}")
-    if node.case_version_id != case_version_id:
-        raise ValidationError(f"El nodo {node_id} no pertenece a la versión {case_version_id}")
-    return node
+    return in_version(SimulationNode, node_id, case_version_id)
 
 
 def require_decision_in_version(decision_id, case_version_id):
-    decision = DecisionOption.objects.filter(pk=decision_id).first()
-    if not decision:
-        raise NotFound(f"Decision no encontrada: {decision_id}")
-    if decision.case_version_id != case_version_id:
-        raise ValidationError(f"La decisión {decision_id} no pertenece a la versión {case_version_id}")
-    return decision
+    return in_version(DecisionOption, decision_id, case_version_id)
 
 
 def require_map_in_version(map_id, case_version_id):
-    scene_map = SceneMap.objects.filter(pk=map_id).first()
-    if not scene_map:
-        raise NotFound(f"Mapa no encontrado: {map_id}")
-    if scene_map.case_version_id != case_version_id:
-        raise ValidationError(f"El mapa {map_id} no pertenece a la versión {case_version_id}")
-    return scene_map
+    return in_version(SceneMap, map_id, case_version_id)
 
 
 def require_object_in_version(object_id, case_version_id):
-    obj = MapObject.objects.filter(pk=object_id).select_related("scene_map").first()
-    if not obj:
-        raise NotFound(f"Objeto no encontrado: {object_id}")
-    if obj.scene_map.case_version_id != case_version_id:
-        raise ValidationError(f"El objeto {object_id} no pertenece a la versión {case_version_id}")
-    return obj
+    return in_version(MapObject, object_id, case_version_id)
 
 
 def require_tool_in_version(tool_id, case_version_id):
-    tool = ClinicalTool.objects.filter(pk=tool_id).first()
-    if not tool:
-        raise NotFound(f"Herramienta no encontrada: {tool_id}")
-    if tool.case_version_id != case_version_id:
-        raise ValidationError(f"La herramienta {tool_id} no pertenece a la versión {case_version_id}")
-    return tool
+    return in_version(ClinicalTool, tool_id, case_version_id)
 
 
 def require_dialogue_in_version(tree_id, case_version_id):
-    tree = DialogueTree.objects.filter(pk=tree_id).select_related("scene_map").first()
-    if not tree:
-        raise NotFound(f"Diálogo no encontrado: {tree_id}")
-    if tree.scene_map.case_version_id != case_version_id:
-        raise ValidationError(f"El diálogo {tree_id} no pertenece a la versión {case_version_id}")
-    return tree
+    return in_version(DialogueTree, tree_id, case_version_id)
+
+
+def decision_link(decision_option_id, case_version_id):
+    """La decisión que un objeto o una opción de diálogo enlaza, o ``None`` si ya no existe.
+
+    Una decisión borrada en otra sesión no rompe el guardado (el enlace queda vacío), pero
+    una que existe y es de **otra versión** nunca se acepta (400).
+    """
+    if decision_option_id is None:
+        return None
+    try:
+        return in_version(DecisionOption, decision_option_id, case_version_id)
+    except NotFound:
+        return None

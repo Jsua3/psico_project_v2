@@ -40,6 +40,7 @@ def editor(case_version_id):
 
     return {
         "caseVersionId": version.id,
+        "revision": version.version,
         "title": version.simulation_case.title,
         "semanticVersion": version.semantic_version,
         "status": version.status,

@@ -29,7 +29,7 @@ from shared.exceptions import ApiError
 
 from . import lifecycle
 from .editor_view import editor, latest_checklist_ratio
-from .guards import ensure_draft, require_version
+from .guards import bump_revision, ensure_draft, require_version
 from .request_utils import flag
 from .world_definition import run_world_validation
 
@@ -37,7 +37,7 @@ from .world_definition import run_world_validation
 # ─── Checklist ────────────────────────────────────────────────────────────────
 @transaction.atomic
 def update_checklist(case_version_id, request, actor):
-    version = ensure_draft(case_version_id)
+    version = ensure_draft(case_version_id, request.get("revision"))
     true_count = sum(
         1 for key in (
             "contentOriginal", "ethicsReviewed", "safetyProtocols",
@@ -54,6 +54,7 @@ def update_checklist(case_version_id, request, actor):
     if ratio >= 100:
         checklist.completed_at = timezone.now()
     checklist.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 

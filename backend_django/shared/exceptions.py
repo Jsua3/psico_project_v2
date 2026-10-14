@@ -125,6 +125,9 @@ def custom_exception_handler(exc, context):
         message = str(detail) if detail is not None else str(exc)
 
     body = {"success": False, "code": _code_for(exc), "message": message}
+    if isinstance(exc, ValidationError) and isinstance(exc.detail, dict) and exc.detail:
+        # El primer campo que falló: el cliente lleva el foco ahí (§2.7, ``field?``).
+        body["field"] = str(next(iter(exc.detail)))
     body.update(getattr(exc, "extra", None) or {})
     response.data = body
     return response

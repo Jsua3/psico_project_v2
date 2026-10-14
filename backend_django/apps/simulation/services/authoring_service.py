@@ -65,8 +65,8 @@ def update_node(case_version_id, node_id, request):
 
 
 @auditable("ADMIN_DELETE_NODE", "NODE", 1)
-def delete_node(case_version_id, node_id):
-    return graph.delete_node(case_version_id, node_id)
+def delete_node(case_version_id, node_id, revision=None):
+    return graph.delete_node(case_version_id, node_id, revision)
 
 
 @auditable("ADMIN_CREATE_DECISION", "CASE_VERSION")
@@ -80,8 +80,8 @@ def update_decision(case_version_id, decision_id, request):
 
 
 @auditable("ADMIN_DELETE_DECISION", "DECISION", 1)
-def delete_decision(case_version_id, decision_id):
-    return graph.delete_decision(case_version_id, decision_id)
+def delete_decision(case_version_id, decision_id, revision=None):
+    return graph.delete_decision(case_version_id, decision_id, revision)
 
 
 # ─── Maps, objects and dialogues ─────────────────────────────────────────────
@@ -96,8 +96,8 @@ def update_map(case_version_id, map_id, request):
 
 
 @auditable("ADMIN_DELETE_MAP", "MAP", 1)
-def delete_map(case_version_id, map_id):
-    return scenes.delete_map(case_version_id, map_id)
+def delete_map(case_version_id, map_id, revision=None):
+    return scenes.delete_map(case_version_id, map_id, revision)
 
 
 @auditable("ADMIN_CREATE_OBJECT", "MAP", 1)
@@ -111,8 +111,8 @@ def update_object(case_version_id, object_id, request):
 
 
 @auditable("ADMIN_DELETE_OBJECT", "OBJECT", 1)
-def delete_object(case_version_id, object_id):
-    return scenes.delete_object(case_version_id, object_id)
+def delete_object(case_version_id, object_id, revision=None):
+    return scenes.delete_object(case_version_id, object_id, revision)
 
 
 @auditable("ADMIN_CREATE_DIALOGUE", "MAP", 1)
@@ -126,8 +126,8 @@ def update_dialogue(case_version_id, tree_id, request):
 
 
 @auditable("ADMIN_DELETE_DIALOGUE", "DIALOGUE", 1)
-def delete_dialogue(case_version_id, tree_id):
-    return scenes.delete_dialogue(case_version_id, tree_id)
+def delete_dialogue(case_version_id, tree_id, revision=None):
+    return scenes.delete_dialogue(case_version_id, tree_id, revision)
 
 
 # ─── Clinical tools ──────────────────────────────────────────────────────────
@@ -142,8 +142,8 @@ def update_tool(case_version_id, tool_id, request):
 
 
 @auditable("ADMIN_DELETE_TOOL", "TOOL", 1)
-def delete_tool(case_version_id, tool_id):
-    return tools.delete_tool(case_version_id, tool_id)
+def delete_tool(case_version_id, tool_id, revision=None):
+    return tools.delete_tool(case_version_id, tool_id, revision)
 
 
 # ─── Checklist, publish and clone ────────────────────────────────────────────

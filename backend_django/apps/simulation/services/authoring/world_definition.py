@@ -18,7 +18,6 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services import world_validation
-from shared.exceptions import Conflict
 from shared.jsonutils import (
     coerce_int as _int,
     read_map as _read_map,
@@ -26,7 +25,8 @@ from shared.jsonutils import (
 )
 
 from .editor_view import clinical_tool_editor
-from .guards import ensure_draft, require_version
+from .guards import bump_revision, decision_link, ensure_draft, require_version
+from .icons import validate_icon
 from .scenes import save_dialogue_choices
 
 
@@ -113,11 +113,7 @@ def save_world(case_version_id, node_id, request):
     editor numera lo nuevo con identificadores locales que pueden coincidir con los de
     otra sala (A-05).
     """
-    version = ensure_draft(case_version_id)
-
-    revision = request.get("revision")
-    if revision is not None and revision != version.version:
-        raise Conflict("Este caso fue modificado en otra sesión. Recarga el editor para continuar.")
+    ensure_draft(case_version_id, request.get("revision"))
 
     all_maps = list(SceneMap.objects.filter(case_version_id=case_version_id).order_by("id"))
     if node_id is not None:
@@ -136,7 +132,7 @@ def save_world(case_version_id, node_id, request):
     saved_objects = None
     objects = request.get("objects")
     if objects is not None:
-        saved_objects = _save_objects(scene_map, objects)
+        saved_objects = _save_objects(scene_map, objects, case_version_id)
 
     dialogues = request.get("dialogues")
     if dialogues is not None:
@@ -149,8 +145,8 @@ def save_world(case_version_id, node_id, request):
     if zones is not None:
         _save_collision_zones(scene_map, zones)
 
-    # Spring calls caseVersionRepository.save(version); @Version only bumps when the
-    # entity is dirty (it isn't here), so the revision is intentionally left unchanged.
+    # E2-6: cada guardado avanza la revisión (en Spring @Version no avanzaba y el 409 era inerte).
+    bump_revision(case_version_id)
     return world_editor(case_version_id, node_id)
 
 
@@ -170,7 +166,7 @@ def _apply_map_definition(scene_map, map_def):
     scene_map.save()
 
 
-def _save_objects(scene_map, objects):
+def _save_objects(scene_map, objects, case_version_id):
     """Crea o actualiza los objetos recibidos; devuelve los guardados, en el orden recibido."""
     saved = []
     for wo in objects:
@@ -190,6 +186,7 @@ def _save_objects(scene_map, objects):
         obj.z_index = _int(wo.get("zIndex"))
         obj.facing = wo.get("facing") if wo.get("facing") is not None else "down"
         obj.color_hex = wo.get("colorHex") if wo.get("colorHex") is not None else "#4FA3A5"
+        validate_icon(wo.get("icon"), current=obj.icon)
         obj.icon = wo.get("icon") if wo.get("icon") is not None else "psychology"
         obj.short_code = wo.get("shortCode") if wo.get("shortCode") is not None else "ACT"
         obj.collision = bool(wo.get("collision"))
@@ -201,7 +198,8 @@ def _save_objects(scene_map, objects):
         obj.movement_pattern_json = _write_map(wo.get("movementPattern"))
         obj.metadata_json = _write_map(wo.get("metadata"))
         if wo.get("decisionOptionId") is not None:
-            decision = DecisionOption.objects.filter(pk=wo.get("decisionOptionId")).first()
+            # Una decisión de otra versión nunca se enlaza (400); una borrada deja el enlace como estaba.
+            decision = decision_link(wo.get("decisionOptionId"), case_version_id)
             if decision:
                 obj.decision_option = decision
         else:

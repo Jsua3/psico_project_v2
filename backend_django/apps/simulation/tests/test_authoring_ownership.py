@@ -222,6 +222,9 @@ def test_the_owner_edits_their_case_end_to_end(prof_a, case_a):
     ).status_code == 200
     assert client.put(f"{AUTHORING}/{cv}/checklist", {"contentOriginal": True}, format="json").status_code == 200
     assert client.get(f"{AUTHORING}/{cv}/world-editor").status_code == 200
+    # El nodo tiene una decisión entrante: primero se borra la decisión y luego el nodo.
+    edge = client.get(f"{AUTHORING}/{cv}/editor").data["data"]["decisions"][0]
+    assert client.delete(f"{AUTHORING}/{cv}/decisions/{edge['id']}").status_code == 200
     assert client.delete(f"{AUTHORING}/{cv}/nodes/{second['id']}").status_code == 200
 
 
