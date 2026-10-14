@@ -45,6 +45,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services.authoring.characters import ensure_person_characters
+from apps.simulation.services.competencies import link_unlinked_criteria
 from apps.simulation.services.case_effects import DEFAULT_ENDINGS, DEFAULT_METRICS
 
 CASE_CODE = "SIM-VBG-001"
@@ -1602,6 +1603,9 @@ class Command(BaseCommand):
                         display_order=criterion["display_order"],
                     )
                 self.stdout.write("Rúbrica canónica creada para la versión publicada.")
+
+        # ── Competencias: cada criterio sembrado queda enlazado a su competencia (E3-9) ──
+        link_unlinked_criteria(create=True)
 
         # ── Archivar otras versiones publicadas (catálogo = solo esta) ───────
         if not Rubric.objects.filter(case_version_id=version.id, active=True).exists():

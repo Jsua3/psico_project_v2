@@ -23,6 +23,8 @@ from apps.simulation.models import (
     SimulationRubricAssignment,
 )
 
+from . import competencies
+
 #: Rango de la calificación de un criterio (SIEP-CU-04): el servidor es la única fuente y la
 #: interfaz lo lee del DTO (``minScore``, ``maxScore``, ``step``).
 SCORE_MIN = Decimal("1.0")
@@ -179,6 +181,7 @@ def rubric_detail(rubric, actor=None):
         {
             "id": c.id,
             "competency": c.competency,
+            "competencyId": c.competency_ref_id,
             "title": c.title,
             "description": c.description,
             "weight": float(_weight(c)),
@@ -249,6 +252,12 @@ def _write_criteria(rubric, criteria_payload):
         if not criterion:
             criterion = RubricCriterion(rubric=rubric)
         criterion.competency = str(item.get("competency") or item.get("title") or "").strip()[:100]
+        # E3-9: el enlace con el catálogo; el texto libre de arriba se conserva siempre.
+        competency, explicit = competencies.resolve_for_criterion(item)
+        if explicit or competency is not None:
+            criterion.competency_ref = competency
+            if competency is not None and not item.get("competency"):
+                criterion.competency = competency.code
         criterion.title = str(item.get("title") or item.get("name") or "").strip()
         criterion.description = str(item.get("description") or "").strip()
         criterion.weight = weight
@@ -345,6 +354,7 @@ def duplicate(rubric_id, user):
         RubricCriterion.objects.create(
             rubric=clone,
             competency=c.competency,
+            competency_ref=c.competency_ref,
             title=c.title,
             description=c.description,
             weight=_weight(c),
@@ -714,6 +724,7 @@ def seed_default_rubric(user):
         criterion.active = True
         criterion.save()
     RubricCriterion.objects.filter(rubric=rubric).exclude(competency__in=seen).update(active=False)
+    competencies.link_unlinked_criteria(create=True)
     set_default(rubric.id)
 
     for case_version in CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True):

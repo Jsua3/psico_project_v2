@@ -239,6 +239,20 @@ def row_rubric_default(world):
     return got, {"anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 200}
 
 
+def row_competency_read(world):
+    return statuses(world, lambda client, w: _code(client.get("/api/competencies"))), {
+        "anon": 401, "ESTUDIANTE": 403, "PROFESOR": 200, "ADMIN": 200,
+    }
+
+
+def row_competency_manage(world):
+    def call(client, w):
+        return _code(client.post("/api/competencies", {"code": "", "name": ""}, format="json"))
+
+    # El cuerpo vacío es un 400 de validación: la puerta de rol dejó pasar solo al ADMIN.
+    return statuses(world, call), {"anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 400}
+
+
 def row_user_manage(world):
     return statuses(world, lambda client, w: _code(client.get("/api/admin/users"))), {
         "anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 200,
@@ -284,6 +298,8 @@ ROWS = {
     ("rubric", "read"): row_rubric_read,
     ("rubric", "edit"): row_rubric_edit,
     ("rubric", "default"): row_rubric_default,
+    ("competency", "read"): row_competency_read,
+    ("competency", "manage"): row_competency_manage,
     ("user", "manage"): row_user_manage,
     ("analytics", "read"): row_analytics_read,
     ("catalog", "read"): row_catalog_read,

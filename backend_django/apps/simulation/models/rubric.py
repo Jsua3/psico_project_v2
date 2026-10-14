@@ -54,11 +54,39 @@ class Rubric(models.Model):
         db_table = "rubrics"
 
 
+class Competency(models.Model):
+    """Una competencia del catálogo del programa (RQ-NEG-002, E3-9).
+
+    Es la base de la analítica por competencia (E6): un código estable (mayúsculas, sin espacios),
+    un nombre y su descripción. El ADMIN amplía el catálogo; el personal lo lee. Los criterios de
+    las rúbricas la referencian con ``competency_id`` sin perder su texto libre ``competency``.
+    """
+
+    code = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(default="", db_default="")
+    active = models.BooleanField(default=True, db_default=True)
+    sort_order = models.IntegerField(default=0, db_default=0)
+
+    class Meta:
+        db_table = "competencies"
+        ordering = ["sort_order", "code"]
+
+    def __str__(self):
+        return self.code
+
+
 class RubricCriterion(models.Model):
     rubric = models.ForeignKey(
         Rubric, on_delete=models.DB_CASCADE, related_name="criteria", db_column="rubric_id"
     )
     competency = models.CharField(max_length=100)
+    #: La competencia del catálogo a la que apunta el criterio (el texto libre de arriba se
+    #: conserva); se desvincula si la competencia se borra.
+    competency_ref = models.ForeignKey(
+        Competency, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        related_name="criteria", db_column="competency_id",
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     max_score = models.IntegerField(default=0, db_default=0)

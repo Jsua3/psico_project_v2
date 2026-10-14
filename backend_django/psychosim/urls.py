@@ -34,6 +34,7 @@ from apps.grupos.views import (
     MeInvitationLeaveView,
     MeInvitationsView,
 )
+from apps.simulation.views.rubric_views import CompetencyListCreateView
 from apps.users.views import (
     AdminAccessRequestListView,
     AdminAccessRequestStatusView,
@@ -86,6 +87,8 @@ urlpatterns = [
     path("api/admin/access-requests/<int:request_id>/status", AdminAccessRequestStatusView.as_view()),
     path("api/instructor/", include("apps.simulation.urls_instructor")),
     path("api/rubrics/", include("apps.simulation.urls_rubrics")),
+    # E3-9 · catálogo de competencias (RQ-NEG-002): el personal lo lee, el ADMIN lo amplía.
+    path("api/competencies", CompetencyListCreateView.as_view()),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("swagger-ui.html", SpectacularSwaggerView.as_view(url_name="schema")),
     # Catch-all del SPA (debe ir al final): cualquier ruta que no sea API,

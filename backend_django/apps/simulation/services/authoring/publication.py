@@ -228,7 +228,9 @@ def _clone_rubrics(source, clone):
     for rubric in Rubric.objects.filter(case_version_id=source.id).order_by("id"):
         rubric_copy = cloning.RUBRIC.copy(rubric, case_version=clone, created_by=rubric.created_by)
         for criterion in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order"):
-            cloning.RUBRIC_CRITERION.copy(criterion, rubric=rubric_copy)
+            cloning.RUBRIC_CRITERION.copy(
+                criterion, rubric=rubric_copy, competency_ref=criterion.competency_ref
+            )
 
 
 def create_draft_checklist(clone, actor):

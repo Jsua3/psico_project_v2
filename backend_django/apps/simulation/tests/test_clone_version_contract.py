@@ -26,6 +26,7 @@ from apps.simulation.models import (
     CaseVersion,
     ClinicalTool,
     CollisionZone,
+    Competency,
     DecisionOption,
     DialogueChoice,
     DialogueLine,
@@ -67,7 +68,7 @@ ENTITIES = {
     DialogueChoice: ("display_order", {"dialogue_tree": "tree_key", "decision_option": "option_key"}, set()),
     ClinicalTool: ("id", {}, {"case_version"}),
     Rubric: ("id", {}, {"case_version", "created_by"}),
-    RubricCriterion: ("display_order", {"rubric": "name"}, set()),
+    RubricCriterion: ("display_order", {"rubric": "name", "competency_ref": "code"}, set()),
 }
 
 #: Campos de lista JSON (los demás `*_json` son objetos).
@@ -187,7 +188,10 @@ def fuente(admin, autor):
     DialogueChoice.objects.create(dialogue_tree=tree, decision_option=decision, **_all_distinct(DialogueChoice))
     ClinicalTool.objects.create(case_version=version, **_all_distinct(ClinicalTool))
     rubric = Rubric.objects.create(case_version=version, created_by=autor, **_all_distinct(Rubric))
-    RubricCriterion.objects.create(rubric=rubric, **_all_distinct(RubricCriterion))
+    competency = Competency.objects.create(code="P03_COMPETENCIA", name="p03-competencia")
+    RubricCriterion.objects.create(
+        rubric=rubric, competency_ref=competency, **_all_distinct(RubricCriterion)
+    )
     return version
 
 

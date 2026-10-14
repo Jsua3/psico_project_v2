@@ -37,6 +37,7 @@ TABLES = {
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
     "attempt_reports", "case_reviews", "case_characters", "scene_hints", "attempt_hint_views",
+    "competencies",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -48,6 +49,7 @@ MAP_OBJECT_TYPES = [
 UNIQUE_COLUMNS = {
     "users": [("email",)],
     "grupos": [("codigo",)],
+    "competencies": [("code",)],
     "simulation_cases": [("code",)],
     "simulation_attempts_v2": [("attempt_token_hash",), ("student_id", "case_version_id")],  # el 2.º, parcial: solo abiertos
     "student_case_completion": [("student_id", "simulation_case_id")],
@@ -132,6 +134,7 @@ ON_DELETE = {
     ("rubric_criteria", "rubric_id"): "CASCADE",
     ("rubric_evaluations", "attempt_id"): "CASCADE",
     ("rubrics", "case_version_id"): "CASCADE",
+    ("rubric_criteria", "competency_id"): "SET NULL",
     ("scene_hints", "scene_map_id"): "CASCADE",
     ("scene_maps", "case_version_id"): "CASCADE",
     ("scene_maps", "node_id"): "CASCADE",
