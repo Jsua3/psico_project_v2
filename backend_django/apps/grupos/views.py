@@ -194,3 +194,13 @@ class MeInvitationDeclineView(APIView):
     def post(self, request, group_id):
         row = memberships.decline(group_id, request.user.id)
         return api_ok(memberships.invitation_view(row), message="Invitación rechazada")
+
+
+class MeInvitationLeaveView(APIView):
+    """POST /api/me/invitations/{groupId}/leave — el estudiante deja un grupo del que es miembro."""
+
+    permission_classes = [_CAN_RESPOND]
+
+    def post(self, request, group_id):
+        row = memberships.leave(group_id, request.user.id)
+        return api_ok(memberships.invitation_view(row), message="Saliste del grupo")

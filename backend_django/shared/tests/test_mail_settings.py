@@ -92,9 +92,24 @@ def test_smtp_options_come_from_the_environment(monkeypatch):
 
 
 def test_an_unset_option_is_not_passed(monkeypatch):
+    """Una variable sin definir no se pasa al backend; la única con valor propio es el tiempo de
+    espera (``timeout`` = 10 s) para que un SMTP colgado no retenga la petición."""
     settings = _base(monkeypatch, EMAIL_BACKEND=SMTP, EMAIL_HOST="smtp.example.edu.co")
 
-    assert settings["MAILERS"]["default"]["OPTIONS"] == {"host": "smtp.example.edu.co"}
+    assert settings["MAILERS"]["default"]["OPTIONS"] == {"host": "smtp.example.edu.co", "timeout": 10}
+
+
+def test_smtp_gets_a_bounded_timeout_when_none_is_given(monkeypatch):
+    """Sin tiempo de espera, un servidor de correo colgado retiene la petición indefinidamente."""
+    settings = _base(monkeypatch, EMAIL_BACKEND=SMTP, EMAIL_HOST="smtp.example.edu.co")
+
+    assert settings["MAILERS"]["default"]["OPTIONS"]["timeout"] == 10
+
+
+def test_an_explicit_timeout_wins_over_the_default(monkeypatch):
+    settings = _base(monkeypatch, EMAIL_BACKEND=SMTP, EMAIL_HOST="smtp.example.edu.co", EMAIL_TIMEOUT="30")
+
+    assert settings["MAILERS"]["default"]["OPTIONS"]["timeout"] == 30
 
 
 # ─── producción ──────────────────────────────────────────────────────────────────────────

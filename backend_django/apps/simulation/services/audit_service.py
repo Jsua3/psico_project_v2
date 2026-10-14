@@ -90,6 +90,13 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
 
 
 # ─── @auditable decorator (Spring SimulationAuditAspect) ─────────────────────
+def arg(args, kwargs, index, name):
+    """El argumento ``name`` de una llamada, venga posicional (``index``) o por nombre."""
+    if name in kwargs:
+        return kwargs[name]
+    return args[index] if index < len(args) else None
+
+
 def auditable(action, resource_type="", resource_id_param_index=0, context=None):
     """Registra ``action`` DESPUÉS de que la operación termine bien.
 

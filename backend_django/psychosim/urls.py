@@ -29,6 +29,7 @@ from apps.grupos.views import (
     GrupoListCreateView,
     MeInvitationAcceptView,
     MeInvitationDeclineView,
+    MeInvitationLeaveView,
     MeInvitationsView,
 )
 from apps.users.views import (
@@ -55,6 +56,7 @@ urlpatterns = [
     path("api/me/invitations", MeInvitationsView.as_view()),
     path("api/me/invitations/<int:group_id>/accept", MeInvitationAcceptView.as_view()),
     path("api/me/invitations/<int:group_id>/decline", MeInvitationDeclineView.as_view()),
+    path("api/me/invitations/<int:group_id>/leave", MeInvitationLeaveView.as_view()),
     path("api/grupos/<int:pk>/estudiantes/import", GrupoEstudiantesImportView.as_view()),
     path("api/grupos/<int:pk>/estudiantes/import/", GrupoEstudiantesImportView.as_view()),
     path("api/grupos/estudiantes/import/spec", GrupoEstudiantesImportSpecView.as_view()),

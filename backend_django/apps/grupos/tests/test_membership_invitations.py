@@ -378,3 +378,243 @@ def test_listing_the_groups_counts_memberships_in_one_query(profesor, django_ass
 
     assert response.status_code == 200
     assert len(response.data["data"]) == 8
+
+
+# ─── Revisión de fase E2 · carreras de las membresías, salir del grupo, correo y puente ──────────────
+def _audit_context(action):
+    import json
+
+    from apps.simulation.models import AuditLog
+
+    row = AuditLog.objects.filter(action=action).order_by("-id").first()
+    assert row is not None, f"no hay fila de auditoría {action}"
+    return json.loads(row.context_json)
+
+
+@pytest.mark.parametrize("answer", ["accept", "decline"])
+def test_a_stale_answer_cannot_resurrect_a_removed_membership(profesor, grupo, estudiante, monkeypatch, answer):
+    """El docente retiró la invitación entre la lectura y la escritura del estudiante: su respuesta
+    (basada en una fila vieja) no puede pisar el estado nuevo."""
+    from apps.grupos import memberships
+
+    _invite(cl(profesor), grupo, estudiante.email)
+    stale = memberships._own(grupo.id, estudiante.id)
+    assert stale.status == "INVITED"
+    cl(profesor).delete(f"/api/grupos/{grupo.id}/estudiantes/{estudiante.id}")
+    assert _status(grupo, estudiante) == "REMOVED"
+    monkeypatch.setattr(memberships, "_own", lambda group_id, student_id: stale)
+
+    response = cl(estudiante).post(f"/api/me/invitations/{grupo.id}/{answer}", {}, format="json")
+
+    assert response.status_code == 409
+    assert response.data["code"] == "MEMBERSHIP_NOT_INVITED"
+    assert _status(grupo, estudiante) == "REMOVED"
+
+
+def test_an_invitation_that_loses_the_race_to_create_the_row_is_not_an_error(
+    profesor, grupo, estudiante, monkeypatch
+):
+    """Otra petición inserta la fila entre «miré y no estaba» y «la creé»: el INSERT choca con la
+    llave primaria. La invitación perdedora devuelve la fila que ganó, no un 500."""
+    from django.db import connection
+    from django.db.models.query import QuerySet
+
+    from apps.grupos import memberships
+
+    original_get, original_first = QuerySet.get, QuerySet.first
+    raced = []
+
+    def other_request_inserts_first():
+        raced.append(True)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO grupo_estudiante (grupo_id, estudiante_id, status) VALUES (%s, %s, 'INVITED')",
+                [grupo.id, estudiante.id],
+            )
+
+    def racing_get(self, *args, **kwargs):
+        if self.model is GrupoEstudiante and not raced:
+            other_request_inserts_first()
+            raise GrupoEstudiante.DoesNotExist()  # la lectura se hizo antes del INSERT ajeno
+        return original_get(self, *args, **kwargs)
+
+    def racing_first(self, *args, **kwargs):
+        if self.model is GrupoEstudiante and not raced:
+            other_request_inserts_first()
+            return None
+        return original_first(self, *args, **kwargs)
+
+    monkeypatch.setattr(QuerySet, "get", racing_get)
+    monkeypatch.setattr(QuerySet, "first", racing_first)
+
+    row, changed = memberships.invite(grupo, estudiante, profesor)
+
+    assert raced == [True]
+    assert (row.status, changed) == ("INVITED", False)
+    assert GrupoEstudiante.objects.filter(grupo_id=grupo.id, estudiante_id=estudiante.id).count() == 1
+
+
+def test_a_student_can_leave_a_group_and_the_teacher_can_reinvite(profesor, grupo, estudiante):
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
+
+    left = cl(estudiante).post(f"/api/me/invitations/{grupo.id}/leave", {}, format="json")
+
+    assert left.status_code == 200
+    assert left.data["data"]["status"] == "REMOVED"
+    assert _status(grupo, estudiante) == "REMOVED"
+    assert cl(estudiante).get("/api/me/invitations").data["data"] == []  # lo retirado no se lista
+    _invite(cl(profesor), grupo, estudiante.email)
+    assert _status(grupo, estudiante) == "INVITED"
+    assert _audit_context("MEMBERSHIP_LEFT")["studentId"] == estudiante.id
+
+
+def test_leaving_is_only_for_an_active_member(profesor, grupo, estudiante):
+    _invite(cl(profesor), grupo, estudiante.email)  # INVITED, no ACTIVE
+
+    pending = cl(estudiante).post(f"/api/me/invitations/{grupo.id}/leave", {}, format="json")
+    stranger = cl(_user("inv_stranger@x.com")).post(f"/api/me/invitations/{grupo.id}/leave", {}, format="json")
+
+    assert pending.status_code == 409 and pending.data["code"] == "MEMBERSHIP_NOT_ACTIVE"
+    assert stranger.status_code == 404
+    assert _status(grupo, estudiante) == "INVITED"
+
+
+def test_a_teacher_cannot_leave_on_behalf_of_a_student(profesor, grupo, estudiante):
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
+
+    response = cl(profesor).post(f"/api/me/invitations/{grupo.id}/leave", {}, format="json")
+
+    assert response.status_code == 403
+    assert _status(grupo, estudiante) == "ACTIVE"
+
+
+def test_the_invitation_email_goes_out_after_the_transaction_block(
+    profesor, grupo, estudiante, monkeypatch
+):
+    """Con el correo dentro del ``atomic`` un servidor lento retiene los cerrojos de la base."""
+    from django.db import connection
+
+    from apps.grupos import notifications
+
+    depth = []
+    monkeypatch.setattr(
+        notifications, "send_mail", lambda *args, **kwargs: depth.append(len(connection.savepoint_ids))
+    )
+    baseline = len(connection.savepoint_ids)
+
+    _invite(cl(profesor), grupo, estudiante.email)
+
+    assert depth == [baseline]
+
+
+def test_the_import_emails_go_out_after_the_transaction_block(profesor, grupo, estudiante, monkeypatch):
+    from django.db import connection
+
+    from apps.grupos import notifications
+
+    depth = []
+    monkeypatch.setattr(
+        notifications, "send_mail", lambda *args, **kwargs: depth.append(len(connection.savepoint_ids))
+    )
+    baseline = len(connection.savepoint_ids)
+
+    response = _import_file(cl(profesor), grupo, [["Nom", "Ape", estudiante.email]])
+
+    assert response.status_code == 200
+    assert depth == [baseline]
+
+
+def test_a_mail_server_that_is_down_is_tried_once_per_import(profesor, grupo, monkeypatch):
+    """El primer fallo corta los demás envíos: no se espera un tiempo de espera por cada alumno."""
+    from apps.grupos import notifications
+
+    calls = []
+
+    def boom(*args, **kwargs):
+        calls.append(args[3])
+        raise ConnectionError("SMTP caído")
+
+    monkeypatch.setattr(notifications, "send_mail", boom)
+    students = [_user(f"inv_down_{i}@x.com") for i in range(5)]
+    rows = [[s.nombre, s.apellido, s.email] for s in students]
+
+    response = _import_file(cl(profesor), grupo, rows)
+
+    assert response.status_code == 200
+    assert response.data["data"]["assigned"] == 5
+    assert len(calls) == 1
+
+
+@pytest.mark.req("DJA-3")
+def test_an_import_emails_only_up_to_the_limit_and_still_invites_everyone(profesor, grupo, locmem, settings):
+    settings.INVITATION_EMAIL_LIMIT = 3
+    students = [_user(f"inv_bulk_{i}@x.com") for i in range(6)]
+    rows = [[s.nombre, s.apellido, s.email] for s in students]
+
+    response = _import_file(cl(profesor), grupo, rows)
+
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["assigned"] == 6
+    assert len(locmem.outbox) == 3
+    assert GrupoEstudiante.objects.filter(grupo_id=grupo.id, status="INVITED").count() == 6
+
+
+def test_the_email_limit_has_a_sane_default(settings):
+    assert 1 <= settings.INVITATION_EMAIL_LIMIT <= 100
+
+
+# ─── puente transitorio: invitar une al grupo sin aceptación (apagado por defecto) ───────────────────
+def test_the_invitations_bridge_is_off_by_default(settings):
+    assert settings.INVITATIONS_AUTO_ACCEPT is False
+
+
+def test_with_the_bridge_on_an_invitation_joins_the_group_at_once(profesor, grupo, estudiante, settings, locmem):
+    settings.INVITATIONS_AUTO_ACCEPT = True
+
+    response = _invite(cl(profesor), grupo, estudiante.email)
+
+    assert response.status_code == 200
+    assert _status(grupo, estudiante) == "ACTIVE"
+    assert response.data["data"]["totalEstudiantes"] == 1
+    assert locmem.outbox == []  # ya es miembro: no hay nada que aceptar ni que avisar
+    other = _user("inv_bridge_other@x.com")
+    _import_file(cl(profesor), grupo, [[other.nombre, other.apellido, other.email]])
+    assert _status(grupo, other) == "ACTIVE"
+
+
+def test_with_the_bridge_on_a_pending_invitation_is_promoted(profesor, grupo, estudiante, settings):
+    _invite(cl(profesor), grupo, estudiante.email)
+    assert _status(grupo, estudiante) == "INVITED"
+    settings.INVITATIONS_AUTO_ACCEPT = True
+
+    _invite(cl(profesor), grupo, estudiante.email)
+
+    assert _status(grupo, estudiante) == "ACTIVE"
+
+
+# ─── la auditoría nombra a la persona de la membresía ────────────────────────────────────────────────
+def test_membership_audit_rows_name_the_student(profesor, grupo, estudiante):
+    other = _user("inv_audit2@x.com")
+
+    _invite(cl(profesor), grupo, estudiante.email)
+    assert _audit_context("MEMBERSHIP_INVITED")["studentId"] == estudiante.id
+    cl(estudiante).post(f"/api/me/invitations/{grupo.id}/accept", {}, format="json")
+    assert _audit_context("MEMBERSHIP_ACCEPTED")["studentId"] == estudiante.id
+    _invite(cl(profesor), grupo, other.email)
+    cl(other).post(f"/api/me/invitations/{grupo.id}/decline", {}, format="json")
+    assert _audit_context("MEMBERSHIP_DECLINED")["studentId"] == other.id
+    cl(profesor).delete(f"/api/grupos/{grupo.id}/estudiantes/{estudiante.id}")
+    assert _audit_context("MEMBERSHIP_REMOVED")["studentId"] == estudiante.id
+
+
+def test_the_import_audit_row_counts_and_names_what_it_did(profesor, grupo, estudiante):
+    response = _import_file(
+        cl(profesor), grupo, [["Nuevo", "Cuenta", "inv_audit_new@x.com"], [estudiante.nombre, "X", estudiante.email]]
+    )
+
+    context = _audit_context("STUDENTS_IMPORTED")
+    new_id = User.objects.get(email="inv_audit_new@x.com").id
+    assert response.status_code == 200
+    assert sorted(context["studentIds"]) == sorted([new_id, estudiante.id])
+    assert (context["created"], context["invited"]) == (1, 2)
+    assert "inv_audit_new@x.com" not in str(context)  # ids, no correos

@@ -12,11 +12,12 @@ traza, su bitácora descifrada y los reportes del docente no lo incluyen: eso lo
 
 La parte pura (``can_transition``, ``target_of``) no toca la base de datos.
 """
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import status as http
 from rest_framework.exceptions import NotFound
 
-from apps.simulation.services.audit_service import auditable
+from apps.simulation.services.audit_service import arg, auditable
 from shared.exceptions import ApiError
 
 from .models import GrupoEstudiante, MembershipStatus
@@ -50,27 +51,40 @@ def target_of(current, action):
 
 
 # ─── Operaciones ──────────────────────────────────────────────────────────────────────────
+# Cada cambio de estado es un UPDATE condicionado al estado de origen (comparar y cambiar en una
+# sola sentencia): dos peticiones simultáneas no se pisan, y una respuesta basada en una lectura
+# vieja no resucita una membresía que alguien más ya cambió.
+def _of(group_id, student_id):
+    return GrupoEstudiante.objects.filter(grupo_id=group_id, estudiante_id=student_id)
+
+
 def invite(grupo, student, by):
     """Invita a ``student`` al ``grupo``. Devuelve ``(membresía, cambió)``.
 
     Sin fila crea una ``INVITED``; una ``DECLINED`` o ``REMOVED`` vuelve a ``INVITED``; una
-    ``INVITED`` o ``ACTIVE`` no cambia (la orden es idempotente).
+    ``INVITED`` o ``ACTIVE`` no cambia (la orden es idempotente). Con el puente transitorio
+    ``INVITATIONS_AUTO_ACCEPT`` la persona entra directamente como ``ACTIVE``.
     """
     now = timezone.now()
-    row = GrupoEstudiante.objects.filter(grupo_id=grupo.id, estudiante_id=student.id).first()
-    if row is None:
-        row = GrupoEstudiante.objects.create(
-            grupo_id=grupo.id, estudiante_id=student.id, status=INVITED, invited_by=by, invited_at=now,
-        )
+    bridge = settings.INVITATIONS_AUTO_ACCEPT
+    target = ACTIVE if bridge else INVITED
+    fields = {"status": target, "invited_by": by, "invited_at": now}
+    if bridge:
+        fields["responded_at"] = now
+    row, created = GrupoEstudiante.objects.get_or_create(
+        grupo_id=grupo.id, estudiante_id=student.id, defaults=fields
+    )
+    if created:
         return row, True
-    if row.status in (DECLINED, REMOVED):
-        row.status = INVITED
-        row.invited_by = by
-        row.invited_at = now
-        row.responded_at = None
-        row.save(update_fields=["status", "invited_by", "invited_at", "responded_at"])
-        return row, True
-    return row, False
+    reopen = (DECLINED, REMOVED, INVITED) if bridge else (DECLINED, REMOVED)
+    changed = _of(grupo.id, student.id).filter(status__in=reopen).update(
+        status=target,
+        invited_by=by,
+        invited_at=now,
+        responded_at=now if bridge else None,
+    )
+    row = _of(grupo.id, student.id).first() or row
+    return row, bool(changed)
 
 
 def _own(group_id, student_id):
@@ -87,40 +101,65 @@ def _own(group_id, student_id):
 
 def respond(group_id, student_id, *, accept):
     """El estudiante (o el ADMIN por él, al aceptar) responde la invitación de ``group_id``."""
-    row = _own(group_id, student_id)
-    if row.status != INVITED:
+    _own(group_id, student_id)  # 404 si no hay fila
+    target = ACTIVE if accept else DECLINED
+    updated = _of(group_id, student_id).filter(status=INVITED).update(
+        status=target, responded_at=timezone.now()
+    )
+    if not updated:
+        current = _of(group_id, student_id).values_list("status", flat=True).first()
         raise ApiError(
             "MEMBERSHIP_NOT_INVITED",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             "Esta invitación ya fue respondida o ya no está vigente.",
             http.HTTP_409_CONFLICT,
-            status=str(row.status),
+            status=str(current),
         )
-    row.status = ACTIVE if accept else DECLINED
-    row.responded_at = timezone.now()
-    row.save(update_fields=["status", "responded_at"])
-    return row
+    return _own(group_id, student_id)
 
 
-@auditable("MEMBERSHIP_ACCEPTED", "GRUPO")
+def _student_context(args, kwargs, result):
+    """El estudiante de la membresía: el segundo argumento de ``accept``/``decline``/``leave``."""
+    return {"studentId": arg(args, kwargs, 1, "student_id")}
+
+
+@auditable("MEMBERSHIP_ACCEPTED", "GRUPO", context=_student_context)
 def accept(group_id, student_id):
     return respond(group_id, student_id, accept=True)
 
 
-@auditable("MEMBERSHIP_DECLINED", "GRUPO")
+@auditable("MEMBERSHIP_DECLINED", "GRUPO", context=_student_context)
 def decline(group_id, student_id):
     return respond(group_id, student_id, accept=False)
 
 
+@auditable("MEMBERSHIP_LEFT", "GRUPO", context=_student_context)
+def leave(group_id, student_id):
+    """El estudiante deja el grupo: ``ACTIVE → REMOVED`` (el docente puede volver a invitarlo)."""
+    _own(group_id, student_id)  # 404 si no hay fila
+    updated = _of(group_id, student_id).filter(status=ACTIVE).update(
+        status=REMOVED, responded_at=timezone.now()
+    )
+    if not updated:
+        current = _of(group_id, student_id).values_list("status", flat=True).first()
+        raise ApiError(
+            "MEMBERSHIP_NOT_ACTIVE",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Solo puedes salir de un grupo del que eres miembro.",
+            http.HTTP_409_CONFLICT,
+            status=str(current),
+        )
+    return _own(group_id, student_id)
+
+
 def remove(grupo, student_id):
     """El docente retira al estudiante (o cancela su invitación): estado blando ``REMOVED``."""
-    row = GrupoEstudiante.objects.filter(grupo_id=grupo.id, estudiante_id=student_id).first()
-    if row is None or row.status not in (INVITED, ACTIVE):
+    updated = _of(grupo.id, student_id).filter(status__in=(INVITED, ACTIVE)).update(
+        status=REMOVED, responded_at=timezone.now()
+    )
+    if not updated:
         return None
-    row.status = REMOVED
-    row.responded_at = timezone.now()
-    row.save(update_fields=["status", "responded_at"])
-    return row
+    return _of(grupo.id, student_id).first()
 
 
 # ─── Vista (C5) ───────────────────────────────────────────────────────────────────────────

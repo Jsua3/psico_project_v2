@@ -176,6 +176,14 @@ REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
 #: Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409
 #: ``REVISION_CONFLICT``.
 REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
+#: E2-10 · PUENTE transitorio (revisión de fase): invitar a un estudiante lo une al grupo de una
+#: vez, sin aceptación ni correo, como hasta E1. Apagada (por defecto): la invitación espera la
+#: respuesta del estudiante (decisión 22). Se enciende solo mientras el visual no tenga la bandeja
+#: de invitaciones (F7+) y se retira cuando la tenga.
+INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
+#: R16 · máximo de avisos de invitación que sale de UNA importación (el resto queda invitado y lo
+#: ve en su bandeja): acota el tiempo de la petición y el volumen de correo.
+INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25"))
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
@@ -211,6 +219,9 @@ def _mailer_options():
     for variable, option in {"EMAIL_USE_TLS": "use_tls", "EMAIL_USE_SSL": "use_ssl"}.items():
         if os.environ.get(variable, "").strip():
             options[option] = _env_flag(variable)
+    if "host" in options:
+        # Sin tiempo de espera un servidor SMTP colgado retiene la petición indefinidamente.
+        options.setdefault("timeout", 10)
     return options
 
 

@@ -21,7 +21,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import CaseVersion, SimulationNode
 from apps.simulation.serializers import game_dtos as simulation_dto
-from apps.simulation.services.audit_service import auditable
+from apps.simulation.services.audit_service import arg, auditable
 from apps.users.serializers import normalize_email_value, validate_common_email_domain
 from shared.exceptions import ApiError
 
@@ -616,54 +616,70 @@ def _validate_import_rows(grupo, rows, ignored_columns=None):
     return normalized_rows
 
 
-@auditable("STUDENTS_IMPORTED", "GRUPO")
-@transaction.atomic
+def _import_audit_context(args, kwargs, result):
+    summary, _, student_ids = result
+    return {"studentIds": student_ids, "created": summary["created"], "invited": summary["assigned"]}
+
+
+@auditable("STUDENTS_IMPORTED", "GRUPO", context=_import_audit_context)
+def _importar(grupo_id, uploaded_file, profesor):
+    """La importación completa en UNA transacción. Devuelve ``(resultado, a notificar, ids)``."""
+    with transaction.atomic():
+        grupo = _require_grupo(grupo_id, profesor)
+        rows, ignored = _parse_student_import(uploaded_file)
+        rows = _validate_import_rows(grupo, rows, ignored)
+        created = existing = assigned = skipped = 0
+        imported_students, to_notify, student_ids = [], [], []
+
+        for item in rows:
+            user = item["user"]
+            if user:
+                existing += 1
+            else:
+                # RN-10 · cuenta PENDIENTE: inactiva, sin contraseña usable y con el cambio
+                # obligatorio. El ADMIN la aprueba y recibe una contraseña temporal por correo.
+                user = User.objects.create_user(
+                    email=item["email"],
+                    password=None,
+                    nombre=item["nombre"],
+                    apellido=item["apellido"],
+                    role="ESTUDIANTE",
+                    activo=False,
+                    must_change_password=True,
+                )
+                created += 1
+
+            # E2-10: la importación INVITA; el estudiante entra al grupo cuando acepta (decisión 22).
+            row, changed = memberships.invite(grupo, user, profesor)
+            student_ids.append(user.id)
+            if changed:
+                assigned += 1
+                # Una cuenta pendiente aún no puede entrar: recibe su aviso al aprobarse (E2-9).
+                if user.activo and row.status == MembershipStatus.INVITED:
+                    to_notify.append(user)
+            else:
+                skipped += 1
+            imported_students.append(_imported_student_dto(item, row.status))
+
+        summary = _import_result(
+            grupo,
+            created=created,
+            existing=existing,
+            assigned=assigned,
+            skipped=skipped,
+            students=imported_students,
+            message=f"Se procesaron correctamente {len(rows)} filas.",
+            ignored_columns=ignored,
+        )
+    return summary, (grupo, profesor, to_notify), student_ids
+
+
 def importar_estudiantes(grupo_id, uploaded_file, profesor):
-    grupo = _require_grupo(grupo_id, profesor)
-    rows, ignored = _parse_student_import(uploaded_file)
-    rows = _validate_import_rows(grupo, rows, ignored)
-    created = existing = assigned = skipped = 0
-    imported_students = []
-
-    for item in rows:
-        user = item["user"]
-        if user:
-            existing += 1
-        else:
-            # RN-10 · cuenta PENDIENTE: inactiva, sin contraseña usable y con el cambio obligatorio.
-            # El ADMIN la aprueba y la persona recibe una contraseña temporal por correo.
-            user = User.objects.create_user(
-                email=item["email"],
-                password=None,
-                nombre=item["nombre"],
-                apellido=item["apellido"],
-                role="ESTUDIANTE",
-                activo=False,
-                must_change_password=True,
-            )
-            created += 1
-
-        # E2-10: la importación INVITA; el estudiante entra al grupo cuando acepta (decisión 22).
-        row, changed = memberships.invite(grupo, user, profesor)
-        if changed:
-            assigned += 1
-            # Una cuenta pendiente aún no puede entrar: recibe su aviso al aprobarse (E2-9).
-            if user.activo:
-                notifications.notify_invitation(user, grupo, profesor)
-        else:
-            skipped += 1
-        imported_students.append(_imported_student_dto(item, row.status))
-
-    return _import_result(
-        grupo,
-        created=created,
-        existing=existing,
-        assigned=assigned,
-        skipped=skipped,
-        students=imported_students,
-        message=f"Se procesaron correctamente {len(rows)} filas.",
-        ignored_columns=ignored,
-    )
+    summary, (grupo, teacher, to_notify), _ = _importar(grupo_id, uploaded_file, profesor)
+    # Los avisos salen DESPUÉS de confirmar: con el correo dentro de la transacción, un servidor
+    # lento retiene los cerrojos de la base; y se acotan (INVITATION_EMAIL_LIMIT).
+    notifications.notify_invitations(to_notify, grupo, teacher)
+    return summary
 
 
 def _case_summary(case_version_id):
@@ -731,7 +747,10 @@ def eliminar(grupo_id, profesor):
     return {"id": grupo_id}
 
 
-@auditable("MEMBERSHIP_REMOVED", "GRUPO")
+@auditable(
+    "MEMBERSHIP_REMOVED", "GRUPO",
+    context=lambda args, kwargs, result: {"studentId": arg(args, kwargs, 1, "estudiante_id")},
+)
 @transaction.atomic
 def quitar_estudiante(grupo_id, estudiante_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -739,17 +758,28 @@ def quitar_estudiante(grupo_id, estudiante_id, profesor):
     return grupo_dto(grupo)
 
 
-@auditable("MEMBERSHIP_INVITED", "GRUPO")
-@transaction.atomic
+@auditable(
+    "MEMBERSHIP_INVITED", "GRUPO",
+    context=lambda args, kwargs, result: {"studentId": result[1]},
+)
+def _invitar_por_correo(grupo_id, email, actor):
+    """Devuelve ``(grupo, id del estudiante invitado o None, a quién avisar o None)``."""
+    with transaction.atomic():
+        grupo = _require_grupo_to_invite(grupo_id, actor)
+        estudiante = User.objects.filter(email=normalize_email_value(email)).first()
+        if estudiante is None or estudiante.role != "ESTUDIANTE":
+            return grupo, None, None
+        row, changed = memberships.invite(grupo, estudiante, actor)
+        notify = estudiante if changed and estudiante.activo and row.status == MembershipStatus.INVITED else None
+    return grupo, estudiante.id, notify
+
+
 def agregar_estudiante(grupo_id, email, actor):
     """Invita al estudiante con ese correo. La respuesta es la misma exista o no la cuenta, sea o
     no de un estudiante y ya sea o no miembro: no se enumeran cuentas (D-14, E2-10)."""
-    grupo = _require_grupo_to_invite(grupo_id, actor)
-    estudiante = User.objects.filter(email=normalize_email_value(email)).first()
-    if estudiante is not None and estudiante.role == "ESTUDIANTE":
-        _, changed = memberships.invite(grupo, estudiante, actor)
-        if changed and estudiante.activo:
-            notifications.notify_invitation(estudiante, grupo, actor)
+    grupo, _, notify = _invitar_por_correo(grupo_id, email, actor)
+    if notify is not None:
+        notifications.notify_invitation(notify, grupo, actor)  # fuera de la transacción
     return grupo_dto(grupo)
 
 
