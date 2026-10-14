@@ -139,3 +139,54 @@ test.describe('@integracion-e2 cambio de contraseña obligatorio (E2-9)', () => 
     await expect(page.getByText(PERMISSION_NOTICE)).toHaveCount(0);
   });
 });
+
+const PENDING_USERS = [
+  { id: 5, email: 'ana@siep.test', nombre: 'Ana', apellido: 'Pérez', role: 'ESTUDIANTE', activo: true, pendingApproval: false, mustChangePassword: false },
+  { id: 7, email: 'carla@siep.test', nombre: 'Carla', apellido: 'Nueva', role: 'ESTUDIANTE', activo: false, pendingApproval: true, mustChangePassword: false },
+  { id: 8, email: 'dario@siep.test', nombre: 'Darío', apellido: 'Nuevo', role: 'ESTUDIANTE', activo: false, pendingApproval: true, mustChangePassword: false },
+];
+
+/** Usuarios con dos cuentas importadas pendientes (E2-9). La aprobación real manda un correo: se simula su respuesta. */
+async function openUsersWithPending(page: Page): Promise<{ approvals: unknown[] }> {
+  const approvals: unknown[] = [];
+  await loginAs(page, 'admin');
+  await page.route('**/api/admin/users', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { success: true, data: approvals.length ? PENDING_USERS.map(user => ({ ...user, activo: true, pendingApproval: false })) : PENDING_USERS } })
+    : route.continue());
+  await page.route('**/api/admin/users/approve', route => {
+    approvals.push(route.request().postDataJSON());
+    return route.fulfill({ json: { success: true, message: 'Cuentas procesadas', data: { approved: 2, approvedIds: [7, 8], skipped: [], emailed: 2, failed: [] } } });
+  });
+  await page.route('**/api/admin/access-requests**', route => route.fulfill({ json: { success: true, data: [] } }));
+  await page.goto('/portal/admin/usuarios');
+  return { approvals };
+}
+
+// req: RN-10, RNF-01
+test.describe('@integracion-e2 cuentas pendientes de aprobación (E2-9)', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`se distinguen de las inactivas y se aprueban por lote; sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const { approvals } = await openUsersWithPending(page);
+      await expect(page.getByRole('heading', { level: 2, name: 'Cuentas por aprobar' })).toBeVisible();
+      await expect(page.getByRole('row', { name: /Carla Nueva/ }).getByText('Pendiente de aprobación')).toBeVisible();
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-admin-users')).toEqual([]);
+
+      await page.getByRole('button', { name: 'Aprobar pendientes (2)' }).click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog.getByRole('heading', { name: 'Aprobar cuentas pendientes' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'Aprobar' }).click();
+      await expect.poll(() => approvals).toEqual([{ userIds: [7, 8] }]);
+      await expect(page.getByRole('heading', { level: 2, name: 'Cuentas por aprobar' })).toHaveCount(0);
+    });
+  }
+
+  test('la hoja de usuario pide 10 caracteres como el servidor', async ({ page }) => {
+    await openUsersWithPending(page);
+    await page.getByRole('button', { name: 'Nuevo usuario' }).first().click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByText('Mínimo 10 caracteres.')).toBeVisible();
+  });
+});

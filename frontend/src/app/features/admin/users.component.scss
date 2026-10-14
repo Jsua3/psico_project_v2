@@ -7,10 +7,25 @@
 }
 
 .us-requests,
+.us-pending,
 .us-users {
   display: block;
   min-width: 0;
   margin-block-start: var(--ds-space-6);
+}
+
+// E2-9: cuentas importadas que esperan aprobación (el host de ui-section en bloque; el diseño va en la tarjeta).
+.us-pending__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+}
+
+.us-pending__card .us-hint {
+  flex: 1 1 20rem;
+  min-width: 0;
 }
 
 .us-stack {
