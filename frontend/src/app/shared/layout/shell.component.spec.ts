@@ -76,8 +76,8 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(header!.querySelector('nav.bandeja')!.getAttribute('aria-label')).toBe('Navegación principal');
   });
 
-  it('el estudiante ve Panel, Simulador y Mi personaje, sin plegables, y ningún «Continuar simulación» (T15.4)', () => {
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Mi personaje']);
+  it('el estudiante ve Panel, Simulador, Invitaciones y Mi personaje, sin plegables, y ningún «Continuar simulación» (T15.4)', () => {
+    expect(labels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     expect(folded()).toEqual([]);
     expect(host().textContent).not.toContain('Continuar simulación');
   });
@@ -96,7 +96,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(folded()).toEqual(['Rúbricas', 'Usuarios']);
     currentUser.set(user('ESTUDIANTE'));
     await fixture.whenStable();
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Mi personaje']);
+    expect(labels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     expect(folded()).toEqual([]);
   });
 
@@ -107,7 +107,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
   });
 
   it('debajo de 64rem la navegación principal es la barra inferior (hija directa del header): los destinos que no se pliegan son pestañas', async () => {
-    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Mi personaje']);
+    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     currentUser.set(user('ADMIN'));
     await fixture.whenStable();
     expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Editar casos', 'Más']);

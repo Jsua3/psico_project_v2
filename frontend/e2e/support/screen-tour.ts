@@ -80,6 +80,10 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'catalogo', role: 'estudiante', routePattern: 'portal/simulador', path: '/portal/simulador' },
   { id: 'sala', role: 'estudiante', routePattern: 'portal/jugar', path: '/portal/jugar', ready: waitForCanvas },
   { id: 'personaje', role: 'estudiante', routePattern: 'portal/personaje', path: '/portal/personaje' },
+  // Plan visual F7b-5 (E2-10, C5): la bandeja de invitaciones a grupos.
+  { id: 'invitaciones', role: 'estudiante', routePattern: 'portal/invitaciones', path: '/portal/invitaciones' },
+  // Plan visual F7b-2 (E2-9): «Cambia tu contraseña», fuera del portal (con una sesión normal no es obligatoria).
+  { id: 'cambiar-contrasena', role: 'estudiante', routePattern: 'cambiar-contrasena', path: '/cambiar-contrasena' },
   // Plan visual F3-6: una dirección desconocida muestra la 404 (dentro del portal, con su barra).
   { id: 'no-encontrada', role: 'estudiante', routePattern: 'portal/**', path: '/portal/no-existe' },
   // Plan visual F4-3: lo que ve el estudiante al pedir una sección de otro rol.

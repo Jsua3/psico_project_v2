@@ -23,6 +23,8 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'panel', label: 'Panel', route: '/portal/dashboard', icon: 'dashboard', roles: ['ESTUDIANTE', 'PROFESOR', 'ADMIN'], fold: [], order: 10 },
   { id: 'simulador', label: 'Simulador', route: '/portal/simulador', icon: 'play_circle', roles: ['ESTUDIANTE', 'PROFESOR', 'ADMIN'], fold: [], order: 20 },
+  // E2-10 (C5): la bandeja de invitaciones a grupos del estudiante (decisión del usuario, 2026-10-14).
+  { id: 'invitaciones', label: 'Invitaciones', route: '/portal/invitaciones', icon: 'group_add', roles: ['ESTUDIANTE'], fold: [], order: 25 },
   { id: 'personaje', label: 'Mi personaje', route: '/portal/personaje', icon: 'face', roles: ['ESTUDIANTE'], fold: [], order: 30 },
   { id: 'trazabilidad', label: 'Trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', roles: ['PROFESOR', 'ADMIN'], fold: [], order: 40 },
   { id: 'rubricas', label: 'Rúbricas', route: '/portal/rubricas', icon: 'grading', roles: ['PROFESOR', 'ADMIN'], fold: ['PROFESOR', 'ADMIN'], order: 50 },

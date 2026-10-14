@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
+import { Invitation, InvitationsApi } from '../../core/api/invitations.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { StudentDashboardComponent } from './student-dashboard.component';
@@ -27,6 +28,11 @@ const httpFailure = () => throwError(() => ({ status: 500 }));
 interface Api {
   attemptHistory: () => Observable<StudentAttemptSummary[]>;
   listCases: () => Observable<SimulationCaseSummary[]>;
+  invitations: () => Observable<Invitation[]>;
+}
+
+function invitation(groupId: number, status: Invitation['status']): Invitation {
+  return { id: groupId, groupId, groupName: `Grupo ${groupId}`, teacherName: 'Paula Docente', invitedAt: '2026-10-10T15:00:00Z', status };
 }
 
 /**
@@ -53,9 +59,12 @@ describe('StudentDashboardComponent', () => {
 
   /** `stable: false` para las pruebas con relojes falsos: whenStable esperaría a un temporizador que no avanza. */
   async function render(api: Partial<Api>, { stable = true } = {}) {
-    const service: Api = { attemptHistory: () => of([]), listCases: () => of([]), ...api };
+    const service: Api = { attemptHistory: () => of([]), listCases: () => of([]), invitations: () => of([]), ...api };
     TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: SimulationService, useValue: service }],
+      providers: [
+        provideZonelessChangeDetection(), provideRouter([]), { provide: SimulationService, useValue: service },
+        { provide: InvitationsApi, useValue: { list: service.invitations } },
+      ],
     });
     fixture = TestBed.createComponent(StudentDashboardComponent);
     if (stable) await fixture.whenStable();
@@ -63,6 +72,25 @@ describe('StudentDashboardComponent', () => {
   }
 
   afterEach(() => vi.useRealTimers());
+
+  // E2-10 (C5, decisión 22): un estudiante invitado no ve los casos del grupo hasta aceptar; el panel se lo dice.
+  // req: SIEP-RF-04, D-14
+  it('con invitaciones pendientes: un aviso que dice cuántas y lleva a la bandeja', async () => {
+    await render({ invitations: () => of([invitation(1, 'INVITED'), invitation(2, 'INVITED'), invitation(3, 'ACTIVE')]) });
+    const notice = host().querySelector('.sd-invitations');
+    expect(notice).not.toBeNull();
+    expect(text(notice)).toContain('Tienes 2 invitaciones a grupos sin responder');
+    expect(actions(/^Ver invitaciones$/)[0]?.getAttribute('href')).toBe('/portal/invitaciones');
+  });
+
+  it('sin invitaciones pendientes, o si no cargan, no hay aviso (no es un error del panel)', async () => {
+    await render({ invitations: () => of([invitation(3, 'ACTIVE')]) });
+    expect(host().querySelector('.sd-invitations')).toBeNull();
+    TestBed.resetTestingModule();
+    await render({ invitations: httpFailure as () => Observable<Invitation[]> });
+    expect(host().querySelector('.sd-invitations')).toBeNull();
+    expect(host().querySelector('ui-error-state')).toBeNull();
+  });
 
   it('un h1 con las dos acciones de la página: «Ir a la sala» y «Ver casos y resultados»', async () => {
     await render({ attemptHistory: () => of([attempt({})]) });

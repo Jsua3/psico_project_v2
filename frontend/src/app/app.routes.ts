@@ -72,6 +72,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
       },
       {
+        // E2-10 (C5): el estudiante acepta, rechaza o deja los grupos a los que lo invitan.
+        path: 'invitaciones',
+        title: 'Invitaciones',
+        canActivate: [roleGuard(...rolesFor('invitaciones'))],
+        loadComponent: () => import('./features/invitations/invitations.component').then(m => m.InvitationsComponent)
+      },
+      {
         path: 'personaje',
         title: 'Mi personaje',
         canActivate: [roleGuard(...rolesFor('personaje'))],

@@ -16,8 +16,9 @@ describe('NAV_ITEMS', () => {
   const folded = (role: 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN') =>
     navItemsFor(role).filter(item => item.fold.includes(role)).map(item => item.label);
 
-  it('el estudiante ve Panel, Simulador y Mi personaje, y no pliega nada', () => {
-    expect(visible('ESTUDIANTE')).toEqual(['Panel', 'Simulador', 'Mi personaje']);
+  // req: SIEP-RF-04 (E2-10: la bandeja de invitaciones del estudiante, decisión del usuario 2026-10-14)
+  it('el estudiante ve Panel, Simulador, Invitaciones y Mi personaje, y no pliega nada', () => {
+    expect(visible('ESTUDIANTE')).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
     expect(folded('ESTUDIANTE')).toEqual([]);
   });
 
@@ -59,6 +60,7 @@ describe('NAV_ITEMS', () => {
     const policyOf: Record<string, [string, string]> = {
       panel: ['account', 'self'],
       simulador: ['catalog', 'read'],
+      invitaciones: ['membership', 'respond'],
       personaje: ['attempt', 'play'],
       trazabilidad: ['attempt', 'review'],
       rubricas: ['rubric', 'read'],
@@ -78,6 +80,7 @@ describe('NAV_ITEMS', () => {
   it('rolesFor devuelve los roles de cada guard de app.routes.ts (los de F3, salvo «personaje», que desde ED-5 es solo del estudiante)', () => {
     const before: Record<string, string[]> = {
       personaje: ['ESTUDIANTE'],
+      invitaciones: ['ESTUDIANTE'],
       trazabilidad: ['PROFESOR', 'ADMIN'],
       rubricas: ['PROFESOR', 'ADMIN'],
       grupos: ['PROFESOR'],

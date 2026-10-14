@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
@@ -188,5 +188,81 @@ test.describe('@integracion-e2 cuentas pendientes de aprobación (E2-9)', () => 
     await page.getByRole('button', { name: 'Nuevo usuario' }).first().click();
     const sheet = page.getByRole('dialog');
     await expect(sheet.getByText('Mínimo 10 caracteres.')).toBeVisible();
+  });
+});
+
+const STUDENT_EMAIL = process.env['E2E_STUDENT_EMAIL'] ?? 'estudiante@psychosim.edu.co';
+
+/** Token por API (login real contra la BD desechable). */
+async function apiToken(request: APIRequestContext, email: string, password: string): Promise<string> {
+  const response = await request.post('/api/auth/login', { data: { email, password } });
+  expect(response.status(), `login por API de ${email}`).toBe(200);
+  return (await response.json()).data.token;
+}
+
+/** El docente crea un grupo propio (código único por corrida) e invita al estudiante semilla. */
+async function teacherInvitesStudent(request: APIRequestContext): Promise<{ groupId: number; groupName: string; headers: Record<string, string> }> {
+  const token = await apiToken(request, process.env['E2E_PROFESOR_EMAIL'] ?? 'profesora@psychosim.edu.co', process.env['E2E_PROFESOR_PASSWORD'] ?? 'Profesor123!');
+  const headers = { Authorization: `Bearer ${token}` };
+  const stamp = Date.now().toString(36);
+  const groupName = `Invitaciones e2e ${stamp}`;
+  const created = await request.post('/api/grupos', { headers, data: { nombre: groupName, codigo: `INV-${stamp}` } });
+  expect(created.status(), 'crear grupo').toBeLessThan(300);
+  const groupId = (await created.json()).data.id as number;
+  const invited = await request.post(`/api/grupos/${groupId}/estudiantes`, { headers, data: { email: STUDENT_EMAIL } });
+  expect(invited.status(), 'invitar por correo').toBeLessThan(300);
+  return { groupId, groupName, headers };
+}
+
+async function membershipOf(request: APIRequestContext, groupId: number, headers: Record<string, string>): Promise<string | undefined> {
+  const response = await request.get(`/api/grupos/${groupId}/estudiantes`, { headers });
+  const rows = (await response.json()).data as Array<{ email: string; membershipStatus: string }>;
+  return rows.find(row => row.email === STUDENT_EMAIL)?.membershipStatus;
+}
+
+// req: SIEP-RF-04, D-14, RNF-04
+test.describe('@integracion-e2 bandeja de invitaciones (E2-10, C5)', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`el docente invita, el estudiante lo ve en su panel, acepta y puede salir; contra el servidor real (${viewport.width})`, async ({ page, request }) => {
+      await page.setViewportSize(viewport);
+      const { groupId, groupName, headers } = await teacherInvitesStudent(request);
+      try {
+        expect(await membershipOf(request, groupId, headers)).toBe('INVITED');
+        const forbidden = collectForbidden(page);
+
+        await loginAs(page, 'estudiante');
+        await page.goto('/portal/dashboard');
+        const notice = page.locator('.sd-invitations');
+        await expect(notice).toContainText('sin responder');
+        await notice.getByRole('link', { name: 'Ver invitaciones' }).click();
+        await page.waitForURL(/\/portal\/invitaciones$/);
+        await expect(page.getByRole('heading', { level: 1, name: 'Invitaciones' })).toBeVisible();
+
+        const item = page.locator('.inv-item').filter({ hasText: groupName });
+        await expect(item.getByText('Pendiente')).toBeVisible();
+        await settle(page);
+        expect(await overflowX(page)).toBeLessThanOrEqual(0);
+        expect(await blockingViolations(page, 'app-invitations')).toEqual([]);
+
+        await item.getByRole('button', { name: `Aceptar la invitación a ${groupName}` }).click();
+        await expect(item.getByText('Miembro')).toBeVisible();
+        await expect.poll(() => membershipOf(request, groupId, headers)).toBe('ACTIVE');
+
+        await item.getByRole('button', { name: `Salir del grupo ${groupName}` }).click();
+        const dialog = page.getByRole('alertdialog');
+        await expect(dialog.getByRole('heading', { name: 'Salir del grupo' })).toBeVisible();
+        await dialog.getByRole('button', { name: 'Salir del grupo' }).click();
+        await expect(item.getByText('Saliste del grupo')).toBeVisible();
+        expect(forbidden).toEqual([]);
+      } finally {
+        await request.delete(`/api/grupos/${groupId}`, { headers });
+      }
+    });
+  }
+
+  test('el estudiante tiene «Invitaciones» en su barra', async ({ page }) => {
+    await loginAs(page, 'estudiante');
+    const nav = page.getByRole('navigation', { name: 'Navegación principal' });
+    await expect(nav.getByRole('link', { name: 'Invitaciones' })).toBeVisible();
   });
 });

@@ -6,6 +6,7 @@ import { authGuard, passwordChangeGuard } from './core/auth/auth.guard';
 import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { ChangePasswordComponent } from './features/account/change-password.component';
+import { InvitationsComponent } from './features/invitations/invitations.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
@@ -133,6 +134,19 @@ describe('app.routes: cambio de contraseña obligatorio', () => {
   it('el portal exige sesión y, después, que no haya un cambio de contraseña pendiente', () => {
     const portal = routes.find(route => route.path === 'portal')!;
     expect(portal.canActivate).toEqual([authGuard, passwordChangeGuard]);
+  });
+});
+
+/** E2-10 (C5): la bandeja de invitaciones del estudiante es una ruta propia del portal (decisión del usuario). */
+// req: SIEP-RF-04, D-14
+describe('app.routes: bandeja de invitaciones', () => {
+  it('«invitaciones» es hija del portal, guardada por los roles de su destino del menú, y carga la bandeja', async () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    const inbox = children.find(child => child.path === 'invitaciones')!;
+    expect(inbox).toBeDefined();
+    expect(inbox.canActivate).toHaveLength(1);
+    expect(await (inbox.loadComponent as () => Promise<unknown>)()).toBe(InvitationsComponent);
+    expect(children.indexOf(inbox)).toBeLessThan(children.findIndex(child => child.path === '**'));
   });
 });
 
