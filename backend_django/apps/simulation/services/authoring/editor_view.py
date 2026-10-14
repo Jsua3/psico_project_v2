@@ -4,6 +4,7 @@ Cada mutación de autoría devuelve esta vista completa, así que casi todo el
 subsistema depende de este módulo.
 """
 from apps.simulation.models import (
+    CaseCharacter,
     CaseReview,
     ClinicalTool,
     DecisionOption,
@@ -54,6 +55,11 @@ def editor(case_version_id):
         "tools": [
             clinical_tool_editor(t)
             for t in ClinicalTool.objects.filter(case_version_id=case_version_id).order_by("id")
+        ],
+        "characters": [
+            character_editor(c)
+            for c in CaseCharacter.objects.filter(case_version_id=case_version_id)
+            .order_by("display_order", "id")
         ],
         "rubrics": [
             rubric_view(r)
@@ -207,8 +213,21 @@ def map_object_editor(o):
         "interactionPrompt": o.interaction_prompt,
         "interactionText": o.interaction_text,
         "decisionOptionId": o.decision_option_id,
+        "characterId": o.character_id,
         "toolCode": o.tool_code,
         "mapId": o.scene_map_id,
+    }
+
+
+def character_editor(c):
+    return {
+        "id": c.id,
+        "key": c.character_key,
+        "displayName": c.display_name,
+        "roleLabel": c.role_label,
+        "portraitKey": c.portrait_key,
+        "showInBrief": c.show_in_brief,
+        "displayOrder": c.display_order,
     }
 
 

@@ -139,6 +139,10 @@ FOREIGN_ROUTES = [
     ("post", "<int:case_version_id>/tools", {"toolCode": "T", "label": "T"}, 403),
     ("put", "<int:case_version_id>/tools/<int:tool_id>", {"toolCode": "T", "label": "T"}, 403),
     ("delete", "<int:case_version_id>/tools/<int:tool_id>", None, 403),
+    ("post", "<int:case_version_id>/characters", {"characterKey": "k", "displayName": "N"}, 403),
+    ("put", "<int:case_version_id>/characters/<int:character_id>",
+     {"characterKey": "k", "displayName": "N"}, 403),
+    ("delete", "<int:case_version_id>/characters/<int:character_id>", None, 403),
 ]
 
 

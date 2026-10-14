@@ -38,6 +38,7 @@ from .rubric import (  # noqa: F401
 from .world import (  # noqa: F401
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
+    CaseCharacter,
     ClinicalTool,
     CollisionZone,
     DialogueChoice,

@@ -17,6 +17,7 @@ copiado y falla si un campo nuevo del modelo no se declara ni se excluye.
 from dataclasses import dataclass
 
 from ..models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
@@ -64,6 +65,10 @@ MAP = CopySpec(SceneMap, (
 
 COLLISION_ZONE = CopySpec(CollisionZone, (
     "zone_key", "label", "position_x", "position_y", "width", "height",
+))
+
+CHARACTER = CopySpec(CaseCharacter, (
+    "character_key", "display_name", "role_label", "portrait_key", "show_in_brief", "display_order",
 ))
 
 MAP_OBJECT = CopySpec(MapObject, (

@@ -25,7 +25,7 @@ from shared.jsonutils import (
 )
 
 from .editor_view import clinical_tool_editor
-from .guards import bump_revision, decision_link, ensure_draft, require_version
+from .guards import bump_revision, character_link, decision_link, ensure_draft, require_version
 from .icons import validate_icon
 from .scenes import save_dialogue_choices
 
@@ -211,6 +211,9 @@ def _save_objects(scene_map, objects, case_version_id):
                 obj.decision_option = decision
         else:
             obj.decision_option = None
+        # «Ausente = no tocar»: el autoguardado del editor actual no manda ``characterId``.
+        if "characterId" in wo:
+            obj.character = character_link(wo.get("characterId"), case_version_id)
         obj.save()
         saved.append(obj)
     return saved
@@ -408,6 +411,7 @@ def _world_object(o):
         "interactionPrompt": o.interaction_prompt,
         "interactionText": o.interaction_text,
         "decisionOptionId": o.decision_option_id,
+        "characterId": o.character_id,
         "toolCode": o.tool_code,
         "unlockCondition": _read_map(o.unlock_condition_json),
         "movementPattern": _read_map(o.movement_pattern_json),

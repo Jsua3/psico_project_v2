@@ -3,6 +3,8 @@ from django.urls import path
 from .views.authoring_views import (
     AdminCaseListCreateView,
     CaseValidateView,
+    CharacterDetailView,
+    CharacterListView,
     ChecklistView,
     CloneVersionView,
     DecisionDetailView,
@@ -46,6 +48,8 @@ urlpatterns = [
     path("<int:case_version_id>/dialogues/<int:tree_id>", DialogueDetailView.as_view()),
     path("<int:case_version_id>/tools", ToolListView.as_view()),
     path("<int:case_version_id>/tools/<int:tool_id>", ToolDetailView.as_view()),
+    path("<int:case_version_id>/characters", CharacterListView.as_view()),
+    path("<int:case_version_id>/characters/<int:character_id>", CharacterDetailView.as_view()),
     path("<int:case_version_id>/checklist", ChecklistView.as_view()),
     path("<int:case_version_id>/world-editor", WorldEditorView.as_view()),
     path("<int:case_version_id>/world/validate", WorldValidateView.as_view()),

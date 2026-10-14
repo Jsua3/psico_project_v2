@@ -134,6 +134,8 @@ class ObjectRequest(serializers.Serializer):
     interactionText = _text(default="")
     toolCode = _text(80)
     decisionOptionId = _number()
+    # «Ausente = no tocar»; ``null`` desvincula el personaje (E3-3).
+    characterId = _number()
 
 
 class DialogueLineRequest(serializers.Serializer):
@@ -158,6 +160,17 @@ class ToolRequest(serializers.Serializer):
     icon = _text(80)
     category = _text(80)
     description = _text(default="")
+
+
+class CharacterRequest(serializers.Serializer):
+    """Un personaje del caso (E3-3); los opcionales ausentes no se tocan."""
+
+    characterKey = serializers.CharField(max_length=120)
+    displayName = serializers.CharField(max_length=255)
+    roleLabel = _text(255)
+    portraitKey = _text(120)
+    showInBrief = _flag()
+    displayOrder = _number()
 
 
 class ChecklistRequest(serializers.Serializer):

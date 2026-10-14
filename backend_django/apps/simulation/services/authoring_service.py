@@ -29,6 +29,7 @@ from shared.exceptions import ApiError
 from .audit_service import auditable
 from .authoring import (
     cases,
+    characters,
     editor_view,
     graph,
     lifecycle,
@@ -144,6 +145,22 @@ def update_tool(case_version_id, tool_id, request):
 @auditable("ADMIN_DELETE_TOOL", "TOOL", 1)
 def delete_tool(case_version_id, tool_id, revision=None):
     return tools.delete_tool(case_version_id, tool_id, revision)
+
+
+# ─── Personajes del caso (E3-3) ──────────────────────────────────────────────
+@auditable("ADMIN_CREATE_CHARACTER", "CASE_VERSION")
+def create_character(case_version_id, request):
+    return characters.create_character(case_version_id, request)
+
+
+@auditable("ADMIN_UPDATE_CHARACTER", "CHARACTER", 1)
+def update_character(case_version_id, character_id, request):
+    return characters.update_character(case_version_id, character_id, request)
+
+
+@auditable("ADMIN_DELETE_CHARACTER", "CHARACTER", 1)
+def delete_character(case_version_id, character_id, revision=None):
+    return characters.delete_character(case_version_id, character_id, revision)
 
 
 # ─── Checklist, publish and clone ────────────────────────────────────────────

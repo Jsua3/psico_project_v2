@@ -245,6 +245,30 @@ class ToolDetailView(_AuthoringView):
         )
 
 
+# ─── Character CRUD (E3-3) ──────────────────────────────────────────────────
+class CharacterListView(_AuthoringView):
+    def post(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(svc.create_character(case_version_id, body), "Personaje creado")
+
+
+class CharacterDetailView(_AuthoringView):
+    def put(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(
+            svc.update_character(case_version_id, character_id, body), "Personaje actualizado"
+        )
+
+    def delete(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_character(case_version_id, character_id, self.revision(request)),
+            "Personaje eliminado",
+        )
+
+
 # ─── Checklist ──────────────────────────────────────────────────────────────
 class ChecklistView(_AuthoringView):
     def put(self, request, case_version_id):

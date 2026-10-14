@@ -36,7 +36,7 @@ TABLES = {
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
-    "attempt_reports", "case_reviews",
+    "attempt_reports", "case_reviews", "case_characters",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -70,6 +70,7 @@ UNIQUE_COLUMNS = {
     "dialogue_lines": [("dialogue_tree_id", "display_order")],
     "dialogue_choices": [("dialogue_tree_id", "choice_key")],
     "clinical_tools": [("case_version_id", "tool_code")],
+    "case_characters": [("case_version_id", "character_key")],
     "simulation_rubric_assignments": [("case_version_id",)],  # parcial: solo active = true
 }
 
@@ -95,6 +96,7 @@ ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
+    ("case_characters", "case_version_id"): "CASCADE",
     ("case_reviews", "case_version_id"): "CASCADE",
     ("case_versions", "last_edited_by"): "SET NULL",
     ("case_versions", "simulation_case_id"): "CASCADE",
@@ -117,6 +119,7 @@ ON_DELETE = {
     ("grupo_estudiante", "estudiante_id"): "CASCADE",
     ("grupo_estudiante", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "invited_by"): "SET NULL",
+    ("map_objects", "character_id"): "SET NULL",
     ("map_objects", "decision_option_id"): "SET NULL",
     ("map_objects", "scene_map_id"): "CASCADE",
     ("publication_checklist_items", "checklist_id"): "CASCADE",

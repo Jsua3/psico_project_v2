@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     DecisionOption,
@@ -42,6 +43,8 @@ _REFERENCES = {
                    "case_version_id", None),
     DialogueTree: ("Diálogo no encontrado: {id}", "El diálogo {id} no pertenece a la versión {version}",
                    "scene_map__case_version_id", "scene_map"),
+    CaseCharacter: ("Personaje no encontrado: {id}", "El personaje {id} no pertenece a la versión {version}",
+                    "case_version_id", None),
 }
 
 
@@ -243,5 +246,20 @@ def decision_link(decision_option_id, case_version_id):
         return None
     try:
         return in_version(DecisionOption, decision_option_id, case_version_id)
+    except NotFound:
+        return None
+
+
+def character_link(character_id, case_version_id):
+    """El personaje que un objeto enlaza, o ``None`` si se quita o ya no existe.
+
+    Como ``decision_link``: un personaje borrado en otra sesión no rompe el guardado (el objeto
+    queda sin personaje, que es lo que la base ya hizo), pero uno que existe y es de **otra
+    versión** nunca se acepta (400).
+    """
+    if character_id is None:
+        return None
+    try:
+        return in_version(CaseCharacter, character_id, case_version_id)
     except NotFound:
         return None

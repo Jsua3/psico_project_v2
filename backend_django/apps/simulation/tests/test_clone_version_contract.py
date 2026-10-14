@@ -22,6 +22,7 @@ from django.db import models
 from rest_framework.test import APIClient
 
 from apps.simulation.models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
@@ -57,7 +58,8 @@ ENTITIES = {
     DecisionOption: ("id", {"source_node": "node_key", "target_node": "node_key"}, {"case_version"}),
     SceneMap: ("id", {"node": "node_key"}, {"case_version"}),
     CollisionZone: ("id", {"scene_map": "map_key"}, set()),
-    MapObject: ("id", {"scene_map": "map_key", "decision_option": "option_key"}, set()),
+    MapObject: ("id", {"scene_map": "map_key", "decision_option": "option_key", "character": "character_key"}, set()),
+    CaseCharacter: ("id", {}, {"case_version"}),
     DialogueTree: ("id", {"scene_map": "map_key", "map_object": "object_key"}, set()),
     DialogueLine: ("display_order", {"dialogue_tree": "tree_key"}, set()),
     DialogueChoice: ("display_order", {"dialogue_tree": "tree_key", "decision_option": "option_key"}, set()),
@@ -92,7 +94,7 @@ _PARENT = {
 
 def _rows(model, version_id):
     """Filas de una entidad de la versión, en el orden en que el clon las crea."""
-    if model in (SimulationNode, DecisionOption, SceneMap, ClinicalTool, Rubric):
+    if model in (SimulationNode, DecisionOption, SceneMap, ClinicalTool, Rubric, CaseCharacter):
         queryset = model.objects.filter(case_version_id=version_id)
     elif model in (CollisionZone, MapObject, DialogueTree):
         queryset = model.objects.filter(scene_map__case_version_id=version_id)
@@ -172,7 +174,11 @@ def fuente(admin, autor):
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))
-    obj = MapObject.objects.create(scene_map=scene_map, decision_option=decision, **_all_distinct(MapObject, object_type="PROP"))
+    character = CaseCharacter.objects.create(case_version=version, **_all_distinct(CaseCharacter))
+    obj = MapObject.objects.create(
+        scene_map=scene_map, decision_option=decision, character=character,
+        **_all_distinct(MapObject, object_type="PROP"),
+    )
     tree = DialogueTree.objects.create(scene_map=scene_map, map_object=obj, **_all_distinct(DialogueTree))
     DialogueLine.objects.create(dialogue_tree=tree, **_all_distinct(DialogueLine))
     DialogueChoice.objects.create(dialogue_tree=tree, decision_option=decision, **_all_distinct(DialogueChoice))

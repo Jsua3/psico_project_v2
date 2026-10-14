@@ -44,6 +44,7 @@ from apps.simulation.models import (
     SimulationCase,
     SimulationNode,
 )
+from apps.simulation.services.authoring.characters import ensure_person_characters
 
 CASE_CODE = "SIM-VBG-001"
 #: Reglas del caso (``case_versions.rules``, E1-7): la segunda oportunidad la conserva este caso
@@ -1312,6 +1313,11 @@ class Command(BaseCommand):
                             effect_json="{}",
                             display_order=order,
                         )
+
+        # ── Personajes: cada objeto PERSON queda enlazado a su personaje (E3-3) ──
+        # Los personajes ya existentes (editados por Psicología) se reutilizan: la reconstrucción
+        # borra los objetos, no el catálogo.
+        ensure_person_characters(version.id)
 
         # ── Rúbrica: clonar la de la versión previa si esta no tiene ─────────
         if not Rubric.objects.filter(case_version_id=version.id, active=True).exists():
