@@ -49,36 +49,80 @@ def _send_approval_email(user, temporary_password):
     )
 
 
-@auditable("USER_APPROVED", "USER", -1)
-def approve_pending(user_ids, actor):
-    """Aprueba por lote: ``{approved, skipped, emailed, failed}``; nunca devuelve una contraseña.
+def _approval_audit_context(args, kwargs, result):
+    return {
+        "approvedIds": result["approvedIds"],
+        "skippedIds": result["skipped"],
+        "failedIds": result["failed"],
+    }
 
-    Solo las cuentas pendientes se aprueban; el resto va a ``skipped``. El correo sale **antes**
-    de activar la cuenta: si falla, la cuenta sigue pendiente (``failed``) y no queda activa con
-    una contraseña que nadie conoce.
+
+def approval_email_failed():
+    """409 de la activación individual cuando el correo no salió: la cuenta sigue pendiente."""
+    return ApiError(
+        "APPROVAL_EMAIL_FAILED",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "No se pudo enviar el correo con la contraseña temporal, así que la cuenta sigue "
+        "pendiente. Revisa la configuración del correo e inténtalo de nuevo.",
+        status.HTTP_409_CONFLICT,
+    )
+
+
+def _approve_one(user_id):
+    """Aprueba UNA cuenta pendiente: ``"approved"``, ``"skipped"`` o ``"failed"``.
+
+    El cerrojo de la fila serializa dos órdenes sobre la misma cuenta: la segunda ya la ve activa
+    y la salta, en vez de mandar un segundo correo con una clave que no sirve. El correo sale con
+    la fila bloqueada pero antes de confirmar: si falla, todo se deshace y la cuenta sigue
+    pendiente (``failed``); nunca queda activa con una contraseña que nadie conoce.
     """
-    ordered = list(dict.fromkeys(int(i) for i in user_ids))
-    found = {u.id: u for u in User.objects.filter(pk__in=ordered)}
-    approved, skipped, failed = [], [], []
-    for user_id in ordered:
-        user = found.get(user_id)
+    with transaction.atomic():
+        user = User.objects.select_for_update().filter(pk=user_id).first()
         if user is None or not user.is_pending_approval:
-            skipped.append(user_id)
-            continue
+            return "skipped"
         temporary = new_temporary_password()
+        user.set_password(temporary)
+        user.activo = True
+        user.must_change_password = True
+        user.save(update_fields=["password", "activo", "must_change_password"])
         try:
             _send_approval_email(user, temporary)
         except Exception:  # noqa: BLE001  (un servidor de correo caído no debe romper el lote)
-            logger.exception("No se pudo enviar el correo de aprobación al usuario %s", user.id)
-            failed.append(user_id)
-            continue
-        with transaction.atomic():
-            user.set_password(temporary)
-            user.activo = True
-            user.must_change_password = True
-            user.save(update_fields=["password", "activo", "must_change_password"])
-        approved.append(user_id)
-    return {"approved": len(approved), "skipped": skipped, "emailed": len(approved), "failed": failed}
+            logger.exception("No se pudo enviar el correo de aprobación al usuario %s", user_id)
+            transaction.set_rollback(True)
+            return "failed"
+    return "approved"
+
+
+@auditable("USER_APPROVED", "USER", -1, context=_approval_audit_context)
+def approve_pending(user_ids, actor):
+    """Aprueba por lote: ``{approved, approvedIds, skipped, emailed, failed}``; nunca una contraseña.
+
+    Solo las cuentas pendientes se aprueban; el resto va a ``skipped``.
+    """
+    approved, skipped, failed = [], [], []
+    buckets = {"approved": approved, "skipped": skipped, "failed": failed}
+    for user_id in dict.fromkeys(int(i) for i in user_ids):
+        buckets[_approve_one(user_id)].append(user_id)
+    return {
+        "approved": len(approved),
+        "approvedIds": approved,
+        "skipped": skipped,
+        "emailed": len(approved),
+        "failed": failed,
+    }
+
+
+def approve_if_pending(user_id, actor):
+    """«Activar» desde la pantalla de usuarios: una cuenta pendiente se aprueba por el mismo
+    camino del lote (con el correo de la contraseña temporal), no se deja activa y sin clave.
+
+    Devuelve el resultado del lote, o ``None`` si la cuenta no es una pendiente.
+    """
+    candidate = User.objects.filter(pk=user_id, activo=False, must_change_password=True).first()
+    if candidate is None or not candidate.is_pending_approval:
+        return None
+    return approve_pending([user_id], actor)
 
 
 def lock_admins():

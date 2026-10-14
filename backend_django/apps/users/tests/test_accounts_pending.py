@@ -142,7 +142,9 @@ def test_approval_activates_emails_the_temporary_password_and_never_returns_it(p
     response = cl(admin).post("/api/admin/users/approve", {"userIds": ids}, format="json")
 
     assert response.status_code == 200
-    assert response.data["data"] == {"approved": 2, "skipped": [], "emailed": 2, "failed": []}
+    assert response.data["data"] == {
+        "approved": 2, "approvedIds": sorted(ids), "skipped": [], "emailed": 2, "failed": [],
+    }
     assert len(mail.outbox) == 2
     for message in mail.outbox:
         temporary = _temporary_password_from(message)
@@ -286,3 +288,125 @@ def test_admin_created_passwords_must_not_be_weak(admin):
 
     assert response.status_code == 400
     assert response.data["field"] == "password"
+
+
+# ─── Revisión de fase E2: activar una pendiente, Google, claves largas, tope del lote ──────────────
+def test_the_activate_button_approves_a_pending_account_instead_of_leaving_it_stuck(profesor, admin):
+    _import(profesor, [["Ana", "Rojas", "ana.stuck@x.com"]], codigo="PEND11")
+    user = User.objects.get(email="ana.stuck@x.com")
+    mail.outbox.clear()
+
+    response = cl(admin).patch(f"/api/admin/users/{user.id}/status", {"activo": True}, format="json")
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert (user.activo, user.must_change_password, user.has_usable_password()) == (True, True, True)
+    assert len(mail.outbox) == 1
+    temporary = _temporary_password_from(mail.outbox[0])
+    assert temporary not in json.dumps(response.data)
+    login = cl().post("/api/auth/login", {"email": user.email, "password": temporary}, format="json")
+    assert login.status_code == 200
+
+
+def test_the_edit_form_activating_a_pending_account_also_approves_it(profesor, admin):
+    _import(profesor, [["Ana", "Rojas", "ana.edit@x.com"]], codigo="PEND12")
+    user = User.objects.get(email="ana.edit@x.com")
+    mail.outbox.clear()
+
+    response = cl(admin).put(
+        f"/api/admin/users/{user.id}",
+        {"email": user.email, "nombre": "Ana María", "apellido": user.apellido, "role": "ESTUDIANTE",
+         "activo": True},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+    user.refresh_from_db()
+    assert (user.nombre, user.activo, user.has_usable_password()) == ("Ana María", True, True)
+    assert len(mail.outbox) == 1
+
+
+def test_google_login_invalidates_the_emailed_temporary_password(profesor, admin, settings, monkeypatch):
+    user, temporary, _ = _approved_student(profesor, admin, "ana.gtemp@x.com", "PEND13")
+    settings.GOOGLE_OAUTH_CLIENT_ID = "client-id.apps.googleusercontent.com"
+    monkeypatch.setattr(
+        "apps.users.views.verify_google_credential",
+        lambda credential, audience: {"email": "ana.gtemp@x.com", "email_verified": True},
+    )
+
+    assert cl().post("/api/auth/google", {"credential": "token"}, format="json").status_code == 200
+
+    old = cl().post("/api/auth/login", {"email": user.email, "password": temporary}, format="json")
+    assert old.status_code == 401
+
+
+@pytest.mark.parametrize("length", [73, 200])
+def test_a_password_longer_than_72_bytes_is_a_400_with_its_field(profesor, admin, length):
+    user, temporary, session = _approved_student(profesor, admin, f"ana.long{length}@x.com", f"PEND{length}")
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['token']}")
+
+    response = client.post(
+        "/api/auth/change-password",
+        {"currentPassword": temporary, "newPassword": "Aa1-" + "x" * (length - 4)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["field"] == "newPassword"
+
+
+def test_an_approval_batch_is_capped(admin):
+    response = cl(admin).post(
+        "/api/admin/users/approve", {"userIds": list(range(1, 102))}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.data["field"] == "userIds"
+
+
+def test_the_approval_audit_row_names_the_accounts(profesor, admin):
+    from apps.simulation.models import AuditLog
+
+    _import(profesor, [["Ana", "Rojas", "ana.aud@x.com"]], codigo="PEND15")
+    user = User.objects.get(email="ana.aud@x.com")
+
+    cl(admin).post("/api/admin/users/approve", {"userIds": [user.id, 999999]}, format="json")
+
+    row = AuditLog.objects.filter(action="USER_APPROVED").order_by("-id").first()
+    context = json.loads(row.context_json)
+    assert (context["approvedIds"], context["skippedIds"], context["failedIds"]) == ([user.id], [999999], [])
+    assert row.actor_id == admin.id
+    assert "password" not in row.context_json.lower()
+
+
+def test_approving_the_same_account_twice_emails_it_once(profesor, admin):
+    _import(profesor, [["Ana", "Rojas", "ana.twice@x.com"]], codigo="PEND16")
+    user = User.objects.get(email="ana.twice@x.com")
+    mail.outbox.clear()
+
+    first = cl(admin).post("/api/admin/users/approve", {"userIds": [user.id]}, format="json")
+    second = cl(admin).post("/api/admin/users/approve", {"userIds": [user.id]}, format="json")
+
+    assert first.data["data"]["approved"] == 1
+    assert (second.data["data"]["approved"], second.data["data"]["skipped"]) == (0, [user.id])
+    assert len(mail.outbox) == 1
+
+
+def test_a_failed_email_on_the_activate_button_is_a_409_and_the_account_stays_pending(
+    profesor, admin, monkeypatch
+):
+    _import(profesor, [["Ana", "Rojas", "ana.mailfail@x.com"]], codigo="PEND17")
+    user = User.objects.get(email="ana.mailfail@x.com")
+
+    def broken(*args, **kwargs):
+        raise OSError("SMTP caído")
+
+    monkeypatch.setattr("apps.users.services.account_service.send_mail", broken)
+
+    response = cl(admin).patch(f"/api/admin/users/{user.id}/status", {"activo": True}, format="json")
+
+    assert response.status_code == 409
+    assert response.data["code"] == "APPROVAL_EMAIL_FAILED"
+    user.refresh_from_db()
+    assert user.is_pending_approval is True

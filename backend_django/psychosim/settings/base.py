@@ -130,6 +130,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    # BCrypt solo admite 72 bytes: más largo es un 400 con su campo, no un 500.
+    {"NAME": "apps.users.password_validators.MaximumLengthBytesValidator"},
 ]
 
 # E2-9 · Límites de la importación de estudiantes (.xlsx): se comprueban ANTES de leer el

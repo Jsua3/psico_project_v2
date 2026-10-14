@@ -118,9 +118,12 @@ class GoogleLoginView(APIView):
             raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo")
 
         if user.must_change_password:
-            # Entró con su cuenta de Google: la contraseña temporal del correo ya no hace falta.
+            # Entró con su cuenta de Google: la contraseña temporal del correo ya no hace falta y
+            # no debe seguir sirviendo (quien interceptara ese correo entraría sin el cambio
+            # obligatorio). La cuenta queda sin contraseña propia hasta que la persona fije una.
             user.must_change_password = False
-            user.save(update_fields=["must_change_password"])
+            user.set_password(None)
+            user.save(update_fields=["must_change_password", "password"])
 
         return api_ok({
             "token": generate_access_token(user),
@@ -244,15 +247,26 @@ class AdminUserDetailView(APIView):
     permission_classes = [policy_permission("user", "manage")]
 
     def put(self, request, user_id):
+        approve_after = False
         with transaction.atomic():
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
             ser = AdminUserWriteSerializer(instance=user, data=request.data)
             ser.is_valid(raise_exception=True)
+            if ser.validated_data.get("activo") and user.is_pending_approval:
+                # «Activar» una cuenta pendiente es aprobarla: la activa y manda la contraseña
+                # temporal por correo (abajo). Aquí solo se guardan los demás cambios.
+                approve_after = True
+                ser.validated_data.pop("activo")
             account_service.ensure_not_last_admin(
                 user, role=ser.validated_data.get("role"), activo=ser.validated_data.get("activo")
             )
             user = ser.save()
+        if approve_after:
+            outcome = account_service.approve_if_pending(user.id, request.user)
+            if outcome is not None and outcome["failed"]:
+                raise account_service.approval_email_failed()
+            user = get_object_or_404(User, pk=user.id)
         return api_ok(AdminUserSerializer(user).data, message="Usuario actualizado correctamente")
 
 
@@ -262,11 +276,22 @@ class AdminUserStatusView(APIView):
     permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, user_id):
+        ser = AdminUserStatusSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        if ser.validated_data["activo"]:
+            # «Activar» una cuenta pendiente es aprobarla (correo con la contraseña temporal): no
+            # se deja activa y sin contraseña usable.
+            outcome = account_service.approve_if_pending(user_id, request.user)
+            if outcome is not None and outcome["failed"]:
+                raise account_service.approval_email_failed()
+            if outcome is not None and outcome["approved"]:
+                return api_ok(
+                    AdminUserSerializer(get_object_or_404(User, pk=user_id)).data,
+                    message="Cuenta aprobada: la contraseña temporal se envió por correo",
+                )
         with transaction.atomic():
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
-            ser = AdminUserStatusSerializer(data=request.data)
-            ser.is_valid(raise_exception=True)
             account_service.ensure_not_last_admin(user, activo=ser.validated_data["activo"])
             user.activo = ser.validated_data["activo"]
             user.save(update_fields=["activo"])

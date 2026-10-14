@@ -168,8 +168,9 @@ class RegisterSerializer(serializers.Serializer):
 class ApproveUsersSerializer(serializers.Serializer):
     """Lote de cuentas pendientes por aprobar (E2-9)."""
 
+    # Cada aprobación manda un correo con la fila bloqueada: el lote se acota (R16).
     userIds = serializers.ListField(
-        child=serializers.IntegerField(min_value=1), allow_empty=False, max_length=500
+        child=serializers.IntegerField(min_value=1), allow_empty=False, max_length=100
     )
 
 
