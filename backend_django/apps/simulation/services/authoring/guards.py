@@ -12,7 +12,7 @@ objeto, decisión, herramienta o diálogo solo se admite si es de la versión qu
 from django.conf import settings
 from django.db.models import BigIntegerField, Case, F, When
 from rest_framework import status
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import (
     CaseVersion,
@@ -67,8 +67,21 @@ def authorize_case_version(actor, case_version_id, *, mutate, action="author"):
     if policies.can(actor, "case", action, owner_id=version.simulation_case.created_by_id):
         return version
     if mutate:
-        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        raise PermissionDenied("Solo quien autora el caso puede modificarlo")
+        # Dos razones distintas, dos códigos: el rol podría hacerlo pero el caso no es suyo, o el
+        # rol nunca puede hacerlo (p. ej. un profesor que intenta aprobar).
+        if getattr(actor, "role", None) in policies.allowed_roles("case", action):
+            raise ApiError(
+                "CASE_NOT_OWNED",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Solo quien autora el caso puede modificarlo.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        raise ApiError(
+            "CASE_ACTION_FORBIDDEN",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Tu rol no puede hacer esto con el caso.",
+            status.HTTP_403_FORBIDDEN,
+        )
     raise NotFound("Version de caso no encontrada")
 
 

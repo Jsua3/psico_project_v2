@@ -5,9 +5,11 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from shared import policies
+from shared.exceptions import ApiError
 
 from apps.simulation.models import (
     LEVEL_INDEX,
@@ -20,6 +22,12 @@ from apps.simulation.models import (
     SimulationAttempt,
     SimulationRubricAssignment,
 )
+
+#: Rango de la calificación de un criterio (SIEP-CU-04): el servidor es la única fuente y la
+#: interfaz lo lee del DTO (``minScore``, ``maxScore``, ``step``).
+SCORE_MIN = Decimal("1.0")
+SCORE_MAX = Decimal("5.0")
+SCORE_STEP = Decimal("0.5")
 
 BASIC_RUBRIC_NAME = "R\u00fabrica b\u00e1sica de desempe\u00f1o SIEP"
 BASIC_RUBRIC_DESCRIPTION = (
@@ -143,11 +151,12 @@ def _validate_weights(criteria):
         raise ValidationError("La suma de ponderaciones activas debe ser exactamente 100")
 
 
-def _rubric_summary(rubric):
+def _rubric_summary(rubric, actor=None):
     criteria = list(RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order", "id"))
     total = sum((_weight(c) for c in criteria if c.active), Decimal("0"))
-    return {
+    summary = {
         "id": rubric.id,
+        "ownerId": rubric.created_by_id,
         "name": rubric.name,
         "description": rubric.description,
         "active": rubric.active,
@@ -158,10 +167,14 @@ def _rubric_summary(rubric):
         "createdAt": rubric.created_at.isoformat() if rubric.created_at else None,
         "updatedAt": rubric.updated_at.isoformat() if rubric.updated_at else None,
     }
+    if actor is not None:
+        # Quien mira sabe de antemano si puede escribirla (sin intentar guardar para enterarse).
+        summary["editable"] = policies.can(actor, "rubric", "edit", owner_id=rubric.created_by_id)
+    return summary
 
 
-def rubric_detail(rubric):
-    data = _rubric_summary(rubric)
+def rubric_detail(rubric, actor=None):
+    data = _rubric_summary(rubric, actor)
     data["criteria"] = [
         {
             "id": c.id,
@@ -169,7 +182,9 @@ def rubric_detail(rubric):
             "title": c.title,
             "description": c.description,
             "weight": float(_weight(c)),
+            "minScore": float(SCORE_MIN),
             "maxScore": c.max_score,
+            "step": float(SCORE_STEP),
             "displayOrder": c.display_order,
             "active": c.active,
         }
@@ -198,20 +213,24 @@ def _load_editable(rubric_id, actor):
     """Una rúbrica que el actor puede modificar: la suya (o cualquiera, si es ADMIN)."""
     rubric = _load_visible(rubric_id, actor)
     if not policies.can(actor, "rubric", "edit", owner_id=rubric.created_by_id):
-        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        raise PermissionDenied("Esta rúbrica es de solo lectura: duplícala para personalizarla")
+        raise ApiError(
+            "RUBRIC_READ_ONLY",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Esta rúbrica es de solo lectura: duplícala para personalizarla.",
+            status.HTTP_403_FORBIDDEN,
+        )
     return rubric
 
 
 def list_rubrics(actor):
     return [
-        _rubric_summary(r)
+        _rubric_summary(r, actor)
         for r in _visible(actor).order_by("-is_default", "-active", "name", "id")
     ]
 
 
 def get_rubric(rubric_id, actor):
-    return rubric_detail(_load_visible(rubric_id, actor))
+    return rubric_detail(_load_visible(rubric_id, actor), actor)
 
 
 def _write_criteria(rubric, criteria_payload):
@@ -246,8 +265,12 @@ def _write_criteria(rubric, criteria_payload):
 
 def _require_can_set_default(actor, wants_default):
     if wants_default and not policies.can(actor, "rubric", "default"):
-        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        raise PermissionDenied("Solo un administrador fija la rúbrica predeterminada")
+        raise ApiError(
+            "RUBRIC_DEFAULT_ADMIN_ONLY",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Solo un administrador fija la rúbrica predeterminada.",
+            status.HTTP_403_FORBIDDEN,
+        )
 
 
 @transaction.atomic
@@ -267,7 +290,7 @@ def create_rubric(data, user):
         _validate_weights(list(_criteria_qs(rubric)))
     if data.get("isDefault"):
         set_default(rubric.id)
-    return rubric_detail(rubric)
+    return rubric_detail(rubric, user)
 
 
 @transaction.atomic
@@ -290,7 +313,7 @@ def update_rubric(rubric_id, data, actor):
         _validate_weights(list(_criteria_qs(rubric)))
     if data.get("isDefault"):
         set_default(rubric.id)
-    return rubric_detail(rubric)
+    return rubric_detail(rubric, actor)
 
 
 @transaction.atomic
@@ -303,7 +326,7 @@ def activate(rubric_id, active, actor):
         rubric.is_default = False
     rubric.updated_at = timezone.now()
     rubric.save()
-    return rubric_detail(rubric)
+    return rubric_detail(rubric, actor)
 
 
 @transaction.atomic
@@ -329,7 +352,7 @@ def duplicate(rubric_id, user):
             active=c.active,
             display_order=c.display_order,
         )
-    return rubric_detail(clone)
+    return rubric_detail(clone, user)
 
 
 @transaction.atomic
@@ -347,7 +370,7 @@ def set_default(rubric_id, actor=None):
     rubric.is_default = True
     rubric.updated_at = timezone.now()
     rubric.save()
-    return rubric_detail(rubric)
+    return rubric_detail(rubric, actor)
 
 
 @transaction.atomic
@@ -359,8 +382,12 @@ def assign_to_case_version(case_version_id, rubric_id, user):
         raise NotFound("Version de caso no encontrada")
     # Cambiar la rúbrica de una versión afecta a quienes la evalúan: solo la autora del caso (o ADMIN).
     if not policies.can(user, "case", "author", owner_id=case_version.simulation_case.created_by_id):
-        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        raise PermissionDenied("Solo quien autora el caso puede asignarle una rúbrica")
+        raise ApiError(
+            "RUBRIC_CASE_NOT_OWNED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Solo quien autora el caso puede asignarle una rúbrica.",
+            status.HTTP_403_FORBIDDEN,
+        )
     rubric = _visible(user).filter(pk=rubric_id, active=True).first()
     if not rubric:
         raise NotFound("Rubrica activa no encontrada")
@@ -372,7 +399,7 @@ def assign_to_case_version(case_version_id, rubric_id, user):
         assigned_by=user,
         active=True,
     )
-    return {"caseVersionId": case_version.id, "rubric": rubric_detail(rubric)}
+    return {"caseVersionId": case_version.id, "rubric": rubric_detail(rubric, user)}
 
 
 def rubric_for_case_version(case_version_id):
@@ -405,7 +432,7 @@ def case_version_rubric(case_version_id, actor):
     owns_the_case = policies.can(actor, "case", "author", owner_id=case_version.simulation_case.created_by_id)
     if not owns_the_case and not _visible(actor).filter(pk=rubric.pk).exists():
         raise NotFound("Rubrica no encontrada")
-    return rubric_detail(rubric)
+    return rubric_detail(rubric, actor)
 
 
 def attempt_rubric_view(attempt_id, instructor=None):
@@ -460,7 +487,9 @@ def attempt_rubric_view(attempt_id, instructor=None):
                 "title": item["title"],
                 "description": item["description"],
                 "weight": item["weight"],
-                "maxScore": 5,
+                "minScore": float(SCORE_MIN),
+                "maxScore": int(SCORE_MAX),
+                "step": float(SCORE_STEP),
                 "displayOrder": item["displayOrder"],
             }
             for item in items
@@ -526,7 +555,7 @@ def save_attempt_evaluation(attempt_id, data, instructor):
         else:
             # Escala heredada 1.0–5.0 (SIEP-CU-04: se rechaza el 0 y todo valor fuera del contrato).
             score = _decimal(score)
-            if score < Decimal("1.0") or score > Decimal("5.0"):
+            if score < SCORE_MIN or score > SCORE_MAX:
                 raise ValidationError("Cada calificacion debe estar entre 1.0 y 5.0")
             level = level_for_score(score)
         score_by_id[cid] = {

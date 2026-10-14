@@ -248,3 +248,23 @@ def test_admin_edits_any_professors_case(admin, case_a):
 
     assert response.status_code == 200
     assert SimulationCase.objects.get(versions__pk=cv).created_by.role == "PROFESOR"
+
+
+# ─── E3-0 · el 403 de autoría dice por qué, con su código (F7b-6) ───────────────────────────────────
+def test_mutating_a_foreign_case_says_it_is_not_yours(prof_b, case_a):
+    response = cl(prof_b).put(
+        f"{AUTHORING}/{case_a['caseVersionId']}/checklist", {"contentOriginal": True}, format="json"
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "CASE_NOT_OWNED"
+    assert "autora el caso" in response.data["message"]
+
+
+def test_a_professor_trying_to_approve_gets_the_action_code_not_the_owner_one(prof_a, case_a):
+    response = cl(prof_a).post(
+        f"{AUTHORING}/{case_a['caseVersionId']}/lifecycle", {"action": "approve"}, format="json"
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "CASE_ACTION_FORBIDDEN"
