@@ -96,7 +96,8 @@ PASSWORD_HASHERS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # JWT + el cambio de contraseña obligatorio de las cuentas aprobadas (E2-9).
+        "apps.users.authentication.SiepJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -122,13 +123,22 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
-# Contraseña con la que se crean los estudiantes importados desde Excel que no traen
-# una propia. Si la variable no existe o está en blanco se conserva el valor de
-# siempre: nunca se crea una cuenta con la contraseña vacía. Es la misma para todos
-# los importados y la ve el docente; ver CAMBIOS_ADSI.md (A-06) para el rediseño.
-IMPORTED_STUDENT_DEFAULT_PASSWORD = (
-    os.environ.get("IMPORTED_STUDENT_DEFAULT_PASSWORD", "").strip() or "Siep2026!"
-)
+# E2-9 · Contraseñas: longitud mínima y lista de contraseñas comunes (LS-16). Se aplican donde
+# alguien fija una (alta por el ADMIN, registro, cambio de contraseña); las cuentas que importa
+# el docente ya no llevan contraseña: nacen pendientes de aprobación (RN-10, D-5).
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# E2-9 · Límites de la importación de estudiantes (.xlsx): se comprueban ANTES de leer el
+# libro (tamaño, firma ZIP, tamaño descomprimido, filas y tiempo).
+IMPORT_MAX_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_BYTES", str(2 * 1024 * 1024)))
+IMPORT_MAX_UNCOMPRESSED_BYTES = int(os.environ.get("SIEP_IMPORT_MAX_UNCOMPRESSED_BYTES", str(20 * 1024 * 1024)))
+IMPORT_MAX_ZIP_MEMBERS = 64
+IMPORT_MAX_ROWS = int(os.environ.get("SIEP_IMPORT_MAX_ROWS", "1000"))
+IMPORT_MAX_SECONDS = float(os.environ.get("SIEP_IMPORT_MAX_SECONDS", "5"))
 # Asistente de IA (RF-027): APAGADO por defecto. Enviaría la pregunta y el contexto
 # del caso a un proveedor externo (privacidad, Ley 1581/2012); solo se enciende con
 # un valor explícito en AI_ASSISTANT_ENABLED. Apagado, la vista responde 404.

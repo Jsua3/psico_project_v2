@@ -30,6 +30,7 @@ from apps.grupos.views import (
 from apps.users.views import (
     AdminAccessRequestListView,
     AdminAccessRequestStatusView,
+    AdminUserApproveView,
     AdminUserDetailView,
     AdminUserListCreateView,
     AdminUserStatusView,
@@ -62,6 +63,7 @@ urlpatterns = [
     path("api/admin/cases", AdminCaseListCreateView.as_view()),
     path("api/admin/cases/", include("apps.simulation.urls_admin")),
     path("api/admin/users", AdminUserListCreateView.as_view()),
+    path("api/admin/users/approve", AdminUserApproveView.as_view()),
     path("api/admin/users/<int:user_id>", AdminUserDetailView.as_view()),
     path("api/admin/users/<int:user_id>/status", AdminUserStatusView.as_view()),
     path("api/admin/access-requests", AdminAccessRequestListView.as_view()),

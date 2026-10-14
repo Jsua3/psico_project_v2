@@ -5,6 +5,7 @@ IllegalArgumentException semantics -> 400 (ValidationError), not 403.
 """
 import io
 import re
+import time
 import zipfile
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
@@ -13,13 +14,16 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.db import transaction
+from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import CaseVersion, SimulationNode
 from apps.simulation.serializers import game_dtos as simulation_dto
 from apps.users.serializers import normalize_email_value, validate_common_email_domain
+from shared.exceptions import ApiError
 
 from .import_contract import (
+    IGNORED_STUDENT_IMPORT_COLUMNS,
     REQUIRED_STUDENT_IMPORT_COLUMNS,
     STUDENT_IMPORT_COLUMNS,
     STUDENT_IMPORT_TEMPLATE_FILENAME,
@@ -121,9 +125,58 @@ def _cell_text(cell):
     return value
 
 
+def _import_invalid(message):
+    return ApiError("IMPORT_INVALID", message, status.HTTP_400_BAD_REQUEST)
+
+
+def _guard_upload(uploaded_file):
+    """Comprueba el archivo ANTES de leerlo (LS-10): tamaño, firma ZIP y tamaño descomprimido.
+
+    Un ``.xlsx`` es un ZIP de XML; sin estos topes un archivo pequeño que se expande a
+    gigabytes (bomba de descompresión) agota la memoria del servidor.
+    """
+    size = getattr(uploaded_file, "size", None)
+    if size is not None and size > settings.IMPORT_MAX_BYTES:
+        raise ApiError(
+            "FILE_TOO_LARGE",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El archivo pesa demasiado: el máximo es {settings.IMPORT_MAX_BYTES // (1024 * 1024)} MB.",
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+    uploaded_file.seek(0)
+    if uploaded_file.read(4) != b"PK\x03\x04":
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise _import_invalid("El archivo no es un libro de Excel (.xlsx) válido.")
+    uploaded_file.seek(0)
+    try:
+        with zipfile.ZipFile(uploaded_file) as zf:
+            members = zf.infolist()
+            if len(members) > settings.IMPORT_MAX_ZIP_MEMBERS:
+                raise _import_invalid("El libro de Excel trae demasiados componentes.")
+            if sum(m.file_size for m in members) > settings.IMPORT_MAX_UNCOMPRESSED_BYTES:
+                raise _import_invalid("El libro de Excel es demasiado grande al abrirse.")
+    except zipfile.BadZipFile:
+        raise _import_invalid("El archivo no es un libro de Excel (.xlsx) válido.") from None
+    uploaded_file.seek(0)
+
+
+def _read_xml(zf, name):
+    """El XML de un componente del libro, sin declaraciones de tipo de documento (DOCTYPE).
+
+    Un libro legítimo no las trae; con ellas se abre la puerta a la expansión de entidades
+    («billion laughs») y a las entidades externas (XXE).
+    """
+    data = zf.read(name)
+    lowered = data.lower()
+    if b"<!doctype" in lowered or b"<!entity" in lowered:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise _import_invalid("El libro de Excel contiene definiciones no permitidas.")
+    return data
+
+
 def _xlsx_shared_strings(zf):
     try:
-        xml = zf.read("xl/sharedStrings.xml")
+        xml = _read_xml(zf, "xl/sharedStrings.xml")
     except KeyError:
         return []
     root = ET.fromstring(xml)
@@ -137,8 +190,8 @@ def _xlsx_shared_strings(zf):
 
 def _xlsx_first_sheet_path(zf):
     try:
-        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-        rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+        workbook = ET.fromstring(_read_xml(zf, "xl/workbook.xml"))
+        rels = ET.fromstring(_read_xml(zf, "xl/_rels/workbook.xml.rels"))
     except KeyError:
         raise ValidationError("El archivo Excel no tiene una hoja válida")
     ns = {
@@ -168,17 +221,24 @@ def _column_index(ref):
 
 
 def _parse_xlsx_rows(uploaded_file):
+    started = time.monotonic()
     try:
         with zipfile.ZipFile(uploaded_file) as zf:
             shared = _xlsx_shared_strings(zf)
             sheet_path = _xlsx_first_sheet_path(zf)
-            root = ET.fromstring(zf.read(sheet_path))
+            root = ET.fromstring(_read_xml(zf, sheet_path))
     except zipfile.BadZipFile:
-        raise ValidationError("El archivo .xlsx no es válido")
+        raise _import_invalid("El archivo .xlsx no es válido") from None
+    except ET.ParseError:
+        raise _import_invalid("El libro de Excel no se puede leer.") from None
 
     ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     rows = []
     for row in root.findall(".//x:sheetData/x:row", ns):
+        if len(rows) > settings.IMPORT_MAX_ROWS:
+            raise _import_invalid(f"El archivo supera el máximo de {settings.IMPORT_MAX_ROWS} filas.")
+        if time.monotonic() - started > settings.IMPORT_MAX_SECONDS:
+            raise _import_invalid("El archivo tardó demasiado en leerse: divídelo en partes más pequeñas.")
         values = []
         for cell in row.findall("x:c", ns):
             idx = _column_index(cell.attrib.get("r", "A"))
@@ -234,14 +294,15 @@ def student_import_template_bytes():
     data = io.BytesIO()
     rows = [
         list(STUDENT_IMPORT_COLUMNS),
-        ["Ana", "Rojas", "ana.rojas@example.edu.co", "Opcional123!"],
+        ["Ana", "Rojas", "ana.rojas@example.edu.co"],
     ]
     instructions = [
         ["Campo", "Obligatorio", "Instruccion"],
         ["nombre", "Si", "Primer nombre o nombres del estudiante."],
         ["apellido", "Si", "Apellidos del estudiante."],
         ["email", "Si", "Correo institucional o academico valido. No debe repetirse."],
-        ["password", "No", f"Si se deja vacio se usara {settings.IMPORTED_STUDENT_DEFAULT_PASSWORD}."],
+        # BORRADOR: texto nuevo, pendiente de la aprobación de Psicología (VD-23).
+        ["cuenta", "-", "Las cuentas nuevas quedan pendientes de aprobacion; cada persona fija su contrasena al entrar."],
     ]
     with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8"?>
@@ -277,6 +338,7 @@ def _parse_student_import(uploaded_file):
     name = (uploaded_file.name or "").lower()
     if not name.endswith(".xlsx"):
         raise ValidationError("Carga un archivo .xlsx")
+    _guard_upload(uploaded_file)
     rows = _parse_xlsx_rows(uploaded_file)
     rows = [row for row in rows if any(_cell_text(cell) for cell in row)]
     if not rows:
@@ -290,9 +352,11 @@ def _parse_student_import(uploaded_file):
     if duplicates:
         raise ValidationError(f"Columnas duplicadas: {', '.join(duplicates)}")
 
+    ignored = [header for header in headers if header in IGNORED_STUDENT_IMPORT_COLUMNS]
     unknown = [
         header for header in headers
-        if header and header != "_skip" and header not in STUDENT_IMPORT_COLUMNS
+        if header and header != "_skip"
+        and header not in STUDENT_IMPORT_COLUMNS and header not in IGNORED_STUDENT_IMPORT_COLUMNS
     ]
     if unknown:
         raise ValidationError(f"Columnas no permitidas: {', '.join(unknown)}")
@@ -306,12 +370,13 @@ def _parse_student_import(uploaded_file):
     for offset, row in enumerate(rows[1:], start=2):
         item = {"row": offset}
         for idx, header in enumerate(headers):
+            # Una columna ignorada (contraseña) NO se lee: el docente no fija contraseñas.
             if header in STUDENT_IMPORT_COLUMNS:
                 item[header] = _cell_text(row[idx] if idx < len(row) else "")
         parsed.append(item)
     if not parsed:
         raise ValidationError("El archivo no tiene filas de estudiantes")
-    return parsed
+    return parsed, ignored
 
 
 def listar_estudiantes(grupo_id, profesor):
@@ -326,7 +391,10 @@ def listar_estudiantes(grupo_id, profesor):
     return [_student_dto(by_id[user_id]) for user_id in ids if user_id in by_id]
 
 
-def _import_result(grupo, created=0, existing=0, assigned=0, skipped=0, duplicated=0, errors=None, students=None, message=""):
+def _import_result(
+    grupo, created=0, existing=0, assigned=0, skipped=0, duplicated=0, errors=None, students=None,
+    message="", ignored_columns=None,
+):
     return {
         "grupo": grupo_dto(grupo),
         "created": created,
@@ -337,7 +405,9 @@ def _import_result(grupo, created=0, existing=0, assigned=0, skipped=0, duplicat
         "duplicated": duplicated,
         "errors": errors or [],
         "students": students or [],
-        "defaultPassword": settings.IMPORTED_STUDENT_DEFAULT_PASSWORD,
+        # Las cuentas nuevas nacen inactivas: esperan la aprobación del ADMIN (RN-10).
+        "pendingApproval": created,
+        "ignoredColumns": ignored_columns or [],
         "expectedColumns": list(STUDENT_IMPORT_COLUMNS),
         "message": message,
     }
@@ -353,7 +423,7 @@ def import_spec():
     }
 
 
-def _validate_import_rows(grupo, rows):
+def _validate_import_rows(grupo, rows, ignored_columns=None):
     errors = []
     normalized_rows = []
     seen_emails = set()
@@ -362,7 +432,6 @@ def _validate_import_rows(grupo, rows):
         email_raw = _cell_text(item.get("email"))
         nombre = _cell_text(item.get("nombre"))
         apellido = _cell_text(item.get("apellido"))
-        password = _cell_text(item.get("password")) or settings.IMPORTED_STUDENT_DEFAULT_PASSWORD
 
         if not nombre:
             errors.append({"row": row_number, "field": "nombre", "email": email_raw, "message": "El nombre es obligatorio.", "error": "El nombre es obligatorio."})
@@ -397,7 +466,6 @@ def _validate_import_rows(grupo, rows):
             "email": email,
             "nombre": nombre,
             "apellido": apellido,
-            "password": password,
             "user": user,
         })
 
@@ -406,6 +474,7 @@ def _validate_import_rows(grupo, rows):
             grupo,
             errors=errors,
             message="El archivo contiene errores.",
+            ignored_columns=ignored_columns,
         ))
     return normalized_rows
 
@@ -413,8 +482,8 @@ def _validate_import_rows(grupo, rows):
 @transaction.atomic
 def importar_estudiantes(grupo_id, uploaded_file, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    rows = _parse_student_import(uploaded_file)
-    rows = _validate_import_rows(grupo, rows)
+    rows, ignored = _parse_student_import(uploaded_file)
+    rows = _validate_import_rows(grupo, rows, ignored)
     created = existing = assigned = skipped = 0
     imported_students = []
 
@@ -423,13 +492,16 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
         if user:
             existing += 1
         else:
+            # RN-10 · cuenta PENDIENTE: inactiva, sin contraseña usable y con el cambio obligatorio.
+            # El ADMIN la aprueba y la persona recibe una contraseña temporal por correo.
             user = User.objects.create_user(
                 email=item["email"],
-                password=item["password"],
+                password=None,
                 nombre=item["nombre"],
                 apellido=item["apellido"],
                 role="ESTUDIANTE",
-                activo=True,
+                activo=False,
+                must_change_password=True,
             )
             created += 1
 
@@ -448,6 +520,7 @@ def importar_estudiantes(grupo_id, uploaded_file, profesor):
         skipped=skipped,
         students=imported_students,
         message=f"Se procesaron correctamente {len(rows)} filas.",
+        ignored_columns=ignored,
     )
 
 

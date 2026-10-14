@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings
@@ -33,20 +35,36 @@ def validate_common_email_domain(value):
     return value
 
 
+def validate_new_password(value, user=None):
+    """Aplica ``AUTH_PASSWORD_VALIDATORS`` (longitud mínima y contraseñas comunes, LS-16)."""
+    try:
+        password_validation.validate_password(value, user)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(list(exc.messages)) from None
+    return value
+
+
 class UserSummarySerializer(serializers.ModelSerializer):
-    """Matches Spring's UserSummary record: {id, nombre, apellido, email, role}."""
+    """Spring's UserSummary record {id, nombre, apellido, email, role} + ``mustChangePassword``."""
+
+    mustChangePassword = serializers.BooleanField(source="must_change_password", read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "nombre", "apellido", "email", "role"]
+        fields = ["id", "nombre", "apellido", "email", "role", "mustChangePassword"]
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
     """User shape used by the administration screen."""
 
+    mustChangePassword = serializers.BooleanField(source="must_change_password", read_only=True)
+    pendingApproval = serializers.BooleanField(source="is_pending_approval", read_only=True)
+
     class Meta:
         model = User
-        fields = ["id", "nombre", "apellido", "email", "role", "activo"]
+        fields = [
+            "id", "nombre", "apellido", "email", "role", "activo", "mustChangePassword", "pendingApproval",
+        ]
 
 
 class AdminUserWriteSerializer(serializers.Serializer):
@@ -65,6 +83,9 @@ class AdminUserWriteSerializer(serializers.Serializer):
         if qs.exists():
             raise serializers.ValidationError("El email ya está registrado")
         return value
+
+    def validate_password(self, value):
+        return validate_new_password(value, self.instance) if value else value
 
     def validate(self, attrs):
         password = attrs.get("password", "")
@@ -137,8 +158,24 @@ class RegisterSerializer(serializers.Serializer):
         value = validate_common_email_domain(normalize_email_value(value))
         return value
 
+    def validate_password(self, value):
+        return validate_new_password(value)
+
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
+
+
+class ApproveUsersSerializer(serializers.Serializer):
+    """Lote de cuentas pendientes por aprobar (E2-9)."""
+
+    userIds = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), allow_empty=False, max_length=500
+    )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    currentPassword = serializers.CharField(write_only=True, trim_whitespace=False)
+    newPassword = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
 class AccessRequestCreateSerializer(serializers.Serializer):

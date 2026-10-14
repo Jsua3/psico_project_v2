@@ -17,6 +17,8 @@ from .serializers import (
     AdminUserStatusSerializer,
     AdminUserSerializer,
     AdminUserWriteSerializer,
+    ApproveUsersSerializer,
+    ChangePasswordSerializer,
     GoogleLoginSerializer,
     LoginSerializer,
     RegisterSerializer,
@@ -24,7 +26,7 @@ from .serializers import (
     generate_access_token,
     normalize_email_value,
 )
-from .services import access_request_service
+from .services import access_request_service, account_service
 
 User = get_user_model()
 
@@ -114,6 +116,11 @@ class GoogleLoginView(APIView):
         if not user or not user.activo:
             raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo")
 
+        if user.must_change_password:
+            # Entró con su cuenta de Google: la contraseña temporal del correo ya no hace falta.
+            user.must_change_password = False
+            user.save(update_fields=["must_change_password"])
+
         return api_ok({
             "token": generate_access_token(user),
             "user": UserSummarySerializer(user).data,
@@ -176,6 +183,32 @@ class AdminAccessRequestStatusView(APIView):
             AccessRequestSerializer(updated).data,
             message="Estado de solicitud actualizado.",
         )
+
+
+class ChangePasswordView(APIView):
+    """POST /api/auth/change-password — la propia persona, también con el cambio obligatorio."""
+
+    permission_classes = [policy_permission("account", "self")]
+
+    def post(self, request):
+        ser = ChangePasswordSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        account_service.change_password(
+            request.user, ser.validated_data["currentPassword"], ser.validated_data["newPassword"]
+        )
+        return api_ok(None, message="Contraseña actualizada")
+
+
+class AdminUserApproveView(APIView):
+    """POST /api/admin/users/approve — ADMIN aprueba por lote las cuentas pendientes (E2-9)."""
+
+    permission_classes = [policy_permission("user", "manage")]
+
+    def post(self, request):
+        ser = ApproveUsersSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        result = account_service.approve_pending(ser.validated_data["userIds"], request.user)
+        return api_ok(result, message="Cuentas procesadas")
 
 
 class MeView(APIView):

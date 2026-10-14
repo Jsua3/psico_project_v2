@@ -165,9 +165,14 @@ def test_import_students_from_xlsx_creates_and_assigns(profesor, estudiante):
     assert data["skipped"] == 0
     assert data["duplicated"] == 0
     assert data["grupo"]["totalEstudiantes"] == 3
-    assert data["defaultPassword"] == "Siep2026!"
+    # E2-9 (RN-10, D-5): ninguna contraseña viaja ni se fija: las cuentas nuevas quedan pendientes.
+    assert "defaultPassword" not in data
+    assert data["pendingApproval"] == 2
+    assert data["ignoredColumns"] == ["password"]
     assert User.objects.get(email="ana.rojas@x.com").role == "ESTUDIANTE"
-    assert User.objects.get(email="luis.perez@x.com").check_password("Siep2026!")
+    luis = User.objects.get(email="luis.perez@x.com")
+    assert (luis.activo, luis.must_change_password, luis.has_usable_password()) == (False, True, False)
+    assert not User.objects.get(email="ana.rojas@x.com").check_password("Clave1234")
 
     students = cl(profesor).get(f"/api/grupos/{grupo['id']}/estudiantes").data["data"]
     emails = {s["email"] for s in students}
@@ -218,7 +223,11 @@ def test_import_students_from_institutional_xlsx_template(profesor):
     assert data["assigned"] == 2
     assert data["grupo"]["totalEstudiantes"] == 2
     assert User.objects.get(email=f"sofia.garcia.{suffix}@institucion.edu.co").nombre == "Sofía"
-    assert User.objects.get(email=f"mateo.martinez.{suffix}@institucion.edu.co").check_password("LuTe1346*")
+    # La columna «Contraseña temporal» del archivo institucional se ignora y se informa (E2-9).
+    mateo = User.objects.get(email=f"mateo.martinez.{suffix}@institucion.edu.co")
+    assert not mateo.check_password("LuTe1346*")
+    assert (mateo.activo, mateo.has_usable_password()) == (False, False)
+    assert data["ignoredColumns"] == ["password"]
 
 
 def test_import_template_download_can_be_reuploaded(profesor):
