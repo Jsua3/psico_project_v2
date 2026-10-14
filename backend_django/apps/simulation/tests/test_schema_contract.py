@@ -14,6 +14,7 @@ import pytest
 from django.db import IntegrityError, connection, transaction
 
 from apps.simulation.models import (
+    CaseReview,
     CaseVersion,
     DecisionOption,
     MapObject,
@@ -35,7 +36,7 @@ TABLES = {
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
-    "attempt_reports",
+    "attempt_reports", "case_reviews",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -56,6 +57,7 @@ UNIQUE_COLUMNS = {
     "reflection_journals": [("attempt_id", "node_id")],
     "attempt_events": [("attempt_id", "request_id")],
     "attempt_reports": [("attempt_id",)],
+    "case_reviews": [("case_version_id",)],  # parcial: una sola revisión pendiente por versión
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
@@ -77,6 +79,7 @@ INDEXES = {
     "idx_audit_logs_retention",
     "uq_active_case_version_rubric_assignment",
     "uq_attempts_open_per_student_case",
+    "uq_case_reviews_one_pending",
 }
 
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
@@ -84,6 +87,7 @@ ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
+    ("case_reviews", "case_version_id"): "CASCADE",
     ("case_versions", "simulation_case_id"): "CASCADE",
     ("clinical_tools", "case_version_id"): "CASCADE",
     ("collision_zones", "scene_map_id"): "CASCADE",
@@ -118,6 +122,7 @@ ON_DELETE = {
 NO_ACTION = {
     ("attempt_events", "decision_option_id"), ("attempt_events", "node_id"),
     ("attempt_world_states", "scene_map_id"), ("audit_logs", "actor_id"),
+    ("case_reviews", "decided_by"), ("case_reviews", "requested_by"),
     ("case_versions", "cloned_from_id"), ("case_versions", "created_by"),
     ("grupos", "profesor_id"), ("publication_checklists", "submitted_by"),
     ("reflection_journals", "node_id"), ("rubric_evaluations", "instructor_id"),
@@ -158,6 +163,22 @@ def _publication_checklists_status():
     )
 
 
+def _case_review(**fields):
+    CaseReview.objects.create(case_version=_published_version(), requested_by=_admin(), **fields)
+
+
+def _case_reviews_decision():
+    _case_review(decision="MAYBE")
+
+
+def _case_reviews_reason():
+    _case_review(decision="REJECTED", reason="OTRA", note="x")
+
+
+def _case_reviews_rejection_has_reason():
+    _case_review(decision="REJECTED", note="x")
+
+
 def _attempt_with(**fields):
     version = _published_version()
     SimulationAttempt.objects.create(
@@ -195,6 +216,9 @@ CHECKS = {
     "ck_attempts_stress_range": _attempts_stress_range,
     "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
     "ck_attempts_user_trust_range": _attempts_user_trust_range,
+    "case_reviews_decision_check": _case_reviews_decision,
+    "case_reviews_reason_check": _case_reviews_reason,
+    "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,
 }
 
 
@@ -244,6 +268,18 @@ def test_los_indices_con_nombre_del_volcado_existen():
         present = {row[0] for row in cursor.fetchall()}
 
     assert INDEXES <= present, INDEXES - present
+
+
+def test_una_version_solo_admite_una_revision_pendiente():
+    version, admin = _published_version(), _admin()
+    CaseReview.objects.create(case_version=version, requested_by=admin)
+
+    with pytest.raises(IntegrityError, match="uq_case_reviews_one_pending"):
+        with transaction.atomic():
+            CaseReview.objects.create(case_version=version, requested_by=admin)
+
+    CaseReview.objects.filter(case_version=version).update(decision="APPROVED")
+    CaseReview.objects.create(case_version=version, requested_by=admin)
 
 
 def test_una_version_solo_admite_una_rubrica_activa():

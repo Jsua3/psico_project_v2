@@ -154,6 +154,16 @@ FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
 #: nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
 RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
+#: E2-5 · la publicación pasa por revisión: solo se publica desde ``IN_REVIEW`` (``POST …/publish``
+#: sobre un borrador responde 409 ``REVIEW_REQUIRED``), con la lista completa de siete ítems y la
+#: constancia de revisión de contenido de Psicología. Apagada: ``/publish`` del ADMIN sigue
+#: publicando un borrador y la constancia es opcional (el editor de hoy tiene seis casillas).
+REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
+#: E2-6 · ``revision`` es obligatoria en toda mutación de autoría (400 ``REVISION_REQUIRED`` si falta).
+#: Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409
+#: ``REVISION_CONFLICT``.
+REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
