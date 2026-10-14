@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import APIException
@@ -243,10 +244,15 @@ class AdminUserDetailView(APIView):
     permission_classes = [policy_permission("user", "manage")]
 
     def put(self, request, user_id):
-        user = get_object_or_404(User, pk=user_id)
-        ser = AdminUserWriteSerializer(instance=user, data=request.data)
-        ser.is_valid(raise_exception=True)
-        user = ser.save()
+        with transaction.atomic():
+            account_service.lock_admins()
+            user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            ser = AdminUserWriteSerializer(instance=user, data=request.data)
+            ser.is_valid(raise_exception=True)
+            account_service.ensure_not_last_admin(
+                user, role=ser.validated_data.get("role"), activo=ser.validated_data.get("activo")
+            )
+            user = ser.save()
         return api_ok(AdminUserSerializer(user).data, message="Usuario actualizado correctamente")
 
 
@@ -256,9 +262,12 @@ class AdminUserStatusView(APIView):
     permission_classes = [policy_permission("user", "manage")]
 
     def patch(self, request, user_id):
-        user = get_object_or_404(User, pk=user_id)
-        ser = AdminUserStatusSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        user.activo = ser.validated_data["activo"]
-        user.save(update_fields=["activo"])
+        with transaction.atomic():
+            account_service.lock_admins()
+            user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            ser = AdminUserStatusSerializer(data=request.data)
+            ser.is_valid(raise_exception=True)
+            account_service.ensure_not_last_admin(user, activo=ser.validated_data["activo"])
+            user.activo = ser.validated_data["activo"]
+            user.save(update_fields=["activo"])
         return api_ok(AdminUserSerializer(user).data, message="Estado actualizado correctamente")

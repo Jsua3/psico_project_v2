@@ -81,6 +81,38 @@ def approve_pending(user_ids, actor):
     return {"approved": len(approved), "skipped": skipped, "emailed": len(approved), "failed": failed}
 
 
+def lock_admins():
+    """Cerrojo sobre TODAS las filas de ADMIN, en orden de id (primero, antes que el destino).
+
+    Dos administradores que se desactivan entre sí toman los mismos cerrojos en el mismo orden:
+    se serializan en vez de cruzarse (interbloqueo) y la segunda orden ya ve el resultado de la
+    primera. Debe llamarse dentro de una transacción.
+    """
+    return list(
+        User.objects.select_for_update().filter(role="ADMIN").order_by("pk").values_list("pk", flat=True)
+    )
+
+
+def ensure_not_last_admin(user, *, role=None, activo=None):
+    """400 ``LAST_ADMIN`` si el cambio dejaría al sistema sin un ADMIN activo (D-6).
+
+    Se llama dentro de una transacción que ya tomó ``lock_admins()``.
+    """
+    steps_down = (role is not None and role != "ADMIN") or activo is False
+    if not (user.role == "ADMIN" and user.activo and steps_down):
+        return
+    active_admins = list(
+        User.objects.filter(role="ADMIN", activo=True).order_by("pk").values_list("pk", flat=True)
+    )
+    if not [pk for pk in active_admins if pk != user.pk]:
+        raise ApiError(
+            "LAST_ADMIN",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "No puedes desactivar ni quitar el rol al último administrador activo.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
 def _field_error(field, message):
     return ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field=field)
 
