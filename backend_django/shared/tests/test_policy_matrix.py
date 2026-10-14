@@ -39,6 +39,12 @@ EXPECTED = [
     ("attempt", "review", PROFESOR, {"member": True}, True),
     ("attempt", "review", PROFESOR, {"member": False}, False),
     ("attempt", "review", ADMIN, {}, True),
+    # Reporte de finalización de un intento: su dueño, el docente con alcance o el ADMIN.
+    ("attempt", "report", ESTUDIANTE, {"owner_id": ME}, True),
+    ("attempt", "report", ESTUDIANTE, {"owner_id": 99}, False),
+    ("attempt", "report", PROFESOR, {"member": True}, True),
+    ("attempt", "report", PROFESOR, {"member": False}, False),
+    ("attempt", "report", ADMIN, {}, True),
     # Caso: crear/editar, enviar a revisión y archivar → profesor sus casos; ADMIN todos.
     ("case", "author", ESTUDIANTE, {"owner_id": ME}, False),
     ("case", "author", PROFESOR, {"owner_id": ME}, True),
@@ -89,6 +95,10 @@ EXPECTED = [
     ("rubric", "edit", PROFESOR, {"owner_id": 99}, False),
     ("rubric", "edit", ADMIN, {"owner_id": 99}, True),
     ("rubric", "edit", ESTUDIANTE, {"owner_id": ME}, False),
+    # Rúbrica global por defecto: solo ADMIN.
+    ("rubric", "default", ADMIN, {}, True),
+    ("rubric", "default", PROFESOR, {"owner_id": ME}, False),
+    ("rubric", "default", ESTUDIANTE, {}, False),
     # Usuario: crear, activar, cambiar rol → solo ADMIN.
     ("user", "manage", ADMIN, {}, True),
     ("user", "manage", PROFESOR, {}, False),

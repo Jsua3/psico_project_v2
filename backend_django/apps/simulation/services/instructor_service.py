@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.simulation.serializers import game_dtos as dto
+from shared import policies
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map as _read_map
 
@@ -44,9 +45,10 @@ def _require_attempt(attempt_id, instructor=None):
     )
     if not attempt:
         raise NotFound("Intento no encontrado")
-    if instructor is not None and getattr(instructor, "role", None) != "ADMIN":
-        student_ids = student_ids_for_instructor(instructor)
-        if attempt.student_id not in student_ids:
+    if instructor is not None:
+        student_ids = student_ids_for_instructor(instructor)  # None = ADMIN (sin restricción)
+        member = student_ids is None or attempt.student_id in student_ids
+        if not policies.can(instructor, "attempt", "review", member=member):
             raise PermissionDenied("No tienes permiso para revisar este intento")
     return attempt
 

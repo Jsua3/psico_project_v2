@@ -1,10 +1,9 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
-from shared.permissions import IsEstudianteOrAdmin
+from shared.permissions import IsEstudianteOrAdmin, policy_permission
 from shared.response import api_ok
 
 from apps.simulation.serializers.requests import (
@@ -30,7 +29,7 @@ def _private_ok(data):
 
 
 class CasesView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
         return api_ok(game_service.list_published_cases(request.user))
@@ -60,7 +59,7 @@ class ActiveAttemptView(APIView):
 
 
 class AttemptView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt(
@@ -69,7 +68,7 @@ class AttemptView(APIView):
 
 
 class CompletionReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_completion_report(
@@ -80,7 +79,7 @@ class CompletionReportView(APIView):
 class AttemptReportView(APIView):
     """El reporte congelado de un intento completado (C2); 409 ``ATTEMPT_NOT_COMPLETED`` si no."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt_report(
@@ -91,7 +90,7 @@ class AttemptReportView(APIView):
 class AttemptEvaluationView(APIView):
     """La evaluación del docente para el dueño del intento: comentario y niveles, sin números."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return api_ok(rubric_service.owner_evaluation_view(attempt_id, request.user))
@@ -105,14 +104,14 @@ class AttemptHistoryView(APIView):
 
 
 class StudentReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "report")]
 
     def get(self, request, attempt_id):
         return api_ok(game_service.get_student_report(attempt_id, request.user))
 
 
 class ProgressMapView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_progress_map(
@@ -177,7 +176,7 @@ class ResumeAttemptView(APIView):
 
 # ─── Explorable world (SimulationWorldService) ───────────────────────────────
 class WorldView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("attempt", "play")]
 
     def get(self, request, attempt_id):
         return _private_ok(world_service.get_world(
@@ -253,7 +252,7 @@ class EnterRoomView(APIView):
 
 
 class CatalogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
         from apps.progression.catalog import build_catalog

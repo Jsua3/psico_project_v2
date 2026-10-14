@@ -1,17 +1,22 @@
 from rest_framework import status
 from rest_framework.views import APIView
 
-from shared.permissions import IsProfesorOrAdmin
+from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from ..services import rubric_service
 
 
+_CAN_READ = policy_permission("rubric", "read")
+_CAN_EDIT = policy_permission("rubric", "edit")
+
+
 class RubricListCreateView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    def get_permissions(self):
+        return [(_CAN_READ if self.request.method == "GET" else _CAN_EDIT)()]
 
     def get(self, request):
-        return api_ok(rubric_service.list_rubrics())
+        return api_ok(rubric_service.list_rubrics(request.user))
 
     def post(self, request):
         return api_ok(
@@ -22,48 +27,56 @@ class RubricListCreateView(APIView):
 
 
 class RubricDetailView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    def get_permissions(self):
+        return [(_CAN_READ if self.request.method == "GET" else _CAN_EDIT)()]
 
     def get(self, request, rubric_id):
-        return api_ok(rubric_service.get_rubric(rubric_id))
+        return api_ok(rubric_service.get_rubric(rubric_id, request.user))
 
     def put(self, request, rubric_id):
-        return api_ok(rubric_service.update_rubric(rubric_id, request.data), message="Rubrica actualizada")
+        return api_ok(
+            rubric_service.update_rubric(rubric_id, request.data, request.user),
+            message="Rubrica actualizada",
+        )
 
     def patch(self, request, rubric_id):
         return self.put(request, rubric_id)
 
 
 class RubricActivateView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [_CAN_EDIT]
 
     def post(self, request, rubric_id):
-        return api_ok(rubric_service.activate(rubric_id, True), message="Rubrica activada")
+        return api_ok(rubric_service.activate(rubric_id, True, request.user), message="Rubrica activada")
 
 
 class RubricDeactivateView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [_CAN_EDIT]
 
     def post(self, request, rubric_id):
-        return api_ok(rubric_service.activate(rubric_id, False), message="Rubrica desactivada")
+        return api_ok(rubric_service.activate(rubric_id, False, request.user), message="Rubrica desactivada")
 
 
 class RubricDuplicateView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [_CAN_EDIT]
 
     def post(self, request, rubric_id):
         return api_ok(rubric_service.duplicate(rubric_id, request.user), message="Rubrica duplicada")
 
 
 class RubricDefaultView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [policy_permission("rubric", "default")]
 
     def post(self, request, rubric_id):
-        return api_ok(rubric_service.set_default(rubric_id), message="Rubrica predeterminada actualizada")
+        return api_ok(
+            rubric_service.set_default(rubric_id, request.user),
+            message="Rubrica predeterminada actualizada",
+        )
 
 
 class CaseVersionRubricView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    def get_permissions(self):
+        return [(_CAN_READ if self.request.method == "GET" else _CAN_EDIT)()]
 
     def get(self, request, case_version_id):
         return api_ok(rubric_service.case_version_rubric(case_version_id))

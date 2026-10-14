@@ -35,6 +35,8 @@ MATRIX: dict[tuple[str, str], dict[str, str]] = {
     ("attempt", "play"): {ESTUDIANTE: OWN},
     # Intento ajeno: traza y evaluación. El profesor solo de estudiantes con membresía ACTIVE.
     ("attempt", "review"): {PROFESOR: MEMBER, ADMIN: ALL},
+    # Reporte de finalización (sin el token del intento): su dueño o quien puede revisarlo.
+    ("attempt", "report"): {ESTUDIANTE: OWN, PROFESOR: MEMBER, ADMIN: ALL},
     # Caso: crear y editar, enviar a revisión, archivar. Publicar solo el ADMIN, tras revisión.
     ("case", "author"): {PROFESOR: OWN, ADMIN: ALL},
     ("case", "submit"): {PROFESOR: OWN, ADMIN: ALL},
@@ -52,6 +54,8 @@ MATRIX: dict[tuple[str, str], dict[str, str]] = {
     # Rúbrica: leer las visibles; editar las suyas (el ADMIN todas).
     ("rubric", "read"): {PROFESOR: ALL, ADMIN: ALL},
     ("rubric", "edit"): {PROFESOR: OWN, ADMIN: ALL},
+    # La rúbrica global por defecto la fija solo el ADMIN.
+    ("rubric", "default"): {ADMIN: ALL},
     # Usuarios: crear, activar, cambiar rol.
     ("user", "manage"): {ADMIN: ALL},
     # Analítica: agregados de sus grupos (celda mínima k ≥ 5) o todos (ADMIN).
