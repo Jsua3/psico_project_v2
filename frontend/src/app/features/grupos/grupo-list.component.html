@@ -9,6 +9,9 @@
   <div class="gl-stats">
     <ui-card><ui-stat label="Grupos activos" [value]="grupos().length" /></ui-card>
     <ui-card><ui-stat label="Estudiantes asignados" [value]="totalEstudiantes()" /></ui-card>
+    @if (totalInvitados()) {
+      <ui-card><ui-stat label="Invitaciones pendientes" [value]="totalInvitados()" /></ui-card>
+    }
     @if (casosCargados()) {
       <ui-card><ui-stat label="Casos publicados" [value]="casosDisponibles().length" /></ui-card>
     }
@@ -70,7 +73,7 @@
               <tr uiRow [selected]="grupoActivo()?.id === g.id">
                 <th scope="row" class="gl-name">{{ g.nombre }}</th>
                 <td class="gl-code">{{ g.codigo }}</td>
-                <td class="gl-num">{{ g.totalEstudiantes }}</td>
+                <td class="gl-num">{{ g.totalEstudiantes }}@if (g.totalInvitados) {<span class="gl-invited"> ({{ g.totalInvitados }} por aceptar)</span>}</td>
                 <td class="gl-row-actions">
                   <button ui-button type="button" variant="ghost" size="sm" [attr.aria-label]="'Ver detalle de ' + g.nombre"
                     (click)="gestionarGrupo(g)">Ver detalle</button>
@@ -100,22 +103,22 @@
   <ui-section class="gl-detail" [title]="'Detalle de ' + grupo.nombre">
     <div class="gl-stack">
     <p class="gl-hint">
-      Código {{ grupo.codigo }} · {{ estudiantes().length }} estudiantes · {{ casosAsignados().length }} casos asignados
+      Código {{ grupo.codigo }} · {{ detalleConteo() }} · {{ casosAsignados().length }} casos asignados
     </p>
 
     <div class="gl-detail__grid">
       <ui-card class="gl-people-card">
         <ui-section title="Estudiantes del grupo" [level]="3">
           <div class="gl-stack">
-          <p class="gl-hint">Importa una lista o agrega estudiantes individualmente.</p>
+          <p class="gl-hint">Importa una lista o invita estudiantes uno a uno: entran al grupo cuando aceptan la invitación.</p>
 
           <div class="gl-drop" [class.gl-drop--active]="arrastrando()"
             (dragover)="arrastrarSobre($event)" (dragleave)="arrastrando.set(false)" (drop)="soltarArchivo($event)">
             <p class="gl-drop__title">Cargar estudiantes por Excel</p>
             <p class="gl-drop__hint">
               Arrastra aquí el archivo .xlsx o elígelo con el botón. Columnas requeridas: {{ columnasRequeridasTexto() }}.
-              Opcionales: {{ columnasOpcionalesTexto() }}. También acepta formato institucional (N°, Nombres, Apellidos,
-              Correo institucional, Contraseña temporal).
+              @if (columnasOpcionalesTexto()) {Opcionales: {{ columnasOpcionalesTexto() }}.}
+              También acepta el formato institucional (N°, Nombres, Apellidos, Correo institucional).
             </p>
             <div class="gl-drop__actions">
               <button ui-button type="button" variant="secondary" size="sm" icon="download" (click)="descargarPlantilla()">
@@ -141,11 +144,16 @@
           @if (resultadoImportacion(); as result) {
             <div class="gl-import-result" [class.gl-import-result--warning]="result.errors.length">
               <p class="gl-import-result__summary">
-                {{ result.associated || result.assigned }} asociados · {{ result.created }} creados ·
-                {{ result.existing }} existentes · {{ result.skipped }} omitidos
+                {{ result.associated || result.assigned }} invitados · {{ result.created }} cuentas nuevas ·
+                {{ result.existing }} ya existían · {{ result.skipped }} omitidos
               </p>
               <p>{{ result.message }}</p>
-              <p>{{ contrasenaNota(result) }}</p>
+              @if (cuentasNuevasNota(result); as nota) {
+                <p>{{ nota }}</p>
+              }
+              @if (columnasIgnoradasNota(result); as nota) {
+                <p>{{ nota }}</p>
+              }
               @if (result.errors.length) {
                 <details>
                   <summary>{{ result.errors.length }} filas con observaciones</summary>
@@ -166,7 +174,7 @@
               </ui-field>
               <div class="gl-actions">
                 <button ui-button type="submit" icon="person_add" [loading]="agregandoEstudiante()">
-                  {{ agregandoEstudiante() ? 'Agregando…' : 'Agregar' }}
+                  {{ agregandoEstudiante() ? 'Invitando…' : 'Invitar' }}
                 </button>
                 <button ui-button type="button" variant="secondary" (click)="grupoSeleccionado.set(null)">Cancelar</button>
               </div>
@@ -174,7 +182,7 @@
           } @else {
             <div class="gl-actions">
               <button ui-button type="button" variant="secondary" size="sm" icon="person_add" (click)="agregarEstudiante(grupo)">
-                Agregar uno
+                Invitar a uno
               </button>
             </div>
           }
@@ -195,14 +203,19 @@
           } @else {
             <ul class="gl-people">
               @for (student of estudiantesFiltrados(); track student.id) {
+                @let badge = membershipBadge(student);
                 <li class="gl-person">
                   <span class="gl-person__text">
-                    <strong>{{ student.nombre }} {{ student.apellido }}</strong>
-                    <span>{{ student.email }}</span>
+                    <strong>{{ studentName(student) }}</strong>
+                    @if (studentName(student) !== student.email) {
+                      <span>{{ student.email }}</span>
+                    }
                   </span>
-                  <button ui-icon-button type="button" icon="person_remove"
-                    [label]="'Quitar a ' + student.nombre + ' ' + student.apellido + ' del grupo'"
-                    (click)="quitarEstudiante(grupo, student)"></button>
+                  <ui-badge [tone]="badge.tone">{{ badge.label }}</ui-badge>
+                  @if (canRemove(student)) {
+                    <button ui-icon-button type="button" icon="person_remove" [label]="removeLabel(student)"
+                      (click)="quitarEstudiante(grupo, student)"></button>
+                  }
                 </li>
               }
             </ul>

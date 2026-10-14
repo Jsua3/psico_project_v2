@@ -47,7 +47,8 @@ describe('pantalla Grupos (F7-2)', () => {
   async function render(api: Partial<Api> = {}, { stable = true } = {}) {
     service = {
       listar: vi.fn(api.listar ?? (() => of([grupoA, grupoB]))),
-      importSpec: vi.fn(() => of({ requiredColumns: ['nombre', 'apellido', 'email'], optionalColumns: ['password'], columns: [], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
+      // La especificación de E2: sin columna `password` (RN-10).
+      importSpec: vi.fn(() => of({ requiredColumns: ['nombre', 'apellido', 'email'], optionalColumns: [], columns: ['nombre', 'apellido', 'email'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
       listarEstudiantes: vi.fn(api.estudiantes ?? (() => of([marta]))),
       listarCasos: vi.fn(api.casosAsignados ?? (() => of([caso]))),
       crear: vi.fn(), actualizar: vi.fn(), eliminar: vi.fn(), quitarEstudiante: vi.fn(), agregarEstudiante: vi.fn(),
@@ -156,7 +157,7 @@ describe('pantalla Grupos (F7-2)', () => {
 
       expect(row.querySelectorAll('ui-menu')).toHaveLength(1);
       expect(row.querySelector('ui-menu button')?.getAttribute('aria-label')).toBe('Más acciones de Cohorte A');
-      for (const label of ['Agregar', 'Copiar código', 'Editar', 'Borrar']) {
+      for (const label of ['Agregar', 'Invitar', 'Copiar código', 'Editar', 'Borrar']) {
         expect(buttons.some(el => text(el) === label), label).toBe(false);
       }
     });
@@ -305,20 +306,83 @@ describe('pantalla Grupos (F7-2)', () => {
       expect(zone().classList.contains('gl-drop--active')).toBe(false);
     });
 
-    it('el resultado de la importación sale una vez, con el aviso de contraseña en un solo lugar (gancho RN-10)', async () => {
+    // E2-9 (RN-10, decisión 4): la importación ya no trae `defaultPassword` (la pantalla imprimía «…: undefined») ni
+    // acepta la columna `password`: las cuentas nuevas quedan PENDIENTES y el administrador las aprueba.
+    // req: RN-10, RNF-01
+    it('el resultado sale una vez y dice cuántas cuentas quedan pendientes de aprobación; nunca una contraseña (gancho RN-10)', async () => {
       await render();
       await openDetail();
       const result = {
-        associated: 1, assigned: 1, created: 1, existing: 0, skipped: 0, message: 'Importación completada.',
-        defaultPassword: 'Temporal123!', errors: [], grupo: grupoA,
+        associated: 3, assigned: 3, created: 2, existing: 1, skipped: 0, duplicated: 0, message: 'Importación completada.',
+        pendingApproval: 2, ignoredColumns: ['password'], errors: [], students: [], grupo: grupoA,
       } as unknown as GrupoImportResult;
       component().resultadoImportacion.set(result);
       fixture.detectChanges();
 
       const summary = host().querySelectorAll('.gl-import-result');
       expect(summary).toHaveLength(1);
-      expect(text(summary[0])).toContain('1 asociados · 1 creados · 0 existentes · 0 omitidos');
-      expect(text(summary[0]).match(/Contraseña por defecto/g)).toHaveLength(1);
+      expect(text(summary[0])).toContain('3 invitados · 2 cuentas nuevas · 1 ya existían · 0 omitidos');
+      expect(text(summary[0]).match(/pendientes de aprobación/g)).toHaveLength(1);
+      expect(text(summary[0])).toContain('Las 2 cuentas nuevas quedan pendientes de aprobación');
+      expect(text(summary[0])).toContain('Se ignoró la columna «password»');
+      expect(text(summary[0])).not.toMatch(/[Cc]ontraseña por defecto|undefined/);
+    });
+
+    it('la zona de importación ya no pide ni menciona contraseñas (la plantilla de E2 no tiene esa columna)', async () => {
+      await render();
+      await openDetail();
+      expect(text(zone())).toContain('Columnas requeridas: nombre, apellido, email.');
+      expect(text(zone())).not.toMatch(/[Cc]ontraseña|password|Opcionales/);
+    });
+  });
+
+  // E2-10 (C5, decisión 22): el docente INVITA y el estudiante acepta; de quien no ha aceptado el servidor solo devuelve
+  // el correo. `totalEstudiantes` cuenta las membresías activas y `totalInvitados` las pendientes.
+  // req: SIEP-RF-04, D-14, RNF-04
+  describe('membresías por invitación (E2-10)', () => {
+    const laura = { id: 12, nombre: '', apellido: '', email: 'laura@siep.test', role: 'ESTUDIANTE', membershipStatus: 'INVITED' } as GrupoEstudiante;
+    const rechazo = { id: 13, nombre: '', apellido: '', email: 'pedro@siep.test', role: 'ESTUDIANTE', membershipStatus: 'DECLINED' } as GrupoEstudiante;
+    const activa = { ...marta, membershipStatus: 'ACTIVE' } as GrupoEstudiante;
+
+    it('cada estudiante dice su estado en palabras; de un invitado solo el correo (sin «undefined» ni nombre vacío)', async () => {
+      await render({ estudiantes: () => of([activa, laura, rechazo]) });
+      await openDetail();
+      const people = [...host().querySelectorAll('.gl-people-card .gl-person')];
+      expect(people).toHaveLength(3);
+      expect(text(people[0])).toContain('Marta Ríos');
+      expect(text(people[0].querySelector('ui-badge'))).toBe('Miembro');
+      expect(text(people[1].querySelector('strong'))).toBe('laura@siep.test');
+      expect(text(people[1].querySelector('ui-badge'))).toBe('Invitación pendiente');
+      expect(text(people[2].querySelector('ui-badge'))).toBe('Rechazó la invitación');
+      expect(text(host().querySelector('.gl-detail'))).not.toContain('undefined');
+      expect(people[1].querySelector('button[aria-label="Cancelar la invitación a laura@siep.test"]')).not.toBeNull();
+    });
+
+    it('el detalle cuenta miembros e invitaciones por separado', async () => {
+      await render({ estudiantes: () => of([activa, laura]) });
+      await openDetail();
+      expect(text(host().querySelector('.gl-detail .gl-hint'))).toContain('1 estudiante · 1 invitación pendiente');
+    });
+
+    it('las cifras y la tabla separan a los miembros de las invitaciones pendientes', async () => {
+      await render({ listar: () => of([{ ...grupoA, totalInvitados: 2 }, grupoB]) });
+      expect(stats()).toEqual({ 'Grupos activos': '2', 'Estudiantes asignados': '3', 'Invitaciones pendientes': '2', 'Casos publicados': '2' });
+      expect(text(rows()[0].querySelector('.gl-num'))).toBe('3 (2 por aceptar)');
+      expect(text(rows()[1].querySelector('.gl-num'))).toBe('0');
+    });
+
+    it('«Invitar» por correo: el resultado dice que la persona verá el grupo cuando acepte', async () => {
+      await render();
+      await openDetail();
+      service['agregarEstudiante'].mockReturnValue(of(grupoA));
+      component().agregarEstudiante(grupoA);
+      fixture.detectChanges();
+      component().estudianteForm.setValue({ email: 'nuevo@siep.test' });
+      component().confirmarAgregar();
+      fixture.detectChanges();
+      expect(component().mensajeEstudiante()).toBe('Invitación enviada a nuevo@siep.test: verá el grupo cuando la acepte.');
+      const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
+      expect(menu.items().map(item => item.label)).toContain('Invitar estudiante');
     });
   });
 

@@ -39,6 +39,22 @@ const OBJECT_TYPE_LABELS: Record<string, string> = {
   WARNING: 'Advertencia',
 };
 
+/** Membresía de un estudiante en un grupo (E2-10, C5), vista por el docente en el detalle del grupo. */
+const MEMBERSHIP_LABELS: Record<string, string> = {
+  INVITED: 'Invitación pendiente',
+  ACTIVE: 'Miembro',
+  DECLINED: 'Rechazó la invitación',
+  REMOVED: 'Retirado del grupo',
+};
+
+/** La misma membresía vista por el estudiante en su bandeja de invitaciones. */
+const INVITATION_LABELS: Record<string, string> = {
+  INVITED: 'Pendiente',
+  ACTIVE: 'Miembro',
+  DECLINED: 'Rechazada',
+  REMOVED: 'Saliste del grupo',
+};
+
 /** `SOME_VALUE` → `Some value`: último recurso para un código que la tabla aún no conoce. */
 function humanize(code: string): string {
   const words = code.trim().toLowerCase().replace(/[_-]+/g, ' ');
@@ -57,6 +73,14 @@ export function roleLabel(role: string | null | undefined): string {
 
 export function statusLabel(status: string | null | undefined): string {
   return lookup(STATUS_LABELS, status, 'Sin estado');
+}
+
+export function membershipLabel(status: string | null | undefined): string {
+  return lookup(MEMBERSHIP_LABELS, status, 'Sin estado');
+}
+
+export function invitationLabel(status: string | null | undefined): string {
+  return lookup(INVITATION_LABELS, status, 'Sin estado');
 }
 
 export function objectTypeLabel(type: string | null | undefined): string {
