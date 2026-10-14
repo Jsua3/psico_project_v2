@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.simulation.serializers import game_dtos as dto
+from shared import policies
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map as _read_map
 
@@ -44,9 +45,10 @@ def _require_attempt(attempt_id, instructor=None):
     )
     if not attempt:
         raise NotFound("Intento no encontrado")
-    if instructor is not None and getattr(instructor, "role", None) != "ADMIN":
-        student_ids = student_ids_for_instructor(instructor)
-        if attempt.student_id not in student_ids:
+    if instructor is not None:
+        student_ids = student_ids_for_instructor(instructor)  # None = ADMIN (sin restricción)
+        member = student_ids is None or attempt.student_id in student_ids
+        if not policies.can(instructor, "attempt", "review", member=member):
             raise PermissionDenied("No tienes permiso para revisar este intento")
     return attempt
 
@@ -54,7 +56,8 @@ def _require_attempt(attempt_id, instructor=None):
 def recent_attempts(instructor):
     attempts = (
         SimulationAttempt.objects.select_related("case_version__simulation_case", "student")
-        .filter(case_version__status="PUBLISHED", case_version__simulation_case__active=True)
+        # E2-5: las versiones archivadas siguen en el seguimiento (sus intentos abiertos se terminan).
+        .filter(case_version__simulation_case__active=True)
         .order_by("-started_at")
     )
     student_ids = student_ids_for_instructor(instructor)

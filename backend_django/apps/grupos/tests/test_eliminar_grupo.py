@@ -46,7 +46,7 @@ def test_eliminar_un_grupo_con_miembros_y_casos_con_fk_en_no_action():
     )
     version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
     grupo = Grupo.objects.create(nombre="Para borrar", codigo="ELIM-1", profesor=profesor)
-    GrupoEstudiante.objects.create(grupo_id=grupo.id, estudiante_id=estudiante.id)
+    GrupoEstudiante.objects.create(grupo_id=grupo.id, estudiante_id=estudiante.id, status="ACTIVE")
     GrupoCaseVersion.objects.create(grupo_id=grupo.id, case_version_id=version.id)
     client = APIClient()
     client.force_authenticate(user=profesor)

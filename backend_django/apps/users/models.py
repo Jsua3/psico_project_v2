@@ -53,6 +53,9 @@ class CustomUser(AbstractBaseUser):
     )
     activo = models.BooleanField(default=True, db_default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # E2-9 · una cuenta con contraseña temporal (importada y aprobada, o con una restablecida)
+    # debe fijar la suya antes de cualquier otra orden (``apps.users.authentication``).
+    must_change_password = models.BooleanField(default=False, db_default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["nombre", "apellido"]
@@ -102,6 +105,12 @@ class CustomUser(AbstractBaseUser):
 
     def has_usable_password(self):
         return bool(self.password) and self.password != "!"
+
+    @property
+    def is_pending_approval(self):
+        """Cuenta importada que aún espera la aprobación del ADMIN (RN-10): inactiva, con el
+        cambio de contraseña pendiente y sin contraseña usable."""
+        return (not self.activo) and self.must_change_password and not self.has_usable_password()
 
 
 class AccessRequestStatus(models.TextChoices):

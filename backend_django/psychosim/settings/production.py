@@ -72,6 +72,32 @@ _require_env("JWT_SECRET")
 # no hace falta CORS; si el frontend vive en otro dominio, se listan aquí.
 CORS_ALLOWED_ORIGINS = _split_csv(os.environ.get("CORS_ALLOWED_ORIGINS"))
 
+# ── Correo (E2-12) ─────────────────────────────────────────────────────────────────────────────
+# El correo lleva avisos y la contraseña temporal de las cuentas aprobadas: con el backend de
+# consola esa contraseña iría al registro de la plataforma, así que producción exige un backend
+# real (o declararlo explícitamente con SIEP_ALLOW_CONSOLE_EMAIL=true) y un destino para el aviso
+# de solicitudes de acceso (o declarar que no lo hay con ACCESS_REQUEST_NOTIFY_DISABLED=true).
+def _declared(name):
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+if MAILERS["default"]["BACKEND"].endswith("console.EmailBackend") and not _declared("SIEP_ALLOW_CONSOLE_EMAIL"):
+    raise ImproperlyConfigured(
+        "Define EMAIL_BACKEND (y EMAIL_HOST…) para el correo en producción, o declara "
+        "SIEP_ALLOW_CONSOLE_EMAIL=true: el backend de consola escribe en el registro la "
+        "contraseña temporal de las cuentas aprobadas."
+    )
+_notify = _split_csv(os.environ.get("ACCESS_REQUEST_NOTIFY_EMAILS"))
+if _declared("ACCESS_REQUEST_NOTIFY_DISABLED"):
+    ACCESS_REQUEST_NOTIFY_EMAILS = []
+elif not _notify:
+    raise ImproperlyConfigured(
+        "Define ACCESS_REQUEST_NOTIFY_EMAILS (correos separados por comas que reciben el aviso de "
+        "una solicitud de acceso) o declara ACCESS_REQUEST_NOTIFY_DISABLED=true."
+    )
+else:
+    ACCESS_REQUEST_NOTIFY_EMAILS = _notify
+
 # Railway termina TLS en el borde: las cookies seguras y la cabecera de proxy
 # funcionan, pero el redirect a HTTPS lo maneja la plataforma. Por defecto NO
 # forzamos el redirect en Django para evitar bucles; se puede activar con env.

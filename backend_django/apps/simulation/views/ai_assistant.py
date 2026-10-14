@@ -14,9 +14,10 @@ import uuid
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from shared.permissions import policy_permission
 
 from apps.simulation.services import audit_service
 from apps.simulation.services.ai_providers import DEFAULT_PROVIDER, AIProvider, NotConfigured, provider_class
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class AIAssistantView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [policy_permission("account", "self")]
 
     def post(self, request):
         # Primero la bandera: apagado, la ruta no distingue peticiones válidas de

@@ -1,6 +1,6 @@
 """Las escenas del caso: mapas, objetos y diálogos."""
 from django.db import transaction
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import (
     DEFAULT_MAP_HEIGHT,
@@ -16,47 +16,41 @@ from apps.simulation.models import (
 from shared.jsonutils import coerce_int as _int, write_map as _write_map
 
 from .editor_view import editor
-from .guards import (
-    ensure_draft,
-    require_dialogue_in_version,
-    require_map_in_version,
-    require_object_in_version,
-)
+from .guards import bump_revision, decision_link, ensure_draft, in_version
+from .icons import validate_icon
 from .request_utils import flag
 
 
 # ─── Map CRUD ────────────────────────────────────────────────────────────────
 @transaction.atomic
 def create_map(case_version_id, request):
-    version = ensure_draft(case_version_id)
-    node = SimulationNode.objects.filter(pk=request.get("nodeId")).first()
-    if not node:
-        raise NotFound(f"Nodo no encontrado: {request.get('nodeId')}")
+    version = ensure_draft(case_version_id, request.get("revision"))
+    node = in_version(SimulationNode, request.get("nodeId"), case_version_id)
     scene_map = SceneMap(case_version=version, node=node)
     _apply_map_request(scene_map, request)
     scene_map.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
 def update_map(case_version_id, map_id, request):
-    ensure_draft(case_version_id)
-    scene_map = require_map_in_version(map_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    scene_map = in_version(SceneMap, map_id, case_version_id)
     if request.get("nodeId") is not None:
-        node = SimulationNode.objects.filter(pk=request.get("nodeId")).first()
-        if not node:
-            raise NotFound(f"Nodo no encontrado: {request.get('nodeId')}")
-        scene_map.node = node
+        scene_map.node = in_version(SimulationNode, request.get("nodeId"), case_version_id)
     _apply_map_request(scene_map, request)
     scene_map.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
-def delete_map(case_version_id, map_id):
-    ensure_draft(case_version_id)
-    scene_map = require_map_in_version(map_id, case_version_id)
+def delete_map(case_version_id, map_id, revision=None):
+    ensure_draft(case_version_id, revision)
+    scene_map = in_version(SceneMap, map_id, case_version_id)
     scene_map.delete()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
@@ -75,32 +69,35 @@ def _apply_map_request(scene_map, request):
 # ─── Map Object CRUD ─────────────────────────────────────────────────────────
 @transaction.atomic
 def create_object(case_version_id, map_id, request):
-    ensure_draft(case_version_id)
-    scene_map = require_map_in_version(map_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    scene_map = in_version(SceneMap, map_id, case_version_id)
     obj = MapObject(scene_map=scene_map)
-    _apply_object_request(obj, request)
+    _apply_object_request(obj, request, case_version_id)
     obj.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
 def update_object(case_version_id, object_id, request):
-    ensure_draft(case_version_id)
-    obj = require_object_in_version(object_id, case_version_id)
-    _apply_object_request(obj, request)
+    ensure_draft(case_version_id, request.get("revision"))
+    obj = in_version(MapObject, object_id, case_version_id)
+    _apply_object_request(obj, request, case_version_id)
     obj.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
-def delete_object(case_version_id, object_id):
-    ensure_draft(case_version_id)
-    obj = require_object_in_version(object_id, case_version_id)
+def delete_object(case_version_id, object_id, revision=None):
+    ensure_draft(case_version_id, revision)
+    obj = in_version(MapObject, object_id, case_version_id)
     obj.delete()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
-def _apply_object_request(obj, request):
+def _apply_object_request(obj, request, case_version_id):
     obj.object_key = request.get("objectKey")
     obj.label = request.get("label")
     obj.object_type = request.get("objectType")
@@ -111,6 +108,7 @@ def _apply_object_request(obj, request):
     obj.width = width if width > 0 else 48
     obj.height = height if height > 0 else 48
     obj.color_hex = request.get("colorHex") if request.get("colorHex") is not None else "#4FA3A5"
+    validate_icon(request.get("icon"), current=obj.icon)
     obj.icon = request.get("icon") if request.get("icon") is not None else "psychology"
     obj.short_code = request.get("shortCode") if request.get("shortCode") is not None else "ACT"
     obj.collision = flag(request, "collision")
@@ -120,7 +118,8 @@ def _apply_object_request(obj, request):
     obj.tool_code = request.get("toolCode")
     decision_option_id = request.get("decisionOptionId")
     if decision_option_id is not None:
-        decision = DecisionOption.objects.filter(pk=decision_option_id).first()
+        # Una decisión de otra versión nunca se enlaza (400); una borrada deja el enlace como estaba.
+        decision = decision_link(decision_option_id, case_version_id)
         if decision:
             obj.decision_option = decision
     else:
@@ -130,34 +129,39 @@ def _apply_object_request(obj, request):
 # ─── Dialogue CRUD ────────────────────────────────────────────────────────────
 @transaction.atomic
 def create_dialogue(case_version_id, map_id, request):
-    ensure_draft(case_version_id)
-    scene_map = require_map_in_version(map_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    scene_map = in_version(SceneMap, map_id, case_version_id)
     map_object = None
     if request.get("mapObjectId") is not None:
-        map_object = MapObject.objects.filter(pk=request.get("mapObjectId")).first()
+        map_object = in_version(MapObject, request.get("mapObjectId"), case_version_id)
+        if map_object.scene_map_id != scene_map.id:
+            raise ValidationError(f"El objeto {map_object.id} no pertenece al mapa {scene_map.id}")
     tree = DialogueTree(scene_map=scene_map, map_object=map_object)
     _apply_dialogue_request(tree, request)
     tree.save()
     _save_dialogue_lines(tree, request.get("lines"))
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
 def update_dialogue(case_version_id, tree_id, request):
-    ensure_draft(case_version_id)
-    tree = require_dialogue_in_version(tree_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    tree = in_version(DialogueTree, tree_id, case_version_id)
     _apply_dialogue_request(tree, request)
     tree.save()
     DialogueLine.objects.filter(dialogue_tree_id=tree_id).delete()
     _save_dialogue_lines(tree, request.get("lines"))
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
-def delete_dialogue(case_version_id, tree_id):
-    ensure_draft(case_version_id)
-    tree = require_dialogue_in_version(tree_id, case_version_id)
+def delete_dialogue(case_version_id, tree_id, revision=None):
+    ensure_draft(case_version_id, revision)
+    tree = in_version(DialogueTree, tree_id, case_version_id)
     tree.delete()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
@@ -175,8 +179,8 @@ def _save_dialogue_lines(tree, lines):
         DialogueLine.objects.create(
             dialogue_tree=tree,
             display_order=_int(line_req.get("displayOrder")),
-            speaker_name=line_req.get("speakerName"),
-            text=line_req.get("text"),
+            speaker_name=line_req.get("speakerName") or tree.speaker_name,
+            text=line_req.get("text") or "",
             emotion=line_req.get("emotion") if line_req.get("emotion") is not None else "neutral",
         )
 

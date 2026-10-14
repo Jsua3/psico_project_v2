@@ -243,12 +243,17 @@ def test_el_clon_de_la_version_es_un_borrador_enlazado_al_origen(admin, fuente):
     assert clone.world_schema_version == fuente.world_schema_version
 
 
-def test_las_rubricas_clonadas_quedan_a_nombre_de_quien_clona(admin, autor, fuente):
+def test_las_rubricas_clonadas_conservan_a_su_dueno_y_no_pasan_a_quien_clona(admin, autor, fuente):
+    """Revisión de fase E2 (F16b): quien clona no se vuelve el dueño de la rúbrica. Si lo fuera,
+    un ADMIN que clona la rúbrica privada de una autora la haría visible para todos los docentes."""
     clone = _clone(admin, fuente)
 
     assert set(Rubric.objects.filter(case_version=fuente).values_list("created_by_id", flat=True)) >= {autor.id}
     assert Rubric.objects.filter(case_version=clone).exists()
-    assert set(Rubric.objects.filter(case_version=clone).values_list("created_by_id", flat=True)) == {admin.id}
+    assert set(Rubric.objects.filter(case_version=clone).values_list("created_by_id", flat=True)) == set(
+        Rubric.objects.filter(case_version=fuente).values_list("created_by_id", flat=True)
+    )
+    assert admin.id not in set(Rubric.objects.filter(case_version=clone).values_list("created_by_id", flat=True))
 
 
 def test_cada_entidad_del_clon_cuelga_del_clon_y_no_de_la_fuente(admin, fuente):
