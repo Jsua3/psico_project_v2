@@ -1,0 +1,112 @@
+// Hub de edición de casos (plan visual F7-7): piel portal, solo tokens --ds-*, superficies con borde y sin sombras
+// duras ni bordes punteados (VD-3). El foco lo pinta el anillo global. Reglas de F7-2…F7-6: el host de `ui-section` se
+// queda en bloque y toda rejilla lleva `minmax(0, 1fr)`.
+:host {
+  display: block;
+  color: var(--ds-text-1);
+}
+
+.hub-create,
+.hub-cases {
+  display: block;
+  min-width: 0;
+  margin-block-start: var(--ds-space-6);
+}
+
+.hub-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.hub-hint {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.hub-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+}
+
+@media (min-width: 40rem) {
+  .hub-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hub-form__wide,
+  .hub-form__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.hub-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-space-3);
+}
+
+// ── Casos ───────────────────────────────────────────────────────────────────────────────────────────────────────
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--ds-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hub-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  align-content: start;
+  height: 100%;
+}
+
+.hub-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.hub-card__top small,
+.hub-card__meta {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.hub-card__title {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+  overflow-wrap: anywhere;
+}
+
+.hub-card__description {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.hub-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  margin: 0;
+}
+
+.hub-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}

@@ -530,6 +530,80 @@ test.describe('@docencia usuarios', () => {
   });
 });
 
+const CASOS_HUB = [
+  { caseVersionId: 1, code: 'CASO-PSICO-001', title: CASE_TITLE, description: 'Contexto del caso.', semanticVersion: '0.1.0', status: 'DRAFT', nodeCount: 6 },
+  { caseVersionId: 2, code: 'CASO-PSICO-002', title: 'Duelo y pérdida', description: 'Otro contexto.', semanticVersion: '1.0.0', status: 'PUBLISHED', nodeCount: 1 },
+];
+
+interface HubMock {
+  cases?: unknown[];
+  listStatus?: number;
+  createStatus?: number;
+}
+
+async function openHub(page: Page, mock: HubMock = {}): Promise<{ created: unknown[] }> {
+  const created: unknown[] = [];
+  await loginAs(page, 'admin');
+  await page.route('**/api/admin/cases', route => {
+    if (route.request().method() === 'POST') {
+      created.push(route.request().postDataJSON());
+      return mock.createStatus
+        ? route.fulfill({ status: mock.createStatus, json: { success: false, message: 'Código repetido' } })
+        : route.fulfill({ json: { success: true, data: { caseVersionId: 99 } } });
+    }
+    return mock.listStatus
+      ? route.fulfill({ status: mock.listStatus, json: { success: false, message: 'Error simulado' } })
+      : route.fulfill({ json: { success: true, data: mock.cases ?? CASOS_HUB } });
+  });
+  await page.goto('/portal/casos');
+  return { created };
+}
+
+// req: RNF-04, BLOQUE-H
+test.describe('@docencia hub de casos', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con casos: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openHub(page);
+      await expect(page.getByRole('heading', { level: 1, name: 'Edición de casos' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 3, name: CASE_TITLE })).toBeVisible();
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-case-authoring-hub')).toEqual([]);
+    });
+  }
+
+  test('el estado se lee en lenguaje humano: «Borrador» y «Publicado», nunca DRAFT', async ({ page }) => {
+    await openHub(page);
+    await expect(page.locator('.hub-card ui-badge').first()).toHaveText('Borrador');
+    await expect(page.getByText(/\bDRAFT\b/)).toHaveCount(0);
+  });
+
+  test('si la lista falla: un error con «Reintentar» y NO el vacío', async ({ page }) => {
+    await openHub(page, { listStatus: 500 });
+    await expect(page.locator('app-case-authoring-hub ui-error-state')).toHaveCount(1);
+    await expect(page.getByText('Aún no hay casos')).toHaveCount(0);
+  });
+
+  test('sin casos: vacío con «Agregar nuevo caso» que abre el formulario con el foco en el título', async ({ page }) => {
+    await openHub(page, { cases: [] });
+    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Agregar nuevo caso' }).click();
+    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toBeFocused();
+  });
+
+  test('si la creación falla: el error dice qué revisar, con «Reintentar», y el formulario conserva los datos', async ({ page }) => {
+    const { created } = await openHub(page, { createStatus: 409 });
+    await page.getByRole('button', { name: 'Agregar nuevo caso' }).first().click();
+    await page.getByRole('textbox', { name: /Título del caso/ }).fill('Caso nuevo');
+    await page.getByRole('button', { name: 'Crear y abrir editor' }).click();
+
+    await expect(page.locator('.hub-create ui-error-state')).toContainText('No fue posible crear el caso');
+    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toHaveValue('Caso nuevo');
+    await page.locator('.hub-create ui-error-state').getByRole('button', { name: 'Reintentar' }).click();
+    await expect.poll(() => created.length).toBe(2);
+  });
+});
+
 // req: RNF-04, BLOQUE-H, RQ-NEG-006
 test.describe('@docencia panel', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

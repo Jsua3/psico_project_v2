@@ -1,0 +1,87 @@
+<ui-page-header eyebrow="Modalidad administrador" title="Edición de casos"
+  description="Construye escenarios, NPCs, puertas, artículos, conversaciones y cuestionarios para estudiantes.">
+  <button ui-button uiPageActions type="button" [variant]="creating() ? 'secondary' : 'primary'"
+    [icon]="creating() ? 'close' : 'add_circle'" (click)="toggleCreate()">
+    {{ creating() ? 'Cerrar' : 'Agregar nuevo caso' }}
+  </button>
+</ui-page-header>
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+@if (creating()) {
+  <ui-section class="hub-create" title="Nuevo caso editable">
+    <ui-card>
+      <div class="hub-stack">
+        <p class="hub-hint">
+          Se creará en borrador con una escena inicial para que puedas editar NPCs, artículos, puertas y cuestionarios.
+        </p>
+        <form [formGroup]="newCaseForm" novalidate class="hub-form" (ngSubmit)="createCase()">
+          <ui-field label="Título del caso" required [error]="fieldError(newCaseForm.controls.title, 'Escribe el título del caso.')">
+            <input uiControl type="text" formControlName="title" placeholder="Caso de intervención psicosocial" autocomplete="off">
+          </ui-field>
+          <ui-field label="Código opcional">
+            <input uiControl type="text" formControlName="code" placeholder="CASO-PSICO-001" autocomplete="off">
+          </ui-field>
+          <ui-field class="hub-form__wide" label="Descripción">
+            <textarea uiControl rows="3" formControlName="description"
+              placeholder="Contexto breve para docentes y estudiantes"></textarea>
+          </ui-field>
+          <div class="hub-form__actions">
+            <button ui-button type="button" variant="secondary" (click)="toggleCreate()">Cancelar</button>
+            <button ui-button type="submit" icon="save" [loading]="creatingCase()">
+              {{ creatingCase() ? 'Creando…' : 'Crear y abrir editor' }}
+            </button>
+          </div>
+        </form>
+        @if (createFailed()) {
+          <ui-error-state kind="server"
+            message="No fue posible crear el caso. Revisa que el código no exista y vuelve a intentar." (retry)="createCase()" />
+        }
+      </div>
+    </ui-card>
+  </ui-section>
+}
+
+<ui-section class="hub-cases" title="Casos">
+  @switch (listState()) {
+    @case ('loading') {
+      <div class="hub-grid" aria-busy="true">
+        @for (bone of [1, 2, 3]; track bone) {
+          <ui-skeleton shape="card" [lines]="3" />
+        }
+      </div>
+    }
+    @case ('error') {
+      <ui-error-state kind="server" [message]="error()" (retry)="loadCases()" />
+    }
+    @case ('empty') {
+      <ui-empty-state kind="first-use" title="Aún no hay casos"
+        description="Crea el primero: se guarda como borrador con una escena inicial y lo abres en el editor."
+        actionLabel="Agregar nuevo caso" (action)="toggleCreate()" />
+    }
+    @default {
+      <ul class="hub-grid">
+        @for (item of cases(); track item.caseVersionId) {
+          <li>
+            <ui-card class="hub-card">
+              <div class="hub-card__top">
+                <ui-badge [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</ui-badge>
+                <small>v{{ item.semanticVersion }}</small>
+              </div>
+              <h3 class="hub-card__title">{{ item.title }}</h3>
+              <p class="hub-card__description">{{ item.description }}</p>
+              <p class="hub-card__meta">
+                <span>{{ plural(item.nodeCount, 'nodo') }}</span>
+                <span>{{ item.code }}</span>
+              </p>
+              <div class="hub-card__actions">
+                <a ui-button icon="edit_square" [routerLink]="['/portal/casos', item.caseVersionId, 'editor']">Abrir entorno de edición</a>
+                <a ui-button variant="secondary" icon="play_arrow" [routerLink]="['/portal/simulador', item.caseVersionId]">Probar caso</a>
+              </div>
+            </ui-card>
+          </li>
+        }
+      </ul>
+    }
+  }
+</ui-section>

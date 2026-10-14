@@ -1,270 +1,105 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { plural, statusLabel } from '../../shared/ui/labels';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
+/**
+ * Hub de edición de casos (plan visual F7-7): estados de la lista de a uno (esqueleto, error con «Reintentar», primer
+ * uso con su acción), creación con su error y su reintento (con los mismos datos) y el estado de cada caso con su
+ * etiqueta humana («Borrador», no `DRAFT`).
+ */
 @Component({
   selector: 'app-case-authoring-hub',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, MatIconModule, MatProgressBarModule],
-  template: `
-    <section class="authoring-hub">
-      <header class="hub-header">
-        <div>
-          <p class="psy-eyebrow">Modalidad administrador</p>
-          <h1>Edición de casos</h1>
-          <p>Construye escenarios, NPCs, puertas, artículos, conversaciones y cuestionarios para estudiantes.</p>
-        </div>
-        <button class="psy-button psy-button--primary" type="button" (click)="toggleCreate()">
-          <mat-icon>{{ creating() ? 'close' : 'add_circle' }}</mat-icon>
-          {{ creating() ? 'Cerrar' : 'Agregar nuevo caso' }}
-        </button>
-      </header>
-
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate" />
-      }
-      @if (error()) {
-        <p class="state-message state-message--error" role="alert">{{ error() }}</p>
-      }
-
-      @if (creating()) {
-        <section class="new-case-panel">
-          <div>
-            <h2>Nuevo caso editable</h2>
-            <p>Se creará en borrador con una escena inicial para que puedas editar NPCs, artículos, puertas y cuestionarios.</p>
-          </div>
-          <form [formGroup]="newCaseForm" (ngSubmit)="createCase()">
-            <label>
-              <span>Título del caso *</span>
-              <input formControlName="title" placeholder="Caso de intervención psicosocial" />
-            </label>
-            <label>
-              <span>Código opcional</span>
-              <input formControlName="code" placeholder="CASO-PSICO-001" />
-            </label>
-            <label class="new-case-panel__wide">
-              <span>Descripción</span>
-              <textarea formControlName="description" rows="3" placeholder="Contexto breve para docentes y estudiantes"></textarea>
-            </label>
-            <div class="new-case-panel__actions">
-              <button class="psy-button psy-button--ghost" type="button" (click)="toggleCreate()">Cancelar</button>
-              <button class="psy-button psy-button--primary" type="submit" [disabled]="newCaseForm.invalid || creatingCase()">
-                <mat-icon>{{ creatingCase() ? 'hourglass_empty' : 'save' }}</mat-icon>
-                {{ creatingCase() ? 'Creando...' : 'Crear y abrir editor' }}
-              </button>
-            </div>
-          </form>
-        </section>
-      }
-
-      <div class="hub-grid">
-        @for (item of cases(); track item.caseVersionId) {
-          <article class="case-card">
-            <div class="case-card__top">
-              <span>{{ statusLabel(item.status) }}</span>
-              <small>v{{ item.semanticVersion }}</small>
-            </div>
-            <h2>{{ item.title }}</h2>
-            <p>{{ item.description }}</p>
-            <div class="case-card__meta">
-              <span><mat-icon>account_tree</mat-icon>{{ plural(item.nodeCount, 'nodo') }}</span>
-              <span><mat-icon>tag</mat-icon>{{ item.code }}</span>
-            </div>
-            <div class="case-card__actions">
-              <a class="psy-button psy-button--primary" [routerLink]="['/portal/casos', item.caseVersionId, 'editor']">
-                <mat-icon>edit_square</mat-icon>
-                Abrir entorno de edición
-              </a>
-              <a class="psy-button psy-button--ghost" [routerLink]="['/portal/simulador', item.caseVersionId]">
-                <mat-icon>play_arrow</mat-icon>
-                Probar caso
-              </a>
-            </div>
-          </article>
-        }
-      </div>
-    </section>
-  `,
+  imports: [
+    ReactiveFormsModule, RouterLink,
+    UiBadge, UiButton, UiCard, UiControl, UiField, UiPageActions, UiPageHeader, UiSection, UiSkeleton,
+    UiEmptyState, UiErrorState,
+  ],
+  templateUrl: './case-authoring-hub.component.html',
+  styleUrl: './case-authoring-hub.component.scss',
+  // Eager: el error del campo sale de `control.touched`, que no es una señal.
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .authoring-hub { display: grid; gap: 18px; }
-    .hub-header {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .hub-header h1 {
-      margin: 0;
-      color: var(--siep-blue);
-      font-size: clamp(1.8rem, 3vw, 2.6rem);
-      font-weight: 900;
-      letter-spacing: 0;
-    }
-    .hub-header p:last-child {
-      max-width: 760px;
-      margin: 8px 0 0;
-      color: var(--psy-muted);
-      font-weight: 700;
-      line-height: 1.45;
-    }
-    .new-case-panel {
-      display: grid;
-      gap: 14px;
-      padding: 16px;
-      border: 1px solid rgba(0, 72, 118, .14);
-      border-radius: 8px;
-      background: rgba(255,255,255,.82);
-      box-shadow: 4px 4px 0 rgba(0, 82, 130, .08);
-    }
-    .new-case-panel h2 {
-      margin: 0;
-      color: var(--psy-ink);
-      font-size: 1.18rem;
-      letter-spacing: 0;
-    }
-    .new-case-panel p {
-      margin: 6px 0 0;
-      color: var(--psy-muted);
-      font-weight: 700;
-      line-height: 1.45;
-    }
-    .new-case-panel form {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(220px, 1fr));
-      gap: 12px;
-    }
-    .new-case-panel label {
-      display: grid;
-      gap: 5px;
-      color: var(--psy-blue-deep);
-      font-weight: 800;
-      font-size: .84rem;
-    }
-    .new-case-panel input,
-    .new-case-panel textarea {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid rgba(79,124,172,.24);
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: var(--psy-ink);
-      background: rgba(255,255,255,.9);
-      font-family: inherit;
-      font-size: .92rem;
-    }
-    .new-case-panel textarea { resize: vertical; }
-    .new-case-panel__wide,
-    .new-case-panel__actions { grid-column: 1 / -1; }
-    .new-case-panel__actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .hub-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 14px;
-    }
-    .case-card {
-      display: grid;
-      gap: 12px;
-      padding: 16px;
-      border: 1px solid rgba(0, 72, 118, .14);
-      border-radius: 8px;
-      background: rgba(255,255,255,.76);
-      box-shadow: 4px 4px 0 rgba(0, 82, 130, .08);
-    }
-    .case-card__top,
-    .case-card__meta,
-    .case-card__actions {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .case-card__top { justify-content: space-between; }
-    .case-card__top span,
-    .case-card__top small {
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: rgba(79,124,172,.12);
-      color: var(--psy-blue-deep);
-      font-weight: 900;
-      font-size: .72rem;
-    }
-    .case-card h2 {
-      margin: 0;
-      color: var(--psy-ink);
-      font-size: 1.08rem;
-      line-height: 1.25;
-    }
-    .case-card p {
-      margin: 0;
-      color: var(--psy-muted);
-      line-height: 1.5;
-    }
-    .case-card__meta span {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--psy-muted);
-      font-size: .78rem;
-      font-weight: 800;
-    }
-    .case-card__meta mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-    .state-message { margin: 0; padding: 12px 14px; border-radius: 8px; color: var(--psy-green-deep); background: rgba(66,141,101,.1); font-weight: 800; }
-    .state-message--error { color: #8f2f3d; background: rgba(143,47,61,.1); }
-    @media (max-width: 680px) {
-      .new-case-panel form { grid-template-columns: 1fr; }
-      .new-case-panel__actions .psy-button,
-      .hub-header .psy-button { width: 100%; }
-    }
-  `],
 })
 export class CaseAuthoringHubComponent implements OnInit {
   private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
   readonly statusLabel = statusLabel;
   readonly plural = plural;
   readonly cases = signal<SimulationCaseSummary[]>([]);
   readonly loading = signal(true);
   readonly creating = signal(false);
   readonly creatingCase = signal(false);
+  /** La LISTA no pudo cargarse (el texto va en el estado de error de la lista). */
   readonly error = signal('');
+  /** La creación falló: el error vive junto al formulario, con su «Reintentar». */
+  readonly createFailed = signal(false);
   readonly newCaseForm = this.fb.group({
     title: ['', Validators.required],
     code: [''],
     description: [''],
   });
 
+  /** Estado de la lista de casos: una sola señal, de a uno. */
+  readonly listState = uiDataState({
+    loading: this.loading,
+    error: this.error,
+    isEmpty: computed(() => this.cases().length === 0),
+  });
+  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
+  protected readonly statusText = computed(() => (this.listState() === 'loading' ? 'Cargando casos…' : ''));
+
   ngOnInit(): void {
     this.loadCases();
   }
 
+  /** Mensaje de error de un campo, solo cuando ya se tocó o se intentó enviar. */
+  fieldError(control: AbstractControl, message: string): string | null {
+    return control.touched && control.invalid ? message : null;
+  }
+
+  statusTone(status: string | null | undefined): UiBadgeTone {
+    const normalized = (status ?? '').toUpperCase();
+    if (normalized === 'PUBLISHED') return 'success';
+    if (normalized === 'IN_REVIEW') return 'info';
+    return 'neutral';
+  }
+
   toggleCreate(): void {
     this.creating.update(value => !value);
-    this.error.set('');
+    this.createFailed.set(false);
+    if (this.creating()) {
+      // El foco va al primer campo: el formulario aparece donde la persona acaba de pulsar.
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('.hub-create input')?.focus(), { injector: this.injector });
+    }
   }
 
   createCase(): void {
-    if (this.newCaseForm.invalid || this.creatingCase()) return;
+    if (this.creatingCase()) return;
+    if (this.newCaseForm.invalid) {
+      this.newCaseForm.markAllAsTouched();
+      this.host.nativeElement.querySelector<HTMLElement>('.hub-create input.ng-invalid')?.focus();
+      return;
+    }
     const value = this.newCaseForm.getRawValue();
     this.creatingCase.set(true);
-    this.error.set('');
+    this.createFailed.set(false);
     this.authoringApi.createCase({
       title: value.title ?? '',
       code: value.code || null,
@@ -275,13 +110,13 @@ export class CaseAuthoringHubComponent implements OnInit {
         this.router.navigate(['/portal/casos', model.caseVersionId, 'editor']);
       },
       error: () => {
-        this.error.set('No fue posible crear el caso. Revisa que el código no exista y vuelve a intentar.');
+        this.createFailed.set(true);
         this.creatingCase.set(false);
       },
     });
   }
 
-  private loadCases(): void {
+  loadCases(): void {
     this.loading.set(true);
     this.error.set('');
     this.authoringApi.listAuthoringCases().subscribe({
