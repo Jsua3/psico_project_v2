@@ -99,6 +99,13 @@ EXPECTED = [
     ("rubric", "default", ADMIN, {}, True),
     ("rubric", "default", PROFESOR, {"owner_id": ME}, False),
     ("rubric", "default", ESTUDIANTE, {}, False),
+    # Competencias (E3-9): leer el catálogo → personal; ampliarlo → solo ADMIN.
+    ("competency", "read", PROFESOR, {}, True),
+    ("competency", "read", ADMIN, {}, True),
+    ("competency", "read", ESTUDIANTE, {}, False),
+    ("competency", "manage", ADMIN, {}, True),
+    ("competency", "manage", PROFESOR, {}, False),
+    ("competency", "manage", ESTUDIANTE, {}, False),
     # Usuario: crear, activar, cambiar rol → solo ADMIN.
     ("user", "manage", ADMIN, {}, True),
     ("user", "manage", PROFESOR, {}, False),
