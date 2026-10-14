@@ -12,7 +12,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationCase
 from shared import policies
 
@@ -47,7 +47,7 @@ class World:
         self.version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
         self.grupo = Grupo.objects.create(nombre="Grupo MX", codigo="MX1", profesor=self.prof)
         GrupoEstudiante.objects.create(grupo=self.grupo, estudiante=self.student, status="ACTIVE")
-        GrupoCaseVersion.objects.create(grupo=self.grupo, case_version=self.version)
+        CaseAssignment.objects.create(grupo=self.grupo, case_version=self.version)
         self.attempt = _client(self.student).post(
             "/api/simulation/attempts", {"caseVersionId": self.version.id}, format="json"
         ).data["data"]

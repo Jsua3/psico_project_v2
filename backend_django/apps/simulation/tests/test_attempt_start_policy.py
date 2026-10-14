@@ -13,7 +13,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationAttempt, SimulationNode
 from apps.simulation.models.rubric import AuditLog
 from apps.simulation.services import game_service
@@ -167,7 +167,7 @@ def test_dos_inicios_concurrentes_crean_un_solo_intento(real_commits):
     )
     grupo = Grupo.objects.create(nombre=f"Conc {suffix}", codigo=f"CI-{suffix}", profesor=profesor)
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
-    GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+    CaseAssignment.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
 
     def start():
@@ -183,7 +183,7 @@ def test_dos_inicios_concurrentes_crean_un_solo_intento(real_commits):
         assert SimulationAttempt.objects.filter(student_id=estudiante.id).count() == 1
     finally:
         SimulationAttempt.objects.filter(student_id=estudiante.id).delete()
-        GrupoCaseVersion.objects.filter(grupo=grupo).delete()
+        CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
         AuditLog.objects.filter(action="ATTEMPT_STARTED", occurred_at__gte=started).delete()
@@ -228,7 +228,7 @@ def test_force_new_espera_el_cerrojo_y_no_pisa_un_intento_que_se_completo(real_c
     )
     grupo = Grupo.objects.create(nombre=f"Fn {suffix}", codigo=f"FN-{suffix}", profesor=profesor)
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
-    GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+    CaseAssignment.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
     first_id = game_service.start_attempt(version.id, estudiante)["attemptId"]
     holding = threading.Event()
@@ -255,7 +255,7 @@ def test_force_new_espera_el_cerrojo_y_no_pisa_un_intento_que_se_completo(real_c
         assert SimulationAttempt.objects.get(pk=state["attemptId"]).status == "IN_PROGRESS"
     finally:
         SimulationAttempt.objects.filter(student_id=estudiante.id).delete()
-        GrupoCaseVersion.objects.filter(grupo=grupo).delete()
+        CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
         AuditLog.objects.filter(occurred_at__gte=started).delete()

@@ -17,6 +17,8 @@ def spa_index(request):
     return HttpResponse((index_path / "index.html").read_bytes(), content_type="text/html")
 
 from apps.grupos.views import (
+    AssignmentDetailView,
+    AssignmentListCreateView,
     GrupoCasoDetailView,
     GrupoCasosView,
     GrupoDetailView,
@@ -65,6 +67,9 @@ urlpatterns = [
     path("api/grupos/estudiantes/import/template/", GrupoEstudiantesImportTemplateView.as_view()),
     path("api/grupos/<int:pk>/casos", GrupoCasosView.as_view()),
     path("api/grupos/<int:pk>/casos/<int:case_version_id>", GrupoCasoDetailView.as_view()),
+    # C7 · asignaciones de casos con ventana (E3-1); las rutas de arriba son su alias heredado.
+    path("api/assignments", AssignmentListCreateView.as_view()),
+    path("api/assignments/<int:assignment_id>", AssignmentDetailView.as_view()),
     path("api/reportes/", include("apps.reportes.urls")),
     path("api/simulation/", include("apps.simulation.urls")),
     # ED-9 (por defecto): ``/api/authoring/**`` es el espacio canónico de la autoría y

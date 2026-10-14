@@ -5,17 +5,22 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import FormParser, MultiPartParser
 
+from django.utils import timezone
+
+from shared.exceptions import ApiError
 from shared.permissions import policy_permission
-from shared.response import api_ok
+from shared.response import api_created, api_ok
 
 from shared import policies
 
-from . import memberships, services
+from . import assignment_service, memberships, services
 from .import_contract import STUDENT_IMPORT_TEMPLATE_FILENAME
 from .serializers import (
     ActualizarGrupoSerializer,
     AgregarEstudianteSerializer,
     AsignarCasoSerializer,
+    AssignmentCreateSerializer,
+    AssignmentUpdateSerializer,
     CrearGrupoSerializer,
     ImportarEstudiantesSerializer,
 )
@@ -156,6 +161,63 @@ class GrupoCasoDetailView(APIView):
         return api_ok(
             services.quitar_caso(pk, case_version_id, request.user),
             message="Caso retirado",
+        )
+
+
+def _optional_int_param(request, name):
+    """Un parámetro de consulta entero, o ``None`` si no vino; un valor malo es un 400 con su campo."""
+    raw = request.query_params.get(name)
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"{name} debe ser un número entero.",
+            status.HTTP_400_BAD_REQUEST,
+            field=name,
+        ) from None
+
+
+class AssignmentListCreateView(APIView):
+    """GET|POST /api/assignments — C7: asignaciones de casos con ventana (E3-1)."""
+
+    def get_permissions(self):
+        return [(_CAN_LIST_ASSIGNMENTS if self.request.method == "GET" else _CAN_MANAGE_ASSIGNMENTS)()]
+
+    def get(self, request):
+        rows = assignment_service.list_assignments(
+            request.user,
+            group_id=_optional_int_param(request, "groupId"),
+            case_version_id=_optional_int_param(request, "caseVersionId"),
+        )
+        now = timezone.now()
+        return api_ok([assignment_service.assignment_dto(row, now) for row in rows])
+
+    def post(self, request):
+        ser = AssignmentCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        row = assignment_service.create_assignment(request.user, ser.validated_data)
+        return api_created(assignment_service.assignment_dto(row), message="Caso asignado")
+
+
+class AssignmentDetailView(APIView):
+    """PATCH|DELETE /api/assignments/{id} — cambia la ventana, el orden o la pausa; o la retira."""
+
+    permission_classes = [_CAN_MANAGE_ASSIGNMENTS]
+
+    def patch(self, request, assignment_id):
+        ser = AssignmentUpdateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        row = assignment_service.update_assignment(request.user, assignment_id, ser.validated_data)
+        return api_ok(assignment_service.assignment_dto(row), message="Asignación actualizada")
+
+    def delete(self, request, assignment_id):
+        return api_ok(
+            assignment_service.remove_assignment(request.user, assignment_id),
+            message="Asignación retirada",
         )
 
 

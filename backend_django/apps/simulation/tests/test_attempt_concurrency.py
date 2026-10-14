@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import (
     AttemptEvent,
     CaseVersion,
@@ -227,7 +227,7 @@ def committed_attempt(real_commits):
     )
     grupo = Grupo.objects.create(nombre=f"Hilos {suffix}", codigo=f"HI-{suffix}", profesor=profesor)
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=student, status="ACTIVE")
-    GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+    CaseAssignment.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
     state = game_service.start_attempt(version.id, student)
     try:
@@ -239,7 +239,7 @@ def committed_attempt(real_commits):
         )
     finally:
         SimulationAttempt.objects.filter(student_id=student.id).delete()
-        GrupoCaseVersion.objects.filter(grupo=grupo).delete()
+        CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
         AuditLog.objects.filter(occurred_at__gte=started).delete()

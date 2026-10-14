@@ -29,7 +29,7 @@ from apps.users.models import CustomUser
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-08")]
 
 TABLES = {
-    "users", "access_requests", "grupos", "grupo_estudiante", "grupo_case_version",
+    "users", "access_requests", "grupos", "grupo_estudiante", "case_assignments",
     "student_case_completion", "simulation_cases", "case_versions", "simulation_nodes",
     "decision_options", "simulation_attempts_v2", "attempt_events", "reflection_journals",
     "attempt_world_states", "rubrics", "rubric_criteria", "rubric_evaluations",
@@ -58,6 +58,8 @@ UNIQUE_COLUMNS = {
     "attempt_events": [("attempt_id", "request_id")],
     "attempt_reports": [("attempt_id",)],
     "case_reviews": [("case_version_id",)],  # parcial: una sola revisión pendiente por versión
+    # parciales: una asignación por (grupo, versión) y otra por (estudiante, versión)
+    "case_assignments": [("grupo_id", "case_version_id"), ("estudiante_id", "case_version_id")],
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
@@ -81,6 +83,11 @@ INDEXES = {
     "uq_attempts_open_per_student_case",
     "uq_case_reviews_one_pending",
     "idx_grupo_est_student_status",
+    "idx_case_assign_group",
+    "idx_case_assign_student",
+    "idx_case_assign_version",
+    "uq_case_assignments_group_version",
+    "uq_case_assignments_student_version",
 }
 
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
@@ -103,8 +110,10 @@ ON_DELETE = {
     ("dialogue_lines", "dialogue_tree_id"): "CASCADE",
     ("dialogue_trees", "map_object_id"): "CASCADE",
     ("dialogue_trees", "scene_map_id"): "CASCADE",
-    ("grupo_case_version", "case_version_id"): "CASCADE",
-    ("grupo_case_version", "grupo_id"): "CASCADE",
+    ("case_assignments", "assigned_by"): "SET NULL",
+    ("case_assignments", "case_version_id"): "CASCADE",
+    ("case_assignments", "estudiante_id"): "CASCADE",
+    ("case_assignments", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "estudiante_id"): "CASCADE",
     ("grupo_estudiante", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "invited_by"): "SET NULL",
@@ -173,6 +182,24 @@ def _grupo_estudiante_status():
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=_admin(), status="TALVEZ")
 
 
+def _case_assignments_target():
+    from apps.grupos.models import CaseAssignment
+
+    CaseAssignment.objects.create(case_version=_published_version())  # sin grupo ni estudiante
+
+
+def _case_assignments_window():
+    import datetime
+
+    from apps.grupos.models import CaseAssignment, Grupo
+
+    grupo = Grupo.objects.create(nombre="G", codigo="SCH-WIN", profesor=_admin())
+    CaseAssignment.objects.create(
+        grupo=grupo, case_version=_published_version(),
+        opens_at=datetime.datetime(2026, 10, 20), closes_at=datetime.datetime(2026, 10, 19),
+    )
+
+
 def _case_review(**fields):
     CaseReview.objects.create(case_version=_published_version(), requested_by=_admin(), **fields)
 
@@ -227,6 +254,8 @@ CHECKS = {
     "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
     "ck_attempts_user_trust_range": _attempts_user_trust_range,
     "grupo_estudiante_status_check": _grupo_estudiante_status,
+    "case_assignments_target_check": _case_assignments_target,
+    "case_assignments_window_check": _case_assignments_window,
     "case_reviews_decision_check": _case_reviews_decision,
     "case_reviews_reason_check": _case_reviews_reason,
     "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,
@@ -266,7 +295,6 @@ def test_las_tablas_de_union_tienen_clave_primaria_compuesta():
     with connection.cursor() as cursor:
         for table, columns in {
             "grupo_estudiante": ["grupo_id", "estudiante_id"],
-            "grupo_case_version": ["grupo_id", "case_version_id"],
         }.items():
             constraints = connection.introspection.get_constraints(cursor, table)
             primary = [c["columns"] for c in constraints.values() if c["primary_key"]]

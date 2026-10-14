@@ -74,7 +74,7 @@ def _add_student(grupo, estudiante):
 def _assign_case(grupo, case_version_id):
     with connection.cursor() as cur:
         cur.execute(
-            "INSERT INTO grupo_case_version (grupo_id, case_version_id) VALUES (%s, %s) "
+            "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) "
             "ON CONFLICT DO NOTHING",
             [grupo.id, case_version_id],
         )
