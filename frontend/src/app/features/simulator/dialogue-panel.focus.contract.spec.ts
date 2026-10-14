@@ -11,7 +11,7 @@ const source = readFileSync(join(__dirname, 'dialogue-panel.component.ts'), 'utf
 
 describe('dialogue-panel: foco inicial', () => {
   it('marca como foco inicial cada botón de avance y el grupo de opciones', () => {
-    const marked = source.match(/class="close-btn psy-button psy-button--ghost" cdkFocusInitial/g) ?? [];
+    const marked = source.match(/class="close-btn" ui-button variant="primary" cdkFocusInitial/g) ?? [];
     expect(marked).toHaveLength(3);
     expect(source).toMatch(/class="choices"[^>]*cdkFocusInitial/);
   });

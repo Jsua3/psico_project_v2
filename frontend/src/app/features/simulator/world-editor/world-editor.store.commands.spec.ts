@@ -238,7 +238,7 @@ describe('WorldEditorStore', () => {
 
       loaded();
 
-      expect(store.error()).toBe('No se pudo cargar el mundo para edicion.');
+      expect(store.error()).toBe('No se pudo cargar el mundo para edición.');
       expect(store.loading()).toBe(false);
       expect(store.editorState()).toBeNull();
     });
@@ -379,7 +379,7 @@ describe('WorldEditorStore', () => {
       vi.advanceTimersByTime(1500);
 
       expect(store.conflictDetected()).toBe(true);
-      expect(store.error()).toContain('Este caso cambio en otra sesion');
+      expect(store.error()).toContain('Este caso cambió en otra sesión');
       expect(store.dirty()).toBe(true);
       expect(store.saving()).toBe(false);
       expect(keys(store.editorState()!.objects)).toEqual(['b']);
@@ -490,7 +490,7 @@ describe('WorldEditorStore', () => {
 
       sim.validateWorld.mockReturnValue(throwError(() => new Error('x')));
       store.validate();
-      expect(store.error()).toBe('No se pudo ejecutar la validacion.');
+      expect(store.error()).toBe('No se pudo ejecutar la validación.');
     });
 
     it('reloadAfterConflict apaga el aviso y vuelve a cargar el mismo nodo', () => {

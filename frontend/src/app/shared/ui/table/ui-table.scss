@@ -1,0 +1,110 @@
+@use 'mixins' as m;
+
+// Tabla (plan visual F2-8): marco con borde, cabecera pegajosa en su alto máximo, filas separadas por un filo,
+// hover solo con puntero fino, fila seleccionada con fondo y filo primario, y sombras de desborde horizontal.
+.ui-table {
+  --_cell-y: var(--ds-space-3);
+  --_cell-x: var(--ds-space-4);
+  --_edge: color-mix(in srgb, var(--ds-text-1) 14%, transparent);
+
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-1);
+
+  // Indicios de desborde: sombras en los bordes hacia donde hay más tabla.
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    z-index: var(--ds-z-pegajoso);
+    inline-size: var(--ds-space-5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--ds-dur-fade) ease;
+  }
+
+  &::before {
+    inset-inline-start: 0;
+    background: linear-gradient(to right, var(--_edge), transparent);
+  }
+
+  &::after {
+    inset-inline-end: 0;
+    background: linear-gradient(to left, var(--_edge), transparent);
+  }
+}
+
+.ui-table--overflow-start::before,
+.ui-table--overflow-end::after {
+  opacity: 1;
+}
+
+.ui-table--compact {
+  --_cell-y: var(--ds-space-2);
+  --_cell-x: var(--ds-space-3);
+}
+
+.ui-table__scroll {
+  max-block-size: var(--ui-table-max-block-size, 70vh);
+  overflow: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ui-table__table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+
+  th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--ds-z-elevado);
+    padding: var(--_cell-y) var(--_cell-x);
+    border-block-end: 1px solid var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-weight: var(--ds-type-h3-weight);
+    text-align: start;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: var(--_cell-y) var(--_cell-x);
+    border-block-end: 1px solid var(--ds-border);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-block-end: 0;
+  }
+}
+
+.ui-table__row {
+  transition: background-color var(--ds-dur-fast) ease;
+
+  @include m.ds-hover {
+    background: var(--ds-surface-2);
+  }
+}
+
+.ui-table__row--selected {
+  background: var(--ds-primary-subtle);
+  box-shadow: inset 3px 0 0 var(--ds-primary);
+}
+
+.ui-table__loading {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+}
+
+.ui-table__state:not([hidden]) {
+  padding: var(--ds-space-4);
+}

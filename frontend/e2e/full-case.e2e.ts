@@ -228,6 +228,18 @@ async function completeFullCase(
   await expect(outcome.getByRole('button', { name: /reintentar caso/i })).toBeVisible();
   await expect(outcome.getByRole('link', { name: /volver al simulador/i })).toBeVisible();
   await assertQualityState(page, testInfo, `${viewport.name}-full-case-outcome`);
+
+  // F6-6 (H-05): el resultado es un diálogo modal con el foco inicial en su título, y a 360 px las métricas, la barra y
+  // la línea de tiempo caben sin desplazamiento horizontal.
+  await expect(outcome).toHaveAttribute('aria-modal', 'true');
+  await expect(outcome.locator('#outcome-title')).toBeFocused();
+  const original = page.viewportSize();
+  await page.setViewportSize({ width: 360, height: original?.height ?? 800 });
+  await expect.poll(
+    () => outcome.evaluate(element => element.scrollWidth - element.clientWidth),
+    { message: 'el resultado no se desplaza en horizontal a 360 px', timeout: scaled(5_000) },
+  ).toBeLessThanOrEqual(0);
+  if (original) await page.setViewportSize(original);
 }
 
 for (const viewport of REQUIRED_VIEWPORTS) {

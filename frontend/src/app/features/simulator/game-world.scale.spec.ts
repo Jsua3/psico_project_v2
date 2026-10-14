@@ -186,4 +186,39 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
   it('el reescalado se engancha al evento resize del canvas, no al cuadro', () => {
     expect(source).toMatch(/this\.scale\.on\('resize', this\.onScaleResize, this\);/);
   });
+
+  // req: REGLA-009 (F0-8, PHA-2: rótulos nítidos con zoom de cámara)
+  it('con zoom 2 la resolución de los textos sigue al zoom aunque la escala de los rótulos no cambie', () => {
+    const scene = sceneAt(1, 2) as LabelProbe & { pixelRender: { refreshTexts: Mock } };
+    scene.pixelRender = { refreshTexts: vi.fn() };
+    expect(scene.syncLabelScale()).toBe(false);
+    expect(scene.labelScale).toBe(1);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
+    scene.cameras.main.zoom = 3;
+    scene.syncLabelScale();
+    expect(scene.pixelRender.refreshTexts).toHaveBeenLastCalledWith(3);
+  });
+
+  it('al fijar el zoom entero de una sala, los textos toman la resolución de ese zoom', () => {
+    const scene = new DataDrivenWorldScene({} as never) as unknown as {
+      cameras: { main: Record<string, unknown> };
+      pixelRender: { refreshTexts: Mock };
+      applyPixelCamera(width: number, height: number): void;
+    };
+    const cam = { width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }), setBounds: vi.fn() };
+    scene.cameras = { main: cam };
+    scene.pixelRender = { refreshTexts: vi.fn() };
+    scene.applyPixelCamera(960, 540);
+    expect(cam.setZoom).toHaveBeenCalledWith(2);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
+  });
+
+  it('cuando cambia la escala de los rótulos, la resolución se recalcula después de reescalarlos', () => {
+    const scene = sceneAt(960 / 478) as LabelProbe & { pixelRender: { refreshTexts: Mock } };
+    const order: string[] = [];
+    scene.markerLabels.get('tool-pap')!.setScale.mockImplementation(function (this: unknown) { order.push('escala'); return this; });
+    scene.pixelRender = { refreshTexts: vi.fn(() => { order.push('resolución'); return 0; }) };
+    expect(scene.syncLabelScale()).toBe(true);
+    expect(order).toEqual(['escala', 'resolución']);
+  });
 });

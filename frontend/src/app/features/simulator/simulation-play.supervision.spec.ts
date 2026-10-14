@@ -361,8 +361,11 @@ describe('simulation-play: contrato de la supervisión retenida', () => {
     );
   });
 
-  it('el foco pasa a la sección del resultado y nunca a un botón (la tecla Enter mantenida no reintenta el caso)', () => {
-    expect(source).toContain("document.querySelector<HTMLElement>('app-attempt-outcome .outcome')");
+  // F6-6 (H-05): el foco inicial lo toma el propio resultado, en su título (attempt-outcome.component.spec.ts lo fija
+  // sobre el DOM); esta pantalla ya no enfoca nada y nunca un botón (Enter mantenida no reintenta el caso).
+  it('la pantalla de juego no enfoca el resultado ni sus botones: lo hace el componente, en su título', () => {
+    expect(source).not.toContain('app-attempt-outcome .outcome');
     expect(source).not.toMatch(/querySelector[^)]*oc-btn[^)]*\)\??\.focus/);
+    expect(source).toMatch(/private releaseHeldOutcome\(\): void \{[^}]*this\.announce\('Se abre el resultado del caso\.'\);/);
   });
 });

@@ -1,0 +1,95 @@
+@use 'mixins' as m;
+
+// Campo (plan visual F2-2 y §2.6 «campo de texto»): etiqueta encima, control de 44 px, borde fuerte al hover,
+// anillo de foco global, error en rojo y con texto (nunca solo color). El mensaje ocupa siempre el mismo renglón.
+.ui-field {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-inline-size: 0;
+}
+
+.ui-field__label {
+  color: var(--ds-text-1);
+  font-size: var(--ds-type-body-s-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.ui-field__required {
+  color: var(--ds-danger);
+}
+
+.ui-field__control {
+  position: relative;
+  display: flex;
+}
+
+.ui-control {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--ds-target-min);
+  padding-block: var(--ds-space-2);
+  padding-inline: var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-1);
+  font-family: inherit;
+  font-size: var(--ds-type-body-size);
+  line-height: var(--ds-type-body-line);
+  cursor: text;
+  transition: border-color var(--ds-dur-fast) ease;
+
+  &::placeholder {
+    color: var(--ds-text-2);
+    opacity: 1;
+  }
+
+  @include m.ds-hover {
+    border-color: var(--ds-text-2);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--ds-danger);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    border-color: var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-3);
+  }
+}
+
+select.ui-control {
+  cursor: pointer;
+}
+
+textarea.ui-control {
+  min-block-size: 6rem;
+  resize: vertical;
+}
+
+// La contraseña deja sitio al botón de mostrar, que vive dentro del borde del control.
+.ui-field--revealable .ui-control {
+  padding-inline-end: calc(var(--ds-target-min) + var(--ds-space-1));
+}
+
+.ui-field__reveal {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  margin-block: auto;
+}
+
+.ui-field__message {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.ui-field__message--error {
+  color: var(--ds-danger);
+  font-weight: var(--ds-type-h3-weight);
+}

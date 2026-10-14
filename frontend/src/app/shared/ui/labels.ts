@@ -1,0 +1,69 @@
+/**
+ * Etiquetas humanas de los valores que llegan de la API (plan visual §2.10). Ninguna pantalla muestra un
+ * enum crudo (`PUBLISHED`, `ADMIN`) ni inventa su propia tabla: todas pasan por aquí.
+ * Los textos de pausa del juego (`statusLabelA11y` de la simulación) están validados por Psicología y NO
+ * se sustituyen con esta tabla.
+ */
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Administrador',
+  PROFESOR: 'Docente',
+  ESTUDIANTE: 'Estudiante',
+};
+
+/** Estados de versión de caso y de intento, con los textos que ya muestra el catálogo. */
+const STATUS_LABELS: Record<string, string> = {
+  PUBLISHED: 'Publicado',
+  DRAFT: 'Borrador',
+  IN_REVIEW: 'En revisión',
+  ARCHIVED: 'Archivado',
+  COMPLETED: 'Finalizado',
+  PAUSED: 'En pausa (reanudable)',
+  SAFE_EXITED: 'Cerrado con salida segura',
+  REPLACED: 'Reemplazado por un intento nuevo',
+  IN_PROGRESS: 'En curso',
+  PENDING: 'Pendiente',
+};
+
+const OBJECT_TYPE_LABELS: Record<string, string> = {
+  PERSON: 'Persona',
+  PROP: 'Objeto',
+  OBJECT: 'Objeto',
+  TOOL_TARGET: 'Objetivo de herramienta',
+  TOOL: 'Herramienta',
+  EXIT: 'Salida',
+  ROUTE: 'Ruta',
+  TRIGGER: 'Disparador',
+  NOTE: 'Nota',
+  RESOURCE: 'Recurso',
+  WARNING: 'Advertencia',
+};
+
+/** `SOME_VALUE` → `Some value`: último recurso para un código que la tabla aún no conoce. */
+function humanize(code: string): string {
+  const words = code.trim().toLowerCase().replace(/[_-]+/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function lookup(table: Record<string, string>, code: string | null | undefined, empty: string): string {
+  const key = (code ?? '').trim().toUpperCase();
+  if (!key) return empty;
+  return table[key] ?? humanize(key);
+}
+
+export function roleLabel(role: string | null | undefined): string {
+  return lookup(ROLE_LABELS, role, 'Sin rol');
+}
+
+export function statusLabel(status: string | null | undefined): string {
+  return lookup(STATUS_LABELS, status, 'Sin estado');
+}
+
+export function objectTypeLabel(type: string | null | undefined): string {
+  return lookup(OBJECT_TYPE_LABELS, type, 'Objeto');
+}
+
+/** `plural(1, 'nodo')` → «1 nodo»; `plural(2, 'nodo')` → «2 nodos»; la forma irregular se pasa explícita. */
+export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}

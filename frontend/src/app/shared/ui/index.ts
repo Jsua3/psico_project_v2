@@ -1,0 +1,42 @@
+// Biblioteca de componentes del lenguaje visual (plan visual F2; contrato F2 → F3…F8 de §3.3).
+export * from './labels';
+export { UiButton, UI_BUTTON_SPINNER_DELAY_MS } from './button/ui-button';
+export type { UiButtonSize, UiButtonVariant } from './button/ui-button';
+export { UiIconButton } from './button/ui-icon-button';
+export { UiLink } from './link/ui-link';
+export { UiSpinner } from './spinner/ui-spinner';
+export { UiControl, UiField } from './field/ui-field';
+export { UiCheck, UiSwitch } from './field/ui-check';
+export { UiCard } from './card/ui-card';
+export { UiStat } from './stat/ui-stat';
+export { UiBadge } from './badge/ui-badge';
+export type { UiBadgeTone } from './badge/ui-badge';
+export { UiPageActions, UiPageHeader } from './page-header/ui-page-header';
+export { UiSection } from './section/ui-section';
+export { UiSkeleton } from './skeleton/ui-skeleton';
+export type { UiSkeletonShape } from './skeleton/ui-skeleton';
+export { loadingPhase } from './skeleton/loading-phase';
+export type { LoadingPhase, LoadingPhaseOptions } from './skeleton/loading-phase';
+export { UiProgress } from './progress/ui-progress';
+export { UiRouteProgress, UI_ROUTE_PROGRESS_DELAY_MS } from './route-progress/ui-route-progress';
+export * from './state/state-copy';
+export { errorKindFromStatus, uiDataState } from './state/ui-data-state';
+export type { UiDataStateSource, UiDataStateValue } from './state/ui-data-state';
+export { UiEmptyState } from './state/ui-empty-state';
+export { UiErrorState, UiRetryTracker } from './state/ui-error-state';
+export { UiTooltip, UiTooltipController, injectUiTooltip } from './tooltip/ui-tooltip';
+export type { UiTooltipOptions } from './tooltip/ui-tooltip';
+export { UiMenu } from './menu/ui-menu';
+export type { UiMenuItem } from './menu/ui-menu';
+export { UiTab, UiTabs } from './tabs/ui-tabs';
+export { describeHostWith } from './describe';
+export { UiConfirmDialog, UiConsequenceDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
+export type {
+  UiConfirmOptions, UiConsequenceAnswer, UiConsequenceOptions, UiDialogOptions, UiDialogSize, UiSheetOptions,
+} from './dialog/ui-dialog';
+export { UiToastHost } from './toast/ui-toast-host';
+export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './table/ui-table';
+export { SCOPE_NOTICE_DRAFT_TEXT, UiScopeNotice } from './scope-notice/ui-scope-notice';
+export { UiGlassBar } from './glass-bar/ui-glass-bar';
+export { GLASS_BAR_GRACE_MS, GLASS_BAR_THRESHOLD_PX, GlassBarMachine } from './glass-bar/glass-bar-machine';
+export type { GlassBarModality, GlassBarSignals, GlassBarState, GlassBarTimers } from './glass-bar/glass-bar-machine';

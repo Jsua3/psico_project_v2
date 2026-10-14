@@ -1,4 +1,6 @@
+import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
@@ -7,18 +9,13 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { Dashboard } from '../../core/models/sesion.model';
-import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { DashboardComponent } from './dashboard.component';
+import { StudentDashboardComponent } from './student-dashboard.component';
 
-function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
-  return {
-    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
-    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
-    activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
-    ...partial,
-  };
-}
+/** El panel del estudiante tiene su propia spec: aquí basta su sitio. */
+@Component({ selector: 'app-student-dashboard', template: '' })
+class StudentDashboardStub {}
 
 // Plain ts-jest (no jest-preset-angular) cannot compile the templateUrl, so the
 // component is only instantiated inside an injection context to exercise its
@@ -73,44 +70,33 @@ function itemValue(component: DashboardComponent, label: string): string | undef
 }
 
 describe('DashboardComponent', () => {
-  describe('tarjeta de estado del estudiante', () => {
-    it('muestra los conteos en cero como 0 y el tiempo sin datos como texto', () => {
-      const component = createDashboard('ESTUDIANTE');
-      component.loading.set(false);
+  // Las garantías del estudiante (cero como 0, «Sin datos» si falla una carga, interrumpido ≠ completado, un solo
+  // «Continuar», nada ofrecido mientras carga) viven desde el plan visual F5-1 en student-dashboard.component.spec.
+  // req: RNF-04
+  describe('estudiante', () => {
+    it('pinta el panel del estudiante y no carga nada por su cuenta', async () => {
+      const attemptHistory = vi.fn();
+      TestBed.configureTestingModule({
+        providers: [
+          provideZonelessChangeDetection(), provideRouter([]),
+          { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes('ESTUDIANTE') } },
+          { provide: ReporteService, useValue: {} },
+          { provide: SimulationService, useValue: { attemptHistory, listCases: vi.fn() } },
+          { provide: InstructorApi, useValue: {} },
+          { provide: UserAdminService, useValue: {} },
+          { provide: GrupoService, useValue: {} },
+        ],
+      });
+      TestBed.overrideComponent(DashboardComponent, {
+        remove: { imports: [StudentDashboardComponent] }, add: { imports: [StudentDashboardStub] },
+      });
+      const fixture = TestBed.createComponent(DashboardComponent);
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
 
-      expect(itemValue(component, 'Casos asignados')).toBe('0');
-      expect(itemValue(component, 'Intentos completados')).toBe('0');
-      expect(itemValue(component, 'Tiempo activo')).toBe('Sin datos');
-    });
-
-    it('cuenta como completados solo los COMPLETED y no ofrece un segundo «Continuar simulación»', () => {
-      const component = createDashboard('ESTUDIANTE');
-      component.loading.set(false);
-      component.studentHistory.set([
-        attempt({ status: 'COMPLETED', activeDurationSeconds: 600 }),
-        attempt({ status: 'SAFE_EXITED' }),
-      ]);
-
-      expect(itemValue(component, 'Intentos completados')).toBe('1');
-      expect(itemValue(component, 'Tiempo activo')).toBe('10 min');
-      expect(component.heroStatusCard().action).toBeUndefined();
-    });
-
-    it('no ofrece «Continuar simulación» mientras carga', () => {
-      const component = createDashboard('ESTUDIANTE');
-
-      expect(component.loading()).toBe(true);
-      expect(component.heroStatusCard().action).toBeUndefined();
-    });
-
-    it('rotula el intento interrumpido como Interrumpido y no como Completado', () => {
-      const component = createDashboard('ESTUDIANTE');
-      component.studentHistory.set([
-        attempt({ attemptId: 'ok', status: 'COMPLETED' }),
-        attempt({ attemptId: 'cut', status: 'SAFE_EXITED' }),
-      ]);
-
-      expect(component.rows().map(row => row.estado)).toEqual(['Completado', 'Interrumpido']);
+      expect(host.querySelector('app-student-dashboard')).not.toBeNull();
+      expect(host.querySelector('.dashboard-hero, .hero-status-card, .metric-grid')).toBeNull();
+      expect(attemptHistory).not.toHaveBeenCalled();
     });
   });
 
@@ -154,51 +140,6 @@ describe('DashboardComponent', () => {
   });
 
   describe('cargas fallidas: «Sin datos» y no un cero falso', () => {
-    it('estudiante: si falla el historial, ningún conteo se muestra como 0', () => {
-      const component = createDashboard('ESTUDIANTE', {
-        simulation: { attemptHistory: httpFailure, listCases: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(true);
-      expect(itemValue(component, 'Casos asignados')).toBe('Sin datos');
-      expect(itemValue(component, 'Intentos completados')).toBe('Sin datos');
-      expect(itemValue(component, 'Mejor puntaje')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones en progreso')).toBe('Sin datos');
-      expect(metricValue(component, 'Intentos completados')).toBe('Sin datos');
-      expect(metricValue(component, 'Recomendaciones pendientes')).toBe('Sin datos');
-    });
-
-    it('estudiante: si solo falla el catálogo, solo «Casos asignados» pierde el dato', () => {
-      const component = createDashboard('ESTUDIANTE', {
-        simulation: {
-          attemptHistory: () => of([attempt({ status: 'COMPLETED' })]),
-          listCases: httpFailure,
-        },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(false);
-      expect(itemValue(component, 'Casos asignados')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
-      expect(itemValue(component, 'Intentos completados')).toBe('1');
-      expect(metricValue(component, 'Intentos completados')).toBe('1');
-      expect(metricValue(component, 'Simulaciones en progreso')).toBe('0');
-    });
-
-    it('estudiante: con las cargas correctas y sin intentos, el 0 sigue siendo 0', () => {
-      const component = createDashboard('ESTUDIANTE', {
-        simulation: { attemptHistory: () => of([]), listCases: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(itemValue(component, 'Casos asignados')).toBe('0');
-      expect(itemValue(component, 'Intentos completados')).toBe('0');
-      expect(metricValue(component, 'Casos asignados')).toBe('0');
-      expect(metricValue(component, 'Intentos completados')).toBe('0');
-    });
-
     it('profesor: si falla el panel, todos los conteos que dependen de él muestran «Sin datos»', () => {
       const component = createDashboard('PROFESOR', {
         reporte: { getDashboard: httpFailure },

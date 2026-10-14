@@ -1,17 +1,17 @@
 /* Centro de entrenamiento — sistema morado académico SIEP */
 :host {
-  --dash-purple-dark: #2a006b;
-  --dash-blue: #005282;
-  --dash-blue-deep: #0b5a8a;
-  --dash-blue-soft: #e8eef3;
+  --dash-purple-dark: #2a006b; /* legado sin token: lo retira F5-1 (VD-2, violeta solo simulador) */
+  --dash-blue: var(--ds-primary);
+  --dash-blue-deep: var(--ds-info);
+  --dash-blue-soft: var(--ds-surface-2);
   --dash-purple: #4b00b5;
   --dash-purple-soft: rgba(75, 0, 181, 0.12);
-  --dash-green: #2e7d50;
+  --dash-green: var(--ds-success);
   --dash-green-soft: rgba(46, 125, 80, 0.14);
   --dash-orange: #f59e0b;
   --dash-orange-soft: rgba(245, 158, 11, 0.16);
-  --dash-ink: #1a2b3c;
-  --dash-muted: #5a6b82;
+  --dash-ink: var(--ds-text-1);
+  --dash-muted: var(--ds-text-2);
   --dash-pixel-shadow: 5px 5px 0 rgba(75, 0, 181, 0.06);
   --dash-border: 2px solid rgba(75, 0, 181, 0.14);
   display: block;
@@ -594,6 +594,13 @@
 .attempts-table .mat-mdc-row {
   background: #f8fbfd;
   box-shadow: 0 0 0 1px rgba(0, 82, 130, 0.08);
+}
+
+/* El hover global de fila (_material.scss) no alcanza: esta regla tiene más especificidad. Solo con puntero fino. */
+@media (hover: hover) and (pointer: fine) {
+  .attempts-table .mat-mdc-row:hover {
+    background: var(--ds-primary-subtle);
+  }
 }
 
 .attempts-table .mat-mdc-cell {

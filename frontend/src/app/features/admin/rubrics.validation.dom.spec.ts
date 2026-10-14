@@ -1,7 +1,7 @@
 import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { of } from 'rxjs';
 
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
@@ -76,7 +76,7 @@ describe('rúbricas: validar al enviar (DOM con Material)', () => {
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
-        provideNoopAnimations(),
+        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: RubricService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },

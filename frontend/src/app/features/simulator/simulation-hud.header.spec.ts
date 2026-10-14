@@ -106,6 +106,53 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
   });
 
+  describe('atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
+    // req: BLOQUE-H (H-07), RNF-04
+    it('activos y con puntero fino la bitácora anuncia (J) y Ajustes trae su fila «Atajos de una tecla» en On', () => {
+      const root = mount(false);
+      expect(button(root, 'Abrir bitácora reflexiva (J)')).not.toBeNull();
+      openSettings(root);
+      const row = settingsRow(root, 'Atajos de una tecla')!;
+      expect(row.getAttribute('aria-pressed')).toBe('true');
+      expect(row.querySelector('strong')?.textContent?.trim()).toBe('On');
+    });
+
+    it('apagados, ni el nombre accesible ni el título ni la fila de Ajustes prometen la J', () => {
+      const root = mount(false, { shortcuts: false });
+      const journal = button(root, 'Abrir bitácora reflexiva')!;
+      expect(journal).not.toBeNull();
+      expect(journal.getAttribute('title')).toBe('Bitácora');
+      openSettings(root);
+      expect(settingsRow(root, 'Bitácora')?.querySelector('strong')?.textContent?.trim()).toBe('');
+      const row = settingsRow(root, 'Atajos de una tecla')!;
+      expect(row.getAttribute('aria-pressed')).toBe('false');
+      expect(row.querySelector('strong')?.textContent?.trim()).toBe('Off');
+      expect(root.innerHTML).not.toContain('(J)');
+    });
+
+    it('la fila de Ajustes pide alternar el ajuste', () => {
+      const root = mount(false);
+      const toggled = vi.fn();
+      hud.toggleShortcuts.subscribe(toggled);
+      openSettings(root);
+      settingsRow(root, 'Atajos de una tecla')!.click();
+      expect(toggled).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('acceso a «Ir a…» (F6-11)', () => {
+    // req: BLOQUE-H H-06, RNF-04
+    it('hay un botón con nombre claro que pide la lista y no lleva atajo de teclado en el nombre', () => {
+      const root = mount();
+      const places = root.querySelector<HTMLButtonElement>('button[data-hud-places]')!;
+      expect(places).not.toBeNull();
+      expect(places.getAttribute('aria-label')).toBe('Ir a… personas y puertas de la sala');
+      expect(places.getAttribute('title')).toBe('Ir a…');
+      expect(places.querySelector('mat-icon')?.textContent?.trim()).toBe('near_me');
+      expect(hudSource).toMatch(/readonly openPlaces = output<void>\(\);/);
+    });
+  });
+
   describe('botón de ayuda', () => {
     it('existe con el nombre accesible «Abrir cómo se juega» y emite openHelp', () => {
       const root = mount();
@@ -224,6 +271,49 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
   });
 
+  describe('marcador de puntaje (F6-3; RN-08 y RN-09)', () => {
+    // req: RN-08, RN-09, RNF-04
+    it('por defecto muestra los puntos con el texto de siempre', () => {
+      const root = mount();
+      const score = root.querySelector('.hud-score')!;
+      expect(score.getAttribute('aria-label')).toBe('Seguimiento formativo: 12 puntos');
+      expect(score.querySelector('strong')?.textContent?.trim()).toBe('12');
+    });
+
+    it("'hidden' no deja hueco: ni el marcador ni nada en su lugar", () => {
+      const root = mount(false, { scoreMarker: 'hidden', progressLabel: 'Decisión 2 de 6' });
+      expect(root.querySelector('.hud-score')).toBeNull();
+      expect(root.textContent).not.toMatch(/Seguimiento formativo|puntos/i);
+    });
+
+    it("'progress' no muestra cifra de puntos: dice el avance con su propio texto", () => {
+      const root = mount(false, { scoreMarker: 'progress', progressLabel: 'Decisión 2 de 6' });
+      const score = root.querySelector('.hud-score')!;
+      expect(score.textContent).toContain('Decisión 2 de 6');
+      expect(score.textContent).not.toMatch(/\b12\b/);
+      expect(score.getAttribute('aria-label') ?? '').not.toMatch(/puntos/i);
+    });
+
+    it("'progress' sin etiqueta de avance no deja un marcador vacío", () => {
+      const root = mount(false, { scoreMarker: 'progress' });
+      expect(root.querySelector('.hud-score')).toBeNull();
+    });
+  });
+
+  describe('barras de la paciente (F6-3)', () => {
+    // req: RNF-04, BLOQUE-H
+    const patient = { trustLevel: 70, emotionalState: 20, openness: 10, crisisLevel: 50 };
+
+    it('el relleno es la proporción con transform (nunca width) y conserva su medidor accesible', () => {
+      const root = mount(false, { patientState: patient });
+      const fills = Array.from(root.querySelectorAll<HTMLElement>('.mini-track > span'));
+      expect(fills.map(fill => fill.style.transform)).toEqual(['scaleX(0.7)', 'scaleX(0.2)']);
+      for (const fill of fills) expect(fill.style.width).toBe('');
+      const meters = Array.from(root.querySelectorAll('.mini-track[role="meter"]'));
+      expect(meters.map(meter => meter.getAttribute('aria-valuenow'))).toEqual(['70', '20']);
+    });
+  });
+
   describe('menú de Ajustes en la capa superior', () => {
     // ts-jest no compila las consultas con `viewChild()` (igual que las entradas con `input()`): el efecto que
     // abre el popover solo corre en el navegador, donde se comprobó jugando (`:popover-open` en 844x390).
@@ -274,10 +364,28 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       );
     });
 
-    it('con puntero grueso los botones de la cabecera y de Ajustes miden 44 px', () => {
-      expect(hudSource).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.hud-action \{[^}]*width: 44px;[^}]*height: 44px;/);
-      expect(hudSource).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.settings-menu__header button \{[^}]*width: 44px;[^}]*height: 44px;/);
-      expect(hudSource).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
+    /** El CSS del componente sin los bloques `@media`: lo que vale con cualquier puntero y cualquier tamaño. */
+    function baseStyles(): string {
+      const styles = hudSource.slice(hudSource.indexOf('styles: [`'), hudSource.indexOf('`]\n})'));
+      return styles.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+    }
+
+    // req: RNF-04, BLOQUE-H
+    it('los botones de la cabecera y de Ajustes miden 44 px con cualquier puntero, no solo con dedo', () => {
+      const base = baseStyles();
+      expect(base).toMatch(/\.hud-action \{[^}]*width: 44px;[^}]*height: 44px;/);
+      expect(base).toMatch(/\.settings-menu__header button \{[^}]*width: 44px;[^}]*height: 44px;/);
+      expect(base).toMatch(/\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
+    });
+
+    it('ninguna barra del HUD anima width y con movimiento reducido no hay transición de barras', () => {
+      expect(hudSource).not.toMatch(/transition:[^;]*\bwidth\b/);
+      expect(baseStyles()).toMatch(/\.mini-track span \{[^}]*transform-origin: left/);
+      expect(hudSource).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.mini-track span \{ transition: none; \}/);
+    });
+
+    it('el anillo de foco de los botones es el global de la piel del juego: sin anillo local con literales', () => {
+      expect(hudSource).not.toMatch(/\.hud-action:focus-visible/);
     });
 
     it('en compacto Ajustes se reparte en dos columnas para caber sin desplazarse en 390 px de alto', () => {

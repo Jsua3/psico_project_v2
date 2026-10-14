@@ -57,6 +57,28 @@ describe('AvatarStore (formato 2)', () => {
     expect(storage.getItem(AVATAR_STORAGE_KEY)).toBe(serializeAvatarV2(luisa));
   });
 
+  // req: BLOQUE-H (aviso de cambios sin guardar, plan visual F5-4)
+  it('dirty: falso al cargar, verdadero tras un cambio y falso tras guardar o al volver a lo guardado', () => {
+    const store = new AvatarStore(mockStorage());
+    expect(store.dirty()).toBe(false);
+    store.set({ schemaVersion: 2, mode: 'elenco', recipeId: 'luisa', bata: false });
+    expect(store.dirty()).toBe(true);
+    store.save();
+    expect(store.dirty()).toBe(false);
+    store.reset();
+    expect(store.dirty()).toBe(true);
+    store.revert();
+    expect(store.avatar()).toEqual({ schemaVersion: 2, mode: 'elenco', recipeId: 'luisa', bata: false });
+    expect(store.dirty()).toBe(false);
+  });
+
+  it('dirty no se deja engañar por el orden de las claves ni de los accesorios', () => {
+    const saved = { schemaVersion: 2, mode: 'personalizado', complexion: 'a', skin: 'piel-1', hair: 'afro', hairColor: 'negro', accessories: ['gafas', 'gafete'], bata: false };
+    const store = new AvatarStore(mockStorage({ [AVATAR_STORAGE_KEY]: JSON.stringify(saved) }));
+    store.set({ bata: false, accessories: ['gafete', 'gafas'], hairColor: 'negro', hair: 'afro', skin: 'piel-1', complexion: 'a', mode: 'personalizado', schemaVersion: 2 } as never);
+    expect(store.dirty()).toBe(false);
+  });
+
   it('si el almacenamiento falla (cuota, modo privado), no rompe', () => {
     const broken = { getItem: () => { throw new Error('bloqueado'); }, setItem: () => { throw new Error('cuota'); } } as unknown as Storage;
     const store = new AvatarStore(broken);

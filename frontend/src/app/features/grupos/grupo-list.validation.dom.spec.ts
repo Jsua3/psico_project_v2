@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from 
 import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { of } from 'rxjs';
 
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
@@ -81,7 +81,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con Material)', 
     TestBed.configureTestingModule({
       imports: [GrupoListComponent],
       providers: [
-        provideNoopAnimations(),
+        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: GrupoService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },

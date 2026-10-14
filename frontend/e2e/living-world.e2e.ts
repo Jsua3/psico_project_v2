@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
-import { nearbyAction } from './support/siep-flow';
+import { nearbyAction, startFreshAttempt } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -32,7 +32,7 @@ async function enterPlayableCase(page: Page) {
   // Intento nuevo: la posición de salida no depende de lo que dejó otra prueba.
   const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
   await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(15_000) });
-  if (await startFresh.count()) await startFresh.click();
+  if (await startFresh.count()) await startFreshAttempt(page, startFresh);
   await consent.getByRole('button', { name: /^continuar$/i }).click();
 
   const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
@@ -52,10 +52,9 @@ test('menu world renders full-bleed with no shell sidebar', async ({ page }) => 
   await login(page);
   await page.goto('/portal/jugar');
   await expect(page.locator('app-game-menu canvas')).toBeVisible();
-  // The portal shell sidenav must not overlap the menu canvas on this route.
-  // (El shell actual lo conserva en el DOM pero oculto — lo que importa es
-  // que no sea visible sobre el canvas full-bleed.)
-  await expect(page.locator('app-shell .portal-sidenav')).toBeHidden();
+  // La barra del portal no tapa el canvas a sangre de esta ruta: con `data: { chrome: 'hidden' }` no existe
+  // (plan visual F3-3; antes era un menú lateral oculto en el DOM).
+  await expect(page.locator('app-shell header.cromo')).toHaveCount(0);
 });
 
 test('in-case world loads with the HUD', async ({ page }) => {

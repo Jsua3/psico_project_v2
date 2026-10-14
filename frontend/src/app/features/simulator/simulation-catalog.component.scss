@@ -1,0 +1,103 @@
+// Catálogo, historial y reporte propio (plan visual F5-2): piel portal y solo tokens --ds-*; tarjetas con borde, sin
+// vidrio ni sombras duras (VD-3). minmax(0, 1fr): la tabla se desplaza dentro de ui-table y no ensancha la página.
+
+:host {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  color: var(--ds-text-1);
+}
+
+// auto-fit: con un solo caso (lo habitual hoy) la tarjeta ocupa el ancho y no deja columnas vacías.
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: var(--ds-space-4);
+}
+
+.case-card {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-3);
+}
+
+.case-card__top,
+.case-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+}
+
+.case-card__version {
+  color: var(--ds-text-2);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-mono-size);
+  line-height: var(--ds-type-mono-line);
+}
+
+.case-card__title {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.case-card__description {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ds-text-2);
+}
+
+.case-card__meta {
+  margin: 0;
+  justify-content: flex-start;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.case-card__attempt,
+.case-card__lock,
+.case-card__done {
+  justify-self: start;
+}
+
+.case-card__reason {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// Aviso al volver de un caso bloqueado pedido por dirección (F5-5): informa, no es un error.
+.catalog-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-info-bg);
+  color: var(--ds-text-1);
+}
+
+.case-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.catalog-history__case {
+  min-width: 12rem;
+}
+
+.catalog-nowrap {
+  white-space: nowrap;
+}
+
+.catalog-num {
+  font-variant-numeric: tabular-nums;
+}

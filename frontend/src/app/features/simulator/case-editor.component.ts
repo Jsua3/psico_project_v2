@@ -21,6 +21,7 @@ import { DagEditorComponent } from './dag-editor.component';
 import { WorldPreviewComponent } from './world-preview.component';
 import { WorldEditorComponent } from './world-editor';
 import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { objectTypeLabel, statusLabel } from '../../shared/ui/labels';
 
 type EditorPanel =
   | { kind: 'node-create' }
@@ -41,6 +42,8 @@ type EditorPanel =
   imports: [CommonModule, ReactiveFormsModule, MatIconModule, MatProgressBarModule, MatTabsModule, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent, ConfirmDialogComponent],
   template: `
     <section class="editor-page">
+      <!-- Un h1 por pantalla (plan visual F3-6): mientras carga o si falla, el nombre de la pantalla. -->
+      @if (!editor()) { <h1 class="sr-only">Editor de caso</h1> }
       @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
       @if (error()) {
         <div class="state-error" role="alert"><mat-icon>error</mat-icon>{{ error() }}</div>
@@ -51,8 +54,8 @@ type EditorPanel =
         <header class="editor-hero liquid-glass psy-game-panel">
           <div>
             <p class="psy-eyebrow">Editor visual administrativo</p>
-            <h2>{{ model.title }}</h2>
-            <p class="editor-meta">Versión {{ model.semanticVersion }} · {{ model.status }} · Checklist {{ model.checklistCompletion }}%</p>
+            <h1>{{ model.title }}</h1>
+            <p class="editor-meta">Versión {{ model.semanticVersion }} · {{ statusLabel(model.status) }} · Checklist {{ model.checklistCompletion }}%</p>
           </div>
           <div class="editor-actions">
             <button class="psy-button psy-button--glass" type="button" (click)="clone(model.caseVersionId)" [disabled]="busy()">
@@ -124,7 +127,7 @@ type EditorPanel =
                   @for (obj of model.objects; track obj.id) {
                     <article class="editor-card">
                       <div class="card-head">
-                        <span class="psy-chip" [style.background]="obj.colorHex + '22'" [style.color]="obj.colorHex">{{ obj.type }}</span>
+                        <span class="psy-chip" [style.background]="obj.colorHex + '22'" [style.color]="obj.colorHex">{{ objectTypeLabel(obj.type) }}</span>
                         <div class="card-actions">
                           <button class="psy-icon-button" type="button" (click)="openPanel({ kind: 'object-edit', obj })"><mat-icon>edit</mat-icon></button>
                           <button class="psy-icon-button" type="button" (click)="confirmDeleteObject(model.caseVersionId, obj)"><mat-icon>delete_outline</mat-icon></button>
@@ -549,7 +552,7 @@ type EditorPanel =
       border-radius: 22px;
       flex-wrap: wrap;
     }
-    .editor-hero h2 {
+    .editor-hero h1 {
       margin: 6px 0 0;
       font-family: 'Poppins', system-ui, sans-serif;
       letter-spacing: 0;
@@ -752,6 +755,8 @@ type EditorPanel =
   `]
 })
 export class CaseEditorComponent implements OnInit {
+  readonly statusLabel = statusLabel;
+  readonly objectTypeLabel = objectTypeLabel;
   private readonly route = inject(ActivatedRoute);
   private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);

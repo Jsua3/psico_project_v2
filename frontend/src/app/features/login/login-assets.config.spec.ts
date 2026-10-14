@@ -23,7 +23,7 @@ describe('login-assets.config', () => {
 
   it('los pilares no apuntan a íconos inexistentes', () => {
     for (const pillar of loginConfig.LOGIN_PEDAGOGY_PILLARS) {
-      expect(Object.keys(pillar).sort()).toEqual(['color', 'description', 'key', 'short', 'title']);
+      expect(Object.keys(pillar).sort()).toEqual(['description', 'key', 'title']);
     }
   });
 });

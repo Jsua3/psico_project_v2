@@ -14,24 +14,14 @@ import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_BRAND } from '../../core/config/brand.config';
 import { Dashboard } from '../../core/models/sesion.model';
-import {
-  RecentAttempt,
-  SimulationCaseSummary,
-  StudentAttemptSummary
-} from '../../core/models/simulation.model';
+import { RecentAttempt, SimulationCaseSummary } from '../../core/models/simulation.model';
 import { DashboardChartsComponent } from './dashboard-charts.component';
-import {
-  NO_DATA_LABEL,
-  attemptStateLabel,
-  completedAttemptCount,
-  countDisplay,
-  metricDisplay,
-  totalActiveSeconds
-} from './dashboard-metrics.util';
+import { NO_DATA_LABEL, attemptStateLabel, countDisplay, metricDisplay } from './dashboard-metrics.util';
 import { QuickAction, QuickActionsComponent } from './quick-actions.component';
+import { StudentDashboardComponent } from './student-dashboard.component';
 
-/** Cada carga de la que depende algún conteo del tablero. */
-type DashboardSource = 'dashboard' | 'users' | 'cases' | 'recent' | 'grupos' | 'history';
+/** Cada carga de la que depende algún conteo del tablero (docencia y administración). */
+type DashboardSource = 'dashboard' | 'users' | 'cases' | 'recent' | 'grupos';
 
 interface DashboardMetric {
   icon: string;
@@ -70,10 +60,17 @@ interface HeroStatusCard {
   action?: QuickAction;
 }
 
+/**
+ * Panel de inicio. El estudiante tiene el suyo (`app-student-dashboard`, plan visual F5-1); este componente pinta el
+ * de docencia y administración, que rediseña F7-1.
+ */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatChipsModule, MatIconModule, MatTableModule, DashboardChartsComponent, QuickActionsComponent],
+  imports: [
+    CommonModule, RouterLink, MatChipsModule, MatIconModule, MatTableModule, DashboardChartsComponent, QuickActionsComponent,
+    StudentDashboardComponent,
+  ],
   templateUrl: './dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.component.scss'
@@ -88,7 +85,6 @@ export class DashboardComponent implements OnInit {
   private readonly grupoService = inject(GrupoService);
 
   readonly dashboard = signal<Dashboard | null>(null);
-  readonly studentHistory = signal<StudentAttemptSummary[]>([]);
   readonly adminUsers = signal<AdminUser[]>([]);
   readonly grupos = signal<Grupo[]>([]);
   readonly simulationCases = signal<SimulationCaseSummary[]>([]);
@@ -100,12 +96,12 @@ export class DashboardComponent implements OnInit {
   readonly loadingMessage = signal('Cargando métricas académicas…');
 
   readonly cols = ['caso', 'estudiante', 'puntaje', 'estado', 'accion'];
-  readonly studentCols = ['caso', 'puntaje', 'estado', 'accion'];
   readonly progressSegments = Array.from({ length: 10 });
 
   ngOnInit() {
     if (this.auth.hasRole('ESTUDIANTE')) {
-      this.loadStudentDashboard();
+      // El panel del estudiante carga sus propios datos.
+      this.loading.set(false);
     } else if (this.auth.hasRole('ADMIN')) {
       this.loadAdminDashboard();
     } else if (this.auth.hasRole('PROFESOR')) {
@@ -128,33 +124,15 @@ export class DashboardComponent implements OnInit {
     return this.auth.hasRole('ESTUDIANTE');
   }
 
-  chartsRole(): 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE' {
-    if (this.isAdmin()) return 'ADMIN';
-    if (this.isProfesor()) return 'PROFESOR';
-    return 'ESTUDIANTE';
+  chartsRole(): 'ADMIN' | 'PROFESOR' {
+    return this.isAdmin() ? 'ADMIN' : 'PROFESOR';
   }
 
   hasData(): boolean {
-    if (this.isEstudiante()) {
-      return !this.error() && (this.studentHistory().length > 0 || this.simulationCases().length > 0);
-    }
     return !!this.dashboard() && !this.error();
   }
 
   continuarEntrenamiento(): TrainingResume | null {
-    if (this.isEstudiante()) {
-      const active = this.studentHistory().find(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
-      if (!active) return null;
-      return {
-        caso: active.caseTitle,
-        rol: 'Psicólogo social en formación',
-        ultimaAccion: active.status === 'PAUSED' ? 'Pausa segura activa' : 'Simulación en curso',
-        progreso: active.accumulatedScore > 0 ? Math.min(100, active.accumulatedScore) : 0,
-        estado: active.status === 'PAUSED' ? 'En pausa' : 'En curso',
-        attemptId: active.attemptId
-      };
-    }
-
     const data = this.dashboard();
     const active = data?.intentosRecientes?.find(
       item => item.estado === 'EN_PROGRESO' || item.estado === 'IN_PROGRESS'
@@ -172,7 +150,6 @@ export class DashboardComponent implements OnInit {
   metrics(): DashboardMetric[] {
     if (this.isAdmin()) return this.adminMetrics();
     if (this.isProfesor()) return this.professorMetrics();
-    if (this.isEstudiante()) return this.studentMetrics();
     return [];
   }
 
@@ -192,54 +169,35 @@ export class DashboardComponent implements OnInit {
         { label: 'Gestionar grupos', route: '/portal/grupos', icon: 'groups' }
       ];
     }
-    return [
-      { label: 'Ver casos y resultados', route: '/portal/simulador', icon: 'folder_open', accent: true }
-    ];
+    return [];
   }
 
   heroTitle(): string {
-    if (this.isAdmin()) return 'Panel de administración académica';
-    if (this.isProfesor()) return 'Seguimiento de tus grupos';
-    return 'Tu entrenamiento psicosocial';
+    return this.isAdmin() ? 'Panel de administración académica' : 'Seguimiento de tus grupos';
   }
 
   heroLead(): string {
     if (this.isAdmin()) {
       return 'Supervisa usuarios, casos publicados, simulaciones y el estado general del sistema formativo.';
     }
-    if (this.isProfesor()) {
-      return 'Revisa el avance de tus cohortes, detecta brechas formativas y accede a trazabilidad docente.';
-    }
-    return 'Continúa tus simulaciones, consulta tu historial y revisa recomendaciones formativas pendientes.';
+    return 'Revisa el avance de tus cohortes, detecta brechas formativas y accede a trazabilidad docente.';
   }
 
   heroStatusCard(): HeroStatusCard {
     if (this.loading()) {
       return this.heroStatusLoadingCard();
     }
-    if (this.isAdmin()) return this.heroStatusAdminCard();
-    if (this.isProfesor()) return this.heroStatusProfessorCard();
-    return this.heroStatusStudentCard();
+    return this.isAdmin() ? this.heroStatusAdminCard() : this.heroStatusProfessorCard();
   }
 
   private heroStatusLoadingCard(): HeroStatusCard {
-    const action: QuickAction | undefined = this.isEstudiante()
-      ? undefined
-      : this.isProfesor()
-        ? { label: 'Revisar trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', accent: true }
-        : { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true };
+    const action: QuickAction = this.isProfesor()
+      ? { label: 'Revisar trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', accent: true }
+      : { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true };
 
     return {
-      title: this.isAdmin()
-        ? 'Estado general de SIEP'
-        : this.isProfesor()
-          ? 'Estado de tus grupos'
-          : 'Tu avance formativo',
-      chips: this.isAdmin()
-        ? ['Usuarios', 'Casos', 'Sistema']
-        : this.isProfesor()
-          ? ['Grupos', 'Intentos']
-          : ['Casos', 'Progreso', 'Historial'],
+      title: this.isAdmin() ? 'Estado general de SIEP' : 'Estado de tus grupos',
+      chips: this.isAdmin() ? ['Usuarios', 'Casos', 'Sistema'] : ['Grupos', 'Intentos'],
       items: [
         { label: 'Cargando…', value: '—' },
         { label: 'Cargando…', value: '—' },
@@ -315,41 +273,6 @@ export class DashboardComponent implements OnInit {
     };
   }
 
-  private heroStatusStudentCard(): HeroStatusCard {
-    const history = this.studentHistory();
-    const cases = this.simulationCases();
-    const assignedCases = cases.length > 0 ? cases.length : new Set(history.map(h => h.caseTitle)).size;
-    const completed = this.studentCompletedCount();
-    const historyDown = this.unavailable('history');
-    const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
-    const bestScore = historyDown ? NO_DATA_LABEL : scores.length ? String(Math.max(...scores)) : 'Pendiente';
-    const activeSeconds = totalActiveSeconds(history);
-    const totalTime = !historyDown && activeSeconds !== null ? this.formatDuration(activeSeconds) : NO_DATA_LABEL;
-
-    return {
-      title: 'Tu avance formativo',
-      chips: ['Casos', 'Progreso', 'Historial'],
-      items: [
-        {
-          label: 'Casos asignados',
-          value: countDisplay(assignedCases, this.unavailable('history', 'cases'))
-        },
-        {
-          label: 'Intentos completados',
-          value: countDisplay(completed, historyDown)
-        },
-        {
-          label: 'Mejor puntaje',
-          value: bestScore
-        },
-        {
-          label: 'Tiempo activo',
-          value: totalTime
-        }
-      ]
-    };
-  }
-
   systemStatus(): { label: string; detail: string; ok: boolean } {
     if (this.error()) {
       return {
@@ -422,36 +345,6 @@ export class DashboardComponent implements OnInit {
       this.metric('analytics', promedio, 'Promedio de desempeño', promedio === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Evaluación activa', promedio === 'Pendiente' ? 'neutral' : 'green', dashboardDown),
       this.metric('warning_amber', criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', criticas > 0 ? 'orange' : 'neutral', dashboardDown)
     ];
-  }
-
-  studentMetrics(): DashboardMetric[] {
-    const history = this.studentHistory();
-    const cases = this.simulationCases();
-    const inProgress = history.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PAUSED').length;
-    const completed = completedAttemptCount(history);
-    const assignedCases = cases.length > 0 ? cases.length : new Set(history.map(h => h.caseTitle)).size;
-    const scores = history.filter(h => h.accumulatedScore > 0).map(h => h.accumulatedScore);
-    const bestScore = scores.length ? String(Math.max(...scores)) : 'Pendiente';
-    const activeSeconds = totalActiveSeconds(history);
-    const totalTime = activeSeconds !== null ? this.formatDuration(activeSeconds) : NO_DATA_LABEL;
-    const pendingReview = history.reduce(
-      (sum, h) => sum + h.riskyDecisions + h.inadequateDecisions + h.prohibitedDecisions,
-      0
-    );
-    const historyDown = this.unavailable('history');
-
-    return [
-      this.metric('account_tree', assignedCases, 'Casos asignados', assignedCases > 0 ? 'Disponibles' : 'No hay casos asignados', assignedCases > 0 ? 'blue' : 'neutral', this.unavailable('history', 'cases')),
-      this.metric('play_circle', inProgress, 'Simulaciones en progreso', inProgress > 0 ? 'En curso' : 'Sin simulaciones activas', inProgress > 0 ? 'purple' : 'neutral', historyDown),
-      this.metric('task_alt', completed, 'Intentos completados', completed > 0 ? 'Histórico personal' : 'Aún no hay intentos registrados', completed > 0 ? 'green' : 'neutral', historyDown),
-      this.metric('emoji_events', bestScore, 'Mejor puntaje', bestScore === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Mejor resultado', bestScore === 'Pendiente' ? 'neutral' : 'green', historyDown),
-      this.metric('schedule', totalTime, 'Tiempo activo', totalTime === NO_DATA_LABEL ? 'Se calcula al terminar un intento' : 'Estimado, sin pausas', totalTime === NO_DATA_LABEL ? 'neutral' : 'blue', historyDown),
-      this.metric('lightbulb', pendingReview, 'Recomendaciones pendientes', pendingReview > 0 ? 'Decisiones a revisar' : 'Sin recomendaciones pendientes', pendingReview > 0 ? 'orange' : 'neutral', historyDown)
-    ];
-  }
-
-  studentCompletedCount(): number {
-    return completedAttemptCount(this.studentHistory());
   }
 
   actividadDocenteVacia(): boolean {
@@ -534,19 +427,6 @@ export class DashboardComponent implements OnInit {
   }
 
   rows() {
-    if (this.isEstudiante()) {
-      return this.studentHistory()
-        .slice(0, 8)
-        .map(item => ({
-          casoTitulo: item.caseTitle,
-          estudiante: '—',
-          puntajeLabel: item.accumulatedScore > 0 ? String(item.accumulatedScore) : 'Pendiente',
-          estado: attemptStateLabel(item.status),
-          attemptId: item.attemptId,
-          studentRow: true
-        }));
-    }
-
     const data = this.dashboard();
     const source = data?.intentosRecientes ?? [];
 
@@ -554,13 +434,12 @@ export class DashboardComponent implements OnInit {
       casoTitulo: item.casoTitulo,
       estudiante: item.estudiante,
       puntajeLabel: item.puntaje && item.puntaje > 0 ? String(item.puntaje) : 'Pendiente',
-      estado: attemptStateLabel(item.estado),
-      studentRow: false
+      estado: attemptStateLabel(item.estado)
     }));
   }
 
   tableColumns(): string[] {
-    return this.isEstudiante() ? this.studentCols : this.cols;
+    return this.cols;
   }
 
   private loadAdminDashboard() {
@@ -595,24 +474,6 @@ export class DashboardComponent implements OnInit {
       next: ({ dashboard, grupos }) => {
         this.dashboard.set(dashboard);
         this.grupos.set(grupos);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set(true);
-        this.loading.set(false);
-      }
-    });
-  }
-
-  private loadStudentDashboard() {
-    this.loadingMessage.set('Cargando métricas académicas…');
-    forkJoin({
-      history: this.simulationService.attemptHistory(),
-      cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[])))
-    }).subscribe({
-      next: ({ history, cases }) => {
-        this.studentHistory.set(history);
-        this.simulationCases.set(cases);
         this.loading.set(false);
       },
       error: () => {
@@ -675,13 +536,5 @@ export class DashboardComponent implements OnInit {
     const simCases = this.simulationCases().filter(c => c.status?.toUpperCase() === 'PUBLISHED').length;
     if (simCases > 0) return simCases;
     return this.simulationCases().length;
-  }
-
-  private formatDuration(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours} h ${minutes} min`;
-    if (minutes > 0) return `${minutes} min`;
-    return `${seconds} s`;
   }
 }

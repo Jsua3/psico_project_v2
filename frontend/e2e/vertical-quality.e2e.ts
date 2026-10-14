@@ -22,6 +22,9 @@ for (const viewport of REQUIRED_VIEWPORTS) {
       test.setTimeout(scaled(180_000));
 
       await page.goto('/login');
+      // Sin zone.js la vista se crea al activar la ruta y se actualiza en el tick siguiente: auditar antes del
+      // primer pintado completo veía botones a medio crear (sin texto ni clases) y Axe marcaba button-name.
+      await expect(page.getByRole('heading', { level: 1, name: 'Iniciar sesión' })).toBeVisible({ timeout: scaled(30_000) });
       await assertQualityState(page, testInfo, `${viewport.name}-login`);
 
       await loginStudent(page);

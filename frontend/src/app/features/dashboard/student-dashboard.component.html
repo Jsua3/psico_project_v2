@@ -1,0 +1,153 @@
+<ui-page-header
+  eyebrow="Mi entrenamiento"
+  title="Tu entrenamiento psicosocial"
+  description="Retoma tus casos, revisa tu historial y mira cómo van tus decisiones."
+>
+  <a ui-button uiPageActions variant="primary" icon="videogame_asset" routerLink="/portal/jugar">Ir a la sala</a>
+  <a ui-button uiPageActions variant="secondary" icon="folder_open" routerLink="/portal/simulador">Ver casos y resultados</a>
+</ui-page-header>
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <div class="sd-loading" aria-busy="true">
+      <div class="sd-stats">
+        @for (bone of [1, 2, 3, 4]; track bone) {
+          <ui-skeleton shape="stat" />
+        }
+      </div>
+      <div class="sd-charts">
+        @for (bone of [1, 2, 3]; track bone) {
+          <ui-skeleton shape="chart" />
+        }
+      </div>
+      <ui-skeleton shape="row" />
+      <ui-skeleton shape="row" />
+    </div>
+  }
+  @case ('error') {
+    <ui-error-state
+      [kind]="errorKind()"
+      [status]="errorStatus()"
+      message="No pudimos cargar tu historial de intentos."
+      (retry)="loadHistory()"
+    />
+  }
+  @case ('empty') {
+    @let copy = firstUse();
+    <ui-empty-state kind="first-use" [title]="copy.title" [description]="copy.description" [actionLabel]="copy.action" (action)="goToLobby()" />
+  }
+  @case ('ready') {
+    @if (open(); as attempt) {
+      <ui-section title="Retoma tu caso">
+        <ui-card class="sd-continue">
+          <div class="sd-continue__text">
+            <p class="sd-continue__case">{{ attempt.caseTitle }}</p>
+            <p class="sd-continue__meta">
+              <ui-badge [tone]="attemptTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
+              <span>Lo empezaste el {{ formatDate(attempt.startedAt, true) }}</span>
+            </p>
+          </div>
+          <a ui-button variant="primary" icon="play_arrow" [routerLink]="['/portal/simulador', attempt.caseVersionId]">Continuar</a>
+        </ui-card>
+      </ui-section>
+    }
+
+    <ui-section title="Tu avance">
+      <div class="sd-stats">
+        <ui-card><ui-stat label="Casos asignados" [value]="assignedCases().value" [hint]="assignedCases().hint" /></ui-card>
+        <ui-card><ui-stat label="Intentos completados" [value]="completed()" hint="Sin contar los interrumpidos" /></ui-card>
+        <ui-card><ui-stat label="Mejor puntaje" [value]="bestScore()" hint="De tus intentos con puntaje" /></ui-card>
+        <ui-card><ui-stat label="Tiempo activo" [value]="activeTime().value" [hint]="activeTime().hint" /></ui-card>
+      </div>
+    </ui-section>
+
+    <ui-section title="Tu evolución">
+      <div class="sd-charts">
+        <ui-card class="sd-chart">
+          <h3 class="sd-chart__title">Evolución de puntaje</h3>
+          <p class="sd-chart__sub">Tus últimos intentos terminados, del más antiguo al más reciente</p>
+          @if (scoresHaveData()) {
+            <svg class="sd-line" [attr.viewBox]="chartViewBox" role="img" [attr.aria-label]="scoreSummary()">
+              <polyline class="sd-line__path" [attr.points]="scorePolyline()" />
+              @for (point of scorePoints(); track $index) {
+                <circle class="sd-line__dot" [attr.cx]="point.x" [attr.cy]="point.y" r="3.5" />
+                <circle class="sd-chart__hit" [attr.cx]="point.x" [attr.cy]="point.y" r="10" [uiTooltip]="point.tooltip" />
+              }
+            </svg>
+            <!-- Oculta para la vista, no para el lector. Un <table> no se recorta con ds-sr-only: va dentro de un div. -->
+            <div class="ds-sr-only">
+              <table>
+                <caption>Puntaje por intento</caption>
+                <thead><tr><th scope="col">Fecha</th><th scope="col">Caso</th><th scope="col">Puntos</th></tr></thead>
+                <tbody>
+                  @for (point of scores(); track $index) {
+                    <tr><th scope="row">{{ point.label }}</th><td>{{ point.caseTitle }}</td><td>{{ point.value }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="sd-chart__empty">Aún sin puntajes: aparecerán cuando tus intentos sumen puntos.</p>
+          }
+        </ui-card>
+
+        <ui-card class="sd-chart">
+          <h3 class="sd-chart__title">Progreso por caso</h3>
+          <p class="sd-chart__sub">Intentos completados de los que empezaste</p>
+          <ul class="sd-bars">
+            @for (item of progress(); track item.title) {
+              <li class="sd-bar" [uiTooltip]="item.tooltip">
+                <span class="sd-bar__label">{{ item.title }}</span>
+                <span class="sd-bar__track" aria-hidden="true"><span class="sd-bar__fill" [style.--sd-ratio]="item.ratio"></span></span>
+                <span class="sd-bar__value">{{ item.completed }} de {{ item.total }}</span>
+              </li>
+            }
+          </ul>
+        </ui-card>
+
+        <ui-card class="sd-chart">
+          <h3 class="sd-chart__title">Tus decisiones</h3>
+          <p class="sd-chart__sub">Cómo se clasificaron, sumando todos tus intentos</p>
+          @if (decisions().total > 0) {
+            <div class="sd-stack" aria-hidden="true">
+              @for (slice of decisions().slices; track slice.key) {
+                <span class="sd-stack__part sd-tone--{{ slice.key }}" [style.--sd-ratio]="slice.percent / 100"
+                  [uiTooltip]="slice.label + ': ' + slice.value + ' (' + slice.percent + ' %)'"></span>
+              }
+            </div>
+            <ul class="sd-legend">
+              @for (slice of decisions().slices; track slice.key) {
+                <li><span class="sd-legend__swatch sd-tone--{{ slice.key }}" aria-hidden="true"></span>{{ slice.label }} <strong>{{ slice.value }}</strong> ({{ slice.percent }} %)</li>
+              }
+            </ul>
+          } @else {
+            <p class="sd-chart__empty">Aún sin decisiones registradas.</p>
+          }
+        </ui-card>
+      </div>
+    </ui-section>
+
+    <ui-section title="Tus últimos intentos">
+      <ui-table label="Tabla de tus últimos intentos" density="compact">
+        <table ui-table>
+          <thead>
+            <tr><th scope="col">Caso</th><th scope="col">Inicio</th><th scope="col">Estado</th><th scope="col">Puntaje</th></tr>
+          </thead>
+          <tbody>
+            @for (row of recent(); track row.attemptId) {
+              <tr uiRow>
+                <td class="sd-case">{{ row.caseTitle }}</td>
+                <td class="sd-nowrap">{{ formatDate(row.startedAt) }}</td>
+                <td class="sd-nowrap"><ui-badge [tone]="attemptTone(row.status)">{{ statusLabel(row.status) }}</ui-badge></td>
+                <td class="sd-num">{{ row.accumulatedScore > 0 ? row.accumulatedScore : 'Pendiente' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+      <p class="sd-more"><a ui-button variant="ghost" iconEnd="arrow_forward" routerLink="/portal/simulador">Ver todo el historial</a></p>
+    </ui-section>
+  }
+}

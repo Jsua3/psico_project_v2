@@ -1,74 +1,18 @@
-@use '@angular/material' as mat;
-
-@include mat.core();
-
-$psychology-theme: mat.define-theme((
-  color: (
-    theme-type: light,
-    primary: mat.$azure-palette,
-    tertiary: mat.$cyan-palette
-  ),
-  typography: (
-    brand-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    plain-family: "'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-  ),
-  density: (scale: 0)
-));
-
-html {
-  @include mat.all-component-themes($psychology-theme);
-}
+@use 'skins';
+@use 'aliases';
+@use 'material';
+@use 'base/focus';
+@use 'base/motion';
+@use 'base/utilities';
+@use 'base/overlays';
+@use 'tokens/glass-bar' as glass-bar-tokens;
+@use 'components/glass-bar';
 
 :root {
-  --siep-blue: #004876;
-  --siep-blue-dark: #003B63;
-  --siep-blue-soft: #0B5A8A;
-  --siep-bg: #F2F2F2;
-  --siep-surface: #FFFFFF;
-  --siep-text: #101820;
-  --siep-muted: #5F6B76;
-  --siep-border: #DDE5EC;
-  --siep-radius-lg: 36px;
-  --siep-radius-md: 24px;
-  --siep-shadow-soft: 0 18px 35px rgba(0, 72, 118, 0.16);
-
-  --psy-bg: var(--siep-bg);
-  --psy-surface: var(--siep-surface);
-  --psy-surface-soft: #E8EEF3;
-  --psy-ink: var(--siep-text);
-  --psy-muted: var(--siep-muted);
-  --psy-blue: var(--siep-blue-soft);
-  --psy-blue-deep: var(--siep-blue);
-  --psy-teal: var(--siep-blue-soft);
-  --psy-teal-deep: var(--siep-blue-dark);
-  --psy-green: #5D9278;
-  --psy-green-deep: #4A7560;
-  --psy-lavender: #7A9EC0;
-  --psy-lavender-soft: #E8EEF3;
-  --psy-border: var(--siep-border);
-  --psy-focus: rgba(0, 72, 118, 0.72);
-  --psy-radius-sm: 12px;
-  --psy-radius: 20px;
-  --psy-radius-lg: var(--siep-radius-md);
-  --psy-pill: 999px;
-  --psy-space-1: 4px;
-  --psy-space-2: 8px;
-  --psy-space-3: 12px;
-  --psy-space-4: 16px;
-  --psy-space-5: 24px;
-  --psy-space-6: 32px;
-  --psy-space-7: 48px;
-  --psy-space-8: 72px;
-  --psy-shadow-soft: 0 24px 54px -28px rgba(36, 50, 58, 0.22);
-  --psy-shadow-card: 0 18px 38px -30px rgba(36, 50, 58, 0.34);
+  /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7) y las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */
   --psy-blur: blur(18px) saturate(125%);
-  --psy-motion-fast: 180ms cubic-bezier(.2,.8,.2,1);
-  --psy-motion-ui: 300ms cubic-bezier(.2,.8,.2,1);
-  --psy-motion-section: 680ms cubic-bezier(.2,.8,.2,1);
-  --psy-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --psy-header-h: 76px;
   --psy-button-h: 48px;
-  --psy-z-nav: 80;
   --psy-z-dialog: 200;
 }
 
@@ -77,13 +21,13 @@ html {
 html {
   scroll-behavior: smooth;
   background: var(--psy-bg);
-  font-family: 'Poppins', 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ds-font-sans);
 }
 
 body {
   min-height: 100%;
   margin: 0;
-  font-family: 'Poppins', 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ds-font-sans);
   color: var(--psy-ink);
   background: linear-gradient(180deg, #FAFAFA 0%, var(--psy-bg) 54%, #ECECEC 100%);
   text-rendering: optimizeLegibility;
@@ -113,11 +57,6 @@ code, .psy-mono {
   font-family: 'JetBrains Mono', Consolas, monospace;
 }
 
-:focus-visible {
-  outline: 3px solid var(--psy-focus);
-  outline-offset: 3px;
-}
-
 ::selection {
   background: rgba(79, 163, 165, .24);
 }
@@ -125,21 +64,14 @@ code, .psy-mono {
 /* ─── Texto: Poppins y JetBrains Mono ─────────────────────────────────────── */
 /* Autoalojadas (sin CDN en tiempo de ejecución). Origen: @fontsource/poppins@5.3.0
    y @fontsource/jetbrains-mono@5.3.0, SIL OFL 1.1 (licencias en assets/fonts/).
-   Solo subset latin: cubre el español. Los pesos 650 y 750 del código se
-   resuelven a 700 y 800. */
+   Solo subset latin: cubre el español. Tres pesos (F1-3): 400, 600 y 800; el navegador
+   resuelve 500 a 400, 650 a 800 y 700, 750 y 900 a 800. */
 @font-face {
   font-family: 'Poppins';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
   src: url('/assets/fonts/poppins-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Poppins';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/assets/fonts/poppins-latin-500-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Poppins';
@@ -151,23 +83,9 @@ code, .psy-mono {
 @font-face {
   font-family: 'Poppins';
   font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/assets/fonts/poppins-latin-700-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Poppins';
-  font-style: normal;
   font-weight: 800;
   font-display: swap;
   src: url('/assets/fonts/poppins-latin-800-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Poppins';
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap;
-  src: url('/assets/fonts/poppins-latin-900-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'JetBrains Mono';
@@ -197,12 +115,12 @@ code, .psy-mono {
 }
 
 /* Both the Angular Material host (.mat-icon) and the bare utility class render
-   ligatures. font-family !important overrides the default Material Icons class
-   that MatIcon stamps on the host. Size comes from font-size; width/height use
-   1em so per-component font-size overrides scale the icon box too. */
+   ligatures. MatIconRegistry usa 'material-symbols-rounded' como clase por defecto
+   (app.config.ts), así que no hace falta !important. Size comes from font-size;
+   width/height use 1em so per-component font-size overrides scale the icon box too. */
 .mat-icon,
 .material-symbols-rounded {
-  font-family: 'Material Symbols Rounded' !important;
+  font-family: 'Material Symbols Rounded';
   font-weight: normal;
   font-style: normal;
   font-size: 24px;
@@ -232,75 +150,7 @@ code, .psy-mono {
   font-variation-settings: 'FILL' 1;
 }
 
-.siep-notifications {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  z-index: 1300; /* por encima de app-confirm-dialog (1200) */
-  display: grid;
-  gap: 10px;
-  width: min(380px, calc(100vw - 32px));
-  pointer-events: none;
-}
-
-.siep-notification {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--psy-border);
-  background: var(--psy-surface);
-  color: var(--psy-ink);
-  box-shadow: 0 14px 34px rgba(16, 24, 32, 0.18);
-  pointer-events: auto;
-  transition: opacity 200ms var(--psy-ease-out), transform 200ms var(--psy-ease-out);
-
-  @starting-style {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.siep-notification p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
-
-.siep-notification button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin: -10px -10px -10px 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .siep-notification button:hover {
-    background: rgba(16, 24, 32, 0.08);
-  }
-}
-
-/* Anillo propio: `body.game-mode :focus-visible` (0,2,1) pinta #C9B3FF, ~1,85:1 sobre la tarjeta blanca.
-   Con tres clases y un elemento (0,3,1) gana sin depender del orden. Va hacia dentro (offset -2px)
-   para que el círculo de 44 px no sobresalga de la tarjeta. */
-.siep-notifications .siep-notification button:focus-visible {
-  outline: 2px solid var(--siep-blue);
-  outline-offset: -2px;
-  border-radius: 50%;
-}
-
-.siep-notification--success { border-left: 4px solid #2e7d32; }
-.siep-notification--error { border-left: 4px solid #b3261e; }
-.siep-notification--warning { border-left: 4px solid #b26a00; }
-.siep-notification--info { border-left: 4px solid var(--psy-blue-deep); }
+/* Los avisos del sistema los pinta `ui-toast-host` (F6-1) con sus propios estilos: aquí ya no vive su CSS. */
 
 .liquid-glass {
   background: rgba(255, 255, 255, 0.64);
@@ -411,7 +261,7 @@ code, .psy-mono {
 .psy-title {
   margin: 0;
   color: var(--siep-blue);
-  font-family: 'Poppins', 'Montserrat', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, sans-serif;
   font-weight: 800;
   font-size: clamp(2.1rem, 5vw, 4.75rem);
   line-height: 1.02;
@@ -608,23 +458,8 @@ code, .psy-mono {
   animation: psy-page-fade 150ms var(--psy-ease-out) backwards;
 }
 
-.mat-mdc-card {
-  border-radius: var(--psy-radius) !important;
-  border: 1px solid var(--psy-border) !important;
-  box-shadow: var(--psy-shadow-card) !important;
-}
-
 .mat-mdc-form-field {
   width: 100%;
-}
-
-.mat-mdc-header-cell {
-  color: var(--psy-ink) !important;
-  font-weight: 700 !important;
-}
-
-.mat-mdc-row:hover {
-  background: rgba(79, 124, 172, .06) !important;
 }
 
 @keyframes psy-page-fade {
@@ -634,11 +469,6 @@ code, .psy-mono {
 @keyframes psy-card-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes psy-glass-in {
-  from { opacity: 0; transform: translateY(-10px); backdrop-filter: blur(0) saturate(100%); }
-  to { opacity: 1; transform: translateY(0); backdrop-filter: var(--psy-blur); }
 }
 
 @keyframes psy-liquid-sheen {
@@ -675,17 +505,6 @@ code, .psy-mono {
   .psy-grid--3,
   .psy-grid--4 {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 1ms !important;
   }
 }
 
@@ -740,34 +559,21 @@ body.siep-scroll-locked {
   outline-offset: 3px;
 }
 
+/* Acuse de pulsación (plan visual: todo lo pulsable lo tiene). Sin transición: entra y sale en el acto. */
+.psy-skip-link:active,
+.skip-link:active {
+  transform: translateX(-50%) scale(0.97);
+}
+
 /* Destino de los enlaces de salto: recibe el foco por script, sin contorno de control. */
 main[tabindex="-1"]:focus,
 #main-content:focus {
   outline: none;
+  box-shadow: none;
 }
 
-/** Focus indicator: high-contrast for keyboard users (light surfaces). */
-:focus-visible {
-  outline: 3px solid var(--psy-focus);
-  outline-offset: 3px;
-  border-radius: 2px;
-}
-
-/**
- * Game-mode focus rings: the simulator uses dark backgrounds (#0e1322).
- * --psy-focus (rgba(0,72,118,.32)) is barely visible on dark bg.
- * Override to use #C9B3FF (contrast ≥ 4.5:1 on #0e1322).
- */
-body.game-mode :focus-visible {
-  outline: 2px solid #C9B3FF;
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-/** Eyebrow sobre las tarjetas oscuras del simulador: #B69CFF = 7,7:1 sobre #12182A. */
-body.game-mode .psy-eyebrow {
-  color: #B69CFF;
-}
+/* El anillo de foco y el eyebrow del juego los da la piel (`.game-container[data-skin='game']`: --ds-focus,
+   --ds-primary), no reglas sobre <body> (REGLA-010, plan visual F6-1). */
 
 /** AA contrast fix: psy-muted is #687A86 on white bg = 4.03:1. Darkened to 4.5:1+. */
 .psy-aa-text {
@@ -779,30 +585,5 @@ body.game-mode .psy-eyebrow {
  * Keeping as-is. If used on lighter backgrounds, use #C0392B instead.
  */
 
-/* ─── Game mode: fullscreen simulator — hides portal chrome ────────────────── */
-
-body.game-mode {
-  overflow: hidden;
-}
-
-body.game-mode mat-sidenav-container.portal-shell {
-  /* Hide the mat-sidenav-container structure while preserving router-outlet content */
-}
-
-body.game-mode .portal-sidenav {
-  display: none !important;
-}
-
-body.game-mode .portal-topbar {
-  display: none !important;
-}
-
-body.game-mode .portal-main {
-  padding: 0 !important;
-  height: 100vh;
-  overflow: hidden;
-}
-
-body.game-mode mat-sidenav-content.portal-content {
-  margin-left: 0 !important;
-}
+/* El simulador a pantalla completa: el shell oculta la barra por dato de ruta (`chrome: 'hidden'`) y su <main>
+   (`.portal-main--juego`) y `.game-container` (position: fixed) ocupan la ventana. Sin clases en <body>. */

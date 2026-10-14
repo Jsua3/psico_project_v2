@@ -5,7 +5,9 @@
 /** Rutas relativas al `base href` (producción y `ng serve`). */
 export const LOGIN_ASSETS = {
   images: {
-    hero: 'assets/images/login/Login.jpeg'
+    // Escena del panel en WebP a 640 y 1280 px (plan visual F4-4: antes, un JPEG de 1600 px y 214 KB pintado dos veces).
+    hero: 'assets/images/login/escena-acceso-640.webp',
+    hero2x: 'assets/images/login/escena-acceso-1280.webp'
   }
 } as const;
 
@@ -15,8 +17,6 @@ export interface LoginPedagogyPillar {
   key: string;
   title: string;
   description: string;
-  color: string;
-  short: string;
 }
 
 export const LOGIN_PEDAGOGY_PILLARS: LoginPedagogyPillar[] = [
@@ -24,28 +24,20 @@ export const LOGIN_PEDAGOGY_PILLARS: LoginPedagogyPillar[] = [
     key: 'simula',
     title: 'SIMULA',
     description: 'Entornos reales para practicar sin riesgos.',
-    color: '#b24bff',
-    short: 'S'
   },
   {
     key: 'evalua',
     title: 'EVALÚA',
     description: 'Mide tu progreso y toma decisiones informadas.',
-    color: '#4cc9ff',
-    short: 'E'
   },
   {
     key: 'decide',
     title: 'DECIDE',
     description: 'Desarrolla criterio y toma mejores decisiones.',
-    color: '#f5c451',
-    short: 'D'
   },
   {
     key: 'aprende',
     title: 'APRENDE',
     description: 'Fortalece competencias para transformar.',
-    color: '#5ce38a',
-    short: 'A'
   }
 ];

@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { plural, statusLabel } from '../../shared/ui/labels';
 
 @Component({
   selector: 'app-case-authoring-hub',
@@ -16,8 +17,8 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
       <header class="hub-header">
         <div>
           <p class="psy-eyebrow">Modalidad administrador</p>
-          <h1>Edicion de casos</h1>
-          <p>Construye escenarios, NPCs, puertas, articulos, conversaciones y cuestionarios para estudiantes.</p>
+          <h1>Edición de casos</h1>
+          <p>Construye escenarios, NPCs, puertas, artículos, conversaciones y cuestionarios para estudiantes.</p>
         </div>
         <button class="psy-button psy-button--primary" type="button" (click)="toggleCreate()">
           <mat-icon>{{ creating() ? 'close' : 'add_circle' }}</mat-icon>
@@ -36,19 +37,19 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
         <section class="new-case-panel">
           <div>
             <h2>Nuevo caso editable</h2>
-            <p>Se creara en borrador con una escena inicial para que puedas editar NPCs, articulos, puertas y cuestionarios.</p>
+            <p>Se creará en borrador con una escena inicial para que puedas editar NPCs, artículos, puertas y cuestionarios.</p>
           </div>
           <form [formGroup]="newCaseForm" (ngSubmit)="createCase()">
             <label>
-              <span>Titulo del caso *</span>
-              <input formControlName="title" placeholder="Caso de intervencion psicosocial" />
+              <span>Título del caso *</span>
+              <input formControlName="title" placeholder="Caso de intervención psicosocial" />
             </label>
             <label>
-              <span>Codigo opcional</span>
+              <span>Código opcional</span>
               <input formControlName="code" placeholder="CASO-PSICO-001" />
             </label>
             <label class="new-case-panel__wide">
-              <span>Descripcion</span>
+              <span>Descripción</span>
               <textarea formControlName="description" rows="3" placeholder="Contexto breve para docentes y estudiantes"></textarea>
             </label>
             <div class="new-case-panel__actions">
@@ -66,19 +67,19 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
         @for (item of cases(); track item.caseVersionId) {
           <article class="case-card">
             <div class="case-card__top">
-              <span>{{ item.status }}</span>
+              <span>{{ statusLabel(item.status) }}</span>
               <small>v{{ item.semanticVersion }}</small>
             </div>
             <h2>{{ item.title }}</h2>
             <p>{{ item.description }}</p>
             <div class="case-card__meta">
-              <span><mat-icon>account_tree</mat-icon>{{ item.nodeCount }} nodos</span>
+              <span><mat-icon>account_tree</mat-icon>{{ plural(item.nodeCount, 'nodo') }}</span>
               <span><mat-icon>tag</mat-icon>{{ item.code }}</span>
             </div>
             <div class="case-card__actions">
               <a class="psy-button psy-button--primary" [routerLink]="['/portal/casos', item.caseVersionId, 'editor']">
                 <mat-icon>edit_square</mat-icon>
-                Abrir entorno de edicion
+                Abrir entorno de edición
               </a>
               <a class="psy-button psy-button--ghost" [routerLink]="['/portal/simulador', item.caseVersionId]">
                 <mat-icon>play_arrow</mat-icon>
@@ -237,6 +238,8 @@ export class CaseAuthoringHubComponent implements OnInit {
   private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  readonly statusLabel = statusLabel;
+  readonly plural = plural;
   readonly cases = signal<SimulationCaseSummary[]>([]);
   readonly loading = signal(true);
   readonly creating = signal(false);
@@ -272,7 +275,7 @@ export class CaseAuthoringHubComponent implements OnInit {
         this.router.navigate(['/portal/casos', model.caseVersionId, 'editor']);
       },
       error: () => {
-        this.error.set('No fue posible crear el caso. Revisa que el codigo no exista y vuelve a intentar.');
+        this.error.set('No fue posible crear el caso. Revisa que el código no exista y vuelve a intentar.');
         this.creatingCase.set(false);
       },
     });
