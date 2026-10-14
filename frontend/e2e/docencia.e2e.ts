@@ -147,6 +147,95 @@ test.describe('@docencia grupos', () => {
   });
 });
 
+const REPORTE = {
+  grupoId: 1,
+  caseVersionId: null,
+  simulacion: {
+    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1, puntajePromedio: 72.4,
+    decisionesAdecuadas: 40, decisionesRiesgosas: 8, decisionesInadecuadas: 2, bitacorasRegistradas: 9, rubricasAplicadas: 4,
+    estudiantes: [
+      { id: 11, nombre: 'Marta Ríos', totalIntentos: 2, intentosCompletados: 2, intentosEnProgreso: 0, intentosSalidaSegura: 0,
+        puntajePromedio: 81, decisionesAdecuadas: 12, decisionesRiesgosas: 1, decisionesInadecuadas: 0, bitacorasRegistradas: 2,
+        rubricasAplicadas: 1, estado: 'COMPLETED' },
+      { id: 12, nombre: 'Luis Gómez', totalIntentos: 1, intentosCompletados: 0, intentosEnProgreso: 1, intentosSalidaSegura: 0,
+        puntajePromedio: 0, decisionesAdecuadas: 3, decisionesRiesgosas: 0, decisionesInadecuadas: 0, bitacorasRegistradas: 0,
+        rubricasAplicadas: 0, estado: 'PAUSED' },
+    ],
+  },
+};
+
+async function mockReports(page: Page, report: unknown = REPORTE): Promise<string[]> {
+  const requested: string[] = [];
+  await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
+  await page.route('**/api/reportes/grupo/*', route => {
+    requested.push(route.request().url());
+    return route.fulfill({ json: { success: true, data: report } });
+  });
+  return requested;
+}
+
+// req: RNF-04, BLOQUE-H, RQ-NEG-006
+test.describe('@docencia reportes', () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`con un reporte: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await loginAs(page, 'profesor');
+      await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
+      await mockReports(page);
+      await page.goto('/portal/reportes?grupo=1');
+      await expect(page.getByRole('heading', { level: 2, name: 'Psicología Jurídica · 2026-2' })).toBeVisible();
+      await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
+    });
+  }
+
+  test('al abrir: «Selecciona un grupo», sin consultar nada, y Axe sin hallazgos serios', async ({ page }) => {
+    await loginAs(page, 'profesor');
+    await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
+    const requested = await mockReports(page);
+    await page.goto('/portal/reportes');
+    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Selecciona un grupo');
+    expect(requested).toEqual([]);
+    expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
+  });
+
+  test('un grupo sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo»', async ({ page }) => {
+    await loginAs(page, 'profesor');
+    await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
+    await mockReports(page, { grupoId: 2, caseVersionId: null, simulacion: null });
+    await page.goto('/portal/reportes?grupo=2');
+    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Sin intentos en este corte');
+    await expect(page.locator('app-reporte-grupo ui-empty-state')).not.toContainText('Selecciona un grupo');
+    expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
+  });
+
+  test('RQ-NEG-006: del panel del docente al reporte de un grupo en 3 clics o menos', async ({ page }) => {
+    await mockReports(page);
+    await openPanel(page);
+    let clicks = 0;
+
+    // Camino corto: Grupos → «Ver reporte» del grupo (2 clics).
+    await page.locator('app-quick-actions').getByRole('link', { name: 'Gestionar grupos' }).click();
+    clicks += 1;
+    await page.getByRole('link', { name: 'Ver reporte de Psicología Jurídica · 2026-2' }).click();
+    clicks += 1;
+    await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1$/);
+    await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
+    expect(clicks).toBeLessThanOrEqual(3);
+
+    // Camino por Reportes: el acceso, abrir la lista y elegir el grupo (3 gestos; el reporte sale al elegir).
+    await page.goto('/portal/dashboard');
+    clicks = 0;
+    await page.locator('app-quick-actions').getByRole('link', { name: 'Ver reportes' }).click();
+    clicks += 1;
+    await page.locator('app-reporte-grupo select').first().selectOption({ label: 'Intervención en Crisis · 2026-2 · IC-2026' });
+    clicks += 2; // abrir la lista y elegir la opción
+    await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
+    expect(clicks).toBeLessThanOrEqual(3);
+  });
+});
+
 // req: RNF-04, BLOQUE-H, RQ-NEG-006
 test.describe('@docencia panel', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {

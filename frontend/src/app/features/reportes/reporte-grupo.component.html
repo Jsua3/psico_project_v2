@@ -1,0 +1,145 @@
+<ui-page-header
+  eyebrow="Reportes académicos"
+  title="Reportes por grupo"
+  description="Consulta seguimiento, desempeño y trazabilidad de decisiones por cohorte y caso." />
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+<ui-section title="Corte de consulta">
+  <ui-card class="rg-filter">
+    <p class="rg-hint">El caso es opcional. Si no eliges uno, el reporte consolida todo el grupo.</p>
+
+    @if (loadFiltersError()) {
+      <ui-error-state kind="server" [message]="loadFiltersError()" (retry)="cargarFiltros()" />
+    }
+
+    <form [formGroup]="form" class="rg-form" novalidate (ngSubmit)="generar()">
+      <ui-field label="Grupo" required hint="Elige la cohorte: el reporte se genera al elegirla.">
+        <select uiControl formControlName="grupoId">
+          <option [ngValue]="null">Selecciona un grupo</option>
+          @for (grupo of grupos(); track grupo.id) {
+            <option [ngValue]="grupo.id">{{ grupo.nombre }} · {{ grupo.codigo }}</option>
+          }
+        </select>
+      </ui-field>
+
+      <ui-field label="Caso de simulación" hint="Filtra por versión publicada cuando necesites detalle por caso.">
+        <select uiControl formControlName="caseVersionId">
+          <option [ngValue]="null">Todos los casos asignados</option>
+          @for (caso of casos(); track caso.caseVersionId) {
+            <option [ngValue]="caso.caseVersionId">{{ caso.title }} · v{{ caso.semanticVersion }}</option>
+          }
+        </select>
+      </ui-field>
+
+      <div class="rg-actions">
+        <button ui-button type="button" variant="secondary" icon="refresh" (click)="limpiar()"
+          [disabledReason]="selectedGrupoId() === null ? 'Aún no hay un grupo elegido.' : null">Limpiar</button>
+        @if (view() === 'ready') {
+          <button ui-button type="button" variant="secondary" icon="download" [loading]="exporting()" (click)="exportar()">
+            Exportar CSV
+          </button>
+        }
+      </div>
+    </form>
+  </ui-card>
+</ui-section>
+
+@switch (view()) {
+  @case ('idle') {
+    <ui-empty-state kind="first-use" title="Selecciona un grupo"
+      description="Elige un grupo arriba para ver su seguimiento: intentos, desempeño y decisiones." />
+  }
+  @case ('loading') {
+    <div class="rg-loading" aria-busy="true">
+      <div class="rg-stats">
+        @for (bone of [1, 2, 3, 4]; track bone) {
+          <ui-skeleton shape="stat" />
+        }
+      </div>
+      <ui-skeleton shape="row" />
+      <ui-skeleton shape="row" />
+      <ui-skeleton shape="row" />
+    </div>
+  }
+  @case ('error') {
+    <ui-error-state kind="server" message="No pudimos generar el reporte." (retry)="generar()" />
+  }
+  @case ('empty') {
+    <ui-empty-state kind="no-results" title="Sin intentos en este corte"
+      [description]="selectedCase()
+        ? 'Ningún estudiante de este grupo tiene intentos de «' + selectedCase()!.title + '». Prueba con todos los casos asignados.'
+        : 'Ningún estudiante de este grupo ha iniciado un intento todavía. Cuando lo haga, aparecerá aquí.'"
+      [actionLabel]="selectedCase() ? 'Ver todos los casos' : null" (action)="verTodosLosCasos()" />
+  }
+  @case ('ready') {
+    @if (reporte()?.simulacion; as sim) {
+      <ui-section class="rg-result" [title]="selectedGroup()?.nombre || 'Grupo seleccionado'">
+        <div class="rg-stack">
+          <p class="rg-hint">
+            {{ selectedCase()?.title || 'Todos los casos asignados' }} · {{ sim.estudiantes.length }} estudiantes con datos ·
+            {{ completionRate(sim) }}&nbsp;% completado
+          </p>
+
+          <div class="rg-stats">
+            <ui-card>
+              <ui-stat label="Intentos" [value]="sim.totalIntentos"
+                [hint]="sim.intentosCompletados + ' completados · ' + sim.intentosEnProgreso + ' en progreso'" />
+            </ui-card>
+            <ui-card>
+              <ui-stat label="Puntaje promedio" [value]="puntaje(sim.puntajePromedio)" hint="Desempeño profesional del grupo" />
+            </ui-card>
+            <ui-card>
+              <ui-stat label="Decisiones adecuadas" [value]="sim.decisionesAdecuadas"
+                [hint]="sim.decisionesRiesgosas + ' riesgosas · ' + sim.decisionesInadecuadas + ' inadecuadas'" />
+            </ui-card>
+            <ui-card>
+              <ui-stat label="Bitácoras" [value]="sim.bitacorasRegistradas" [hint]="sim.rubricasAplicadas + ' rúbricas aplicadas'" />
+            </ui-card>
+          </div>
+
+          <div class="rg-quality">
+            <ui-card>
+              <ui-progress label="Finalización de intentos" [value]="completionRate(sim)" />
+              <p class="rg-hint">{{ sim.intentosCompletados }} de {{ sim.totalIntentos }} intentos completados.</p>
+            </ui-card>
+            <ui-card>
+              <ui-progress label="Salida segura" [value]="safeExitRate(sim)" />
+              <p class="rg-hint">{{ sim.intentosSalidaSegura }} intentos usaron salida segura.</p>
+            </ui-card>
+          </div>
+
+          <ui-section title="Simulación por estudiante" [level]="3">
+            <p class="rg-hint">Detalle operativo para seguimiento docente y administrativo.</p>
+            <ui-table label="Simulación por estudiante" density="compact">
+              <table ui-table>
+                <thead>
+                  <tr>
+                    <th scope="col">Estudiante</th>
+                    <th scope="col" class="rg-num">Intentos</th>
+                    <th scope="col" class="rg-num">Puntaje prom.</th>
+                    <th scope="col" class="rg-num">Adecuadas</th>
+                    <th scope="col" class="rg-num">Bitácoras</th>
+                    <th scope="col">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (e of sim.estudiantes; track e.id) {
+                    <tr uiRow>
+                      <th scope="row" class="rg-name">{{ e.nombre }}</th>
+                      <td class="rg-num">{{ e.totalIntentos }}</td>
+                      <td class="rg-num">{{ puntaje(e.puntajePromedio) }}</td>
+                      <td class="rg-num">{{ e.decisionesAdecuadas }}</td>
+                      <td class="rg-num">{{ e.bitacorasRegistradas }}</td>
+                      <td class="rg-nowrap"><ui-badge [tone]="estadoTone(e.estado)">{{ estadoLabel(e.estado) }}</ui-badge></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </ui-table>
+          </ui-section>
+        </div>
+      </ui-section>
+    }
+  }
+}

@@ -2,8 +2,11 @@
 
 // Campo (plan visual F2-2 y §2.6 «campo de texto»): etiqueta encima, control de 44 px, borde fuerte al hover,
 // anillo de foco global, error en rojo y con texto (nunca solo color). El mensaje ocupa siempre el mismo renglón.
+// minmax(0, 1fr): una pista `auto` toma el ancho mínimo de su contenido, y un <select> con opciones largas mide más
+// que un teléfono (hallado en F7-3: 454 px en 390) y arrastra etiqueta y mensaje fuera de la pantalla.
 .ui-field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-1);
   min-inline-size: 0;
 }

@@ -1,0 +1,356 @@
+import { provideZonelessChangeDetection } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { Observable, Subject, of, throwError } from 'rxjs';
+
+import { Grupo, GrupoService } from '../../core/api/grupo.service';
+import { ReporteService } from '../../core/api/reporte.service';
+import { SimulationService } from '../../core/api/simulation.service';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { ReporteGrupo, ReporteSimulacionGrupo } from '../../core/models/sesion.model';
+import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { ReporteGrupoComponent } from './reporte-grupo.component';
+
+/**
+ * Pantalla Reportes en el sistema de la biblioteca (plan visual F7-3): «Selecciona un grupo» (aún no hay consulta) no
+ * se confunde con «Sin intentos en este corte» (la consulta no encontró nada), el reporte sale al elegir el grupo
+ * (RQ-NEG-006: dos clics desde Grupos, tres desde el panel), la tabla indica que se desplaza y el vacío nunca se pinta
+ * como un éxito verde.
+ */
+const grupoA: Grupo = { id: 1, nombre: 'Cohorte A', codigo: 'COH-A', totalEstudiantes: 24 };
+const grupoB: Grupo = { id: 2, nombre: 'Cohorte B', codigo: 'COH-B', totalEstudiantes: 18 };
+const caso = { caseVersionId: 12, code: 'CASO-12', title: 'Caso doce', semanticVersion: '1.0.0' } as SimulationCaseSummary;
+
+function simulation(partial: Partial<ReporteSimulacionGrupo> = {}): ReporteSimulacionGrupo {
+  return {
+    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1, puntajePromedio: 72.46,
+    decisionesAdecuadas: 40, decisionesRiesgosas: 8, decisionesInadecuadas: 2, bitacorasRegistradas: 9, rubricasAplicadas: 4,
+    estudiantes: [
+      {
+        id: 11, nombre: 'Marta Ríos', totalIntentos: 2, intentosCompletados: 2, intentosEnProgreso: 0, intentosSalidaSegura: 0,
+        puntajePromedio: 81, decisionesAdecuadas: 12, decisionesRiesgosas: 1, decisionesInadecuadas: 0, bitacorasRegistradas: 2,
+        rubricasAplicadas: 1, estado: 'COMPLETED',
+      },
+      {
+        id: 12, nombre: 'Luis Gómez', totalIntentos: 1, intentosCompletados: 0, intentosEnProgreso: 1, intentosSalidaSegura: 0,
+        puntajePromedio: 0, decisionesAdecuadas: 3, decisionesRiesgosas: 0, decisionesInadecuadas: 0, bitacorasRegistradas: 0,
+        rubricasAplicadas: 0, estado: 'PAUSED',
+      },
+    ],
+    ...partial,
+  };
+}
+
+const report = (grupoId: number, sim: ReporteSimulacionGrupo | null = simulation(), caseVersionId: number | null = null): ReporteGrupo =>
+  ({ grupoId, caseVersionId, simulacion: sim });
+
+interface Api {
+  grupos: () => Observable<Grupo[]>;
+  casos: () => Observable<SimulationCaseSummary[]>;
+  reporte: (grupoId: number, caseVersionId?: number | null) => Observable<ReporteGrupo>;
+}
+
+describe('pantalla Reportes (F7-3)', () => {
+  let fixture: ComponentFixture<ReporteGrupoComponent>;
+  let reporteService: { getReporteGrupo: ReturnType<typeof vi.fn>; exportarCsv: ReturnType<typeof vi.fn> };
+  let notify: Record<'success' | 'error' | 'warning' | 'info', ReturnType<typeof vi.fn>>;
+
+  const host = () => fixture.nativeElement as HTMLElement;
+  const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const select = (label: string) => [...host().querySelectorAll('ui-field')]
+    .find(field => text(field.querySelector('label')).startsWith(label))!.querySelector('select') as HTMLSelectElement;
+  const choose = (control: HTMLSelectElement, label: string) => {
+    const option = [...control.options].find(item => text(item) === label)!;
+    control.value = option.value;
+    control.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  };
+  const stat = (label: string) => [...host().querySelectorAll('ui-stat')]
+    .find(el => text(el.querySelector('.ui-stat__label')) === label);
+  const status = () => text(host().querySelector('[role="status"].ds-sr-only'));
+  /** Un botón por su rótulo (sin la ligadura de su icono, que es decorativa). */
+  const buttonLabelled = (label: string) => [...host().querySelectorAll('button')]
+    .find(button => text(button.querySelector('.ui-button__label')) === label);
+
+  async function render(api: Partial<Api> = {}, { query = {}, stable = true } = {}) {
+    reporteService = {
+      getReporteGrupo: vi.fn(api.reporte ?? ((grupoId: number) => of(report(grupoId)))),
+      exportarCsv: vi.fn(() => of(new Blob(['a,b']))),
+    };
+    notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [ReporteGrupoComponent],
+      providers: [
+        provideZonelessChangeDetection(), provideRouter([]),
+        { provide: ReporteService, useValue: reporteService },
+        { provide: GrupoService, useValue: { listar: vi.fn(api.grupos ?? (() => of([grupoA, grupoB]))) } },
+        { provide: SimulationService, useValue: { listCases: vi.fn(api.casos ?? (() => of([caso]))) } },
+        { provide: NotificationService, useValue: notify },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
+      ],
+    });
+    fixture = TestBed.createComponent(ReporteGrupoComponent);
+    if (stable) await fixture.whenStable();
+    else fixture.detectChanges();
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    TestBed.resetTestingModule();
+  });
+
+  // req: RNF-04, BLOQUE-H
+  describe('estados', () => {
+    it('un solo h1 y la región de estado siempre presente', async () => {
+      await render();
+      expect(host().querySelectorAll('h1')).toHaveLength(1);
+      expect(text(host().querySelector('h1'))).toBe('Reportes por grupo');
+      expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
+    });
+
+    it('al abrir: «Selecciona un grupo», sin cifras y sin decir «Sin intentos» (aún no se consultó nada)', async () => {
+      await render();
+      const empty = host().querySelector('ui-empty-state')!;
+      expect(text(empty)).toContain('Selecciona un grupo');
+      expect(text(host())).not.toContain('Sin intentos en este corte');
+      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
+      expect(reporteService.getReporteGrupo).not.toHaveBeenCalled();
+      expect(buttonLabelled('Generar reporte')).toBeUndefined();
+    });
+
+    it('con un reporte sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo», y sin tono de éxito', async () => {
+      await render({ reporte: grupoId => of(report(grupoId, null)) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const empty = host().querySelector('ui-empty-state')!;
+      expect(text(empty)).toContain('Sin intentos en este corte');
+      expect(text(empty)).not.toContain('Selecciona un grupo');
+      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
+      // El vacío no es un éxito: ni icono de «check», ni mensaje verde, ni aviso de éxito.
+      expect(host().innerHTML).not.toContain('check_circle');
+      expect(host().querySelector('.state-message')).toBeNull();
+      expect(notify.success).not.toHaveBeenCalled();
+    });
+
+    it('un reporte con simulación pero cero intentos también es «Sin intentos», y «Ver todos los casos» quita el filtro de caso', async () => {
+      await render({ reporte: (grupoId, caseVersionId) => of(report(grupoId, simulation({ totalIntentos: 0, estudiantes: [] }), caseVersionId ?? null)) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      choose(select('Caso'), 'Caso doce · v1.0.0');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const empty = host().querySelector('ui-empty-state')!;
+      expect(text(empty)).toContain('Sin intentos en este corte');
+      expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, 12);
+
+      (empty.querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(select('Caso').value).toBe(select('Caso').options[0].value);
+      expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, null);
+    });
+
+    it('sin un caso elegido, «Sin intentos» no ofrece quitar un filtro que no hay', async () => {
+      await render({ reporte: grupoId => of(report(grupoId, null)) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host().querySelector('ui-empty-state button')).toBeNull();
+    });
+
+    it('si la consulta falla: UN error con «Reintentar» que la repite, y ninguna cifra', async () => {
+      let calls = 0;
+      await render({ reporte: grupoId => (++calls === 1 ? throwError(() => new Error('HTTP 500')) : of(report(grupoId))) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const errors = host().querySelectorAll('ui-error-state');
+      expect(errors).toHaveLength(1);
+      expect(text(errors[0])).toContain('No pudimos generar el reporte.');
+      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
+      expect(host().querySelector('ui-empty-state')).toBeNull();
+
+      (errors[0].querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(calls).toBe(2);
+      expect(host().querySelector('ui-error-state')).toBeNull();
+      expect(host().querySelectorAll('ui-stat').length).toBeGreaterThan(0);
+    });
+
+    it('mientras genera: esqueleto con aria-busy, el estado leído y ninguna cifra', async () => {
+      vi.useFakeTimers();
+      const pending = new Subject<ReporteGrupo>();
+      await render({ reporte: () => pending }, { stable: false });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await vi.advanceTimersByTimeAsync(200);
+      fixture.detectChanges();
+
+      expect(host().querySelectorAll('ui-skeleton').length).toBeGreaterThan(0);
+      expect(host().querySelector('[aria-busy="true"]')).not.toBeNull();
+      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
+      expect(status()).toBe('Generando el reporte…');
+
+      pending.next(report(1));
+      pending.complete();
+      await vi.advanceTimersByTimeAsync(400);
+      fixture.detectChanges();
+      expect(host().querySelectorAll('ui-skeleton')).toHaveLength(0);
+      expect(stat('Intentos')).toBeDefined();
+      expect(status()).toBe('');
+    });
+  });
+
+  // req: RNF-04, BLOQUE-H, RQ-NEG-006
+  describe('consulta', () => {
+    it('elegir un grupo genera el reporte sin otro clic: se pide con el grupo y sin caso, y salen las cifras', async () => {
+      await render();
+      choose(select('Grupo'), 'Cohorte B · COH-B');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(1);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
+      expect(text(stat('Puntaje promedio')!.querySelector('.ui-stat__value'))).toBe('72.5');
+      expect(text(stat('Decisiones adecuadas')!.querySelector('.ui-stat__value'))).toBe('40');
+      expect(text(stat('Bitácoras')!.querySelector('.ui-stat__value'))).toBe('9');
+      expect(text(host().querySelector('.rg-result h2'))).toContain('Cohorte B');
+    });
+
+    it('cambiar el caso vuelve a pedir el reporte con ese caso', async () => {
+      await render();
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      choose(select('Caso'), 'Caso doce · v1.0.0');
+      await fixture.whenStable();
+
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(2);
+      expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, 12);
+    });
+
+    it('?grupo=<id> preselecciona el grupo y genera el reporte (el camino corto desde Grupos)', async () => {
+      await render({}, { query: { grupo: '2' } });
+
+      expect(select('Grupo').selectedOptions[0].textContent?.trim()).toBe('Cohorte B · COH-B');
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(stat('Intentos')).toBeDefined();
+    });
+
+    it('un ?grupo= que no existe se ignora: queda «Selecciona un grupo» y no se consulta nada', async () => {
+      await render({}, { query: { grupo: '999' } });
+
+      expect(reporteService.getReporteGrupo).not.toHaveBeenCalled();
+      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+    });
+
+    it('cambiar de grupo con una consulta en curso: solo cuenta la última', async () => {
+      const first = new Subject<ReporteGrupo>();
+      await render({ reporte: grupoId => (grupoId === 1 ? first : of(report(2, simulation({ totalIntentos: 77 })))) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      choose(select('Grupo'), 'Cohorte B · COH-B');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      first.next(report(1, simulation({ totalIntentos: 5 })));
+      first.complete();
+      fixture.detectChanges();
+      expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('77');
+      expect(text(host().querySelector('.rg-result h2'))).toContain('Cohorte B');
+    });
+
+    it('«Limpiar» vuelve a «Selecciona un grupo»', async () => {
+      await render();
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      buttonLabelled('Limpiar')!.click();
+      fixture.detectChanges();
+
+      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
+    });
+
+    it('si fallan los filtros: un error con «Reintentar» que vuelve a pedirlos', async () => {
+      let calls = 0;
+      await render({ grupos: () => (++calls === 1 ? throwError(() => new Error('HTTP 500')) : of([grupoA])) });
+      const error = host().querySelector('ui-error-state')!;
+      expect(text(error)).toContain('No fue posible cargar los grupos');
+
+      (error.querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(calls).toBe(2);
+      expect(host().querySelector('ui-error-state')).toBeNull();
+      expect([...select('Grupo').options].map(option => text(option))).toContain('Cohorte A · COH-A');
+    });
+  });
+
+  // req: RNF-04, BLOQUE-H
+  describe('resultado', () => {
+    async function withReport() {
+      await render();
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('la tabla es una región con nombre, con una fila por estudiante y estados en insignias', async () => {
+      await withReport();
+      const region = host().querySelector('ui-table [role="region"]')!;
+      expect(region.getAttribute('aria-label')).toBe('Simulación por estudiante');
+      const rows = [...host().querySelectorAll('ui-table tbody tr')];
+      expect(rows).toHaveLength(2);
+      expect(text(rows[0])).toContain('Marta Ríos');
+      expect(text(rows[0].querySelector('ui-badge'))).toBe('Completado');
+      expect(text(rows[1].querySelector('ui-badge'))).toBe('En pausa (reanudable)');
+    });
+
+    it('las dos medidas de calidad son barras con nombre y valor legible', async () => {
+      await withReport();
+      const bars = [...host().querySelectorAll('ui-progress')];
+      expect(bars.map(bar => bar.getAttribute('aria-label'))).toEqual(['Finalización de intentos', 'Salida segura']);
+      expect(bars[0].getAttribute('aria-valuenow')).toBe('60');
+      expect(bars[1].getAttribute('aria-valuenow')).toBe('10');
+    });
+
+    it('«Exportar CSV» solo aparece con datos y confirma con un aviso, no con un mensaje verde en la página', async () => {
+      await render();
+      expect(buttonLabelled('Exportar CSV')).toBeUndefined();
+
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+      try {
+        buttonLabelled('Exportar CSV')!.click();
+        await fixture.whenStable();
+
+        expect(reporteService.exportarCsv).toHaveBeenCalledWith(1, null);
+        expect(notify.success).toHaveBeenCalledWith('El archivo CSV se descargó correctamente.');
+        expect(host().querySelector('.state-message')).toBeNull();
+      } finally {
+        click.mockRestore();
+      }
+    });
+
+    it('si la exportación falla avisa con un aviso de error', async () => {
+      await withReport();
+      reporteService.exportarCsv.mockReturnValue(throwError(() => new Error('HTTP 500')));
+      buttonLabelled('Exportar CSV')!.click();
+      await fixture.whenStable();
+
+      expect(notify.error).toHaveBeenCalledWith('No fue posible exportar el reporte.');
+    });
+
+    it('sin restos del diseño anterior: ni Material, ni medidores con ancho en línea, ni mensajes verdes', async () => {
+      await withReport();
+      expect(host().querySelector('mat-card, mat-form-field, mat-select, mat-chip, mat-progress-bar, table[mat-table], .psy-button, .meter')).toBeNull();
+      expect(host().querySelector('[style*="width"]')).toBeNull();
+    });
+  });
+});
