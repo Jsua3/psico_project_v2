@@ -12,8 +12,8 @@ import { createApiE2EConfig } from './test-runner-support.mjs';
 const TEST_ENVIRONMENT_HEADER = 'x-siep-test-environment';
 
 function createRequester(apiBase, fetchImpl) {
-  return async function request(method, path, { token, body } = {}) {
-    const headers = { Accept: 'application/json' };
+  return async function request(method, path, { token, body, headers: extra } = {}) {
+    const headers = { Accept: 'application/json', ...extra };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -202,6 +202,87 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     'ESTUDIANTE GET /instructor/attempts/recent -> 403',
     (await request('GET', '/instructor/attempts/recent', { token: tokens.ESTUDIANTE })).status,
     403,
+  );
+
+  // E3 (C7-C9): asignaciones con ventana, ficha del caso sin crear intento y pistas por escena.
+  expectStatus(
+    'PROFESOR GET /assignments -> 200',
+    (await request('GET', '/assignments', { token: tokens.PROFESOR })).status,
+    200,
+  );
+  expectStatus(
+    'ESTUDIANTE GET /assignments -> 403',
+    (await request('GET', '/assignments', { token: tokens.ESTUDIANTE })).status,
+    403,
+  );
+  const lobby = await request('GET', '/simulation/cases', { token: tokens.ESTUDIANTE });
+  const lobbyCase = Array.isArray(lobby.data?.data) ? lobby.data.data[0] : undefined;
+  if (!lobbyCase?.caseVersionId) {
+    fail('ESTUDIANTE ve un caso asignado en el lobby', 'el lobby llego vacio');
+  } else {
+    const caseVersionId = lobbyCase.caseVersionId;
+    const briefPath = `/simulation/cases/${caseVersionId}/brief`;
+    const brief = await request('GET', briefPath, { token: tokens.ESTUDIANTE });
+    expectStatus('ESTUDIANTE GET /simulation/cases/{id}/brief -> 200', brief.status, 200);
+    const briefData = brief.data?.data;
+    if (Array.isArray(briefData?.learningObjectives) && briefData?.access?.allowed === true) {
+      pass('la ficha del caso trae objetivos y la decision de acceso');
+    } else {
+      fail('la ficha del caso trae objetivos y la decision de acceso', JSON.stringify(briefData));
+    }
+    expectStatus(
+      'PROFESOR GET /simulation/cases/{id}/brief -> 200',
+      (await request('GET', briefPath, { token: tokens.PROFESOR })).status,
+      200,
+    );
+    expectStatus(
+      'ESTUDIANTE GET /simulation/cases/0/brief -> 404',
+      (await request('GET', '/simulation/cases/0/brief', { token: tokens.ESTUDIANTE })).status,
+      404,
+    );
+
+    const started = await request('POST', '/simulation/attempts', {
+      token: tokens.ESTUDIANTE,
+      body: { caseVersionId },
+    });
+    expectStatus('ESTUDIANTE POST /simulation/attempts -> 200', started.status, 200);
+    const attempt = started.data?.data;
+    if (attempt?.attemptId && attempt?.attemptToken) {
+      const hintsPath = `/simulation/attempts/${attempt.attemptId}/hints`;
+      const headers = { 'X-SIEP-Attempt-Token': attempt.attemptToken };
+      const hints = await request('GET', hintsPath, { token: tokens.ESTUDIANTE, headers });
+      expectStatus('ESTUDIANTE GET /simulation/attempts/{id}/hints -> 200', hints.status, 200);
+      if (typeof hints.data?.data?.available === 'number' && Array.isArray(hints.data?.data?.shown)) {
+        pass('las pistas traen available y shown');
+      } else {
+        fail('las pistas traen available y shown', JSON.stringify(hints.data?.data));
+      }
+      expectStatus(
+        'PROFESOR GET /simulation/attempts/{id}/hints -> 403',
+        (await request('GET', hintsPath, { token: tokens.PROFESOR, headers })).status,
+        403,
+      );
+      expectStatus(
+        'ESTUDIANTE POST /simulation/attempts/{id}/hints/next sin pistas -> 409',
+        (await request('POST', `${hintsPath}/next`, {
+          token: tokens.ESTUDIANTE,
+          body: { attemptToken: attempt.attemptToken },
+        })).status,
+        409,
+      );
+    } else {
+      fail('ESTUDIANTE inicia un intento', JSON.stringify(started.data));
+    }
+  }
+  expectStatus(
+    'ESTUDIANTE GET /competencies -> 403',
+    (await request('GET', '/competencies', { token: tokens.ESTUDIANTE })).status,
+    403,
+  );
+  expectStatus(
+    'PROFESOR GET /competencies -> 200',
+    (await request('GET', '/competencies', { token: tokens.PROFESOR })).status,
+    200,
   );
 
   const loginBad = await request('POST', '/auth/login', {
