@@ -65,7 +65,12 @@
   <ui-section class="rb-form" [title]="selected() ? 'Editar rúbrica' : 'Nueva rúbrica'">
     <ui-card>
       <div class="rb-stack">
-        @if (messageIsError() && message() && listState() !== 'error') {
+        @if (readOnly()) {
+          <div class="rb-readonly">
+            <p class="rb-message rb-message--error">{{ message() }}</p>
+            <button ui-button type="button" variant="secondary" icon="content_copy" (click)="duplicate()">Duplicar para personalizar</button>
+          </div>
+        } @else if (messageIsError() && message() && listState() !== 'error') {
           <p class="rb-message rb-message--error">{{ message() }}</p>
         }
 
@@ -122,7 +127,9 @@
             <button ui-button type="submit" icon="save" [loading]="saving()">{{ saving() ? 'Guardando…' : 'Guardar' }}</button>
             <button ui-button type="button" variant="secondary" [disabledReason]="activateReason()" (click)="activate()">Activar</button>
             <button ui-button type="button" variant="secondary" [disabledReason]="selectedReason()" (click)="deactivate()">Desactivar</button>
-            <button ui-button type="button" variant="secondary" [disabledReason]="activateReason()" (click)="setDefault()">Predeterminada</button>
+            @if (canSetDefault) {
+              <button ui-button type="button" variant="secondary" [disabledReason]="activateReason()" (click)="setDefault()">Predeterminada</button>
+            }
             <button ui-button type="button" variant="secondary" [disabledReason]="selectedReason()" (click)="duplicate()">Duplicar</button>
           </div>
         </form>

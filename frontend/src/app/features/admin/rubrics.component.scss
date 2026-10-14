@@ -130,6 +130,14 @@
   font-weight: var(--ds-type-h3-weight);
 }
 
+// E2-2: rúbrica ajena (solo lectura): el aviso y la acción que la resuelve, juntos.
+.rb-readonly {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
 .criterion {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

@@ -1,6 +1,14 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { map } from 'rxjs/operators';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+
+/**
+ * E2-2: una rúbrica ajena (la global o la de otra persona) es de solo lectura y el servidor responde 403 al
+ * modificarla; la pantalla lo explica con su propio texto. Las órdenes marcan la petición para que el interceptor no
+ * avise además «No tienes permisos…».
+ */
+const SCREEN_EXPLAINS_403 = () => ({ context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true) });
 
 export interface RubricCriterionAdmin {
   id?: number;
@@ -50,15 +58,15 @@ export class RubricService {
   }
 
   update(id: number, payload: Partial<RubricAdmin>) {
-    return this.http.put<ApiResponse<RubricAdmin>>(`${this.API}/${id}`, payload).pipe(map(r => r.data));
+    return this.http.put<ApiResponse<RubricAdmin>>(`${this.API}/${id}`, payload, SCREEN_EXPLAINS_403()).pipe(map(r => r.data));
   }
 
   activate(id: number) {
-    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/activate`, {}).pipe(map(r => r.data));
+    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/activate`, {}, SCREEN_EXPLAINS_403()).pipe(map(r => r.data));
   }
 
   deactivate(id: number) {
-    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/deactivate`, {}).pipe(map(r => r.data));
+    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/deactivate`, {}, SCREEN_EXPLAINS_403()).pipe(map(r => r.data));
   }
 
   duplicate(id: number) {
@@ -66,13 +74,14 @@ export class RubricService {
   }
 
   setDefault(id: number) {
-    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/default`, {}).pipe(map(r => r.data));
+    return this.http.post<ApiResponse<RubricAdmin>>(`${this.API}/${id}/default`, {}, SCREEN_EXPLAINS_403()).pipe(map(r => r.data));
   }
 
   assignToCaseVersion(caseVersionId: number, rubricId: number) {
     return this.http.put<ApiResponse<{ caseVersionId: number; rubric: RubricAdmin }>>(
       `${this.API}/case-versions/${caseVersionId}`,
-      { rubricId }
+      { rubricId },
+      SCREEN_EXPLAINS_403(),
     ).pipe(map(r => r.data));
   }
 }

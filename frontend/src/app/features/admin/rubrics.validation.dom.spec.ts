@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
@@ -79,6 +80,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
       imports: [RubricsComponent],
       providers: [
         { provide: RubricService, useValue: service },
+        { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes('ADMIN') } },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],

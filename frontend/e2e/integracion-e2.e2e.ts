@@ -266,3 +266,38 @@ test.describe('@integracion-e2 bandeja de invitaciones (E2-10, C5)', () => {
     await expect(nav.getByRole('link', { name: 'Invitaciones' })).toBeVisible();
   });
 });
+
+// req: SIEP-CU-04, RNF-002
+test.describe('@integracion-e2 rúbricas con dueño (E2-2)', () => {
+  test('el docente abre una rúbrica del administrador: guardar dice que es de solo lectura y «Duplicar para personalizar» crea su copia', async ({ page, request }) => {
+    const adminToken = await apiToken(request, process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!');
+    const name = `Rúbrica global e2e ${Date.now().toString(36)}`;
+    const created = await request.post('/api/rubrics/', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: {
+        name, description: '', version: '1.0', active: false,
+        criteria: [
+          { title: 'Criterio A', weight: 60, displayOrder: 1, active: true },
+          { title: 'Criterio B', weight: 40, displayOrder: 2, active: true },
+        ],
+      },
+    });
+    expect(created.status(), 'crear la rúbrica del administrador').toBe(201);
+
+    await loginAs(page, 'profesor');
+    await page.goto('/portal/rubricas');
+    await page.locator('.rb-row').filter({ hasText: name }).click();
+    await expect(page.locator('app-rubrics input[formControlName="name"]')).toHaveValue(name);
+    await expect(page.getByRole('button', { name: 'Predeterminada', exact: true })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('.rb-readonly')).toContainText('Esta rúbrica es de solo lectura');
+    await expect(page.getByText(PERMISSION_NOTICE)).toHaveCount(0);
+    await settle(page);
+    expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
+
+    await page.getByRole('button', { name: 'Duplicar para personalizar', exact: true }).click();
+    await expect(page.locator('.rb-row').filter({ hasText: `Copia de ${name}` })).toBeVisible();
+    await expect(page.locator('.rb-readonly')).toHaveCount(0);
+  });
+});

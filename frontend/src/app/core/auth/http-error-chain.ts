@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
@@ -11,10 +11,18 @@ export const PERMISSION_MESSAGE = 'No tienes permisos para realizar esta acción
 const LOGIN_URL = '/api/auth/login';
 const ME_URL = '/api/auth/me';
 
+/**
+ * Marca de una petición cuyo 403 lo explica su pantalla con su propio texto (p. ej. «Esta rúbrica es de solo
+ * lectura», E2-2): el aviso genérico «No tienes permisos…» no sale además. El cambio de contraseña obligatorio manda
+ * igual (su eslabón va antes).
+ */
+export const SCREEN_HANDLES_FORBIDDEN = new HttpContextToken<boolean>(() => false);
+
 /** Lo que cada eslabón necesita para decidir y actuar; se pasa entero para no acoplarlos a `inject()`. */
 export interface HttpErrorContext {
   error: unknown;
   url: string;
+  screenHandlesForbidden?: boolean;
   auth: Pick<AuthService, 'clearSession' | 'requirePasswordChange'>;
   router: Pick<Router, 'url' | 'navigate'>;
   notifications: Pick<NotificationService, 'error' | 'warning'>;
@@ -118,7 +126,7 @@ export class PasswordChangeRequiredHandler extends HttpErrorHandler {
 
 export class ForbiddenHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
-    return statusOf(ctx) === 403;
+    return statusOf(ctx) === 403 && !ctx.screenHandlesForbidden;
   }
   protected apply(ctx: HttpErrorContext): void {
     ctx.notifications.warning(PERMISSION_MESSAGE);

@@ -1,4 +1,4 @@
-import { HttpClient, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { HttpClient, HttpContext, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -6,6 +6,7 @@ import { throwError } from 'rxjs';
 
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
+import { SCREEN_HANDLES_FORBIDDEN } from './http-error-chain';
 import { jwtInterceptor } from './jwt.interceptor';
 
 /**
@@ -176,6 +177,17 @@ describe('jwtInterceptor', () => {
       expect(notifications.warning).toHaveBeenCalledWith(PERMISSION_MESSAGE);
       expect(auth.clearSession).not.toHaveBeenCalled();
       expect(router.navigate).not.toHaveBeenCalled();
+    });
+
+    // req: RNF-002 (E2-2: la pantalla de Rúbricas explica su 403 de solo lectura)
+    it('si la petición dice que su pantalla explica el 403, no avisa y el error sigue llegando a la pantalla', () => {
+      let error: { status: number } | undefined;
+      http.put('/api/rubrics/4', {}, { context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true) })
+        .subscribe({ error: e => (error = e) });
+      httpMock.expectOne('/api/rubrics/4').flush({ message: 'x' }, { status: 403, statusText: 'err' });
+
+      expect(error?.status).toBe(403);
+      expect(notifications.warning).not.toHaveBeenCalled();
     });
   });
 

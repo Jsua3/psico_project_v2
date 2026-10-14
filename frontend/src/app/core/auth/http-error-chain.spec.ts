@@ -66,6 +66,18 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
     });
 
+    // E2-2: una pantalla que explica su propio 403 (rúbrica de solo lectura) no recibe además el aviso genérico.
+    it('un 403 que la pantalla explica (`screenHandlesForbidden`) no dispara el aviso de permiso', () => {
+      buildHttpErrorChain().handle({ ...ctxBase, error: http(403), url: '/api/rubrics/4', screenHandlesForbidden: true });
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+    });
+
+    it('…pero el cambio de contraseña obligatorio manda igual', () => {
+      router.url = '/portal/rubricas';
+      buildHttpErrorChain().handle({ ...ctxBase, error: passwordChange(), url: '/api/rubrics/4', screenHandlesForbidden: true });
+      expect(router.navigate).toHaveBeenCalledWith(['/cambiar-contrasena'], { queryParams: { returnUrl: '/portal/rubricas' } });
+    });
+
     it('un 403 con otro código sigue siendo falta de permisos', () => {
       run(new HttpErrorResponse({ status: 403, error: { code: 'FORBIDDEN', message: 'No tiene permisos' } }));
       expect(notifications.warning).toHaveBeenCalledWith(PERMISSION_MESSAGE);
