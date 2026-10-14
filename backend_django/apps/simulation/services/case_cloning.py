@@ -28,6 +28,7 @@ from ..models import (
     MapObject,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -68,6 +69,8 @@ MAP = CopySpec(SceneMap, (
 COLLISION_ZONE = CopySpec(CollisionZone, (
     "zone_key", "label", "position_x", "position_y", "width", "height",
 ))
+
+HINT = CopySpec(SceneHint, ("hint_order", "text"))
 
 CHARACTER = CopySpec(CaseCharacter, (
     "character_key", "display_name", "role_label", "portrait_key", "show_in_brief", "display_order",

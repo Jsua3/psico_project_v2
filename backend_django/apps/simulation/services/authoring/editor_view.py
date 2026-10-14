@@ -12,6 +12,7 @@ from apps.simulation.models import (
     PublicationChecklist,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -57,6 +58,11 @@ def editor(case_version_id):
         "tools": [
             clinical_tool_editor(t)
             for t in ClinicalTool.objects.filter(case_version_id=case_version_id).order_by("id")
+        ],
+        "hints": [
+            hint_editor(h)
+            for h in SceneHint.objects.filter(scene_map__case_version_id=case_version_id)
+            .order_by("scene_map_id", "hint_order", "id")
         ],
         "characters": [
             character_editor(c)
@@ -219,6 +225,10 @@ def map_object_editor(o):
         "toolCode": o.tool_code,
         "mapId": o.scene_map_id,
     }
+
+
+def hint_editor(h):
+    return {"id": h.id, "mapId": h.scene_map_id, "order": h.hint_order, "text": h.text}
 
 
 def character_editor(c):

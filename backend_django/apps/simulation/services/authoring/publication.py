@@ -23,6 +23,7 @@ from apps.simulation.models import (
     PublicationChecklistItem,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -129,6 +130,7 @@ def clone_version(case_version_id, actor):
     decision_copies = _clone_decisions(source, clone, node_copies)
     map_copies = _clone_maps(source, clone, node_copies)
     _clone_collision_zones(map_copies)
+    _clone_hints(map_copies)
     character_copies = _clone_characters(source, clone)
     object_copies = _clone_map_objects(map_copies, decision_copies, character_copies)
     _clone_dialogues(map_copies, object_copies, decision_copies)
@@ -169,6 +171,12 @@ def _clone_collision_zones(map_copies):
     for source_map_id, cloned_map in map_copies.items():
         for zone in CollisionZone.objects.filter(scene_map_id=source_map_id).order_by("id"):
             cloning.COLLISION_ZONE.copy(zone, scene_map=cloned_map)
+
+
+def _clone_hints(map_copies):
+    for source_map_id, cloned_map in map_copies.items():
+        for hint in SceneHint.objects.filter(scene_map_id=source_map_id).order_by("hint_order", "id"):
+            cloning.HINT.copy(hint, scene_map=cloned_map)
 
 
 def _clone_characters(source, clone):

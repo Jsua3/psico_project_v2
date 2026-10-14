@@ -33,6 +33,7 @@ from apps.simulation.models import (
     MapObject,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -60,6 +61,7 @@ ENTITIES = {
     CollisionZone: ("id", {"scene_map": "map_key"}, set()),
     MapObject: ("id", {"scene_map": "map_key", "decision_option": "option_key", "character": "character_key"}, set()),
     CaseCharacter: ("id", {}, {"case_version"}),
+    SceneHint: ("hint_order", {"scene_map": "map_key"}, set()),
     DialogueTree: ("id", {"scene_map": "map_key", "map_object": "object_key"}, set()),
     DialogueLine: ("display_order", {"dialogue_tree": "tree_key"}, set()),
     DialogueChoice: ("display_order", {"dialogue_tree": "tree_key", "decision_option": "option_key"}, set()),
@@ -87,7 +89,7 @@ def admin(db):
 
 # ── filas y comparación ──────────────────────────────────────────────────────
 _PARENT = {
-    CollisionZone: "scene_map", MapObject: "scene_map", DialogueTree: "scene_map",
+    CollisionZone: "scene_map", MapObject: "scene_map", DialogueTree: "scene_map", SceneHint: "scene_map",
     DialogueLine: "dialogue_tree", DialogueChoice: "dialogue_tree", RubricCriterion: "rubric",
 }
 
@@ -96,7 +98,7 @@ def _rows(model, version_id):
     """Filas de una entidad de la versión, en el orden en que el clon las crea."""
     if model in (SimulationNode, DecisionOption, SceneMap, ClinicalTool, Rubric, CaseCharacter):
         queryset = model.objects.filter(case_version_id=version_id)
-    elif model in (CollisionZone, MapObject, DialogueTree):
+    elif model in (CollisionZone, MapObject, DialogueTree, SceneHint):
         queryset = model.objects.filter(scene_map__case_version_id=version_id)
     elif model in (DialogueLine, DialogueChoice):
         queryset = model.objects.filter(dialogue_tree__scene_map__case_version_id=version_id)
@@ -174,6 +176,7 @@ def fuente(admin, autor):
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))
+    SceneHint.objects.create(scene_map=scene_map, **_all_distinct(SceneHint))
     character = CaseCharacter.objects.create(case_version=version, **_all_distinct(CaseCharacter))
     obj = MapObject.objects.create(
         scene_map=scene_map, decision_option=decision, character=character,

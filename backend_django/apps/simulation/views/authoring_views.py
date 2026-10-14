@@ -245,6 +245,27 @@ class ToolDetailView(_AuthoringView):
         )
 
 
+# ─── Hint CRUD (E3-5) ───────────────────────────────────────────────────────
+class HintListView(_AuthoringView):
+    def post(self, request, case_version_id, map_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.create_hint(case_version_id, map_id, body), "Pista creada")
+
+
+class HintDetailView(_AuthoringView):
+    def put(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.update_hint(case_version_id, hint_id, body), "Pista actualizada")
+
+    def delete(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_hint(case_version_id, hint_id, self.revision(request)), "Pista eliminada"
+        )
+
+
 # ─── Ficha del caso (E3-4) ──────────────────────────────────────────────────
 class BriefView(_AuthoringView):
     def put(self, request, case_version_id):

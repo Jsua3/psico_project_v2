@@ -183,6 +183,13 @@ class BriefRequest(serializers.Serializer):
     )
 
 
+class HintRequest(serializers.Serializer):
+    """Una pista de escena (E3-5): el texto lo valida el servicio (plano, ≤ 280)."""
+
+    text = serializers.CharField(trim_whitespace=False)
+    hintOrder = _number()
+
+
 class ChecklistRequest(serializers.Serializer):
     contentOriginal = _flag()
     ethicsReviewed = _flag()

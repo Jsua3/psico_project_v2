@@ -36,7 +36,7 @@ TABLES = {
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
-    "attempt_reports", "case_reviews", "case_characters",
+    "attempt_reports", "case_reviews", "case_characters", "scene_hints", "attempt_hint_views",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -71,6 +71,7 @@ UNIQUE_COLUMNS = {
     "dialogue_choices": [("dialogue_tree_id", "choice_key")],
     "clinical_tools": [("case_version_id", "tool_code")],
     "case_characters": [("case_version_id", "character_key")],
+    "attempt_hint_views": [("attempt_id", "hint_id")],
     "simulation_rubric_assignments": [("case_version_id",)],  # parcial: solo active = true
 }
 
@@ -94,6 +95,8 @@ INDEXES = {
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
 ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
+    ("attempt_hint_views", "attempt_id"): "CASCADE",
+    ("attempt_hint_views", "hint_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_characters", "case_version_id"): "CASCADE",
@@ -129,6 +132,7 @@ ON_DELETE = {
     ("rubric_criteria", "rubric_id"): "CASCADE",
     ("rubric_evaluations", "attempt_id"): "CASCADE",
     ("rubrics", "case_version_id"): "CASCADE",
+    ("scene_hints", "scene_map_id"): "CASCADE",
     ("scene_maps", "case_version_id"): "CASCADE",
     ("scene_maps", "node_id"): "CASCADE",
     ("simulation_nodes", "case_version_id"): "CASCADE",

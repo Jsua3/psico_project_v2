@@ -5,6 +5,7 @@ from .attempt import (  # noqa: F401
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptHintView,
     AttemptReport,
     AttemptStatus,
     AttemptWorldState,
@@ -45,5 +46,6 @@ from .world import (  # noqa: F401
     DialogueLine,
     DialogueTree,
     MapObject,
+    SceneHint,
     SceneMap,
 )

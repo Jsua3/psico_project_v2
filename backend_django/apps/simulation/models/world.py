@@ -40,6 +40,28 @@ class SceneMap(models.Model):
         ]
 
 
+class SceneHint(models.Model):
+    """Una pista de una escena (RF-11, decisión 13): el estudiante las pide una a una, sin costo.
+
+    Cuelga del mapa de la escena (cada nodo tiene un mapa). ``hint_order`` es el orden en que se
+    revelan; el texto es plano y de a lo sumo 280 caracteres. Qué pistas vio cada intento vive en
+    ``attempt_hint_views``: el texto de las que no pidió no viaja al jugador.
+    """
+
+    scene_map = models.ForeignKey(
+        SceneMap, on_delete=models.DB_CASCADE, related_name="hints", db_column="scene_map_id"
+    )
+    hint_order = models.IntegerField(default=0, db_default=0)
+    text = models.CharField(max_length=280)
+
+    class Meta:
+        db_table = "scene_hints"
+        ordering = ["hint_order", "id"]
+        indexes = [
+            models.Index(fields=["scene_map", "hint_order"], name="idx_scene_hints_map_order"),
+        ]
+
+
 class CaseCharacter(models.Model):
     """Un personaje del caso (RF-07, decisión 16): dato autorable al que apuntan los objetos PERSON.
 

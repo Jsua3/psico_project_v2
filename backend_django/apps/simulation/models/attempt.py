@@ -143,6 +143,25 @@ class AttemptEvent(models.Model):
         ordering = ["occurred_at", "id"]
 
 
+class AttemptHintView(models.Model):
+    """Una pista que el estudiante ya pidió en un intento (E3-5, C9); única por intento y pista."""
+
+    attempt = models.ForeignKey(
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="hint_views",
+        db_column="attempt_id",
+    )
+    hint = models.ForeignKey(
+        "simulation.SceneHint", on_delete=models.DB_CASCADE, related_name="views", db_column="hint_id",
+    )
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attempt_hint_views"
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "hint"], name="uq_attempt_hint_views_attempt_hint"),
+        ]
+
+
 class AttemptReport(models.Model):
     """El reporte del intento, congelado al completarse (E1-8, RF-22, CU-12, TD-08, N2).
 

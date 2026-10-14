@@ -13,7 +13,13 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import case_brief, game_service, rubric_service, world_service
+from apps.simulation.services import (
+    case_brief,
+    game_service,
+    hints as hint_service,
+    rubric_service,
+    world_service,
+)
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
@@ -81,6 +87,29 @@ class AttemptView(APIView):
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt(
             attempt_id, _attempt_token(request), request.user,
+        ))
+
+
+class HintStateView(APIView):
+    """C9 · Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan."""
+
+    permission_classes = [policy_permission("attempt", "play")]
+
+    def get(self, request, attempt_id):
+        return _private_ok(hint_service.get_hint_state(
+            attempt_id, _attempt_token(request), request.user,
+        ))
+
+
+class NextHintView(APIView):
+    """C9 · Pedir la siguiente pista de la escena (sin costo, una sola vez por ``requestId``)."""
+
+    permission_classes = [policy_permission("attempt", "play")]
+
+    def post(self, request, attempt_id):
+        token = request.data.get("attemptToken") or _attempt_token(request)
+        return _private_ok(hint_service.reveal_next_hint(
+            attempt_id, token, request.user, request_id=request.data.get("requestId"),
         ))
 
 

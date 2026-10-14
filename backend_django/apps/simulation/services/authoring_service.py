@@ -32,6 +32,7 @@ from .authoring import (
     characters,
     editor_view,
     graph,
+    hints,
     lifecycle,
     publication,
     scenes,
@@ -145,6 +146,22 @@ def update_tool(case_version_id, tool_id, request):
 @auditable("ADMIN_DELETE_TOOL", "TOOL", 1)
 def delete_tool(case_version_id, tool_id, revision=None):
     return tools.delete_tool(case_version_id, tool_id, revision)
+
+
+# ─── Pistas por escena (E3-5) ────────────────────────────────────────────────
+@auditable("ADMIN_CREATE_HINT", "MAP", 1)
+def create_hint(case_version_id, map_id, request):
+    return hints.create_hint(case_version_id, map_id, request)
+
+
+@auditable("ADMIN_UPDATE_HINT", "HINT", 1)
+def update_hint(case_version_id, hint_id, request):
+    return hints.update_hint(case_version_id, hint_id, request)
+
+
+@auditable("ADMIN_DELETE_HINT", "HINT", 1)
+def delete_hint(case_version_id, hint_id, revision=None):
+    return hints.delete_hint(case_version_id, hint_id, revision)
 
 
 # ─── Ficha del caso (E3-4) ───────────────────────────────────────────────────

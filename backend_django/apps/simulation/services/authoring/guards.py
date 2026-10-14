@@ -21,6 +21,7 @@ from apps.simulation.models import (
     DecisionOption,
     DialogueTree,
     MapObject,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -45,6 +46,8 @@ _REFERENCES = {
                    "scene_map__case_version_id", "scene_map"),
     CaseCharacter: ("Personaje no encontrado: {id}", "El personaje {id} no pertenece a la versión {version}",
                     "case_version_id", None),
+    SceneHint: ("Pista no encontrada: {id}", "La pista {id} no pertenece a la versión {version}",
+                "scene_map__case_version_id", "scene_map"),
 }
 
 
