@@ -53,9 +53,14 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
     expect(files['trace']).not.toMatch(/\.review-summary-card--action:hover,\s*\.review-summary-card--action:focus-visible/);
   });
 
-  it('el botón pixel se hunde al presionar, no al pasar el cursor', () => {
-    expect(files['dashboard']).toMatch(/\.pixel-button:active \{\s*transform: translate\(2px, 2px\);/);
-    expect(files['dashboard']).not.toMatch(/\.pixel-button:hover \{\s*transform/);
+  it('el botón se hunde al presionar, no al pasar el cursor', () => {
+    // F7-1: el panel ya no define botones propios; sus enlaces son `ui-button`, que responde al presionar con `scale`
+    // y solo cambia de color en hover (con puntero fino). Ninguna regla del panel mueve nada al pasar el cursor.
+    const button = source('../app/shared/ui/button/ui-button.scss');
+    expect(button).toMatch(/&:active:not\(\[aria-disabled='true'\], :disabled\) \{[^}]*scale: 0\.97;/);
+    expect(button).not.toMatch(/ds-hover \{[^}]*(transform|scale|translate)/);
+    expect(files['dashboard']).not.toContain('.pixel-button');
+    expect(files['dashboard']).not.toMatch(/:hover[^{]*\{[^}]*(transform|translate|scale)/);
   });
 });
 

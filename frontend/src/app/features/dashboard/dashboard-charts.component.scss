@@ -1,251 +1,113 @@
-/* Gráficas formativas — extraídas de dashboard.component.scss */
+// Gráficas formativas del panel de docencia y administración (plan visual F7-1): listas de barras con texto
+// (rótulo y valor siempre visibles; la barra es decorativa), solo tokens --ds-*, sin sombras duras ni puntos de color
+// (VD-3). El valor de cada barra entra como variable (`[style.--dc-ratio]`) y el relleno escala con transform.
 :host {
-  --dash-blue: var(--ds-primary);
-  --dash-blue-deep: var(--ds-info);
-  --dash-purple: #4b00b5; /* legado sin token: lo retira F5-1 (VD-2, violeta solo simulador) */
-  --dash-purple-main: #4b00b5;
-  --dash-purple-dark: #2a006b;
-  --dash-green: var(--ds-success);
-  --dash-orange: #f59e0b;
-  --dash-red: var(--ds-danger);
-  --dash-muted: var(--ds-text-2);
-  --dash-pixel-shadow: 5px 5px 0 rgba(75, 0, 181, 0.06);
-  --dash-border: 2px solid rgba(75, 0, 181, 0.14);
   display: block;
   min-width: 0;
 }
 
-/* ── Panel pixel (base compartida) ───────────────────────── */
-.pixel-card {
-  position: relative;
-  overflow: hidden;
-  background: #ffffff;
-  border: var(--dash-border);
-  border-radius: 20px;
-  box-shadow: var(--dash-pixel-shadow);
-}
-
-.pixel-card::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 8px;
-  height: 8px;
-  background: rgba(124, 77, 255, 0.45);
-  box-shadow:
-    -14px 0 0 rgba(0, 82, 130, 0.25),
-    -28px 0 0 rgba(46, 125, 50, 0.22);
-  pointer-events: none;
-}
-
-/* ── Estado vacío compacto ───────────────────────────────── */
-.dashboard-empty {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 8px 0;
-}
-
-.dashboard-empty--compact {
-  padding: 20px 4px;
-  align-items: center;
-}
-
-/* ── Gráficas ────────────────────────────────────────────── */
-.charts-grid {
+.dc-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--ds-space-4);
 }
 
-.chart-card {
-  padding: 18px 20px;
-  min-height: 220px;
+.dc-chart {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-3);
+  min-width: 0;
 }
 
-.chart-card__head h2 {
+.dc-chart__title {
   margin: 0;
-  color: var(--dash-purple-dark);
-  font-size: 1rem;
-  font-weight: 800;
+  font-size: var(--ds-type-body-size);
+  line-height: var(--ds-type-body-line);
+  font-weight: var(--ds-type-h3-weight);
 }
 
-.chart-card__head p {
-  margin: 4px 0 0;
-  color: var(--dash-muted);
-  font-size: 0.82rem;
+.dc-chart__sub,
+.dc-chart__empty,
+.dc-chart__meta {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
 }
 
-.chart-skeleton {
-  min-height: 140px;
-  border-radius: 12px;
+.dc-chart__empty {
+  padding-block: var(--ds-space-5);
 }
 
-.bar-chart {
+.dc-bars {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
-  gap: 12px;
-  align-items: end;
-  min-height: 150px;
-  margin-top: 16px;
+  gap: var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.bar-chart__item {
+.dc-bar {
   display: grid;
-  gap: 6px;
-  justify-items: center;
-  text-align: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track';
+  gap: var(--ds-space-1) var(--ds-space-3);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
 }
 
-.bar-chart__item strong {
-  color: var(--dash-purple-dark);
-  font-size: 0.95rem;
+.dc-bar__label {
+  grid-area: label;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.bar-chart__item span {
-  color: var(--dash-muted);
-  font-size: 0.72rem;
-  line-height: 1.2;
+.dc-bar__value {
+  grid-area: value;
+  color: var(--ds-text-2);
+  font-variant-numeric: tabular-nums;
 }
 
-.bar-chart__bar-wrap {
-  display: flex;
-  align-items: flex-end;
-  width: 100%;
-  height: 110px;
-  padding: 0 6px;
-}
-
-.bar-chart__bar {
-  display: block;
-  width: 100%;
-  min-height: 4px;
-  border-radius: 8px 8px 4px 4px;
-  background: var(--dash-purple-main);
-}
-
-.bar-chart__bar--purple { background: var(--dash-purple-main); }
-.bar-chart__bar--blue { background: var(--dash-blue); }
-.bar-chart__bar--green { background: var(--dash-green); }
-.bar-chart__bar--orange { background: var(--dash-orange); }
-.bar-chart__bar--red { background: var(--dash-red); }
-
-.bar-chart--horizontal {
-  display: grid;
-  gap: 10px;
-  align-items: stretch;
-  margin-top: 16px;
-}
-
-.bar-row {
-  display: grid;
-  grid-template-columns: minmax(72px, 0.9fr) minmax(0, 2fr) 36px;
-  gap: 10px;
-  align-items: center;
-}
-
-.bar-row span {
-  color: var(--dash-muted);
-  font-size: 0.78rem;
-}
-
-.bar-row strong {
-  color: var(--dash-purple-dark);
-  font-size: 0.85rem;
-  text-align: right;
-}
-
-.bar-row__track {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(75, 0, 181, 0.08);
+.dc-bar__track {
+  grid-area: track;
+  height: 0.5rem;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-surface-2);
   overflow: hidden;
 }
 
-.bar-row__fill {
+.dc-bar__fill {
   display: block;
   height: 100%;
-  border-radius: inherit;
-  min-width: 4px;
+  background: var(--ds-primary);
+  transform: scaleX(var(--dc-ratio, 0));
+  transform-origin: left center;
 }
 
-.bar-row__fill--purple { background: var(--dash-purple-main); }
-.bar-row__fill--blue { background: var(--dash-blue); }
-.bar-row__fill--green { background: var(--dash-green); }
-.bar-row__fill--orange { background: var(--dash-orange); }
-.bar-row__fill--red { background: var(--dash-red); }
-
-.progress-ring {
-  width: 120px;
-  height: 120px;
-  transform: rotate(-90deg);
+// El tono es información secundaria (el rótulo ya la dice): el portal usa su azul y los colores de estado de la piel.
+.dc-tone--green {
+  background: var(--ds-success);
 }
 
-.progress-ring__track {
-  fill: none;
-  stroke: rgba(75, 0, 181, 0.12);
-  stroke-width: 8;
+.dc-tone--orange {
+  background: var(--ds-warning-text);
 }
 
-.progress-ring__fill {
-  fill: none;
-  stroke: var(--dash-purple-main);
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dasharray 400ms ease;
+.dc-tone--red {
+  background: var(--ds-danger);
 }
 
-.group-progress-ring {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  align-items: center;
-  justify-content: start;
-  justify-items: center;
-  align-content: center;
-  gap: 16px;
-  min-height: 180px;
+.dc-tone--blue,
+.dc-tone--purple {
+  background: var(--ds-primary);
 }
 
-.group-progress-ring__meta {
-  text-align: center;
-}
-
-.group-progress-ring__meta strong {
-  display: block;
-  color: var(--dash-purple-dark);
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-.group-progress-ring__meta span {
-  color: var(--dash-muted);
-  font-size: 0.82rem;
-}
-
-.group-progress-ring__meta small {
-  display: block;
-  margin-top: 4px;
-  color: var(--dash-muted);
-  font-size: 0.76rem;
-}
-
-/* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 912px) {
-  .charts-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .group-progress-ring {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-}
-
-@media (max-width: 390px) {
-  .charts-grid {
-    grid-template-columns: 1fr;
+// Con colores forzados los fondos desaparecen: el relleno se dibuja con el color del texto del sistema.
+@media (forced-colors: active) {
+  .dc-bar__fill {
+    background: CanvasText;
   }
 }

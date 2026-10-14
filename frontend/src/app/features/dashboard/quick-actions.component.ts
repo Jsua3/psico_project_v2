@@ -1,6 +1,8 @@
-import { Component, input, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+
+import { UiCard } from '../../shared/ui/card/ui-card';
 
 export interface QuickAction {
   label: string;
@@ -10,130 +12,66 @@ export interface QuickAction {
 }
 
 /**
- * Panel de acciones rápidas del dashboard, extraído de DashboardComponent.
- *
- * Presentacional: recibe la lista de accesos directos y los pinta como tarjetas
- * enlazadas. Sin lógica ni llamadas de red.
+ * Accesos del panel de docencia y administración (plan visual F7-1): ÚNICO sitio donde el panel ofrece sus destinos
+ * (antes salían tres veces: cabecera, tarjeta de estado y acciones rápidas). Presentacional: cada acceso es una
+ * tarjeta enlazada (`a[ui-card]`) con el rótulo como nombre accesible.
  */
 @Component({
   selector: 'app-quick-actions',
-  standalone: true,
-  imports: [RouterLink, MatIconModule],
+  imports: [RouterLink, MatIconModule, UiCard],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="quick-actions pixel-panel" aria-label="Acciones rápidas">
-      <p class="pixel-section-title">Acciones rápidas</p>
-      <div class="quick-actions__grid">
-        @for (action of actions(); track action.label) {
-          <a class="quick-action-card" [class.quick-action-card--accent]="action.accent" [routerLink]="action.route">
-            <mat-icon aria-hidden="true">{{ action.icon }}</mat-icon>
-            <span>{{ action.label }}</span>
+    <ul class="qa-list">
+      @for (action of actions(); track action.route) {
+        <li>
+          <a ui-card class="qa-card" [routerLink]="action.route">
+            <mat-icon class="qa-card__icon" aria-hidden="true">{{ action.icon }}</mat-icon>
+            <span class="qa-card__label">{{ action.label }}</span>
+            <mat-icon class="qa-card__go" aria-hidden="true">arrow_forward</mat-icon>
           </a>
-        }
-      </div>
-    </section>
+        </li>
+      }
+    </ul>
   `,
-  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host {
-      --dash-purple-main: #4b00b5; /* legado sin token: lo retira F5-1 (VD-2, violeta solo simulador) */
-      --dash-ink: var(--ds-text-1);
-      --dash-pixel-shadow: 5px 5px 0 rgba(75, 0, 181, 0.06);
-      --dash-border: 2px solid rgba(75, 0, 181, 0.14);
       display: block;
       min-width: 0;
     }
 
-    .pixel-panel {
-      position: relative;
-      overflow: hidden;
-      background: #ffffff;
-      border: var(--dash-border);
-      border-radius: 20px;
-      box-shadow: var(--dash-pixel-shadow);
-    }
-
-    .pixel-panel::before {
-      content: '';
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 8px;
-      height: 8px;
-      background: rgba(124, 77, 255, 0.45);
-      box-shadow:
-        -14px 0 0 rgba(0, 82, 130, 0.25),
-        -28px 0 0 rgba(46, 125, 50, 0.22);
-      pointer-events: none;
-    }
-
-    .pixel-section-title {
-      margin: 0 0 10px;
-      color: #5a3e86;
-      font-size: 0.78rem;
-      font-weight: 900;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .quick-actions {
-      padding: 18px 20px;
-    }
-
-    .quick-actions__grid {
+    .qa-list {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      gap: var(--ds-space-3);
+      margin: 0;
+      padding: 0;
+      list-style: none;
     }
 
-    .quick-action-card {
+    .qa-card {
       display: flex;
       align-items: center;
-      gap: 10px;
-      min-height: 54px;
-      padding: 12px 14px;
-      border: var(--dash-border);
-      border-radius: 14px;
-      background: #fff;
-      color: var(--dash-ink);
-      text-decoration: none;
-      font-size: 0.86rem;
-      font-weight: 800;
-      transition: box-shadow 150ms ease, border-color 150ms ease;
+      gap: var(--ds-space-3);
+      min-height: var(--ds-target-min);
+      height: 100%;
     }
 
-    .quick-action-card mat-icon {
-      color: var(--dash-purple-main);
+    .qa-card__icon {
+      flex: none;
+      color: var(--ds-primary);
     }
 
-    @media (hover: hover) and (pointer: fine) {
-      .quick-action-card:hover {
-        box-shadow: var(--dash-pixel-shadow);
-      }
+    .qa-card__label {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: var(--ds-type-h3-weight);
     }
 
-    .quick-action-card:focus-visible {
-      outline: 3px solid var(--psy-focus);
-      outline-offset: 2px;
+    .qa-card__go {
+      flex: none;
+      color: var(--ds-text-2);
     }
-
-    .quick-action-card--accent {
-      background: linear-gradient(135deg, rgba(75, 0, 181, 0.08), #fff);
-      border-color: rgba(75, 0, 181, 0.24);
-    }
-
-    @media (max-width: 912px) {
-      .quick-actions__grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 390px) {
-      .quick-actions__grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  `]
+  `],
 })
 export class QuickActionsComponent {
   readonly actions = input.required<QuickAction[]>();

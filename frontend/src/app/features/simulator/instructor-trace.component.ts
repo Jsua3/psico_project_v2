@@ -4,6 +4,7 @@ import { Component, OnDestroy, OnInit, inject, signal, ChangeDetectionStrategy }
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { ActivatedRoute } from '@angular/router';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { AttemptTrace, AttemptTimelineEntry, RecentAttempt, ReflectionTrace, RubricCriterionView, RubricEvaluationView, RubricSummary, TraceEvent } from '../../core/models/simulation.model';
@@ -1268,6 +1269,7 @@ interface FeedbackPanelView {
 export class InstructorTraceComponent implements OnInit, OnDestroy {
   private readonly instructorApi = inject(InstructorApi);
   private readonly authService = inject(AuthService);
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   readonly attempts = signal<RecentAttempt[]>([]);
   readonly trace = signal<AttemptTrace | null>(null);
@@ -1792,7 +1794,9 @@ export class InstructorTraceComponent implements OnInit, OnDestroy {
         this.error.set('');
         this.loading.set(false);
         if (attempts.length && !this.trace()) {
-          this.open(attempts[0]);
+          // «Ver detalle» del panel docente llega con `?intento=<id>`; sin él (o con un id fuera de la lista) abre el más reciente.
+          const requested = this.route?.snapshot.queryParamMap.get('intento');
+          this.open(attempts.find(item => item.attemptId === requested) ?? attempts[0]);
         }
       },
       error: () => {

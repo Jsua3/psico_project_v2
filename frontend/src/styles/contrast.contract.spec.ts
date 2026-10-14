@@ -133,7 +133,11 @@ describe('contraste: portal', () => {
     const dash = source('../app/features/dashboard/dashboard.component.scss');
     const trace = source('../app/features/simulator/instructor-trace.component.ts');
     expect(dash).not.toContain('outline: 3px solid rgba(124, 77, 255, 0.45);');
-    expect(dash).toMatch(/\.pixel-button:focus-visible \{\s*outline: 3px solid var\(--psy-focus\);/);
+    // F7-1: el panel ya no trae botones propios (`.pixel-button` con su anillo local): sus enlaces son `ui-button` y
+    // `a[ui-card]` y heredan el anillo global; ninguna regla local lo reasigna ni lo apaga.
+    expect(dash).not.toContain('.pixel-button');
+    expect(dash).not.toMatch(/outline\s*:/);
+    expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
     expect(trace).not.toContain('outline: 3px solid rgba(111, 76, 175, .28);');
   });
 });
