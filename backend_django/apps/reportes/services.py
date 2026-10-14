@@ -162,9 +162,13 @@ def generar_reporte_grupo(grupo_id, case_version_id, usuario):
     grupo = Grupo.objects.filter(pk=grupo_id).first()
     if not grupo:
         raise NotFound(f"Grupo no encontrado: {grupo_id}")
-    # Un docente solo reporta sus grupos (RF-25); el ADMIN reporta cualquiera.
-    if getattr(usuario, "role", None) != "ADMIN" and grupo.profesor_id != usuario.id:
-        raise PermissionDenied("No tienes permiso para ver el reporte de este grupo")
+    # Un docente solo reporta sus grupos (RF-25) y activos (D-13); el ADMIN reporta cualquiera.
+    if getattr(usuario, "role", None) != "ADMIN":
+        if grupo.profesor_id != usuario.id:
+            raise PermissionDenied("No tienes permiso para ver el reporte de este grupo")
+        if not grupo.activo:
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            raise PermissionDenied("El grupo no está activo: su reporte ya no se genera")
     simulacion = (
         _build_simulation_report(grupo, case_version_id)
         if case_version_id is not None
@@ -340,6 +344,7 @@ def generar_reporte_estudiante(student_id, case_version_id, limit, usuario):
     """
     estudiante = User.objects.filter(pk=student_id, role="ESTUDIANTE").first()
     if estudiante is None:
+        # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
         raise NotFound(f"Estudiante no encontrado: {student_id}")
     # None = ADMIN (sin restricción); para el resto, solo los estudiantes de sus grupos activos.
     alcance = student_ids_for_instructor(usuario)

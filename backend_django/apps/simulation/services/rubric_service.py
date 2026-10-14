@@ -71,6 +71,7 @@ def _decimal(value, default="0"):
     try:
         return Decimal(str(value))
     except InvalidOperation:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
         raise ValidationError("La calificación debe ser un número")
 
 
@@ -458,6 +459,7 @@ def save_attempt_evaluation(attempt_id, data, instructor):
         try:
             cid = int(item.get("criterionId") or item.get("criterion_id"))
         except (TypeError, ValueError):
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             raise ValidationError("Cada calificacion necesita su criterionId")
         level = item.get("level")
         score = item.get("score")
@@ -559,6 +561,7 @@ def owner_evaluation_view(attempt_id, actor):
     if not attempt:
         raise NotFound("Intento no encontrado")
     if attempt.student_id != actor.id:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
         raise PermissionDenied("No tiene acceso a esta evaluación")
     evaluations = []
     queryset = (

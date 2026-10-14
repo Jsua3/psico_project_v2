@@ -223,3 +223,45 @@ def test_la_migracion_enciende_la_segunda_oportunidad_en_las_versiones_existente
         "feedbackTiming": "AT_CLOSE", "secondChance": True,
     }
     assert json.loads(migration.with_second_chance('{"secondChance": false}')) == {"secondChance": False}
+
+
+def test_con_la_bandera_encendida_un_intento_en_pausa_no_trae_el_reporte_en_vivo(
+    estudiante, case_version_id, settings
+):
+    """Revisión de E1 (I-4): antes del cierre no viaja la evaluación por el reporte en vivo."""
+    settings.FEEDBACK_AT_CLOSE_ONLY = True
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    _decide(client, attempt_id, token, _option(node_id, "ADEQUATE").id)
+    paused = client.post(
+        f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
+    ).data["data"]
+
+    state = client.get(f"{BASE}/attempts/{attempt_id}", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]
+    active = client.get(f"{BASE}/cases/{case_version_id}/active-attempt").data["data"]
+
+    for payload in (paused, state, active):
+        assert payload["status"] == "PAUSED"
+        assert payload["completionReport"] is None
+        assert payload["supportResources"], "los recursos de apoyo siguen llegando"
+
+
+def test_con_la_bandera_apagada_el_intento_en_pausa_conserva_su_resumen(estudiante, case_version_id, settings):
+    settings.FEEDBACK_AT_CLOSE_ONLY = False
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+
+    paused = client.post(
+        f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
+    ).data["data"]
+
+    assert paused["completionReport"]["status"] == "PAUSED"
+
+
+def test_la_migracion_0009_funciona_sobre_filas_reales(db):
+    migration = importlib.import_module("apps.simulation.migrations.0009_case_rules_existing_second_chance")
+    from django.apps import apps as django_apps
+
+    CaseVersion.objects.update(rules="{}")
+
+    migration.enable_second_chance_on_existing_versions(django_apps, None)
+
+    assert {json.loads(rules).get("secondChance") for rules in CaseVersion.objects.values_list("rules", flat=True)} == {True}

@@ -238,3 +238,20 @@ def test_la_migracion_de_datos_calcula_el_acumulador_con_el_calculo_viejo():
     expected = active_duration_seconds(at(0), at(90 + 86_400), marks)
 
     assert migration.compute_active_seconds(at(0), at(90 + 86_400), marks) == pytest.approx(expected, abs=1)
+
+
+def test_la_migracion_0007_funciona_sobre_filas_reales(estudiante, case_version_id):
+    from django.apps import apps as django_apps
+
+    migration = importlib.import_module("apps.simulation.migrations.0007_attempt_active_time_backfill")
+    attempt_id, _ = _start(cl(estudiante), case_version_id)
+    started = SimulationAttempt.objects.get(pk=attempt_id).started_at
+    AttemptEvent.objects.create(attempt_id=attempt_id, event_type="WORLD_POSITION_UPDATED")
+    AttemptEvent.objects.filter(attempt_id=attempt_id).update(occurred_at=started + timedelta(seconds=40))
+    SimulationAttempt.objects.filter(pk=attempt_id).update(active_seconds=0, last_activity_at=None)
+
+    migration.backfill_active_time(django_apps, None)
+
+    attempt = SimulationAttempt.objects.get(pk=attempt_id)
+    assert attempt.active_seconds == pytest.approx(40, abs=1)
+    assert attempt.last_activity_at is not None

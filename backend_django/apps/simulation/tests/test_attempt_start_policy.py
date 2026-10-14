@@ -208,3 +208,66 @@ def test_la_migracion_de_datos_deja_el_intento_abierto_mas_reciente_de_cada_par(
     ]
 
     assert sorted(migration.superseded_attempt_ids(rows)) == ["a", "c"]
+
+
+@pytest.mark.req("RNF-08")
+def test_force_new_espera_el_cerrojo_y_no_pisa_un_intento_que_se_completo(real_commits, settings):
+    """Revisión de E1 (I-2): un reemplazo heredado que leyó «abierto» no puede sobrescribir un intento que
+    otra orden acaba de completar; el cerrojo lo hace esperar y releer."""
+    import threading
+    import time
+
+    from apps.simulation.services.attempt_lock import lock_attempt_row
+
+    settings.ATTEMPT_START_STRICT = False
+    suffix = uuid.uuid4().hex[:8]
+    profesor = User.objects.get(email="profesora@psychosim.edu.co")
+    version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    estudiante = User.objects.create_user(
+        email=f"fn_{suffix}@x.com", password="pass1234", nombre="Fn", apellido="Cerrojo", role="ESTUDIANTE"
+    )
+    grupo = Grupo.objects.create(nombre=f"Fn {suffix}", codigo=f"FN-{suffix}", profesor=profesor)
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante)
+    GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+    started = timezone.now()
+    first_id = game_service.start_attempt(version.id, estudiante)["attemptId"]
+    holding = threading.Event()
+
+    def completer():
+        with transaction.atomic():  # la orden que está cerrando el intento
+            lock_attempt_row(first_id)
+            holding.set()
+            time.sleep(0.8)  # tiempo de sobra para que la otra orden lea «abierto» y espere el cerrojo
+            now = timezone.now()
+            SimulationAttempt.objects.filter(pk=first_id).update(status="COMPLETED", ended_at=now, locked_at=now)
+
+    def starter():
+        assert holding.wait(5)
+        return game_service.start_attempt(version.id, estudiante, force_new=True)
+
+    try:
+        outcomes = run_concurrently(completer, starter)
+
+        assert outcomes[0].error is None and outcomes[1].error is None, [o.error for o in outcomes]
+        assert SimulationAttempt.objects.get(pk=first_id).status == "COMPLETED"
+        state = outcomes[1].value
+        assert state["resumed"] is False and state["attemptId"] != first_id
+        assert SimulationAttempt.objects.get(pk=state["attemptId"]).status == "IN_PROGRESS"
+    finally:
+        SimulationAttempt.objects.filter(student_id=estudiante.id).delete()
+        GrupoCaseVersion.objects.filter(grupo=grupo).delete()
+        GrupoEstudiante.objects.filter(grupo=grupo).delete()
+        grupo.delete()
+        AuditLog.objects.filter(occurred_at__gte=started).delete()
+        estudiante.delete()
+
+
+def test_el_inicio_acepta_request_id_y_continuar_informa_resumed(estudiante, case_version_id):
+    client, first = _open_attempt(estudiante, case_version_id, "SP-REQID")
+
+    again = _start(client, case_version_id, requestId="req-inicio-0001")
+    active = client.get(f"{BASE}/cases/{case_version_id}/active-attempt")
+
+    assert again.status_code == 200 and again.data["data"]["attemptId"] == first["attemptId"]
+    assert active.status_code == 200 and active.data["data"]["resumed"] is True
+    assert _start(client, case_version_id, requestId="no vale").status_code == 400

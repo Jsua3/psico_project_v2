@@ -6,10 +6,12 @@ hospital-urgencias ⇄ hospital-sala-escucha → comisaria-recepcion ⇄
 comisaria-consultorio, con 6 decisiones canónicas.
 """
 import uuid
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
@@ -108,7 +110,24 @@ def _enter(client, attempt_id, token, target, door_key=None):
     )
 
 
+#: Segundos que el reloj simulado ha avanzado desde el inicio de la prueba (ver ``_deliberate_clock``).
+_CLOCK = {"seconds": 0}
+
+
+@pytest.fixture(autouse=True)
+def _deliberate_clock(monkeypatch):
+    """Cada decisión del recorrido es deliberada: el reloj avanza 3 s entre una y la siguiente.
+
+    Sin eso, la misma opción dos veces en menos de 2 s es un doble clic (E1-3) y la segunda
+    oportunidad del recorrido («la 1.ª respuesta mala se reintenta y la 2.ª se registra») no se gasta.
+    """
+    _CLOCK["seconds"] = 0
+    real_now = timezone.now
+    monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=_CLOCK["seconds"]))
+
+
 def _decide(client, attempt_id, token, option_key, case_version_id):
+    _CLOCK["seconds"] += 3
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
     # Cada llamada es una respuesta deliberada: lleva su requestId, como el cliente real (E1-3);
     # sin él, la misma opción dos veces en menos de 2 s es un doble clic y no gasta el reintento.

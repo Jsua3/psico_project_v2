@@ -217,3 +217,25 @@ def test_el_check_de_la_base_rechaza_un_nivel_fuera_del_vocabulario(admin, attem
 
 def test_el_estudiante_dueno_es_quien_inicio_el_intento(estudiante, attempt):
     assert SimulationAttempt.objects.get(pk=attempt).student_id == estudiante.id
+
+
+def test_la_migracion_deriva_el_nivel_de_las_calificaciones_anteriores_a_e1(admin, attempt):
+    """Revisión de E1 (I-5): una evaluación guardada con scores 1–5 no queda sin niveles."""
+    import importlib
+
+    from django.apps import apps as django_apps
+
+    migration = importlib.import_module("apps.simulation.migrations.0012_formative_levels_backfill")
+    client = cl(admin)
+    ids = _criteria(client, attempt)
+    _save(client, attempt, [{"criterionId": c, "score": s} for c, s in zip(ids, [4.0, 3.0, 5.0, 1.0, 2.0, 3.0])])
+    CriterionScore.objects.filter(rubric_evaluation__attempt_id=attempt).update(level=None)  # fila anterior a E1
+
+    migration.backfill_levels(django_apps, None)
+
+    by_criterion = dict(CriterionScore.objects.filter(
+        rubric_evaluation__attempt_id=attempt).values_list("rubric_criterion_id", "level"))
+    expected = ["LOGRADO", "LOGRADO", "DESTACADO", "EN_INICIO", "EN_PROCESO", "LOGRADO"][: len(ids)]
+    assert [by_criterion[c] for c in ids] == expected
+    view = client.get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+    assert view["overallLevel"] is not None

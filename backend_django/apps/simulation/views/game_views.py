@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from shared.idempotency import normalize_request_id
 from shared.permissions import IsEstudianteOrAdmin
 from shared.response import api_ok
 
@@ -41,6 +42,7 @@ class StartAttemptView(APIView):
     def post(self, request):
         ser = StartAttemptRequest(data=request.data)
         ser.is_valid(raise_exception=True)
+        normalize_request_id(ser.validated_data.get("requestId"))  # 400 si el formato no vale
         state = game_service.start_attempt(
             ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"]
         )

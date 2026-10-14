@@ -4,6 +4,9 @@ from rest_framework import serializers
 class StartAttemptRequest(serializers.Serializer):
     caseVersionId = serializers.IntegerField()
     forceNew = serializers.BooleanField(required=False, default=False)
+    # Reservado (C1): iniciar ya es idempotente por el índice único del intento abierto; se valida
+    # el formato para que un cliente que lo envíe no reciba un 500 cuando se use.
+    requestId = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)
 
 
 def _request_id_field():

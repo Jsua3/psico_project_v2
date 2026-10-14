@@ -5,6 +5,7 @@ aplica. Con ``@locked_attempt`` (``SELECT … FOR UPDATE`` de la fila del intent
 ``requestId`` por orden, la misma orden dos veces deja **un** evento y la **misma**
 respuesta; sin ``requestId``, la misma decisión dentro de 2 s es un duplicado.
 """
+import json
 import uuid
 from datetime import timedelta
 from types import SimpleNamespace
@@ -104,12 +105,34 @@ def test_un_doble_clic_sobre_una_opcion_riesgosa_no_gasta_la_segunda_oportunidad
     assert len(_events(attempt_id, *REGISTERED)) == 1
 
 
-def test_con_request_id_distintos_una_respuesta_deliberada_no_es_un_duplicado(estudiante, case_version_id):
+def test_un_doble_clic_con_un_request_id_por_clic_tampoco_gasta_la_segunda_oportunidad(
+    estudiante, case_version_id
+):
+    """Un cliente que genera un id por invocación del manejador manda dos ids en un doble clic."""
+    c = cl(estudiante)
+    attempt_id, token, node = _begin(c, case_version_id)
+    bad = _option(node["id"], "RISKY", "INADEQUATE")
+
+    first = _decide(c, attempt_id, token, bad.id, requestId="req-primer-clic-01")
+    second = _decide(c, attempt_id, token, bad.id, requestId="req-segundo-clic-2")
+
+    assert first.status_code == second.status_code == 200
+    assert second.data["data"] == first.data["data"]
+    assert first.data["data"]["feedback"]["retryRequired"] is True
+    assert len(_events(attempt_id, *RETRY)) == 1
+    assert _events(attempt_id, *REGISTERED) == []
+
+
+def test_con_request_id_distintos_y_pasada_la_ventana_la_respuesta_es_deliberada(
+    estudiante, case_version_id, monkeypatch
+):
     c = cl(estudiante)
     attempt_id, token, node = _begin(c, case_version_id)
     bad = _option(node["id"], "RISKY", "INADEQUATE")
 
     first = _decide(c, attempt_id, token, bad.id, requestId="req-primera-resp")
+    real_now = timezone.now
+    monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=5))
     second = _decide(c, attempt_id, token, bad.id, requestId="req-segunda-resp")
 
     assert first.data["data"]["feedback"]["retryRequired"] is True
@@ -256,7 +279,8 @@ def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(committed
 
 
 def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(committed_attempt):
-    """Dos clientes (request_id distintos) eligen la misma opción adecuada: avanza uno solo."""
+    """Dos clientes (request_id distintos) eligen la misma opción a la vez: avanza una sola vez y
+    ambos reciben la misma respuesta (la segunda se trata como un duplicado, no como un error)."""
     a = committed_attempt
     good = _option(a.node["id"], "ADEQUATE")
 
@@ -267,11 +291,39 @@ def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(committed_attem
 
     outcomes = run_concurrently(decide("req-pestana-uno-1"), decide("req-pestana-dos-2"))
 
-    winners = [o for o in outcomes if o.error is None]
-    losers = [o for o in outcomes if o.error is not None]
-    assert len(winners) == 1 and len(losers) == 1
-    assert isinstance(losers[0].error, ValidationError)
+    assert [o.error for o in outcomes] == [None, None]
+    assert outcomes[0].value["currentNode"]["id"] == outcomes[1].value["currentNode"]["id"] == good.target_node_id
     assert len(_events(a.attempt_id, *REGISTERED)) == 1
     attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
     assert attempt.accumulated_score == good.score_delta  # los efectos se aplicaron una sola vez
     assert attempt.current_node_id == good.target_node_id
+
+
+def test_dos_decisiones_distintas_a_la_vez_desde_el_mismo_nodo_se_serializan(committed_attempt):
+    """Con el cerrojo, la segunda orden lee el estado que dejó la primera: una opción que ya no
+    está disponible desde la escena actual se rechaza (sin cerrojo, ambas avanzarían)."""
+    a = committed_attempt
+    options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], classification="ADEQUATE")[:1])
+    other = DecisionOption.objects.filter(source_node_id=a.node["id"]).exclude(pk=options[0].pk).first()
+    # Se aplana el reintento: sin segunda oportunidad la otra opción también avanza el intento.
+    CaseVersion.objects.filter(pk=SimulationAttempt.objects.get(pk=a.attempt_id).case_version_id).update(
+        rules=json.dumps({"secondChance": False})
+    )
+
+    def decide(option):
+        return lambda: game_service.choose_decision(
+            a.attempt_id, a.token, option.id, a.student, request_id=f"req-dist-{option.id:05d}"
+        )
+
+    try:
+        outcomes = run_concurrently(decide(options[0]), decide(other))
+
+        winners = [o for o in outcomes if o.error is None]
+        losers = [o for o in outcomes if o.error is not None]
+        assert len(winners) == 1 and len(losers) == 1
+        assert isinstance(losers[0].error, ValidationError)
+        assert len(_events(a.attempt_id, *REGISTERED)) == 1
+    finally:
+        CaseVersion.objects.filter(pk=SimulationAttempt.objects.get(pk=a.attempt_id).case_version_id).update(
+            rules=json.dumps({"secondChance": True})
+        )

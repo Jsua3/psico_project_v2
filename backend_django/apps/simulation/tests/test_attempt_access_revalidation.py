@@ -147,3 +147,55 @@ def test_sin_intento_abierto_continuar_sigue_respondiendo_204(estudiante, case_v
     response = c.get(f"{BASE}/cases/{case_version_id}/active-attempt")
 
     assert response.status_code == 204
+
+
+def test_post_attempts_reanuda_un_intento_abierto_de_una_version_archivada(estudiante, case_version_id):
+    """Revisión de E1 (I-3): C1 («POST devuelve el abierto con resumed») no puede contradecir «se deja terminar»."""
+    c = cl(estudiante)
+    attempt_id, _ = _start(c, case_version_id)
+    CaseVersion.objects.filter(pk=case_version_id).update(status="ARCHIVED")
+
+    again = c.post(f"{BASE}/attempts", {"caseVersionId": case_version_id}, format="json")
+
+    assert again.status_code == 200
+    assert again.data["data"]["attemptId"] == attempt_id
+    assert again.data["data"]["resumed"] is True
+
+
+def test_post_attempts_reanuda_un_intento_abierto_de_un_caso_dado_de_baja(estudiante, case_version_id):
+    c = cl(estudiante)
+    attempt_id, _ = _start(c, case_version_id)
+    SimulationCase.objects.filter(versions__pk=case_version_id).update(active=False)
+
+    again = c.post(f"{BASE}/attempts", {"caseVersionId": case_version_id}, format="json")
+
+    assert again.status_code == 200 and again.data["data"]["attemptId"] == attempt_id
+
+
+def test_iniciar_uno_nuevo_de_una_version_archivada_sigue_siendo_403(estudiante, case_version_id):
+    CaseVersion.objects.filter(pk=case_version_id).update(status="ARCHIVED")
+
+    response = cl(estudiante).post(f"{BASE}/attempts", {"caseVersionId": case_version_id}, format="json")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("how", sorted(LOSE_ACCESS))
+def test_la_salida_segura_sigue_disponible_aunque_el_estudiante_ya_no_este_asignado(
+    estudiante, case_version_id, how
+):
+    """Revisión de E1 (I-7): REGLA-004 / ETH-02, la salida segura siempre es alcanzable."""
+    c = cl(estudiante)
+    attempt_id, token = _start(c, case_version_id)
+    LOSE_ACCESS[how](estudiante)
+
+    response = c.post(
+        f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "necesito parar"},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["status"] == "PAUSED"
+    assert response.data["data"]["supportResources"]
+    resumed = c.post(f"{BASE}/attempts/{attempt_id}/resume", {"attemptToken": token}, format="json")
+    assert resumed.status_code == 403 and resumed.data["code"] == "ACCESS_NOT_ASSIGNED"

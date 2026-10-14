@@ -187,3 +187,20 @@ def test_el_csv_declara_utf_8_y_conserva_el_encabezado(profesor, estudiante, cas
         "Estudiante,Intentos,Completados,En progreso,Salida segura,Puntaje prom.,"
         "Adecuadas,Riesgosas,Inadecuadas,Bitacoras,Rubricas,Estado"
     )
+
+
+def test_el_reporte_de_un_grupo_inactivo_y_su_csv_se_niegan_al_profesor_no_al_admin(
+    profesor, admin, estudiante, case_version_id
+):
+    """D-13: el reporte de grupo y su CSV exigen que el grupo esté activo (el ADMIN conserva la lectura)."""
+    grupo = _grupo(profesor)
+    _add_student(grupo, estudiante)
+    _assign_case(grupo, case_version_id)
+    Grupo.objects.filter(pk=grupo.pk).update(activo=False)
+
+    for path in (
+        f"/api/reportes/grupo/{grupo.id}?caseVersionId={case_version_id}",
+        f"/api/reportes/grupo/{grupo.id}/export?caseVersionId={case_version_id}",
+    ):
+        assert cl(profesor).get(path).status_code == 403, path
+        assert cl(admin).get(path).status_code == 200, path

@@ -34,7 +34,7 @@ from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
-from .attempt_lock import locked_attempt
+from .attempt_lock import lock_attempt_row, locked_attempt
 from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
@@ -79,16 +79,30 @@ def _lock_reflections(attempt):
     )
 
 
-def _require_published(case_version_id):
+def _get_version(case_version_id):
     version = CaseVersion.objects.filter(pk=case_version_id).select_related("simulation_case").first()
     if not version:
         raise NotFound("Versión de caso no encontrada")
-    if version.status != "PUBLISHED" or not version.simulation_case.active:
-        raise PermissionDenied("El caso no está publicado")
     return version
 
 
-def _require_attempt(attempt_id, attempt_token, actor):
+def _ensure_published(version):
+    if version.status != "PUBLISHED" or not version.simulation_case.active:
+        raise PermissionDenied("El caso no está publicado")
+
+
+def _require_published(case_version_id):
+    version = _get_version(case_version_id)
+    _ensure_published(version)
+    return version
+
+
+def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
+    """El intento del token, para su dueño o para el docente/ADMIN.
+
+    ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
+    alcanzable, aunque el estudiante ya no tenga el caso asignado).
+    """
     if not attempt_token:
         raise ValidationError("El token del intento es obligatorio")
     attempt = (
@@ -111,8 +125,8 @@ def _require_attempt(attempt_id, attempt_token, actor):
     # Un estudiante al que ya no le asignaron el caso no continúa un intento abierto; uno
     # cerrado sigue siendo suyo y se puede leer. Una versión archivada o un caso dado de baja
     # NO bloquean: se deja terminar (Review Focus 2).
-    if (owner and actor.role == "ESTUDIANTE" and lifecycle.state_of(attempt).is_open
-            and not attempt.owner_has_assignment):
+    if (enforce_assignment and owner and actor.role == "ESTUDIANTE"
+            and lifecycle.state_of(attempt).is_open and not attempt.owner_has_assignment):
         raise access_not_assigned()
     return attempt
 
@@ -170,11 +184,17 @@ def _close_active_attempts(student, case_version_id, reason):
 
 
 def _state(attempt, attempt_token, feedback=None):
-    """El estado del intento; si está completado, con su reporte congelado (E1-8)."""
-    report = None
+    """El estado del intento; si está completado, con su reporte congelado (E1-8).
+
+    En modo «retroalimentación al cierre» un intento que NO está completado no lleva el reporte
+    en vivo (traía conteos y línea de tiempo con la clasificación de cada decisión): la
+    evaluación llega al cerrar, por el reporte congelado.
+    """
     if attempt.status == AttemptStatus.COMPLETED:
         report = attempt_report.frozen_report_for(attempt.id)
-    return dto.attempt_state(attempt, attempt_token, feedback, completion_report=report)
+        return dto.attempt_state(attempt, attempt_token, feedback, completion_report=report)
+    at_close = case_rules.feedback_at_close_only(case_rules.rules_of(attempt.case_version))
+    return dto.attempt_state(attempt, attempt_token, feedback, include_report=not at_close)
 
 
 def _open_attempt_of(student_id, case_version_id):
@@ -206,14 +226,20 @@ def start_attempt(case_version_id, actor, force_new=False):
     409: reemplazar un intento es una acción docente (``replace_attempt``). El índice único
     parcial de la BD es la última defensa; quien pierde una carrera recibe el intento ganador.
     """
-    version = _require_published(case_version_id)
+    version = _get_version(case_version_id)
     is_student = getattr(actor, "role", None) == "ESTUDIANTE"
     if is_student and not _student_can_access_case(actor.id, case_version_id):
-        raise PermissionDenied("El caso no ha sido asignado a tu grupo")
+        raise access_not_assigned()
 
     open_attempt = _open_attempt_of(actor.id, case_version_id)
     if open_attempt is not None:
+        # Cerrojo del intento abierto y relectura bajo él: una orden que lo está completando o un
+        # reemplazo docente en curso terminan antes, y no se sobrescribe un estado que ya cambió.
+        lock_attempt_row(open_attempt.id)
+        open_attempt = _open_attempt_of(actor.id, case_version_id)
+    if open_attempt is not None:
         if not force_new:
+            # Reanudar no exige que la versión siga publicada: se deja terminar (Review Focus 2).
             return _resumed_state(open_attempt)
         if settings.ATTEMPT_START_STRICT and is_student:
             raise ApiError(
@@ -223,14 +249,17 @@ def start_attempt(case_version_id, actor, force_new=False):
                 status.HTTP_409_CONFLICT,
                 existingAttemptId=str(open_attempt.id),
             )
+        _ensure_published(version)  # reemplazar crea uno nuevo, y eso sí exige un caso publicado
         _close_active_attempts(actor, case_version_id, "Reemplazado por nuevo intento")
-    elif is_student:
-        # SIEP-RF-12: el desbloqueo lineal lo hace cumplir el servidor, no solo la interfaz. Quien
-        # ya tiene un intento abierto de ese caso no pasa por aquí (lo reanuda o lo reemplaza). El
-        # simulador solo anuncia el inicio; quien quiera vetarlo (progresión) se suscribe (P-13).
-        attempt_start_requested.send(
-            sender=SimulationAttempt, student=actor, case_version_id=case_version_id
-        )
+    else:
+        _ensure_published(version)
+        if is_student:
+            # SIEP-RF-12: el desbloqueo lineal lo hace cumplir el servidor, no solo la interfaz. Quien
+            # ya tiene un intento abierto de ese caso no pasa por aquí (lo reanuda o lo reemplaza). El
+            # simulador solo anuncia el inicio; quien quiera vetarlo (progresión) se suscribe (P-13).
+            attempt_start_requested.send(
+                sender=SimulationAttempt, student=actor, case_version_id=case_version_id
+            )
 
     start_node = SimulationNode.objects.filter(case_version_id=version.id, start_node=True).first()
     if not start_node:
@@ -280,7 +309,9 @@ def find_active_attempt(case_version_id, actor):
         actor.id, case_version_id
     ):
         raise access_not_assigned()
-    return _state(active, _reissue_token(active), None)
+    state = _state(active, _reissue_token(active), None)
+    state["resumed"] = True
+    return state
 
 
 def get_attempt(attempt_id, attempt_token, actor):
@@ -419,20 +450,22 @@ _DECISION_EVENT_TYPES = case_effects.REGISTERED_DECISION_EVENT_TYPES + case_effe
 def _find_decision_replay(attempt, decision_option_id, request_id):
     """El evento de una decisión ya procesada que esta orden repite, o ``None`` (E1-3).
 
-    Con ``requestId`` la clave es exacta (el mismo id con otra opción es un error del cliente:
-    409). Sin él, la misma opción elegida otra vez dentro de ``DUPLICATE_WINDOW_SECONDS`` es un
-    doble clic, no una respuesta nueva: no gasta la segunda oportunidad.
+    Con un ``requestId`` que el intento ya vio la clave es exacta (el mismo id con otra opción es
+    un error del cliente: 409). Si el id es nuevo o no viene, la misma opción elegida otra vez
+    dentro de ``DUPLICATE_WINDOW_SECONDS`` es un doble clic, no una respuesta nueva: no gasta la
+    segunda oportunidad.
     """
     events = AttemptEvent.objects.filter(attempt_id=attempt.id).select_related(
         "decision_option__target_node"
     )
     if request_id:
         event = events.filter(request_id=request_id).first()
-        if event is None:
-            return None
-        if event.event_type not in _DECISION_EVENT_TYPES or event.decision_option_id != decision_option_id:
-            raise request_id_reused()
-        return event
+        if event is not None:
+            if event.event_type not in _DECISION_EVENT_TYPES or event.decision_option_id != decision_option_id:
+                raise request_id_reused()
+            return event
+        # Un id que este intento aún no vio no prueba que sea una respuesta deliberada: un cliente
+        # que genera un id por clic manda dos en un doble clic. La ventana corre igual (revisión de E1).
     since = timezone.now() - timedelta(seconds=DUPLICATE_WINDOW_SECONDS)
     last = (
         events.filter(event_type__in=_DECISION_EVENT_TYPES, occurred_at__gte=since)
@@ -633,9 +666,10 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
 
     No fija ended_at/locked_at ni bloquea reflexiones: el intento queda en
     PAUSED y puede reanudarse con el mismo attemptId. Idempotente: repetir la
-    llamada devuelve el estado sin duplicar eventos.
+    llamada devuelve el estado sin duplicar eventos. No revalida la asignación:
+    la salida segura siempre es alcanzable (REGLA-004).
     """
-    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=False)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
         return _state(attempt, attempt_token, None)
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
