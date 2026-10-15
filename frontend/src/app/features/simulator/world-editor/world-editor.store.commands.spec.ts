@@ -534,6 +534,197 @@ describe('WorldEditorStore', () => {
     });
   });
 
+  // F8 · revisión: guardados y cargas que se SOLAPAN (las pruebas anteriores resuelven al instante con `of()` y no
+  // los ejercían). req: RNF-08, REGLA-011
+  describe('guardados y cargas que se solapan', () => {
+    const saved = (revision: number, ...objects: WorldObject[]) => definition({ revision, objects });
+    const response = () => new Subject<WorldDefinition>();
+    const asObservable = (subject: Subject<WorldDefinition>) => subject as unknown as Observable<WorldDefinition>;
+
+    it('Ctrl+S con un guardado en vuelo no lo cancela: espera y, con los ids reales que devolvió, no vuelve a crear lo nuevo', () => {
+      loaded(3);
+      const first = response();
+      sim.saveWorld.mockReturnValueOnce(asObservable(first));
+      store.execute(new PlaceObjectCommand(obj('nuevo', { id: 99 })));
+      vi.advanceTimersByTime(1500); // el primer guardado queda en vuelo con el id local 99
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+
+      store.saveNow(); // Ctrl+S mientras tanto
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+
+      first.next(saved(6, obj('a'), obj('b', { id: 2 }), obj('nuevo', { id: 7 })));
+      first.complete();
+
+      // Nada cambió después: no hay nada más que guardar y lo nuevo ya tiene su id real.
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      expect(store.editorState()!.objects.find(o => o.key === 'nuevo')!.id).toBe(7);
+      expect([store.dirty(), store.saving()]).toEqual([false, false]);
+    });
+
+    it('lo editado mientras un guardado va en vuelo NO se da por guardado: se guarda después, con ids reales y la revisión nueva', () => {
+      loaded(3);
+      const first = response();
+      sim.saveWorld.mockReturnValueOnce(asObservable(first));
+      store.execute(new PlaceObjectCommand(obj('nuevo', { id: 99 })));
+      vi.advanceTimersByTime(1500); // en vuelo
+      store.execute(new MoveObjectCommand('a', 10, 20, 300, 400)); // edición durante el vuelo
+
+      first.next(saved(6, obj('a'), obj('b', { id: 2 }), obj('nuevo', { id: 7 })));
+      first.complete();
+
+      expect(store.dirty()).toBe(true);
+      expect(store.lastSavedAt()).not.toBeNull();
+      vi.advanceTimersByTime(1500);
+      expect(sim.saveWorld).toHaveBeenCalledTimes(2);
+      const [, body] = sim.saveWorld.mock.calls[1];
+      expect(body.revision).toBe(6);
+      expect(body.objects.find((o: WorldObject) => o.key === 'a')).toMatchObject({ x: 300, y: 400 });
+      expect(body.objects.find((o: WorldObject) => o.key === 'nuevo').id).toBe(7);
+      expect(store.dirty()).toBe(false);
+    });
+
+    it('Ctrl+S con edición durante el vuelo: el segundo guardado sale al terminar el primero, no antes ni dos a la vez', () => {
+      loaded(3);
+      const first = response();
+      sim.saveWorld.mockReturnValueOnce(asObservable(first));
+      store.execute(new PlaceObjectCommand(obj('nuevo', { id: 99 })));
+      vi.advanceTimersByTime(1500);
+      store.execute(new MoveObjectCommand('a', 10, 20, 300, 400));
+
+      store.saveNow();
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      first.next(saved(6, obj('a'), obj('b', { id: 2 }), obj('nuevo', { id: 7 })));
+      first.complete();
+
+      expect(sim.saveWorld).toHaveBeenCalledTimes(2); // sin esperar al autoguardado
+      const [, body] = sim.saveWorld.mock.calls[1];
+      expect(body.objects.find((o: WorldObject) => o.key === 'nuevo').id).toBe(7);
+      expect(store.dirty()).toBe(false);
+    });
+
+    it('si la carga de otra sala falla, lo que sigue en pantalla es de la sala de origen: guardarlo no lo escribe bajo el nodo nuevo', () => {
+      loaded(3);
+      sim.worldEditor.mockReturnValue(throwError(() => ({ status: 500 })));
+
+      store.load(1, 8); // falla: la pantalla sigue siendo la del nodo 3
+      expect(store.error()).toBe('No se pudo cargar el mundo para edición.');
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500);
+
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      expect(sim.saveWorld.mock.calls[0][2]).toBe(3);
+    });
+
+    it('cambiar de sala mientras otra carga está en vuelo se ignora: no guarda el estado de la primera bajo la segunda', () => {
+      loaded(3);
+      store.execute(new DeleteObjectCommand('a'));
+      const loadEight = response();
+      sim.worldEditor.mockReturnValue(asObservable(loadEight));
+
+      store.switchRoom(8); // guarda el 3 y empieza a cargar el 8 (aún sin respuesta)
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      const loadsBefore = sim.worldEditor.mock.calls.length;
+      store.switchRoom(9); // mientras carga el 8
+
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      expect(sim.worldEditor.mock.calls.length).toBe(loadsBefore);
+    });
+
+    it('dos cargas que llegan desordenadas: gana la última pedida y la tardía no pisa la pantalla', () => {
+      loaded(3);
+      const loadEight = response();
+      const loadNine = response();
+      sim.worldEditor.mockReturnValueOnce(asObservable(loadEight)).mockReturnValueOnce(asObservable(loadNine));
+
+      store.load(1, 8);
+      store.load(1, 9);
+      loadNine.next(definition({ nodeId: 9, revision: 20 }));
+      loadEight.next(definition({ nodeId: 8, revision: 15 })); // llega tarde
+
+      expect(store.definition()!.nodeId).toBe(9);
+      expect(store.definition()!.revision).toBe(20);
+      expect(store.loading()).toBe(false);
+    });
+
+    it('cambiar de sala con un guardado en vuelo espera a que termine y entonces carga la nueva', () => {
+      loaded(3);
+      const first = response();
+      sim.saveWorld.mockReturnValueOnce(asObservable(first));
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500); // en vuelo
+      sim.worldEditor.mockImplementation((_id: number, node: number) => of(definition({ nodeId: node, revision: 12 })));
+      const loadsBefore = sim.worldEditor.mock.calls.length;
+
+      store.switchRoom(8);
+      expect(sim.worldEditor.mock.calls.length).toBe(loadsBefore); // todavía no
+      first.next(saved(6, obj('b', { id: 2 })));
+      first.complete();
+
+      expect(sim.worldEditor.mock.calls.length).toBe(loadsBefore + 1);
+      expect(store.definition()!.nodeId).toBe(8);
+    });
+
+    it('un guardado fallido con un cambio de sala pendiente se queda en la sala de origen y lo avisa', () => {
+      loaded(3);
+      const first = response();
+      // El segundo intento (el de la orden de cambiar de sala, que esperaba en la cola) también falla.
+      sim.saveWorld.mockReturnValueOnce(asObservable(first)).mockReturnValue(throwError(() => ({ status: 500 })));
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500);
+      const loadsBefore = sim.worldEditor.mock.calls.length;
+
+      store.switchRoom(8);
+      first.error({ status: 500 });
+
+      expect(sim.worldEditor.mock.calls.length).toBe(loadsBefore);
+      expect(store.saveFailed()).toBe(true);
+      expect(store.dirty()).toBe(true);
+      expect(store.definition()!.nodeId).toBe(3);
+      expect(keys(store.editorState()!.objects)).toEqual(['b']);
+    });
+
+    it('mientras carga otra sala no se aceptan ediciones (se perderían al llegar la sala nueva)', () => {
+      loaded(3);
+      sim.worldEditor.mockReturnValue(asObservable(response()));
+      store.load(1, 8);
+
+      store.execute(new DeleteObjectCommand('a'));
+
+      expect(store.dirty()).toBe(false);
+      expect(keys(store.editorState()!.objects)).toEqual(['a', 'b']);
+    });
+  });
+
+  // F8 · revisión: una versión que no es borrador se mira, no se edita. req: RNF-08
+  describe('solo lectura', () => {
+    it('con solo lectura ejecutar, deshacer y rehacer no cambian nada ni marcan el borrador', () => {
+      loaded();
+      store.execute(new DeleteObjectCommand('a'));
+      store.undo();
+      expect(store.canRedo()).toBe(true);
+      store.readOnly.set(true);
+      const before = store.editorState();
+
+      store.execute(new DeleteObjectCommand('b'));
+      store.redo();
+      store.undo();
+
+      expect(store.editorState()).toBe(before);
+      expect(store.dirty()).toBe(true); // el de antes del bloqueo: el bloqueo no inventa cambios
+    });
+
+    it('con solo lectura nada se guarda, ni lo que ya estaba pendiente ni con Ctrl+S', () => {
+      loaded();
+      store.execute(new DeleteObjectCommand('a')); // pendiente de guardar
+      store.readOnly.set(true); // la versión pasó a no editable antes de que venciera la espera
+
+      store.saveNow();
+      vi.advanceTimersByTime(3000);
+
+      expect(sim.saveWorld).not.toHaveBeenCalled();
+    });
+  });
+
   describe('selección, herramientas y vista', () => {
     it('selectedObject / selectedZone / selectedDialogue siguen a la clave seleccionada', () => {
       loaded();

@@ -258,7 +258,7 @@
             @if (selectedWorldNodeId(); as nodeId) {
               <!-- Diferido: Konva solo se descarga al elegir un nodo (la pantalla del caso no lo arrastra). -->
               @defer (on immediate) {
-                <app-world-editor [caseVersionId]="model.caseVersionId" [nodeId]="nodeId" />
+                <app-world-editor [caseVersionId]="model.caseVersionId" [nodeId]="nodeId" [readOnlyReason]="lockReason()" />
               } @placeholder {
                 <ui-skeleton shape="chart" />
               } @loading {

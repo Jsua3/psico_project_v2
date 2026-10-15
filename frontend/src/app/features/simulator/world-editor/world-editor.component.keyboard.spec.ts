@@ -5,6 +5,7 @@ import { AuthoringApi } from '../../../core/api/authoring.api';
 import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { WorldCollisionZone, WorldDefinition, WorldObject } from '../../../core/models/simulation.model';
 import { WorldEditorComponent } from './world-editor.component';
+import { UpdateSpawnCommand } from './world-editor.store';
 
 /**
  * Teclado del lienzo del editor de mundo (plan F8-5; RNF-04, WCAG 2.1.1 y 2.1.4): colocar, seleccionar, mover con
@@ -277,16 +278,24 @@ describe('WorldEditorComponent: teclado del lienzo', () => {
       expect(event.defaultPrevented).toBe(true);
     });
 
-    it('con el foco en un campo de texto solo Ctrl+S actúa: Supr y las letras son del campo', () => {
+    it('con el foco en un campo de texto, Ctrl+Z no deshace el lienzo (es del campo), pero Ctrl+S sí guarda', () => {
       component.store.select('npc-1');
+      press('ArrowRight'); // una edición que se podría deshacer
+      expect(objectOf('npc-1').x).toBe(176);
       const input = document.createElement('input');
       document.body.appendChild(input);
-      const typed = key('Delete');
-      Object.defineProperty(typed, 'target', { value: input });
+      const undo = key('z', { ctrlKey: true });
+      Object.defineProperty(undo, 'target', { value: input });
+      saveWorld.mockClear();
 
-      component.onEditorKeydown(typed);
+      component.onEditorKeydown(undo);
+      expect(objectOf('npc-1').x).toBe(176);
+      expect(undo.defaultPrevented).toBe(false);
 
-      expect(state().objects.map(o => o.key)).toContain('npc-1');
+      const save = key('s', { ctrlKey: true });
+      Object.defineProperty(save, 'target', { value: input });
+      component.onEditorKeydown(save);
+      expect(saveWorld).toHaveBeenCalledTimes(1);
       input.remove();
     });
 
@@ -295,6 +304,109 @@ describe('WorldEditorComponent: teclado del lienzo', () => {
       document.body.dispatchEvent(key('o'));
 
       expect(component.store.activeTool()).toBe('select');
+    });
+  });
+
+  // F8 · revisión (I1). req: RNF-04
+  describe('cursor del teclado tras editar', () => {
+    it('se queda donde estaba: un cambio del estado no lo devuelve al punto de aparición', () => {
+      press('ArrowRight', { shiftKey: true });
+      expect(component.keyboardCursor()).toEqual({ x: 192, y: 64 });
+
+      press('o');
+      press('Enter'); // coloca un objeto: cambia el estado del editor
+      expect(component.keyboardCursor()).toEqual({ x: 192, y: 64 });
+
+      press('ArrowDown'); // mueve el objeto recién colocado
+      press('Delete'); // y lo borra: otro cambio
+      expect(component.keyboardCursor()).toEqual({ x: 192, y: 80 });
+    });
+
+    it('cuando el punto de aparición sí cambia, el cursor lo sigue', () => {
+      press('ArrowRight'); // (80, 64)
+      expect(component.keyboardCursor()).toEqual({ x: 80, y: 64 });
+
+      component.store.execute(new UpdateSpawnCommand(320, 96));
+
+      expect(component.keyboardCursor()).toEqual({ x: 320, y: 96 });
+    });
+  });
+
+  // F8 · revisión (I2). req: RNF-04
+  describe('selector de sala', () => {
+    const roomSelect = (chosen: number) => {
+      const select = document.createElement('select');
+      for (const id of [3, 8]) {
+        const option = document.createElement('option');
+        option.value = String(id);
+        select.appendChild(option);
+      }
+      select.value = String(chosen);
+      return select;
+    };
+
+    it('pide la sala elegida pero deja el selector en la que se ve: solo cambia cuando la nueva llega', () => {
+      const switchRoom = vi.spyOn(component.store, 'switchRoom').mockImplementation(() => undefined);
+      const select = roomSelect(8);
+
+      component.onRoomChange({ target: select } as unknown as Event);
+
+      expect(switchRoom).toHaveBeenCalledWith(8);
+      expect(select.value).toBe('3');
+    });
+  });
+
+  // F8 · revisión (I3). req: RNF-08
+  describe('solo lectura', () => {
+    beforeEach(() => component.store.readOnly.set(true));
+
+    it('las flechas con algo seleccionado mueven el cursor, no editan ni anuncian que se movió', () => {
+      component.store.select('npc-1');
+      announce.mockClear();
+
+      press('ArrowRight');
+
+      expect(objectOf('npc-1').x).toBe(160);
+      expect(component.store.dirty()).toBe(false);
+      expect(announce.mock.calls.map((call: unknown[]) => String(call[0]))).not.toContain('npc-1: 176, 160');
+      expect(component.keyboardCursor()).toEqual({ x: 80, y: 64 });
+    });
+
+    it('Supr no borra lo seleccionado ni anuncia que lo borró', () => {
+      component.store.select('npc-1');
+      announce.mockClear();
+
+      press('Delete');
+
+      expect(state().objects.map(o => o.key)).toContain('npc-1');
+      expect(announce).not.toHaveBeenCalledWith('npc-1 eliminado', 'polite');
+    });
+
+    it('las herramientas de edición no se pueden elegir; «Seleccionar» y «Mover lienzo» sí', () => {
+      press('o');
+      press('c');
+      press('s');
+      expect(component.store.activeTool()).toBe('select');
+
+      press('h');
+      expect(component.store.activeTool()).toBe('pan');
+      press('v');
+      expect(component.store.activeTool()).toBe('select');
+    });
+  });
+
+  // F8 · revisión (menor, nombre de los tipos en voz). req: RNF-04, BLOQUE-H
+  describe('anuncios', () => {
+    it('usan los nombres en español de los tipos de objeto (no PERSON ni EXIT)', () => {
+      announce.mockClear();
+
+      press('PageDown');
+      press('PageDown');
+
+      const said = announce.mock.calls.map((call: unknown[]) => String(call[0])).join(' | ');
+      expect(said).toContain('Persona');
+      expect(said).toContain('Salida');
+      expect(said).not.toMatch(/PERSON|EXIT/);
     });
   });
 });

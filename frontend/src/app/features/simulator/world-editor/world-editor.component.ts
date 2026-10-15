@@ -71,6 +71,7 @@ import {
 } from '../../../core/models/simulation.model';
 import { CanvasView, cursorFor, fitView, snapZoneRect, wheelZoomFactor, zoomAtPoint } from './canvas-view.util';
 import { Point, cycleKey, elementAt, moveByKey, zoneBetween } from './keyboard-edit.util';
+import { objectTypeLabel } from '../../../shared/ui/labels';
 import {
   RevisionConflictAnswer,
   RevisionConflictDialogComponent,
@@ -140,16 +141,19 @@ const OBJECT_COLORS: Record<string, string> = {
           </button>
           <span class="we-divider"></span>
           <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-object'"
+                  [disabled]="store.readOnly()"
                   [attr.aria-pressed]="store.activeTool() === 'place-object'" aria-label="Colocar objeto" aria-keyshortcuts="O"
                   (click)="store.setTool('place-object')" title="Colocar objeto (O)">
             <mat-icon>add_location_alt</mat-icon>
           </button>
           <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-collision'"
+                  [disabled]="store.readOnly()"
                   [attr.aria-pressed]="store.activeTool() === 'place-collision'" aria-label="Zona de colisión" aria-keyshortcuts="C"
                   (click)="store.setTool('place-collision')" title="Zona de colisión (C)">
             <mat-icon>crop_free</mat-icon>
           </button>
           <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-spawn'"
+                  [disabled]="store.readOnly()"
                   [attr.aria-pressed]="store.activeTool() === 'place-spawn'" aria-label="Punto de aparición" aria-keyshortcuts="S"
                   (click)="store.setTool('place-spawn')" title="Punto de aparición (S)">
             <mat-icon>my_location</mat-icon>
@@ -157,11 +161,11 @@ const OBJECT_COLORS: Record<string, string> = {
         </div>
 
         <div class="we-actions">
-          <button class="we-tool-btn" type="button" [disabled]="!store.canUndo()" (click)="store.undo()"
+          <button class="we-tool-btn" type="button" [disabled]="!store.canUndo() || store.readOnly()" (click)="store.undo()"
                   aria-label="Deshacer" aria-keyshortcuts="Control+Z" title="Deshacer (Ctrl+Z)">
             <mat-icon>undo</mat-icon>
           </button>
-          <button class="we-tool-btn" type="button" [disabled]="!store.canRedo()" (click)="store.redo()"
+          <button class="we-tool-btn" type="button" [disabled]="!store.canRedo() || store.readOnly()" (click)="store.redo()"
                   aria-label="Rehacer" aria-keyshortcuts="Control+Y" title="Rehacer (Ctrl+Y)">
             <mat-icon>redo</mat-icon>
           </button>
@@ -176,7 +180,7 @@ const OBJECT_COLORS: Record<string, string> = {
           </button>
           <button class="psy-button psy-button--primary" (click)="store.saveNow()" type="button"
                   aria-keyshortcuts="Control+S" title="Guardar (Ctrl+S)"
-                  [disabled]="store.saving() || !store.dirty()">
+                  [disabled]="store.saving() || !store.dirty() || store.readOnly()">
             <mat-icon>{{ store.saving() ? 'hourglass_empty' : 'save' }}</mat-icon>
             {{ store.saving() ? 'Guardando...' : 'Guardar' }}
           </button>
@@ -200,19 +204,23 @@ const OBJECT_COLORS: Record<string, string> = {
         <p class="ds-sr-only" role="status">{{ saveStatusText() }}</p>
       </header>
 
-      <section class="we-library liquid-glass" aria-label="Biblioteca de autoria">
-        <div class="we-library-group">
+      @if (readOnlyReason(); as reason) {
+        <p class="we-readonly">{{ reason }}</p>
+      }
+
+      <section class="we-library liquid-glass" aria-label="Biblioteca de autoría">
+        <label class="we-library-group">
           <span>Escenario</span>
-          <select [ngModel]="selectedSceneTemplate()" (ngModelChange)="applyScenePreset($event)">
+          <select [ngModel]="selectedSceneTemplate()" [disabled]="store.readOnly()" (ngModelChange)="applyScenePreset($event)">
             <option value="">Personalizado</option>
             @for (scene of sceneTemplates; track scene.id) {
               <option [value]="scene.id">{{ scene.label }}</option>
             }
           </select>
-        </div>
+        </label>
         <div class="we-library-actions">
           @for (template of objectTemplates; track template.id) {
-            <button class="we-template-btn" type="button" (click)="addTemplate(template.id)">
+            <button class="we-template-btn" type="button" [disabled]="store.readOnly()" (click)="addTemplate(template.id)">
               <mat-icon>{{ template.icon }}</mat-icon>
               <span>{{ template.label }}</span>
             </button>
@@ -258,15 +266,16 @@ const OBJECT_COLORS: Record<string, string> = {
 
         <!-- ── Side Inspector ──────────────────────────────────────── -->
         <aside class="we-inspector liquid-glass">
+         <fieldset class="we-fieldset" [disabled]="store.readOnly()">
           <!-- ── Sala: switcher + zoom + fondo ────────────────────── -->
           @if (store.editorState()) {
             <div class="we-room">
-              <h4>Sala</h4>
+              <h3>Sala</h3>
               @if (store.rooms().length > 1) {
                 <label><span>Sala actual</span>
-                  <select [ngModel]="$safeNavigationMigration(store.definition()?.nodeId)" (ngModelChange)="switchRoom($event)">
+                  <select (change)="onRoomChange($event)">
                     @for (r of store.rooms(); track r.nodeId) {
-                      <option [ngValue]="r.nodeId">{{ r.title }} ({{ r.nodeKey }})</option>
+                      <option [value]="r.nodeId" [selected]="r.nodeId === store.definition()?.nodeId">{{ r.title }} ({{ r.nodeKey }})</option>
                     }
                   </select>
                 </label>
@@ -281,7 +290,7 @@ const OBJECT_COLORS: Record<string, string> = {
             </div>
           }
           @if (store.selectedObject(); as obj) {
-            <h4>Objeto: {{ obj.label }}</h4>
+            <h3>Objeto: {{ obj.label }}</h3>
             <div class="we-form">
               <label><span>Clave</span><input [ngModel]="obj.key" disabled /></label>
               <label><span>Etiqueta</span>
@@ -395,32 +404,37 @@ const OBJECT_COLORS: Record<string, string> = {
 
                 <div class="we-sub">
                   <span class="we-sub-title">Líneas</span>
-                  <button class="we-add" (click)="addLine()" type="button"><mat-icon>add</mat-icon></button>
+                  <button class="we-add" (click)="addLine()" type="button" aria-label="Agregar línea" title="Agregar línea"><mat-icon>add</mat-icon></button>
                 </div>
                 @for (line of dlg.lines; track $index) {
                   <div class="we-row">
                     <input [ngModel]="line.text" (ngModelChange)="updateLine($index, $event)"
+                           [attr.aria-label]="'Línea ' + ($index + 1) + ' del diálogo'"
                            placeholder="Lo que dice el NPC…" />
-                    <button class="we-del" (click)="removeLine($index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="removeLine($index)" type="button"
+                            [attr.aria-label]="'Quitar la línea ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                   </div>
                 }
 
                 <div class="we-sub">
                   <span class="we-sub-title">Opciones de respuesta</span>
-                  <button class="we-add" (click)="addChoice()" type="button"><mat-icon>add</mat-icon></button>
+                  <button class="we-add" (click)="addChoice()" type="button" aria-label="Agregar opción de respuesta" title="Agregar opción de respuesta"><mat-icon>add</mat-icon></button>
                 </div>
                 @for (choice of dlg.choices; track choice.key) {
                   <div class="we-choice">
                     <input [ngModel]="choice.text" (ngModelChange)="updateChoiceText($index, $event)"
+                           [attr.aria-label]="'Texto de la opción ' + ($index + 1)"
                            placeholder="Respuesta del estudiante…" />
                     <select [ngModel]="choice.decisionOptionId"
+                            [attr.aria-label]="'Destino de la opción ' + ($index + 1)"
                             (ngModelChange)="setChoiceDecision($index, $event)">
                       <option [ngValue]="null">— sin destino —</option>
                       @for (dec of store.availableDecisions(); track dec.id) {
                         <option [ngValue]="dec.id">{{ dec.classification }} → {{ dec.targetNodeKey }}: {{ dec.text }}</option>
                       }
                     </select>
-                    <button class="we-del" (click)="removeChoice($index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="removeChoice($index)" type="button"
+                            [attr.aria-label]="'Quitar la opción ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                     <div class="we-choice-reqs">
                       <label><span>Herramienta obligatoria</span>
                         <select [ngModel]="choice.requiredToolCode" (ngModelChange)="setChoiceRequiredTool($index, $event)">
@@ -474,9 +488,12 @@ const OBJECT_COLORS: Record<string, string> = {
                   <div class="we-wp-row">
                     <span class="we-wp-idx">{{ $index + 1 }}</span>
                     <span class="we-wp-xy">{{ pt[0] }}, {{ pt[1] }}</span>
-                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, -1)" type="button"><mat-icon>arrow_upward</mat-icon></button>
-                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, 1)" type="button"><mat-icon>arrow_downward</mat-icon></button>
-                    <button class="we-del" (click)="deleteWaypoint(obj.key, $index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, -1)" type="button"
+                            [attr.aria-label]="'Subir el punto ' + ($index + 1)"><mat-icon>arrow_upward</mat-icon></button>
+                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, 1)" type="button"
+                            [attr.aria-label]="'Bajar el punto ' + ($index + 1)"><mat-icon>arrow_downward</mat-icon></button>
+                    <button class="we-del" (click)="deleteWaypoint(obj.key, $index)" type="button"
+                            [attr.aria-label]="'Quitar el punto ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                   </div>
                 }
               }
@@ -502,7 +519,7 @@ const OBJECT_COLORS: Record<string, string> = {
               </div>
             }
           } @else if (store.selectedZone(); as zone) {
-            <h4>Zona: {{ zone.label || zone.key }}</h4>
+            <h3>Zona: {{ zone.label || zone.key }}</h3>
             <div class="we-form">
               <label><span>Clave</span><input [ngModel]="zone.key" disabled /></label>
               <label><span>Etiqueta</span>
@@ -531,10 +548,10 @@ const OBJECT_COLORS: Record<string, string> = {
           <!-- Validation panel -->
           @if (store.validationState(); as vs) {
             <div class="we-validation">
-              <h4>
+              <h3>
                 <mat-icon>{{ vs.canPublish ? 'check_circle' : 'error' }}</mat-icon>
                 Validación
-              </h4>
+              </h3>
               @if (vs.errors.length) {
                 <div class="we-val-section we-val-errors">
                   @for (issue of vs.errors; track issue.code) {
@@ -560,6 +577,7 @@ const OBJECT_COLORS: Record<string, string> = {
               }
             </div>
           }
+         </fieldset>
         </aside>
       </div>
     </div>
@@ -634,6 +652,23 @@ const OBJECT_COLORS: Record<string, string> = {
       align-items: center;
       gap: 8px;
       min-width: min(100%, 280px);
+    }
+    .we-readonly {
+      margin: 0;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--ds-surface-2);
+      color: var(--ds-text-1);
+      font-size: var(--ds-type-body-s-size);
+    }
+    /* El fieldset es solo el interruptor de «deshabilitado»: no cambia el diseño del inspector. */
+    .we-fieldset {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
     }
     .we-library-group span {
       color: var(--psy-blue-deep);
@@ -710,7 +745,8 @@ const OBJECT_COLORS: Record<string, string> = {
       min-height: 400px;
     }
     .we-konva-host { width: 100%; min-height: 360px; overflow: hidden; }
-    .we-konva-host:focus-visible { outline: 3px solid var(--ds-focus); outline-offset: 2px; }
+    /* Hacia dentro: el contenedor recorta (overflow: hidden) lo que sale y el contorno solo se veía a medias. */
+    .we-konva-host:focus-visible { outline: 3px solid var(--ds-focus); outline-offset: -3px; }
     .we-canvas-help { margin: 8px 0 0; color: var(--ds-text-2); font-size: var(--ds-type-caption-size); line-height: 1.4; }
     .we-badge--saved { background: var(--ds-success-bg); color: var(--ds-success); }
 
@@ -723,7 +759,7 @@ const OBJECT_COLORS: Record<string, string> = {
       max-height: 80vh;
       overflow-y: auto;
     }
-    .we-inspector h4 {
+    .we-inspector h3, .we-inspector h4 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       letter-spacing: 0;
@@ -785,7 +821,7 @@ const OBJECT_COLORS: Record<string, string> = {
       padding-top: 12px;
       border-top: 1px solid var(--psy-border);
     }
-    .we-validation h4 {
+    .we-validation h3 {
       display: flex;
       gap: 8px;
       align-items: center;
@@ -859,7 +895,7 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-wp-xy { font-family: 'JetBrains Mono', monospace; font-size: .76rem; color: var(--psy-muted); }
     .we-movement select, .we-movement input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
     .we-room { display: grid; gap: 8px; padding: 0 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--psy-border); }
-    .we-room h4, .we-door h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
+    .we-room h3, .we-door h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
     .we-room label, .we-door label { display: grid; gap: 3px; font-size: .82rem; }
     .we-room label > span, .we-door label > span { font-weight: 700; color: var(--psy-blue-deep); }
     .we-room select, .we-room input, .we-door select, .we-door input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
@@ -871,6 +907,11 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
 
   readonly caseVersionId = input.required<number>();
   readonly nodeId = input<number>();
+  /**
+   * Por qué el mundo no se puede editar (una versión que no es borrador): con texto, el editor se muestra en solo
+   * lectura — se ve, se selecciona y se recorre, pero no se edita ni se guarda (el servidor respondería 400).
+   */
+  readonly readOnlyReason = input<string | null>(null);
   readonly sceneTemplates = AUTHORING_SCENE_TEMPLATES;
   readonly objectTemplates = AUTHORING_OBJECT_TEMPLATES;
   private readonly kit = inject(KitService);
@@ -924,6 +965,10 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private readonly spawnPoint = computed<Point>(() => {
     const map = this.store.editorState()?.map;
     return map ? { x: this.snapToGrid(map.spawnX), y: this.snapToGrid(map.spawnY) } : { x: 0, y: 0 };
+  }, {
+    // Igualdad por VALOR: cada cambio del estado (colocar, mover, borrar, un guardado que adopta ids) recalcula el
+    // computed; sin esto devolvía un objeto nuevo y el cursor del teclado volvía al punto de aparición tras cada edición.
+    equal: (a, b) => a.x === b.x && a.y === b.y,
   });
   /** El cursor del teclado (en unidades del mundo): parte del punto de aparición y se mueve con las flechas. */
   readonly keyboardCursor = linkedSignal<Point>(() => this.spawnPoint());
@@ -964,6 +1009,14 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       this.zoneAnchor();
       this.canvasFocused();
       this.drawKeyboardCursor();
+    });
+    // La razón de solo lectura llega por entrada; el store es quien rechaza ediciones y guardados.
+    effect(() => {
+      const locked = !!this.readOnlyReason();
+      untracked(() => {
+        this.store.readOnly.set(locked);
+        if (locked && this.store.activeTool().startsWith('place-')) this.store.setTool('select');
+      });
     });
     // Un 409 abre la comparación una sola vez; la respuesta decide qué hace el store.
     effect(() => {
@@ -1028,7 +1081,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         return;
       case 'Delete':
       case 'Backspace':
-        if (this.store.selectedKey()) {
+        if (this.store.selectedKey() && !this.store.readOnly()) {
           event.preventDefault();
           const label = this.store.selectedObject()?.label ?? this.store.selectedZone()?.label ?? 'Zona';
           this.deleteSelected();
@@ -1107,8 +1160,10 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private arrowKey(key: string, shift: boolean): void {
     const state = this.store.editorState();
     if (!state) return;
-    const obj = this.store.selectedObject();
-    const zone = this.store.selectedZone();
+    // En solo lectura las flechas no editan: aunque haya algo seleccionado, mueven el cursor del teclado.
+    const editable = !this.store.readOnly();
+    const obj = editable ? this.store.selectedObject() : null;
+    const zone = editable ? this.store.selectedZone() : null;
     if (obj) {
       const next = moveByKey({ x: obj.x, y: obj.y }, key, shift, GRID_SIZE, state.map);
       if (next && (next.x !== obj.x || next.y !== obj.y)) {
@@ -1216,7 +1271,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private selectionText(key: string): string {
     const state = this.store.editorState();
     const obj = state?.objects.find(o => o.key === key);
-    if (obj) return obj.label + ', ' + obj.type + ', en ' + obj.x + ', ' + obj.y;
+    if (obj) return obj.label + ', ' + objectTypeLabel(obj.type) + ', en ' + obj.x + ', ' + obj.y;
     const zone = state?.collisionZones.find(z => z.key === key);
     return zone
       ? 'Zona ' + (zone.label || zone.key) + ', ' + zone.width + ' por ' + zone.height + ', en ' + zone.x + ', ' + zone.y
@@ -1572,6 +1627,17 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   switchRoom(nodeId: number): void {
     if (nodeId != null) this.store.switchRoom(nodeId);
   }
+  /**
+   * El selector de sala es CONTROLADO: pide la sala elegida y vuelve a mostrar la que hay en pantalla; solo cambia
+   * cuando la nueva llega. Antes quedaba mostrando la sala elegida aunque el guardado previo fallara (o la carga
+   * tardara) y las ediciones siguientes iban a la sala de origen creyendo que eran de la nueva.
+   */
+  onRoomChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const chosen = Number(select.value);
+    if (Number.isFinite(chosen)) this.switchRoom(chosen);
+    select.value = String(this.store.definition()?.nodeId ?? '');
+  }
   setRoomZoom(z: number): void {
     const st = this.store.editorState();
     if (!st) return;
@@ -1716,7 +1782,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       const group = new Konva.Group({
         x: zone.x, y: zone.y,
         name: zone.key,
-        draggable: this.store.activeTool() === 'select'
+        draggable: this.store.activeTool() === 'select' && !this.store.readOnly()
       });
 
       const rect = new Konva.Rect({
@@ -1772,7 +1838,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       const group = new Konva.Group({
         x: obj.x, y: obj.y,
         name: obj.key,
-        draggable: this.store.activeTool() === 'select',
+        draggable: this.store.activeTool() === 'select' && !this.store.readOnly(),
         opacity: obj.visible ? 1 : 0.4
       });
 
@@ -1899,7 +1965,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     this.attachTransformer();
 
     // Un mapa más grande que el lienzo se ve entero al abrirlo (la primera vez de cada sala).
-    const room = this.store.definition()?.nodeId;
+    const room = untracked(() => this.store.definition()?.nodeId);
     if (room !== this.lastRoom) {
       this.lastRoom = room;
       this.viewInitialised = false;
@@ -1920,7 +1986,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
    * una casilla se rechaza mientras se arrastra; al soltar, la geometría se encaja a la rejilla.
    */
   private attachTransformer(): void {
-    if (!this.mainLayer || !this.uiLayer || this.store.activeTool() !== 'select') return;
+    if (!this.mainLayer || !this.uiLayer || this.store.activeTool() !== 'select' || this.store.readOnly()) return;
     const zone = this.store.selectedZone();
     if (!zone) return;
     const group = this.nodesByKey.get(zone.key);

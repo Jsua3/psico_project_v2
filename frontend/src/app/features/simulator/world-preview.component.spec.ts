@@ -193,6 +193,47 @@ describe('WorldPreviewComponent: vista previa del autor', () => {
       expect(component.definition()!.revision).toBe(5);
     });
 
+    it('si el caso cambia (clonar abre otra versión) vuelve al primer nodo de la nueva versión y lo carga', () => {
+      respond(0, definition('Sala de espera'));
+      nodeSelect().value = '2';
+      nodeSelect().dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      respond(1, definition('Urgencias', 2));
+
+      fixture.componentRef.setInput('caseVersionId', 8);
+      fixture.componentRef.setInput('nodes', [
+        { id: 21, key: 'inicio', title: 'Inicio del caso' },
+        { id: 22, key: 'urgencias', title: 'Urgencias' },
+      ]);
+      fixture.detectChanges();
+
+      expect(worldPreview).toHaveBeenLastCalledWith(8, 21);
+      expect(component.selectedNodeId()).toBe(21);
+    });
+
+    it('si el nodo elegido ya no existe en la lista, vuelve al primero (no pide uno que daría 404)', () => {
+      respond(0, definition('Sala de espera'));
+      nodeSelect().value = '2';
+      nodeSelect().dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      respond(1, definition('Urgencias', 2));
+      expect(worldPreview).toHaveBeenCalledTimes(2);
+
+      fixture.componentRef.setInput('nodes', [{ id: 1, key: 'inicio', title: 'Inicio del caso' }]);
+      fixture.detectChanges();
+
+      expect(worldPreview).toHaveBeenLastCalledWith(7, 1);
+    });
+
+    it('una lista de nodos nueva con los mismos nodos no recarga la vista previa', () => {
+      respond(0, definition('Sala de espera'));
+
+      fixture.componentRef.setInput('nodes', NODES.map(node => ({ ...node })));
+      fixture.detectChanges();
+
+      expect(worldPreview).toHaveBeenCalledTimes(1);
+    });
+
     it('mientras carga, «Recargar» queda aria-disabled (no hay doble petición) y avisa «Actualizando…»', () => {
       respond(0, definition('Sala de espera'));
       reloadButton().click();

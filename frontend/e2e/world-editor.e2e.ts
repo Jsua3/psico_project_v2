@@ -62,7 +62,7 @@ async function openWorldEditor(page: Page, versionId: number): Promise<void> {
   );
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
   await loaded;
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 }
 
 /** Ejecuta `action` y espera a que el autoguardado (PUT .../world) responda y el editor quede sin cambios. */

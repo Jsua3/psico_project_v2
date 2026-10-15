@@ -6,13 +6,13 @@
  *   - No SimulationAttempt created
  *   - No attempt_events persisted
  *   - No audit_logs for gameplay
- *   - No score: the preview only counts what the author did (objects inspected, decisions tried)
+ *   - Sin puntaje: la vista previa solo cuenta lo que hizo quien autora (objetos revisados, decisiones probadas)
  *
  * Transforms WorldDefinition → SimulationWorldState for compatibility
  * with the existing GameWorldComponent contract.
  *
- * F8-6: reloading or changing node never unmounts the board (Phaser is not destroyed and recreated; the world
- * input changes in place), a late response from an earlier request is dropped, and there are no invented metrics.
+ * F8-6: recargar o cambiar de nodo NO desmonta el tablero (Phaser no se destruye ni se vuelve a crear: la entrada
+ * `world` cambia en su sitio), una respuesta tardía de una petición anterior se descarta y no hay métricas inventadas.
  */
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ViewChild, computed, effect, inject, input, signal, untracked,
@@ -440,14 +440,26 @@ export class WorldPreviewComponent {
   /** La petición en vuelo: una nueva la cancela, y su respuesta tardía ya no pisa a la última. */
   private inflight: Subscription | null = null;
 
+  /** La versión del caso para la que se eligió el nodo actual (clonar abre otra versión con nodos nuevos). */
+  private loadedCase: number | null = null;
+
   constructor() {
     this.destroyRef.onDestroy(() => this.inflight?.unsubscribe());
-    // Primera carga: en cuanto hay nodos y ninguno elegido, se elige el primero y se carga su vista previa.
+    // Primera carga y cambios de versión: si no hay nodo elegido, o el elegido ya no está en la lista o es de otra
+    // versión del caso (clonar), se vuelve al primero y se carga su vista previa. Una lista nueva con los mismos
+    // nodos no recarga nada.
     effect(() => {
-      const first = this.nodes()[0];
-      if (!first || untracked(() => this.selectedNodeId()) !== null) return;
+      const nodes = this.nodes();
+      const caseId = this.caseVersionId();
       untracked(() => {
+        const selected = this.selectedNodeId();
+        const stillThere = selected !== null && nodes.some(node => node.id === selected);
+        if (stillThere && this.loadedCase === caseId) return;
+        const first = nodes[0];
+        if (!first) return;
+        this.loadedCase = caseId;
         this.selectedNodeId.set(first.id);
+        this.resetProgress();
         this.loadPreview();
       });
     });

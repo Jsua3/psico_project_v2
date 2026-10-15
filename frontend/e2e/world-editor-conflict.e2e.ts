@@ -48,7 +48,7 @@ async function openWorld(page: import('@playwright/test').Page, id: number, titl
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 }
 
 // req: RNF-08, REGLA-011

@@ -69,7 +69,7 @@ test('el editor de mundo se maneja solo con teclado: colocar, mover, borrar, dib
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).focus();
   await page.keyboard.press('Enter');
   await loaded;
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 
   const canvas = page.locator('.we-konva-host');
   await canvas.focus();
@@ -145,7 +145,7 @@ test('los atajos de una letra no secuestran la página: fuera del lienzo no camb
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 
   // Con el foco en el título de la página (fuera del lienzo), «c», «o» y «h» no hacen nada.
   await page.getByRole('heading', { level: 1 }).evaluate(element => (element as HTMLElement).setAttribute('tabindex', '-1'));
@@ -181,7 +181,7 @@ test('las letras eligen herramienta desde la barra y, tras un clic en el lienzo,
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 
   // Barra de herramientas: con el foco en un botón de herramienta, la letra anunciada en aria-keyshortcuts la elige.
   const select = page.getByRole('button', { name: 'Seleccionar' });

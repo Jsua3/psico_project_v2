@@ -70,7 +70,7 @@ async function openCanvas(page: Page, request: APIRequestContext): Promise<{ id:
   );
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
   await loaded;
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 
   const canvasElement = page.locator('.we-konva-host canvas').first();
   await canvasElement.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }));
