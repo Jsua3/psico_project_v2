@@ -407,3 +407,29 @@ def test_the_brief_write_is_audited(profesor):
         action="ADMIN_UPDATE_BRIEF", resource_type="CASE_VERSION", resource_id=str(cv),
         actor_id=profesor.id,
     ).exists()
+
+
+# ─── la descripción al crear el caso es el contexto que lee el estudiante (revisión de fase, I-2) ─
+@pytest.mark.parametrize(
+    "description",
+    ["<img src=x onerror=alert(1)>", "Mira https://phish.example", "x" * 4001, 5],
+    ids=["etiqueta", "enlace", "mas-de-4000", "no-es-texto"],
+)
+def test_the_description_given_at_creation_is_plain_text_with_a_cap(profesor, description):
+    response = cl(profesor).post(
+        AUTHORING, {"title": "Con descripción", "description": description}, format="json"
+    )
+
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == "description"
+    assert not SimulationCase.objects.filter(title="Con descripción").exists()
+
+
+def test_a_valid_description_becomes_the_context_of_the_new_case(profesor):
+    response = cl(profesor).post(
+        AUTHORING, {"title": "Con contexto", "description": "Un caso sobre el duelo en la familia."},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["context"] == "Un caso sobre el duelo en la familia."

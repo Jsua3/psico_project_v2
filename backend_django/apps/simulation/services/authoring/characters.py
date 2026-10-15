@@ -8,6 +8,7 @@ from django.db import transaction
 from rest_framework import status
 
 from apps.simulation.models import CaseCharacter, DialogueTree, MapObject
+from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 from shared.jsonutils import coerce_int as _int
 
@@ -21,6 +22,9 @@ _OPTIONAL = {
     "showInBrief": ("show_in_brief", False),
     "displayOrder": ("display_order", 0),
 }
+
+
+_MAX_LENGTH = {"roleLabel": 255, "portraitKey": 120}
 
 
 @transaction.atomic
@@ -53,7 +57,8 @@ def delete_character(case_version_id, character_id, revision=None):
 
 
 def _apply_character_request(character, request):
-    key = request.get("characterKey")
+    # Llegan al estudiante en la ficha del caso: texto plano de una línea, con el tope del campo.
+    key = validate_plain_text(request.get("characterKey"), 120, "characterKey", required=True)
     clash = CaseCharacter.objects.filter(
         case_version_id=character.case_version_id, character_key=key
     )
@@ -68,7 +73,9 @@ def _apply_character_request(character, request):
             field="characterKey",
         )
     character.character_key = key
-    character.display_name = request.get("displayName")
+    character.display_name = validate_plain_text(
+        request.get("displayName"), 255, "displayName", required=True
+    )
     # «Ausente = no tocar»: un cliente que solo cambia el nombre no apaga la ficha ni el retrato.
     for field, (attribute, default) in _OPTIONAL.items():
         if field in request:
@@ -82,7 +89,7 @@ def _apply_character_request(character, request):
         elif field == "showInBrief":
             value = bool(value)
         else:
-            value = value or ""
+            value = validate_plain_text(value, _MAX_LENGTH[field], field)
         setattr(character, attribute, value)
 
 

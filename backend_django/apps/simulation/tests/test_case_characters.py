@@ -467,3 +467,19 @@ def test_updating_only_the_name_keeps_the_brief_flag_and_the_portrait(prof_a, ca
     assert kept["displayName"] == "Ana T."
     assert (kept["showInBrief"], kept["displayOrder"]) == (True, 4)
     assert (kept["roleLabel"], kept["portraitKey"]) == ("Madre", "madre-1")
+
+
+# ─── los textos de un personaje llegan al estudiante en la ficha: texto plano (revisión de fase, I-3) ─
+@pytest.mark.parametrize("field", ["characterKey", "displayName", "roleLabel", "portraitKey"])
+@pytest.mark.parametrize(
+    "bad", ["<b>negrita</b>", "https://x.example", "dos\nlíneas"], ids=["etiqueta", "enlace", "salto"]
+)
+def test_character_texts_are_plain_single_line_text(prof_a, case_a, field, bad):
+    body = _character_body()
+    body[field] = bad
+
+    response = cl(prof_a).post(f"{AUTHORING}/{case_a['caseVersionId']}/characters", body, format="json")
+
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == field
+    assert not CaseCharacter.objects.filter(case_version_id=case_a["caseVersionId"]).exists()

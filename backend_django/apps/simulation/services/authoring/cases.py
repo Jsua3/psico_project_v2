@@ -54,7 +54,10 @@ def create_case(request, actor):
     title = (request.get("title") or "").strip()
     if not title:
         raise ValidationError("El titulo del caso es obligatorio")
-    description = (request.get("description") or "").strip()
+    # Es también el contexto que lee el estudiante (``narrative_context``): texto plano con tope.
+    description = validate_plain_text(
+        request.get("description"), MAX_CONTEXT_LENGTH, "description", multiline=True
+    )
     requested_code = (request.get("code") or "").strip()
     if requested_code:
         code = _normalize_case_code(requested_code)
