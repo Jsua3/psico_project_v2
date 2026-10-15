@@ -36,6 +36,10 @@ PLAIN = {
     "PROHIBITED_WITHOUT_REASON": (
         "La decisión «{decision}» está marcada como conducta prohibida y no explica por qué."
     ),
+    "DECISION_WITHOUT_FEEDBACK": (
+        "La decisión «{decision}» aún no explica a la persona por qué conviene o no: "
+        "agrega su retroalimentación."
+    ),
     "NO_SAFE_EXIT": "El caso necesita una salida segura: agrega un objeto de tipo salida (EXIT).",
     "MAP_TOO_LARGE": "El mapa «{map}» es demasiado grande.",
     "TOO_MANY_OBJECTS": "El mapa «{map}» tiene demasiados objetos.",

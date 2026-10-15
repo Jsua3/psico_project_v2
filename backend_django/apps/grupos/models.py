@@ -1,9 +1,9 @@
-"""Grupo y sus dos tablas de unión.
+"""Grupo, su membresía y las asignaciones de casos.
 
-``grupo_estudiante`` y ``grupo_case_version`` no tienen id propio: su clave
-primaria es compuesta (``CompositePrimaryKey``). Son modelos explícitos y no un
-``ManyToManyField`` para conservar los nombres de tabla y de columna y poder
-guardar ``assigned_at``."""
+``grupo_estudiante`` no tiene id propio: su clave primaria es compuesta
+(``CompositePrimaryKey``); es un modelo explícito y no un ``ManyToManyField`` para conservar
+los nombres de tabla y de columna y poder guardar el estado de la membresía. Las asignaciones
+de casos viven en ``case_assignments`` (E3-1)."""
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import Now
@@ -70,13 +70,69 @@ class GrupoEstudiante(models.Model):
         ]
 
 
-class GrupoCaseVersion(models.Model):
-    pk = models.CompositePrimaryKey("grupo_id", "case_version_id")
-    grupo = models.ForeignKey(Grupo, on_delete=models.DB_CASCADE, db_column="grupo_id")
+class CaseAssignment(models.Model):
+    """Una versión de caso asignada a un grupo **o** a un estudiante (E3-1, C7; RF-14, CU-06).
+
+    Sustituye a ``grupo_case_version``: una sola tabla para los dos destinos, con ventana
+    ``[opens_at, closes_at)`` en hora de Bogotá (naive: ``USE_TZ=False``), el orden de la
+    secuencia (``sort_order``) y ``active`` (una asignación en pausa no habilita nada).
+    La API crea hoy solo destino grupo (decisión 5: «grupo primero»); el destino estudiante ya
+    existe en el esquema y en la decisión de acceso, sin nueva migración.
+    """
+
     case_version = models.ForeignKey(
-        "simulation.CaseVersion", on_delete=models.DB_CASCADE, db_column="case_version_id"
+        "simulation.CaseVersion", on_delete=models.DB_CASCADE, db_column="case_version_id",
+        related_name="assignments",
+    )
+    grupo = models.ForeignKey(
+        Grupo, on_delete=models.DB_CASCADE, null=True, blank=True, db_column="grupo_id",
+        related_name="assignments",
+    )
+    estudiante = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_CASCADE, null=True, blank=True,
+        db_column="estudiante_id", related_name="direct_assignments",
+    )
+    opens_at = models.DateTimeField(null=True, blank=True)
+    closes_at = models.DateTimeField(null=True, blank=True)
+    sort_order = models.IntegerField(default=0, db_default=0)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        db_column="assigned_by", related_name="+",
     )
     assigned_at = models.DateTimeField(null=True, db_default=Now())
+    active = models.BooleanField(default=True, db_default=True)
 
     class Meta:
-        db_table = "grupo_case_version"
+        db_table = "case_assignments"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(grupo__isnull=False, estudiante__isnull=True)
+                    | models.Q(grupo__isnull=True, estudiante__isnull=False)
+                ),
+                name="case_assignments_target_check",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(opens_at__isnull=True)
+                    | models.Q(closes_at__isnull=True)
+                    | models.Q(closes_at__gt=models.F("opens_at"))
+                ),
+                name="case_assignments_window_check",
+            ),
+            models.UniqueConstraint(
+                fields=["grupo", "case_version"],
+                condition=models.Q(grupo__isnull=False),
+                name="uq_case_assignments_group_version",
+            ),
+            models.UniqueConstraint(
+                fields=["estudiante", "case_version"],
+                condition=models.Q(estudiante__isnull=False),
+                name="uq_case_assignments_student_version",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["grupo", "active"], name="idx_case_assign_group"),
+            models.Index(fields=["estudiante", "active"], name="idx_case_assign_student"),
+            models.Index(fields=["case_version"], name="idx_case_assign_version"),
+        ]

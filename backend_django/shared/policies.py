@@ -56,6 +56,9 @@ MATRIX: dict[tuple[str, str], dict[str, str]] = {
     ("rubric", "edit"): {PROFESOR: OWN, ADMIN: ALL},
     # La rúbrica global por defecto la fija solo el ADMIN.
     ("rubric", "default"): {ADMIN: ALL},
+    # Competencias (E3-9): el personal lee el catálogo; solo el ADMIN lo amplía.
+    ("competency", "read"): {PROFESOR: ALL, ADMIN: ALL},
+    ("competency", "manage"): {ADMIN: ALL},
     # Usuarios: crear, activar, cambiar rol.
     ("user", "manage"): {ADMIN: ALL},
     # Analítica: agregados de sus grupos (celda mínima k ≥ 5) o todos (ADMIN).

@@ -4,7 +4,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SceneMap, SimulationCase, SimulationNode
 
 User = get_user_model()
@@ -107,7 +107,7 @@ class Command(BaseCommand):
         GrupoEstudiante.objects.get_or_create(
             grupo_id=grupo.id, estudiante_id=users["ESTUDIANTE"].id, defaults={"status": "ACTIVE"}
         )
-        GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
+        CaseAssignment.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
 
         self.stdout.write(
             self.style.SUCCESS(

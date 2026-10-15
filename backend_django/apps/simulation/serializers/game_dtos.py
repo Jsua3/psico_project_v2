@@ -73,6 +73,8 @@ def node_state(node, include_options):
         "safeExitRequired": node.safe_exit_required,
         "warningMessage": node.warning_message,
         "terminal": node.terminal_node,
+        "decisionPrompt": node.decision_prompt,
+        "displayOrder": node.display_order,
         "options": options,
     }
 

@@ -41,7 +41,7 @@ def estudiante(db, case_version_id):
             [grupo.id, estudiante.id],
         )
         cur.execute(
-            "INSERT INTO grupo_case_version (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             [grupo.id, case_version_id],
         )
     return estudiante

@@ -95,8 +95,15 @@ def test_case_effects_acota_las_metricas_del_caso_a_0_100(monkeypatch):
     monkeypatch.setattr(case_effects, "_load_state", lambda attempt: state)
 
     # h1-pap-contencion: confianza +15, crisis_emocional -20, calidad_duelo +15 (resto fuera del caso).
+    pap_contencion = {
+        "severity": "recommended",
+        "flags": {"pap_aplicado": True, "familia_contenida": True},
+        "metrics": {"confianza": 15, "crisis_emocional": -20, "calidad_duelo": 15,
+                    "rigor_tecnico": 10, "etica_profesional": 10, "riesgo_victima": -5},
+    }
     case_effects.apply_case_effects(
-        SimpleNamespace(id=1), SimpleNamespace(option_key="h1-pap-contencion")
+        SimpleNamespace(id=1),
+        SimpleNamespace(option_key="h1-pap-contencion", effects=json.dumps(pap_contencion)),
     )
 
     metrics = json.loads(state.flags_json)["caseMetrics"]
@@ -131,7 +138,7 @@ def _node(**overrides):
         id=7, node_key="n-1", title="Escena", narrative="Texto",
         support_resources_json='["Línea 106", "Bienestar"]', required_tools_json='["PAP"]',
         sensitive_content=False, safe_exit_required=False, warning_message=None,
-        terminal_node=False,
+        terminal_node=False, decision_prompt="", display_order=0,
     )
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -201,7 +208,7 @@ def estudiante(db, case_version_id):
             [grupo.id, user.id],
         )
         cur.execute(
-            "INSERT INTO grupo_case_version (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             [grupo.id, case_version_id],
         )
     return user

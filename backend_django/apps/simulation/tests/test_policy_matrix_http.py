@@ -12,7 +12,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationCase
 from shared import policies
 
@@ -47,7 +47,7 @@ class World:
         self.version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
         self.grupo = Grupo.objects.create(nombre="Grupo MX", codigo="MX1", profesor=self.prof)
         GrupoEstudiante.objects.create(grupo=self.grupo, estudiante=self.student, status="ACTIVE")
-        GrupoCaseVersion.objects.create(grupo=self.grupo, case_version=self.version)
+        CaseAssignment.objects.create(grupo=self.grupo, case_version=self.version)
         self.attempt = _client(self.student).post(
             "/api/simulation/attempts", {"caseVersionId": self.version.id}, format="json"
         ).data["data"]
@@ -239,6 +239,20 @@ def row_rubric_default(world):
     return got, {"anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 200}
 
 
+def row_competency_read(world):
+    return statuses(world, lambda client, w: _code(client.get("/api/competencies"))), {
+        "anon": 401, "ESTUDIANTE": 403, "PROFESOR": 200, "ADMIN": 200,
+    }
+
+
+def row_competency_manage(world):
+    def call(client, w):
+        return _code(client.post("/api/competencies", {"code": "", "name": ""}, format="json"))
+
+    # El cuerpo vacío es un 400 de validación: la puerta de rol dejó pasar solo al ADMIN.
+    return statuses(world, call), {"anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 400}
+
+
 def row_user_manage(world):
     return statuses(world, lambda client, w: _code(client.get("/api/admin/users"))), {
         "anon": 401, "ESTUDIANTE": 403, "PROFESOR": 403, "ADMIN": 200,
@@ -284,6 +298,8 @@ ROWS = {
     ("rubric", "read"): row_rubric_read,
     ("rubric", "edit"): row_rubric_edit,
     ("rubric", "default"): row_rubric_default,
+    ("competency", "read"): row_competency_read,
+    ("competency", "manage"): row_competency_manage,
     ("user", "manage"): row_user_manage,
     ("analytics", "read"): row_analytics_read,
     ("catalog", "read"): row_catalog_read,

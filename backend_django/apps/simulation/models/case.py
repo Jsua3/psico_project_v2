@@ -61,6 +61,9 @@ class CaseVersion(models.Model):
         max_length=24, choices=CaseVersionStatus.choices, default=CaseVersionStatus.DRAFT
     )
     narrative_context = models.TextField(blank=True, null=True)
+    # Los objetivos de aprendizaje del caso (E3-4, RF-16): una lista de textos planos en JSON
+    # (como los demás ``*_json``). Los redacta Psicología; ``[]`` = el caso aún no los tiene.
+    learning_objectives = models.TextField(default="[]", db_default="[]")
     cloned_from = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.DO_NOTHING, db_column="cloned_from_id"
     )
@@ -176,6 +179,11 @@ class SimulationNode(models.Model):
     terminal_node = models.BooleanField(default=False, db_default=False)
     position_x = models.IntegerField(null=True, blank=True, default=0)
     position_y = models.IntegerField(null=True, blank=True, default=0)
+    # El enunciado de la decisión (E3-6, RF-06): lo que el estudiante lee antes de elegir. Texto
+    # plano y blando: vacío = la escena no lo declara.
+    decision_prompt = models.TextField(default="", db_default="")
+    # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
+    display_order = models.IntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "simulation_nodes"
@@ -213,6 +221,9 @@ class DecisionOption(models.Model):
     consequence_text = models.TextField(blank=True, null=True)
     theory_basis = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
+    # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
+    # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
+    effects = models.TextField(default="{}", db_default="{}")
 
     class Meta:
         db_table = "decision_options"

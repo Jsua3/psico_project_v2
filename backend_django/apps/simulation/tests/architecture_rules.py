@@ -14,7 +14,7 @@ Reglas (``Violation.rule``):
 - ``sql-sin-interpolacion``: sin ``.raw(``, ``.extra(``, ``RawSQL(`` y con ``execute*`` solo con SQL literal.
 - ``serializers-sin-all``: sin ``fields = "__all__"`` ni ``exclude`` en serializadores.
 - ``allowany-solo-publicas``: ``AllowAny`` (o ``permission_classes`` vacío) solo en ``PUBLIC_VIEWS``.
-- ``uniones-por-orm``: sin SQL sobre ``grupo_estudiante`` ni ``grupo_case_version`` (E0-8).
+- ``uniones-por-orm``: sin SQL sobre ``grupo_estudiante`` ni ``case_assignments`` (E0-8, E3-1).
 - ``permisos-por-politica``: en las vistas, ``permission_classes`` y ``get_permissions`` solo
   nombran ``policy_permission(...)`` (o una variable asignada de él) y ``AllowAny`` de las
   públicas; ninguna clase de rol suelta (E2-4: «ninguna vista decide por su cuenta»).
@@ -53,7 +53,7 @@ ORM_WRITES = {
 QUERYSET_HINTS = {"objects", "filter", "exclude", "all", "get"}
 WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "TRUNCATE", "CREATE")
 EXECUTE_NAMES = {"execute", "executemany"}
-JOIN_TABLES = ("grupo_estudiante", "grupo_case_version")
+JOIN_TABLES = ("grupo_estudiante", "case_assignments")
 #: Clases de rol que ya no se declaran en una vista: la puerta sale de ``policy_permission``.
 ROLE_PERMISSION_CLASSES = {
     "IsAuthenticated", "IsAdminUser", "IsAdmin", "IsProfesor", "IsProfesorOrAdmin",
@@ -308,7 +308,7 @@ def _allowany_solo_publicas(rel, tree):
 
 
 def _uniones_por_orm(rel, tree):
-    """Las tablas de unión tienen modelo (``GrupoEstudiante``, ``GrupoCaseVersion``): no se tocan con SQL."""
+    """Las tablas de unión tienen modelo (``GrupoEstudiante``, ``CaseAssignment``): no se tocan con SQL."""
     if "/models" in rel:
         return []
     found = {

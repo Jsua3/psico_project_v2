@@ -16,7 +16,7 @@ from apps.simulation.models import (
 from shared.jsonutils import coerce_int as _int, write_map as _write_map
 
 from .editor_view import editor
-from .guards import bump_revision, decision_link, ensure_draft, in_version
+from .guards import bump_revision, character_link, decision_link, ensure_draft, in_version
 from .icons import validate_icon
 from .request_utils import flag
 
@@ -124,6 +124,9 @@ def _apply_object_request(obj, request, case_version_id):
             obj.decision_option = decision
     else:
         obj.decision_option = None
+    # «Ausente = no tocar»: el editor que no conoce a los personajes no puede borrar el vínculo.
+    if "characterId" in request:
+        obj.character = character_link(request.get("characterId"), case_version_id)
 
 
 # ─── Dialogue CRUD ────────────────────────────────────────────────────────────

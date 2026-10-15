@@ -28,6 +28,7 @@ TOKEN_READS = [
     "attempts/{id}/progress-map",
     "attempts/{id}/world",
     "attempts/{id}/report",
+    "attempts/{id}/hints",
 ]
 
 
@@ -114,7 +115,7 @@ def test_student_report_keeps_its_own_scope(estudiante, profesor, admin, otro_es
 
 # ─── E2-3 · El ADMIN (y el PROFESOR) no juegan (ED-5, RF-02) ────────────────────────────
 def _play_calls(attempt, case_version_id):
-    """(método, ruta, cuerpo) de las 12 órdenes de juego, con un intento ajeno real."""
+    """(método, ruta, cuerpo) de las 13 órdenes de juego, con un intento ajeno real."""
     token = {"attemptToken": attempt["attemptToken"]}
     base = f"{BASE}/attempts/{attempt['attemptId']}"
     return [
@@ -130,6 +131,7 @@ def _play_calls(attempt, case_version_id):
         ("post", f"{base}/interactions/x", token),
         ("post", f"{base}/npcs/x", token),
         ("post", f"{base}/tools/use", {**token, "toolCode": "x"}),
+        ("post", f"{base}/hints/next", token),
     ]
 
 

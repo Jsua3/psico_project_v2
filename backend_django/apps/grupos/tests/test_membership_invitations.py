@@ -158,9 +158,9 @@ def test_the_three_answers_of_add_by_email_are_identical(profesor, grupo, estudi
 # ─── lo que ve el docente mientras no es ACTIVE ────────────────────────────────────────
 def _plant_open_attempt(estudiante, grupo, case_version_id):
     """Un intento abierto del estudiante, con la asignación y la membresía de ``grupo``."""
-    from apps.grupos.models import GrupoCaseVersion
+    from apps.grupos.models import CaseAssignment
 
-    GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=case_version_id)
+    CaseAssignment.objects.get_or_create(grupo_id=grupo.id, case_version_id=case_version_id)
     GrupoEstudiante.objects.update_or_create(
         grupo_id=grupo.id, estudiante_id=estudiante.id, defaults={"status": "ACTIVE"}
     )

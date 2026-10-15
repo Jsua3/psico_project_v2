@@ -184,3 +184,58 @@ def test_a_professor_reads_the_rubric_of_a_case_version_only_if_it_is_visible_to
     assert hidden.status_code == missing.status_code == 404
     assert (hidden.data["code"], hidden.data["message"]) == (missing.data["code"], missing.data["message"])
     assert global_one.status_code == 200 and global_one.data["data"]["id"] == global_default.id
+
+
+# ─── E3-0 · el DTO dice de quién es y si quien mira puede editarla (F7b-6) ─────────────────────────
+def test_the_rubric_dto_says_who_owns_it_and_whether_the_viewer_can_edit_it(prof_a, prof_b, admin, global_default):
+    own = _create(prof_a)
+
+    as_owner = cl(prof_a).get(f"{BASE}/{own}").data["data"]
+    as_admin = cl(admin).get(f"{BASE}/{own}").data["data"]
+    global_for_a = cl(prof_a).get(f"{BASE}/{global_default.id}").data["data"]
+    listed = {row["id"]: row for row in cl(prof_a).get(f"{BASE}/").data["data"]}
+
+    assert (as_owner["ownerId"], as_owner["editable"]) == (prof_a.id, True)
+    assert as_admin["editable"] is True
+    assert (global_for_a["ownerId"], global_for_a["editable"]) == (admin.id, False)
+    assert listed[own]["editable"] is True
+    assert listed[global_default.id]["editable"] is False
+
+
+def test_the_criteria_say_their_score_range(prof_a):
+    detail = cl(prof_a).get(f"{BASE}/{_create(prof_a)}").data["data"]
+
+    assert detail["criteria"]
+    for criterion in detail["criteria"]:
+        assert (criterion["minScore"], criterion["step"]) == (1.0, 0.5)
+
+
+def test_a_read_only_rubric_says_why_with_its_own_code(prof_a, global_default):
+    response = cl(prof_a).put(f"{BASE}/{global_default.id}", _payload("Pisada"), format="json")
+
+    assert response.status_code == 403
+    assert response.data["code"] == "RUBRIC_READ_ONLY"
+    assert "solo lectura" in response.data["message"]
+
+
+def test_only_the_admin_can_set_the_default_and_the_answer_says_so(prof_a):
+    own = _create(prof_a)
+    cl(prof_a).post(f"{BASE}/{own}/activate", {}, format="json")
+
+    set_default = cl(prof_a).post(f"{BASE}/{own}/default", {}, format="json")
+    flagged = cl(prof_a).post(f"{BASE}/", {**_payload("Quiero ser global"), "isDefault": True}, format="json")
+
+    assert set_default.status_code == 403  # la puerta de rol de la ruta: no llega al servicio
+    assert flagged.status_code == 403
+    assert flagged.data["code"] == "RUBRIC_DEFAULT_ADMIN_ONLY"
+
+
+def test_assigning_a_rubric_to_a_foreign_case_says_whose_it_is(prof_a, prof_b):
+    own = _create(prof_a)
+    cl(prof_a).post(f"{BASE}/{own}/activate", {}, format="json")
+    theirs = _owned_case_version(prof_b, "RUB-E30-B")
+
+    response = cl(prof_a).put(f"{BASE}/case-versions/{theirs.id}", {"rubricId": own}, format="json")
+
+    assert response.status_code == 403
+    assert response.data["code"] == "RUBRIC_CASE_NOT_OWNED"

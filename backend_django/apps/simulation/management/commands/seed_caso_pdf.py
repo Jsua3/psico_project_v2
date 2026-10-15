@@ -44,11 +44,19 @@ from apps.simulation.models import (
     SimulationCase,
     SimulationNode,
 )
+from apps.simulation.services.authoring.characters import ensure_person_characters
+from apps.simulation.services.competencies import link_unlinked_criteria
+from apps.simulation.services.case_effects import DEFAULT_ENDINGS, DEFAULT_METRICS
 
 CASE_CODE = "SIM-VBG-001"
 #: Reglas del caso (``case_versions.rules``, E1-7): la segunda oportunidad la conserva este caso
 #: por la decisión 10, una excepción explícita a RN-08; los casos nuevos nacen sin ella (ED-7).
-CASE_RULES = {"secondChance": True}
+CASE_RULES = {
+    "secondChance": True,
+    # Las métricas del caso y sus finales son datos de la versión (E3-8): la semilla los escribe.
+    "metrics": DEFAULT_METRICS,
+    "endings": DEFAULT_ENDINGS,
+}
 #: Casos legacy del mismo dominio que deben retirarse del catálogo al sembrar
 #: el canónico (evita que aparezcan casos de feminicidio duplicados).
 LEGACY_DUPLICATE_CASE_CODES = ("SOC-FEM-001", "VBG-001")
@@ -73,13 +81,19 @@ CASE_DESCRIPTION = (
     "en Comisaría de Familia (Resolución 459 de 2012, Ley 1257 de 2008, "
     "Ley 2126 de 2021, Ley 1098 de 2006)."
 )
-NARRATIVE_CONTEXT = (
-    "Barrio con altas condiciones de vulnerabilidad. Un hombre de 28 años "
-    "ataca con arma cortopunzante a su pareja de 22 años (28 heridas) y a la "
-    "hija de ambos de 3 años, quien fallece. El recorrido cubre la urgencia "
-    "vital y la crisis familiar en el hospital y, quince días después, el "
-    "restablecimiento de derechos en la Comisaría de Familia."
-)
+#: El contexto inicial del caso, párrafo por párrafo (separados por una línea en blanco). Son los
+#: párrafos validados por Psicología que hasta E3 estaban escritos a mano en el cliente
+#: (``CASE_INTRO_PARAGRAPHS``): se trasladan tal cual para que la ficha del caso (C8) los sirva el
+#: servidor y un caso autorado tenga la suya.
+NARRATIVE_PARAGRAPHS = [
+    "Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.",
+    "Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.",
+    "En horas de la tarde, el hombre había tenido un altercado verbal con su pareja. Hubo groserías, maltrato psicológico y chantaje emocional: le dijo que sin él no era nadie, que era una mujer mantenida y que estaba seguro de que ella le era infiel.",
+    "Esa noche, cuando él entra a la residencia, la mujer le reclama por llegar tarde y haberse perdido toda la tarde.",
+    "El hombre, sin mediar palabra, saca una navaja y hiere a la niña de 3 años, causándole la muerte de manera inmediata. Luego hiere a la mujer con 28 heridas de arma cortopunzante, dejándola gravemente herida.",
+    "Tu intervención inicia en urgencias. Lee el contexto con cuidado: cada conversación, herramienta y decisión puede cambiar el curso de la atención.",
+]
+NARRATIVE_CONTEXT = "\n\n".join(NARRATIVE_PARAGRAPHS)
 
 ROOM_W, ROOM_H = 960, 528
 
@@ -133,6 +147,11 @@ DEFAULT_RUBRIC = {
         },
     ],
 }
+
+#: Los objetivos de aprendizaje del caso (RF-16). Psicología aún no redactó los propios (decisión
+#: 16): hasta entonces se listan, tal cual, las competencias que la rúbrica sembrada ya declara
+#: para este caso (``DEFAULT_RUBRIC``), que son texto validado y no inventado aquí.
+LEARNING_OBJECTIVES = [criterion["description"] for criterion in DEFAULT_RUBRIC["criteria"]]
 
 LOCKED_ESCUCHA = (
     "Primero identifica la necesidad de contención: habla con la familia en crisis."
@@ -227,9 +246,228 @@ NODES = [
     },
 ]
 
+# ─── Efectos de las opciones canónicas (E3-8) ────────────────────────────────
+# Por option_key: severidad pedagógica, banderas clínicas que enciende y cuánto mueve cada
+# métrica del caso. Hasta E3 vivían en ``case_effects.OPTION_EFFECTS``; ahora son datos de la
+# opción (``decision_options.effects``) y este diccionario solo los siembra.
+OPTION_EFFECTS = {
+    "h1-noticia-sin-protocolo": {
+        "severity": "critical",
+        "flags": {
+            "noticia_muerte_mal_manejada": True
+        },
+        "metrics": {
+            "calidad_duelo": -25,
+            "crisis_emocional": 25,
+            "confianza": -15,
+            "etica_profesional": -15,
+            "rigor_tecnico": -10
+        }
+    },
+    "h1-pap-contencion": {
+        "severity": "recommended",
+        "flags": {
+            "pap_aplicado": True,
+            "familia_contenida": True
+        },
+        "metrics": {
+            "confianza": 15,
+            "crisis_emocional": -20,
+            "calidad_duelo": 15,
+            "rigor_tecnico": 10,
+            "etica_profesional": 10,
+            "riesgo_victima": -5
+        }
+    },
+    "h1-interrogar-victima": {
+        "severity": "critical",
+        "flags": {
+            "interrogatorio_prematuro": True
+        },
+        "metrics": {
+            "etica_profesional": -25,
+            "riesgo_victima": 15,
+            "confianza": -20,
+            "crisis_emocional": 15,
+            "rigor_tecnico": -10
+        }
+    },
+    "h2-solo-459": {
+        "severity": "acceptable",
+        "flags": {},
+        "metrics": {
+            "ruta_institucional": 5,
+            "rigor_tecnico": 2
+        }
+    },
+    "h2-459-1257": {
+        "severity": "recommended",
+        "flags": {
+            "marco_hospital_correcto": True
+        },
+        "metrics": {
+            "ruta_institucional": 15,
+            "rigor_tecnico": 10,
+            "etica_profesional": 5
+        }
+    },
+    "h2-459-1448": {
+        "severity": "risky",
+        "flags": {},
+        "metrics": {
+            "ruta_institucional": -10,
+            "rigor_tecnico": -8
+        }
+    },
+    "h3-parcial-disonancia": {
+        "severity": "risky",
+        "flags": {},
+        "metrics": {
+            "rigor_tecnico": -5,
+            "calidad_duelo": -5,
+            "crisis_emocional": 5
+        }
+    },
+    "h3-pap-epicee": {
+        "severity": "acceptable",
+        "flags": {
+            "epicee_aplicado": True
+        },
+        "metrics": {
+            "rigor_tecnico": 8,
+            "calidad_duelo": 8,
+            "crisis_emocional": -5
+        }
+    },
+    "h3-epicee-ciclo": {
+        "severity": "acceptable",
+        "flags": {
+            "epicee_aplicado": True
+        },
+        "metrics": {
+            "rigor_tecnico": 10,
+            "calidad_duelo": 8,
+            "crisis_emocional": -5
+        }
+    },
+    "h3-integral-psicosocial": {
+        "severity": "recommended",
+        "flags": {
+            "epicee_aplicado": True,
+            "duelo_acompanado": True
+        },
+        "metrics": {
+            "rigor_tecnico": 15,
+            "calidad_duelo": 15,
+            "etica_profesional": 10,
+            "confianza": 10,
+            "crisis_emocional": -10
+        }
+    },
+    "c1-mediacion-perdon": {
+        "severity": "critical",
+        "flags": {
+            "mediacion_agresor_intentada": True
+        },
+        "metrics": {
+            "riesgo_victima": 30,
+            "etica_profesional": -25,
+            "confianza": -20,
+            "ruta_institucional": -15,
+            "crisis_emocional": 15
+        }
+    },
+    "c1-riesgo-proteccion-derechos": {
+        "severity": "recommended",
+        "flags": {
+            "riesgo_feminicidio_valorado": True,
+            "medidas_proteccion_activadas": True,
+            "asesoria_derechos_realizada": True
+        },
+        "metrics": {
+            "riesgo_victima": -25,
+            "ruta_institucional": 20,
+            "confianza": 10,
+            "etica_profesional": 10,
+            "rigor_tecnico": 10
+        }
+    },
+    "c1-patrones-infancia": {
+        "severity": "risky",
+        "flags": {},
+        "metrics": {
+            "riesgo_victima": 10,
+            "rigor_tecnico": -10,
+            "ruta_institucional": -10
+        }
+    },
+    "c2-2126-1098-1257": {
+        "severity": "recommended",
+        "flags": {
+            "marco_comisaria_correcto": True
+        },
+        "metrics": {
+            "ruta_institucional": 15,
+            "rigor_tecnico": 10
+        }
+    },
+    "c2-1098-1257": {
+        "severity": "acceptable",
+        "flags": {},
+        "metrics": {
+            "ruta_institucional": 5,
+            "rigor_tecnico": 3
+        }
+    },
+    "c2-eje-1448": {
+        "severity": "risky",
+        "flags": {},
+        "metrics": {
+            "ruta_institucional": -8,
+            "rigor_tecnico": -8
+        }
+    },
+    "c3-parcial-clinica": {
+        "severity": "risky",
+        "flags": {
+            "riesgo_feminicidio_valorado": True
+        },
+        "metrics": {
+            "rigor_tecnico": 3,
+            "riesgo_victima": -3
+        }
+    },
+    "c3-valoracion-dependientes": {
+        "severity": "acceptable",
+        "flags": {
+            "valoracion_dependientes_realizada": True,
+            "derivacion_salud_mental_activada": True
+        },
+        "metrics": {
+            "riesgo_victima": -8,
+            "rigor_tecnico": 8,
+            "ruta_institucional": 5
+        }
+    },
+    "c3-integral-derechos": {
+        "severity": "recommended",
+        "flags": {
+            "valoracion_dependientes_realizada": True,
+            "riesgo_feminicidio_valorado": True,
+            "derivacion_salud_mental_activada": True
+        },
+        "metrics": {
+            "riesgo_victima": -15,
+            "rigor_tecnico": 15,
+            "etica_profesional": 10,
+            "ruta_institucional": 10
+        }
+    }
+}
+
 # ─── Decisiones canónicas del PDF ────────────────────────────────────────────
 # (source, target, opciones). classification: ADEQUATE/RISKY/INADEQUATE;
-# la severidad pedagógica vive en case_effects.OPTION_EFFECTS por option_key.
+# la severidad pedagógica es OPTION_EFFECTS[option_key] y se guarda en ``effects``.
 DECISIONS = [
     {
         "source": "hospital-urgencias",
@@ -1146,6 +1384,7 @@ class Command(BaseCommand):
                 semantic_version=options["semantic_version"],
                 status="PUBLISHED",
                 narrative_context=NARRATIVE_CONTEXT,
+                learning_objectives=json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False),
                 published_at=timezone.now(),
                 created_by=case.created_by,
                 rules=json.dumps(CASE_RULES),
@@ -1154,6 +1393,7 @@ class Command(BaseCommand):
             version.status = "PUBLISHED"
             version.rules = json.dumps(CASE_RULES)
             version.narrative_context = NARRATIVE_CONTEXT
+            version.learning_objectives = json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False)
             version.published_at = version.published_at or timezone.now()
             version.save()
 
@@ -1216,6 +1456,7 @@ class Command(BaseCommand):
                     immediate_feedback=opt["feedback"],
                     prohibited_conduct=opt.get("prohibited", False),
                     prohibition_reason=opt.get("reason"),
+                    effects=json.dumps(OPTION_EFFECTS.get(opt["key"], {}), ensure_ascii=False),
                 )
 
         # ── Herramientas clínicas ────────────────────────────────────────────
@@ -1313,6 +1554,11 @@ class Command(BaseCommand):
                             display_order=order,
                         )
 
+        # ── Personajes: cada objeto PERSON queda enlazado a su personaje (E3-3) ──
+        # Los personajes ya existentes (editados por Psicología) se reutilizan: la reconstrucción
+        # borra los objetos, no el catálogo.
+        ensure_person_characters(version.id)
+
         # ── Rúbrica: clonar la de la versión previa si esta no tiene ─────────
         if not Rubric.objects.filter(case_version_id=version.id, active=True).exists():
             source_rubric = (
@@ -1357,6 +1603,9 @@ class Command(BaseCommand):
                         display_order=criterion["display_order"],
                     )
                 self.stdout.write("Rúbrica canónica creada para la versión publicada.")
+
+        # ── Competencias: cada criterio sembrado queda enlazado a su competencia (E3-9) ──
+        link_unlinked_criteria(create=True)
 
         # ── Archivar otras versiones publicadas (catálogo = solo esta) ───────
         if not Rubric.objects.filter(case_version_id=version.id, active=True).exists():

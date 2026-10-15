@@ -6,7 +6,7 @@ Crea los usuarios demo, siembra el caso PDF y lo asigna al grupo demo.
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationCase
 from apps.users.models import CustomUser
 
@@ -39,7 +39,7 @@ def _assign_demo_group(profesor, estudiante, case_version_id):
     GrupoEstudiante.objects.get_or_create(
         grupo_id=grupo.id, estudiante_id=estudiante.id, defaults={"status": "ACTIVE"}
     )
-    GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=case_version_id)
+    CaseAssignment.objects.get_or_create(grupo_id=grupo.id, case_version_id=case_version_id)
     return grupo, created
 
 

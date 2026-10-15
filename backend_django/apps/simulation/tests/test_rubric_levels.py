@@ -239,3 +239,12 @@ def test_la_migracion_deriva_el_nivel_de_las_calificaciones_anteriores_a_e1(admi
     assert [by_criterion[c] for c in ids] == expected
     view = client.get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
     assert view["overallLevel"] is not None
+
+
+def test_los_criterios_de_la_evaluacion_traen_el_rango_del_contrato(admin, attempt):
+    """E3-0 (F7-4): el servidor es la única fuente del rango de la calificación."""
+    view = cl(admin).get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+
+    assert view["criteria"]
+    for criterion in view["criteria"]:
+        assert (criterion["minScore"], criterion["maxScore"], criterion["step"]) == (1.0, 5, 0.5)

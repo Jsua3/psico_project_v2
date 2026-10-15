@@ -60,7 +60,7 @@ def case_definition_hash(case_version_id):
         .values_list(
             "option_key", "source_node__node_key", "target_node__node_key", "text", "classification",
             "score_delta", "stress_delta", "prohibited_penalty", "prohibited_conduct",
-            "immediate_feedback", "consequence_text", "theory_basis", "feedback_text",
+            "immediate_feedback", "consequence_text", "theory_basis", "feedback_text", "effects",
         )
     )
     canonical = json.dumps(

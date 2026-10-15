@@ -5,6 +5,7 @@ from .attempt import (  # noqa: F401
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
+    AttemptHintView,
     AttemptReport,
     AttemptStatus,
     AttemptWorldState,
@@ -25,6 +26,7 @@ from .case import (  # noqa: F401
 from .rubric import (  # noqa: F401
     LEVEL_INDEX,
     AuditLog,
+    Competency,
     CriterionScore,
     EvaluationOrigin,
     FormativeLevel,
@@ -38,11 +40,13 @@ from .rubric import (  # noqa: F401
 from .world import (  # noqa: F401
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
+    CaseCharacter,
     ClinicalTool,
     CollisionZone,
     DialogueChoice,
     DialogueLine,
     DialogueTree,
     MapObject,
+    SceneHint,
     SceneMap,
 )

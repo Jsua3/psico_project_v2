@@ -59,7 +59,7 @@ def test_every_code_the_validator_can_emit_has_a_plain_message():
     """Un código nuevo en el validador sin plantilla en lenguaje llano rompe esta prueba."""
     emitted = _codes_in_the_validator()
 
-    assert len(emitted) == 19  # 17 errores + 2 avisos (#67)
+    assert len(emitted) == 20  # 17 errores + 3 avisos (#67; E3-7 añade «decisión sin retroalimentación»)
     assert emitted == set(validation_issues.PLAIN)
 
 
