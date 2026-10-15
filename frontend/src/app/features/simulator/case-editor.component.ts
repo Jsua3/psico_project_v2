@@ -34,7 +34,7 @@ import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
-import { mapThemeLabel, statusTone } from './case-editor.options';
+import { mapThemeLabel, nodeOptionLabel, statusTone } from './case-editor.options';
 import { DagEditorComponent } from './dag-editor.component';
 import { describeEditorChanges } from './editor-changes.util';
 import { publishReadiness } from './publish-readiness.util';
@@ -71,6 +71,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   readonly statusTone = statusTone;
   readonly objectTypeLabel = objectTypeLabel;
   readonly mapThemeLabel = mapThemeLabel;
+  /** «Sala de urgencias (urgencias-crisis)»: el título primero, la clave entre paréntesis (RF-08). */
+  readonly nodeOptionLabel = nodeOptionLabel;
 
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

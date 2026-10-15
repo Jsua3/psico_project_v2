@@ -272,7 +272,7 @@
                 @for (node of model.nodes; track node.id) {
                   <li>
                     <button ui-button type="button" variant="secondary" [icon]="nodeIcon(node)"
-                      (click)="selectedWorldNodeId.set(node.id)">{{ node.key }} — {{ node.title }}</button>
+                      (click)="selectedWorldNodeId.set(node.id)">{{ nodeOptionLabel(node) }}</button>
                   </li>
                 }
               </ul>

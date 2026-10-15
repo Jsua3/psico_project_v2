@@ -7,13 +7,15 @@
  * Responsibilities:
  *   - Load WorldDefinition from backend
  *   - Track local edits via command stack (undo/redo)
- *   - Auto-save with debounce → PUT /world with revision
+ *   - Auto-save with debounce → PUT /world with revision (F8-5: sobrevive a un error, guarda al instante con
+ *     `saveNow`/`retrySave` y no escribe el estado de una sala bajo otra)
  *   - Handle 409 Conflict (optimistic lock) without silent data loss
  *   - Run validation on demand
  */
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Subject, debounceTime, switchMap, catchError, of, EMPTY } from 'rxjs';
+import { Observable, Subject, debounceTime, switchMap, catchError, of, EMPTY, filter, map, merge } from 'rxjs';
 import { AuthoringApi } from '../../../core/api/authoring.api';
+import { RevisionConflict, revisionConflictOf } from '../../../core/api/revision-conflict.util';
 import {
   WorldDefinition,
   WorldObject,
@@ -371,12 +373,23 @@ export class WorldEditorStore {
   readonly dirty = signal(false);
   readonly error = signal('');
   readonly conflictDetected = signal(false);
+  /** El 409 de la última orden de guardado: la revisión vigente del servidor (para «Reintentar con mi cambio»). */
+  readonly conflict = signal<RevisionConflict | null>(null);
+  /** El último intento de guardado falló (la orden «Reintentar» lo repite al instante). */
+  readonly saveFailed = signal(false);
+  /** Cuándo se guardó por última vez (null: aún no en esta sesión). */
+  readonly lastSavedAt = signal<number | null>(null);
   readonly validationState = signal<WorldValidationState | null>(null);
   readonly availableDecisions = signal<WorldOutgoingDecision[]>([]);
   readonly rooms = signal<WorldRoom[]>([]);
 
-  // ─── Auto-save debounce ───────────────────────────────────────────────
+  // ─── Auto-save ────────────────────────────────────────────────────────
+  /** Cada cambio: se guarda tras 1500 ms de calma. */
   private readonly saveSubject = new Subject<void>();
+  /** «Guardar», Ctrl+S y «Reintentar»: se guarda ya. */
+  private readonly flushSubject = new Subject<void>();
+  /** Cambia en cada carga: un guardado de la sala anterior que llega tarde no pisa la sala nueva. */
+  private generation = 0;
   private caseVersionId = 0;
   private nodeId: number | undefined;
 
@@ -406,28 +419,63 @@ export class WorldEditorStore {
   readonly zoneCount = computed(() => this.editorState()?.collisionZones.length ?? 0);
 
   constructor() {
-    // Auto-save pipeline: debounce 1500ms → PUT /world
-    this.saveSubject.pipe(
-      debounceTime(1500),
-      switchMap(() => this.executeSave()),
-      catchError(err => {
-        if (err?.status === 409) {
-          this.conflictDetected.set(true);
-          this.error.set('Este caso cambió en otra sesión. Tus cambios locales se conservan. Recarga para ver la versión más reciente.');
-        } else {
-          this.error.set('No se pudo guardar el borrador.');
+    // Auto-save pipeline: debounce 1500 ms (o ya, con saveNow/retrySave) → PUT /world.
+    // El `catchError` va DENTRO de `executeSave`: un fallo cierra solo ESE guardado y el flujo sigue vivo (antes un error
+    // lo completaba y los cambios siguientes ya no se guardaban solos hasta recargar).
+    merge(
+      this.saveSubject.pipe(debounceTime(1500), map(() => 'auto' as const)),
+      this.flushSubject.pipe(map(() => 'now' as const)),
+    ).pipe(
+      filter(origin => {
+        if (origin === 'now') return this.dirty() || this.saveFailed();
+        // Un cambio ya guardado (p. ej. por «Guardar» antes de que venza la espera) no se guarda otra vez.
+        if (!this.dirty()) return false;
+        // Hay un guardado en vuelo: se vuelve a armar la espera en vez de cancelarlo con otro.
+        if (this.saving()) {
+          this.saveSubject.next();
+          return false;
         }
-        this.saving.set(false);
-        return EMPTY;
-      })
-    ).subscribe(def => {
-      if (def) {
-        this.definition.set(def);
-        this.adoptSavedIds(def);
-        this.saving.set(false);
-        this.dirty.set(false);
-      }
+        return true;
+      }),
+      switchMap(() => this.executeSave()),
+    ).subscribe(result => {
+      if (!result || result.generation !== this.generation) return;
+      this.onSaved(result.definition);
     });
+  }
+
+  /** Un intento de guardado empieza: «Guardando…» sustituye al aviso del fallo anterior. */
+  private beginSave(): void {
+    if (this.saveFailed()) this.error.set('');
+    this.saveFailed.set(false);
+    this.saving.set(true);
+  }
+
+  private onSaved(def: WorldDefinition): void {
+    this.definition.set(def);
+    this.adoptSavedIds(def);
+    this.saving.set(false);
+    this.dirty.set(false);
+    this.saveFailed.set(false);
+    this.conflictDetected.set(false);
+    this.conflict.set(null);
+    this.lastSavedAt.set(Date.now());
+  }
+
+  /** Un guardado falló: se avisa (con el 409 aparte) y los cambios locales se conservan. */
+  private onSaveError(err: unknown, generation: number): void {
+    // Un fallo de una sala que ya no es la actual no es de nadie.
+    if (generation !== this.generation) return;
+    this.saving.set(false);
+    this.saveFailed.set(true);
+    const conflict = revisionConflictOf(err);
+    if (conflict || (err as { status?: number } | null)?.status === 409) {
+      this.conflict.set(conflict ?? { revision: this.definition()?.revision ?? 0, current: null, message: '' });
+      this.conflictDetected.set(true);
+      this.error.set('Este caso cambió en otra sesión. Tus cambios locales se conservan. Recarga para ver la versión más reciente.');
+    } else {
+      this.error.set('No se pudo guardar el borrador.');
+    }
   }
 
   /**
@@ -475,6 +523,12 @@ export class WorldEditorStore {
   load(caseVersionId: number, nodeId?: number): void {
     this.caseVersionId = caseVersionId;
     this.nodeId = nodeId;
+    // Lo que estaba por guardarse de la sala anterior se descarta (para guardarlo antes: `switchRoom`); un guardado
+    // en vuelo cuya respuesta llegue ahora ya no es de esta carga y se ignora.
+    this.generation += 1;
+    this.saving.set(false);
+    this.saveFailed.set(false);
+    this.conflict.set(null);
     this.loading.set(true);
     this.error.set('');
     this.conflictDetected.set(false);
@@ -576,8 +630,48 @@ export class WorldEditorStore {
 
   // ─── Save (manual) ───────────────────────────────────────────────────
 
+  /** «Guardar» y Ctrl+S: guarda ya, sin esperar la calma del autoguardado. */
   saveNow(): void {
-    this.saveSubject.next();
+    this.flushSubject.next();
+  }
+
+  /** «Reintentar» tras un fallo de guardado: lo mismo que `saveNow`, con un nombre que dice para qué sirve. */
+  retrySave(): void {
+    this.flushSubject.next();
+  }
+
+  /**
+   * «Reintentar con mi cambio» tras un 409: el guardado local se vuelve a mandar con la revisión vigente del servidor
+   * (lo de la otra sesión en ESTA sala queda sustituido por lo que hay en pantalla).
+   */
+  retryAfterConflict(): void {
+    const conflict = this.conflict();
+    if (!conflict) return;
+    this.definition.update(def => (def ? { ...def, revision: conflict.revision } : def));
+    this.conflictDetected.set(false);
+    this.conflict.set(null);
+    this.error.set('');
+    this.flushSubject.next();
+  }
+
+  /**
+   * Cambia de sala SIN perder lo escrito: lo pendiente se guarda primero, en la sala de origen y con su nodo; si el
+   * guardado falla, no se cambia de sala (lo escrito sigue en pantalla y se avisa). Antes un guardado pendiente se
+   * escribía bajo el nodo nuevo.
+   */
+  switchRoom(nodeId: number): void {
+    const def = this.definition();
+    const state = this.editorState();
+    if (!this.dirty() || !def || !state) {
+      this.load(this.caseVersionId, nodeId);
+      return;
+    }
+    const generation = this.generation;
+    this.beginSave();
+    this.authoringApi.saveWorld(this.caseVersionId, buildWorldSaveRequest(def, state), this.nodeId).subscribe({
+      next: () => this.load(this.caseVersionId, nodeId),
+      error: err => this.onSaveError(err, generation),
+    });
   }
 
   // ─── Validate ─────────────────────────────────────────────────────────
@@ -619,14 +713,22 @@ export class WorldEditorStore {
     this.saveSubject.next(); // Trigger debounced auto-save
   }
 
-  private executeSave() {
+  private executeSave(): Observable<{ definition: WorldDefinition; generation: number } | null> {
     const def = this.definition();
     const state = this.editorState();
-    if (!def || !state) return of(null);
+    // Mientras carga otra sala no se guarda: el estado de pantalla aún es el de la anterior.
+    if (!def || !state || this.loading()) return of(null);
 
-    this.saving.set(true);
+    const generation = this.generation;
+    this.beginSave();
     const body = buildWorldSaveRequest(def, state);
-    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId);
+    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId).pipe(
+      map(definition => ({ definition, generation })),
+      catchError(err => {
+        this.onSaveError(err, generation);
+        return EMPTY;
+      }),
+    );
   }
 
   private resetCommandStack(): void {

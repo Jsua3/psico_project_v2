@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
@@ -362,13 +363,29 @@ describe('WorldEditorStore', () => {
       expect([store.dirty(), store.saving()]).toEqual([false, false]);
     });
 
-    it('saveNow dispara el mismo guardado con debounce', () => {
+    // F8-5 (antes: «dispara el mismo guardado con debounce»: el botón «Guardar» y el atajo esperaban 1,5 s).
+    it('saveNow guarda al instante, sin esperar el debounce, y el cambio ya guardado no se guarda otra vez', () => {
       loaded();
+      store.execute(new DeleteObjectCommand('a'));
 
       store.saveNow();
+      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
       vi.advanceTimersByTime(1500);
 
+      // El guardado inmediato no deja un segundo guardado por el debounce del mismo cambio.
       expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      expect(store.dirty()).toBe(false);
+    });
+
+    it('tras guardar bien anota cuándo y no queda ningún error de guardado', () => {
+      loaded();
+      expect(store.lastSavedAt()).toBeNull();
+      store.execute(new DeleteObjectCommand('a'));
+
+      store.saveNow();
+
+      expect(store.lastSavedAt()).not.toBeNull();
+      expect(store.saveFailed()).toBe(false);
     });
 
     it('un 409 conserva los cambios locales y avisa del conflicto', () => {
@@ -396,34 +413,124 @@ describe('WorldEditorStore', () => {
       expect(store.conflictDetected()).toBe(false);
     });
 
-    it('comportamiento actual: tras un error de guardado el autoguardado queda muerto hasta recargar', () => {
+    // F8-5 (antes: «comportamiento actual: tras un error de guardado el autoguardado queda muerto hasta recargar»).
+    it('tras un error de guardado el autoguardado sigue vivo: el cambio siguiente se guarda solo', () => {
       loaded();
       sim.saveWorld.mockReturnValueOnce(throwError(() => ({ status: 500 })));
       store.execute(new DeleteObjectCommand('a'));
       vi.advanceTimersByTime(1500);
       expect(sim.saveWorld).toHaveBeenCalledTimes(1);
+      expect(store.saveFailed()).toBe(true);
 
       store.execute(new DeleteObjectCommand('b'));
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(1500);
 
-      // `catchError` está fuera del `switchMap`: al devolver EMPTY el flujo se completa
-      // y los cambios siguientes ya no se guardan solos.
-      expect(sim.saveWorld).toHaveBeenCalledTimes(1);
-      expect(store.dirty()).toBe(true);
+      expect(sim.saveWorld).toHaveBeenCalledTimes(2);
+      expect(keys(sim.saveWorld.mock.calls[1][1].objects)).toEqual([]);
+      expect(store.dirty()).toBe(false);
+      expect(store.saveFailed()).toBe(false);
+      expect(store.error()).toBe('');
     });
 
-    it('comportamiento actual: recargar otro nodo con un guardado pendiente guarda el estado viejo bajo el nodo nuevo', () => {
+    it('«Reintentar» (retrySave) vuelve a guardar al instante lo que falló', () => {
+      loaded();
+      sim.saveWorld.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500);
+      expect(store.saveFailed()).toBe(true);
+
+      store.retrySave();
+
+      expect(sim.saveWorld).toHaveBeenCalledTimes(2);
+      expect(store.saveFailed()).toBe(false);
+      expect(store.dirty()).toBe(false);
+    });
+
+    it('un 409 con el cuerpo del servidor guarda la revisión vigente; «Reintentar con mi cambio» la usa y guarda lo local', () => {
+      loaded(3);
+      const conflict = new HttpErrorResponse({
+        status: 409,
+        error: { success: false, code: 'REVISION_CONFLICT', message: 'otra sesión', revision: 9, current: { caseVersionId: 1, revision: 9 } },
+      });
+      sim.saveWorld.mockReturnValueOnce(throwError(() => conflict));
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500);
+
+      expect(store.conflictDetected()).toBe(true);
+      expect(store.conflict()).toMatchObject({ revision: 9 });
+      expect(store.dirty()).toBe(true);
+
+      store.retryAfterConflict();
+
+      expect(sim.saveWorld).toHaveBeenCalledTimes(2);
+      const [, body, nodeId] = sim.saveWorld.mock.calls[1];
+      expect(body.revision).toBe(9);
+      expect(nodeId).toBe(3);
+      expect(keys(body.objects)).toEqual(['b']);
+      expect([store.conflictDetected(), store.conflict(), store.error()]).toEqual([false, null, '']);
+      expect(store.dirty()).toBe(false);
+    });
+
+    // F8-5 (antes: «comportamiento actual: recargar otro nodo con un guardado pendiente guarda el estado viejo bajo el
+    // nodo nuevo»: el cambio de la sala anterior se escribía en la sala nueva).
+    it('un guardado pendiente no escribe el estado de la sala anterior bajo el nodo nuevo', () => {
       loaded(3);
       store.execute(new DeleteObjectCommand('a')); // cambio de la sala del nodo 3
       const pending = new Subject<WorldDefinition>();
       sim.worldEditor.mockReturnValue(pending as unknown as Observable<WorldDefinition>);
 
-      store.load(1, 8); // cambia de sala; la respuesta aún no llega
+      store.load(1, 8); // cambia de sala (descartando lo pendiente); la respuesta aún no llega
       vi.advanceTimersByTime(1500);
 
-      const [, body, nodeId] = sim.saveWorld.mock.calls[0];
-      expect(nodeId).toBe(8);
-      expect(keys(body.objects)).toEqual(['b']); // estado de la sala anterior
+      expect(sim.saveWorld).not.toHaveBeenCalled();
+    });
+
+    it('switchRoom guarda primero la sala de origen con su nodo y luego carga la nueva', () => {
+      loaded(3);
+      store.execute(new DeleteObjectCommand('a'));
+      const order: string[] = [];
+      sim.saveWorld.mockImplementation((_id: number, _body: unknown, node: number) => {
+        order.push(`guardar ${node}`);
+        return of(definition({ revision: 5 }));
+      });
+      sim.worldEditor.mockImplementation((_id: number, node: number) => {
+        order.push(`cargar ${node}`);
+        return of(definition({ nodeId: node }));
+      });
+
+      store.switchRoom(8);
+
+      expect(order).toEqual(['guardar 3', 'cargar 8']);
+      expect(keys(sim.saveWorld.mock.calls[0][1].objects)).toEqual(['b']);
+    });
+
+    it('switchRoom con el guardado fallido NO cambia de sala: lo escrito sigue ahí y se avisa', () => {
+      loaded(3);
+      store.execute(new DeleteObjectCommand('a'));
+      sim.saveWorld.mockReturnValue(throwError(() => ({ status: 500 })));
+      const loadsBefore = sim.worldEditor.mock.calls.length;
+
+      store.switchRoom(8);
+
+      expect(sim.worldEditor.mock.calls.length).toBe(loadsBefore);
+      expect(store.saveFailed()).toBe(true);
+      expect(store.dirty()).toBe(true);
+      expect(keys(store.editorState()!.objects)).toEqual(['b']);
+    });
+
+    it('una respuesta de guardado tardía de la sala anterior no pisa la sala nueva', () => {
+      loaded(3);
+      const inFlight = new Subject<WorldDefinition>();
+      sim.saveWorld.mockReturnValueOnce(inFlight as unknown as Observable<WorldDefinition>);
+      store.execute(new DeleteObjectCommand('a'));
+      vi.advanceTimersByTime(1500); // el guardado de la sala 3 queda en vuelo
+      sim.worldEditor.mockReturnValue(of(definition({ nodeId: 8, revision: 12 })));
+
+      store.load(1, 8);
+      inFlight.next(definition({ nodeId: 3, revision: 6 })); // llega tarde
+
+      expect(store.definition()!.nodeId).toBe(8);
+      expect(store.definition()!.revision).toBe(12);
     });
   });
 

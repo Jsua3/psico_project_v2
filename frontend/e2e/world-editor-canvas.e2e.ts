@@ -68,7 +68,7 @@ async function openCanvas(page: Page, request: APIRequestContext): Promise<{ id:
     r => r.request().method() === 'GET' && r.url().includes(`/api/authoring/cases/${id}/world-editor`),
     { timeout: scaled(30_000) },
   );
-  await page.getByRole('button', { name: /inicio\s+—\s+Inicio del caso/ }).click();
+  await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
   await loaded;
   await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
 

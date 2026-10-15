@@ -60,7 +60,7 @@ async function openWorldEditor(page: Page, versionId: number): Promise<void> {
     r => r.request().method() === 'GET' && r.url().includes(`/api/authoring/cases/${versionId}/world-editor`),
     { timeout: scaled(30_000) },
   );
-  await page.getByRole('button', { name: /inicio\s+—\s+Inicio del caso/ }).click();
+  await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
   await loaded;
   await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
 }
@@ -130,7 +130,9 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   expect(withDialogue['dialogues']).toHaveLength(1);
   expect(withDialogue['dialogues'][0]['mapObjectId'], 'el diálogo apunta al id REAL de su objeto').toBe(owner['id']);
 
-  // 3. Borrar el objeto seleccionado: la macro quita también su diálogo.
+  // 3. Borrar el objeto seleccionado: la macro quita también su diálogo. Supr rige con el foco en el lienzo (F8-5),
+  //    no desde un botón cualquiera del inspector: se lleva el foco al lienzo, que conserva la selección.
+  await page.locator('.we-konva-host').focus();
   await autosaved(page, versionId, async () => { await page.keyboard.press('Delete'); });
   const afterDelete = await readWorld(request, token, versionId, nodeId);
   expect(afterDelete['objects']).toHaveLength(2);
@@ -175,7 +177,7 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   expect(reloaded['objects'].some((o: Json) => o['key'] === ownerKey), 'el objeto borrado no reaparece').toBe(false);
 
   // 7. Borrar la zona (seleccionada con el ratón sobre el lienzo): el servidor la quita.
-  await page.keyboard.press('v');
+  await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
   const reloadedBox = await centerCanvas();
   await page.mouse.click(reloadedBox.x + 220, reloadedBox.y + 160);
   await autosaved(page, versionId, async () => {
