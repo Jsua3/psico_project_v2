@@ -607,6 +607,8 @@ export interface ChecklistUpdateRequest {
   noStigmatizing: boolean;
   triggerWarnings: boolean;
   accessibilityOk: boolean;
+  /** Ítem de alcance educativo (E2-7): opcional salvo con la bandera estricta del servidor. */
+  scopeEducational?: boolean;
 }
 
 // ─── WorldDefinition v2 — contrato canónico entre editor y juego (Fase 2) ────

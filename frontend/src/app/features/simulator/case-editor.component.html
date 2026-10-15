@@ -1,0 +1,266 @@
+<ui-page-header eyebrow="Editor de casos" [title]="editor()?.title ?? 'Editor de caso'">
+  @if (editor()) {
+    <button ui-button uiPageActions type="button" variant="secondary" icon="content_copy"
+      [disabledReason]="busyReason()" (click)="clone(editor()!.caseVersionId)">Clonar versión</button>
+  }
+  @if (editor() && readiness().allowed) {
+    <button ui-button uiPageActions type="button" icon="publish"
+      [disabledReason]="busyReason() ?? readiness().reason" (click)="confirmPublish(editor()!.caseVersionId)">Publicar</button>
+  }
+</ui-page-header>
+
+<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <div class="ce-loading" aria-busy="true">
+      <ui-skeleton shape="card" [lines]="2" />
+      <ui-skeleton shape="card" [lines]="4" />
+    </div>
+  }
+  @case ('error') {
+    <div class="ce-error">
+      <ui-error-state blocking [kind]="errorKind()" [status]="errorStatus()" (retry)="load()" />
+      <a ui-button variant="secondary" icon="arrow_back" routerLink="/portal/casos">Volver a «Editar casos»</a>
+    </div>
+  }
+  @case ('ready') {
+    @if (editor(); as model) {
+      <div class="ce-summary">
+        <ui-badge [tone]="statusTone(model.status)">{{ statusLabel(model.status) }}</ui-badge>
+        <span>Versión {{ model.semanticVersion }}</span>
+        <span class="ce-summary__progress">
+          <ui-progress label="Lista de publicación" [value]="model.checklistCompletion" [max]="100" />
+          <span>{{ model.checklistCompletion }} %</span>
+        </span>
+      </div>
+      @if (lockReason(); as lock) {
+        <p class="ce-lock">{{ lock }}</p>
+      }
+
+      <ui-tabs class="ce-tabs" label="Secciones del caso" [(selected)]="tab">
+        <!-- ── Grafo DAG ─────────────────────────────────────────────────────────── -->
+        <ng-template uiTab="grafo" label="Grafo DAG">
+          <ui-section class="ce-section" title="Grafo del caso">
+            <div class="ce-toolbar">
+              <button ui-button type="button" icon="add_circle" [disabledReason]="lockReason()"
+                (click)="openPanel({ kind: 'node-create' })">Nuevo nodo</button>
+              <button ui-button type="button" variant="secondary" icon="add_link" [disabledReason]="lockReason()"
+                (click)="openPanel({ kind: 'decision-create' })">Nueva decisión</button>
+            </div>
+            <app-dag-editor
+              [nodes]="model.nodes"
+              [edges]="model.decisions"
+              (nodeEdit)="openPanel({ kind: 'node-edit', node: $event })"
+              (nodeDelete)="confirmDeleteNode(model.caseVersionId, $event)"
+              (edgeEdit)="openPanel({ kind: 'decision-edit', edge: $event })"
+              (addEdge)="openPanel({ kind: 'decision-create', sourceNode: $event })" />
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Mapas ─────────────────────────────────────────────────────────────── -->
+        <ng-template uiTab="mapas" label="Mapas">
+          <ui-section class="ce-section" title="Mapas del caso">
+            <div class="ce-toolbar">
+              <button ui-button type="button" icon="add_circle" [disabledReason]="lockReason()"
+                (click)="openPanel({ kind: 'map-create' })">Nuevo mapa</button>
+            </div>
+            <ul class="ce-grid">
+              @for (map of model.maps; track map.id) {
+                <li>
+                  <ui-card class="ce-card">
+                    <div class="ce-card__head">
+                      <ui-badge>{{ mapThemeLabel(map.theme) }}</ui-badge>
+                      <span class="ce-card__actions">
+                        <button ui-icon-button icon="edit" [label]="'Editar mapa ' + map.title" [disabledReason]="lockReason()"
+                          (click)="openPanel({ kind: 'map-edit', map })"></button>
+                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar mapa ' + map.title" [disabledReason]="lockReason()"
+                          (click)="confirmDeleteMap(model.caseVersionId, map)"></button>
+                      </span>
+                    </div>
+                    <h3 class="ce-card__title">{{ map.title }}</h3>
+                    <p class="ce-card__meta">{{ map.width }}×{{ map.height }} · aparece en {{ map.spawnX }}, {{ map.spawnY }} · nodo <code>{{ map.nodeKey }}</code></p>
+                    <button ui-button type="button" variant="secondary" icon="add" [disabledReason]="lockReason()"
+                      (click)="openPanel({ kind: 'object-create', mapId: map.id })">Agregar objeto al mapa</button>
+                  </ui-card>
+                </li>
+              }
+            </ul>
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Objetos ───────────────────────────────────────────────────────────── -->
+        <ng-template uiTab="objetos" label="Objetos">
+          <ui-section class="ce-section" title="Objetos de los mapas">
+            <ul class="ce-grid">
+              @for (obj of model.objects; track obj.id) {
+                <li>
+                  <ui-card class="ce-card">
+                    <div class="ce-card__head">
+                      <ui-badge>{{ objectTypeLabel(obj.type) }}</ui-badge>
+                      <span class="ce-card__actions">
+                        <button ui-icon-button icon="edit" [label]="'Editar objeto ' + obj.label" [disabledReason]="lockReason()"
+                          (click)="openPanel({ kind: 'object-edit', obj })"></button>
+                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar objeto ' + obj.label" [disabledReason]="lockReason()"
+                          (click)="confirmDeleteObject(model.caseVersionId, obj)"></button>
+                      </span>
+                    </div>
+                    <h3 class="ce-card__title">{{ obj.label }}</h3>
+                    <p class="ce-card__text">{{ obj.interactionPrompt }}</p>
+                    <p class="ce-card__meta">
+                      {{ obj.x }}, {{ obj.y }} · {{ obj.shortCode }}
+                      @if (obj.toolCode) { · herramienta {{ obj.toolCode }} }
+                      @if (obj.decisionOptionId) { · decisión #{{ obj.decisionOptionId }} }
+                    </p>
+                  </ui-card>
+                </li>
+              }
+            </ul>
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Herramientas ──────────────────────────────────────────────────────── -->
+        <ng-template uiTab="herramientas" label="Herramientas">
+          <ui-section class="ce-section" title="Herramientas clínicas">
+            <div class="ce-toolbar">
+              <button ui-button type="button" icon="add_circle" [disabledReason]="lockReason()"
+                (click)="openPanel({ kind: 'tool-create' })">Nueva herramienta</button>
+            </div>
+            <ul class="ce-grid">
+              @for (tool of model.tools; track tool.id) {
+                <li>
+                  <ui-card class="ce-card">
+                    <div class="ce-card__head">
+                      <ui-badge>{{ tool.code }}</ui-badge>
+                      <span class="ce-card__actions">
+                        <button ui-icon-button icon="edit" [label]="'Editar herramienta ' + tool.label" [disabledReason]="lockReason()"
+                          (click)="openPanel({ kind: 'tool-edit', tool })"></button>
+                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar herramienta ' + tool.label" [disabledReason]="lockReason()"
+                          (click)="confirmDeleteTool(model.caseVersionId, tool)"></button>
+                      </span>
+                    </div>
+                    <h3 class="ce-card__title">{{ tool.label }}</h3>
+                    <p class="ce-card__text">{{ tool.description }}</p>
+                  </ui-card>
+                </li>
+              }
+            </ul>
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Rúbricas ──────────────────────────────────────────────────────────── -->
+        <ng-template uiTab="rubricas" label="Rúbricas">
+          <ui-section class="ce-section" title="Rúbricas del caso">
+            @for (rubric of model.rubrics; track rubric.rubricId) {
+              <ui-section class="ce-section" [level]="3" [title]="rubric.rubricName">
+                <p class="ce-card__text">{{ rubric.description }}</p>
+                <ul class="ce-grid">
+                  @for (criterion of rubric.criteria; track criterion.id) {
+                    <li>
+                      <ui-card class="ce-card">
+                        <ui-badge>{{ criterion.competency }}</ui-badge>
+                        <h4 class="ce-card__title">{{ criterion.title }}</h4>
+                        <p class="ce-card__text">{{ criterion.description }}</p>
+                        <p class="ce-card__meta">Puntaje máximo: {{ criterion.maxScore }}</p>
+                      </ui-card>
+                    </li>
+                  }
+                </ul>
+              </ui-section>
+            }
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Checklist ético (lista de publicación) ───────────────────────────── -->
+        <ng-template uiTab="checklist" label="Checklist ético">
+          <ui-section class="ce-section" title="Lista de publicación">
+            <p class="ce-lead">
+              {{ model.publishable
+                ? 'La lista obligatoria está completa: el caso se puede publicar.'
+                : 'La publicación queda bloqueada hasta cumplir los ítems obligatorios de la lista.' }}
+            </p>
+            @if (checklistForm) {
+              <form [formGroup]="checklistForm" novalidate (ngSubmit)="saveChecklist(model.caseVersionId)">
+                <ul class="ce-checklist">
+                  @for (item of model.checklist.items; track item.code) {
+                    <li class="ce-checklist__item">
+                      <label ui-check>
+                        <input type="checkbox" [formControlName]="item.code" [attr.data-code]="item.code">
+                        {{ item.label }}
+                      </label>
+                      <span class="ce-checklist__tags">
+                        <ui-badge [tone]="item.required ? 'info' : 'neutral'">{{ item.required ? 'Obligatorio' : 'Opcional' }}</ui-badge>
+                        @if (item.draft) {
+                          <ui-badge tone="warning">Texto en borrador</ui-badge>
+                        }
+                      </span>
+                    </li>
+                  }
+                </ul>
+                <div class="ce-toolbar">
+                  <button ui-button type="submit" icon="save" [loading]="busy()" [disabledReason]="lockReason()">Guardar lista</button>
+                </div>
+              </form>
+            }
+            <div class="ce-review">
+              <h3 class="ce-review__title">Revisión de contenido por Psicología</h3>
+              @if (model.checklist.contentReview.fulfilled) {
+                <p>
+                  Constancia registrada por {{ model.checklist.contentReview.reviewer || 'el administrador' }}
+                  @if (model.checklist.contentReview.reviewedOn) { el {{ model.checklist.contentReview.reviewedOn }} }
+                  @if (model.checklist.contentReview.reference) { (referencia {{ model.checklist.contentReview.reference }}) }.
+                </p>
+              } @else {
+                <p>Pendiente: la constancia la registra el administrador al aprobar el caso; no es una casilla del autor.</p>
+              }
+            </div>
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Mundo (editor visual Konva) ───────────────────────────────────────── -->
+        <ng-template uiTab="mundo" label="Mundo">
+          <ui-section class="ce-section" title="Editor de mundo">
+            @if (selectedWorldNodeId(); as nodeId) {
+              <!-- Diferido: Konva solo se descarga al elegir un nodo (la pantalla del caso no lo arrastra). -->
+              @defer (on immediate) {
+                <app-world-editor [caseVersionId]="model.caseVersionId" [nodeId]="nodeId" />
+              } @placeholder {
+                <ui-skeleton shape="chart" />
+              } @loading {
+                <ui-skeleton shape="chart" />
+              } @error {
+                <ui-error-state kind="network" message="No se pudo cargar el editor de mundo." (retry)="selectedWorldNodeId.set(null)" />
+              }
+            } @else {
+              <p class="ce-lead">Elige el nodo cuya sala quieres editar.</p>
+              <ul class="ce-node-picker">
+                @for (node of model.nodes; track node.id) {
+                  <li>
+                    <button ui-button type="button" variant="secondary" [icon]="nodeIcon(node)"
+                      (click)="selectedWorldNodeId.set(node.id)">{{ node.key }} — {{ node.title }}</button>
+                  </li>
+                }
+              </ul>
+            }
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Vista previa (preview efímero del mundo) ──────────────────────────── -->
+        <ng-template uiTab="vista-previa" label="Vista previa">
+          <ui-section class="ce-section" title="Vista previa del caso">
+            <!-- Diferido: Phaser solo se descarga al abrir la pestaña. -->
+            @defer (on immediate) {
+              <app-world-preview [caseVersionId]="model.caseVersionId" [nodes]="previewNodes()" />
+            } @placeholder {
+              <ui-skeleton shape="chart" />
+            } @loading {
+              <ui-skeleton shape="chart" />
+            } @error {
+              <ui-error-state kind="network" message="No se pudo cargar la vista previa." />
+            }
+          </ui-section>
+        </ng-template>
+      </ui-tabs>
+    }
+  }
+}

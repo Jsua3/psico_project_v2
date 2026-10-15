@@ -1,774 +1,100 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatTabsModule } from '@angular/material/tabs';
-import { Observable } from 'rxjs';
+import { DialogRef } from '@angular/cdk/dialog';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Observable, firstValueFrom } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
+import { RevisionConflict, revisionConflictOf } from '../../core/api/revision-conflict.util';
+import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   CaseEditorView,
+  ChecklistUpdateRequest,
   ClinicalToolEditorState,
   DecisionEdgeState,
   MapEditorState,
   MapObjectEditorState,
-  NodeEditorState
+  NodeEditorState,
 } from '../../core/models/simulation.model';
-import { DagEditorComponent } from './dag-editor.component';
-import { WorldPreviewComponent } from './world-preview.component';
-import { WorldEditorComponent } from './world-editor';
-import { ConfirmDialogComponent } from '../../shared/confirm/confirm-dialog.component';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiConfirmOptions, UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { objectTypeLabel, statusLabel } from '../../shared/ui/labels';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiProgress } from '../../shared/ui/progress/ui-progress';
+import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
+import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
+import { mapThemeLabel, statusTone } from './case-editor.options';
+import { DagEditorComponent } from './dag-editor.component';
+import { describeEditorChanges } from './editor-changes.util';
+import { publishReadiness } from './publish-readiness.util';
+import { RevisionConflictAnswer, RevisionConflictDialogComponent, RevisionConflictDialogData } from './revision-conflict-dialog.component';
+import { WorldEditorComponent } from './world-editor';
+import { WorldPreviewComponent } from './world-preview.component';
 
-type EditorPanel =
-  | { kind: 'node-create' }
-  | { kind: 'node-edit'; node: NodeEditorState }
-  | { kind: 'decision-create'; sourceNode?: NodeEditorState }
-  | { kind: 'decision-edit'; edge: DecisionEdgeState }
-  | { kind: 'map-create' }
-  | { kind: 'map-edit'; map: MapEditorState }
-  | { kind: 'object-create'; mapId: number }
-  | { kind: 'object-edit'; obj: MapObjectEditorState }
-  | { kind: 'tool-create' }
-  | { kind: 'tool-edit'; tool: ClinicalToolEditorState }
-  | null;
+/** Una petición del editor: recibe la revisión con la que se envía (null/undefined = sin cabecera) y devuelve la vista nueva. */
+type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
 
+/**
+ * Editor de casos en el sistema de la biblioteca (plan visual F8-1): cabecera con el estado en una insignia y la lista
+ * de publicación real (ítems con su cumplimiento, constancia de revisión de contenido solo lectura), «Publicar» solo
+ * para el administrador y con el motivo si no se puede, pestañas `ui-tabs`, formularios en una hoja lateral con foco
+ * y Esc, carga con esqueleto y error con «Reintentar», y la revisión del caso (E2-6) en cada guardado: un 409 abre la
+ * comparación («Recargar» o «Reintentar»). Una versión que no es borrador es de solo lectura, con su motivo.
+ */
 @Component({
   selector: 'app-case-editor',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MatProgressBarModule, MatTabsModule, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent, ConfirmDialogComponent],
-  template: `
-    <section class="editor-page">
-      <!-- Un h1 por pantalla (plan visual F3-6): mientras carga o si falla, el nombre de la pantalla. -->
-      @if (!editor()) { <h1 class="sr-only">Editor de caso</h1> }
-      @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-      @if (error()) {
-        <div class="state-error" role="alert"><mat-icon>error</mat-icon>{{ error() }}</div>
-      }
-
-      @if (editor(); as model) {
-        <!-- Hero -->
-        <header class="editor-hero liquid-glass psy-game-panel">
-          <div>
-            <p class="psy-eyebrow">Editor visual administrativo</p>
-            <h1>{{ model.title }}</h1>
-            <p class="editor-meta">Versión {{ model.semanticVersion }} · {{ statusLabel(model.status) }} · Checklist {{ model.checklistCompletion }}%</p>
-          </div>
-          <div class="editor-actions">
-            <button class="psy-button psy-button--glass" type="button" (click)="clone(model.caseVersionId)" [disabled]="busy()">
-              <mat-icon>content_copy</mat-icon>Clonar versión
-            </button>
-            <button class="psy-button psy-button--primary" type="button" [disabled]="!model.publishable || busy()" (click)="confirmPublish(model.caseVersionId)">
-              <mat-icon>publish</mat-icon>Publicar
-            </button>
-          </div>
-        </header>
-
-        <div class="editor-layout">
-          <mat-tab-group class="editor-tabs liquid-glass" animationDuration="200ms">
-
-            <!-- ── TAB: Grafo DAG ─────────────────────────────────────────── -->
-            <mat-tab label="Grafo DAG">
-              <div class="tab-body">
-                <div class="tab-toolbar">
-                  <button class="psy-button psy-button--primary" type="button" (click)="openPanel({ kind: 'node-create' })">
-                    <mat-icon>add_circle</mat-icon>Nuevo nodo
-                  </button>
-                  <button class="psy-button psy-button--glass" type="button" (click)="openPanel({ kind: 'decision-create' })">
-                    <mat-icon>add_link</mat-icon>Nueva decisión
-                  </button>
-                </div>
-                <app-dag-editor
-                  [nodes]="model.nodes"
-                  [edges]="model.decisions"
-                  (nodeEdit)="openPanel({ kind: 'node-edit', node: $event })"
-                  (nodeDelete)="confirmDeleteNode(model.caseVersionId, $event)"
-                  (edgeEdit)="openPanel({ kind: 'decision-edit', edge: $event })"
-                  (addEdge)="openPanel({ kind: 'decision-create', sourceNode: $event })" />
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Mapas ─────────────────────────────────────────────── -->
-            <mat-tab label="Mapas">
-              <div class="tab-body">
-                <div class="tab-toolbar">
-                  <button class="psy-button psy-button--primary" type="button" (click)="openPanel({ kind: 'map-create' })">
-                    <mat-icon>add_circle</mat-icon>Nuevo mapa
-                  </button>
-                </div>
-                <div class="tab-grid">
-                  @for (map of model.maps; track map.id) {
-                    <article class="editor-card">
-                      <div class="card-head">
-                        <span class="psy-chip">{{ map.theme }}</span>
-                        <div class="card-actions">
-                          <button class="psy-icon-button" type="button" (click)="openPanel({ kind: 'map-edit', map })"><mat-icon>edit</mat-icon></button>
-                          <button class="psy-icon-button" type="button" (click)="confirmDeleteMap(model.caseVersionId, map)"><mat-icon>delete_outline</mat-icon></button>
-                        </div>
-                      </div>
-                      <h3>{{ map.title }}</h3>
-                      <p>{{ map.width }}×{{ map.height }} · spawn {{ map.spawnX }}, {{ map.spawnY }} · nodo <code>{{ map.nodeKey }}</code></p>
-                      <button class="psy-button psy-button--ghost" type="button" (click)="openPanel({ kind: 'object-create', mapId: map.id })">
-                        <mat-icon>add</mat-icon>Agregar objeto al mapa
-                      </button>
-                    </article>
-                  }
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Objetos ───────────────────────────────────────────── -->
-            <mat-tab label="Objetos">
-              <div class="tab-body">
-                <div class="tab-grid">
-                  @for (obj of model.objects; track obj.id) {
-                    <article class="editor-card">
-                      <div class="card-head">
-                        <span class="psy-chip" [style.background]="obj.colorHex + '22'" [style.color]="obj.colorHex">{{ objectTypeLabel(obj.type) }}</span>
-                        <div class="card-actions">
-                          <button class="psy-icon-button" type="button" (click)="openPanel({ kind: 'object-edit', obj })"><mat-icon>edit</mat-icon></button>
-                          <button class="psy-icon-button" type="button" (click)="confirmDeleteObject(model.caseVersionId, obj)"><mat-icon>delete_outline</mat-icon></button>
-                        </div>
-                      </div>
-                      <h3>{{ obj.label }}</h3>
-                      <p>{{ obj.interactionPrompt }}</p>
-                      <p class="editor-card-meta">
-                        {{ obj.x }}, {{ obj.y }} · {{ obj.shortCode }}
-                        @if (obj.toolCode) { · herramienta {{ obj.toolCode }} }
-                        @if (obj.decisionOptionId) { · decisión #{{ obj.decisionOptionId }} }
-                      </p>
-                    </article>
-                  }
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Herramientas ──────────────────────────────────────── -->
-            <mat-tab label="Herramientas">
-              <div class="tab-body">
-                <div class="tab-toolbar">
-                  <button class="psy-button psy-button--primary" type="button" (click)="openPanel({ kind: 'tool-create' })">
-                    <mat-icon>add_circle</mat-icon>Nueva herramienta
-                  </button>
-                </div>
-                <div class="tab-grid">
-                  @for (tool of model.tools; track tool.id) {
-                    <article class="editor-card">
-                      <div class="card-head">
-                        <mat-icon>{{ tool.icon }}</mat-icon>
-                        <div class="card-actions">
-                          <button class="psy-icon-button" type="button" (click)="openPanel({ kind: 'tool-edit', tool })"><mat-icon>edit</mat-icon></button>
-                          <button class="psy-icon-button" type="button" (click)="confirmDeleteTool(model.caseVersionId, tool)"><mat-icon>delete_outline</mat-icon></button>
-                        </div>
-                      </div>
-                      <h3>{{ tool.label }}</h3>
-                      <p class="psy-chip">{{ tool.code }}</p>
-                      <p>{{ tool.description }}</p>
-                    </article>
-                  }
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Rúbricas ──────────────────────────────────────────── -->
-            <mat-tab label="Rúbricas">
-              <div class="tab-body">
-                @for (rubric of model.rubrics; track rubric.rubricId) {
-                  <section class="rubric-section">
-                    <h3>{{ rubric.rubricName }}</h3>
-                    <p>{{ rubric.description }}</p>
-                    <div class="tab-grid">
-                      @for (criterion of rubric.criteria; track criterion.id) {
-                        <article class="editor-card">
-                          <span class="psy-chip">{{ criterion.competency }}</span>
-                          <h3>{{ criterion.title }}</h3>
-                          <p>{{ criterion.description }}</p>
-                          <p class="editor-card-meta">Puntaje máximo: {{ criterion.maxScore }}</p>
-                        </article>
-                      }
-                    </div>
-                  </section>
-                }
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Checklist ─────────────────────────────────────────── -->
-            <mat-tab label="Checklist ético">
-              <div class="tab-body">
-                <div class="checklist-layout">
-                  <div class="check-ring" [style.--progress]="model.checklistCompletion + '%'">
-                    {{ model.checklistCompletion }}%
-                  </div>
-                  <div class="checklist-form">
-                    <h3>{{ model.publishable ? 'Listo para publicación' : 'Pendiente de validación' }}</h3>
-                    <p>La publicación queda bloqueada hasta que el checklist ético y académico alcance el 100%.</p>
-                    @if (checklistForm) {
-                      <form [formGroup]="checklistForm" (ngSubmit)="saveChecklist(model.caseVersionId)" class="check-items">
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="contentOriginal" />
-                          <span>Contenido original — sin copiar personajes, mapas ni narrativa comercial.</span>
-                        </label>
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="ethicsReviewed" />
-                          <span>Revisión ética — caso validado por experto o comité.</span>
-                        </label>
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="safetyProtocols" />
-                          <span>Protocolos de seguridad — ruta VBG, NNA y salida segura incluidos.</span>
-                        </label>
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="noStigmatizing" />
-                          <span>Sin lenguaje estigmatizante ni estereotipos clínicos.</span>
-                        </label>
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="triggerWarnings" />
-                          <span>Advertencias de contenido sensible configuradas en nodos.</span>
-                        </label>
-                        <label class="check-item">
-                          <input type="checkbox" formControlName="accessibilityOk" />
-                          <span>Accesibilidad — fallback accesible y controles táctiles probados.</span>
-                        </label>
-                        <button class="psy-button psy-button--primary" type="submit" [disabled]="busy()">
-                          <mat-icon>save</mat-icon>Guardar checklist
-                        </button>
-                      </form>
-                    }
-                  </div>
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Mundo (Fase 4 — Editor visual Konva) ────────────── -->
-            <mat-tab label="Mundo">
-              <div class="tab-body">
-                @if (selectedWorldNodeId()) {
-                  <app-world-editor
-                    [caseVersionId]="model.caseVersionId"
-                    [nodeId]="selectedWorldNodeId()!" />
-                } @else {
-                  <div class="world-node-picker">
-                    <mat-icon>map</mat-icon>
-                    <h3>Selecciona un nodo para editar su mundo</h3>
-                    <div class="world-node-grid">
-                      @for (node of model.nodes; track node.id) {
-                        <button class="psy-button psy-button--glass" type="button" (click)="selectedWorldNodeId.set(node.id)">
-                          <mat-icon>{{ node.startNode ? 'play_circle' : node.terminal ? 'stop_circle' : 'radio_button_unchecked' }}</mat-icon>
-                          {{ node.key }} — {{ node.title }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-            </mat-tab>
-
-            <!-- ── TAB: Vista previa (Fase 5 — Preview real efimero) ─────── -->
-            <mat-tab label="Vista previa">
-              <div class="tab-body">
-                <app-world-preview
-                  [caseVersionId]="model.caseVersionId"
-                  [nodes]="previewNodeOptions(model)" />
-              </div>
-            </mat-tab>
-          </mat-tab-group>
-
-          <!-- ── Side panel for forms ──────────────────────────────────────── -->
-          @if (panel()) {
-            <aside class="side-panel liquid-glass" role="dialog" [attr.aria-label]="panelTitle()">
-              <header class="side-panel-head">
-                <h3>{{ panelTitle() }}</h3>
-                <button class="psy-icon-button" type="button" (click)="closePanel()"><mat-icon>close</mat-icon></button>
-              </header>
-
-              <!-- Node form -->
-              @if (panel()?.kind === 'node-create' || panel()?.kind === 'node-edit') {
-                @if (nodeForm) {
-                  <form [formGroup]="nodeForm" (ngSubmit)="saveNode(editor()!.caseVersionId)" class="side-form">
-                    <label class="form-field">
-                      <span>Clave del nodo *</span>
-                      <input formControlName="nodeKey" placeholder="urgencias-crisis" />
-                    </label>
-                    <label class="form-field">
-                      <span>Título *</span>
-                      <input formControlName="title" placeholder="Sala de urgencias" />
-                    </label>
-                    <label class="form-field">
-                      <span>Narrativa *</span>
-                      <textarea formControlName="narrative" rows="4"></textarea>
-                    </label>
-                    <label class="form-field">
-                      <span>Mensaje de advertencia</span>
-                      <input formControlName="warningMessage" placeholder="Contenido sensible: violencia..." />
-                    </label>
-                    <div class="form-checks">
-                      <label class="check-item"><input type="checkbox" formControlName="startNode" /><span>Nodo inicial</span></label>
-                      <label class="check-item"><input type="checkbox" formControlName="terminal" /><span>Nodo terminal</span></label>
-                      <label class="check-item"><input type="checkbox" formControlName="sensitiveContent" /><span>Contenido sensible</span></label>
-                      <label class="check-item"><input type="checkbox" formControlName="safeExitRequired" /><span>Salida segura obligatoria</span></label>
-                    </div>
-                    <div class="form-row">
-                      <label class="form-field">
-                        <span>Posición X</span>
-                        <input type="number" formControlName="positionX" />
-                      </label>
-                      <label class="form-field">
-                        <span>Posición Y</span>
-                        <input type="number" formControlName="positionY" />
-                      </label>
-                    </div>
-                    <div class="form-actions">
-                      <button class="psy-button psy-button--ghost" type="button" (click)="closePanel()">Cancelar</button>
-                      <button class="psy-button psy-button--primary" type="submit" [disabled]="nodeForm.invalid || busy()">
-                        <mat-icon>save</mat-icon>Guardar nodo
-                      </button>
-                    </div>
-                  </form>
-                }
-              }
-
-              <!-- Decision form -->
-              @if (panel()?.kind === 'decision-create' || panel()?.kind === 'decision-edit') {
-                @if (decisionForm) {
-                  <form [formGroup]="decisionForm" (ngSubmit)="saveDecision(editor()!.caseVersionId)" class="side-form">
-                    <label class="form-field">
-                      <span>Nodo origen *</span>
-                      <select formControlName="sourceNodeId">
-                        @for (n of editor()!.nodes; track n.id) {
-                          <option [value]="n.id">{{ n.key }} — {{ n.title }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label class="form-field">
-                      <span>Nodo destino *</span>
-                      <select formControlName="targetNodeId">
-                        @for (n of editor()!.nodes; track n.id) {
-                          <option [value]="n.id">{{ n.key }} — {{ n.title }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label class="form-field">
-                      <span>Texto de la decisión *</span>
-                      <textarea formControlName="text" rows="3" placeholder="Escucha activa y validación emocional..."></textarea>
-                    </label>
-                    <label class="form-field">
-                      <span>Clasificación *</span>
-                      <select formControlName="classification">
-                        <option value="ADEQUATE">Adecuada</option>
-                        <option value="RISKY">Riesgosa</option>
-                        <option value="INADEQUATE">Inadecuada</option>
-                      </select>
-                    </label>
-                    <div class="form-row">
-                      <label class="form-field">
-                        <span>Δ Puntaje</span>
-                        <input type="number" formControlName="scoreDelta" />
-                      </label>
-                      <label class="form-field">
-                        <span>Δ Estrés %</span>
-                        <input type="number" formControlName="stressDelta" />
-                      </label>
-                    </div>
-                    <label class="form-field">
-                      <span>Feedback inmediato</span>
-                      <textarea formControlName="immediateFeedback" rows="2"></textarea>
-                    </label>
-                    <label class="check-item">
-                      <input type="checkbox" formControlName="prohibitedConduct" />
-                      <span>Conducta prohibida (penalización grave)</span>
-                    </label>
-                    @if (decisionForm.get('prohibitedConduct')?.value) {
-                      <label class="form-field">
-                        <span>Razón de prohibición *</span>
-                        <input formControlName="prohibitionReason" />
-                      </label>
-                      <label class="form-field">
-                        <span>Penalización de puntaje</span>
-                        <input type="number" formControlName="prohibitedPenalty" />
-                      </label>
-                    }
-                    <div class="form-actions">
-                      <button class="psy-button psy-button--ghost" type="button" (click)="closePanel()">Cancelar</button>
-                      <button class="psy-button psy-button--primary" type="submit" [disabled]="decisionForm.invalid || busy()">
-                        <mat-icon>save</mat-icon>Guardar decisión
-                      </button>
-                    </div>
-                  </form>
-                }
-              }
-
-              <!-- Map form -->
-              @if (panel()?.kind === 'map-create' || panel()?.kind === 'map-edit') {
-                @if (mapForm) {
-                  <form [formGroup]="mapForm" (ngSubmit)="saveMap(editor()!.caseVersionId)" class="side-form">
-                    <label class="form-field">
-                      <span>Nodo asociado *</span>
-                      <select formControlName="nodeId">
-                        @for (n of editor()!.nodes; track n.id) {
-                          <option [value]="n.id">{{ n.key }} — {{ n.title }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label class="form-field">
-                      <span>Clave del mapa *</span>
-                      <input formControlName="mapKey" placeholder="urgencias-crisis-map" />
-                    </label>
-                    <label class="form-field">
-                      <span>Título del mapa *</span>
-                      <input formControlName="title" placeholder="Sala de urgencias hospitalaria" />
-                    </label>
-                    <label class="form-field">
-                      <span>Tema visual</span>
-                      <select formControlName="theme">
-                        <option value="clinical-soft">Clinical soft</option>
-                        <option value="protection-route">Ruta de protección</option>
-                        <option value="technical-record">Registro técnico</option>
-                        <option value="risk-assessment">Valoración de riesgo</option>
-                        <option value="child-protection">Protección NNA</option>
-                        <option value="follow-up">Seguimiento</option>
-                      </select>
-                    </label>
-                    <div class="form-row">
-                      <label class="form-field"><span>Ancho</span><input type="number" formControlName="width" /></label>
-                      <label class="form-field"><span>Alto</span><input type="number" formControlName="height" /></label>
-                    </div>
-                    <div class="form-row">
-                      <label class="form-field"><span>Spawn X</span><input type="number" formControlName="spawnX" /></label>
-                      <label class="form-field"><span>Spawn Y</span><input type="number" formControlName="spawnY" /></label>
-                    </div>
-                    <div class="form-actions">
-                      <button class="psy-button psy-button--ghost" type="button" (click)="closePanel()">Cancelar</button>
-                      <button class="psy-button psy-button--primary" type="submit" [disabled]="mapForm.invalid || busy()">
-                        <mat-icon>save</mat-icon>Guardar mapa
-                      </button>
-                    </div>
-                  </form>
-                }
-              }
-
-              <!-- Object form -->
-              @if (panel()?.kind === 'object-create' || panel()?.kind === 'object-edit') {
-                @if (objectForm) {
-                  <form [formGroup]="objectForm" (ngSubmit)="saveObject(editor()!.caseVersionId)" class="side-form">
-                    <label class="form-field"><span>Clave del objeto *</span><input formControlName="objectKey" placeholder="consultante-sofia" /></label>
-                    <label class="form-field"><span>Etiqueta *</span><input formControlName="label" placeholder="Sofía (consultante)" /></label>
-                    <label class="form-field">
-                      <span>Tipo *</span>
-                      <select formControlName="objectType">
-                        <option value="PERSON">Persona</option>
-                        <option value="OBJECT">Objeto</option>
-                        <option value="ROUTE">Ruta</option>
-                        <option value="TOOL">Herramienta</option>
-                        <option value="WARNING">Alerta</option>
-                        <option value="EXIT">Salida</option>
-                      </select>
-                    </label>
-                    <label class="form-field"><span>Prompt de interacción *</span><input formControlName="interactionPrompt" /></label>
-                    <label class="form-field"><span>Texto de interacción</span><textarea formControlName="interactionText" rows="3"></textarea></label>
-                    <div class="form-row">
-                      <label class="form-field"><span>X</span><input type="number" formControlName="x" /></label>
-                      <label class="form-field"><span>Y</span><input type="number" formControlName="y" /></label>
-                    </div>
-                    <div class="form-row">
-                      <label class="form-field"><span>Color hex</span><input formControlName="colorHex" placeholder="#4FA3A5" /></label>
-                      <label class="form-field"><span>Código corto</span><input formControlName="shortCode" maxlength="12" placeholder="SOF" /></label>
-                    </div>
-                    <label class="form-field"><span>Icono Material</span><input formControlName="icon" placeholder="psychology" /></label>
-                    <label class="form-field">
-                      <span>Decisión vinculada (ID)</span>
-                      <select formControlName="decisionOptionId">
-                        <option [value]="null">— Ninguna —</option>
-                        @for (d of editor()!.decisions; track d.id) {
-                          <option [value]="d.id">{{ d.id }} — {{ d.text | slice:0:36 }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label class="form-field">
-                      <span>Herramienta vinculada</span>
-                      <select formControlName="toolCode">
-                        <option [value]="null">— Ninguna —</option>
-                        @for (t of editor()!.tools; track t.id) {
-                          <option [value]="t.code">{{ t.code }} — {{ t.label }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label class="check-item"><input type="checkbox" formControlName="collision" /><span>Colisión activa</span></label>
-                    <label class="check-item"><input type="checkbox" formControlName="visible" /><span>Visible en el mapa</span></label>
-                    <div class="form-actions">
-                      <button class="psy-button psy-button--ghost" type="button" (click)="closePanel()">Cancelar</button>
-                      <button class="psy-button psy-button--primary" type="submit" [disabled]="objectForm.invalid || busy()">
-                        <mat-icon>save</mat-icon>Guardar objeto
-                      </button>
-                    </div>
-                  </form>
-                }
-              }
-
-              <!-- Tool form -->
-              @if (panel()?.kind === 'tool-create' || panel()?.kind === 'tool-edit') {
-                @if (toolForm) {
-                  <form [formGroup]="toolForm" (ngSubmit)="saveTool(editor()!.caseVersionId)" class="side-form">
-                    <label class="form-field"><span>Código *</span><input formControlName="toolCode" placeholder="PAP" /></label>
-                    <label class="form-field"><span>Etiqueta *</span><input formControlName="label" placeholder="Primeros Auxilios Psicológicos" /></label>
-                    <label class="form-field"><span>Categoría</span><input formControlName="category" placeholder="clinical" /></label>
-                    <label class="form-field"><span>Icono Material</span><input formControlName="icon" placeholder="psychology" /></label>
-                    <label class="form-field"><span>Descripción *</span><textarea formControlName="description" rows="4"></textarea></label>
-                    <div class="form-actions">
-                      <button class="psy-button psy-button--ghost" type="button" (click)="closePanel()">Cancelar</button>
-                      <button class="psy-button psy-button--primary" type="submit" [disabled]="toolForm.invalid || busy()">
-                        <mat-icon>save</mat-icon>Guardar herramienta
-                      </button>
-                    </div>
-                  </form>
-                }
-              }
-            </aside>
-          }
-        </div>
-      }
-    </section>
-
-    <app-confirm-dialog
-      [open]="!!confirmState()"
-      [title]="confirmState()?.title ?? 'Confirmar'"
-      [message]="confirmState()?.message ?? ''"
-      [confirmLabel]="confirmState()?.confirmLabel ?? 'Eliminar'"
-      [loading]="busy()"
-      (cancel)="confirmState.set(null)"
-      (confirm)="runConfirm()"
-    />
-  `,
+  imports: [
+    ReactiveFormsModule, RouterLink,
+    UiBadge, UiButton, UiCard, UiIconButton, UiPageActions, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiTab, UiTabs,
+    UiErrorState,
+    DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
+  ],
+  templateUrl: './case-editor.component.html',
+  styleUrl: './case-editor.component.scss',
+  // Eager: los errores de los campos de la hoja salen de `control.touched`, que no es una señal.
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .editor-page { display: grid; gap: 18px; }
-    .editor-hero {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: clamp(18px, 3vw, 30px);
-      border-radius: 22px;
-      flex-wrap: wrap;
-    }
-    .editor-hero h1 {
-      margin: 6px 0 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      letter-spacing: 0;
-      font-size: clamp(1.6rem, 3.5vw, 2.6rem);
-    }
-    .editor-meta { margin: 8px 0 0; color: var(--psy-muted); }
-    .editor-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-
-    .editor-layout {
-      display: grid;
-      grid-template-columns: minmax(0,1fr) auto;
-      gap: 18px;
-      align-items: start;
-    }
-    .editor-tabs { border-radius: 20px; }
-
-    .tab-body { padding: 18px 4px 4px; display: grid; gap: 16px; }
-    .tab-toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
-
-    .tab-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 14px;
-    }
-    .editor-card {
-      display: grid;
-      gap: 8px;
-      padding: 16px;
-      border: 1px solid var(--psy-border);
-      border-radius: 18px;
-      background: rgba(255,255,255,.68);
-    }
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .card-actions { display: flex; gap: 4px; }
-    .editor-card h3 {
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      letter-spacing: 0;
-      font-size: 1.1rem;
-    }
-    .editor-card p {
-      margin: 0;
-      color: var(--psy-muted);
-      font-size: .86rem;
-      line-height: 1.45;
-    }
-    .editor-card-meta { font-size: .76rem; }
-
-    /* Checklist */
-    .checklist-layout {
-      display: grid;
-      grid-template-columns: auto minmax(0,1fr);
-      gap: 24px;
-      align-items: start;
-      padding: 8px 4px;
-    }
-    .check-ring {
-      display: grid;
-      place-items: center;
-      width: 110px;
-      height: 110px;
-      border-radius: 50%;
-      background: conic-gradient(var(--psy-teal) var(--progress, 0%), rgba(79,124,172,.1) 0);
-      color: var(--psy-blue-deep);
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 900;
-      font-size: 1.1rem;
-      box-shadow: inset 0 0 0 12px rgba(255,255,255,.7);
-      flex-shrink: 0;
-    }
-    .checklist-form h3 { margin: 0 0 8px; font-family: 'Poppins', system-ui, sans-serif; letter-spacing: 0; }
-    .checklist-form p { margin: 0 0 16px; color: var(--psy-muted); }
-    .check-items { display: grid; gap: 10px; }
-    .check-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      cursor: pointer;
-      font-size: .9rem;
-      line-height: 1.4;
-    }
-    .check-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; accent-color: var(--psy-teal); }
-
-    /* Rubrics */
-    .rubric-section { display: grid; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--psy-border); }
-    .rubric-section h3 { margin: 0; font-family: 'Poppins', system-ui, sans-serif; letter-spacing: 0; }
-
-    /* Preview */
-    .preview-panel {
-      display: grid;
-      justify-items: center;
-      gap: 14px;
-      padding: 40px 0;
-      text-align: center;
-    }
-    .preview-panel mat-icon { font-size: 52px; width: 52px; height: 52px; color: var(--psy-blue-deep); }
-    .preview-panel h3 { margin: 0; font-family: 'Poppins', system-ui, sans-serif; letter-spacing: 0; }
-
-    /* Side panel */
-    .side-panel {
-      width: min(380px, 94vw);
-      display: grid;
-      gap: 16px;
-      padding: 20px;
-      border-radius: 20px;
-      align-self: start;
-      max-height: 84vh;
-      overflow-y: auto;
-    }
-    .side-panel-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .side-panel-head h3 {
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      letter-spacing: 0;
-      font-size: 1.2rem;
-    }
-
-    /* Forms */
-    .side-form { display: grid; gap: 12px; }
-    .form-field {
-      display: grid;
-      gap: 4px;
-      font-size: .86rem;
-    }
-    .form-field span { font-weight: 700; color: var(--psy-blue-deep); }
-    .form-field input,
-    .form-field select,
-    .form-field textarea {
-      padding: 8px 12px;
-      border: 1px solid rgba(79,124,172,.22);
-      border-radius: 10px;
-      background: rgba(255,255,255,.8);
-      font-size: .88rem;
-      color: var(--psy-ink);
-      font-family: inherit;
-    }
-    .form-field input:focus,
-    .form-field select:focus,
-    .form-field textarea:focus {
-      outline: none;
-      border-color: var(--psy-blue);
-      box-shadow: 0 0 0 3px var(--psy-focus);
-    }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .form-checks { display: grid; gap: 6px; }
-    .form-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      padding-top: 6px;
-      border-top: 1px solid var(--psy-border);
-      flex-wrap: wrap;
-    }
-
-    .state-error {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 14px;
-      border-radius: 14px;
-      background: rgba(168,80,98,.08);
-      border: 1px solid rgba(168,80,98,.24);
-      color: #8b3145;
-    }
-
-    /* World node picker (Fase 4) */
-    .world-node-picker {
-      display: grid;
-      gap: 16px;
-      justify-items: center;
-      padding: 32px 16px;
-      text-align: center;
-    }
-    .world-node-picker mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--psy-blue-deep); }
-    .world-node-picker h3 { margin: 0; font-family: 'Poppins', system-ui, sans-serif; letter-spacing: 0; }
-    .world-node-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 10px;
-      width: 100%;
-      max-width: 700px;
-    }
-
-    @media (max-width: 1100px) {
-      .editor-layout { grid-template-columns: 1fr; }
-      .checklist-layout { grid-template-columns: 1fr; justify-items: center; }
-    }
-    @media (max-width: 700px) {
-      .editor-hero { display: grid; }
-      .editor-actions .psy-button { width: 100%; }
-    }
-  `]
 })
-export class CaseEditorComponent implements OnInit {
+export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   readonly statusLabel = statusLabel;
+  readonly statusTone = statusTone;
   readonly objectTypeLabel = objectTypeLabel;
+  readonly mapThemeLabel = mapThemeLabel;
+
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly authoringApi = inject(AuthoringApi);
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
+  private readonly dialog = inject(UiDialog);
+  private readonly auth = inject(AuthService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** La hoja abierta con el formulario (null si no hay). */
+  private sheet: DialogRef<void, CaseEditorSheetComponent> | null = null;
+  /** true mientras hay una confirmación abierta: un segundo gesto no abre otra ni repite la acción. */
+  private confirming = false;
 
   readonly editor = signal<CaseEditorView | null>(null);
   readonly loading = signal(true);
   readonly busy = signal(false);
+  /** El fallo de la CARGA (el texto técnico; lo que se lee sale del catálogo de estados). */
   readonly error = signal('');
+  readonly errorStatus = signal<number | null>(null);
   readonly panel = signal<EditorPanel>(null);
+  /** Pestaña abierta (clave de `uiTab`). */
+  readonly tab = signal<string | undefined>('grafo');
   readonly selectedWorldNodeId = signal<number | null>(null);
-  readonly confirmState = signal<{ title: string; message: string; run: () => void; confirmLabel?: string } | null>(null);
 
   nodeForm: FormGroup | null = null;
   decisionForm: FormGroup | null = null;
@@ -777,13 +103,75 @@ export class CaseEditorComponent implements OnInit {
   toolForm: FormGroup | null = null;
   checklistForm: FormGroup | null = null;
 
-  ngOnInit() {
+  /** Estado de la pantalla: una sola señal, de a uno (carga, error o listo). */
+  readonly state = uiDataState({
+    loading: this.loading,
+    error: this.error,
+    isEmpty: computed(() => false),
+  });
+  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
+  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando el editor…' : ''));
+  protected readonly errorKind = computed(() => errorKindFromStatus(this.errorStatus()));
+
+  /** Solo el administrador publica (matriz `case.publish`); el motivo dice qué falta. */
+  protected readonly readiness = computed(() => {
+    const view = this.editor();
+    return view ? publishReadiness(view, this.auth.currentUser()?.role) : { allowed: false, reason: null };
+  });
+  /** Una versión que no es borrador no admite cambios (el servidor responde 400): se dice antes de abrir un formulario. */
+  readonly lockReason = computed(() => {
+    const status = (this.editor()?.status ?? 'DRAFT').toUpperCase();
+    return status === 'DRAFT'
+      ? null
+      : 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
+  });
+  protected readonly busyReason = computed(() => (this.busy() ? 'Hay una acción en curso: espera a que termine.' : null));
+  protected readonly previewNodes = computed(() =>
+    (this.editor()?.nodes ?? []).map(node => ({ id: node.id, key: node.key, title: node.title })));
+
+  ngOnInit(): void {
     this.load();
   }
 
-  // ─── Panel management ────────────────────────────────────────────────────────
+  // ─── Carga ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  openPanel(p: NonNullable<EditorPanel>) {
+  load(): void {
+    const caseVersionId = Number(this.route.snapshot.paramMap.get('caseVersionId'));
+    this.loading.set(true);
+    this.error.set('');
+    this.errorStatus.set(null);
+    this.authoringApi.caseEditor(caseVersionId).subscribe({
+      next: model => {
+        this.adopt(model, true);
+        this.loading.set(false);
+      },
+      error: (err: unknown) => {
+        this.errorStatus.set(err instanceof HttpErrorResponse ? err.status : null);
+        this.error.set('No se pudo cargar el editor.');
+        this.loading.set(false);
+      },
+    });
+  }
+
+  /** Adopta la vista que devolvió el servidor (la revisión siguiente viaja en ella). */
+  private adopt(model: CaseEditorView, force = false): void {
+    const switched = this.editor() !== null && this.editor()!.caseVersionId !== model.caseVersionId;
+    this.editor.set(model);
+    if (switched) this.selectedWorldNodeId.set(null);
+    // Las casillas sin guardar no se pierden al guardar otra cosa; una recarga o un cambio de versión sí las renueva.
+    if (force || switched || !this.checklistForm || this.checklistForm.pristine) this.buildChecklistForm(model);
+  }
+
+  private buildChecklistForm(model: CaseEditorView): void {
+    const controls: Record<string, [boolean]> = {};
+    for (const item of model.checklist?.items ?? []) controls[item.code] = [item.fulfilled];
+    this.checklistForm = this.fb.group(controls);
+  }
+
+  // ─── Hoja de formularios ─────────────────────────────────────────────────────────────────────────────────────────
+
+  openPanel(p: NonNullable<EditorPanel>): void {
+    if (!this.ensureEditable()) return;
     this.panel.set(p);
     if (p.kind === 'node-create') this.initNodeForm(null);
     else if (p.kind === 'node-edit') this.initNodeForm(p.node);
@@ -795,10 +183,30 @@ export class CaseEditorComponent implements OnInit {
     else if (p.kind === 'object-edit') this.initObjectForm(p.obj, null);
     else if (p.kind === 'tool-create') this.initToolForm(null);
     else if (p.kind === 'tool-edit') this.initToolForm(p.tool);
+    this.openSheet();
   }
 
-  closePanel() {
+  /** Abre la hoja (si ya estaba abierta la conserva: el contenedor es el mismo y cambia el formulario). */
+  private openSheet(): void {
+    if (this.sheet) return;
+    const ref = this.dialog.sheet<void, CaseEditorSheetData, CaseEditorSheetComponent>(CaseEditorSheetComponent, {
+      side: 'end',
+      data: { host: this },
+    });
+    this.sheet = ref;
+    ref.closed?.subscribe(() => {
+      if (this.sheet === ref) {
+        this.sheet = null;
+        this.panel.set(null);
+      }
+    });
+  }
+
+  closePanel(): void {
     this.panel.set(null);
+    const ref = this.sheet;
+    this.sheet = null;
+    ref?.close();
   }
 
   panelTitle(): string {
@@ -819,9 +227,51 @@ export class CaseEditorComponent implements OnInit {
     return titles[p.kind] ?? '';
   }
 
-  // ─── Form initializers ───────────────────────────────────────────────────────
+  /** Mensaje de error de un campo, solo cuando ya se tocó o se intentó enviar. */
+  fieldError(control: AbstractControl, message: string): string | null {
+    return control.touched && control.invalid ? message : null;
+  }
 
-  private initNodeForm(node: NodeEditorState | null) {
+  /** Envía el formulario de la hoja: incompleto, marca los campos y lleva el foco al primero inválido. */
+  save(): void {
+    const kind = this.panel()?.kind;
+    const form = this.activeForm();
+    const caseVersionId = this.editor()?.caseVersionId;
+    if (!kind || !form || caseVersionId == null || this.busy()) return;
+    if (form.invalid) {
+      form.markAllAsTouched();
+      // El foco va al primer campo inválido: la hoja vive en la capa superior, no dentro de esta pantalla.
+      focusFirstInvalid(this.sheetElement() ?? this.host.nativeElement);
+      return;
+    }
+    switch (kind.split('-')[0]) {
+      case 'node': this.saveNode(caseVersionId); break;
+      case 'decision': this.saveDecision(caseVersionId); break;
+      case 'map': this.saveMap(caseVersionId); break;
+      case 'object': this.saveObject(caseVersionId); break;
+      case 'tool': this.saveTool(caseVersionId); break;
+    }
+  }
+
+  private activeForm(): FormGroup | null {
+    switch ((this.panel()?.kind ?? '').split('-')[0]) {
+      case 'node': return this.nodeForm;
+      case 'decision': return this.decisionForm;
+      case 'map': return this.mapForm;
+      case 'object': return this.objectForm;
+      case 'tool': return this.toolForm;
+      default: return null;
+    }
+  }
+
+  /** La capa de la hoja abierta (donde viven los campos), para llevar el foco al primer campo inválido. */
+  private sheetElement(): HTMLElement | null {
+    return (this.sheet?.overlayRef?.overlayElement as HTMLElement | undefined) ?? null;
+  }
+
+  // ─── Inicializadores de formulario ───────────────────────────────────────────────────────────────────────────────
+
+  private initNodeForm(node: NodeEditorState | null): void {
     this.nodeForm = this.fb.group({
       nodeKey: [node?.key ?? '', Validators.required],
       title: [node?.title ?? '', Validators.required],
@@ -836,10 +286,10 @@ export class CaseEditorComponent implements OnInit {
     });
   }
 
-  private initDecisionForm(edge: DecisionEdgeState | null, sourceNode: NodeEditorState | null) {
+  private initDecisionForm(edge: DecisionEdgeState | null, sourceNode: NodeEditorState | null): void {
     this.decisionForm = this.fb.group({
-      sourceNodeId: [edge?.sourceNodeId ?? sourceNode?.id ?? '', Validators.required],
-      targetNodeId: [edge?.targetNodeId ?? '', Validators.required],
+      sourceNodeId: [edge?.sourceNodeId ?? sourceNode?.id ?? null, Validators.required],
+      targetNodeId: [edge?.targetNodeId ?? null, Validators.required],
       optionKey: [edge?.optionKey ?? ''],
       text: [edge?.text ?? '', Validators.required],
       classification: [edge?.classification ?? 'ADEQUATE', Validators.required],
@@ -852,9 +302,9 @@ export class CaseEditorComponent implements OnInit {
     });
   }
 
-  private initMapForm(map: MapEditorState | null) {
+  private initMapForm(map: MapEditorState | null): void {
     this.mapForm = this.fb.group({
-      nodeId: [map?.nodeId ?? '', Validators.required],
+      nodeId: [map?.nodeId ?? null, Validators.required],
       mapKey: [map?.key ?? '', Validators.required],
       title: [map?.title ?? '', Validators.required],
       theme: [map?.theme ?? 'clinical-soft'],
@@ -865,7 +315,7 @@ export class CaseEditorComponent implements OnInit {
     });
   }
 
-  private initObjectForm(obj: MapObjectEditorState | null, mapId: number | null) {
+  private initObjectForm(obj: MapObjectEditorState | null, mapId: number | null): void {
     this.objectForm = this.fb.group({
       _mapId: [obj?.mapId ?? mapId],
       objectKey: [obj?.key ?? '', Validators.required],
@@ -887,7 +337,7 @@ export class CaseEditorComponent implements OnInit {
     });
   }
 
-  private initToolForm(tool: ClinicalToolEditorState | null) {
+  private initToolForm(tool: ClinicalToolEditorState | null): void {
     this.toolForm = this.fb.group({
       toolCode: [tool?.code ?? '', Validators.required],
       label: [tool?.label ?? '', Validators.required],
@@ -897,24 +347,13 @@ export class CaseEditorComponent implements OnInit {
     });
   }
 
-  private initChecklistForm() {
-    this.checklistForm = this.fb.group({
-      contentOriginal: [false],
-      ethicsReviewed: [false],
-      safetyProtocols: [false],
-      noStigmatizing: [false],
-      triggerWarnings: [false],
-      accessibilityOk: [false],
-    });
-  }
+  // ─── Guardar ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  // ─── CRUD save actions ───────────────────────────────────────────────────────
-
-  saveNode(caseVersionId: number) {
+  saveNode(caseVersionId: number): void {
     if (!this.nodeForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.nodeForm.value;
-    const editing = p?.kind === 'node-edit' ? (p as { node: NodeEditorState }).node : null;
+    const editing = p?.kind === 'node-edit' ? p.node : null;
     const body = {
       nodeKey: v.nodeKey, title: v.title, narrative: v.narrative,
       // El formulario no edita estas listas: al editar se devuelven las del nodo (antes
@@ -926,13 +365,15 @@ export class CaseEditorComponent implements OnInit {
       terminal: v.terminal, startNode: v.startNode,
       positionX: v.positionX, positionY: v.positionY,
     };
-    const call = editing
-      ? this.authoringApi.updateNode(caseVersionId, editing.id, body)
-      : this.authoringApi.createNode(caseVersionId, body);
-    this.runAction(call, 'Nodo guardado.', 'No fue posible guardar el nodo.');
+    this.runAction(
+      revision => editing
+        ? this.authoringApi.updateNode(caseVersionId, editing.id, body, revision)
+        : this.authoringApi.createNode(caseVersionId, body, revision),
+      'Nodo guardado.', 'No fue posible guardar el nodo.',
+    );
   }
 
-  saveDecision(caseVersionId: number) {
+  saveDecision(caseVersionId: number): void {
     if (!this.decisionForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.decisionForm.value;
@@ -943,13 +384,16 @@ export class CaseEditorComponent implements OnInit {
       scoreDelta: v.scoreDelta, stressDelta: v.stressDelta,
       prohibitedPenalty: v.prohibitedPenalty, immediateFeedback: v.immediateFeedback || '',
     };
-    const call = p?.kind === 'decision-edit'
-      ? this.authoringApi.updateDecision(caseVersionId, (p as { edge: DecisionEdgeState }).edge.id, body)
-      : this.authoringApi.createDecision(caseVersionId, body);
-    this.runAction(call, 'Decisión guardada.', 'No fue posible guardar la decisión.');
+    const editingId = p?.kind === 'decision-edit' ? p.edge.id : null;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateDecision(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createDecision(caseVersionId, body, revision),
+      'Decisión guardada.', 'No fue posible guardar la decisión.',
+    );
   }
 
-  saveMap(caseVersionId: number) {
+  saveMap(caseVersionId: number): void {
     if (!this.mapForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.mapForm.value;
@@ -958,13 +402,16 @@ export class CaseEditorComponent implements OnInit {
       width: v.width, height: v.height, theme: v.theme,
       spawnX: v.spawnX, spawnY: v.spawnY,
     };
-    const call = p?.kind === 'map-edit'
-      ? this.authoringApi.updateMap(caseVersionId, (p as { map: MapEditorState }).map.id, body)
-      : this.authoringApi.createMap(caseVersionId, body);
-    this.runAction(call, 'Mapa guardado.', 'No fue posible guardar el mapa.');
+    const editingId = p?.kind === 'map-edit' ? p.map.id : null;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateMap(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createMap(caseVersionId, body, revision),
+      'Mapa guardado.', 'No fue posible guardar el mapa.',
+    );
   }
 
-  saveObject(caseVersionId: number) {
+  saveObject(caseVersionId: number): void {
     if (!this.objectForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.objectForm.value;
@@ -977,146 +424,221 @@ export class CaseEditorComponent implements OnInit {
       decisionOptionId: v.decisionOptionId ? Number(v.decisionOptionId) : null,
       toolCode: v.toolCode || null,
     };
-    const call = p?.kind === 'object-edit'
-      ? this.authoringApi.updateObject(caseVersionId, (p as { obj: MapObjectEditorState }).obj.id, body)
-      : this.authoringApi.createObject(caseVersionId, (p as { mapId: number }).mapId ?? v._mapId, body);
-    this.runAction(call, 'Objeto guardado.', 'No fue posible guardar el objeto.');
+    const editingId = p?.kind === 'object-edit' ? p.obj.id : null;
+    const mapId = p?.kind === 'object-create' ? p.mapId : v._mapId;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateObject(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createObject(caseVersionId, mapId, body, revision),
+      'Objeto guardado.', 'No fue posible guardar el objeto.',
+    );
   }
 
-  saveTool(caseVersionId: number) {
+  saveTool(caseVersionId: number): void {
     if (!this.toolForm?.valid || this.busy()) return;
     const p = this.panel();
     const v = this.toolForm.value;
     const body = { toolCode: v.toolCode, label: v.label, icon: v.icon, category: v.category, description: v.description };
-    const call = p?.kind === 'tool-edit'
-      ? this.authoringApi.updateTool(caseVersionId, (p as { tool: ClinicalToolEditorState }).tool.id, body)
-      : this.authoringApi.createTool(caseVersionId, body);
-    this.runAction(call, 'Herramienta guardada.', 'No fue posible guardar la herramienta.');
+    const editingId = p?.kind === 'tool-edit' ? p.tool.id : null;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateTool(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createTool(caseVersionId, body, revision),
+      'Herramienta guardada.', 'No fue posible guardar la herramienta.',
+    );
   }
 
-  saveChecklist(caseVersionId: number) {
+  saveChecklist(caseVersionId: number): void {
     if (!this.checklistForm || this.busy()) return;
+    const body = this.checklistForm.getRawValue() as ChecklistUpdateRequest;
     this.runAction(
-      this.authoringApi.updateChecklist(caseVersionId, this.checklistForm.value),
+      revision => this.authoringApi.updateChecklist(caseVersionId, body, revision),
       'Lista de verificación guardada.',
       'No fue posible guardar la lista de verificación.',
+      () => this.checklistForm?.markAsPristine(),
     );
   }
 
-  // ─── Delete confirmations ────────────────────────────────────────────────────
+  // ─── Eliminar ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  runConfirm() {
-    const pending = this.confirmState();
-    if (!pending) return;
-    this.confirmState.set(null);
-    pending.run();
-  }
-
-  private openConfirm(title: string, message: string, run: () => void, confirmLabel?: string) {
-    this.confirmState.set({ title, message, run, confirmLabel });
-  }
-
-  confirmDeleteNode(caseVersionId: number, node: NodeEditorState) {
-    this.openConfirm(
+  async confirmDeleteNode(caseVersionId: number, node: NodeEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger(
       'Eliminar nodo',
       `¿Eliminar el nodo "${node.title}"? Esta acción eliminará también sus decisiones, mapa y objetos.`,
-      () => {
-        this.runAction(this.authoringApi.deleteNode(caseVersionId, node.id), 'Nodo eliminado.', 'No fue posible eliminar el nodo.');
-      }
     );
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteNode(caseVersionId, node.id, revision),
+        'Nodo eliminado.', 'No fue posible eliminar el nodo.',
+      );
+    }
   }
 
-  confirmDeleteMap(caseVersionId: number, map: MapEditorState) {
-    this.openConfirm(
+  async confirmDeleteMap(caseVersionId: number, map: MapEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger(
       'Eliminar mapa',
       `¿Eliminar el mapa "${map.title}"? Esta acción eliminará también sus objetos y colisiones.`,
-      () => {
-        this.runAction(this.authoringApi.deleteMap(caseVersionId, map.id), 'Mapa eliminado.', 'No fue posible eliminar el mapa.');
-      }
     );
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteMap(caseVersionId, map.id, revision),
+        'Mapa eliminado.', 'No fue posible eliminar el mapa.',
+      );
+    }
   }
 
-  confirmDeleteObject(caseVersionId: number, obj: MapObjectEditorState) {
-    this.openConfirm(
-      'Eliminar objeto',
-      `¿Eliminar el objeto "${obj.label}"?`,
-      () => {
-        this.runAction(this.authoringApi.deleteObject(caseVersionId, obj.id), 'Objeto eliminado.', 'No fue posible eliminar el objeto.');
-      }
-    );
+  async confirmDeleteObject(caseVersionId: number, obj: MapObjectEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger('Eliminar objeto', `¿Eliminar el objeto "${obj.label}"?`);
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteObject(caseVersionId, obj.id, revision),
+        'Objeto eliminado.', 'No fue posible eliminar el objeto.',
+      );
+    }
   }
 
-  confirmDeleteTool(caseVersionId: number, tool: ClinicalToolEditorState) {
-    this.openConfirm(
-      'Eliminar herramienta',
-      `¿Eliminar la herramienta "${tool.label}"?`,
-      () => {
-        this.runAction(this.authoringApi.deleteTool(caseVersionId, tool.id), 'Herramienta eliminada.', 'No fue posible eliminar la herramienta.');
-      }
-    );
+  async confirmDeleteTool(caseVersionId: number, tool: ClinicalToolEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger('Eliminar herramienta', `¿Eliminar la herramienta "${tool.label}"?`);
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteTool(caseVersionId, tool.id, revision),
+        'Herramienta eliminada.', 'No fue posible eliminar la herramienta.',
+      );
+    }
   }
 
-  // ─── Publish / Clone ─────────────────────────────────────────────────────────
+  // ─── Publicar y clonar ───────────────────────────────────────────────────────────────────────────────────────────
 
-  confirmPublish(caseVersionId: number) {
-    this.openConfirm(
-      'Publicar caso',
-      'Los estudiantes asignados verán esta versión en su catálogo. ¿Publicarla ahora?',
-      () => this.publish(caseVersionId),
-      'Publicar',
-    );
-  }
-
-  publish(caseVersionId: number) {
-    this.runAction(this.authoringApi.publishCase(caseVersionId), 'Caso publicado.', 'No fue posible publicar el caso.');
-  }
-
-  clone(caseVersionId: number) {
-    this.runAction(this.authoringApi.cloneCaseVersion(caseVersionId), 'Se creó una nueva versión del caso.', 'No fue posible clonar la versión.');
-  }
-
-  // ─── Preview helpers (Fase 5) ────────────────────────────────────────────────
-
-  /** Map editor nodes into the shape WorldPreviewComponent expects. */
-  previewNodeOptions(model: CaseEditorView): { id: number; key: string; title: string }[] {
-    return model.nodes.map(n => ({ id: n.id, key: n.key, title: n.title }));
-  }
-
-  // ─── Private helpers ─────────────────────────────────────────────────────────
-
-  private load() {
-    const caseVersionId = Number(this.route.snapshot.paramMap.get('caseVersionId'));
-    this.authoringApi.caseEditor(caseVersionId).subscribe({
-      next: model => {
-        this.editor.set(model);
-        this.initChecklistForm();
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set('No se pudo cargar el editor. Verifica tus permisos.');
-        this.loading.set(false);
-      }
+  async confirmPublish(caseVersionId: number): Promise<void> {
+    const confirmed = await this.confirmOnce({
+      title: 'Publicar caso',
+      message: 'Los estudiantes asignados verán esta versión en su catálogo. ¿Publicarla ahora?',
+      confirmLabel: 'Publicar',
     });
+    if (confirmed) this.publish(caseVersionId);
+  }
+
+  publish(caseVersionId: number): void {
+    this.runAction(
+      revision => this.authoringApi.publishCase(caseVersionId, revision),
+      'Caso publicado.', 'No fue posible publicar el caso.',
+    );
+  }
+
+  /** Clona la versión y abre la copia: la URL pasa a ser la de la versión nueva (recargar no vuelve a la anterior). */
+  clone(caseVersionId: number): void {
+    this.runAction(
+      () => this.authoringApi.cloneCaseVersion(caseVersionId),
+      'Se creó una nueva versión del caso.', 'No fue posible clonar la versión.',
+      view => void this.router.navigate(['/portal/casos', view.caseVersionId, 'editor'], { replaceUrl: true }),
+    );
+  }
+
+  // ─── Ayudas de la plantilla ──────────────────────────────────────────────────────────────────────────────────────
+
+  nodeIcon(node: NodeEditorState): string {
+    if (node.startNode) return 'play_circle';
+    return node.terminal ? 'stop_circle' : 'radio_button_unchecked';
+  }
+
+  // ─── Acciones ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** `true` si la versión admite cambios; si no, explica por qué (la hoja ni se abre). */
+  private ensureEditable(): boolean {
+    const reason = this.lockReason();
+    if (reason) this.notify.warning(reason);
+    return !reason;
+  }
+
+  private async confirmDanger(title: string, message: string): Promise<boolean> {
+    if (!this.ensureEditable()) return false;
+    return this.confirmOnce({ title, message, confirmLabel: 'Eliminar', tone: 'danger' });
+  }
+
+  /** Una sola confirmación a la vez: un segundo gesto no abre otra ni repite la acción. */
+  private async confirmOnce(options: UiConfirmOptions): Promise<boolean> {
+    if (this.busy() || this.confirming) return false;
+    this.confirming = true;
+    try {
+      return await this.dialog.confirm(options);
+    } finally {
+      this.confirming = false;
+    }
   }
 
   /** Ejecuta una acción del editor y le dice al usuario si funcionó o por qué falló. */
-  private runAction(call: Observable<CaseEditorView>, success: string, fallback: string): void {
+  private runAction(call: EditorCall, success: string, fallback: string, onSuccess?: (view: CaseEditorView) => void): void {
+    this.execute(call, this.editor()?.revision, success, fallback, onSuccess);
+  }
+
+  private execute(
+    call: EditorCall,
+    revision: number | undefined,
+    success: string,
+    fallback: string,
+    onSuccess?: (view: CaseEditorView) => void,
+  ): void {
     this.busy.set(true);
-    call.subscribe({
-      next: editor => {
-        this.refresh(editor);
+    call(revision).subscribe({
+      next: view => {
+        this.refresh(view);
+        onSuccess?.(view);
         this.notify.success(success);
       },
       error: (err: unknown) => {
         this.busy.set(false);
+        const conflict = revisionConflictOf(err);
+        if (conflict) {
+          void this.resolveConflict(conflict, call, success, fallback, onSuccess);
+          return;
+        }
         const text = apiErrorMessage(err, fallback);
         if (text) this.notify.error(text);
       },
     });
   }
 
-  private refresh(model: CaseEditorView) {
-    this.editor.set(model);
+  /**
+   * El 409 de la revisión (RNF-08, REGLA-011): otra sesión editó el caso. Se muestra la comparación y se elige:
+   * «Recargar» descarta lo propio y carga la versión vigente; «Reintentar» aplica lo propio sobre ella. Cerrar sin
+   * elegir deja la pantalla y el formulario como estaban.
+   */
+  private async resolveConflict(
+    conflict: RevisionConflict,
+    call: EditorCall,
+    success: string,
+    fallback: string,
+    onSuccess?: (view: CaseEditorView) => void,
+  ): Promise<void> {
+    const mine = this.editor();
+    const ref = this.dialog.open<RevisionConflictAnswer, RevisionConflictDialogData, RevisionConflictDialogComponent>(
+      RevisionConflictDialogComponent,
+      {
+        size: 'md',
+        data: {
+          mineRevision: mine?.revision ?? null,
+          currentRevision: conflict.revision,
+          changes: mine ? describeEditorChanges(mine, conflict.current) : [],
+        },
+      },
+    );
+    const answer = await firstValueFrom(ref.closed, { defaultValue: undefined });
+    if (answer === 'reload') {
+      this.closePanel();
+      if (conflict.current) {
+        this.adopt(conflict.current, true);
+        this.notify.info('Se cargó la versión más reciente del caso.');
+      } else {
+        this.load();
+      }
+    } else if (answer === 'retry') {
+      if (conflict.current) this.adopt(conflict.current);
+      this.execute(call, conflict.revision, success, fallback, onSuccess);
+    }
+  }
+
+  private refresh(model: CaseEditorView): void {
+    this.adopt(model);
     this.busy.set(false);
     this.closePanel();
   }

@@ -61,6 +61,12 @@ describe('hub de edición de casos (F7-7)', () => {
       expect(labelled('Agregar nuevo caso')).toBeDefined();
     });
 
+    // F8-0 abrió «Editar casos» al docente (E2-4): el antetítulo ya no puede decir «Modalidad administrador».
+    it('el antetítulo no dice «administrador»: el docente también autora sus casos', async () => {
+      await render();
+      expect(text(host().querySelector('.ui-page-header__eyebrow'))).toBe('Autoría de casos');
+    });
+
     it('con casos: una tarjeta por caso con su estado en lenguaje humano y sus dos acciones', async () => {
       await render();
       expect(cards()).toHaveLength(2);
