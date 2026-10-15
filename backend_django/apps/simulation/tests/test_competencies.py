@@ -293,3 +293,50 @@ def test_the_seeded_rubrics_are_linked_in_a_fresh_database(admin):
 def test_the_matrix_declares_the_competency_rows():
     assert policies.MATRIX[("competency", "read")] == {policies.PROFESOR: policies.ALL, policies.ADMIN: policies.ALL}
     assert policies.MATRIX[("competency", "manage")] == {policies.ADMIN: policies.ALL}
+
+
+# ─── el enlace sigue al texto libre cuando este cambia (revisión de fase de E3, I-4) ───────────
+def _linked_rubric(admin, prof):
+    competency = _create(admin).data["data"]
+    rubric = cl(prof).post(
+        f"{RUBRICS}/",
+        _rubric_body({"competency": "Trabajo", "competencyId": competency["id"]}, {"competency": "Otro"}),
+        format="json",
+    ).data["data"]
+    return competency, rubric
+
+
+def _resave(prof, rubric, first_text):
+    first, second = rubric["criteria"]
+    return cl(prof).put(
+        f"{RUBRICS}/{rubric['id']}",
+        _rubric_body({"id": first["id"], "competency": first_text}, {"id": second["id"], "competency": "Otro"}),
+        format="json",
+    )
+
+
+def test_changing_the_free_text_drops_a_link_that_no_longer_matches(admin, prof):
+    competency, rubric = _linked_rubric(admin, prof)
+
+    response = _resave(prof, rubric, "Escucha activa")
+
+    assert response.status_code == 200, response.data
+    first = response.data["data"]["criteria"][0]
+    assert (first["competency"], first["competencyId"]) == ("Escucha activa", None)
+
+
+def test_changing_the_free_text_to_another_catalog_code_relinks(admin, prof):
+    competency, rubric = _linked_rubric(admin, prof)
+    other = _create(admin, code="Escucha activa", name="Escucha activa").data["data"]
+
+    response = _resave(prof, rubric, "escucha activa")
+
+    assert response.data["data"]["criteria"][0]["competencyId"] == other["id"]
+
+
+def test_resaving_the_same_text_without_the_id_keeps_the_explicit_link(admin, prof):
+    competency, rubric = _linked_rubric(admin, prof)
+
+    response = _resave(prof, rubric, "Trabajo")  # el autoguardado de un cliente que no manda el id
+
+    assert response.data["data"]["criteria"][0]["competencyId"] == competency["id"]

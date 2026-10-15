@@ -251,13 +251,19 @@ def _write_criteria(rubric, criteria_payload):
             criterion = RubricCriterion.objects.filter(rubric=rubric, competency=competency).first()
         if not criterion:
             criterion = RubricCriterion(rubric=rubric)
+        previous_text = criterion.competency if criterion.pk is not None else None
         criterion.competency = str(item.get("competency") or item.get("title") or "").strip()[:100]
-        # E3-9: el enlace con el catálogo; el texto libre de arriba se conserva siempre.
+        # E3-9: el enlace con el catálogo; el texto libre de arriba se conserva siempre. Sin
+        # ``competencyId``, el enlace sigue al texto **cuando este cambia** (si no, un texto nuevo
+        # quedaría bajo la competencia vieja); con el mismo texto no se toca (un cliente que no
+        # conoce el catálogo no borra un enlace elegido).
         competency, explicit = competencies.resolve_for_criterion(item)
-        if explicit or competency is not None:
+        if explicit or previous_text is None or criterion.competency != previous_text:
             criterion.competency_ref = competency
-            if competency is not None and not item.get("competency"):
-                criterion.competency = competency.code
+        elif criterion.competency_ref_id is None and competency is not None:
+            criterion.competency_ref = competency  # sin enlace y su texto ya está en el catálogo
+        if competency is not None and explicit and not item.get("competency"):
+            criterion.competency = competency.code
         criterion.title = str(item.get("title") or item.get("name") or "").strip()
         criterion.description = str(item.get("description") or "").strip()
         criterion.weight = weight
