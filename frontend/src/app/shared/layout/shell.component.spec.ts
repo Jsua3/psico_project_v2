@@ -82,11 +82,11 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(host().textContent).not.toContain('Continuar simulación');
   });
 
-  it('el docente pliega Rúbricas, Grupos y Reportes; su destino principal (Trazabilidad) queda a la vista', async () => {
+  it('el docente pliega Rúbricas, Grupos, Reportes y Editar casos; su destino principal (Trazabilidad) queda a la vista', async () => {
     currentUser.set(user('PROFESOR'));
     await fixture.whenStable();
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes']);
-    expect(folded()).toEqual(['Rúbricas', 'Grupos', 'Reportes']);
+    expect(labels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+    expect(folded()).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
   });
 
   it('cambiar de sesión sin recargar actualiza destinos y plegados (Review Focus 3)', async () => {
@@ -113,12 +113,12 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Editar casos', 'Más']);
   });
 
-  it('los destinos que se pliegan en escritorio van a la hoja «Más» (docente: Rúbricas, Grupos y Reportes)', async () => {
+  it('los destinos que se pliegan en escritorio van a la hoja «Más» (docente: Rúbricas, Grupos, Reportes y Editar casos)', async () => {
     currentUser.set(user('PROFESOR'));
     await fixture.whenStable();
     expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Más']);
     tabs().at(-1)!.click();
-    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Rúbricas', 'Grupos', 'Reportes']);
+    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
   });
 
   it('la cuenta muestra nombre y rol humanizado, y su menú se llama «Cuenta»', async () => {

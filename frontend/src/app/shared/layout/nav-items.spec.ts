@@ -22,9 +22,10 @@ describe('NAV_ITEMS', () => {
     expect(folded('ESTUDIANTE')).toEqual([]);
   });
 
-  it('el docente ve 6 destinos y pliega Rúbricas, Grupos y Reportes', () => {
-    expect(visible('PROFESOR')).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes']);
-    expect(folded('PROFESOR')).toEqual(['Rúbricas', 'Grupos', 'Reportes']);
+  // req: RF-05, CU-01 (E2-4: el profesor autora con propiedad; F8-0 le abre «Editar casos»)
+  it('el docente ve 7 destinos y pliega Rúbricas, Grupos, Reportes y Editar casos', () => {
+    expect(visible('PROFESOR')).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+    expect(folded('PROFESOR')).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
   });
 
   // req: ED-5 (E2: el ADMIN no juega; su avatar solo existía para jugar)
@@ -52,8 +53,8 @@ describe('NAV_ITEMS', () => {
   });
 
   it('rolesFor coincide con la matriz de políticas del servidor (E2-1): ningún destino se ofrece a un rol que el servidor niega', () => {
-    // Qué fila de `shared/policy-matrix.json` gobierna cada destino. «casos» queda en ADMIN hasta F8 (el editor se
-    // rehace contra /api/authoring), aunque el servidor ya deja autorar al PROFESOR: un subconjunto, nunca de más.
+    // Qué fila de `shared/policy-matrix.json` gobierna cada destino. «casos» es del PROFESOR (autoría con propiedad,
+    // E2-4) y del ADMIN: un subconjunto de la matriz, nunca de más.
     const matrix = JSON.parse(readFileSync(join(REPO_ROOT, 'backend_django', 'shared', 'policy-matrix.json'), 'utf-8')) as {
       rows: Array<{ resource: string; action: string } & Record<string, string | null>>;
     };
@@ -77,7 +78,7 @@ describe('NAV_ITEMS', () => {
     }
   });
 
-  it('rolesFor devuelve los roles de cada guard de app.routes.ts (los de F3, salvo «personaje», que desde ED-5 es solo del estudiante)', () => {
+  it('rolesFor devuelve los roles de cada guard de app.routes.ts (los de F3, salvo «personaje» —ED-5: solo del estudiante— y «casos» —E2-4: también del docente—)', () => {
     const before: Record<string, string[]> = {
       personaje: ['ESTUDIANTE'],
       invitaciones: ['ESTUDIANTE'],
@@ -85,7 +86,7 @@ describe('NAV_ITEMS', () => {
       rubricas: ['PROFESOR', 'ADMIN'],
       grupos: ['PROFESOR'],
       reportes: ['PROFESOR'],
-      casos: ['ADMIN'],
+      casos: ['PROFESOR', 'ADMIN'],
       usuarios: ['ADMIN'],
     };
     for (const [id, roles] of Object.entries(before)) expect([...rolesFor(id)].sort(), id).toEqual([...roles].sort());

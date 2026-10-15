@@ -30,7 +30,7 @@ async function apiLogin(request: APIRequestContext): Promise<string> {
 }
 
 async function readWorld(request: APIRequestContext, token: string, versionId: number, nodeId: number): Promise<Json> {
-  const response = await request.get(`/api/admin/cases/${versionId}/world-editor?nodeId=${nodeId}`, {
+  const response = await request.get(`/api/authoring/cases/${versionId}/world-editor?nodeId=${nodeId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(response.status(), 'GET world-editor').toBe(200);
@@ -40,11 +40,11 @@ async function readWorld(request: APIRequestContext, token: string, versionId: n
 /** Los objetos de todas las demás versiones de caso, para comprobar que nada ajeno cambia. */
 async function foreignObjects(request: APIRequestContext, token: string, ownVersionId: number): Promise<string> {
   const headers = { Authorization: `Bearer ${token}` };
-  const versions: Json[] = (await (await request.get('/api/admin/cases', { headers })).json()).data;
+  const versions: Json[] = (await (await request.get('/api/authoring/cases', { headers })).json()).data;
   const rows: Json[] = [];
   for (const version of versions) {
     if (version['caseVersionId'] === ownVersionId) continue;
-    const view = (await (await request.get(`/api/admin/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
+    const view = (await (await request.get(`/api/authoring/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
     rows.push({ version: version['caseVersionId'], objects: view.objects });
   }
   return JSON.stringify(rows);
@@ -57,7 +57,7 @@ async function foreignObjects(request: APIRequestContext, token: string, ownVers
 async function openWorldEditor(page: Page, versionId: number): Promise<void> {
   await page.getByRole('tab', { name: 'Mundo' }).click();
   const loaded = page.waitForResponse(
-    r => r.request().method() === 'GET' && r.url().includes(`/api/admin/cases/${versionId}/world-editor`),
+    r => r.request().method() === 'GET' && r.url().includes(`/api/authoring/cases/${versionId}/world-editor`),
     { timeout: scaled(30_000) },
   );
   await page.getByRole('button', { name: /inicio\s+—\s+Inicio del caso/ }).click();
@@ -68,7 +68,7 @@ async function openWorldEditor(page: Page, versionId: number): Promise<void> {
 /** Ejecuta `action` y espera a que el autoguardado (PUT .../world) responda y el editor quede sin cambios. */
 async function autosaved(page: Page, versionId: number, action: () => Promise<void>): Promise<void> {
   const response = page.waitForResponse(
-    r => r.request().method() === 'PUT' && r.url().includes(`/api/admin/cases/${versionId}/world`),
+    r => r.request().method() === 'PUT' && r.url().includes(`/api/authoring/cases/${versionId}/world`),
     { timeout: scaled(30_000) },
   );
   await action();
@@ -81,7 +81,7 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   const token = await apiLogin(request);
 
   // Caso nuevo: una versión DRAFT con el nodo «inicio» y su escena vacía.
-  const created = await request.post('/api/admin/cases', {
+  const created = await request.post('/api/authoring/cases', {
     headers: { Authorization: `Bearer ${token}` },
     data: { title: `Editor e2e ${Date.now()}` },
   });

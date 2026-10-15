@@ -50,7 +50,7 @@ interface Contract {
   attemptToken?: boolean;
 }
 
-const A = '/api/admin/cases';
+const A = '/api/authoring/cases';
 const S = '/api/simulation';
 const att = `${S}/attempts/${ATTEMPT}`;
 
