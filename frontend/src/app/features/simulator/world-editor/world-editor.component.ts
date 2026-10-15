@@ -44,6 +44,7 @@ import {
   EditorTool,
   PlaceObjectCommand,
   MoveObjectCommand,
+  ResizeZoneCommand,
   DeleteObjectWithDialogueCommand,
   UpdateInspectorCommand,
   PlaceCollisionZoneCommand,
@@ -64,6 +65,7 @@ import {
   WorldDialogueLine,
   WorldDialogueChoice
 } from '../../../core/models/simulation.model';
+import { CanvasView, cursorFor, fitView, snapZoneRect, wheelZoomFactor, zoomAtPoint } from './canvas-view.util';
 import {
   patrolPoints, wanderRadius, setPatternType, setWanderRadius,
   withPatrolPoint, movePatrolPoint, removePatrolPoint, reorderPatrolPoint
@@ -844,9 +846,18 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   @ViewChild('canvasWrap', { static: false }) canvasWrap!: ElementRef<HTMLDivElement>;
 
   private stage: Konva.Stage | null = null;
+  /** Relleno del mapa y fondo (sin suavizado: pixel art), bajo la rejilla. */
+  private backgroundLayer: Konva.Layer | null = null;
   private mainLayer: Konva.Layer | null = null;
   private gridLayer: Konva.Layer | null = null;
   private uiLayer: Konva.Layer | null = null;
+  /** Asas de tamaño de la zona seleccionada (conecta con ResizeZoneCommand). */
+  private transformer: Konva.Transformer | null = null;
+  /** Los grupos de Konva de lo que se pinta, por clave (el selector `[name=…]` de Konva no encuentra claves con guion). */
+  private readonly nodesByKey = new Map<string, Konva.Group>();
+  /** Qué hay bajo el puntero (cambia el cursor) y si se está arrastrando el lienzo. */
+  private hover: 'none' | 'object' | 'zone' = 'none';
+  private panning = false;
 
   // Drawing state for collision zone creation
   private drawingZone = false;
@@ -866,6 +877,8 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     effect(() => {
       const state = this.store.editorState();
       this.store.selectedKey();
+      // La herramienta también cuenta: de ella dependen lo arrastrable, el transformador y el cursor.
+      this.store.activeTool();
       if (state && this.stage) {
         this.renderWorld(state);
       }
@@ -908,23 +921,37 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   // ─── Zoom controls ────────────────────────────────────────────────────
 
   zoomIn(): void {
-    this.store.setZoom(this.store.zoom() + 0.15);
-    this.applyZoom();
+    this.zoomAroundCenter(1.2);
   }
 
   zoomOut(): void {
-    this.store.setZoom(this.store.zoom() - 0.15);
-    this.applyZoom();
+    this.zoomAroundCenter(1 / 1.2);
   }
 
+  /** Ajusta el mapa a la vista y lo centra (antes solo cambiaba la escala y el mapa quedaba en una esquina). */
   zoomFit(): void {
-    if (!this.stage || !this.canvasWrap) return;
+    if (!this.stage) return;
     const state = this.store.editorState();
     if (!state) return;
-    const wrapW = this.canvasWrap.nativeElement.clientWidth;
-    const fitZoom = Math.min(wrapW / state.map.width, 540 / state.map.height, 2);
-    this.store.setZoom(fitZoom);
-    this.applyZoom();
+    this.commitView(fitView({ width: this.stage.width(), height: this.stage.height() }, state.map));
+  }
+
+  private zoomAroundCenter(factor: number): void {
+    if (!this.stage) return;
+    const center = { x: this.stage.width() / 2, y: this.stage.height() / 2 };
+    this.commitView(zoomAtPoint(this.currentView(), center, this.store.zoom() * factor));
+  }
+
+  private currentView(): CanvasView {
+    const pan = this.store.panOffset();
+    return { zoom: this.store.zoom(), x: pan.x, y: pan.y };
+  }
+
+  /** La vista del store (zoom y desplazamiento) pasa a la etapa. */
+  private commitView(view: CanvasView): void {
+    this.store.setZoom(view.zoom);
+    this.store.setPan(view.x, view.y);
+    this.applyView();
   }
 
   // ─── Inspector actions ────────────────────────────────────────────────
@@ -1217,10 +1244,14 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       height
     });
 
+    this.backgroundLayer = new Konva.Layer();
+    // Pixel art: el fondo se pinta sin suavizar (la rejilla va encima, en su propia capa).
+    this.backgroundLayer.imageSmoothingEnabled(false);
     this.gridLayer = new Konva.Layer();
     this.mainLayer = new Konva.Layer();
     this.uiLayer = new Konva.Layer();
 
+    this.stage.add(this.backgroundLayer);
     this.stage.add(this.gridLayer);
     this.stage.add(this.mainLayer);
     this.stage.add(this.uiLayer);
@@ -1230,24 +1261,61 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     this.stage.on('mousemove touchmove', (e) => this.onStageMouseMove(e));
     this.stage.on('mouseup touchend', () => this.onStageMouseUp());
     this.stage.on('click tap', (e) => this.onStageClick(e));
+    this.stage.on('mouseleave', () => this.setHover('none'));
 
-    // Wheel zoom
+    // Paneo con la herramienta «Mover lienzo»: la etapa se arrastra y el desplazamiento vuelve al store.
+    // Los arrastres de un objeto o de una zona también suben hasta la etapa: solo cuenta el de la etapa misma.
+    this.stage.on('dragstart', (e) => {
+      if (e.target !== this.stage) return;
+      this.panning = true;
+      this.refreshCursor();
+    });
+    this.stage.on('dragend', (e) => {
+      if (e.target !== this.stage || !this.stage) return;
+      this.panning = false;
+      this.store.setPan(this.stage.x(), this.stage.y());
+      this.refreshCursor();
+    });
+
+    // Zoom con la rueda: hacia el cursor (el punto bajo el puntero no se mueve).
     this.stage.on('wheel', (e) => {
       e.evt.preventDefault();
-      const delta = e.evt.deltaY > 0 ? -0.1 : 0.1;
-      this.store.setZoom(this.store.zoom() + delta);
-      this.applyZoom();
+      const pointer = this.stage?.getPointerPosition();
+      if (!pointer) return;
+      this.commitView(zoomAtPoint(this.currentView(), pointer, this.store.zoom() * wheelZoomFactor(e.evt.deltaY)));
     });
+
+    this.applyView();
+    this.refreshCursor();
+  }
+
+  /** El cursor de la herramienta activa y de lo que hay bajo el puntero (KON-4). */
+  private refreshCursor(): void {
+    const container = this.stage?.container();
+    if (!container) return;
+    container.style.cursor = cursorFor({ tool: this.store.activeTool(), hover: this.hover, panning: this.panning });
+  }
+
+  private setHover(hover: 'none' | 'object' | 'zone'): void {
+    if (this.hover === hover) return;
+    this.hover = hover;
+    this.refreshCursor();
   }
 
   // ─── Rendering ────────────────────────────────────────────────────────
 
   private renderWorld(state: { map: { width: number; height: number; spawnX: number; spawnY: number; theme: string }; objects: WorldObject[]; collisionZones: WorldCollisionZone[]; dialogues: WorldDialogueTree[] }): void {
-    if (!this.mainLayer || !this.gridLayer || !this.uiLayer) return;
+    if (!this.mainLayer || !this.gridLayer || !this.uiLayer || !this.backgroundLayer) return;
 
     this.mainLayer.destroyChildren();
     this.gridLayer.destroyChildren();
     this.uiLayer.destroyChildren();
+    this.backgroundLayer.destroyChildren();
+    this.transformer = null;
+    this.nodesByKey.clear();
+    this.hover = 'none';
+    this.stage?.draggable(this.store.activeTool() === 'pan');
+    this.refreshCursor();
 
     const { map, objects, collisionZones } = state;
 
@@ -1274,7 +1342,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         draggable: this.store.activeTool() === 'select'
       });
 
-      group.add(new Konva.Rect({
+      const rect = new Konva.Rect({
         width: zone.width,
         height: zone.height,
         fill: 'rgba(79,124,172,0.08)',
@@ -1282,7 +1350,8 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         strokeWidth: 1,
         dash: [4, 3],
         cornerRadius: 3
-      }));
+      });
+      group.add(rect);
 
       if (zone.label) {
         group.add(new Konva.Text({
@@ -1300,7 +1369,24 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         this.store.select(zone.key);
       });
 
+      // Resaltado al pasar (KON-5): borde y relleno más firmes, y el cursor de mover.
+      group.on('mouseenter', () => {
+        if (this.store.activeTool() !== 'select') return;
+        rect.setAttrs({ fill: 'rgba(79,124,172,0.2)', stroke: 'rgba(79,124,172,0.9)', strokeWidth: 2 });
+        this.setHover('zone');
+        this.mainLayer?.batchDraw();
+      });
+      group.on('mouseleave', () => {
+        rect.setAttrs({ fill: 'rgba(79,124,172,0.08)', stroke: 'rgba(79,124,172,0.4)', strokeWidth: 1 });
+        this.setHover('none');
+        this.mainLayer?.batchDraw();
+      });
+
+      // Arrastrar o cambiar el tamaño se guarda con el mismo comando (antes el arrastre se perdía).
+      group.on('dragend transformend', () => this.commitZone(zone, group));
+
       this.mainLayer.add(group);
+      this.nodesByKey.set(zone.key, group);
     }
 
     // ─── Objects ────────────────────────────────────────────────────
@@ -1368,6 +1454,20 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         }));
       }
 
+      // Resaltado al pasar (KON-5): el cuerpo se agranda y su sombra se intensifica, y el cursor es el de mover.
+      const body = group.findOne('Circle') as Konva.Circle | undefined;
+      group.on('mouseenter', () => {
+        if (this.store.activeTool() !== 'select') return;
+        body?.setAttrs({ strokeWidth: 4, shadowBlur: 16, shadowOpacity: 0.5 });
+        this.setHover('object');
+        this.mainLayer?.batchDraw();
+      });
+      group.on('mouseleave', () => {
+        body?.setAttrs({ strokeWidth: 2, shadowBlur: 8, shadowOpacity: 0.25 });
+        this.setHover('none');
+        this.mainLayer?.batchDraw();
+      });
+
       // Drag events for undo-able move
       group.on('dragstart', () => {
         this.dragStart = { x: obj.x, y: obj.y };
@@ -1389,6 +1489,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       });
 
       this.mainLayer.add(group);
+      this.nodesByKey.set(obj.key, group);
     }
 
     // ─── Spawn marker ───────────────────────────────────────────────
@@ -1418,21 +1519,72 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     this.uiLayer.add(this.spawnMarker);
 
     this.drawPatternOverlay();
+    this.attachTransformer();
 
     this.mainLayer.draw();
     this.uiLayer.draw();
     this.highlightSelected(this.store.selectedKey());
   }
 
+  /**
+   * La zona seleccionada con «Seleccionar» lleva ocho asas para cambiarle el tamaño (KON-7). Un tamaño por debajo de
+   * una casilla se rechaza mientras se arrastra; al soltar, la geometría se encaja a la rejilla.
+   */
+  private attachTransformer(): void {
+    if (!this.mainLayer || !this.uiLayer || this.store.activeTool() !== 'select') return;
+    const zone = this.store.selectedZone();
+    if (!zone) return;
+    const group = this.nodesByKey.get(zone.key);
+    if (!group) return;
+    this.transformer = new Konva.Transformer({
+      rotateEnabled: false,
+      keepRatio: false,
+      ignoreStroke: true,
+      padding: 0,
+      anchorSize: 12,
+      borderStroke: '#004876',
+      borderStrokeWidth: 2,
+      anchorStroke: '#004876',
+      anchorFill: '#ffffff',
+      boundBoxFunc: (oldBox, newBox) =>
+        Math.abs(newBox.width) < GRID_SIZE || Math.abs(newBox.height) < GRID_SIZE ? oldBox : newBox,
+    });
+    // Primero a la capa y después los nodos: con `nodes` en la configuración las asas quedaban sin colocar.
+    this.uiLayer.add(this.transformer);
+    this.transformer.nodes([group]);
+  }
+
+  /** Confirma el sitio o el tamaño nuevo de una zona: encajado a la rejilla y como UN paso deshacible. */
+  private commitZone(zone: WorldCollisionZone, group: Konva.Group): void {
+    const next = snapZoneRect(
+      { x: group.x(), y: group.y(), width: zone.width, height: zone.height, scaleX: group.scaleX(), scaleY: group.scaleY() },
+      GRID_SIZE,
+    );
+    // La escala del transformador ya se aplicó al ancho y al alto: el nodo vuelve a escala 1.
+    group.scale({ x: 1, y: 1 });
+    group.position({ x: next.x, y: next.y });
+    const unchanged = next.x === zone.x && next.y === zone.y && next.width === zone.width && next.height === zone.height;
+    if (unchanged) {
+      this.mainLayer?.batchDraw();
+      return;
+    }
+    this.store.execute(new ResizeZoneCommand(
+      zone.key,
+      { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
+      next,
+    ));
+  }
+
   private readonly bgCache = new Map<string, HTMLImageElement>();
   private drawBackground(width: number, height: number): void {
-    if (!this.gridLayer) return;
+    if (!this.backgroundLayer) return;
     const url = backgroundImage(this.store.editorState()?.map.ambient);
     if (!url) return;
     const add = (img: HTMLImageElement) => {
-      if (!this.gridLayer) return;
-      this.gridLayer.add(new Konva.Image({ image: img, x: 0, y: 0, width, height, listening: false, opacity: 0.95 }));
-      this.gridLayer.draw();
+      if (!this.backgroundLayer) return;
+      // En su capa (bajo la rejilla) y sin transparencia: el pixel art se ve como lo verá el jugador.
+      this.backgroundLayer.add(new Konva.Image({ image: img, x: 0, y: 0, width, height, listening: false }));
+      this.backgroundLayer.draw();
     };
     const cached = this.bgCache.get(url);
     if (cached && cached.complete) { add(cached); return; }
@@ -1444,13 +1596,14 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private drawGrid(mapWidth: number, mapHeight: number): void {
     if (!this.gridLayer) return;
 
-    // Background
-    this.gridLayer.add(new Konva.Rect({
+    // Fondo del mapa: en la capa de abajo, para que la imagen y la rejilla queden encima en este orden.
+    this.backgroundLayer?.add(new Konva.Rect({
       x: 0, y: 0,
       width: mapWidth, height: mapHeight,
       fill: '#f8fbfd',
       listening: false
     }));
+    this.backgroundLayer?.draw();
 
     // Grid lines
     for (let x = 0; x <= mapWidth; x += GRID_SIZE) {
@@ -1614,12 +1767,13 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
   }
 
-  private applyZoom(): void {
-    if (!this.stage || !this.mainLayer || !this.gridLayer || !this.uiLayer) return;
+  /** Zoom y desplazamiento en la etapa (no por capa): el desplazamiento y el zoom hacia el cursor lo necesitan. */
+  private applyView(): void {
+    if (!this.stage) return;
     const zoom = this.store.zoom();
-    this.mainLayer.scale({ x: zoom, y: zoom });
-    this.gridLayer.scale({ x: zoom, y: zoom });
-    this.uiLayer.scale({ x: zoom, y: zoom });
+    const pan = this.store.panOffset();
+    this.stage.scale({ x: zoom, y: zoom });
+    this.stage.position({ x: pan.x, y: pan.y });
     this.stage.batchDraw();
   }
 
@@ -1631,7 +1785,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
 
     if (!key) { this.mainLayer.batchDraw(); return; }
 
-    const node = this.mainLayer.findOne(`[name=${key}]`);
+    const node = this.nodesByKey.get(key);
     if (!node) { this.mainLayer.batchDraw(); return; }
 
     // Object selection ring
@@ -1645,24 +1799,9 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         name: 'selection-ring',
         listening: false
       });
-      (node as Konva.Group).add(ring);
+      node.add(ring);
     }
-    // Zone selection ring
-    else if (this.store.selectedZone()) {
-      const zone = this.store.selectedZone()!;
-      const ring = new Konva.Rect({
-        x: -2, y: -2,
-        width: zone.width + 4,
-        height: zone.height + 4,
-        stroke: '#4f7cac',
-        strokeWidth: 2,
-        dash: [4, 3],
-        fill: 'transparent',
-        name: 'selection-ring',
-        listening: false
-      });
-      (node as Konva.Group).add(ring);
-    }
+    // Una zona seleccionada no lleva anillo: sus asas (transformador) ya la marcan.
 
     this.mainLayer.batchDraw();
   }
