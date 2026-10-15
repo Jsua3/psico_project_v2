@@ -31,6 +31,7 @@ import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
 import { mapThemeLabel, statusTone } from './case-editor.options';
@@ -57,7 +58,7 @@ type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
   imports: [
     ReactiveFormsModule, RouterLink,
     UiBadge, UiButton, UiCard, UiIconButton, UiPageActions, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiTab, UiTabs,
-    UiErrorState,
+    UiEmptyState, UiErrorState,
     DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
   ],
   templateUrl: './case-editor.component.html',
@@ -126,6 +127,14 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       : 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
   });
   protected readonly busyReason = computed(() => (this.busy() ? 'Hay una acción en curso: espera a que termine.' : null));
+  /** Cada mapa es la sala de un nodo: sin nodos no se puede crear uno. */
+  protected readonly mapCreateReason = computed(() =>
+    this.lockReason() ?? ((this.editor()?.nodes.length ?? 0) === 0 ? 'Crea un nodo primero: cada mapa es la sala de un nodo.' : null));
+  /** Cada objeto vive en un mapa: sin mapas no se puede crear uno. */
+  protected readonly objectCreateReason = computed(() =>
+    this.lockReason() ?? ((this.editor()?.maps.length ?? 0) === 0 ? 'Crea un mapa primero.' : null));
+  private readonly nodeTitles = computed(() => new Map((this.editor()?.nodes ?? []).map(node => [node.id, node.title])));
+  private readonly mapTitles = computed(() => new Map((this.editor()?.maps ?? []).map(map => [map.id, map.title])));
   protected readonly previewNodes = computed(() =>
     (this.editor()?.nodes ?? []).map(node => ({ id: node.id, key: node.key, title: node.title })));
 
@@ -317,7 +326,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
 
   private initObjectForm(obj: MapObjectEditorState | null, mapId: number | null): void {
     this.objectForm = this.fb.group({
-      _mapId: [obj?.mapId ?? mapId],
+      _mapId: [obj?.mapId ?? mapId, Validators.required],
       objectKey: [obj?.key ?? '', Validators.required],
       label: [obj?.label ?? '', Validators.required],
       objectType: [obj?.type ?? 'PERSON', Validators.required],
@@ -425,7 +434,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       toolCode: v.toolCode || null,
     };
     const editingId = p?.kind === 'object-edit' ? p.obj.id : null;
-    const mapId = p?.kind === 'object-create' ? p.mapId : v._mapId;
+    // El mapa lo elige la hoja al crear (parte del de la tarjeta o del primero).
+    const mapId = Number(v._mapId);
     this.runAction(
       revision => editingId !== null
         ? this.authoringApi.updateObject(caseVersionId, editingId, body, revision)
@@ -535,6 +545,25 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   }
 
   // ─── Ayudas de la plantilla ──────────────────────────────────────────────────────────────────────────────────────
+
+  /** El título del nodo (la clave solo si el nodo ya no está en el caso). */
+  nodeTitle(nodeId: number, fallback: string): string {
+    return this.nodeTitles().get(nodeId) ?? fallback;
+  }
+
+  mapTitle(mapId: number): string {
+    return this.mapTitles().get(mapId) ?? 'otro mapa';
+  }
+
+  /** «Nuevo objeto» desde la pestaña: el mapa se elige en la hoja (parte del primero). */
+  openObjectCreate(): void {
+    const first = this.editor()?.maps[0];
+    if (first) this.openPanel({ kind: 'object-create', mapId: first.id });
+  }
+
+  goToRubrics(): void {
+    void this.router.navigate(['/portal/rubricas']);
+  }
 
   nodeIcon(node: NodeEditorState): string {
     if (node.startNode) return 'play_circle';

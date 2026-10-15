@@ -189,6 +189,24 @@ describe('hoja de formularios del editor (F8-1)', () => {
     expect(form.get('decisionOptionId')!.value).toBeNull();
   });
 
+  it('crear un objeto pide el mapa (con sus títulos); editarlo no, porque el objeto ya está en uno', async () => {
+    const objectForm = (mapId: number) => fb.group({
+      _mapId: [mapId, Validators.required], objectKey: ['a'], label: ['b'], objectType: ['PERSON'], interactionPrompt: ['c'],
+      interactionText: [''], x: [1], y: [1], width: [48], height: [48], colorHex: ['#000000'], shortCode: ['A'],
+      icon: ['psychology'], decisionOptionId: [null], toolCode: [null], collision: [false], visible: [true],
+    });
+    const withMaps = { editor: signal({ ...view, maps: [{ id: 11, title: 'Sala de espera' }, { id: 12, title: 'Consultorio' }] } as unknown as CaseEditorView) };
+    await render({ kind: 'object-create', mapId: 12 }, { objectForm: objectForm(12), ...withMaps });
+
+    const map = field('Mapa')!;
+    expect([...map.querySelectorAll('option')].map(text)).toEqual(['Sala de espera', 'Consultorio']);
+    expect(map.querySelector<HTMLSelectElement>('select')!.selectedOptions[0].textContent).toContain('Consultorio');
+    TestBed.resetTestingModule();
+
+    await render({ kind: 'object-edit', obj: { id: 21 } as never }, { objectForm: objectForm(11), ...withMaps });
+    expect(field('Mapa')).toBeUndefined();
+  });
+
   it('el mapa y la herramienta presentan sus campos', async () => {
     const map = fb.group({
       nodeId: ['', Validators.required], mapKey: ['', Validators.required], title: ['', Validators.required],

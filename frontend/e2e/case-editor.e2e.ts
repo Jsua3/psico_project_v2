@@ -127,6 +127,52 @@ test.describe('@editor-casos hoja de formularios', () => {
   });
 });
 
+// req: RF-05, RNF-04
+test.describe('@editor-casos pestañas de datos', () => {
+  test('«Nuevo objeto» está a la vista en Objetos: la hoja pide el mapa y el objeto queda guardado, nombrado con su mapa', async ({ page, request }) => {
+    const token = await apiToken(request, ADMIN);
+    const created = await createCase(request, token, `Objetos e2e ${Date.now()}`);
+    const id: number = created['caseVersionId'];
+    await loginAs(page, 'admin');
+    await openEditor(page, id, created['title']);
+
+    await page.getByRole('tab', { name: 'Objetos' }).click();
+    await expect(page.getByText('Este caso aún no tiene objetos')).toBeVisible();
+    await page.getByRole('button', { name: 'Nuevo objeto' }).click();
+
+    const sheet = page.getByRole('dialog', { name: 'Nuevo objeto del mapa' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('combobox', { name: 'Mapa', exact: true })).toBeVisible();
+    await sheet.getByLabel('Clave del objeto').fill('e2e-objeto');
+    await sheet.getByLabel('Etiqueta').fill('Objeto de prueba');
+    await sheet.getByLabel('Indicación de interacción').fill('Examinar');
+    await sheet.getByRole('button', { name: 'Guardar objeto' }).click();
+
+    await expect(toast(page, 'Objeto guardado.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editar objeto Objeto de prueba' })).toBeVisible();
+    const view = await readEditor(request, token, id);
+    expect(view['objects'].map((object: Json) => object['key'])).toContain('e2e-objeto');
+    const mapTitle: string = view['maps'][0]['title'];
+    await expect(page.locator('.ce-card__meta').first()).toContainText(`en «${mapTitle}»`);
+  });
+
+  test('Herramientas sin elementos ofrece «Crear la primera herramienta», que abre la hoja y Esc la cierra', async ({ page, request }) => {
+    const token = await apiToken(request, ADMIN);
+    const created = await createCase(request, token, `Vacíos e2e ${Date.now()}`);
+    await loginAs(page, 'admin');
+    await openEditor(page, created['caseVersionId'], created['title']);
+
+    await page.getByRole('tab', { name: 'Herramientas' }).click();
+    await expect(page.getByText('Este caso aún no tiene herramientas')).toBeVisible();
+    await page.getByRole('button', { name: 'Crear la primera herramienta' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Nueva herramienta clínica' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByLabel('Código')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+  });
+});
+
 // req: RF-05, CU-01, REGLA-011
 test.describe('@editor-casos lista de publicación y «Publicar»', () => {
   test('«Publicar» dice qué falta; al cumplir la lista obligatoria se habilita (sin publicar)', async ({ page, request }) => {

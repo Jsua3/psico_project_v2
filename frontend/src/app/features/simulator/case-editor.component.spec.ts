@@ -424,6 +424,101 @@ describe('editor de casos (F8-1)', () => {
     });
   });
 
+  // req: RF-05, RNF-04, BLOQUE-H
+  describe('pestañas de datos: vacíos con acción, «Nuevo objeto» y títulos de nodo (F8-2)', () => {
+    const emptyState = () => host().querySelector('ui-empty-state');
+    const emptyAction = () => emptyState()?.querySelector<HTMLButtonElement>('button');
+    const openTab = async (name: string) => {
+      tab(name)!.click();
+      await settle();
+    };
+    const reasonOf = (button: HTMLElement | undefined) => text(button?.querySelector('span[hidden]'));
+
+    it('Mapas sin mapas: dice qué falta y ofrece «Crear el primer mapa», que abre la hoja', async () => {
+      await render({ view: editorView({ maps: [], objects: [] }) });
+      await openTab('Mapas');
+
+      expect(text(emptyState()!)).toContain('Este caso aún no tiene mapas');
+      expect(text(emptyAction())).toBe('Crear el primer mapa');
+      emptyAction()!.click();
+      expect(component().panel()).toEqual({ kind: 'map-create' });
+    });
+
+    it('Mapas sin mapas ni nodos: no se puede crear un mapa; la acción lleva al grafo', async () => {
+      await render({ view: editorView({ maps: [], objects: [], nodes: [] }) });
+      await openTab('Mapas');
+
+      expect(buttonLabelled('Nuevo mapa')!.getAttribute('aria-disabled')).toBe('true');
+      expect(reasonOf(buttonLabelled('Nuevo mapa'))).toContain('Crea un nodo primero');
+      expect(text(emptyAction())).toBe('Ir al grafo');
+      emptyAction()!.click();
+      expect(component().tab()).toBe('grafo');
+    });
+
+    it('Objetos sin mapas: «Nuevo objeto» está a la vista, deshabilitado con el motivo «Crea un mapa primero.»', async () => {
+      await render({ view: editorView({ maps: [], objects: [] }) });
+      await openTab('Objetos');
+
+      const create = buttonLabelled('Nuevo objeto')!;
+      expect(create).toBeDefined();
+      expect(create.getAttribute('aria-disabled')).toBe('true');
+      expect(reasonOf(create)).toBe('Crea un mapa primero.');
+      expect(text(emptyAction())).toBe('Ir a Mapas');
+      emptyAction()!.click();
+      expect(component().tab()).toBe('mapas');
+    });
+
+    it('Objetos con mapas: «Nuevo objeto» abre la hoja con el primer mapa elegido', async () => {
+      await render({ view: editorView({ objects: [] }) });
+      await openTab('Objetos');
+
+      expect(text(emptyAction())).toBe('Crear el primer objeto');
+      buttonLabelled('Nuevo objeto')!.click();
+
+      expect(component().panel()).toEqual({ kind: 'object-create', mapId: 11 });
+      expect(component().objectForm!.get('_mapId')!.value).toBe(11);
+    });
+
+    it('Herramientas sin herramientas: «Crear la primera herramienta» abre la hoja', async () => {
+      await render({ view: editorView({ tools: [] }) });
+      await openTab('Herramientas');
+
+      expect(text(emptyState()!)).toContain('Este caso aún no tiene herramientas');
+      expect(text(emptyAction())).toBe('Crear la primera herramienta');
+      emptyAction()!.click();
+      expect(component().panel()).toEqual({ kind: 'tool-create' });
+    });
+
+    it('Rúbricas sin rúbricas: lo dice y la acción lleva a la pantalla de Rúbricas', async () => {
+      await render({ view: editorView({ rubrics: [] }) });
+      await openTab('Rúbricas');
+
+      expect(text(emptyState()!)).toContain('Este caso no tiene rúbricas asignadas');
+      expect(text(emptyAction())).toBe('Ir a Rúbricas');
+      emptyAction()!.click();
+      expect(navigate).toHaveBeenCalledWith(['/portal/rubricas']);
+    });
+
+    it('las tarjetas nombran el nodo y el mapa por su título, no por su clave', async () => {
+      await render();
+      await openTab('Mapas');
+      expect(text(host().querySelector('.ce-card__meta'))).toContain('nodo Inicio del caso');
+      expect(text(host().querySelector('.ce-card__meta'))).not.toContain('inicio ');
+
+      await openTab('Objetos');
+      expect(text(host().querySelector('.ce-card__meta'))).toContain('en «Sala de espera»');
+    });
+
+    it('en una versión que no es borrador los vacíos no ofrecen crear (la acción llevaría a un 400)', async () => {
+      await render({ view: editorView({ status: 'PUBLISHED', maps: [], tools: [] }) });
+      await openTab('Mapas');
+      expect(emptyAction()).toBeNull();
+
+      await openTab('Herramientas');
+      expect(emptyAction()).toBeNull();
+    });
+  });
+
   // req: REGLA-005, RNF-08
   describe('una versión que no es borrador es de solo lectura', () => {
     it('los botones de crear y editar dicen por qué no se pueden usar y la hoja no se abre', async () => {

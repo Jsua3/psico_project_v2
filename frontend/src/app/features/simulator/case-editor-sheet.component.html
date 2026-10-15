@@ -110,6 +110,15 @@
           </div>
         }
         @case ('object') {
+          @if (host.panel()?.kind === 'object-create') {
+            <ui-field label="Mapa" required [error]="host.fieldError(control(g, '_mapId'), 'Elige el mapa del objeto.')">
+              <select uiControl formControlName="_mapId">
+                @for (m of host.editor()?.maps ?? []; track m.id) {
+                  <option [ngValue]="m.id">{{ m.title }}</option>
+                }
+              </select>
+            </ui-field>
+          }
           <ui-field label="Clave del objeto" required [error]="host.fieldError(control(g, 'objectKey'), 'Escribe la clave del objeto.')">
             <input uiControl type="text" formControlName="objectKey" placeholder="consultante-sofia" autocomplete="off">
           </ui-field>

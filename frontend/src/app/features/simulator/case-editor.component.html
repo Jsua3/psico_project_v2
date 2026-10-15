@@ -62,60 +62,84 @@
         <ng-template uiTab="mapas" label="Mapas">
           <ui-section class="ce-section" title="Mapas del caso">
             <div class="ce-toolbar">
-              <button ui-button type="button" icon="add_circle" [disabledReason]="lockReason()"
+              <button ui-button type="button" icon="add_circle" [disabledReason]="mapCreateReason()"
                 (click)="openPanel({ kind: 'map-create' })">Nuevo mapa</button>
             </div>
-            <ul class="ce-grid">
-              @for (map of model.maps; track map.id) {
-                <li>
-                  <ui-card class="ce-card">
-                    <div class="ce-card__head">
-                      <ui-badge>{{ mapThemeLabel(map.theme) }}</ui-badge>
-                      <span class="ce-card__actions">
-                        <button ui-icon-button icon="edit" [label]="'Editar mapa ' + map.title" [disabledReason]="lockReason()"
-                          (click)="openPanel({ kind: 'map-edit', map })"></button>
-                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar mapa ' + map.title" [disabledReason]="lockReason()"
-                          (click)="confirmDeleteMap(model.caseVersionId, map)"></button>
-                      </span>
-                    </div>
-                    <h3 class="ce-card__title">{{ map.title }}</h3>
-                    <p class="ce-card__meta">{{ map.width }}×{{ map.height }} · aparece en {{ map.spawnX }}, {{ map.spawnY }} · nodo <code>{{ map.nodeKey }}</code></p>
-                    <button ui-button type="button" variant="secondary" icon="add" [disabledReason]="lockReason()"
-                      (click)="openPanel({ kind: 'object-create', mapId: map.id })">Agregar objeto al mapa</button>
-                  </ui-card>
-                </li>
-              }
-            </ul>
+            @if (model.maps.length) {
+              <ul class="ce-grid">
+                @for (map of model.maps; track map.id) {
+                  <li>
+                    <ui-card class="ce-card">
+                      <div class="ce-card__head">
+                        <ui-badge>{{ mapThemeLabel(map.theme) }}</ui-badge>
+                        <span class="ce-card__actions">
+                          <button ui-icon-button icon="edit" [label]="'Editar mapa ' + map.title" [disabledReason]="lockReason()"
+                            (click)="openPanel({ kind: 'map-edit', map })"></button>
+                          <button ui-icon-button icon="delete_outline" [label]="'Eliminar mapa ' + map.title" [disabledReason]="lockReason()"
+                            (click)="confirmDeleteMap(model.caseVersionId, map)"></button>
+                        </span>
+                      </div>
+                      <h3 class="ce-card__title">{{ map.title }}</h3>
+                      <p class="ce-card__meta">{{ map.width }}×{{ map.height }} · aparece en {{ map.spawnX }}, {{ map.spawnY }} · nodo {{ nodeTitle(map.nodeId, map.nodeKey) }}</p>
+                      <button ui-button type="button" variant="secondary" icon="add" [disabledReason]="lockReason()"
+                        (click)="openPanel({ kind: 'object-create', mapId: map.id })">Agregar objeto al mapa</button>
+                    </ui-card>
+                  </li>
+                }
+              </ul>
+            } @else if (model.nodes.length) {
+              <ui-empty-state kind="first-use" title="Este caso aún no tiene mapas"
+                description="Un mapa es la sala donde ocurre un nodo del caso: ahí colocas personas y objetos."
+                [actionLabel]="lockReason() ? null : 'Crear el primer mapa'" (action)="openPanel({ kind: 'map-create' })" />
+            } @else {
+              <ui-empty-state kind="first-use" title="Este caso aún no tiene mapas"
+                description="Un mapa es la sala de un nodo: crea primero un nodo en el grafo."
+                actionLabel="Ir al grafo" (action)="tab.set('grafo')" />
+            }
           </ui-section>
         </ng-template>
 
         <!-- ── Objetos ───────────────────────────────────────────────────────────── -->
         <ng-template uiTab="objetos" label="Objetos">
           <ui-section class="ce-section" title="Objetos de los mapas">
-            <ul class="ce-grid">
-              @for (obj of model.objects; track obj.id) {
-                <li>
-                  <ui-card class="ce-card">
-                    <div class="ce-card__head">
-                      <ui-badge>{{ objectTypeLabel(obj.type) }}</ui-badge>
-                      <span class="ce-card__actions">
-                        <button ui-icon-button icon="edit" [label]="'Editar objeto ' + obj.label" [disabledReason]="lockReason()"
-                          (click)="openPanel({ kind: 'object-edit', obj })"></button>
-                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar objeto ' + obj.label" [disabledReason]="lockReason()"
-                          (click)="confirmDeleteObject(model.caseVersionId, obj)"></button>
-                      </span>
-                    </div>
-                    <h3 class="ce-card__title">{{ obj.label }}</h3>
-                    <p class="ce-card__text">{{ obj.interactionPrompt }}</p>
-                    <p class="ce-card__meta">
-                      {{ obj.x }}, {{ obj.y }} · {{ obj.shortCode }}
-                      @if (obj.toolCode) { · herramienta {{ obj.toolCode }} }
-                      @if (obj.decisionOptionId) { · decisión #{{ obj.decisionOptionId }} }
-                    </p>
-                  </ui-card>
-                </li>
-              }
-            </ul>
+            <div class="ce-toolbar">
+              <button ui-button type="button" icon="add_circle" [disabledReason]="objectCreateReason()"
+                (click)="openObjectCreate()">Nuevo objeto</button>
+            </div>
+            @if (model.objects.length) {
+              <ul class="ce-grid">
+                @for (obj of model.objects; track obj.id) {
+                  <li>
+                    <ui-card class="ce-card">
+                      <div class="ce-card__head">
+                        <ui-badge>{{ objectTypeLabel(obj.type) }}</ui-badge>
+                        <span class="ce-card__actions">
+                          <button ui-icon-button icon="edit" [label]="'Editar objeto ' + obj.label" [disabledReason]="lockReason()"
+                            (click)="openPanel({ kind: 'object-edit', obj })"></button>
+                          <button ui-icon-button icon="delete_outline" [label]="'Eliminar objeto ' + obj.label" [disabledReason]="lockReason()"
+                            (click)="confirmDeleteObject(model.caseVersionId, obj)"></button>
+                        </span>
+                      </div>
+                      <h3 class="ce-card__title">{{ obj.label }}</h3>
+                      <p class="ce-card__text">{{ obj.interactionPrompt }}</p>
+                      <p class="ce-card__meta">
+                        en «{{ mapTitle(obj.mapId) }}» · {{ obj.x }}, {{ obj.y }} · {{ obj.shortCode }}
+                        @if (obj.toolCode) { · herramienta {{ obj.toolCode }} }
+                        @if (obj.decisionOptionId) { · decisión #{{ obj.decisionOptionId }} }
+                      </p>
+                    </ui-card>
+                  </li>
+                }
+              </ul>
+            } @else if (model.maps.length) {
+              <ui-empty-state kind="first-use" title="Este caso aún no tiene objetos"
+                description="Un objeto es una persona, un recurso o una puerta que la persona encuentra en un mapa."
+                [actionLabel]="lockReason() ? null : 'Crear el primer objeto'" (action)="openObjectCreate()" />
+            } @else {
+              <ui-empty-state kind="first-use" title="Este caso aún no tiene objetos"
+                description="Los objetos viven dentro de un mapa: crea primero un mapa."
+                actionLabel="Ir a Mapas" (action)="tab.set('mapas')" />
+            }
           </ui-section>
         </ng-template>
 
@@ -126,25 +150,31 @@
               <button ui-button type="button" icon="add_circle" [disabledReason]="lockReason()"
                 (click)="openPanel({ kind: 'tool-create' })">Nueva herramienta</button>
             </div>
-            <ul class="ce-grid">
-              @for (tool of model.tools; track tool.id) {
-                <li>
-                  <ui-card class="ce-card">
-                    <div class="ce-card__head">
-                      <ui-badge>{{ tool.code }}</ui-badge>
-                      <span class="ce-card__actions">
-                        <button ui-icon-button icon="edit" [label]="'Editar herramienta ' + tool.label" [disabledReason]="lockReason()"
-                          (click)="openPanel({ kind: 'tool-edit', tool })"></button>
-                        <button ui-icon-button icon="delete_outline" [label]="'Eliminar herramienta ' + tool.label" [disabledReason]="lockReason()"
-                          (click)="confirmDeleteTool(model.caseVersionId, tool)"></button>
-                      </span>
-                    </div>
-                    <h3 class="ce-card__title">{{ tool.label }}</h3>
-                    <p class="ce-card__text">{{ tool.description }}</p>
-                  </ui-card>
-                </li>
-              }
-            </ul>
+            @if (model.tools.length) {
+              <ul class="ce-grid">
+                @for (tool of model.tools; track tool.id) {
+                  <li>
+                    <ui-card class="ce-card">
+                      <div class="ce-card__head">
+                        <ui-badge>{{ tool.code }}</ui-badge>
+                        <span class="ce-card__actions">
+                          <button ui-icon-button icon="edit" [label]="'Editar herramienta ' + tool.label" [disabledReason]="lockReason()"
+                            (click)="openPanel({ kind: 'tool-edit', tool })"></button>
+                          <button ui-icon-button icon="delete_outline" [label]="'Eliminar herramienta ' + tool.label" [disabledReason]="lockReason()"
+                            (click)="confirmDeleteTool(model.caseVersionId, tool)"></button>
+                        </span>
+                      </div>
+                      <h3 class="ce-card__title">{{ tool.label }}</h3>
+                      <p class="ce-card__text">{{ tool.description }}</p>
+                    </ui-card>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <ui-empty-state kind="first-use" title="Este caso aún no tiene herramientas"
+                description="Las herramientas son los recursos que la persona puede usar durante el caso."
+                [actionLabel]="lockReason() ? null : 'Crear la primera herramienta'" (action)="openPanel({ kind: 'tool-create' })" />
+            }
           </ui-section>
         </ng-template>
 
@@ -167,6 +197,10 @@
                   }
                 </ul>
               </ui-section>
+            } @empty {
+              <ui-empty-state kind="first-use" title="Este caso no tiene rúbricas asignadas"
+                description="Las rúbricas se asignan al caso desde la pantalla Rúbricas."
+                actionLabel="Ir a Rúbricas" (action)="goToRubrics()" />
             }
           </ui-section>
         </ng-template>
