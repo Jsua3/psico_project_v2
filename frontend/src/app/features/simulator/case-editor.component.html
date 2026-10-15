@@ -51,6 +51,7 @@
             <app-dag-editor
               [nodes]="model.nodes"
               [edges]="model.decisions"
+              [lockReason]="lockReason()"
               (nodeEdit)="openPanel({ kind: 'node-edit', node: $event })"
               (nodeDelete)="confirmDeleteNode(model.caseVersionId, $event)"
               (edgeEdit)="openPanel({ kind: 'decision-edit', edge: $event })"

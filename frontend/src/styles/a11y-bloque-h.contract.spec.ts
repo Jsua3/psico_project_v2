@@ -114,6 +114,8 @@ describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
   const groupsHtml = source('../app/features/grupos/grupo-list.component.html');
   const groupsScss = source('../app/features/grupos/grupo-list.component.scss');
   const dag = source('../app/features/simulator/dag-editor.component.ts');
+  const dagHtml = source('../app/features/simulator/dag-editor.component.html');
+  const dagScss = source('../app/features/simulator/dag-editor.component.scss');
 
   it('el buscador de Grupos es un campo de la biblioteca: el anillo es el global y la pantalla no apaga contornos', () => {
     // Antes el input conservaba `outline: 0` y un `.search-box:focus-within` dibujaba el anillo en su contenedor.
@@ -128,16 +130,19 @@ describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
     }
   });
 
-  it('los nodos del DAG muestran el foco con el trazo y ya no se apagan', () => {
-    expect(dag).not.toContain('.dag-node-group:focus { outline: none; }');
-    expect(dag).toContain('.dag-node-group:focus-visible .dag-node-rect { stroke: #004876; stroke-width: 4; }');
-    expect(contrastRatio('#004876', '#F6F9FB')).toBeGreaterThanOrEqual(3);
+  it('los nodos del DAG muestran el foco con el trazo del token de foco y ya no se apagan', () => {
+    // Desde F8-3 el trazo sale de `--ds-focus` (#004876 en el portal) y el lienzo es `--ds-surface-2` (#EEF2F6).
+    expect(dagScss).not.toMatch(/\.dag-node:focus \{[^}]*outline: none/);
+    expect(dagScss).toMatch(/&:focus-visible \.dag-node__box \{[^}]*stroke: var\(--ds-focus\)/);
+    expect(contrastRatio('#004876', '#EEF2F6')).toBeGreaterThanOrEqual(3);
   });
 
   it('el grafo es un grupo (no una imagen) y sus nodos responden a Espacio además de Enter', () => {
-    expect(dag).toContain('role="group" aria-label="Grafo DAG del caso"');
-    expect(dag).not.toContain('role="img" aria-label="Grafo DAG del caso"');
-    expect(dag).toMatch(/\(keydown\.enter\)="selectNode\(ln\.node\)"\s*\(keydown\.space\)="\$event\.preventDefault\(\); selectNode\(ln\.node\)">/);
+    expect(dagHtml).toContain('role="group" aria-label="Grafo DAG del caso"');
+    expect(dagHtml).not.toContain('role="img" aria-label="Grafo DAG del caso"');
+    // El teclado del grafo es un solo manejador sobre el lienzo: Enter y Espacio abren el detalle del nodo enfocado.
+    expect(dagHtml).toContain('(keydown)="onKeydown($event)"');
+    expect(dag).toMatch(/case 'Enter':\s*case ' ':/);
   });
 });
 

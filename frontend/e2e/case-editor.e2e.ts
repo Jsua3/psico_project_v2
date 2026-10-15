@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
 
@@ -10,6 +11,15 @@ import { scaled } from './support/time-scale';
  * personas, la lista de publicación leída del servidor y «Publicar» con su motivo.
  */
 type Json = Record<string, any>;
+
+const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+async function blockingViolations(page: Page, include: string): Promise<string[]> {
+  const results = await runAxe(page, { tags: WCAG_TAGS, resultTypes: ['violations'], include });
+  return results.violations
+    .filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
+    .flatMap(violation => violation.nodes.map(node => `${violation.id} · ${node.target.join(' ')}`));
+}
 
 const ADMIN = {
   email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co',
@@ -294,5 +304,66 @@ test.describe('@editor-casos docente y conflicto entre dos personas', () => {
     await expect(page.getByRole('dialog', { name: 'Nuevo nodo DAG' })).toHaveCount(0);
     const view = await readEditor(request, professorToken, id);
     expect(view['nodes'].map((node: Json) => node['key'])).not.toContain('mio');
+  });
+});
+
+// req: RNF-04, WCAG 2.5.3, WCAG 4.1.2
+test.describe('@editor-casos grafo DAG (F8-3)', () => {
+  test('el grafo se recorre con flechas, Enter abre el detalle, Esc lo cierra y Axe no ve nada serio', async ({ page, request }) => {
+    test.setTimeout(scaled(90_000));
+    const token = await apiToken(request, ADMIN);
+    const created = await createCase(request, token, `Grafo e2e ${Date.now()}`);
+    const id: number = created['caseVersionId'];
+    const startId: number = created['nodes'][0]['id'];
+    const closing = await request.post(`/api/authoring/cases/${id}/nodes`, {
+      headers: bearer(token),
+      data: { ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true },
+    });
+    expect(closing.status(), 'segundo nodo').toBe(200);
+    const closingId: number = (await closing.json()).data['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
+    const decision = await request.post(`/api/authoring/cases/${id}/decisions`, {
+      headers: bearer(token),
+      data: {
+        sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
+        prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '',
+      },
+    });
+    expect(decision.status(), 'decisión').toBe(200);
+
+    await loginAs(page, 'admin');
+    await openEditor(page, id, created['title']);
+
+    const start = page.getByRole('button', { name: /^inicio / });
+    const closingNode = page.getByRole('button', { name: /^cierre / });
+    await start.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(closingNode).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(start).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    const detail = page.getByRole('heading', { level: 3, name: 'Inicio del caso' });
+    await expect(detail).toBeVisible();
+    await expect(page.getByRole('heading', { level: 4, name: 'Decisiones salientes' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(detail).toBeHidden();
+    await expect(start).toBeFocused();
+
+    expect(await blockingViolations(page, 'app-case-editor')).toEqual([]);
+  });
+
+  test('abrir un nodo y editar su decisión desde el detalle abre la hoja con el foco dentro', async ({ page, request }) => {
+    const token = await apiToken(request, ADMIN);
+    const created = await createCase(request, token, `Detalle e2e ${Date.now()}`);
+    await loginAs(page, 'admin');
+    await openEditor(page, created['caseVersionId'], created['title']);
+
+    await page.getByRole('button', { name: /^inicio / }).click();
+    await page.getByRole('button', { name: 'Editar nodo' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Editar nodo' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByLabel('Clave del nodo')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
   });
 });
