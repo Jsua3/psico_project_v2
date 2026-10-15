@@ -33,9 +33,13 @@ _REFUSALS = {
 }
 
 
-def enforce_access_on_start(sender, student, case_version_id, **kwargs):
-    """SIEP-RF-12, RN-04: iniciar un intento nuevo exige que la decisión de acceso lo permita (403)."""
-    decision = access_decision(student, case_version_id)
+def enforce_access_on_start(sender, student, case_version_id, replacing=False, **kwargs):
+    """SIEP-RF-12, RN-04: iniciar un intento nuevo exige que la decisión de acceso lo permita (403).
+
+    ``replacing``: «empezar de nuevo» sobre un intento abierto; el que se reemplaza no cuenta como
+    excepción (se deja terminar, no reiniciar).
+    """
+    decision = access_decision(student, case_version_id, ignore_open_attempt=replacing)
     if decision.allowed:
         return
     code, message = _REFUSALS[decision.reason]

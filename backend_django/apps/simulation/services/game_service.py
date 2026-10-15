@@ -253,6 +253,13 @@ def start_attempt(case_version_id, actor, force_new=False):
                 existingAttemptId=str(open_attempt.id),
             )
         _ensure_published(version)  # reemplazar crea uno nuevo, y eso sí exige un caso publicado
+        if is_student:
+            # Empezar de nuevo es iniciar uno nuevo (decisión 12, R6): exige ventana abierta y la
+            # secuencia, sin la excepción de «se deja terminar» del intento que se reemplaza.
+            attempt_start_requested.send(
+                sender=SimulationAttempt, student=actor, case_version_id=case_version_id,
+                replacing=True,
+            )
         _close_active_attempts(actor, case_version_id, "Reemplazado por nuevo intento")
     else:
         _ensure_published(version)

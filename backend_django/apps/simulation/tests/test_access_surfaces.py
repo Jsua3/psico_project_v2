@@ -13,7 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import CaseAssignment, Grupo, GrupoEstudiante
-from apps.simulation.models import CaseVersion, SimulationCase
+from apps.simulation.models import CaseVersion, SimulationAttempt, SimulationCase
 
 pytestmark = [pytest.mark.req("RN-04"), pytest.mark.req("RF-15")]
 
@@ -217,3 +217,59 @@ def test_staff_see_every_case_open_in_the_catalog(profesor, seeded):
     assert item is not None
     assert item["access"] == {"allowed": True}
     assert item["unlocked"] is True
+
+
+# ─── forceNew no reinicia lo que ya no se puede iniciar (revisión de fase de E3, I-1) ──────────
+def _open_attempt(client, seeded):
+    response = client.post(f"{BASE}/attempts", {"caseVersionId": seeded.id}, format="json")
+    assert response.status_code == 200, response.data
+    return response.data["data"]["attemptId"]
+
+
+def _force_new(client, seeded):
+    return client.post(f"{BASE}/attempts", {"caseVersionId": seeded.id, "forceNew": True}, format="json")
+
+
+def test_force_new_does_not_restart_a_case_whose_window_closed(estudiante, grupo, seeded):
+    assignment = CaseAssignment.objects.create(grupo=grupo, case_version=seeded)
+    client = cl(estudiante)
+    attempt_id = _open_attempt(client, seeded)
+    now = timezone.now()
+    CaseAssignment.objects.filter(pk=assignment.pk).update(
+        opens_at=now - datetime.timedelta(days=10), closes_at=now - datetime.timedelta(days=1)
+    )
+
+    forced = _force_new(client, seeded)
+    resumed = client.post(f"{BASE}/attempts", {"caseVersionId": seeded.id}, format="json")
+
+    assert forced.status_code == 403
+    assert forced.data["code"] == "ACCESS_CLOSED"
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "IN_PROGRESS"
+    # Lo abierto se deja terminar (decisión 12); lo que no se puede es empezar de nuevo.
+    assert resumed.status_code == 200 and resumed.data["data"]["resumed"] is True
+
+
+def test_force_new_does_not_restart_a_case_the_sequence_now_locks(estudiante, grupo, seeded, profesor):
+    CaseAssignment.objects.create(grupo=grupo, case_version=seeded, sort_order=1)
+    client = cl(estudiante)
+    attempt_id = _open_attempt(client, seeded)
+    CaseAssignment.objects.create(grupo=grupo, case_version=_earlier_case(profesor), sort_order=0)
+
+    forced = _force_new(client, seeded)
+
+    assert forced.status_code == 403
+    assert forced.data["code"] == "ACCESS_LOCKED_BY_SEQUENCE"
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "IN_PROGRESS"
+
+
+def test_force_new_still_replaces_the_open_attempt_when_the_case_can_start(estudiante, grupo, seeded):
+    CaseAssignment.objects.create(grupo=grupo, case_version=seeded)
+    client = cl(estudiante)
+    attempt_id = _open_attempt(client, seeded)
+
+    forced = _force_new(client, seeded)
+
+    assert forced.status_code == 200, forced.data
+    assert forced.data["data"]["resumed"] is False
+    assert forced.data["data"]["attemptId"] != attempt_id
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "REPLACED"

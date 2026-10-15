@@ -49,8 +49,12 @@ class SequenceItem:
     order: int
 
 
-def sequence_of(student, now=None):
-    """La secuencia del estudiante: sus casos publicados y activos, en orden, con su decisión."""
+def sequence_of(student, now=None, ignore_open_attempts=False):
+    """La secuencia del estudiante: sus casos publicados y activos, en orden, con su decisión.
+
+    ``ignore_open_attempts``: la decisión **para iniciar uno nuevo** (sin la excepción de «se deja
+    terminar» de un intento abierto): la usa «empezar de nuevo».
+    """
     decisions = assignment_decisions(student.id, now=now)
     if not decisions:
         return []
@@ -68,7 +72,7 @@ def sequence_of(student, now=None):
         StudentCaseCompletion.objects.filter(student_id=student.id)
         .values_list("simulation_case_id", flat=True)
     )
-    open_versions = set(
+    open_versions = set() if ignore_open_attempts else set(
         SimulationAttempt.objects.filter(
             student_id=student.id,
             status__in=OPEN_ATTEMPT_STATUSES,
@@ -99,12 +103,15 @@ def sequence_of(student, now=None):
     return items
 
 
-def access_map(actor, case_version_ids, now=None):
+def access_map(actor, case_version_ids, now=None, ignore_open_attempts=False):
     """``{case_version_id: AccessDecision}`` de las versiones pedidas, en pocas consultas."""
     ids = list(case_version_ids)
     if is_staff(actor):
         return {version_id: ALLOWED_FOR_STAFF for version_id in ids}
-    by_sequence = {item.version.id: item.decision for item in sequence_of(actor, now)}
+    by_sequence = {
+        item.version.id: item.decision
+        for item in sequence_of(actor, now, ignore_open_attempts=ignore_open_attempts)
+    }
     missing = [version_id for version_id in ids if version_id not in by_sequence]
     by_assignment = assignment_decisions(actor.id, missing, now) if missing else {}
     result = {}
@@ -117,6 +124,11 @@ def access_map(actor, case_version_ids, now=None):
     return result
 
 
-def access_decision(actor, case_version_id, now=None):
-    """La decisión de acceso del actor a una versión (la única consulta de habilitación)."""
-    return access_map(actor, [case_version_id], now)[case_version_id]
+def access_decision(actor, case_version_id, now=None, ignore_open_attempt=False):
+    """La decisión de acceso del actor a una versión (la única consulta de habilitación).
+
+    ``ignore_open_attempt``: decide si podría **empezar uno nuevo** aunque tenga uno abierto.
+    """
+    return access_map(
+        actor, [case_version_id], now, ignore_open_attempts=ignore_open_attempt
+    )[case_version_id]
