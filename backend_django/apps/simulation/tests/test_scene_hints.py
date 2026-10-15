@@ -511,3 +511,26 @@ def test_every_hint_mutation_is_audited(author, case):
     assert audited("ADMIN_CREATE_HINT", "MAP", map_id)
     assert audited("ADMIN_UPDATE_HINT", "HINT", hint["id"])
     assert audited("ADMIN_DELETE_HINT", "HINT", hint["id"])
+
+
+# ─── una pista no suma tiempo a la escena (revisión de fase de E3, M4 re-graduado) ─────────────
+def test_a_hint_does_not_change_the_time_by_scene_nor_the_event_based_duration():
+    import datetime as dt
+
+    from apps.simulation.services import attempt_duration
+
+    start = dt.datetime(2026, 10, 14, 9, 0, 0)
+    end = start + dt.timedelta(seconds=1200)
+    base = [
+        ("NODE_ENTERED", 1, start),
+        ("DECISION_SELECTED", 1, start + dt.timedelta(seconds=600)),
+    ]
+    with_hint = [base[0], ("HINT_VIEWED", 1, start + dt.timedelta(seconds=540)), base[1]]
+
+    assert attempt_duration.scene_durations(with_hint, end_at=end) == attempt_duration.scene_durations(
+        base, end_at=end
+    )
+    pairs = lambda events: [(kind, at) for kind, _, at in events]  # noqa: E731
+    assert attempt_duration.active_duration_seconds(
+        start, end, pairs(with_hint)
+    ) == attempt_duration.active_duration_seconds(start, end, pairs(base))
