@@ -277,10 +277,11 @@ describe('SimulationCatalogComponent', () => {
     expect(buttons(card('Caso 1'))).toEqual(['Abrir caso']);
   });
 
-  it('administración: «Iniciar simulación» y «Editor visual», sin historial propio', async () => {
+  // req: ED-5 (E2: el ADMIN no juega; el servidor le niega `attempt.play` con 403)
+  it('administración: solo «Editor visual», sin acción de juego ni historial propio (ED-5)', async () => {
     await render('ADMIN');
-    expect(buttons(card('Caso 1'))).toEqual(['Iniciar simulación', 'Editor visual']);
-    (card('Caso 1').querySelectorAll('button')[1] as HTMLButtonElement).click();
+    expect(buttons(card('Caso 1'))).toEqual(['Editor visual']);
+    (card('Caso 1').querySelectorAll('button')[0] as HTMLButtonElement).click();
     expect(navigate).toHaveBeenCalledWith(['/portal/casos', 1, 'editor']);
     expect(host().querySelector('.catalog-history')).toBeNull();
   });

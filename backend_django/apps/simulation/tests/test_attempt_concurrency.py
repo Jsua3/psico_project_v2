@@ -226,7 +226,7 @@ def committed_attempt(real_commits):
         email=f"hilos_{suffix}@x.com", password="pass1234", nombre="Hilos", apellido="Intento", role="ESTUDIANTE"
     )
     grupo = Grupo.objects.create(nombre=f"Hilos {suffix}", codigo=f"HI-{suffix}", profesor=profesor)
-    GrupoEstudiante.objects.create(grupo=grupo, estudiante=student)
+    GrupoEstudiante.objects.create(grupo=grupo, estudiante=student, status="ACTIVE")
     GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
     state = game_service.start_attempt(version.id, student)

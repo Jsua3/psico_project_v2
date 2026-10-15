@@ -9,6 +9,15 @@
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
+@if (pendingInvitations()) {
+  <ui-section class="sd-invitations" title="Invitaciones a grupos">
+    <ui-card class="sd-invitations__card">
+      <p class="sd-invitations__text">{{ invitationsText() }}</p>
+      <a ui-button variant="primary" routerLink="/portal/invitaciones">Ver invitaciones</a>
+    </ui-card>
+  </ui-section>
+}
+
 @switch (state()) {
   @case ('loading') {
     <div class="sd-loading" aria-busy="true">

@@ -36,7 +36,9 @@ def _assign_demo_group(profesor, estudiante, case_version_id):
             "activo": True,
         },
     )
-    GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=estudiante.id)
+    GrupoEstudiante.objects.get_or_create(
+        grupo_id=grupo.id, estudiante_id=estudiante.id, defaults={"status": "ACTIVE"}
+    )
     GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=case_version_id)
     return grupo, created
 

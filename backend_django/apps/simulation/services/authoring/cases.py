@@ -13,17 +13,24 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
+from shared import policies
 
 from .editor_view import editor
 from .publication import create_draft_checklist
 
 
-def list_authoring_cases():
+def list_authoring_cases(actor):
+    """Los casos que el actor autora: los suyos si es profesor, todos si es ADMIN (R3)."""
     versions = (
         CaseVersion.objects.filter(simulation_case__active=True)
         .select_related("simulation_case")
         .order_by("-created_at", "-id")
     )
+    scope = policies.scope_of(actor, "case", "author")
+    if scope == policies.OWN:
+        versions = versions.filter(simulation_case__created_by_id=actor.id)
+    elif scope != policies.ALL:
+        versions = versions.none()
     result = []
     for version in versions:
         node_count = SimulationNode.objects.filter(case_version_id=version.id).count()

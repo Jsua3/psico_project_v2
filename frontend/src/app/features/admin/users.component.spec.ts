@@ -44,6 +44,7 @@ describe('pantalla Usuarios (F7-6)', () => {
   async function render(api: Partial<Api> = {}, { stable = true } = {}) {
     service = {
       list: vi.fn(api.users ?? (() => of([ana, beto]))), create: vi.fn(), update: vi.fn(), updateStatus: vi.fn(),
+      approve: vi.fn(),
     };
     requestsApi = { listPending: vi.fn(api.requests ?? (() => of([]))), updateStatus: vi.fn() };
     dialog = { sheet: vi.fn(() => ({ close: vi.fn() })), confirm: vi.fn(() => Promise.resolve(true)) };
@@ -191,9 +192,78 @@ describe('pantalla Usuarios (F7-6)', () => {
     });
   });
 
+  // E2-9 (decisión 4 del usuario): la importación crea cuentas PENDIENTES; el administrador las aprueba y cada persona
+  // recibe por correo una contraseña temporal. Antes la pantalla no distinguía una pendiente de una inactiva.
+  // req: RN-10, RNF-01
+  describe('cuentas pendientes de aprobación (E2-9)', () => {
+    const pending = (id: number, nombre: string) =>
+      ({ id, email: `${nombre.toLowerCase()}@siep.test`, nombre, apellido: 'Nueva', role: 'ESTUDIANTE', activo: false, pendingApproval: true } as AdminUser);
+    const result = (over: Record<string, unknown> = {}) =>
+      ({ approved: 2, approvedIds: [7, 8], skipped: [], emailed: 2, failed: [], ...over });
+
+    it('una cuenta pendiente se lee «Pendiente de aprobación» (no «Inactivo») y su menú ofrece «Aprobar cuenta»', async () => {
+      await render({ users: () => of([ana, pending(7, 'Carla')]) });
+      expect(text(rows()[1].querySelector('ui-badge'))).toBe('Pendiente de aprobación');
+      expect(component().rowActions(pending(7, 'Carla')).map(item => item.label)).toEqual(['Aprobar cuenta']);
+      expect(component().rowActions(ana).map(item => item.label)).toEqual(['Desactivar usuario']);
+    });
+
+    it('«Aprobar pendientes (N)» aparece solo si hay pendientes, confirma y aprueba todas de una vez', async () => {
+      await render();
+      expect(labelled('Aprobar pendientes (0)')).toBeUndefined();
+      expect(host().querySelector('.us-pending')).toBeNull();
+
+      TestBed.resetTestingModule();
+      await render({ users: () => of([ana, pending(7, 'Carla'), pending(8, 'Dario')]) });
+      service['approve'].mockReturnValue(of(result()));
+      labelled('Aprobar pendientes (2)')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Aprobar cuentas pendientes', confirmLabel: 'Aprobar' }));
+      expect(service['approve']).toHaveBeenCalledWith([7, 8]);
+      expect(service['list']).toHaveBeenCalledTimes(2);
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toContain('Se aprobaron 2 cuentas');
+    });
+
+    it('con más de 100 pendientes aprueba en lotes de 100 (el servidor no acepta más por orden)', async () => {
+      const many = Array.from({ length: 150 }, (_unused, index) => pending(100 + index, `P${index}`));
+      await render({ users: () => of(many) });
+      service['approve'].mockImplementation((ids: number[]) => of(result({ approved: ids.length, approvedIds: ids, emailed: ids.length })));
+      labelled('Aprobar pendientes (150)')!.click();
+      await fixture.whenStable();
+
+      expect(service['approve'].mock.calls.map(([ids]) => (ids as number[]).length)).toEqual([100, 50]);
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toContain('Se aprobaron 150 cuentas');
+    });
+
+    it('si un correo no sale, lo dice: esa cuenta sigue pendiente', async () => {
+      await render({ users: () => of([pending(7, 'Carla'), pending(8, 'Dario')]) });
+      service['approve'].mockReturnValue(of(result({ approved: 1, approvedIds: [7], emailed: 1, failed: [8] })));
+      labelled('Aprobar pendientes (2)')!.click();
+      await fixture.whenStable();
+
+      const status = text(host().querySelector('[role="status"].ds-sr-only'));
+      expect(status).toContain('Se aprobó 1 cuenta');
+      expect(status).toContain('No se pudo enviar el correo a 1 cuenta: sigue pendiente.');
+    });
+
+    it('«Aprobar cuenta» de una fila confirma y aprueba solo esa', async () => {
+      await render({ users: () => of([ana, pending(7, 'Carla')]) });
+      service['approve'].mockReturnValue(of(result({ approved: 1, approvedIds: [7], emailed: 1 })));
+      const menus = fixture.debugElement.queryAll(By.directive(UiMenu));
+      menus[1].triggerEventHandler('itemSelected', 'aprobar');
+      await fixture.whenStable();
+
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Carla Nueva') }));
+      expect(service['approve']).toHaveBeenCalledWith([7]);
+      expect(service['updateStatus']).not.toHaveBeenCalled();
+    });
+  });
+
   // req: RNF-04, BLOQUE-H
   describe('la hoja y un guardado que tarda', () => {
-    const fill = () => component().form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', password: '12345678' });
+    const fill = () => component().form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', password: '1234567890' });
 
     it('si guardar falla con la hoja ya cerrada, la hoja vuelve a abrirse con lo que se escribió', async () => {
       await render();

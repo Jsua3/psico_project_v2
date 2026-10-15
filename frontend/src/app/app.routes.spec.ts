@@ -1,5 +1,12 @@
+import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+
 import { routes } from './app.routes';
+import { authGuard, passwordChangeGuard } from './core/auth/auth.guard';
+import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
+import { ChangePasswordComponent } from './features/account/change-password.component';
+import { InvitationsComponent } from './features/invitations/invitations.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
@@ -79,6 +86,67 @@ describe('app.routes: editor de avatar', () => {
   it('«personaje» lleva la guardia de cambios sin guardar', () => {
     const children = routes.find(route => route.path === 'portal')!.children ?? [];
     expect(children.find(child => child.path === 'personaje')!.canDeactivate).toEqual([canLeaveGuard]);
+  });
+});
+
+/**
+ * ED-5 (E2): el ADMIN no juega. Las órdenes de juego (`attempt.play`) son solo del ESTUDIANTE y el servidor responde 403
+ * a PROFESOR y ADMIN; la sala y el caso tampoco se abren para ellos (antes la guardia dejaba pasar al ADMIN y cada
+ * petición del juego terminaba en «No tienes permisos»).
+ */
+// req: ED-5, RNF-002
+describe('app.routes: solo el estudiante juega', () => {
+  const children = routes.find(route => route.path === 'portal')!.children ?? [];
+  const guardFor = (path: string) => children.find(child => child.path === path)!.canActivate![0] as (...args: unknown[]) => unknown;
+
+  for (const path of ['jugar', 'simulador/:caseVersionId']) {
+    it(`«${path}»: el administrador y el docente van a «Sin permiso»; el estudiante pasa`, () => {
+      const decide = (role: string) => {
+        const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
+          hasRole: (...roles: string[]) => roles.includes(role) };
+        const router = { createUrlTree: (commands: unknown[]) => ({ commands }) };
+        TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: auth }, { provide: Router, useValue: router }] });
+        const result = TestBed.runInInjectionContext(() => guardFor(path)({}, { url: '/portal/jugar' }));
+        TestBed.resetTestingModule();
+        return result;
+      };
+      expect(decide('ESTUDIANTE')).toBe(true);
+      expect(decide('ADMIN')).toEqual({ commands: ['/portal/sin-permiso'] });
+      expect(decide('PROFESOR')).toEqual({ commands: ['/portal/sin-permiso'] });
+    });
+  }
+});
+
+/**
+ * E2-9 (RN-10): una cuenta aprobada entra con una contraseña temporal y el servidor le niega todo (403
+ * `PASSWORD_CHANGE_REQUIRED`) salvo `/api/auth/**`. «Cambia tu contraseña» vive FUERA del portal (sin barra ni
+ * destinos que el servidor negaría) y el portal no se abre hasta cambiarla.
+ */
+// req: RN-10
+describe('app.routes: cambio de contraseña obligatorio', () => {
+  it('«cambiar-contrasena» es de nivel superior, pide sesión y carga su pantalla', async () => {
+    const route = routes.find(entry => entry.path === 'cambiar-contrasena')!;
+    expect(route.canActivate).toEqual([authGuard]);
+    expect(await (route.loadComponent as () => Promise<unknown>)()).toBe(ChangePasswordComponent);
+    expect(routes.indexOf(route)).toBeLessThan(routes.findIndex(entry => entry.path === '**'));
+  });
+
+  it('el portal exige sesión y, después, que no haya un cambio de contraseña pendiente', () => {
+    const portal = routes.find(route => route.path === 'portal')!;
+    expect(portal.canActivate).toEqual([authGuard, passwordChangeGuard]);
+  });
+});
+
+/** E2-10 (C5): la bandeja de invitaciones del estudiante es una ruta propia del portal (decisión del usuario). */
+// req: SIEP-RF-04, D-14
+describe('app.routes: bandeja de invitaciones', () => {
+  it('«invitaciones» es hija del portal, guardada por los roles de su destino del menú, y carga la bandeja', async () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    const inbox = children.find(child => child.path === 'invitaciones')!;
+    expect(inbox).toBeDefined();
+    expect(inbox.canActivate).toHaveLength(1);
+    expect(await (inbox.loadComponent as () => Promise<unknown>)()).toBe(InvitationsComponent);
+    expect(children.indexOf(inbox)).toBeLessThan(children.findIndex(child => child.path === '**'));
   });
 });
 

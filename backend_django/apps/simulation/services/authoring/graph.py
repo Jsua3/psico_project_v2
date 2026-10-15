@@ -2,13 +2,15 @@
 import time
 
 from django.db import transaction
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework import status
+from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import DecisionOption, SimulationNode
+from shared.exceptions import ApiError
 from shared.jsonutils import coerce_int as _int
 
 from .editor_view import editor
-from .guards import ensure_draft, require_decision_in_version, require_node_in_version
+from .guards import bump_revision, ensure_draft, in_version
 from .request_utils import flag, write_string_list
 
 VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
@@ -17,27 +19,41 @@ VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
 # ─── Node CRUD ────────────────────────────────────────────────────────────────
 @transaction.atomic
 def create_node(case_version_id, request):
-    version = ensure_draft(case_version_id)
+    version = ensure_draft(case_version_id, request.get("revision"))
     node = SimulationNode(case_version=version)
     _apply_node_request(node, request)
     node.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
 def update_node(case_version_id, node_id, request):
-    ensure_draft(case_version_id)
-    node = require_node_in_version(node_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    node = in_version(SimulationNode, node_id, case_version_id)
     _apply_node_request(node, request)
     node.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
-def delete_node(case_version_id, node_id):
-    ensure_draft(case_version_id)
-    node = require_node_in_version(node_id, case_version_id)
+def delete_node(case_version_id, node_id, revision=None):
+    ensure_draft(case_version_id, revision)
+    node = in_version(SimulationNode, node_id, case_version_id)
+    # D-9: un nodo al que otras decisiones llegan no se borra en silencio (el DDL las arrastraría).
+    # Las decisiones que SALEN de él (y un lazo sobre sí mismo) se van con el nodo, como siempre.
+    incoming = DecisionOption.objects.filter(target_node_id=node.id).exclude(source_node_id=node.id).count()
+    if incoming:
+        raise ApiError(
+            "NODE_HAS_INCOMING_DECISIONS",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El nodo tiene {incoming} decisión(es) que llegan a él: bórralas o redirígelas antes de eliminarlo.",
+            status.HTTP_400_BAD_REQUEST,
+            incoming=incoming,
+        )
     node.delete()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
@@ -64,41 +80,38 @@ def _apply_node_request(node, request):
 # ─── Decision CRUD ──────────────────────────────────────────────────────────
 @transaction.atomic
 def create_decision(case_version_id, request):
-    version = ensure_draft(case_version_id)
+    version = ensure_draft(case_version_id, request.get("revision"))
     decision = DecisionOption(case_version=version)
     _apply_decision_request(decision, request, case_version_id)
     decision.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
 def update_decision(case_version_id, decision_id, request):
-    ensure_draft(case_version_id)
-    decision = require_decision_in_version(decision_id, case_version_id)
+    ensure_draft(case_version_id, request.get("revision"))
+    decision = in_version(DecisionOption, decision_id, case_version_id)
     _apply_decision_request(decision, request, case_version_id)
     decision.save()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 @transaction.atomic
-def delete_decision(case_version_id, decision_id):
-    ensure_draft(case_version_id)
-    decision = require_decision_in_version(decision_id, case_version_id)
+def delete_decision(case_version_id, decision_id, revision=None):
+    ensure_draft(case_version_id, revision)
+    decision = in_version(DecisionOption, decision_id, case_version_id)
     decision.delete()
+    bump_revision(case_version_id)
     return editor(case_version_id)
 
 
 def _apply_decision_request(decision, request, case_version_id):
-    src = SimulationNode.objects.filter(pk=request.get("sourceNodeId")).first()
-    if not src:
-        raise NotFound(f"Nodo origen: {request.get('sourceNodeId')}")
-    tgt = SimulationNode.objects.filter(pk=request.get("targetNodeId")).first()
-    if not tgt:
-        raise NotFound(f"Nodo destino: {request.get('targetNodeId')}")
+    source_id, target_id = request.get("sourceNodeId"), request.get("targetNodeId")
     # RN-02: una decisión solo une nodos de su propia versión del caso.
-    for node in (src, tgt):
-        if node.case_version_id != case_version_id:
-            raise ValidationError(f"El nodo {node.id} no pertenece a la versión {case_version_id}")
+    src = in_version(SimulationNode, source_id, case_version_id, not_found=f"Nodo origen: {source_id}")
+    tgt = in_version(SimulationNode, target_id, case_version_id, not_found=f"Nodo destino: {target_id}")
     option_key = request.get("optionKey")
     decision.option_key = option_key if option_key is not None else (
         f"{src.node_key}->{tgt.node_key}-{int(time.time() * 1000)}"

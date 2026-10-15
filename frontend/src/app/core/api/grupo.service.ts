@@ -7,16 +7,35 @@ export interface Grupo {
   id: number;
   nombre: string;
   codigo: string;
+  /** E2-10: solo las membresías ACTIVAS (quien aceptó la invitación). */
   totalEstudiantes: number;
+  /** E2-10: invitaciones que aún no se responden. */
+  totalInvitados?: number;
 }
+
+/** Estado de la membresía (E2-10, C5): el docente invita y el estudiante acepta, rechaza o sale. */
+export type MembershipStatus = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED';
 
 export interface GrupoEstudiante {
   id: number;
+  /** Vacío mientras la persona no acepta (el docente solo ve el correo que escribió; D-14). */
   nombre: string;
   apellido: string;
   email: string;
   role: 'ESTUDIANTE';
-  activo: boolean;
+  membershipStatus?: MembershipStatus;
+  /** Solo de las membresías activas. */
+  activo?: boolean;
+}
+
+/** Fila del resultado de una importación: lo que el docente escribió, sin datos de la cuenta (D-14). */
+export interface GrupoImportStudent {
+  row: number;
+  nombre: string;
+  apellido: string;
+  email: string;
+  role: 'ESTUDIANTE';
+  membershipStatus: MembershipStatus;
 }
 
 export interface GrupoImportError {
@@ -36,8 +55,11 @@ export interface GrupoImportResult {
   skipped: number;
   duplicated: number;
   errors: GrupoImportError[];
-  students: GrupoEstudiante[];
-  defaultPassword: string;
+  students: GrupoImportStudent[];
+  /** E2-9 (RN-10): cuentas nuevas que quedan pendientes de la aprobación del administrador (ya no hay contraseña). */
+  pendingApproval: number;
+  /** Columnas del archivo que se leyeron pero no se usan (p. ej. `password` de una plantilla vieja). */
+  ignoredColumns: string[];
   expectedColumns: string[];
   message: string;
 }

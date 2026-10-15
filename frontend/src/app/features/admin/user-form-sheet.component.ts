@@ -58,7 +58,7 @@ export interface UserFormSheetData {
             </select>
           </ui-field>
           <ui-field [label]="host.selectedUser() ? 'Nueva contraseña (opcional)' : 'Contraseña'" [required]="!host.selectedUser()"
-            hint="Mínimo 8 caracteres." [error]="passwordError()" revealable>
+            hint="Mínimo 10 caracteres." [error]="passwordError()" revealable>
             <input uiControl type="password" formControlName="password" autocomplete="new-password">
           </ui-field>
         </div>
@@ -93,6 +93,6 @@ export class UserFormSheetComponent {
   protected passwordError(): string | null {
     const control = this.control('password');
     if (!control.touched || control.valid) return null;
-    return control.hasError('required') ? 'La contraseña es obligatoria al crear un usuario.' : 'Usa al menos 8 caracteres.';
+    return control.hasError('required') ? 'La contraseña es obligatoria al crear un usuario.' : 'Usa al menos 10 caracteres.';
   }
 }

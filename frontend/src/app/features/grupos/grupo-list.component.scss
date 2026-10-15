@@ -91,6 +91,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+// E2-10: invitaciones que aún no se aceptan, junto a los miembros (no son estudiantes del grupo todavía).
+.gl-invited {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  white-space: nowrap;
+}
+
 // En una tabla estrecha las acciones no se parten: la tabla se desplaza dentro de su marco.
 .gl-row-actions {
   display: flex;
@@ -125,6 +132,7 @@
 
 .gl-person {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-space-3);
@@ -136,6 +144,7 @@
 
 .gl-person__text {
   display: grid;
+  flex: 1 1 12rem;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-1);
   min-width: 0;

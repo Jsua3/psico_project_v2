@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
@@ -18,6 +20,11 @@ import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+
+/** E2-2: una rúbrica ajena (la global o la de otra persona) es de solo lectura para el docente. */
+export const RUBRIC_READ_ONLY_MESSAGE = 'Esta rúbrica es de solo lectura: no la creaste tú. Duplícala para personalizarla.';
+export const RUBRIC_GONE_MESSAGE = 'Esta rúbrica ya no está disponible.';
+export const RUBRIC_CASE_NOT_OWNED_MESSAGE = 'Solo quien creó el caso puede asignarle una rúbrica.';
 
 /**
  * Pantalla Rúbricas (plan visual F7-5): campos `ui-field`, esqueleto y error con «Reintentar» en la lista, lista vacía
@@ -45,6 +52,11 @@ export class RubricsComponent implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
   @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
+
+  /** E2-2: solo el administrador fija la rúbrica predeterminada (al docente el servidor le responde 403). */
+  protected readonly canSetDefault = inject(AuthService).hasRole('ADMIN');
+  /** E2-2: la rúbrica abierta resultó ajena (403 al modificarla): se dice y se ofrece duplicarla. */
+  readonly readOnly = signal(false);
 
   rubrics = signal<RubricAdmin[]>([]);
   selected = signal<RubricAdmin | null>(null);
@@ -107,16 +119,20 @@ export class RubricsComponent implements OnInit {
     return this.criteria.controls.reduce((sum, control) => sum + Number(control.get('weight')?.value || 0), 0);
   }
 
-  load(): void {
+  /** Carga la lista. Con `keepMessage` (tras un 404) conserva el aviso que explica por qué se recargó. */
+  load(keepMessage = false): void {
     this.loading.set(true);
     this.listError.set(false);
     this.rubricService.list().subscribe({
       next: rubrics => {
         this.rubrics.set(rubrics);
-        this.message.set('');
-        this.messageIsError.set(false);
+        if (!keepMessage) {
+          this.message.set('');
+          this.messageIsError.set(false);
+        }
         this.loading.set(false);
-        if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id);
+        // `load` ya decidió qué hacer con el aviso (keepMessage): abrir la primera no lo retira.
+        if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id, true);
       },
       error: () => {
         this.message.set('No fue posible cargar las rúbricas.');
@@ -161,7 +177,10 @@ export class RubricsComponent implements OnInit {
     return rubric.isDefault ? 'success' : (rubric.active ? 'info' : 'neutral');
   }
 
-  openRubric(id: number): void {
+  /** Abre una rúbrica. Elegir otra retira el aviso de la anterior (salvo cuando la apertura es la de `load`). */
+  openRubric(id: number, keepMessage = false): void {
+    this.readOnly.set(false);
+    if (!keepMessage) this.clearMessage();
     this.rubricService.detail(id).subscribe({
       next: rubric => {
         this.selected.set(rubric);
@@ -175,6 +194,8 @@ export class RubricsComponent implements OnInit {
   }
 
   newRubric(): void {
+    this.readOnly.set(false);
+    this.clearMessage();
     this.selected.set(null);
     this.resetRubricForm({ name: '', description: '', version: '1.0' });
     this.criteria.clear();
@@ -217,9 +238,8 @@ export class RubricsComponent implements OnInit {
         this.load();
       },
       error: (err: unknown) => {
-        const text = apiErrorMessage(err, 'No fue posible guardar la rúbrica.');
-        if (text) this.notify.error(text);
         this.saving.set(false);
+        this.explainError(err, 'No fue posible guardar la rúbrica.');
       },
     });
   }
@@ -233,7 +253,33 @@ export class RubricsComponent implements OnInit {
   }
 
   duplicate(): void {
-    this.withSelected(id => this.rubricService.duplicate(id), 'Rúbrica duplicada.');
+    // Con cambios sin guardar (p. ej. tras el 403 de una rúbrica ajena, que es justo cuando la pantalla ofrece duplicar)
+    // la copia lleva LO ESCRITO: duplicar la versión guardada descartaría el trabajo del docente.
+    if (!this.form.dirty) {
+      this.withSelected(id => this.rubricService.duplicate(id), 'Rúbrica duplicada.');
+      return;
+    }
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      focusFirstInvalid(this.host.nativeElement);
+      return;
+    }
+    const draft = this.payload();
+    this.rubricService.create({
+      ...draft,
+      name: `Copia de ${draft.name}`,
+      criteria: (draft.criteria ?? []).map(criterion => ({ ...criterion, id: undefined })),
+    }).subscribe({
+      next: copy => {
+        this.readOnly.set(false);
+        this.clearMessage();
+        this.selected.set(copy);
+        this.populate(copy);
+        this.notify.success('Rúbrica duplicada con tus cambios.');
+        this.load();
+      },
+      error: (err: unknown) => this.explainError(err, 'No fue posible duplicar la rúbrica.'),
+    });
   }
 
   setDefault(): void {
@@ -249,7 +295,10 @@ export class RubricsComponent implements OnInit {
         this.notify.success('Rúbrica asignada a la simulación.');
       },
       error: (err: unknown) => {
-        const text = apiErrorMessage(err, 'No fue posible asignar la rúbrica.');
+        // E2-2: solo quien autora el caso (o el administrador) le asigna rúbrica.
+        const text = err instanceof HttpErrorResponse && err.status === 403
+          ? RUBRIC_CASE_NOT_OWNED_MESSAGE
+          : apiErrorMessage(err, 'No fue posible asignar la rúbrica.');
         if (text) this.notify.error(text);
       },
     });
@@ -304,20 +353,48 @@ export class RubricsComponent implements OnInit {
     };
   }
 
+  /** El aviso de una rúbrica no acompaña a otra: se retira al abrir, crear o duplicar. */
+  private clearMessage(): void {
+    this.message.set('');
+    this.messageIsError.set(false);
+  }
+
   private withSelected(action: (id: number) => Observable<RubricAdmin>, success: string): void {
     const rubric = this.selected();
     if (!rubric) return;
     action(rubric.id).subscribe({
       next: updated => {
+        this.readOnly.set(false);
+        this.clearMessage();
         this.selected.set(updated);
         this.populate(updated);
         this.notify.success(success);
         this.load();
       },
-      error: (err: unknown) => {
-        const text = apiErrorMessage(err, 'No fue posible actualizar la rúbrica.');
-        if (text) this.notify.error(text);
-      },
+      error: (err: unknown) => this.explainError(err, 'No fue posible actualizar la rúbrica.'),
     });
+  }
+
+  /**
+   * E2-2: 403 = rúbrica ajena (solo lectura: se dice junto al formulario y se ofrece duplicarla); 404 = ya no está
+   * disponible (se dice y la lista se vuelve a pedir); lo demás, el aviso de siempre.
+   */
+  private explainError(err: unknown, fallback: string): void {
+    const status = err instanceof HttpErrorResponse ? err.status : null;
+    if (status === 403) {
+      this.readOnly.set(true);
+      this.message.set(RUBRIC_READ_ONLY_MESSAGE);
+      this.messageIsError.set(true);
+      return;
+    }
+    if (status === 404) {
+      this.message.set(RUBRIC_GONE_MESSAGE);
+      this.messageIsError.set(true);
+      this.selected.set(null);
+      this.load(true);
+      return;
+    }
+    const text = apiErrorMessage(err, fallback);
+    if (text) this.notify.error(text);
   }
 }

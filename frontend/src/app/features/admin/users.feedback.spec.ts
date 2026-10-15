@@ -74,7 +74,7 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
         apellido: 'Gómez',
         email: 'Luis@Siep.test',
         role: 'ESTUDIANTE',
-        password: '12345678',
+        password: '1234567890',
       });
       service.create.mockReturnValue(of({ ...ana, id: 6, nombre: 'Luis', email: 'luis@siep.test' }));
 

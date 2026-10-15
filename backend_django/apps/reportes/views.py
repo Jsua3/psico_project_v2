@@ -3,7 +3,7 @@ El export CSV devuelve bytes crudos (attachment), NO el envoltorio JSON."""
 from django.http import HttpResponse
 from rest_framework.views import APIView
 
-from shared.permissions import IsProfesorOrAdmin
+from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from . import services
@@ -19,7 +19,7 @@ def _long(value):
 
 
 class DashboardView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [policy_permission("analytics", "read")]
 
     def get(self, request):
         return api_ok(services.get_dashboard(request.user))
@@ -28,7 +28,7 @@ class DashboardView(APIView):
 class ReporteEstudianteView(APIView):
     """Reporte de un estudiante (C3): sus intentos con tiempos y cobertura «X de N»."""
 
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [policy_permission("analytics", "read")]
 
     def get(self, request, estudiante_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
@@ -39,7 +39,7 @@ class ReporteEstudianteView(APIView):
 
 
 class ReporteGrupoView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [policy_permission("analytics", "read")]
 
     def get(self, request, grupo_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
@@ -47,7 +47,7 @@ class ReporteGrupoView(APIView):
 
 
 class ReporteGrupoExportView(APIView):
-    permission_classes = [IsProfesorOrAdmin]
+    permission_classes = [policy_permission("analytics", "read")]
 
     def get(self, request, grupo_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))

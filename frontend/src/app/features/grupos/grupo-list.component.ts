@@ -4,14 +4,16 @@ import {
 import { AbstractControl, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
-import { GrupoService, Grupo, GrupoEstudiante, GrupoImportError, GrupoImportResult, GrupoImportSpec } from '../../core/api/grupo.service';
+import { GrupoService, Grupo, GrupoEstudiante, GrupoImportError, GrupoImportResult, GrupoImportSpec, MembershipStatus } from '../../core/api/grupo.service';
 import { mapAgregarEstudianteError } from '../../core/api/grupo-error.utils';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
+import { membershipLabel } from '../../shared/ui/labels';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiConfirmOptions, UiDialog } from '../../shared/ui/dialog/ui-dialog';
@@ -25,6 +27,33 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 
+/** E2-10: un servidor anterior no mandaba `membershipStatus` (todas eran membresías activas). */
+function membershipOf(student: GrupoEstudiante): MembershipStatus {
+  return student.membershipStatus ?? 'ACTIVE';
+}
+
+/** De quien no aceptó, el servidor solo devuelve el correo (D-14): ese es su nombre en pantalla. */
+function studentName(student: GrupoEstudiante): string {
+  const name = `${student.nombre ?? ''} ${student.apellido ?? ''}`.trim();
+  return name || student.email;
+}
+
+const MEMBERSHIP_TONES: Record<MembershipStatus, UiBadgeTone> = {
+  ACTIVE: 'success', INVITED: 'info', DECLINED: 'neutral', REMOVED: 'neutral',
+};
+
+function membershipBadge(student: GrupoEstudiante): { label: string; tone: UiBadgeTone } {
+  const status = membershipOf(student);
+  return { label: membershipLabel(status), tone: MEMBERSHIP_TONES[status] ?? 'neutral' };
+}
+
+/** A un invitado se le cancela la invitación; a un miembro se le quita del grupo. */
+function removeLabel(student: GrupoEstudiante): string {
+  return membershipOf(student) === 'INVITED'
+    ? `Cancelar la invitación a ${student.email}`
+    : `Quitar a ${studentName(student)} del grupo`;
+}
+
 /**
  * Pantalla Grupos (plan visual F7-2): una cabecera, la tabla de grupos con UN menú de acciones por fila (antes cinco
  * botones de texto en cada tarjeta), esqueleto y error dentro de la tabla, ninguna cifra mientras carga, y el detalle
@@ -36,7 +65,7 @@ import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-tabl
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiStat,
+    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiStat,
     UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './grupo-list.component.html',
@@ -90,6 +119,24 @@ export class GrupoListComponent implements OnInit {
   totalEstudiantes = computed(() =>
     this.grupos().reduce((total, grupo) => total + grupo.totalEstudiantes, 0)
   );
+  /** E2-10: invitaciones que los estudiantes aún no responden (no son miembros todavía). */
+  totalInvitados = computed(() =>
+    this.grupos().reduce((total, grupo) => total + (grupo.totalInvitados ?? 0), 0)
+  );
+  /** Del grupo abierto: quienes aceptaron (miembros) y quienes tienen la invitación pendiente. */
+  protected readonly miembros = computed(() => this.estudiantes().filter(student => membershipOf(student) === 'ACTIVE'));
+  protected readonly invitados = computed(() => this.estudiantes().filter(student => membershipOf(student) === 'INVITED'));
+  protected readonly detalleConteo = computed(() => {
+    const miembros = this.miembros().length;
+    const invitados = this.invitados().length;
+    const partes = [`${miembros} ${miembros === 1 ? 'estudiante' : 'estudiantes'}`];
+    if (invitados) partes.push(`${invitados} ${invitados === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}`);
+    return partes.join(' · ');
+  });
+  protected readonly membershipBadge = membershipBadge;
+  protected readonly studentName = studentName;
+  protected readonly removeLabel = removeLabel;
+  protected readonly canRemove = (student: GrupoEstudiante) => ['ACTIVE', 'INVITED'].includes(membershipOf(student));
   gruposFiltrados = computed(() => {
     const query = this.busquedaGrupo().trim().toLowerCase();
     if (!query) return this.grupos();
@@ -123,7 +170,7 @@ export class GrupoListComponent implements OnInit {
 
   /** Acciones del menú de cada fila (lo que no es «Ver detalle» ni «Ver reporte»). */
   protected readonly rowActions: UiMenuItem[] = [
-    { value: 'agregar', label: 'Agregar estudiante', icon: 'person_add' },
+    { value: 'agregar', label: 'Invitar estudiante', icon: 'person_add' },
     { value: 'copiar', label: 'Copiar código', icon: 'content_copy' },
     { value: 'editar', label: 'Editar', icon: 'edit' },
     { value: 'borrar', label: 'Borrar', icon: 'delete', tone: 'danger' },
@@ -139,8 +186,8 @@ export class GrupoListComponent implements OnInit {
       next: spec => this.importSpec.set(spec),
       error: () => this.importSpec.set({
         requiredColumns: ['nombre', 'apellido', 'email'],
-        optionalColumns: ['password'],
-        columns: ['nombre', 'apellido', 'email', 'password'],
+        optionalColumns: [],
+        columns: ['nombre', 'apellido', 'email'],
         templateFilename: 'plantilla_importacion_estudiantes_siep.xlsx',
         acceptedExtensions: ['.xlsx']
       })
@@ -308,9 +355,10 @@ export class GrupoListComponent implements OnInit {
 
   async quitarEstudiante(grupo: Grupo, student: GrupoEstudiante): Promise<void> {
     const confirmado = await this.confirmar({
-      title: 'Quitar estudiante',
-      message: `¿Quitar a ${student.nombre} ${student.apellido} del grupo?`,
-      confirmLabel: 'Quitar',
+      // E2-10: a un invitado no se le quita: se le cancela la invitación (y de él solo se conoce el correo).
+      ...(membershipOf(student) === 'INVITED'
+        ? { title: 'Cancelar invitación', message: `¿Cancelar la invitación a ${student.email}?`, confirmLabel: 'Cancelar invitación' }
+        : { title: 'Quitar estudiante', message: `¿Quitar a ${studentName(student)} del grupo?`, confirmLabel: 'Quitar' }),
     });
     if (confirmado) this.retirarEstudiante(grupo, student);
   }
@@ -321,7 +369,7 @@ export class GrupoListComponent implements OnInit {
         this.estudiantes.update(list => list.filter(s => s.id !== student.id));
         this.grupos.update(list => list.map(g => g.id === actualizado.id ? actualizado : g));
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
-        this.notify.success('Estudiante retirado del grupo.');
+        this.notify.success(membershipOf(student) === 'INVITED' ? 'Invitación cancelada.' : 'Estudiante retirado del grupo.');
       },
       error: (err: unknown) => {
         const text = apiErrorMessage(err, 'No fue posible quitar al estudiante.');
@@ -413,7 +461,9 @@ export class GrupoListComponent implements OnInit {
     this.mensajeEsError.set(false);
     this.grupoService.agregarEstudiante(this.grupoSeleccionado()!, email!.trim().toLowerCase()).subscribe({
       next: () => {
-        this.mensajeEstudiante.set('Estudiante agregado correctamente.');
+        // E2-10: el docente invita; la persona entra al grupo cuando acepta (su bandeja de invitaciones).
+        // D-14: el servidor responde lo mismo exista o no la cuenta, así que el texto tampoco afirma que se envió.
+        this.mensajeEstudiante.set(`Si ${email!.trim().toLowerCase()} es de un estudiante registrado, recibirá la invitación y verá el grupo cuando la acepte.`);
         this.mensajeEsError.set(false);
         this.estudianteForm.reset();
         this.agregandoEstudiante.set(false);
@@ -436,17 +486,32 @@ export class GrupoListComponent implements OnInit {
     return this.importSpec()?.requiredColumns.join(', ') || 'nombre, apellido, email';
   }
 
+  /** Columnas opcionales de la plantilla del servidor; vacío si no hay (E2-9 retiró `password`). */
   columnasOpcionalesTexto(): string {
-    return this.importSpec()?.optionalColumns.join(', ') || 'password';
+    return this.importSpec()?.optionalColumns.join(', ') ?? '';
   }
 
   /**
-   * Aviso sobre la contraseña de las cuentas nuevas del resultado de la importación. Es el ÚNICO sitio donde la
-   * pantalla la menciona (gancho de RN-10): cuando la política cambie a «cuenta pendiente de activación», solo
-   * cambia esta frase.
+   * Qué pasa con las cuentas nuevas de la importación (gancho de RN-10; ÚNICO sitio donde la pantalla lo dice). Desde
+   * E2-9 la importación no fija contraseñas: las cuentas nacen pendientes, el administrador las aprueba y cada
+   * estudiante recibe por correo su contraseña temporal. null si no hubo cuentas nuevas.
    */
-  contrasenaNota(result: GrupoImportResult): string {
-    return `Contraseña por defecto para nuevos sin password: ${result.defaultPassword}`;
+  cuentasNuevasNota(result: GrupoImportResult): string | null {
+    const pending = result.pendingApproval ?? 0;
+    if (!pending) return null;
+    return pending === 1
+      ? 'La cuenta nueva queda pendiente de aprobación: cuando el administrador la apruebe, la persona recibirá por correo su contraseña temporal.'
+      : `Las ${pending} cuentas nuevas quedan pendientes de aprobación: cuando el administrador las apruebe, cada persona recibirá por correo su contraseña temporal.`;
+  }
+
+  /** Columnas del archivo que el servidor leyó y no usa (p. ej. `password` de una plantilla vieja). */
+  columnasIgnoradasNota(result: GrupoImportResult): string | null {
+    const columns = result.ignoredColumns ?? [];
+    if (!columns.length) return null;
+    const names = columns.map(column => `«${column}»`).join(', ');
+    return columns.length === 1
+      ? `Se ignoró la columna ${names}: ya no se usa al importar.`
+      : `Se ignoraron las columnas ${names}: ya no se usan al importar.`;
   }
 
   descargarPlantilla(): void {
@@ -525,7 +590,7 @@ export class GrupoListComponent implements OnInit {
         this.cargarDetalle(grupo.id);
         const warnings = result.errors.length ? ` ${result.errors.length} fila(s) con observaciones.` : '';
         this.mensajeEstudiante.set(
-          `Importación completada: ${result.assigned} asignados, ${result.created} creados, ${result.existing} ya existían.${warnings}`
+          `Importación completada: ${result.assigned} invitados, ${result.created} cuentas nuevas, ${result.existing} ya existían.${warnings}`
         );
         this.mensajeEsError.set(false);
       },

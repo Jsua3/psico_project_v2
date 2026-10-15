@@ -32,6 +32,15 @@
   </ui-section>
 }
 
+@if (pendingUsers().length) {
+  <ui-section class="us-pending" title="Cuentas por aprobar">
+    <ui-card class="us-pending__card">
+      <p class="us-hint">{{ pendingText() }}</p>
+      <button ui-button type="button" icon="task_alt" [loading]="saving()" (click)="approvePending()">Aprobar pendientes ({{ pendingUsers().length }})</button>
+    </ui-card>
+  </ui-section>
+}
+
 <ui-section class="us-users" title="Cuentas">
   <ui-table label="Tabla de usuarios" density="compact" [state]="state()">
     <table ui-table>
@@ -50,7 +59,8 @@
             <th scope="row" class="us-name">{{ user.nombre }} {{ user.apellido }}</th>
             <td class="us-email">{{ user.email }}</td>
             <td>{{ roleLabel(user.role) }}</td>
-            <td><ui-badge [tone]="user.activo ? 'success' : 'neutral'">{{ user.activo ? 'Activo' : 'Inactivo' }}</ui-badge></td>
+            @let badge = statusBadge(user);
+            <td><ui-badge [tone]="badge.tone">{{ badge.label }}</ui-badge></td>
             <td class="us-actions">
               <button ui-icon-button type="button" icon="edit" [label]="'Editar a ' + user.nombre + ' ' + user.apellido"
                 (click)="editUser(user)"></button>

@@ -3,8 +3,10 @@
  * los guards de `app.routes.ts` (gancho de RF-02 y RNF-002: hoy el menú y los permisos se calculaban por separado).
  *
  * `fold` dice para qué roles el destino es secundario: en la barra de vidrio se pliega al desplazarse y vuelve con
- * el cursor o con Tab (decisión D3 del plan: el docente pliega Rúbricas, Grupos y Reportes; el administrador, Mi
- * personaje, Rúbricas y Usuarios; el estudiante, nada). El destino principal de cada rol nunca se pliega.
+ * el cursor o con Tab (decisión D3 del plan: el docente pliega Rúbricas, Grupos y Reportes; el administrador,
+ * Rúbricas y Usuarios; el estudiante, nada). El destino principal de cada rol nunca se pliega. Desde E2 (ED-5) el
+ * administrador no juega: «Mi personaje» es solo del estudiante. Los roles de cada destino son un subconjunto de la
+ * matriz de políticas del servidor (`backend_django/shared/policy-matrix.json`; nav-items.spec lo comprueba).
  */
 export type UserRole = 'ADMIN' | 'PROFESOR' | 'ESTUDIANTE';
 
@@ -21,7 +23,9 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'panel', label: 'Panel', route: '/portal/dashboard', icon: 'dashboard', roles: ['ESTUDIANTE', 'PROFESOR', 'ADMIN'], fold: [], order: 10 },
   { id: 'simulador', label: 'Simulador', route: '/portal/simulador', icon: 'play_circle', roles: ['ESTUDIANTE', 'PROFESOR', 'ADMIN'], fold: [], order: 20 },
-  { id: 'personaje', label: 'Mi personaje', route: '/portal/personaje', icon: 'face', roles: ['ESTUDIANTE', 'ADMIN'], fold: ['ADMIN'], order: 30 },
+  // E2-10 (C5): la bandeja de invitaciones a grupos del estudiante (decisión del usuario, 2026-10-14).
+  { id: 'invitaciones', label: 'Invitaciones', route: '/portal/invitaciones', icon: 'group_add', roles: ['ESTUDIANTE'], fold: [], order: 25 },
+  { id: 'personaje', label: 'Mi personaje', route: '/portal/personaje', icon: 'face', roles: ['ESTUDIANTE'], fold: [], order: 30 },
   { id: 'trazabilidad', label: 'Trazabilidad', route: '/portal/docente/trazabilidad', icon: 'timeline', roles: ['PROFESOR', 'ADMIN'], fold: [], order: 40 },
   { id: 'rubricas', label: 'Rúbricas', route: '/portal/rubricas', icon: 'grading', roles: ['PROFESOR', 'ADMIN'], fold: ['PROFESOR', 'ADMIN'], order: 50 },
   { id: 'grupos', label: 'Grupos', route: '/portal/grupos', icon: 'groups', roles: ['PROFESOR'], fold: ['PROFESOR'], order: 60 },

@@ -1,6 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { map } from 'rxjs/operators';
+
+/** Respuesta del reemplazo docente (E1-2). */
+export interface ReplacedAttempt {
+  attemptId: string;
+  status: string;
+  reason: string;
+  replacedAt: string | null;
+}
 import { AttemptTrace, RecentAttempt, RubricEvaluationView } from '../models/simulation.model';
 import { ApiResponse } from './api-response';
 
@@ -25,6 +33,12 @@ export class InstructorApi {
 
   rubric(attemptId: string) {
     return this.http.get<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation`)
+      .pipe(map(response => response.data));
+  }
+
+  /** E1-2 (RN-07): el docente reemplaza un intento ABIERTO con un motivo (queda en el intento y en la auditoría). */
+  replaceAttempt(attemptId: string, reason: string) {
+    return this.http.post<ApiResponse<ReplacedAttempt>>(`/api/instructor/attempts/${attemptId}/replace`, { reason })
       .pipe(map(response => response.data));
   }
 

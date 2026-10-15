@@ -267,14 +267,14 @@ def test_person_map_interaction_persists_as_viewed_npc(estudiante, case_version_
     assert resp.data["data"]["dialogue"]["key"] in viewed
 
 
-def test_staff_can_view_world_but_other_student_cannot(estudiante, otro_estudiante, profesor, case_version_id):
+def test_only_the_owner_views_the_world_by_token(estudiante, otro_estudiante, profesor, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
-    # Professor (staff, non-owner) may view.
+    # Un docente (no dueño) tampoco lo lee por token (E2-2): su vía es /api/instructor.
     staff_resp = cl(profesor).get(
         f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)
     )
-    assert staff_resp.status_code == 200
+    assert staff_resp.status_code == 403
     # A different student (non-owner, non-staff) may not.
     other_resp = cl(otro_estudiante).get(
         f"/api/simulation/attempts/{attempt_id}/world", **attempt_headers(token)

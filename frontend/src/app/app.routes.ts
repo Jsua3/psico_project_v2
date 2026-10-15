@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/auth/auth.guard';
+import { authGuard, passwordChangeGuard, roleGuard } from './core/auth/auth.guard';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { rolesFor } from './shared/layout/nav-items';
@@ -33,9 +33,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/login/login.component').then(m => m.LoginComponent)
   },
   {
+    // E2-9 (RN-10): fuera del portal (sin barra ni destinos que el servidor negaría con la contraseña temporal).
+    path: 'cambiar-contrasena',
+    title: 'Cambia tu contraseña',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/account/change-password.component').then(m => m.ChangePasswordComponent)
+  },
+  {
     path: 'portal',
     title: 'Portal',
-    canActivate: [authGuard],
+    canActivate: [authGuard, passwordChangeGuard],
     loadComponent: () => import('./shared/layout/shell.component').then(m => m.ShellComponent),
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
@@ -48,7 +55,8 @@ export const routes: Routes = [
         path: 'jugar',
         title: 'Sala de simulación',
         data: { chrome: 'hidden' },
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN')],
+        // ED-5 (E2): solo el estudiante juega (`attempt.play`); al resto el servidor le responde 403.
+        canActivate: [roleGuard('ESTUDIANTE')],
         loadComponent: () => import('./features/simulator/game-menu.component').then(m => m.GameMenuComponent)
       },
       {
@@ -60,8 +68,15 @@ export const routes: Routes = [
         path: 'simulador/:caseVersionId',
         title: 'Simulación',
         data: { chrome: 'hidden' },
-        canActivate: [roleGuard('ESTUDIANTE', 'ADMIN'), caseUnlockedGuard],
+        canActivate: [roleGuard('ESTUDIANTE'), caseUnlockedGuard],
         loadComponent: () => import('./features/simulator/simulation-play.component').then(m => m.SimulationPlayComponent)
+      },
+      {
+        // E2-10 (C5): el estudiante acepta, rechaza o deja los grupos a los que lo invitan.
+        path: 'invitaciones',
+        title: 'Invitaciones',
+        canActivate: [roleGuard(...rolesFor('invitaciones'))],
+        loadComponent: () => import('./features/invitations/invitations.component').then(m => m.InvitationsComponent)
       },
       {
         path: 'personaje',

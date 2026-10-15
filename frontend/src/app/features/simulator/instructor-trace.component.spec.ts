@@ -13,6 +13,7 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import { AttemptTrace, RecentAttempt, RubricCriterionView, RubricEvaluationView } from '../../core/models/simulation.model';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { InstructorTraceComponent } from './instructor-trace.component';
+import { ReplaceAttemptDialogComponent } from './replace-attempt-dialog.component';
 import { TraceFeedbackDialogComponent } from './trace-feedback-dialog.component';
 
 /**
@@ -61,7 +62,7 @@ interface Api {
 
 describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   let fixture: ComponentFixture<InstructorTraceComponent>;
-  let api: Record<'recentAttempts' | 'attemptTrace' | 'rubric' | 'saveRubric', ReturnType<typeof vi.fn>>;
+  let api: Record<'recentAttempts' | 'attemptTrace' | 'rubric' | 'saveRubric' | 'replaceAttempt', ReturnType<typeof vi.fn>>;
   let dialog: { open: ReturnType<typeof vi.fn> };
   let notify: Record<'success' | 'error' | 'warning' | 'info', ReturnType<typeof vi.fn>>;
 
@@ -84,6 +85,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       attemptTrace: vi.fn(overrides.trace ?? ((id: string) => of(traceFixture(id)))),
       rubric: vi.fn(overrides.rubric ?? (() => of(rubricFixture()))),
       saveRubric: vi.fn(overrides.save ?? (() => of(rubricFixture({ overallLevel: 'LOGRADO' })))),
+      replaceAttempt: vi.fn(),
     };
     dialog = { open: vi.fn() };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
@@ -107,6 +109,81 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   afterEach(() => {
     vi.useRealTimers();
     TestBed.resetTestingModule();
+  });
+
+  // E1-2 (RN-07): reemplazar un intento ABIERTO es acción docente, con motivo y auditada
+  // (`POST /api/instructor/attempts/{id}/replace`); el estudiante ya no puede forzar uno nuevo. F7 no lo construyó.
+  // req: RN-07
+  describe('reemplazo docente (E1-2)', () => {
+    const openTrace = (status: string) => ({ trace: (id: string) => of(traceFixture(id, { status, endedAt: null })) });
+    const replaceButton = () => [...host().querySelectorAll('button')]
+      .find(button => text(button.querySelector('.ui-button__label')) === 'Reemplazar intento');
+
+    it('solo un intento abierto (en curso o en pausa) ofrece «Reemplazar intento»', async () => {
+      await render();
+      expect(replaceButton()).toBeUndefined();
+      for (const state of ['IN_PROGRESS', 'PAUSED']) {
+        TestBed.resetTestingModule();
+        await render(openTrace(state));
+        expect(replaceButton(), state).toBeDefined();
+      }
+    });
+
+    it('pide el motivo en un diálogo; con motivo, reemplaza, recarga la traza y lo anuncia', async () => {
+      await render(openTrace('IN_PROGRESS'));
+      api.replaceAttempt.mockReturnValue(of({ attemptId: 'a-1', status: 'REPLACED', reason: 'Se trabó el mundo', replacedAt: '2026-10-14T10:00:00Z' }));
+      dialog.open.mockReturnValue({ closed: of('Se trabó el mundo') });
+      replaceButton()!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(dialog.open).toHaveBeenCalledWith(ReplaceAttemptDialogComponent, expect.objectContaining({
+        data: expect.objectContaining({ studentAlias: 'Estudiante a-1', caseTitle: 'Caso a-1' }),
+      }));
+      expect(api.replaceAttempt).toHaveBeenCalledWith('a-1', 'Se trabó el mundo');
+      expect(api.attemptTrace).toHaveBeenCalledTimes(2);
+      // Se anuncia UNA vez, por el aviso del sistema; la región de estado de la pantalla queda para lo suyo.
+      expect(notify.success).toHaveBeenCalledWith(expect.stringContaining('Intento reemplazado'));
+      expect(status()).not.toContain('Intento reemplazado');
+    });
+
+    it('si se cancela el diálogo no se envía nada', async () => {
+      await render(openTrace('PAUSED'));
+      dialog.open.mockReturnValue({ closed: of(undefined) });
+      replaceButton()!.click();
+      await fixture.whenStable();
+      expect(api.replaceAttempt).not.toHaveBeenCalled();
+    });
+
+    it('si el intento ya se cerró (409), lo dice y no recarga a ciegas', async () => {
+      await render(openTrace('IN_PROGRESS'));
+      api.replaceAttempt.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 409, error: { success: false, code: 'ATTEMPT_NOT_OPEN', message: 'El intento ya está cerrado y no puede reemplazarse.' },
+      })));
+      dialog.open.mockReturnValue({ closed: of('motivo') });
+      replaceButton()!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(notify.error).toHaveBeenCalledWith('El intento ya está cerrado y no puede reemplazarse.');
+    });
+
+    // Revisión de F7b: el resultado del reemplazo no se queda en la región de estado, donde tapaba los avisos de la
+    // rúbrica (WCAG 4.1.3) y se repetía en cada recarga de la traza.
+    it('tras un reemplazo, un fallo al guardar la rúbrica sí llega a la región de estado', async () => {
+      await render({ ...openTrace('IN_PROGRESS'), save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
+      api.replaceAttempt.mockReturnValue(of({ attemptId: 'a-1', status: 'REPLACED', reason: 'x', replacedAt: '2026-10-14T10:00:00Z' }));
+      dialog.open.mockReturnValue({ closed: of('Se trabó el mundo') });
+      replaceButton()!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      type(scoreInput(0), '4');
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(status()).toContain('No fue posible guardar la evaluación');
+    });
   });
 
   // req: RNF-04, BLOQUE-H

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { RubricsComponent } from './rubrics.component';
@@ -58,6 +59,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: RubricService, useValue: rubrics },
+        { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes('ADMIN') } },
         { provide: SimulationService, useValue: simulation },
         { provide: NotificationService, useValue: notify },
         { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },

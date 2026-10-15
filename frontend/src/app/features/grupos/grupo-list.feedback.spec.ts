@@ -385,14 +385,15 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   });
 
   describe('lo que sigue junto a su formulario', () => {
-    it('agregar estudiante deja su resultado en línea y no crea un aviso', () => {
+    it('invitar a un estudiante deja su resultado en línea y no crea un aviso', () => {
       grupos.agregarEstudiante.mockReturnValue(of({}));
       component.grupoSeleccionado.set(1);
       component.estudianteForm.setValue({ email: 'nuevo@siep.test' });
 
       component.confirmarAgregar();
 
-      expect(component.mensajeEstudiante()).toBe('Estudiante agregado correctamente.');
+      // E2-10: el docente invita; la persona entra al grupo cuando acepta.
+      expect(component.mensajeEstudiante()).toBe('Si nuevo@siep.test es de un estudiante registrado, recibirá la invitación y verá el grupo cuando la acepte.');
       expect(component.mensajeEsError()).toBe(false);
       expect(notify.success).not.toHaveBeenCalled();
       expect(notify.error).not.toHaveBeenCalled();

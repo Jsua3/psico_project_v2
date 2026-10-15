@@ -47,7 +47,7 @@ describe('usuarios: validar al enviar (DOM de la hoja con la biblioteca)', () =>
     sheet.detectChanges();
   };
   const fillValid = () => {
-    component.form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', password: '12345678' });
+    component.form.patchValue({ nombre: 'Luis', apellido: 'Gómez', email: 'luis@siep.test', password: '1234567890' });
     sheet.detectChanges();
   };
 

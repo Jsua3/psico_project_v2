@@ -2,7 +2,10 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
+import { HttpErrorResponse } from '@angular/common/http';
+
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
@@ -33,6 +36,7 @@ interface Api {
 describe('pantalla Rúbricas (F7-5)', () => {
   let fixture: ComponentFixture<RubricsComponent>;
   let service: Record<string, ReturnType<typeof vi.fn>>;
+  let notify: Record<'success' | 'error' | 'warning' | 'info', ReturnType<typeof vi.fn>>;
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -46,7 +50,7 @@ describe('pantalla Rúbricas (F7-5)', () => {
     return id ? text(host().querySelector(`#${id}`)) : '';
   };
 
-  async function render(api: Partial<Api> = {}, { stable = true } = {}) {
+  async function render(api: Partial<Api> = {}, { stable = true, role = 'ADMIN' } = {}) {
     service = {
       list: vi.fn(api.list ?? (() => of([completa, incompleta]))),
       detail: vi.fn(api.detail ?? ((id: number) => of(id === 7 ? incompleta : completa))),
@@ -58,8 +62,9 @@ describe('pantalla Rúbricas (F7-5)', () => {
       providers: [
         provideZonelessChangeDetection(),
         { provide: RubricService, useValue: service },
+        { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
-        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
+        { provide: NotificationService, useValue: notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
     fixture = TestBed.createComponent(RubricsComponent);
@@ -71,6 +76,118 @@ describe('pantalla Rúbricas (F7-5)', () => {
   afterEach(() => {
     vi.useRealTimers();
     TestBed.resetTestingModule();
+  });
+
+  // E2-2: rúbricas con dueño. El docente edita solo las suyas (la global y las de otros son de solo lectura: 403 al
+  // guardar, «se duplica para personalizarla»), la de otro docente no existe para él (404) y solo el administrador fija
+  // la predeterminada. Antes la pantalla ofrecía todo a todos y cada 403 decía «No tienes permisos…».
+  // req: SIEP-CU-04, RNF-002
+  describe('rúbricas con dueño (E2-2)', () => {
+    const http = (status: number) => () => throwError(() => new HttpErrorResponse({ status, error: { success: false, message: 'x' } }));
+
+    it('solo el administrador ve «Predeterminada»', async () => {
+      await render();
+      expect(buttonLabelled('Predeterminada')).toBeDefined();
+      TestBed.resetTestingModule();
+      await render({}, { role: 'PROFESOR' });
+      expect(buttonLabelled('Predeterminada')).toBeUndefined();
+      expect(buttonLabelled('Duplicar')).toBeDefined();
+    });
+
+    it('guardar una rúbrica ajena (403) explica que es de solo lectura y ofrece duplicarla para personalizarla', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['update'].mockImplementation(http(403));
+      service['duplicate'].mockReturnValue(of(rubric(9, 'Copia de Entrevista inicial', [60, 40])));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
+      expect(notify.error).not.toHaveBeenCalledWith(expect.stringContaining('No tienes permisos'));
+      buttonLabelled('Duplicar para personalizar')!.click();
+      await fixture.whenStable();
+      expect(service['duplicate']).toHaveBeenCalledWith(4);
+    });
+
+    // Revisión de F7b: el aviso de solo lectura es de ESA rúbrica; al abrir otra, crear una nueva o duplicar no se queda.
+    it('tras un 403, abrir otra rúbrica o empezar una nueva retira el aviso de solo lectura', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['update'].mockImplementation(http(403));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
+
+      component().openRubric(7);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+      expect(text(host())).not.toContain('Esta rúbrica es de solo lectura');
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).not.toContain('solo lectura');
+
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.rb-readonly'))).toContain('solo lectura');
+      component().newRubric();
+      fixture.detectChanges();
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+    });
+
+    // «Duplicar para personalizar» es la salida que la propia pantalla recomienda tras el 403 de lo que se editó: la
+    // copia lleva LO ESCRITO, no la versión guardada de la ajena (que descartaba el trabajo del docente).
+    it('duplicar con cambios sin guardar crea la copia con lo que se escribió', async () => {
+      await render({}, { role: 'PROFESOR' });
+      component().form.patchValue({ name: 'Mi versión de la entrevista' });
+      component().form.markAsDirty();
+      service['update'].mockImplementation(http(403));
+      service['create'].mockReturnValue(of(rubric(9, 'Copia de Mi versión de la entrevista', [60, 40])));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      buttonLabelled('Duplicar para personalizar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(service['duplicate']).not.toHaveBeenCalled();
+      const sent = service['create'].mock.calls[0][0];
+      expect(sent.name).toBe('Copia de Mi versión de la entrevista');
+      expect(sent.criteria).toHaveLength(2);
+      expect(sent.criteria.every((criterion: { id?: number }) => criterion.id === undefined)).toBe(true);
+      expect(component().selected()?.id).toBe(9);
+      expect(host().querySelector('.rb-readonly')).toBeNull();
+    });
+
+    it('activar una ajena (403) también lo explica', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['deactivate'].mockImplementation(http(403));
+      buttonLabelled('Desactivar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
+    });
+
+    it('asignar a un caso que no creó (403) dice que solo quien creó el caso puede asignarle una rúbrica', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['assignToCaseVersion'].mockImplementation(http(403));
+      component().selectCaseVersion('3');
+      fixture.detectChanges();
+      buttonLabelled('Asignar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(notify.error).toHaveBeenCalledWith('Solo quien creó el caso puede asignarle una rúbrica.');
+    });
+
+    it('una rúbrica que ya no está disponible (404) lo dice y la lista se vuelve a pedir', async () => {
+      await render({}, { role: 'PROFESOR' });
+      service['update'].mockImplementation(http(404));
+      buttonLabelled('Guardar')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Esta rúbrica ya no está disponible.');
+      expect(service['list']).toHaveBeenCalledTimes(2);
+    });
   });
 
   // req: RNF-04, BLOQUE-H

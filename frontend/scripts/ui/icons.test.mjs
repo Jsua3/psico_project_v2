@@ -64,6 +64,15 @@ test('sigue las funciones que llaman a otras y los parámetros llamados *icon* (
   assert.equal(names.has('hola'), false, 'el argumento de un parámetro que no es *icon* no cuenta');
 });
 
+// req: RNF-002 (plan visual F7b-8: integración con E2)
+test('las pruebas del backend no cuentan como semillas: E2 valida los iconos con nombres falsos a propósito', () => {
+  const names = projectIconNames();
+  // `apps/simulation/tests/test_authoring_integrity.py` (E2-6) manda «no_such_icon_zzz» e «icono_de_legado» para
+  // comprobar que el servidor los rechaza: no son iconos que el subconjunto deba traer.
+  assert.equal(names.has('no_such_icon_zzz'), false);
+  assert.equal(names.has('icono_de_legado'), false);
+});
+
 test('cada icono requerido por el código, las semillas del backend y la lista curada está en el subconjunto', () => {
   const included = new Set(JSON.parse(readFileSync(join(here, 'material-symbols-rounded.icons.json'), 'utf8')));
   const missing = [...projectIconNames()].filter(name => !included.has(name)).sort();

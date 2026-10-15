@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
+import { InvitationsApi } from '../../core/api/invitations.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
@@ -45,6 +46,7 @@ const RECENT_ROWS = 5;
 })
 export class StudentDashboardComponent {
   private readonly simulation = inject(SimulationService);
+  private readonly invitations = inject(InvitationsApi);
   private readonly router = inject(Router);
 
   private readonly history = signal<StudentAttemptSummary[]>([]);
@@ -119,9 +121,25 @@ export class StudentDashboardComponent {
   protected readonly attemptTone = attemptTone;
   protected readonly formatDate = formatDate;
 
+  /**
+   * E2-10 (C5): invitaciones a grupos sin responder. Un estudiante invitado no ve los casos del grupo hasta aceptar;
+   * el panel se lo dice. Si no cargan, no hay aviso (no es un error del panel).
+   */
+  protected readonly pendingInvitations = signal(0);
+  protected readonly invitationsText = computed(() => {
+    const count = this.pendingInvitations();
+    return count === 1
+      ? 'Tienes 1 invitación a un grupo sin responder. Al aceptarla verás los casos que te asigne tu docente.'
+      : `Tienes ${count} invitaciones a grupos sin responder. Al aceptarlas verás los casos que te asignen tus docentes.`;
+  });
+
   constructor() {
     this.loadHistory();
     this.loadCases();
+    this.invitations.list().subscribe({
+      next: list => this.pendingInvitations.set(list.filter(item => item.status === 'INVITED').length),
+      error: () => this.pendingInvitations.set(0),
+    });
   }
 
   /** Recarga SOLO el historial (el «Reintentar» del bloque). */

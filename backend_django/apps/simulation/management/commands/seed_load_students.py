@@ -45,5 +45,7 @@ class Command(BaseCommand):
                     apellido=f"{number:03d}",
                     role="ESTUDIANTE",
                 )
-            GrupoEstudiante.objects.get_or_create(grupo_id=grupo.id, estudiante_id=user.id)
+            GrupoEstudiante.objects.get_or_create(
+                grupo_id=grupo.id, estudiante_id=user.id, defaults={"status": "ACTIVE"}
+            )
         self.stdout.write(self.style.SUCCESS(f"{count} estudiantes de carga listos en {GRUPO_DEMO}."))

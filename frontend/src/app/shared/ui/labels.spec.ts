@@ -1,4 +1,4 @@
-import { objectTypeLabel, plural, roleLabel, statusLabel } from './labels';
+import { invitationLabel, membershipLabel, objectTypeLabel, plural, roleLabel, statusLabel } from './labels';
 
 /** Plan visual §2.10: una sola tabla de etiquetas; nunca un enum crudo ni una clave técnica en pantalla. */
 describe('labels: etiquetas humanas', () => {
@@ -35,6 +35,19 @@ describe('labels: etiquetas humanas', () => {
     expect(objectTypeLabel('TOOL')).toBe('Herramienta');
     expect(objectTypeLabel('TOOL_TARGET')).toBe('Objetivo de herramienta');
     expect(objectTypeLabel('OBJECT')).toBe('Objeto');
+  });
+
+  // req: SIEP-RF-04, D-14 (E2-10: membresías por invitación)
+  it('traduce el estado de una membresía: como lo ve el docente y como lo ve el estudiante en su bandeja', () => {
+    expect(membershipLabel('INVITED')).toBe('Invitación pendiente');
+    expect(membershipLabel('ACTIVE')).toBe('Miembro');
+    expect(membershipLabel('DECLINED')).toBe('Rechazó la invitación');
+    expect(membershipLabel('REMOVED')).toBe('Retirado del grupo');
+    expect(invitationLabel('INVITED')).toBe('Pendiente');
+    expect(invitationLabel('ACTIVE')).toBe('Miembro');
+    expect(invitationLabel('DECLINED')).toBe('Rechazada');
+    expect(invitationLabel('REMOVED')).toBe('Saliste del grupo');
+    expect(membershipLabel(undefined)).toBe('Sin estado');
   });
 
   it('plural concuerda con la cantidad', () => {

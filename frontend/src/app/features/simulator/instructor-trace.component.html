@@ -81,6 +81,13 @@
                 <ui-badge>Puntaje {{ item.accumulatedScore }}</ui-badge>
                 <ui-badge>Estrés {{ item.stressIndex }}%</ui-badge>
               </div>
+              @if (canReplace(item)) {
+                <!-- E1-2 (RN-07): solo el docente reemplaza un intento abierto, con motivo. -->
+                <div class="tr-replace">
+                  <button ui-button type="button" variant="secondary" icon="restart_alt" [loading]="replacing()"
+                    aria-haspopup="dialog" (click)="replace(item)">Reemplazar intento</button>
+                </div>
+              }
             </ui-card>
 
             <div class="tr-summary" role="group" aria-label="Resumen de revisión">

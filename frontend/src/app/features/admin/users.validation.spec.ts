@@ -108,7 +108,7 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
       host.innerHTML = '<input id="uno" class="ng-invalid">';
       component.newUser();
       fillRequired();
-      password().setValue('12345678');
+      password().setValue('1234567890');
       service.create.mockReturnValue(of({ ...ana, id: 6 }));
 
       component.save();
@@ -132,20 +132,20 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
       expect(component.form.invalid).toBe(true);
     });
 
-    it.each(escenarios)('%s: con 7 caracteres es inválida', (_nombre, preparar) => {
+    it.each(escenarios)('%s: con 9 caracteres es inválida (el servidor exige 10, E2-9)', (_nombre, preparar) => {
       preparar();
       fillRequired();
-      password().setValue('1234567');
+      password().setValue('123456789');
 
       expect(password().hasError('minlength')).toBe(true);
       expect(password().hasError('required')).toBe(false);
       expect(component.form.invalid).toBe(true);
     });
 
-    it.each(escenarios)('%s: con 8 caracteres es válida', (_nombre, preparar) => {
+    it.each(escenarios)('%s: con 10 caracteres es válida', (_nombre, preparar) => {
       preparar();
       fillRequired();
-      password().setValue('12345678');
+      password().setValue('1234567890');
 
       expect(password().valid).toBe(true);
       expect(component.form.valid).toBe(true);
@@ -172,14 +172,14 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
       expect(component.form.valid).toBe(true);
     });
 
-    it('con 7 caracteres es inválida y con 8 es válida', () => {
+    it('con 9 caracteres es inválida y con 10 es válida (E2-9)', () => {
       component.editUser(ana);
 
-      password().setValue('1234567');
+      password().setValue('123456789');
       expect(password().hasError('minlength')).toBe(true);
       expect(component.form.invalid).toBe(true);
 
-      password().setValue('12345678');
+      password().setValue('1234567890');
       expect(password().valid).toBe(true);
     });
 
@@ -206,7 +206,7 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
     it('tras crear con éxito el formulario queda en modo edición (contraseña opcional)', () => {
       component.newUser();
       fillRequired();
-      password().setValue('12345678');
+      password().setValue('1234567890');
       service.create.mockReturnValue(of({ ...ana, id: 6, nombre: 'Luis', email: 'luis@siep.test' }));
 
       component.save();

@@ -1,7 +1,10 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { AdminUser, UserAdminService, UserRole } from '../../core/api/user-admin.service';
+import { from } from 'rxjs';
+import { concatMap, reduce } from 'rxjs/operators';
+import { APPROVE_BATCH_SIZE, AdminUser, ApproveUsersResult, UserAdminService, UserRole } from '../../core/api/user-admin.service';
+import { PASSWORD_MIN_LENGTH } from '../../core/auth/password-change';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
@@ -9,6 +12,7 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { roleLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
@@ -19,6 +23,25 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UserFormSheetComponent, UserFormSheetData } from './user-form-sheet.component';
+
+const NO_APPROVALS: ApproveUsersResult = { approved: 0, approvedIds: [], skipped: [], emailed: 0, failed: [] };
+
+const accounts = (count: number) => (count === 1 ? '1 cuenta' : `${count} cuentas`);
+
+/** Resumen de una aprobación (E2-9): lo que se aprobó, a quién no le llegó el correo y lo que ya no estaba pendiente. */
+export function approvalSummary(result: ApproveUsersResult): string {
+  const parts: string[] = [];
+  if (result.approved) {
+    parts.push(`${result.approved === 1 ? 'Se aprobó' : 'Se aprobaron'} ${accounts(result.approved)}: cada persona recibió por correo su contraseña temporal.`);
+  }
+  if (result.failed.length) {
+    parts.push(`No se pudo enviar el correo a ${accounts(result.failed.length)}: ${result.failed.length === 1 ? 'sigue pendiente' : 'siguen pendientes'}.`);
+  }
+  if (result.skipped.length) {
+    parts.push(`${accounts(result.skipped.length)} ya no ${result.skipped.length === 1 ? 'estaba pendiente' : 'estaban pendientes'}.`);
+  }
+  return parts.join(' ') || 'No había cuentas pendientes que aprobar.';
+}
 
 interface UserFormValue {
   nombre: string;
@@ -39,7 +62,7 @@ interface UserFormValue {
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    UiBadge, UiButton, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection,
+    UiBadge, UiButton, UiCard, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection,
     UiEmptyState, UiErrorState, UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable,
   ],
   templateUrl: './users.component.html',
@@ -79,8 +102,17 @@ export class UsersComponent implements OnInit {
     error: this.error,
     isEmpty: computed(() => this.users().length === 0),
   });
+  /** El resultado de la última acción sobre varias cuentas (aprobar), para la región de estado. */
+  private readonly actionStatus = signal('');
   /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
-  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando usuarios…' : ''));
+  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando usuarios…' : this.actionStatus()));
+  /** E2-9: cuentas creadas por una importación que esperan la aprobación del administrador. */
+  readonly pendingUsers = computed(() => this.users().filter(user => user.pendingApproval));
+  protected readonly pendingText = computed(() => {
+    const count = this.pendingUsers().length;
+    return `${count === 1 ? 'Hay 1 cuenta' : `Hay ${count} cuentas`} de estudiantes importados esperando tu aprobación. ` +
+      'Al aprobarlas, cada persona recibe por correo una contraseña temporal que deberá cambiar al entrar.';
+  });
 
   readonly form = this.fb.nonNullable.group({
     nombre: ['', Validators.required],
@@ -112,7 +144,9 @@ export class UsersComponent implements OnInit {
   /** Al crear, la contraseña es obligatoria; al editar, vacía significa «no cambiarla». */
   private setPasswordRules(creating: boolean): void {
     const password = this.form.controls.password;
-    password.setValidators(creating ? [Validators.required, Validators.minLength(8)] : [Validators.minLength(8)]);
+    // E2-9: el servidor exige 10 caracteres (antes la interfaz pedía 8 y el servidor rechazaba lo que ella aceptaba).
+    const min = Validators.minLength(PASSWORD_MIN_LENGTH);
+    password.setValidators(creating ? [Validators.required, min] : [min]);
     password.updateValueAndValidity({ emitEvent: false });
   }
 
@@ -176,8 +210,9 @@ export class UsersComponent implements OnInit {
     });
   }
 
-  load() {
-    this.loading.set(true);
+  /** Carga la lista. Con `silencioso` (tras aprobar) la tabla sigue a la vista y solo cambian sus filas. */
+  load(silencioso = false) {
+    if (!silencioso) this.loading.set(true);
     this.error.set('');
     this.service.list().subscribe({
       next: users => {
@@ -185,8 +220,13 @@ export class UsersComponent implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('No fue posible cargar los usuarios.');
         this.loading.set(false);
+        // Un refresco silencioso que falla no tira una lista válida: se conserva y se avisa.
+        if (silencioso) {
+          this.notify.warning('No pudimos actualizar la lista de usuarios.');
+          return;
+        }
+        this.error.set('No fue posible cargar los usuarios.');
       }
     });
   }
@@ -308,6 +348,8 @@ export class UsersComponent implements OnInit {
 
   // ── Acciones de la fila ───────────────────────────────────────────────────────────────────────────────────────
   rowActions(user: AdminUser): UiMenuItem[] {
+    // E2-9: «Activar» una pendiente sería aprobarla; se dice así (y manda el correo con la contraseña temporal).
+    if (user.pendingApproval) return [{ value: 'aprobar', label: 'Aprobar cuenta', icon: 'task_alt' }];
     return [{
       value: 'estado',
       label: user.activo ? 'Desactivar usuario' : 'Activar usuario',
@@ -318,6 +360,82 @@ export class UsersComponent implements OnInit {
 
   rowAction(user: AdminUser, action: string | undefined): void {
     if (action === 'estado') void this.toggleStatus(user);
+    if (action === 'aprobar') void this.approveUser(user);
+  }
+
+  /** La insignia del estado de la cuenta: una pendiente de aprobación no es una inactiva. */
+  statusBadge(user: AdminUser): { label: string; tone: 'success' | 'neutral' | 'warning' } {
+    if (user.pendingApproval) return { label: 'Pendiente de aprobación', tone: 'warning' };
+    return user.activo ? { label: 'Activo', tone: 'success' } : { label: 'Inactivo', tone: 'neutral' };
+  }
+
+  async approvePending(): Promise<void> {
+    const ids = this.pendingUsers().map(user => user.id);
+    const confirmed = await this.confirmOnce({
+      title: 'Aprobar cuentas pendientes',
+      message: `¿Aprobar ${accounts(ids.length)}? Cada persona recibirá por correo una contraseña temporal y deberá cambiarla al entrar.`,
+      confirmLabel: 'Aprobar',
+    });
+    if (confirmed) this.approveIds(ids);
+  }
+
+  async approveUser(user: AdminUser): Promise<void> {
+    const confirmed = await this.confirmOnce({
+      title: 'Aprobar cuenta',
+      message: `¿Aprobar la cuenta de ${user.nombre} ${user.apellido}? Recibirá por correo una contraseña temporal y deberá cambiarla al entrar.`,
+      confirmLabel: 'Aprobar',
+    });
+    if (confirmed) this.approveIds([user.id]);
+  }
+
+  /** Una sola confirmación a la vez: un segundo gesto no abre otra ni repite la acción. */
+  private async confirmOnce(options: { title: string; message: string; confirmLabel: string }): Promise<boolean> {
+    if (this.saving() || this.confirmando) return false;
+    this.confirmando = true;
+    try {
+      return await this.dialog.confirm(options);
+    } finally {
+      this.confirmando = false;
+    }
+  }
+
+  /** Aprueba en lotes de 100 (el máximo del servidor), uno tras otro, y resume el total. */
+  private approveIds(ids: number[]): void {
+    if (this.saving() || !ids.length) return;
+    this.saving.set(true);
+    this.actionStatus.set('');
+    const batches: number[][] = [];
+    for (let start = 0; start < ids.length; start += APPROVE_BATCH_SIZE) batches.push(ids.slice(start, start + APPROVE_BATCH_SIZE));
+    from(batches).pipe(
+      concatMap(batch => this.service.approve(batch)),
+      reduce((total, part) => ({
+        approved: total.approved + part.approved,
+        approvedIds: [...total.approvedIds, ...part.approvedIds],
+        skipped: [...total.skipped, ...part.skipped],
+        emailed: total.emailed + part.emailed,
+        failed: [...total.failed, ...part.failed],
+      }), NO_APPROVALS),
+    ).subscribe({
+      next: total => {
+        const summary = approvalSummary(total);
+        this.actionStatus.set(summary);
+        if (total.failed.length) this.notify.warning(summary);
+        else this.notify.success(summary);
+      },
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible aprobar las cuentas.');
+        if (text) {
+          this.notify.error(text);
+          this.actionStatus.set(text);
+        }
+        this.saving.set(false);
+        this.load(true);
+      },
+      complete: () => {
+        this.saving.set(false);
+        this.load(true);
+      },
+    });
   }
 
   async toggleStatus(user: AdminUser): Promise<void> {

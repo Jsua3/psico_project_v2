@@ -146,6 +146,13 @@
   gap: var(--ds-space-2);
 }
 
+// E1-2: el reemplazo docente de un intento abierto, al pie de la tarjeta del intento.
+.tr-replace {
+  display: flex;
+  flex-wrap: wrap;
+  margin-block-start: var(--ds-space-3);
+}
+
 .tr-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));

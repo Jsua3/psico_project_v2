@@ -321,10 +321,9 @@ def test_crear_actualizar_y_eliminar_un_objeto(api, admin, draft):
     _assert_audited(admin, "ADMIN_DELETE_OBJECT", "OBJECT", obj["id"], "delete_object")
 
 
-def test_crear_un_objeto_sin_texto_de_interaccion_falla_hoy_con_500(api, draft):
-    """Comportamiento actual (defecto): `interactionPrompt` e `interactionText` son NOT NULL y esta
-    operación guarda `None` si faltan, así que revienta en la base. El editor de mundo (`save_world`)
-    sí los completa con «»."""
+def test_crear_un_objeto_sin_texto_de_interaccion_usa_cadenas_vacias(api, draft):
+    """Corregido en E2-6: `interactionPrompt` e `interactionText` son NOT NULL y antes esta operación
+    guardaba `None` si faltaban (500); ahora el serializador los completa con «» como `save_world`."""
     map_id = _editor(api, draft)["maps"][0]["id"]
 
     resp = api.post(
@@ -333,17 +332,17 @@ def test_crear_un_objeto_sin_texto_de_interaccion_falla_hoy_con_500(api, draft):
         format="json",
     )
 
-    assert resp.status_code == 500
-    assert not MapObject.objects.filter(object_key="sin-texto").exists()
+    assert resp.status_code == 200
+    saved = MapObject.objects.get(object_key="sin-texto")
+    assert (saved.interaction_prompt, saved.interaction_text) == ("", "")
 
 
-def test_crear_una_herramienta_sin_descripcion_falla_hoy_con_500(api, draft):
-    """Comportamiento actual (defecto): `description` es NOT NULL y `create_tool` guarda `None`
-    si falta, igual que `create_object` con el texto de interacción."""
+def test_crear_una_herramienta_sin_descripcion_usa_la_cadena_vacia(api, draft):
+    """Corregido en E2-6: `description` es NOT NULL y `create_tool` guardaba `None` si faltaba (500)."""
     resp = api.post(f"{BASE}/{draft}/tools", {"toolCode": "SIN-DESC", "label": "L"}, format="json")
 
-    assert resp.status_code == 500
-    assert not ClinicalTool.objects.filter(tool_code="SIN-DESC").exists()
+    assert resp.status_code == 200
+    assert ClinicalTool.objects.get(tool_code="SIN-DESC", case_version_id=draft).description == ""
 
 
 def test_un_objeto_de_otra_version_se_rechaza(api, draft, published_cv):
@@ -766,11 +765,12 @@ def test_actualizar_un_dialogo_que_falla_a_mitad_conserva_sus_lineas(api, draft)
     )
     tree = DialogueTree.objects.get(scene_map_id=map_id, tree_key="dlg-atomico")
 
+    # Falla a mitad en la base: dos líneas con el mismo displayOrder (UNIQUE por árbol).
     resp = api.put(
         f"{BASE}/{draft}/dialogues/{tree.id}",
         {"treeKey": "dlg-atomico", "speakerName": "Voz",
          "lines": [{"displayOrder": 1, "speakerName": "Voz", "text": "Nueva"},
-                   {"displayOrder": 2, "speakerName": "Voz", "text": None}]},
+                   {"displayOrder": 1, "speakerName": "Voz", "text": "Repetida"}]},
         format="json",
     )
 
@@ -844,7 +844,8 @@ def test_crear_un_dialogo_que_falla_a_mitad_no_deja_el_arbol(api, draft):
     resp = api.post(
         f"{BASE}/{draft}/maps/{map_id}/dialogues",
         {"treeKey": "dlg-a-medias", "speakerName": "Voz",
-         "lines": [{"displayOrder": 1, "speakerName": "Voz", "text": None}]},
+         "lines": [{"displayOrder": 1, "speakerName": "Voz", "text": "Una"},
+                   {"displayOrder": 1, "speakerName": "Voz", "text": "Repetida"}]},
         format="json",
     )
 
@@ -858,7 +859,9 @@ def test_guardar_el_mundo_que_falla_a_mitad_no_deja_el_mapa_cambiado(api, draft)
     resp = api.put(
         f"{BASE}/{draft}/world?nodeId={we['nodeId']}",
         {"map": {"width": 1234, "theme": "a-medias"},
-         "objects": [{"key": "sin-tipo", "label": "x", "visible": True}]},  # sin `type`: NOT NULL
+         # Falla a mitad en la base: dos objetos con la misma clave (UNIQUE por mapa).
+         "objects": [{"key": "repetido", "label": "x", "type": "OBJECT", "visible": True},
+                     {"key": "repetido", "label": "y", "type": "OBJECT", "visible": True}]},
         format="json",
     )
 

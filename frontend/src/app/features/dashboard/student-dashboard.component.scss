@@ -29,12 +29,20 @@
 }
 
 // ── Continuar ───────────────────────────────────────────────────────────────────────────────────────────────────
-.sd-continue {
+.sd-continue,
+.sd-invitations__card {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-space-4);
+}
+
+// E2-10: aviso de invitaciones a grupos sin responder (el anfitrión de ui-section queda en bloque).
+.sd-invitations__text {
+  flex: 1 1 18rem;
+  min-width: 0;
+  margin: 0;
 }
 
 .sd-continue__text {

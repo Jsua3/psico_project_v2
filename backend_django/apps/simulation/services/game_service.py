@@ -32,6 +32,7 @@ from . import attempt_lifecycle as lifecycle
 from . import case_effects, crypto_service, decision_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
+from shared import policies
 from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
 from .attempt_lock import lock_attempt_row, locked_attempt
@@ -98,7 +99,10 @@ def _require_published(case_version_id):
 
 
 def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
-    """El intento del token, para su dueño o para el docente/ADMIN.
+    """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04).
+
+    Un docente o el ADMIN no leen un intento ajeno por token: su vía es ``/api/instructor/**``
+    y el reporte de finalización (``get_student_report``), que aplican el alcance.
 
     ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
     alcanzable, aunque el estudiante ya no tenga el caso asignado).
@@ -119,8 +123,7 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
     if not attempt:
         raise NotFound("Intento no encontrado")
     owner = attempt.student_id == actor.id
-    staff = actor.role in ("ADMIN", "PROFESOR")
-    if not owner and not staff:
+    if not policies.can(actor, "attempt", "play", owner_id=attempt.student_id):
         raise PermissionDenied("No tiene acceso a este intento")
     # Un estudiante al que ya no le asignaron el caso no continúa un intento abierto; uno
     # cerrado sigue siendo suyo y se puede leer. Una versión archivada o un caso dado de baja
@@ -427,11 +430,13 @@ def get_student_report(attempt_id, actor):
     )
     if not attempt:
         raise NotFound("Intento no encontrado")
-    if attempt.student_id != actor.id:
-        # None = ADMIN (sin restricción); para el resto, solo los estudiantes de sus grupos.
-        alcance = student_ids_for_instructor(actor)
-        if alcance is not None and attempt.student_id not in alcance:
-            raise PermissionDenied("No tiene acceso a este intento")
+    # El dueño, o quien puede revisarlo: el ADMIN o el profesor con alcance sobre el estudiante.
+    member = False
+    if attempt.student_id != actor.id and actor.role in ("PROFESOR", "ADMIN"):
+        alcance = student_ids_for_instructor(actor)  # None = ADMIN (sin restricción)
+        member = alcance is None or attempt.student_id in alcance
+    if not policies.can(actor, "attempt", "report", owner_id=attempt.student_id, member=member):
+        raise PermissionDenied("No tiene acceso a este intento")
     return attempt_report.report_for(attempt)
 
 

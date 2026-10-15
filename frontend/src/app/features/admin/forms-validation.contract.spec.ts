@@ -16,10 +16,10 @@ describe('formularios: validar al enviar — Usuarios', () => {
   });
 
   it('cada campo explica su error', () => {
-    for (const text of ['Escribe el nombre.', 'Escribe el apellido.', 'Escribe el correo.', 'Escribe un correo válido.', 'Elige un rol.', 'La contraseña es obligatoria al crear un usuario.', 'Usa al menos 8 caracteres.']) {
+    for (const text of ['Escribe el nombre.', 'Escribe el apellido.', 'Escribe el correo.', 'Escribe un correo válido.', 'Elige un rol.', 'La contraseña es obligatoria al crear un usuario.', 'Usa al menos 10 caracteres.']) {
       expect(sheet).toContain(text);
     }
-    expect(sheet).toContain('hint="Mínimo 8 caracteres."');
+    expect(sheet).toContain('hint="Mínimo 10 caracteres."');
   });
 
   it('la contraseña se valida con validadores según crear/editar', () => {

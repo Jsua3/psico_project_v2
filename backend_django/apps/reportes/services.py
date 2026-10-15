@@ -14,7 +14,7 @@ from django.db.models import Avg
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-from apps.grupos.models import Grupo, GrupoEstudiante
+from apps.grupos.models import Grupo, GrupoEstudiante, MembershipStatus
 from apps.simulation.models.attempt import (
     AttemptEvent,
     AttemptStatus,
@@ -38,7 +38,10 @@ def _nombre_completo(user):
 
 
 def _grupo_student_ids(grupo_id):
-    return list(GrupoEstudiante.objects.filter(grupo_id=grupo_id).values_list("estudiante_id", flat=True))
+    return list(
+        GrupoEstudiante.objects.filter(grupo_id=grupo_id, status=MembershipStatus.ACTIVE)
+        .values_list("estudiante_id", flat=True)
+    )
 
 
 def _count_decisions(attempt_ids, classification):

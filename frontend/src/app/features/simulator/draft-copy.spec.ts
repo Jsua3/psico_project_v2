@@ -44,9 +44,17 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
       ['consentSaving', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
     );
-    // Los diez de F6 y los ocho de F7-4: tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
-    // nombres de nivel (las claves las fijó ED-2; la redacción visible la elige Psicología).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(18);
+    // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
+    // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
+    // reemplazo docente (F7b-7, RN-07).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(19);
+  });
+
+  // req: RN-07 (F7b-7, revisión)
+  it('registra la consecuencia del reemplazo docente con el rótulo de estado que ve la lista', () => {
+    expect(DRAFT_COPY.replaceAttemptConsequence).toMatchObject({ decision: 'RN-07', owner: 'Psicología' });
+    expect(DRAFT_COPY.replaceAttemptConsequence.text).toContain('«Reemplazado por un intento nuevo»');
+    expect(DRAFT_COPY.replaceAttemptConsequence.text).toContain('bitácora');
   });
 
   // req: RN-09, BLOQUE-H (F7-4)

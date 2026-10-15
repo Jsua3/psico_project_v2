@@ -14,6 +14,18 @@ class CaseVersionStatus(models.TextChoices):
     ARCHIVED = "ARCHIVED"
 
 
+class ReviewDecision(models.TextChoices):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class ReviewReason(models.TextChoices):
+    """Por qué una revisión devuelve el caso a borrador: de forma o de contenido (consejo §9.1-B)."""
+
+    FORMA = "FORMA"
+    CONTENIDO = "CONTENIDO"
+
+
 class DecisionClassification(models.TextChoices):
     ADEQUATE = "ADEQUATE"
     RISKY = "RISKY"
@@ -66,6 +78,15 @@ class CaseVersion(models.Model):
     # (``IMMEDIATE`` | ``AT_CLOSE``). Ausente = segunda oportunidad apagada (ED-7). Ver
     # ``services/case_rules.py``.
     rules = models.TextField(default="{}", db_default="{}")
+    # E2 (revisión de fase, R15): quién editó por última vez y desde qué revisión lo hace en
+    # solitario. Una revisión vencida de la MISMA persona (otra pestaña, un guardado cuya respuesta
+    # se canceló) no es un conflicto mientras nadie más haya editado después
+    # (``authoring.guards.check_revision``). Un clon empieza sin historial.
+    last_edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        db_column="last_edited_by", related_name="+",
+    )
+    edited_alone_since = models.BigIntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "case_versions"
@@ -79,6 +100,64 @@ class CaseVersion(models.Model):
 
     def __str__(self):
         return f"{self.simulation_case.code} v{self.semantic_version}"
+
+
+class CaseReview(models.Model):
+    """Una revisión de una versión del caso (E2-5): quién la pidió y quién la decidió.
+
+    Mientras ``decision`` es nulo la revisión está **pendiente** (la versión está en
+    ``IN_REVIEW``); solo puede haber una pendiente por versión. La constancia de revisión de
+    contenido de Psicología (revisor, fecha y referencia o acta) se registra al aprobar y es
+    obligatoria con ``REVIEW_WORKFLOW_STRICT`` (R5 del plan E2).
+    """
+
+    case_version = models.ForeignKey(
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="reviews", db_column="case_version_id"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="requested_by",
+        related_name="case_reviews_requested",
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, null=True, blank=True,
+        db_column="decided_by", related_name="case_reviews_decided",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision = models.CharField(max_length=10, choices=ReviewDecision.choices, null=True, blank=True)
+    reason = models.CharField(max_length=10, choices=ReviewReason.choices, null=True, blank=True)
+    note = models.TextField(blank=True, default="", db_default="")
+    content_reviewer = models.CharField(max_length=255, null=True, blank=True)
+    content_reviewed_on = models.DateField(null=True, blank=True)
+    content_reference = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        db_table = "case_reviews"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(decision__isnull=True) | models.Q(decision__in=ReviewDecision.values),
+                name="case_reviews_decision_check",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reason__isnull=True) | models.Q(reason__in=ReviewReason.values),
+                name="case_reviews_reason_check",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(decision=ReviewDecision.REJECTED) | models.Q(reason__isnull=False),
+                name="case_reviews_rejection_has_reason_check",
+            ),
+            models.UniqueConstraint(
+                fields=["case_version"],
+                condition=models.Q(decision__isnull=True),
+                name="uq_case_reviews_one_pending",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["case_version", "requested_at"], name="idx_case_reviews_version"),
+        ]
+
+    def __str__(self):
+        return f"revisión {self.pk} de la versión {self.case_version_id} ({self.decision or 'PENDIENTE'})"
 
 
 class SimulationNode(models.Model):

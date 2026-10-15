@@ -7,7 +7,21 @@ export type UserRole = User['role'];
 
 export interface AdminUser extends User {
   activo: boolean;
+  /** E2-9: cuenta creada por una importación que el administrador aún no aprueba. */
+  pendingApproval?: boolean;
 }
+
+/** Respuesta de `POST /api/admin/users/approve` (E2-9): nunca trae contraseñas; la temporal sale por correo. */
+export interface ApproveUsersResult {
+  approved: number;
+  approvedIds: number[];
+  skipped: number[];
+  emailed: number;
+  failed: number[];
+}
+
+/** El servidor acepta como mucho 100 cuentas por orden (cada aprobación manda un correo). */
+export const APPROVE_BATCH_SIZE = 100;
 
 export interface CreateUserRequest {
   email: string;
@@ -46,6 +60,12 @@ export class UserAdminService {
 
   update(id: number, request: UpdateUserRequest) {
     return this.http.put<ApiResponse<AdminUser>>(`${this.API}/${id}`, request).pipe(map(response => response.data));
+  }
+
+  /** Aprueba cuentas pendientes (≤ 100 por orden): cada una recibe su contraseña temporal por correo. */
+  approve(userIds: number[]) {
+    return this.http.post<ApiResponse<ApproveUsersResult>>(`${this.API}/approve`, { userIds })
+      .pipe(map(response => response.data));
   }
 
   updateStatus(id: number, activo: boolean) {

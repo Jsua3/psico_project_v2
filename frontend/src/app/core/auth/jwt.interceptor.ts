@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 import { NotificationService } from '../notifications/notification.service';
-import { buildHttpErrorChain } from './http-error-chain';
+import { SCREEN_HANDLES_FORBIDDEN, buildHttpErrorChain } from './http-error-chain';
 
 const errorChain = buildHttpErrorChain();
 
@@ -21,7 +21,10 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: unknown) => {
-      errorChain.handle({ error, url: req.url, auth, router, notifications });
+      errorChain.handle({
+        error, url: req.url, auth, router, notifications,
+        screenHandlesForbidden: req.context.get(SCREEN_HANDLES_FORBIDDEN),
+      });
       return throwError(() => error);
     })
   );

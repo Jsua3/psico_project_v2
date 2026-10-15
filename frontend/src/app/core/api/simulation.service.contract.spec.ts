@@ -90,6 +90,9 @@ const CONTRACTS: Contract[] = [
     url: `/api/instructor/attempts/${ATTEMPT}/trace` },
   { method: 'rubric', call: s => s.rubric(ATTEMPT), verb: 'GET',
     url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation` },
+  // E1-2 (RN-07, plan visual F7b-7): el docente reemplaza un intento abierto con un motivo.
+  { method: 'replaceAttempt', call: s => s.replaceAttempt(ATTEMPT, 'motivo'), verb: 'POST',
+    url: `/api/instructor/attempts/${ATTEMPT}/replace`, body: { reason: 'motivo' } },
   { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, score: 3, comment: 'c' }]),
     verb: 'PUT', url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation`,
     body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, score: 3, comment: 'c' }] } },
@@ -280,14 +283,14 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(47);
+    expect(publicMethods).toHaveLength(48);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(47);
-    expect([player.length, authoring.length, instructor.length]).toEqual([19, 24, 4]);
-    expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'saveRubric']);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(48);
+    expect([player.length, authoring.length, instructor.length]).toEqual([19, 24, 5]);
+    expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 
   it('el jugador no ve métodos de autoría ni de instructor', () => {

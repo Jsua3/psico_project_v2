@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 
 import { NotificationService } from '../notifications/notification.service';
-import { authGuard, roleGuard } from './auth.guard';
+import { authGuard, passwordChangeGuard, roleGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 
 type TokenState = 'none' | 'valid' | 'expired' | 'malformed';
@@ -20,10 +20,12 @@ describe('authGuard y roleGuard', () => {
   const warning = vi.fn();
   const error = vi.fn();
   let hasRole: (...roles: string[]) => boolean;
+  let mustChange: boolean;
 
   beforeEach(() => {
     token = 'valid';
     hasRole = () => true;
+    mustChange = false;
     clearSession.mockReset();
     warning.mockReset();
     error.mockReset();
@@ -38,6 +40,7 @@ describe('authGuard y roleGuard', () => {
             isTokenMalformed: () => token === 'malformed',
             isTokenExpired: () => token === 'expired',
             hasRole: (...roles: string[]) => hasRole(...roles),
+            mustChangePassword: () => mustChange,
             clearSession,
           },
         },
@@ -75,6 +78,14 @@ describe('authGuard y roleGuard', () => {
     hasRole = () => false;
     // Antes: al panel con un aviso flotante que se iba solo (una redirección muda, según el gancho de F3).
     expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/portal/sin-permiso?desde=%2Fportal%2Fgrupos');
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  // req: RN-10 (E2-9: cuenta aprobada con contraseña temporal; el servidor niega todo con 403 hasta cambiarla)
+  it('passwordChangeGuard: con el cambio de contraseña pendiente, el portal manda a «Cambia tu contraseña» con la ruta pedida', () => {
+    expect(run(passwordChangeGuard, '/portal/grupos')).toBe(true);
+    mustChange = true;
+    expect(serialize(run(passwordChangeGuard, '/portal/grupos?pagina=2'))).toBe('/cambiar-contrasena?returnUrl=%2Fportal%2Fgrupos%3Fpagina%3D2');
     expect(warning).not.toHaveBeenCalled();
   });
 });

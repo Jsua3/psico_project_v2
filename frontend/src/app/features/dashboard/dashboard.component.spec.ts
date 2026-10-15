@@ -369,30 +369,24 @@ describe('DashboardComponent', () => {
       expect(first.getAttribute('aria-label')).toContain('Ana');
     });
 
-    it('nunca ofrece continuar el intento en curso de OTRA persona; sí el propio, con su caso', async () => {
+    // req: ED-5 (E2: el ADMIN no juega; desde entonces nadie del personal tiene intento propio que retomar)
+    it('nunca ofrece continuar un intento: ni el de OTRA persona ni uno propio del administrador (ED-5)', async () => {
       const others = dashboardData({
         intentosRecientes: [{ id: 'x', casoTitulo: 'Caso de otra', estudiante: 'Carla', puntaje: 0, estado: 'IN_PROGRESS' }],
       });
-      await render('ADMIN', { reporte: { getDashboard: () => of(others) } });
-      // La tabla de «Intentos recientes» sí lista el intento de otra persona; lo que no puede salir es la tarjeta
-      // «Retoma tu caso» ni un acceso a continuarlo.
-      expect(host().querySelector('.td-continue')).toBeNull();
-      expect(host().textContent).not.toMatch(/Continuar (entrenamiento|simulación)/);
-      expect(host().querySelector('a[href="/portal/simulador"]')).toBeNull();
-
-      TestBed.resetTestingModule();
       await render('ADMIN', {
         reporte: { getDashboard: () => of(others) },
         history: () => of([ownAttempt({ caseTitle: 'Caso propio', caseVersionId: 7 })]),
       });
-      const resume = host().querySelector('a[href="/portal/simulador/7"]');
-      expect(resume).not.toBeNull();
-      expect(spoken(resume!)).toBe('Continuar');
-      expect(text(host().querySelector('.td-continue'))).toContain('Caso propio');
-      expect(text(host().querySelector('.td-continue'))).not.toContain('Caso de otra');
+      // La tabla de «Intentos recientes» sí lista el intento de otra persona; lo que no puede salir es la tarjeta
+      // «Retoma tu caso» ni un acceso a continuar nada.
+      expect(host().querySelector('.td-continue')).toBeNull();
+      expect(host().textContent).not.toContain('Retoma tu caso');
+      expect(host().querySelector('a[href^="/portal/simulador/"]')).toBeNull();
+      expect(host().textContent).not.toMatch(/Continuar (entrenamiento|simulación)/);
     });
 
-    it('el docente no pide su historial de intentos (el servidor se lo niega con 403 y saldría un aviso de permiso en cada carga); el administrador sí', async () => {
+    it('ni el docente ni el administrador piden un historial propio (el servidor se lo niega con 403 a los dos desde E2 y saldría un aviso de permiso en cada carga)', async () => {
       const teacherHistory = vi.fn(() => of([] as StudentAttemptSummary[]));
       await render('PROFESOR', { history: teacherHistory });
       expect(teacherHistory).not.toHaveBeenCalled();
@@ -400,7 +394,7 @@ describe('DashboardComponent', () => {
       TestBed.resetTestingModule();
       const adminHistory = vi.fn(() => of([] as StudentAttemptSummary[]));
       await render('ADMIN', { history: adminHistory });
-      expect(adminHistory).toHaveBeenCalledTimes(1);
+      expect(adminHistory).not.toHaveBeenCalled();
     });
 
     it('una sola señal de carga: esqueleto con aria-busy y el estado leído; ninguna cifra mientras tanto', async () => {
