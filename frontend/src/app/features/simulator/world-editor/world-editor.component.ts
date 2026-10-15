@@ -616,6 +616,8 @@ const OBJECT_COLORS: Record<string, string> = {
       color: var(--psy-blue-deep);
     }
     .we-tool-btn:disabled { opacity: .35; pointer-events: none; }
+    /* Lo que no se puede usar (solo lectura, nada que guardar) se ve apagado, no igual que lo activo. */
+    .we-actions .psy-button:disabled, .we-template-btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
     .we-tool-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .we-divider {
       display: block;
@@ -766,6 +768,22 @@ const OBJECT_COLORS: Record<string, string> = {
       font-size: 1.05rem;
       color: var(--psy-ink);
     }
+    /*
+     * El inspector mide 300 px: toda rejilla con una pista minmax(0, 1fr) (una pista auto crece con el ancho natural
+     * de un campo y el contenido se salía por la derecha de la tarjeta) y los campos de texto al ancho de su pista.
+     */
+    .we-inspector, .we-fieldset, .we-form, .we-room, .we-door, .we-movement, .we-dialogue, .we-npc-kit,
+    .we-form label, .we-room label, .we-door label, .we-movement label, .we-choice-reqs label {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .we-form input:not([type='checkbox']):not([type='color']):not([type='range']), .we-form select,
+    .we-room input:not([type='checkbox']):not([type='color']):not([type='range']), .we-room select,
+    .we-door input:not([type='checkbox']):not([type='color']):not([type='range']), .we-door select,
+    .we-movement input:not([type='checkbox']):not([type='color']):not([type='range']), .we-movement select {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
     .we-form { display: grid; gap: 8px; }
     .we-form label {
       display: grid;
@@ -787,7 +805,7 @@ const OBJECT_COLORS: Record<string, string> = {
       border-color: var(--psy-blue);
       box-shadow: 0 0 0 2px var(--psy-focus);
     }
-    .we-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .we-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
     .we-check {
       display: flex !important;
       align-items: center;
@@ -861,11 +879,14 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-dialogue-head { display: flex; align-items: center; justify-content: space-between; }
     .we-sub { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
     .we-sub-title { font-weight: 700; color: var(--psy-blue-deep); font-size: .82rem; }
-    .we-row, .we-choice { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
-    .we-choice { grid-template-columns: 1fr 1fr auto; }
+    .we-row, .we-choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .we-choice { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+    .we-row input, .we-choice input, .we-choice select,
+    .we-choice-reqs input, .we-choice-reqs select { width: 100%; min-width: 0; box-sizing: border-box; }
     .we-choice-reqs {
       grid-column: 1 / -1;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 6px;
       padding: 8px;
       border: 1px solid rgba(79,124,172,.12);
@@ -890,7 +911,7 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-npc-preview { display: flex; gap: 6px; align-items: flex-end; }
     .we-movement { display: grid; gap: 8px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--psy-border); }
     .we-movement h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
-    .we-wp-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 6px; align-items: center; }
+    .we-wp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; }
     .we-wp-idx { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(122,111,158,.16); color: #5b5180; font-weight: 800; font-size: .72rem; }
     .we-wp-xy { font-family: 'JetBrains Mono', monospace; font-size: .76rem; color: var(--psy-muted); }
     .we-movement select, .we-movement input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }

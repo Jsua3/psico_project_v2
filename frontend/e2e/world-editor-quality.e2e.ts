@@ -107,6 +107,9 @@ test.describe('@lienzo calidad · Axe', () => {
     await expect(page.getByRole('heading', { name: /^Objeto: Enfermera/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Agregar línea' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Quitar el punto 1' })).toBeVisible();
+    // El inspector mide 300 px: nada se sale por la derecha de su tarjeta (rejillas `auto` lo hacían crecer).
+    const overflow = await page.locator('.we-inspector').evaluate(element => element.scrollWidth - element.clientWidth);
+    expect(overflow, 'el inspector no se desborda en horizontal').toBeLessThanOrEqual(0);
     expect(await allViolations(page, 'app-world-editor'), 'Mundo con el NPC seleccionado').toEqual([]);
 
     // Con la puerta seleccionada.
