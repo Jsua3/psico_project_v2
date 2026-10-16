@@ -22,10 +22,11 @@ describe('movimiento: botones y páginas', () => {
     expect(styles).toMatch(/\.psy-button:active \{\s*transform: scale\(\.97\);/);
   });
 
-  it('la entrada de página es un fundido corto sin desplazamiento ni desenfoque', () => {
-    expect(styles).toContain('animation: psy-page-fade 150ms var(--psy-ease-out) backwards;');
-    expect(styles).toMatch(/@keyframes psy-page-fade \{\s*from \{ opacity: 0; \}\s*\}/);
-    expect(styles).not.toContain('psy-page-rise');
+  // F9-4: `.psy-reveal` y su `psy-page-fade` eran código muerto (ningún archivo los usaba) y se retiraron; el shell
+  // nuevo no anima la entrada de página. Lo que sigue valiendo: ninguna entrada de página desplaza ni desenfoca.
+  it('no queda entrada de página heredada ni con desplazamiento o desenfoque', () => {
+    for (const legacy of ['psy-page-rise', 'psy-page-fade', 'psy-reveal']) expect(styles).not.toContain(legacy);
+    expect(styles).not.toMatch(/@keyframes [\w-]*page[\w-]*\s*\{[^}]*(translate|blur)/);
   });
 });
 
