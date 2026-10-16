@@ -21,11 +21,11 @@ async function blockingViolations(page: Page, include: string): Promise<string[]
 
 /** Axe mide lo que hay pintado: esperar a que terminen las animaciones finitas (la entrada de la página mezcla los colores). */
 async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForLoadState('networkidle', { timeout: scaled(15_000) }).catch(() => undefined);
   await page.waitForFunction(() => document.getAnimations().every(animation => {
     const timing = animation.effect?.getComputedTiming();
     return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
-  }), undefined, { timeout: 10_000 }).catch(() => undefined);
+  }), undefined, { timeout: scaled(10_000) }).catch(() => undefined);
 }
 
 async function apiToken(request: APIRequestContext, email: string, password: string): Promise<string> {
@@ -43,7 +43,7 @@ const PROFESOR = { email: process.env['E2E_PROFESOR_EMAIL'] ?? 'profesora@psycho
  * asigna el caso publicado, el estudiante acepta e inicia el intento, todo por API.
  */
 async function studentWithAttempt(request: APIRequestContext): Promise<{
-  groupId: number; studentId: number; studentName: string; teacher: Record<string, string>; cleanup: () => Promise<void>;
+  groupId: number; studentId: number; studentName: string; caseLabel: string; teacher: Record<string, string>; cleanup: () => Promise<void>;
 }> {
   const stamp = Date.now().toString(36);
   const email = `reporte-${stamp}@siep.test`;
@@ -58,14 +58,14 @@ async function studentWithAttempt(request: APIRequestContext): Promise<{
   expect(created.status(), 'crear grupo').toBeLessThan(300);
   const groupId = (await created.json()).data.id as number;
   expect((await request.post(`/api/grupos/${groupId}/estudiantes`, { headers: teacher, data: { email } })).status(), 'invitar').toBeLessThan(300);
-  const cases = (await (await request.get('/api/simulation/cases', { headers: teacher })).json()).data as Array<{ caseVersionId: number }>;
+  const cases = (await (await request.get('/api/simulation/cases', { headers: teacher })).json()).data as Array<{ caseVersionId: number; title: string; semanticVersion: string }>;
   expect(cases.length, 'hay un caso publicado').toBeGreaterThan(0);
   expect((await request.post(`/api/grupos/${groupId}/casos`, { headers: teacher, data: { caseVersionId: cases[0].caseVersionId } })).status(), 'asignar el caso').toBeLessThan(300);
 
   const student = { Authorization: `Bearer ${await apiToken(request, email, password)}` };
   expect((await request.post(`/api/me/invitations/${groupId}/accept`, { headers: student, data: {} })).status(), 'aceptar').toBe(200);
   expect((await request.post('/api/simulation/attempts', { headers: student, data: { caseVersionId: cases[0].caseVersionId } })).status(), 'iniciar intento').toBe(200);
-  return { groupId, studentId, studentName: `Reporte ${stamp}`, teacher, cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); } };
+  return { groupId, studentId, studentName: `Reporte ${stamp}`, caseLabel: `${cases[0].title} · v${cases[0].semanticVersion}`, teacher, cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); } };
 }
 
 // req: RF-26, CU-15, RF-25, CU-14, RQ-NEG-006
@@ -77,7 +77,7 @@ test.describe('@reporte-estudiante reporte de un estudiante (F10-7)', () => {
       await loginAs(page, 'profesor');
       await page.goto(`/portal/reportes?grupo=${seeded.groupId}`);
       // Sin un caso elegido el reporte del grupo no trae estudiantes (el consolidado «todos los casos» no existe aún en el servidor).
-      await page.getByLabel(/^Caso de simulación/).selectOption({ index: 1 });
+      await page.getByLabel(/^Caso de simulación/).selectOption({ label: seeded.caseLabel });
       const link = page.getByRole('link', { name: new RegExp(seeded.studentName) });
       await expect(link).toBeVisible({ timeout: scaled(30_000) });
       await link.click();

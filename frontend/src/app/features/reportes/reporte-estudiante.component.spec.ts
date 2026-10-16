@@ -74,6 +74,12 @@ describe('reporte de un estudiante (F10-7)', () => {
       expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
     });
 
+    it('sin nombre (la decisión 21 puede dar solo el alias) el título usa la referencia', async () => {
+      await render(of({ student: { ref: 'Estudiante-12' }, attempts: [attempt()], coverage: { shown: 1, total: 1 } } as ReporteEstudiante));
+
+      expect(text(host().querySelector('h1'))).toBe('Reporte de Estudiante-12');
+    });
+
     it('mientras carga: esqueleto, la región de estado presente y un h1 que nombra la pantalla', async () => {
       await render(new Subject<ReporteEstudiante>());
 
@@ -92,8 +98,8 @@ describe('reporte de un estudiante (F10-7)', () => {
       [403, 'forbidden', 'No tienes permiso para ver el reporte de este estudiante.'],
       [404, 'not-found', 'no existe'],
       [500, 'server', ''],
-    ])('un error %i se dice como «%s», con el motivo del servidor si lo trae', async (status, _kind, fragment) => {
-      const error = new HttpErrorResponse({ status, error: { message: status === 403 ? 'No tienes permiso para ver el reporte de este estudiante.' : undefined } });
+    ])('un error %i se dice como «%s» con el texto de la pantalla (el del servidor es genérico: «No tiene permisos para realizar esta acción»)', async (status, _kind, fragment) => {
+      const error = new HttpErrorResponse({ status, error: { message: status === 403 ? 'No tiene permisos para realizar esta acción' : undefined } });
       await render(throwError(() => error));
 
       const state = host().querySelector('ui-error-state');
@@ -164,6 +170,18 @@ describe('reporte de un estudiante (F10-7)', () => {
       expect(service.getReporteEstudiante).toHaveBeenLastCalledWith(12, { limit: 100 });
       expect(text(host().querySelector('.re-coverage'))).toBe('Mostrando 100 de 120 intentos');
       expect(host().querySelectorAll('tbody tr')).toHaveLength(100);
+    });
+
+    it('al traer más el foco no se pierde: va a la línea «Mostrando X de N» (el botón puede desaparecer)', async () => {
+      await render((_id, options) => of(options['limit'] === 100 ? report(manyAttempts(100), 100) : report(manyAttempts(50), 100)));
+
+      buttonLabelled('Ver más intentos')!.click();
+      await settle();
+      fixture.detectChanges();
+      await settle();
+
+      expect(buttonLabelled('Ver más intentos')).toBeUndefined();
+      expect(document.activeElement).toBe(host().querySelector('.re-coverage'));
     });
 
     it('con todo a la vista no ofrece «Ver más intentos»', async () => {

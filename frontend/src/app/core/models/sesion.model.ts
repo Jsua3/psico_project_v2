@@ -88,7 +88,8 @@ export interface CoberturaReporte {
 }
 
 export interface ReporteEstudiante {
-  student: { ref: string; displayName: string };
+  /** `displayName` puede faltar: según la política de identificación (decisión 21) solo viaja el alias (`ref`). */
+  student: { ref: string; displayName?: string };
   attempts: IntentoEstudianteReporte[];
   coverage: CoberturaReporte;
 }

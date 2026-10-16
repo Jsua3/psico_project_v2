@@ -31,9 +31,9 @@ describe('reporte-estudiante.util', () => {
 
   describe('formatStart', () => {
     it('da la fecha y la hora en español', () => {
-      expect(formatStart('2026-10-10T10:30:00')).toMatch(/10/);
-      expect(formatStart('2026-10-10T10:30:00')).toMatch(/oct/i);
-      expect(formatStart('2026-10-10T10:30:00')).toMatch(/2026/);
+      // Sin zona, la hora se lee como local: el día y la hora salen tal cual.
+      expect(formatStart('2026-10-10T10:30:00')).toMatch(/^10 de oct\.? de 2026, 10:30/);
+      expect(formatStart('2026-10-10T15:45:00')).toMatch(/^10 de oct\.? de 2026, 3:45/);
     });
 
     it('sin fecha lo dice; un texto que no es fecha se muestra tal cual', () => {

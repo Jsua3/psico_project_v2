@@ -71,6 +71,7 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace
 describe('editor de casos (F8-1)', () => {
   let fixture: ComponentFixture<CaseEditorComponent>;
   let api: Record<string, ReturnType<typeof vi.fn>>;
+  let caseChanges: Subject<number>;
   let notify: Record<string, ReturnType<typeof vi.fn>>;
   let dialog: { sheet: ReturnType<typeof vi.fn>; confirm: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn> };
   let role: ReturnType<typeof signal<string>>;
@@ -90,6 +91,7 @@ describe('editor de casos (F8-1)', () => {
 
   async function render(options: { view?: CaseEditorView | Observable<CaseEditorView>; role?: string; stable?: boolean } = {}) {
     const view = options.view ?? editorView();
+    caseChanges = new Subject<number>();
     api = {
       caseEditor: vi.fn(() => (view instanceof Observable ? view : of(view))),
       createNode: vi.fn(() => of(editorView({ revision: 4 }))),
@@ -111,7 +113,9 @@ describe('editor de casos (F8-1)', () => {
       cloneCaseVersion: vi.fn(() => of(editorView({ revision: 1 }))),
       lifecycle: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'DRAFT', allowedTransitions: ['submit', 'archive'] })),
       validateCase: vi.fn(() => of({ issues: [], canPublish: true })),
-      transitionCase: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] })),
+      // Como la real: una transición aplicada avisa a quien tenga el caso abierto (AuthoringApi.caseChanges).
+      transitionCase: vi.fn(() => { caseChanges.next(CASE_ID); return of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] }); }),
+      caseChanges: caseChanges as unknown as ReturnType<typeof vi.fn>,
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     dialog = {
@@ -394,7 +398,7 @@ describe('editor de casos (F8-1)', () => {
       expect(buttonLabelled('Enviar a revisión')).toBeDefined();
     });
 
-    it('enviar a revisión desde la pestaña manda la revisión del editor y recarga el editor', async () => {
+    it('enviar a revisión desde la pestaña manda la revisión del editor y el editor se actualiza EN SILENCIO (sin esqueleto)', async () => {
       await render();
       tab('Revisión')!.click();
       await settle();
@@ -404,6 +408,50 @@ describe('editor de casos (F8-1)', () => {
 
       expect(api['transitionCase']).toHaveBeenCalledWith(CASE_ID, { action: 'submit' }, 3);
       expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(host().querySelector('.ce-loading')).toBeNull();
+      expect(host().querySelector('app-case-review-panel')).not.toBeNull();
+    });
+
+    it('el editor se entera por el servicio de cualquier cambio del caso (aunque quien lo pidió ya no esté) y relee solo el suyo', async () => {
+      await render();
+
+      caseChanges.next(999);
+      await settle();
+      expect(api['caseEditor']).toHaveBeenCalledTimes(1);
+
+      caseChanges.next(CASE_ID);
+      await settle();
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(host().querySelector('.ce-loading')).toBeNull();
+    });
+
+    it('una transición no descarta las casillas del checklist sin guardar', async () => {
+      await render();
+      tab('Checklist ético')!.click();
+      await settle();
+      const box = () => host().querySelector<HTMLInputElement>('input[data-code="ethicsReviewed"]')!;
+      expect(box().checked).toBe(false);
+      box().click();
+      await settle();
+      expect(box().checked).toBe(true);
+
+      tab('Revisión')!.click();
+      await settle();
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+      tab('Checklist ético')!.click();
+      await settle();
+
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(box().checked, 'la casilla que se marcó sigue marcada').toBe(true);
+    });
+
+    it('en revisión el candado lo explica sin mandar a clonar (el panel dice lo contrario)', async () => {
+      await render({ view: editorView({ status: 'IN_REVIEW' }) });
+
+      const lock = text(host().querySelector('p.ce-lock'));
+      expect(lock).toContain('en revisión');
+      expect(lock).not.toContain('clónala');
     });
 
     it('un hallazgo de una escena abre la hoja de edición de ese nodo', async () => {
@@ -422,13 +470,15 @@ describe('editor de casos (F8-1)', () => {
       expect(component().tab()).toBe('mundo');
     });
 
-    it('un hallazgo de algo que ya no existe no hace nada', async () => {
+    it('un hallazgo de algo que ya no existe no abre nada y lo dice', async () => {
       await render();
       component().openReviewIssue({ mapId: 999 });
       component().openReviewIssue({ nodeId: 999 });
 
       expect(dialog.sheet).not.toHaveBeenCalled();
       expect(component().selectedWorldNodeId()).toBeNull();
+      expect(notify['info']).toHaveBeenCalledTimes(2);
+      expect(notify['info']).toHaveBeenCalledWith('Ese elemento ya no está en el caso: pulsa «Revisar de nuevo».');
     });
 
     it('en una versión que no es borrador los hallazgos se leen pero no ofrecen ir a la escena', async () => {

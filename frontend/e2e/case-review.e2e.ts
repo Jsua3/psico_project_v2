@@ -20,7 +20,7 @@ async function blockingViolations(page: Page, include: string): Promise<string[]
   await page.waitForFunction(() => document.getAnimations().every(animation => {
     const timing = animation.effect?.getComputedTiming();
     return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
-  }), undefined, { timeout: 10_000 }).catch(() => undefined);
+  }), undefined, { timeout: scaled(10_000) }).catch(() => undefined);
   const results = await runAxe(page, { tags: WCAG_TAGS, resultTypes: ['violations'], include });
   return results.violations
     .filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
@@ -89,6 +89,25 @@ async function publishableDraft(request: APIRequestContext, token: string, title
 /** El aviso del sistema (los avisos también se repiten en la región viva, fuera de pantalla: un solo elemento visible). */
 const toast = (page: Page, text: string) => page.getByLabel('Mensajes del sistema').getByText(text);
 
+/** Deja el caso fuera del catálogo y de las listas: lo devuelve a borrador si está en revisión y lo archiva (al administrador le basta). */
+async function retire(request: APIRequestContext, caseVersionId: number): Promise<void> {
+  try {
+    const admin = await apiToken(request, ADMIN);
+    const url = `/api/authoring/cases/${caseVersionId}/lifecycle`;
+    const state = (await (await request.get(url, { headers: bearer(admin) })).json()).data?.state;
+    if (state === 'IN_REVIEW') await request.post(url, { headers: bearer(admin), data: { action: 'reject', reason: 'FORMA', note: 'Limpieza de la prueba e2e.' } });
+    await request.post(url, { headers: bearer(admin), data: { action: 'archive', scope: 'version' } });
+  } catch {
+    // La limpieza nunca tapa el resultado de la prueba.
+  }
+}
+
+/** Los casos que crean las pruebas sin su propio `finally`: al terminar (pasen o fallen) se retiran. */
+const toRetire: number[] = [];
+test.afterEach(async ({ request }) => {
+  for (const id of toRetire.splice(0)) await retire(request, id);
+});
+
 async function openReview(page: Page, caseVersionId: number, title: string) {
   await page.goto(`/portal/casos/${caseVersionId}/editor`);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
@@ -104,6 +123,13 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
     test.setTimeout(scaled(120_000));
     const token = await apiToken(request, PROFESOR);
     const created = await send(request, token, 'post', '', { title: `Revisión bloqueada e2e ${Date.now()}` }, 'crear el caso');
+    // Un hallazgo de MAPA (el punto de aparición queda fuera de sus límites): además del de escena, ofrece «Ir al mapa».
+    const seedMap: Json = created['maps'][0];
+    await send(request, token, 'put', `/${created['caseVersionId']}/maps/${seedMap['id']}`, {
+      mapKey: seedMap['key'], title: seedMap['title'], nodeId: seedMap['nodeId'], width: seedMap['width'], height: seedMap['height'],
+      theme: seedMap['theme'], spawnX: 99999, spawnY: 99999,
+    }, 'sacar el punto de aparición del mapa');
+    toRetire.push(created['caseVersionId']);
     await loginAs(page, 'profesor');
     const panel = await openReview(page, created['caseVersionId'], created['title']);
 
@@ -127,6 +153,14 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
     await expect(sheet.getByLabel('Clave del nodo')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
+
+    // «Ir al mapa» lleva al editor de mundo de esa sala, y el foco va a la pestaña que se abrió (la de Revisión, con el
+    // botón que se pulsó, se destruye).
+    await expect(panel.getByText(/El punto de aparición del mapa/)).toBeVisible();
+    await panel.getByRole('button', { name: /^Ir al mapa/ }).first().click();
+    const world = page.getByRole('tab', { name: 'Mundo' });
+    await expect(world).toHaveAttribute('aria-selected', 'true');
+    await expect(world).toBeFocused();
   });
 
   test('el ciclo completo: enviar a revisión, devolver con motivo y nota, volver a enviar y aprobar', async ({ page, request }) => {
@@ -175,16 +209,24 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
       const approveDialog = page.getByRole('dialog', { name: 'Aprobar y publicar' });
       await expect(approveDialog).toBeVisible();
       await approveDialog.getByLabel('Nota (opcional)').fill('Cumple con lo acordado.');
+      // Una constancia voluntaria con la fecha de AYER (la del servidor llega sin hora: no debe verse corrida un día).
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const isoYesterday = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      await approveDialog.getByLabel('Quién revisó').fill('Dra. Ruiz');
+      await approveDialog.getByLabel('Fecha de la revisión').fill(isoYesterday);
+      await approveDialog.getByLabel('Referencia o acta').fill('Acta 4 de Psicología');
       await approveDialog.getByRole('button', { name: 'Aprobar y publicar' }).click();
       await expect(toast(page, 'El caso se publicó.')).toBeVisible();
       await expect(panel.locator('ui-badge').first()).toHaveText('Publicado');
       await expect(panel.getByText('Cumple con lo acordado.')).toBeVisible();
+      await expect(panel.getByText(new RegExp(`Constancia de contenido: Dra[.] Ruiz, ${yesterday.getDate()} de .+, Acta 4 de Psicología`))).toBeVisible();
 
       const lifecycle = (await (await request.get(`/api/authoring/cases/${draft.id}/lifecycle`, { headers: bearer(token) })).json()).data;
       expect(lifecycle['state']).toBe('PUBLISHED');
     } finally {
       // Un caso publicado de más estorbaría a los demás flujos (el catálogo de los estudiantes): se archiva.
-      await request.post(`/api/authoring/cases/${draft.id}/lifecycle`, { headers: bearer(token), data: { action: 'archive', scope: 'version' } });
+      await retire(request, draft.id);
     }
   });
 
@@ -192,6 +234,7 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
     test.setTimeout(scaled(150_000));
     const token = await apiToken(request, PROFESOR);
     const draft = await publishableDraft(request, token, `Revisión docente e2e ${Date.now()}`);
+    toRetire.push(draft.id);
     await loginAs(page, 'profesor');
     const panel = await openReview(page, draft.id, draft.title);
 

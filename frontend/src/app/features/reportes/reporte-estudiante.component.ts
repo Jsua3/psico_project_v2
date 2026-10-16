@@ -1,5 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal, viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -55,6 +57,7 @@ export class ReporteEstudianteComponent implements OnInit {
   private readonly reportes = inject(ReporteService);
   private readonly notify = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   protected readonly studentId = positiveInt(this.route.snapshot.paramMap.get('estudianteId'));
   protected readonly groupId = positiveInt(this.route.snapshot.queryParamMap.get('grupo'));
@@ -77,13 +80,15 @@ export class ReporteEstudianteComponent implements OnInit {
   protected readonly errorMessage = computed(() => {
     const failure = this.error();
     if (!failure) return null;
-    if (failure.status === 403) return serverMessage(failure) ?? FORBIDDEN_TEXT;
+    // El servidor responde a todo 403 con un texto genérico: la pantalla dice lo que pasó con el suyo.
+    if (failure.status === 403) return FORBIDDEN_TEXT;
     if (failure.status === 404) return NOT_FOUND_TEXT;
     return null;
   });
 
   protected readonly titleText = computed(() => {
-    const name = this.report()?.student.displayName;
+    const student = this.report()?.student;
+    const name = student?.displayName || student?.ref;
     return name ? `Reporte de ${name}` : 'Reporte del estudiante';
   });
   /** Para volver al MISMO corte del reporte del grupo: su grupo y, si se mira un solo caso, ese caso. */
@@ -100,6 +105,7 @@ export class ReporteEstudianteComponent implements OnInit {
   });
   protected readonly maxLimit = MAX_LIMIT;
 
+  private readonly coverageLine = viewChild<ElementRef<HTMLElement>>('coverageLine');
   private limit: number | null = null;
   private run: Subscription | undefined;
 
@@ -168,6 +174,8 @@ export class ReporteEstudianteComponent implements OnInit {
         this.loading.set(false);
         this.loadingMore.set(false);
         this.statusText.set(coverageLabel(report.coverage));
+        // «Ver más intentos» puede desaparecer con el foco puesto en él: el foco va a la línea de cobertura.
+        if (more) afterNextRender(() => this.coverageLine()?.nativeElement.focus(), { injector: this.injector });
       },
       error: (err: unknown) => {
         this.loading.set(false);
@@ -182,10 +190,4 @@ export class ReporteEstudianteComponent implements OnInit {
       },
     });
   }
-}
-
-/** El mensaje que el servidor dio en el cuerpo del error, si es un texto. */
-function serverMessage(failure: HttpErrorResponse): string | null {
-  const body = failure.error as { message?: unknown } | null;
-  return typeof body?.message === 'string' && body.message.trim() ? body.message.trim() : null;
 }

@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { Subject } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import {
   CaseEditorView,
@@ -19,6 +20,7 @@ import {
 } from '../models/simulation.model';
 import { ApiResponse } from './api-response';
 import { CaseListCache } from './case-list-cache';
+import { revisionConflictOf } from './revision-conflict.util';
 
 export interface CaseCreateRequest {
   title: string;
@@ -28,6 +30,13 @@ export interface CaseCreateRequest {
 
 /** Cabecera con la revisión que el editor tiene del caso (E2-6): el servidor responde 409 si está vencida. */
 export const CASE_REVISION_HEADER = 'X-Case-Revision';
+
+/** Un 409 que dice que el caso ya no es el que se veía: otra sesión lo editó (`REVISION_CONFLICT`) o cambió su estado. */
+function isStaleCase(err: unknown): boolean {
+  if (revisionConflictOf(err)) return true;
+  return err instanceof HttpErrorResponse && err.status === 409
+    && (err.error as { code?: unknown } | null)?.code === 'INVALID_TRANSITION';
+}
 
 /** Opciones de petición con la revisión vigente; sin revisión no hay cabecera y el servidor no compara. */
 const withRevision = (revision?: number | null) =>
@@ -47,6 +56,14 @@ const withRevision = (revision?: number | null) =>
 export class AuthoringApi {
   private readonly http = inject(HttpClient);
   private readonly caseList = inject(CaseListCache);
+  private readonly caseChanged = new Subject<number>();
+  /**
+   * El id de una versión cuyo caso cambió bajo quien lo muestra: una transición aplicada (enviar, aprobar, devolver,
+   * archivar) o un 409 que dice que su estado o su revisión ya no son los que se veían. Quien tiene abierto ese caso lo
+   * relee. Vive aquí y no en una salida del panel de revisión porque ese panel está en una pestaña, y una pestaña
+   * inactiva se destruye con la petición en vuelo (el servidor ya la recibió).
+   */
+  readonly caseChanges = this.caseChanged.asObservable();
   /** Espacio canónico de la autoría (ED-9); la ruta antigua bajo admin/cases sigue en el servidor como alias. */
   private readonly API = '/api/authoring/cases';
 
@@ -210,8 +227,14 @@ export class AuthoringApi {
     return this.http.post<ApiResponse<CaseLifecycle>>(`${this.API}/${caseVersionId}/lifecycle`, request, withRevision(revision))
       .pipe(
         map(response => response.data),
-        // Aprobar o archivar cambia qué casos ven los estudiantes: la lista guardada ya no sirve.
-        tap(() => this.caseList.invalidate()),
+        tap({
+          next: () => {
+            // Aprobar o archivar cambia qué casos ven los estudiantes: la lista guardada ya no sirve.
+            this.caseList.invalidate();
+            this.caseChanged.next(caseVersionId);
+          },
+          error: (err: unknown) => { if (isStaleCase(err)) this.caseChanged.next(caseVersionId); },
+        }),
       );
   }
 

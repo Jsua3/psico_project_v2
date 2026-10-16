@@ -163,4 +163,45 @@ describe('CaseReviewDecisionDialogComponent', () => {
       });
     });
   });
+
+  // req: RF-13, CU-05
+  describe('lo escrito no se pierde y los campos tienen tope (revisión de F10)', () => {
+    it('devolver: con un borrador de un intento rechazado reabre con el motivo y la nota ya escritos', () => {
+      setup({ mode: 'reject', contentReviewRequired: false, draft: { reason: 'CONTENIDO', note: 'Revisar la escena 2.' } });
+
+      expect(control('Motivo').value).toBe('CONTENIDO');
+      expect(control('Nota').value).toBe('Revisar la escena 2.');
+      submit();
+      expect(close).toHaveBeenCalledWith({ reason: 'CONTENIDO', note: 'Revisar la escena 2.' });
+    });
+
+    it('aprobar: reabre con la nota y la constancia que se escribieron (el servidor la pidió después del primer intento)', () => {
+      setup({
+        mode: 'approve', contentReviewRequired: true,
+        draft: { note: 'Cumple.', contentReview: { reviewer: 'Dra. Ruiz', reviewedOn: isoDay(-1), reference: 'Acta 4' } },
+      });
+
+      expect(control('Nota').value).toBe('Cumple.');
+      expect(control('Quién revisó').value).toBe('Dra. Ruiz');
+      expect(control('Fecha de la revisión').value).toBe(isoDay(-1));
+      expect(control('Referencia').value).toBe('Acta 4');
+      submit();
+      expect(close).toHaveBeenCalledWith({ note: 'Cumple.', contentReview: { reviewer: 'Dra. Ruiz', reviewedOn: isoDay(-1), reference: 'Acta 4' } });
+    });
+
+    it('sin borrador los campos parten vacíos', () => {
+      setup({ mode: 'reject', contentReviewRequired: false });
+
+      expect(control('Motivo').value).toBe('');
+      expect(control('Nota').value).toBe('');
+    });
+
+    it('la nota admite 4000 caracteres y el revisor y la referencia 255 (el servidor da 400 con la nota y trunca lo demás sin avisar)', () => {
+      setup({ mode: 'approve', contentReviewRequired: false });
+
+      expect((control('Nota') as HTMLTextAreaElement).maxLength).toBe(4000);
+      expect((control('Quién revisó') as HTMLInputElement).maxLength).toBe(255);
+      expect((control('Referencia') as HTMLInputElement).maxLength).toBe(255);
+    });
+  });
 });

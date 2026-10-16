@@ -42,6 +42,7 @@ describe('AuthoringApi: la revisión del caso en cada mutación', () => {
     ['deleteTool', (a, r) => a.deleteTool(9, 2, r), 'DELETE', '/api/authoring/cases/9/tools/2'],
     ['updateChecklist', (a, r) => a.updateChecklist(9, body, r), 'PUT', '/api/authoring/cases/9/checklist'],
     ['publishCase', (a, r) => a.publishCase(9, r), 'POST', '/api/authoring/cases/9/publish'],
+    ['transitionCase', (a, r) => a.transitionCase(9, { action: 'submit' }, r), 'POST', '/api/authoring/cases/9/lifecycle'],
   ];
 
   it.each(mutations)('%s manda la revisión vigente en X-Case-Revision', (_name, call, method, url) => {
@@ -69,5 +70,48 @@ describe('AuthoringApi: la revisión del caso en cada mutación', () => {
     const create = http.expectOne('/api/authoring/cases');
     expect(create.request.method).toBe('POST');
     expect(create.request.headers.has('X-Case-Revision')).toBe(false);
+  });
+
+  // req: RF-12, RF-13, CU-05
+  describe('caseChanges (F10-6): el editor se entera de una transición aunque quien la pidió ya no esté', () => {
+    const response = { data: { caseVersionId: 9, state: 'IN_REVIEW', allowedTransitions: [] } };
+
+    it('emite el id de la versión cuando la transición se aplicó', () => {
+      const seen: number[] = [];
+      api.caseChanges.subscribe(id => seen.push(id));
+
+      api.transitionCase(9, { action: 'submit' }, 3).subscribe();
+      http.expectOne('/api/authoring/cases/9/lifecycle').flush(response);
+
+      expect(seen).toEqual([9]);
+    });
+
+    it.each([
+      ['REVISION_CONFLICT', { code: 'REVISION_CONFLICT', message: 'otra sesión', revision: 9 }],
+      ['INVALID_TRANSITION', { code: 'INVALID_TRANSITION', message: 'No se puede aplicar «approve» a una versión en estado PUBLISHED.' }],
+    ])('emite también ante un 409 %s: el caso ya no es el que se veía', (_code, body) => {
+      const seen: number[] = [];
+      api.caseChanges.subscribe(id => seen.push(id));
+
+      api.transitionCase(9, { action: 'approve' }, 3).subscribe({ error: () => undefined });
+      http.expectOne('/api/authoring/cases/9/lifecycle').flush(body, { status: 409, statusText: 'Conflict' });
+
+      expect(seen).toEqual([9]);
+    });
+
+    it.each([
+      [409, { code: 'CASE_NOT_PUBLISHABLE' }],
+      [400, { code: 'CONTENT_REVIEW_REQUIRED' }],
+      [403, { code: 'FORBIDDEN' }],
+      [500, null],
+    ])('no emite ante un %i (%j): nada cambió', (status, body) => {
+      const seen: number[] = [];
+      api.caseChanges.subscribe(id => seen.push(id));
+
+      api.transitionCase(9, { action: 'approve' }, 3).subscribe({ error: () => undefined });
+      http.expectOne('/api/authoring/cases/9/lifecycle').flush(body, { status, statusText: 'x' });
+
+      expect(seen).toEqual([]);
+    });
   });
 });

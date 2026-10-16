@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal,
+  untracked, viewChild, output,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, firstValueFrom, forkJoin } from 'rxjs';
@@ -15,7 +16,7 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton, UiButtonVariant } from '../../shared/ui/button/ui-button';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
-import { plural, statusLabel } from '../../shared/ui/labels';
+import { statusLabel } from '../../shared/ui/labels';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
@@ -24,6 +25,7 @@ import { statusTone } from './case-editor.options';
 import {
   CaseReviewDecision, CaseReviewDecisionData, CaseReviewDecisionDialogComponent,
 } from './case-review-decision-dialog.component';
+import { shortDate, summarize } from './case-review.util';
 
 /** A qué elemento del editor llevar a quien autora cuando elige un hallazgo. */
 export interface ValidationTarget {
@@ -32,6 +34,7 @@ export interface ValidationTarget {
 }
 
 type PanelAction = Extract<CaseLifecycleAction, 'submit' | 'approve' | 'reject' | 'archive'>;
+type DecisionAction = Extract<PanelAction, 'approve' | 'reject'>;
 
 interface PanelActionSpec {
   action: PanelAction;
@@ -73,23 +76,6 @@ const BUSY_REASON = 'Hay una acción en curso: espera a que termine.';
 const REASON_LABELS: Record<string, string> = { FORMA: 'Forma', CONTENIDO: 'Contenido' };
 const DECISION_LABELS: Record<string, string> = { APPROVED: 'Aprobada', REJECTED: 'Devuelta a borrador' };
 
-/** El titular de la validación: cuántas cosas faltan (errores) y cuántos avisos hay; los avisos no bloquean. */
-function summarize(validation: CaseValidation | null): string {
-  if (!validation) return '';
-  const errors = validation.issues.filter(issue => issue.severity === 'error').length;
-  const warnings = validation.issues.length - errors;
-  const notes = warnings > 0 ? ` · ${plural(warnings, 'aviso')}` : '';
-  if (errors > 0) return `${errors === 1 ? 'Falta 1 cosa' : `Faltan ${errors} cosas`} por corregir${notes}`;
-  return `Sin errores de validación${notes}`;
-}
-
-function shortDate(value: string | null | undefined): string {
-  if (!value) return 'una fecha sin registrar';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function readBlockers(raw: unknown): ReviewBlocker[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -101,9 +87,14 @@ function readBlockers(raw: unknown): ReviewBlocker[] {
 /**
  * Revisión del caso en el editor (plan visual F10-6†; RF-12, RF-13, CU-05; contratos C4 y C6). Dice en qué estado está
  * la versión y ofrece SOLO las transiciones que el servidor permite (`allowedTransitions`: la pantalla no calcula
- * permisos); cada una confirma antes de actuar, manda la revisión del editor (`X-Case-Revision`) y, al terminar, pide
- * recargar el editor. Debajo, qué falta para publicar —los hallazgos de la validación en lenguaje llano— con un enlace
- * a la escena o al mapa. Lo que impide enviar se ve junto al botón (y se lee con él), no en un globo.
+ * permisos); cada una confirma antes de actuar y manda la revisión del editor (`X-Case-Revision`). Debajo, qué falta
+ * para publicar —los hallazgos de la validación en lenguaje llano— con un enlace a la escena o al mapa. Lo que impide
+ * enviar se ve junto al botón (y se lee con él), no en un globo.
+ *
+ * Vive en una pestaña, y una pestaña inactiva se destruye: la transición en vuelo NO muere con el panel (el servidor ya
+ * la recibió) y quien muestra el caso se entera por `AuthoringApi.caseChanges`, no por una salida de este panel. El
+ * panel se pone al día solo: relee el estado y la validación cuando cambia la revisión del caso (se guardó algo en
+ * otra parte del editor) y con «Revisar de nuevo».
  */
 @Component({
   selector: 'app-case-review-panel',
@@ -127,13 +118,13 @@ function readBlockers(raw: unknown): ReviewBlocker[] {
           <ui-section class="rv-section" title="Estado del caso">
             <div class="rv-state">
               <ui-badge [tone]="tone(current.state)">{{ label(current.state) }}</ui-badge>
-              <p class="rv-lead">{{ help(current.state) }}</p>
+              <p #stateHelp class="rv-lead" tabindex="-1">{{ help(current.state) }}</p>
             </div>
             @if (current.blockedReason; as blocked) {
               <p class="rv-blocked">Falta para avanzar: {{ blocked.message }}</p>
             }
             @if (blockers().length > 0) {
-              <div class="rv-blockers" role="alert">
+              <div class="rv-blockers">
                 <p class="rv-blockers__title">No se pudo completar la acción:</p>
                 <ul>
                   @for (blocker of blockers(); track blocker.code) {
@@ -155,7 +146,7 @@ function readBlockers(raw: unknown): ReviewBlocker[] {
 
           @if (validation(); as result) {
             <ui-section class="rv-section" title="Qué falta para publicar">
-              <p class="rv-summary" [class.rv-summary--ok]="summary().startsWith('Sin errores')">{{ summary() }}</p>
+              <p class="rv-summary">{{ summary() }}</p>
               @if (result.issues.length > 0) {
                 <ul class="rv-issues">
                   @for (issue of result.issues; track $index) {
@@ -269,15 +260,15 @@ export class CaseReviewPanelComponent {
   private readonly dialog = inject(UiDialog);
   private readonly notify = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   readonly caseVersionId = input.required<number>();
-  /** La revisión del editor: viaja en `X-Case-Revision` de cada transición. */
+  /** La revisión del editor: viaja en `X-Case-Revision` de cada transición y, al cambiar, el panel se pone al día. */
   readonly revision = input<number | null>(null);
   /** El caso admite cambios (borrador): solo entonces los hallazgos llevan a la escena o al mapa. */
   readonly editable = input(true);
 
-  /** Una transición cambió el caso: quien aloja el panel recarga el editor. */
-  readonly changed = output<void>();
+  /** Quien autora eligió un hallazgo: el editor lo lleva a la escena o al mapa. */
   readonly issueOpen = output<ValidationTarget>();
 
   protected readonly lifecycle = signal<CaseLifecycle | null>(null);
@@ -303,14 +294,22 @@ export class CaseReviewPanelComponent {
     return ACTIONS.filter(item => allowed.includes(item.action));
   });
 
+  private readonly stateHelp = viewChild<ElementRef<HTMLElement>>('stateHelp');
   /** Una vez que el servidor dijo que exige la constancia de contenido, el diálogo la pide como obligatoria. */
   private contentReviewRequired = false;
+  /** Lo escrito en el diálogo de cada decisión: si el servidor la rechaza, al reabrirla no hay que volver a escribirlo. */
+  private readonly drafts: Partial<Record<DecisionAction, CaseReviewDecision>> = {};
   private asking = false;
+  private destroyed = false;
   private loadRun: Subscription | undefined;
 
   constructor() {
+    this.destroyRef.onDestroy(() => { this.destroyed = true; });
+    // Al abrirse y cada vez que cambia el caso o su revisión (se guardó algo en otra parte del editor): con lo ya a
+    // la vista se relee sin esqueleto; la primera vez se carga con él.
     effect(() => {
       const id = this.caseVersionId();
+      this.revision();
       untracked(() => this.load(id));
     });
   }
@@ -350,22 +349,12 @@ export class CaseReviewPanelComponent {
     this.load(this.caseVersionId());
   }
 
+  /** «Revisar de nuevo»: relee la validación Y el estado (lo que impide avanzar puede haberse resuelto) y lo anuncia. */
   protected revalidate(): void {
     if (this.validating()) return;
     this.validating.set(true);
     this.statusText.set('');
-    this.api.validateCase(this.caseVersionId()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: validation => {
-        this.validation.set(validation);
-        this.validating.set(false);
-        this.statusText.set(summarize(validation));
-      },
-      error: (err: unknown) => {
-        this.validating.set(false);
-        const message = apiErrorMessage(err, 'No fue posible revisar el caso.');
-        if (message) this.notify.error(message);
-      },
-    });
+    this.fetch(this.caseVersionId(), true);
   }
 
   protected async run(action: PanelAction): Promise<void> {
@@ -381,19 +370,36 @@ export class CaseReviewPanelComponent {
   }
 
   private load(id: number): void {
+    const quiet = this.lifecycle()?.caseVersionId === id;
+    if (!quiet) {
+      this.loading.set(true);
+      this.error.set(null);
+    }
+    this.fetch(id, false, quiet);
+  }
+
+  /** Lee el estado y la validación juntos; `announce` pone el titular en la región de estado; `quiet` conserva lo visible. */
+  private fetch(id: number, announce: boolean, quiet = true): void {
     this.loadRun?.unsubscribe();
-    this.loading.set(true);
-    this.error.set(null);
     this.loadRun = forkJoin({ lifecycle: this.api.lifecycle(id), validation: this.api.validateCase(id) })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ lifecycle, validation }) => {
           this.lifecycle.set(lifecycle);
           this.validation.set(validation);
+          this.blockers.set([]);
           this.loading.set(false);
-          this.statusText.set(summarize(validation));
+          this.validating.set(false);
+          if (announce || !quiet) this.statusText.set(summarize(validation));
         },
         error: (err: unknown) => {
+          this.validating.set(false);
+          if (quiet && this.lifecycle()) {
+            // Lo que ya se veía sigue a la vista: solo se avisa que no se pudo actualizar.
+            const message = apiErrorMessage(err, 'No fue posible actualizar la revisión del caso.');
+            if (message) this.notify.error(message);
+            return;
+          }
           this.error.set(err ?? new Error('No fue posible cargar la revisión.'));
           this.loading.set(false);
         },
@@ -422,33 +428,43 @@ export class CaseReviewPanelComponent {
       case 'reject': {
         const ref = this.dialog.open<CaseReviewDecision | undefined, CaseReviewDecisionData, CaseReviewDecisionDialogComponent>(
           CaseReviewDecisionDialogComponent,
-          { data: { mode: action, contentReviewRequired: this.contentReviewRequired } },
+          { data: { mode: action, contentReviewRequired: this.contentReviewRequired, draft: this.drafts[action] } },
         );
         const decision = await firstValueFrom(ref.closed);
-        return decision ? { action, ...decision } : null;
+        if (!decision) {
+          delete this.drafts[action];
+          return null;
+        }
+        this.drafts[action] = decision;
+        return { action, ...decision };
       }
     }
   }
 
+  /**
+   * La transición NO se cancela si el panel se destruye (una pestaña inactiva se destruye): el servidor ya recibió la
+   * orden, así que el aviso sale igual y `AuthoringApi.caseChanges` le dice al editor que relea el caso.
+   */
   private send(action: PanelAction, request: CaseTransitionRequest): void {
     this.busy.set(true);
     this.pending.set(action);
     this.blockers.set([]);
-    this.api.transitionCase(this.caseVersionId(), request, this.revision() ?? undefined)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: lifecycle => {
-          this.settleBusy();
-          // El ciclo que devuelve la transición ya es el estado: no hace falta otra lectura.
-          this.lifecycle.set(lifecycle);
-          this.notify.success(DONE_TEXT[action]);
-          this.changed.emit();
-        },
-        error: (err: unknown) => {
-          this.settleBusy();
-          this.fail(err);
-        },
-      });
+    this.api.transitionCase(this.caseVersionId(), request, this.revision() ?? undefined).subscribe({
+      next: lifecycle => {
+        this.notify.success(DONE_TEXT[action]);
+        if (this.destroyed) return;
+        this.settleBusy();
+        // El ciclo que devuelve la transición ya es el estado: no hace falta otra lectura.
+        this.lifecycle.set(lifecycle);
+        if (action === 'approve' || action === 'reject') delete this.drafts[action];
+        // El botón que se pulsó ya no está (o cambió de sitio): el foco vuelve a la descripción del estado nuevo.
+        afterNextRender(() => this.stateHelp()?.nativeElement.focus(), { injector: this.injector });
+      },
+      error: (err: unknown) => {
+        if (!this.destroyed) this.settleBusy();
+        this.fail(err);
+      },
+    });
   }
 
   private settleBusy(): void {
@@ -458,15 +474,22 @@ export class CaseReviewPanelComponent {
 
   private fail(err: unknown): void {
     if (revisionConflictOf(err)) {
-      this.notify.error('Este caso cambió en otra sesión: se recargó con la versión vigente. Revisa y vuelve a intentarlo.');
-      this.changed.emit();
+      this.notify.error('Este caso cambió en otra sesión: se actualizó lo que ves. Revisa y vuelve a intentarlo.');
       return;
     }
     const body = err instanceof HttpErrorResponse ? (err.error as { code?: unknown; blockers?: unknown } | null) : null;
+    if (body?.code === 'INVALID_TRANSITION') {
+      // Otra pestaña o persona ya cambió el estado: el servidor lo dice con el código del estado; aquí, en palabras.
+      this.notify.error('El caso ya cambió de estado desde otra pestaña o sesión: se actualizó lo que ves.');
+      if (!this.destroyed) this.refresh();
+      return;
+    }
     if (body?.code === 'CASE_NOT_PUBLISHABLE') {
       const blockers = readBlockers(body.blockers);
       if (blockers.length > 0) {
         this.blockers.set(blockers);
+        // La región de estado ya existe: lo que impide avanzar se anuncia ahí (un `alert` que nace con su texto no).
+        this.statusText.set(`No se pudo completar la acción: ${blockers.map(blocker => blocker.message).join(' ')}`);
         return;
       }
     }

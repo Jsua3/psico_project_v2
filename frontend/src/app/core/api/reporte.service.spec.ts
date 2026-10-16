@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { ReporteService } from './reporte.service';
 
 /**
@@ -36,6 +37,14 @@ describe('ReporteService · reporte de un estudiante (C3)', () => {
     request.flush({ success: true, message: null, data: REPORT });
 
     expect((await result).coverage).toEqual({ shown: 1, total: 5 });
+  });
+
+  it('marca la petición: el 403 de un estudiante ajeno lo explica la pantalla, no el aviso genérico del interceptor', async () => {
+    const result = firstValueFrom(service.getReporteEstudiante(12));
+    const request = http.expectOne(candidate => candidate.url === '/api/reportes/estudiante/12');
+    expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
+    request.flush({ success: true, message: null, data: REPORT });
+    await result;
   });
 
   it('manda el caso y el límite cuando se piden', async () => {

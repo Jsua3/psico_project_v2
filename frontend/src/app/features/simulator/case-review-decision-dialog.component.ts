@@ -13,6 +13,8 @@ export interface CaseReviewDecisionData {
   mode: 'approve' | 'reject';
   /** El servidor ya dijo que exige la constancia de revisión de contenido (`CONTENT_REVIEW_REQUIRED`). */
   contentReviewRequired: boolean;
+  /** Lo escrito en un intento que el servidor rechazó: se reabre con ello en vez de pedir que se vuelva a escribir. */
+  draft?: CaseReviewDecision;
 }
 
 /** Lo que la persona decidió, sin claves vacías: el servidor solo recibe lo que se escribió. */
@@ -54,24 +56,24 @@ function today(): string {
         }
         <ui-field [label]="data.mode === 'reject' ? 'Nota para quien autora el caso' : 'Nota (opcional)'"
           [required]="data.mode === 'reject'" [error]="errors().note">
-          <textarea uiControl rows="4" [value]="note()" (input)="note.set(read($event))"></textarea>
+          <textarea uiControl rows="4" maxlength="4000" [value]="note()" (input)="note.set(read($event))"></textarea>
         </ui-field>
         @if (data.mode === 'approve') {
           <fieldset class="rd-proof">
             <legend class="rd-proof__title">Constancia de revisión de contenido</legend>
             <p class="rd-proof__help">
               {{ data.contentReviewRequired
-                ? 'El servidor la exige para publicar: escribe quién revisó, cuándo y en qué documento quedó.'
+                ? 'Es obligatoria para publicar este caso: escribe quién revisó, cuándo y en qué documento quedó.'
                 : 'Si Psicología ya revisó el contenido, déjalo anotado: revisor, fecha y referencia o acta.' }}
             </p>
             <ui-field label="Quién revisó" [required]="data.contentReviewRequired" [error]="errors().reviewer">
-              <input uiControl type="text" autocomplete="off" [value]="reviewer()" (input)="reviewer.set(read($event))" />
+              <input uiControl type="text" autocomplete="off" maxlength="255" [value]="reviewer()" (input)="reviewer.set(read($event))" />
             </ui-field>
             <ui-field label="Fecha de la revisión" [required]="data.contentReviewRequired" [error]="errors().reviewedOn">
               <input uiControl type="date" [max]="maxDate" [value]="reviewedOn()" (input)="reviewedOn.set(read($event))" />
             </ui-field>
             <ui-field label="Referencia o acta" [required]="data.contentReviewRequired" [error]="errors().reference">
-              <input uiControl type="text" autocomplete="off" [value]="reference()" (input)="reference.set(read($event))" />
+              <input uiControl type="text" autocomplete="off" maxlength="255" [value]="reference()" (input)="reference.set(read($event))" />
             </ui-field>
           </fieldset>
         }
@@ -111,11 +113,11 @@ export class CaseReviewDecisionDialogComponent {
     : 'Los estudiantes asignados verán esta versión en su catálogo.';
   protected readonly confirmLabel = this.data.mode === 'reject' ? 'Devolver a borrador' : 'Aprobar y publicar';
 
-  protected readonly reason = signal('');
-  protected readonly note = signal('');
-  protected readonly reviewer = signal('');
-  protected readonly reviewedOn = signal('');
-  protected readonly reference = signal('');
+  protected readonly reason = signal<string>(this.data.draft?.reason ?? '');
+  protected readonly note = signal(this.data.draft?.note ?? '');
+  protected readonly reviewer = signal(this.data.draft?.contentReview?.reviewer ?? '');
+  protected readonly reviewedOn = signal(this.data.draft?.contentReview?.reviewedOn ?? '');
+  protected readonly reference = signal(this.data.draft?.contentReview?.reference ?? '');
   protected readonly errors = signal<Partial<Record<DecisionField, string>>>({});
 
   protected read(event: Event): string {

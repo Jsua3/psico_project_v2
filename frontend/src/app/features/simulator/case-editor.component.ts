@@ -1,6 +1,7 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -83,6 +84,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   private readonly dialog = inject(UiDialog);
   private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   /** La hoja abierta con el formulario (null si no hay). */
   private sheet: DialogRef<void, CaseEditorSheetComponent> | null = null;
@@ -125,9 +128,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   /** Una versión que no es borrador no admite cambios (el servidor responde 400): se dice antes de abrir un formulario. */
   readonly lockReason = computed(() => {
     const status = (this.editor()?.status ?? 'DRAFT').toUpperCase();
-    return status === 'DRAFT'
-      ? null
-      : 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
+    if (status === 'DRAFT') return null;
+    if (status === 'IN_REVIEW') return 'Esta versión está en revisión y no se puede modificar hasta que se apruebe o se devuelva a borrador.';
+    return 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
   });
   protected readonly busyReason = computed(() => (this.busy() ? 'Hay una acción en curso: espera a que termine.' : null));
   /** Cada mapa es la sala de un nodo: sin nodos no se puede crear uno. */
@@ -142,6 +145,12 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     (this.editor()?.nodes ?? []).map(node => ({ id: node.id, key: node.key, title: node.title })));
 
   ngOnInit(): void {
+    // Una transición del ciclo de vida (o un conflicto que dice que el caso ya no es el que se veía) se relee EN SILENCIO,
+    // como cualquier otra mutación: sin esqueleto y sin descartar lo que haya sin guardar. Llega por el servicio y no por
+    // una salida del panel de revisión porque ese panel está en una pestaña y una pestaña inactiva se destruye.
+    this.authoringApi.caseChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(caseVersionId => {
+      if (caseVersionId === this.editor()?.caseVersionId) this.reloadQuietly(caseVersionId);
+    });
     this.load();
   }
 
@@ -161,6 +170,17 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
         this.errorStatus.set(err instanceof HttpErrorResponse ? err.status : null);
         this.error.set('No se pudo cargar el editor.');
         this.loading.set(false);
+      },
+    });
+  }
+
+  /** Relee el caso sin esqueleto: `adopt` conserva las casillas sin guardar; si falla, lo que se veía se queda y se avisa. */
+  private reloadQuietly(caseVersionId: number): void {
+    this.authoringApi.caseEditor(caseVersionId).subscribe({
+      next: model => this.adopt(model),
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar el caso.');
+        if (text) this.notify.error(text);
       },
     });
   }
@@ -564,6 +584,10 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     if (first) this.openPanel({ kind: 'object-create', mapId: first.id });
   }
 
+  private notifyMissingElement(): void {
+    this.notify.info('Ese elemento ya no está en el caso: pulsa «Revisar de nuevo».');
+  }
+
   goToRubrics(): void {
     void this.router.navigate(['/portal/rubricas']);
   }
@@ -577,13 +601,16 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     if (!view) return;
     if (target.mapId !== undefined) {
       const map = view.maps.find(item => item.id === target.mapId);
-      if (!map) return;
+      if (!map) return this.notifyMissingElement();
       this.selectedWorldNodeId.set(map.nodeId);
       this.tab.set('mundo');
+      // La pestaña de Revisión se destruye con el botón que se pulsó: el foco va a la pestaña que se abrió.
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus(), { injector: this.injector });
       return;
     }
     const node = view.nodes.find(item => item.id === target.nodeId);
     if (node) this.openPanel({ kind: 'node-edit', node });
+    else this.notifyMissingElement();
   }
 
   nodeIcon(node: NodeEditorState): string {

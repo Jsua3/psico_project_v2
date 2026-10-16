@@ -38,7 +38,7 @@
             <button ui-button type="button" variant="ghost" size="sm" (click)="clearFilter()">Ver todos los casos</button>
           </p>
         }
-        <p class="re-coverage">{{ coverage(current) }}</p>
+        <p #coverageLine class="re-coverage" tabindex="-1">{{ coverage(current) }}</p>
         <ui-table label="Intentos del estudiante" density="compact">
           <table ui-table>
             <thead>
