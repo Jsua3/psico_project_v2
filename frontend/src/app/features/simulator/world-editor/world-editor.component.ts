@@ -127,7 +127,7 @@ const OBJECT_COLORS: Record<string, string> = {
   template: `
     <div class="we-root" (keydown)="onEditorKeydown($event)">
       <!-- ── Toolbar ─────────────────────────────────────────────────── -->
-      <header class="we-toolbar liquid-glass">
+      <header class="we-toolbar">
         <div class="we-tools" role="group" aria-label="Herramientas del lienzo" (keydown)="onToolbarKeydown($event)">
           <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'select'"
                   [attr.aria-pressed]="store.activeTool() === 'select'" aria-label="Seleccionar" aria-keyshortcuts="V"
@@ -208,7 +208,7 @@ const OBJECT_COLORS: Record<string, string> = {
         <p class="we-readonly">{{ reason }}</p>
       }
 
-      <section class="we-library liquid-glass" aria-label="Biblioteca de autoría">
+      <section class="we-library" aria-label="Biblioteca de autoría">
         <label class="we-library-group">
           <span>Escenario</span>
           <select [ngModel]="selectedSceneTemplate()" [disabled]="store.readOnly()" (ngModelChange)="applyScenePreset($event)">
@@ -266,7 +266,7 @@ const OBJECT_COLORS: Record<string, string> = {
 
         <!-- ── Side Inspector ──────────────────────────────────────── -->
         <!-- En solo lectura todos sus controles están deshabilitados: sin foco propio, el teclado no podría desplazarla. -->
-        <aside class="we-inspector liquid-glass" aria-label="Propiedades del mundo" [attr.tabindex]="store.readOnly() ? 0 : null">
+        <aside class="we-inspector" aria-label="Propiedades del mundo" [attr.tabindex]="store.readOnly() ? 0 : null">
          <fieldset class="we-fieldset" [disabled]="store.readOnly()">
           <!-- ── Sala: switcher + zoom + fondo ────────────────────── -->
           @if (store.editorState()) {
@@ -586,6 +586,13 @@ const OBJECT_COLORS: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .we-root { display: grid; gap: 12px; }
+
+    /* Paneles sólidos: el editor tiene un canvas y el presupuesto de vidrio es de 2 capas con canvas (F9-3). */
+    .we-toolbar, .we-library, .we-inspector {
+      background: var(--ds-surface-1);
+      border: 1px solid var(--ds-border);
+      box-shadow: var(--ds-shadow-e1);
+    }
 
     /* Toolbar */
     .we-toolbar {

@@ -1,4 +1,5 @@
 import { A11yModule } from '@angular/cdk/a11y';
+import { perfEnd, perfNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -1657,6 +1658,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Primer cuadro del mundo pintado: el indicador de arranque se retira (no vuelve con cada cambio de sala). */
   onWorldReady(): void {
+    perfEnd('decision-to-scene');
     this.worldRendered.set(true);
     // El mundo pintó después de que el plazo venciera: el error de ese arranque ya no es verdad y taparía el juego.
     if (this.bootFailureShown && this.error()) {
@@ -1866,6 +1868,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
+    perfNextPaint('interaction-to-response');
 
     // Una persona del escenario llega como `npc:{clave}`: no es un objeto del servidor (POST /interactions/npc:… da 404).
     if (interaction.key.startsWith('npc:')) {
@@ -2281,6 +2284,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pendingEvidenceMissing = [];
     const previousDialogue = this.dialogue();
     this.busy.set(true);
+    perfStart('decision-to-scene');
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
