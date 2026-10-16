@@ -1,5 +1,5 @@
 import { Injectable, NgZone, inject } from '@angular/core';
-import { Howl, Howler } from 'howler';
+import { Howl } from 'howler';
 import { FADE_TICK_MS, fadeStep } from './audio-fade.util';
 import { STRESS_TIER_FLOORS, stressTier } from './stress-tier.util';
 
@@ -57,7 +57,6 @@ export class AudioDirectorService {
   private readonly zone = inject(NgZone);
   private sfx = new Map<SoundEffect, Howl>();
   private introLament?: Howl;
-  private masterVolume = 1.0;
   private musicVolume = 0.42;
   private musicMuted = false;
   private sfxMuted = false;
@@ -203,11 +202,6 @@ export class AudioDirectorService {
     if (!this.initialized || this.sfxMuted) return;
     if (this.reducedMotion && (effect === 'footstep_tile' || effect === 'footstep_wood')) return;
     this.sfx.get(effect)?.play();
-  }
-
-  setMasterVolume(v: number): void {
-    this.masterVolume = Math.max(0, Math.min(1, v));
-    Howler.volume(this.masterVolume);
   }
 
   isMusicMuted(): boolean { return this.musicMuted; }

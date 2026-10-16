@@ -496,8 +496,6 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 export class SimulationHudComponent {
   readonly attempt = input<SimulationAttemptState | null>(null);
   readonly stressPulse = input(false);
-  /** Sin uso desde que el HUD no pinta el «paso» de la proximidad; se conserva para no romper el enlace de quien integra el HUD, que puede quitarlo. */
-  readonly nearbyInteractionKey = input<string | null>(null);
   readonly patientState = input<PatientState | null>(null);
   /** Contador único del chip central («Decisión k de 6»); lo calcula quien integra el HUD. Sin valor, no hay chip. */
   readonly stageLabel = input<string | null>(null);

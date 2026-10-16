@@ -12,7 +12,6 @@ import type { MapObjectState, NpcConfig } from '../../core/models/simulation.mod
 export const KIT_BODY_HEIGHT = 64;
 /** Nombre y aviso «E» sobre la cabeza, e icono del estado clínico justo encima de ella. */
 export const KIT_LABEL_OFFSET_Y = -(KIT_BODY_HEIGHT + 4);
-export const KIT_HINT_OFFSET_Y = KIT_LABEL_OFFSET_Y - 14;
 export const KIT_ICON_OFFSET_Y = -(KIT_BODY_HEIGHT + 2);
 
 /** El jugador según lo guardado (v1 o v2; lo inválido cae al valor por defecto). */

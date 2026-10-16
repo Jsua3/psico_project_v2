@@ -101,15 +101,6 @@ export class AuthService {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  isAuthenticated(): boolean {
-    return this.hasUsableToken();
-  }
-
-  hasUsableToken(): boolean {
-    const token = this.getToken();
-    return !!token && !this.isTokenExpired(token);
-  }
-
   isTokenExpired(token = this.getToken()): boolean {
     return isJwtExpired(token);
   }

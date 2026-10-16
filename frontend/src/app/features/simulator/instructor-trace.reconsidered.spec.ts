@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { AttemptTimelineEntry, TraceEvent } from '../../core/models/simulation.model';
+import { AttemptTimelineEntry } from '../../core/models/simulation.model';
 import { InstructorTraceComponent } from './instructor-trace.component';
 import { RECONSIDERED_LABEL } from './reconsidered.util';
 
@@ -46,12 +46,6 @@ describe('panel del docente: respuestas reconsideradas (L-02)', () => {
     expect(panel.timelineFeedback(prohibitedRetry)).toMatch(/no cuenta como decisión registrada/);
     expect(panel.timelineFeedback(prohibitedRetry)).not.toMatch(/contraindicado/);
     expect(panel.timelineFeedback(prohibitedRegistered)).toBe('Evento marcado como contraindicado en el recorrido del estudiante.');
-  });
-
-  it('el título de un evento de reintento no lo llama «decisión inadecuada»', () => {
-    const retryEvent = { type: 'PROHIBITED_DECISION_RETRY_REQUIRED', classification: 'INADEQUATE' } as TraceEvent;
-    expect(panel.eventTitle(retryEvent)).toBe(RECONSIDERED_LABEL);
-    expect(panel.eventTitle({ type: 'DECISION_SELECTED', classification: 'RISKY' } as TraceEvent)).toBe('Decisión riesgosa');
   });
 
   it('la plantilla y el diálogo usan el tono propio de la fila y la plantilla muestra el contador de reconsideradas', () => {

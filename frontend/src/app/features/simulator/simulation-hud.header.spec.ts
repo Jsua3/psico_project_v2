@@ -92,7 +92,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
 
     it('el contador antiguo «Paso k (k/6)» ya no existe: ni bloque ni cálculo', () => {
-      const root = mount(false, { stageLabel: 'Decisión 1 de 6', nearbyInteractionKey: 'puerta-sala-escucha' });
+      const root = mount(false, { stageLabel: 'Decisión 1 de 6' });
       expect(root.querySelector('.hud-step')).toBeNull();
       expect(root.textContent).not.toMatch(/Paso\s+\d/);
       expect(hudSource).not.toContain('sceneProgress');

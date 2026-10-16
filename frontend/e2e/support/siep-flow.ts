@@ -116,17 +116,6 @@ export function checklistCard(page: Page): Locator {
   return page.locator('app-scene-checklist-card section.checklist');
 }
 
-/** Lo que dice la tarjeta «Qué hacer» sin depender de que esté desplegada: etapa, siguiente paso y su sala. */
-export async function readSceneLog(page: Page): Promise<{ stage: number | null; nextStep: string | null; nextRoom: string | null }> {
-  const card = checklistCard(page);
-  const [stage, nextStep, nextRoom] = await Promise.all([
-    card.getAttribute('data-stage'),
-    card.getAttribute('data-next-step'),
-    card.getAttribute('data-next-room'),
-  ]);
-  return { stage: stage === null ? null : Number(stage), nextStep, nextRoom };
-}
-
 /** La tarjeta «Qué hacer» señala stepId (p. ej. 'u1-recoger') como el siguiente paso. */
 export async function expectNextStep(page: Page, stepId: string): Promise<void> {
   await expect(checklistCard(page), `El siguiente paso de «Qué hacer» debería ser ${stepId}`)

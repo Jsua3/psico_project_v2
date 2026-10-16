@@ -2,7 +2,6 @@ import { testKitBundle } from '../character/kit/testing/kit-testing';
 import {
   DIMMED_ALPHA,
   KIT_BODY_HEIGHT,
-  KIT_HINT_OFFSET_Y,
   KIT_ICON_OFFSET_Y,
   KIT_LABEL_OFFSET_Y,
   extrasCharacterRef,
@@ -22,10 +21,9 @@ describe('world-characters.util — jugador', () => {
       .toEqual({ kind: 'jugador', avatar: { schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: true } });
   });
 
-  it('nombre, aviso e icono quedan sobre la cabeza más alta que admite la biblia (66 px)', () => {
+  it('nombre e icono quedan sobre la cabeza más alta que admite la biblia (66 px)', () => {
     expect(KIT_BODY_HEIGHT).toBe(64);
     expect(-KIT_LABEL_OFFSET_Y).toBeGreaterThan(66);
-    expect(KIT_HINT_OFFSET_Y).toBeLessThan(KIT_LABEL_OFFSET_Y);
     expect(-KIT_ICON_OFFSET_Y).toBeGreaterThanOrEqual(66);
   });
 });
