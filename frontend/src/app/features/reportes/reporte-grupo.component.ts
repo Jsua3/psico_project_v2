@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
@@ -24,6 +24,7 @@ import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 
 type ReportView = 'idle' | 'pending' | 'loading' | 'error' | 'empty' | 'ready';
@@ -38,8 +39,8 @@ type ReportView = 'idle' | 'pending' | 'loading' | 'error' | 'empty' | 'ready';
   selector: 'app-reporte-grupo',
   standalone: true,
   imports: [
-    ReactiveFormsModule,
-    UiBadge, UiButton, UiCard, UiControl, UiField, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
+    ReactiveFormsModule, RouterLink,
+    UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
     UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './reporte-grupo.component.html',
@@ -84,6 +85,12 @@ export class ReporteGrupoComponent {
     const caseVersionId = this.selectedCaseVersionId();
     return this.casos().find(caso => caso.caseVersionId === caseVersionId) ?? null;
   });
+
+  /** Lo que el reporte de un estudiante necesita para volver aquí y para mirar el mismo caso (F10-7†). */
+  protected readonly studentLinkParams = computed(() => ({
+    grupo: this.selectedGrupoId(),
+    caseVersionId: this.selectedCaseVersionId(),
+  }));
 
   /** La consulta respondió, pero sin intentos que mostrar. */
   private readonly sinIntentos = computed(() => {
@@ -136,11 +143,17 @@ export class ReporteGrupoComponent {
     });
   }
 
-  /** Llegar desde Grupos con `?grupo=<id>` deja ese grupo elegido y su reporte generado. */
+  /**
+   * Llegar desde Grupos con `?grupo=<id>` deja ese grupo elegido y su reporte generado. Con `&caseVersionId=<id>` (la
+   * vuelta desde el reporte de un estudiante, F10-7†) deja también el caso: el mismo corte que se estaba mirando.
+   */
   private preseleccionarGrupo(grupos: Grupo[]): void {
     const wanted = Number(this.route?.snapshot.queryParamMap.get('grupo'));
     if (!Number.isInteger(wanted) || this.form.controls.grupoId.value !== null) return;
-    if (grupos.some(grupo => grupo.id === wanted)) this.form.patchValue({ grupoId: wanted });
+    if (!grupos.some(grupo => grupo.id === wanted)) return;
+    const wantedCase = Number(this.route?.snapshot.queryParamMap.get('caseVersionId'));
+    // Un solo patch: dos generarían dos consultas.
+    this.form.patchValue({ grupoId: wanted, caseVersionId: Number.isInteger(wantedCase) && wantedCase > 0 ? wantedCase : null });
   }
 
   limpiar() {

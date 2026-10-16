@@ -241,6 +241,22 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(stat('Intentos')).toBeDefined();
     });
 
+    // req: RF-25, RQ-NEG-006
+    it('?grupo=<id>&caseVersionId=<id> deja elegidos el grupo Y el caso y pide ese corte (la vuelta desde el reporte de un estudiante)', async () => {
+      await render({}, { query: { grupo: '2', caseVersionId: '12' } });
+
+      expect(select('Grupo').selectedOptions[0].textContent?.trim()).toBe('Cohorte B · COH-B');
+      expect(select('Caso de simulación').selectedOptions[0].textContent?.trim()).toBe('Caso doce · v1.0.0');
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(1);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
+    });
+
+    it('un ?caseVersionId= que no es un número se ignora (el grupo sí se elige)', async () => {
+      await render({}, { query: { grupo: '2', caseVersionId: 'abc' } });
+
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+    });
+
     it('un ?grupo= que no existe se ignora: queda «Selecciona un grupo» y no se consulta nada', async () => {
       await render({}, { query: { grupo: '999' } });
 
@@ -307,6 +323,19 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(text(rows[0])).toContain('Marta Ríos');
       expect(text(rows[0].querySelector('ui-badge'))).toBe('Completado');
       expect(text(rows[1].querySelector('ui-badge'))).toBe('En pausa (reanudable)');
+    });
+
+    // req: RF-26, CU-15, RQ-NEG-006
+    it('cada estudiante es un enlace a su reporte (F10-7), con el grupo y el caso elegidos para que el reporte conserve el contexto', async () => {
+      await withReport();
+      const hrefs = () => [...host().querySelectorAll('ui-table tbody a')].map(link => link.getAttribute('href'));
+      expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1', '/portal/reportes/estudiante/12?grupo=1']);
+      expect(text(host().querySelector('ui-table tbody a'))).toContain('Marta Ríos');
+
+      choose(select('Caso de simulación'), 'Caso doce · v1.0.0');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(hrefs()[0]).toBe('/portal/reportes/estudiante/11?grupo=1&caseVersionId=12');
     });
 
     it('ninguna región de la pantalla repite el nombre de otra (landmark-unique)', async () => {

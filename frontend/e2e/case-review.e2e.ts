@@ -15,7 +15,12 @@ type Json = Record<string, any>;
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
+/** Axe mide lo que hay pintado: antes se esperan las animaciones finitas (la entrada de una página o de un diálogo mezcla los colores). */
 async function blockingViolations(page: Page, include: string): Promise<string[]> {
+  await page.waitForFunction(() => document.getAnimations().every(animation => {
+    const timing = animation.effect?.getComputedTiming();
+    return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
+  }), undefined, { timeout: 10_000 }).catch(() => undefined);
   const results = await runAxe(page, { tags: WCAG_TAGS, resultTypes: ['violations'], include });
   return results.violations
     .filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
