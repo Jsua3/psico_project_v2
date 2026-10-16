@@ -35,9 +35,9 @@ const REAL_CONTROL = 'main :is(a[href], button, input:not([type="hidden"]), sele
 
 /**
  * Animaciones y transiciones cuya duración supera 1,5 ms (la red de seguridad vale 1 ms); el fundido de opacidad se
- * admite. La barra de vidrio (`.cromo`) queda fuera A PROPÓSITO: su receta declara su propia política con movimiento
- * reducido —«se anula el DESPLAZAMIENTO, no el reloj» (`tokens/_glass-bar.scss`)—, así que conserva fundidos de color
- * de 200 ms y la transición de `gap` y de ancho de sus cápsulas; si eso debe cambiar es decisión de la barra, no de esta sonda.
+ * admite. La barra de vidrio (`.cromo`) queda fuera A PROPÓSITO (decisión del usuario, 2026-10-16): su receta declara su
+ * propia política con movimiento reducido —«se anula el DESPLAZAMIENTO, no el reloj» (`tokens/_glass-bar.scss`)—, así que
+ * conserva fundidos de color de 200 ms y la transición de `gap` y de ancho de sus cápsulas.
  */
 async function slowMotion(page: Page): Promise<string[]> {
   return page.evaluate(() => {

@@ -587,7 +587,7 @@ const OBJECT_COLORS: Record<string, string> = {
   styles: [`
     .we-root { display: grid; gap: 12px; }
 
-    /* Paneles sólidos: el editor tiene un canvas y el presupuesto de vidrio es de 2 capas con canvas (F9-3). */
+    /* Paneles sólidos: el editor tiene un canvas y el presupuesto de vidrio es de 2 capas con canvas, sin contar la barra (F9-3). */
     .we-toolbar, .we-library, .we-inspector {
       background: var(--ds-surface-1);
       border: 1px solid var(--ds-border);
