@@ -881,17 +881,6 @@ export interface InterventionRuleSet {
   prohibited: PatientStateDelta;
 }
 
-export type OutcomeTier = 'excelente' | 'adecuado' | 'riesgo' | 'crisis_no_manejada';
-
-export interface SimulationOutcome {
-  tier: OutcomeTier;
-  patientFinalState: PatientState;
-  scoreTotal: number;
-  feedbackNarrative: string;
-  keyDecisions: string[];
-}
-
-
 // ─── Revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ─────────────────────────────────────────
 
 /** Estado de una versión del caso (REGLA-005: lo publicado no se edita, se clona). */
