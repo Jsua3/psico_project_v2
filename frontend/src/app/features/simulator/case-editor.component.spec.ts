@@ -71,6 +71,7 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace
 describe('editor de casos (F8-1)', () => {
   let fixture: ComponentFixture<CaseEditorComponent>;
   let api: Record<string, ReturnType<typeof vi.fn>>;
+  let caseChanges: Subject<number>;
   let notify: Record<string, ReturnType<typeof vi.fn>>;
   let dialog: { sheet: ReturnType<typeof vi.fn>; confirm: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn> };
   let role: ReturnType<typeof signal<string>>;
@@ -90,6 +91,7 @@ describe('editor de casos (F8-1)', () => {
 
   async function render(options: { view?: CaseEditorView | Observable<CaseEditorView>; role?: string; stable?: boolean } = {}) {
     const view = options.view ?? editorView();
+    caseChanges = new Subject<number>();
     api = {
       caseEditor: vi.fn(() => (view instanceof Observable ? view : of(view))),
       createNode: vi.fn(() => of(editorView({ revision: 4 }))),
@@ -107,8 +109,12 @@ describe('editor de casos (F8-1)', () => {
       updateTool: vi.fn(() => of(editorView({ revision: 4 }))),
       deleteTool: vi.fn(() => of(editorView({ revision: 4 }))),
       updateChecklist: vi.fn(() => of(editorView({ revision: 4 }))),
-      publishCase: vi.fn(() => of(editorView({ revision: 4, status: 'PUBLISHED' }))),
       cloneCaseVersion: vi.fn(() => of(editorView({ revision: 1 }))),
+      lifecycle: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'DRAFT', allowedTransitions: ['submit', 'archive'] })),
+      validateCase: vi.fn(() => of({ issues: [], canPublish: true })),
+      // Como la real: una transición aplicada avisa a quien tenga el caso abierto (AuthoringApi.caseChanges).
+      transitionCase: vi.fn(() => { caseChanges.next(CASE_ID); return of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] }); }),
+      caseChanges: caseChanges as unknown as ReturnType<typeof vi.fn>,
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     dialog = {
@@ -141,13 +147,13 @@ describe('editor de casos (F8-1)', () => {
 
   // req: RNF-04, BLOQUE-H
   describe('estructura y estados', () => {
-    it('un solo h1 con el título del caso, la región de estado siempre presente y las ocho pestañas', async () => {
+    it('un solo h1 con el título del caso, la región de estado siempre presente y las nueve pestañas', async () => {
       await render();
       expect(host().querySelectorAll('h1')).toHaveLength(1);
       expect(text(host().querySelector('h1'))).toBe('Caso de duelo');
       expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
       expect([...host().querySelectorAll('[role="tab"]')].map(text)).toEqual([
-        'Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Mundo', 'Vista previa',
+        'Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión', 'Mundo', 'Vista previa',
       ]);
     });
 
@@ -196,49 +202,55 @@ describe('editor de casos (F8-1)', () => {
   });
 
   // req: RF-05, CU-01, REGLA-011
-  describe('cabecera: clonar y publicar', () => {
-    it('el administrador ve «Publicar» deshabilitado con el motivo «Falta: …» mientras la lista esté incompleta', async () => {
-      await render();
-      const publish = buttonLabelled('Publicar')!;
-      expect(publish).toBeDefined();
-      expect(publish.getAttribute('aria-disabled')).toBe('true');
-      expect(text(publish.querySelector('span[hidden]'))).toBe('Falta: Revisión ética y Sin lenguaje estigmatizante ni estereotipos clínicos.');
-    });
-
-    it('con la lista completa, «Publicar» queda habilitado', async () => {
+  describe('cabecera: clonar; la publicación es la del panel «Revisión» (decisión del usuario, 2026-10-16)', () => {
+    it('nadie ve «Publicar» en la cabecera, tampoco el administrador con la lista completa: se publica por el camino formal', async () => {
       await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
-      expect(buttonLabelled('Publicar')!.getAttribute('aria-disabled')).not.toBe('true');
+      expect(buttonLabelled('Publicar')).toBeUndefined();
+      expect(buttonLabelled('Clonar versión')).toBeDefined();
     });
 
-    it('el docente no ve «Publicar» (solo el administrador publica) pero sí «Clonar versión»', async () => {
+    it('el docente tampoco, y conserva «Clonar versión»', async () => {
       await render({ role: 'PROFESOR' });
       expect(buttonLabelled('Publicar')).toBeUndefined();
       expect(buttonLabelled('Clonar versión')).toBeDefined();
     });
 
-    it('publicar pide confirmación y no llama al servidor hasta confirmar; envía la revisión vigente', async () => {
-      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+    it('enviar a revisión pide confirmación y no llama al servidor hasta confirmar; envía la revisión vigente', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
       let answer!: (value: boolean) => void;
       dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
 
-      buttonLabelled('Publicar')!.click();
-      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Publicar caso', confirmLabel: 'Publicar' }));
-      expect(api['publishCase']).not.toHaveBeenCalled();
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Enviar a revisión', confirmLabel: 'Enviar' }));
+      expect(api['transitionCase']).not.toHaveBeenCalled();
 
       answer(true);
       await settle();
-      expect(api['publishCase']).toHaveBeenCalledWith(CASE_ID, 3);
-      expect(notify['success']).toHaveBeenCalledWith('Caso publicado.');
+      expect(api['transitionCase']).toHaveBeenCalledWith(CASE_ID, { action: 'submit' }, 3);
+      expect(notify['success']).toHaveBeenCalledWith('El caso se envió a revisión.');
     });
 
-    it('si se cancela la confirmación no se publica', async () => {
-      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+    it('si se cancela la confirmación no se envía', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
       dialog.confirm.mockResolvedValue(false);
 
-      buttonLabelled('Publicar')!.click();
+      buttonLabelled('Enviar a revisión')!.click();
       await settle();
 
-      expect(api['publishCase']).not.toHaveBeenCalled();
+      expect(api['transitionCase']).not.toHaveBeenCalled();
+    });
+
+    it('la lista de publicación dice a dónde ir cuando está completa: se envía a revisión desde «Revisión»', async () => {
+      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+      tab('Checklist ético')!.click();
+      await settle();
+
+      expect(text(host().querySelector('.ce-lead'))).toContain('desde la pestaña «Revisión»');
     });
   });
 
@@ -376,6 +388,119 @@ describe('editor de casos (F8-1)', () => {
     });
   });
 
+  // req: RF-12, RF-13, CU-05
+  describe('revisión del caso (F10-6)', () => {
+    const hasButtonWith = (fragment: string) => [...host().querySelectorAll('button')].some(button => text(button).includes(fragment));
+
+    it('la pestaña «Revisión» muestra el estado de la versión y lo que el servidor permite hacer', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
+
+      expect(api['lifecycle']).toHaveBeenCalledWith(CASE_ID);
+      expect(api['validateCase']).toHaveBeenCalledWith(CASE_ID);
+      expect(host().querySelector('app-case-review-panel')).not.toBeNull();
+      expect(buttonLabelled('Enviar a revisión')).toBeDefined();
+    });
+
+    it('enviar a revisión desde la pestaña manda la revisión del editor y el editor se actualiza EN SILENCIO (sin esqueleto)', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
+
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+
+      expect(api['transitionCase']).toHaveBeenCalledWith(CASE_ID, { action: 'submit' }, 3);
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(host().querySelector('.ce-loading')).toBeNull();
+      expect(host().querySelector('app-case-review-panel')).not.toBeNull();
+    });
+
+    it('el editor se entera por el servicio de cualquier cambio del caso (aunque quien lo pidió ya no esté) y relee solo el suyo', async () => {
+      await render();
+
+      caseChanges.next(999);
+      await settle();
+      expect(api['caseEditor']).toHaveBeenCalledTimes(1);
+
+      caseChanges.next(CASE_ID);
+      await settle();
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(host().querySelector('.ce-loading')).toBeNull();
+    });
+
+    it('una transición no descarta las casillas del checklist sin guardar', async () => {
+      await render();
+      tab('Checklist ético')!.click();
+      await settle();
+      const box = () => host().querySelector<HTMLInputElement>('input[data-code="ethicsReviewed"]')!;
+      expect(box().checked).toBe(false);
+      box().click();
+      await settle();
+      expect(box().checked).toBe(true);
+
+      tab('Revisión')!.click();
+      await settle();
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+      tab('Checklist ético')!.click();
+      await settle();
+
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+      expect(box().checked, 'la casilla que se marcó sigue marcada').toBe(true);
+    });
+
+    it('en revisión el candado lo explica sin mandar a clonar (el panel dice lo contrario)', async () => {
+      await render({ view: editorView({ status: 'IN_REVIEW' }) });
+
+      const lock = text(host().querySelector('p.ce-lock'));
+      expect(lock).toContain('en revisión');
+      expect(lock).not.toContain('clónala');
+    });
+
+    it('un hallazgo de una escena abre la hoja de edición de ese nodo', async () => {
+      await render();
+      component().openReviewIssue({ nodeId: 1 });
+
+      expect(dialog.sheet).toHaveBeenCalledWith(CaseEditorSheetComponent, expect.objectContaining({ side: 'end' }));
+      expect(component().panel()).toMatchObject({ kind: 'node-edit', node: expect.objectContaining({ id: 1 }) });
+    });
+
+    it('un hallazgo de un mapa lleva al editor de mundo de su sala', async () => {
+      await render();
+      component().openReviewIssue({ nodeId: 1, mapId: 11 });
+
+      expect(component().selectedWorldNodeId()).toBe(1);
+      expect(component().tab()).toBe('mundo');
+    });
+
+    it('un hallazgo de algo que ya no existe no abre nada y lo dice', async () => {
+      await render();
+      component().openReviewIssue({ mapId: 999 });
+      component().openReviewIssue({ nodeId: 999 });
+
+      expect(dialog.sheet).not.toHaveBeenCalled();
+      expect(component().selectedWorldNodeId()).toBeNull();
+      expect(notify['info']).toHaveBeenCalledTimes(2);
+      expect(notify['info']).toHaveBeenCalledWith('Ese elemento ya no está en el caso: pulsa «Revisar de nuevo».');
+    });
+
+    it('en una versión que no es borrador los hallazgos se leen pero no ofrecen ir a la escena', async () => {
+      await render({ view: editorView({ status: 'IN_REVIEW' }) });
+      api['validateCase'].mockReturnValue(of({
+        canPublish: false,
+        issues: [{ code: 'WORLD.NODE_WITHOUT_MAP', severity: 'error', message: 'La escena «Inicio del caso» no tiene mapa.', nodeId: 1 }],
+      }));
+      api['lifecycle'].mockReturnValue(of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] }));
+      tab('Revisión')!.click();
+      await settle();
+
+      expect(text(host())).toContain('La escena «Inicio del caso» no tiene mapa.');
+      expect(hasButtonWith('Ir a la escena')).toBe(false);
+    });
+  });
+
   // req: RNF-08, REGLA-005
   describe('clonar la versión', () => {
     it('abre la copia: la pantalla y la URL pasan a la versión nueva, sin dejar el mundo del nodo anterior', async () => {
@@ -398,7 +523,7 @@ describe('editor de casos (F8-1)', () => {
   describe('accesibilidad de los botones', () => {
     it('todo botón del editor tiene nombre accesible, en cada pestaña de datos', async () => {
       await render();
-      for (const name of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético']) {
+      for (const name of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión']) {
         tab(name)!.click();
         await settle();
       }

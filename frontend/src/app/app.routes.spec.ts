@@ -7,6 +7,7 @@ import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { ChangePasswordComponent } from './features/account/change-password.component';
 import { InvitationsComponent } from './features/invitations/invitations.component';
+import { ReporteEstudianteComponent } from './features/reportes/reporte-estudiante.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
@@ -147,6 +148,20 @@ describe('app.routes: bandeja de invitaciones', () => {
     expect(inbox.canActivate).toHaveLength(1);
     expect(await (inbox.loadComponent as () => Promise<unknown>)()).toBe(InvitationsComponent);
     expect(children.indexOf(inbox)).toBeLessThan(children.findIndex(child => child.path === '**'));
+  });
+});
+
+/** F10-7† (C3): el reporte de un estudiante es una ruta del portal con los roles de Reportes, antes del comodín. */
+// req: RF-26, CU-15
+describe('app.routes: reporte de un estudiante', () => {
+  it('«reportes/estudiante/:estudianteId» es hija del portal, guardada por los roles de Reportes, y carga el reporte', async () => {
+    const children = routes.find(route => route.path === 'portal')!.children ?? [];
+    const report = children.find(child => child.path === 'reportes/estudiante/:estudianteId')!;
+    expect(report).toBeDefined();
+    expect(report.canActivate).toHaveLength(1);
+    expect(report.title).toBe('Reporte del estudiante');
+    expect(await (report.loadComponent as () => Promise<unknown>)()).toBe(ReporteEstudianteComponent);
+    expect(children.indexOf(report)).toBeLessThan(children.findIndex(child => child.path === '**'));
   });
 });
 

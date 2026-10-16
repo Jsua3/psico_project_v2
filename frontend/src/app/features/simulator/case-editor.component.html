@@ -3,10 +3,6 @@
     <button ui-button uiPageActions type="button" variant="secondary" icon="content_copy"
       [disabledReason]="busyReason()" (click)="clone(editor()!.caseVersionId)">Clonar versión</button>
   }
-  @if (editor() && readiness().allowed) {
-    <button ui-button uiPageActions type="button" icon="publish"
-      [disabledReason]="busyReason() ?? readiness().reason" (click)="confirmPublish(editor()!.caseVersionId)">Publicar</button>
-  }
 </ui-page-header>
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
@@ -211,8 +207,8 @@
           <ui-section class="ce-section" title="Lista de publicación">
             <p class="ce-lead">
               {{ model.publishable
-                ? 'La lista obligatoria está completa: el caso se puede publicar.'
-                : 'La publicación queda bloqueada hasta cumplir los ítems obligatorios de la lista.' }}
+                ? 'La lista obligatoria está completa: el caso se puede enviar a revisión desde la pestaña «Revisión».'
+                : 'El envío a revisión queda bloqueado hasta cumplir los ítems obligatorios de la lista.' }}
             </p>
             @if (checklistForm) {
               <form [formGroup]="checklistForm" novalidate (ngSubmit)="saveChecklist(model.caseVersionId)">
@@ -250,6 +246,12 @@
               }
             </div>
           </ui-section>
+        </ng-template>
+
+        <!-- ── Revisión (estado del caso y qué falta para publicar; F10-6) ─────────── -->
+        <ng-template uiTab="revision" label="Revisión">
+          <app-case-review-panel [caseVersionId]="model.caseVersionId" [revision]="model.revision"
+            [editable]="!lockReason()" (issueOpen)="openReviewIssue($event)" />
         </ng-template>
 
         <!-- ── Mundo (editor visual Konva) ───────────────────────────────────────── -->

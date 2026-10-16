@@ -38,12 +38,14 @@ describe('editor de casos: feedback de acciones', () => {
   function setup() {
     const ok = () => vi.fn(() => of(editorView));
     sim = {
-      caseEditor: ok(), publishCase: ok(), cloneCaseVersion: ok(), updateChecklist: ok(),
+      caseEditor: ok(), cloneCaseVersion: ok(), updateChecklist: ok(),
       createNode: ok(), updateNode: ok(), deleteNode: ok(),
       createDecision: ok(), updateDecision: ok(),
       createMap: ok(), updateMap: ok(), deleteMap: ok(),
       createObject: ok(), updateObject: ok(), deleteObject: ok(),
       createTool: ok(), updateTool: ok(), deleteTool: ok(),
+      // El editor escucha los cambios del caso que avisa la API (F10-6: transiciones del ciclo de vida).
+      caseChanges: new Subject<number>() as unknown as Mock,
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     dialog = {
@@ -80,19 +82,19 @@ describe('editor de casos: feedback de acciones', () => {
 
   // req: RNF-04, BLOQUE-H
   it('éxito: avisa con el texto de la acción, refresca el editor y libera busy', () => {
-    component.publish(CASE_VERSION_ID);
+    component.clone(CASE_VERSION_ID);
 
-    expect(sim['publishCase']).toHaveBeenCalledWith(CASE_VERSION_ID, undefined);
-    expect(notify.success).toHaveBeenCalledWith('Caso publicado.');
+    expect(sim['cloneCaseVersion']).toHaveBeenCalledWith(CASE_VERSION_ID);
+    expect(notify.success).toHaveBeenCalledWith('Se creó una nueva versión del caso.');
     expect(notify.error).not.toHaveBeenCalled();
     expect(component.editor()).toBe(editorView);
     expect(component.busy()).toBe(false);
   });
 
   it('error del backend: avisa con su mensaje, libera busy y no avisa éxito', () => {
-    sim['publishCase'].mockReturnValue(backendError(500, { message: 'Mensaje del backend' }));
+    sim['cloneCaseVersion'].mockReturnValue(backendError(500, { message: 'Mensaje del backend' }));
 
-    component.publish(CASE_VERSION_ID);
+    component.clone(CASE_VERSION_ID);
 
     expect(notify.error).toHaveBeenCalledTimes(1);
     expect(notify.error).toHaveBeenCalledWith('Mensaje del backend');
@@ -101,18 +103,18 @@ describe('editor de casos: feedback de acciones', () => {
   });
 
   it('error sin mensaje útil: avisa con el texto de respaldo de la acción', () => {
-    sim['publishCase'].mockReturnValue(backendError(500, null));
+    sim['cloneCaseVersion'].mockReturnValue(backendError(500, null));
 
-    component.publish(CASE_VERSION_ID);
+    component.clone(CASE_VERSION_ID);
 
-    expect(notify.error).toHaveBeenCalledWith('No fue posible publicar el caso.');
+    expect(notify.error).toHaveBeenCalledWith('No fue posible clonar la versión.');
     expect(component.busy()).toBe(false);
   });
 
   it('sin conexión (status 0): no duplica el aviso del interceptor pero libera busy', () => {
-    sim['publishCase'].mockReturnValue(backendError(0, null));
+    sim['cloneCaseVersion'].mockReturnValue(backendError(0, null));
 
-    component.publish(CASE_VERSION_ID);
+    component.clone(CASE_VERSION_ID);
 
     expect(notify.error).not.toHaveBeenCalled();
     expect(notify.success).not.toHaveBeenCalled();
@@ -121,15 +123,15 @@ describe('editor de casos: feedback de acciones', () => {
 
   it('mantiene busy mientras la petición está en vuelo', () => {
     const pending = new Subject<CaseEditorView>();
-    sim['publishCase'].mockReturnValue(pending);
+    sim['cloneCaseVersion'].mockReturnValue(pending);
 
-    component.publish(CASE_VERSION_ID);
+    component.clone(CASE_VERSION_ID);
     expect(component.busy()).toBe(true);
     expect(notify.success).not.toHaveBeenCalled();
 
     pending.next(editorView);
     expect(component.busy()).toBe(false);
-    expect(notify.success).toHaveBeenCalledWith('Caso publicado.');
+    expect(notify.success).toHaveBeenCalledWith('Se creó una nueva versión del caso.');
   });
 
   // Antes se contaban a mano las 12 llamadas a `runAction` en el texto del código: lo que importa es que NINGUNA
@@ -165,7 +167,6 @@ describe('editor de casos: feedback de acciones', () => {
         component.ngOnInit();
         component.saveChecklist(CASE_VERSION_ID);
       }],
-      ['publicar', 'publishCase', 'No fue posible publicar el caso.', () => component.publish(CASE_VERSION_ID)],
       ['clonar la versión', 'cloneCaseVersion', 'No fue posible clonar la versión.', () => component.clone(CASE_VERSION_ID)],
     ];
 
@@ -223,20 +224,20 @@ describe('editor de casos: feedback de acciones', () => {
     expect(component.panel()).toBeNull();
   });
 
-  it('publicar pide confirmación y no llama al backend hasta confirmar', async () => {
+  it('eliminar un mapa pide confirmación y no llama al backend hasta confirmar', async () => {
     let answer!: (value: boolean) => void;
     dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
 
-    const pending = component.confirmPublish(CASE_VERSION_ID);
+    const pending = component.confirmDeleteMap(CASE_VERSION_ID, { id: 11, title: 'M' } as never);
 
-    expect(sim['publishCase']).not.toHaveBeenCalled();
-    expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Publicar caso', confirmLabel: 'Publicar' }));
+    expect(sim['deleteMap']).not.toHaveBeenCalled();
+    expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ tone: 'danger', confirmLabel: 'Eliminar' }));
 
     answer(true);
     await pending;
 
-    expect(sim['publishCase']).toHaveBeenCalledWith(CASE_VERSION_ID, undefined);
-    expect(notify.success).toHaveBeenCalledWith('Caso publicado.');
+    expect(sim['deleteMap']).toHaveBeenCalledWith(CASE_VERSION_ID, 11, undefined);
+    expect(notify.success).toHaveBeenCalledWith('Mapa eliminado.');
   });
 
   it('eliminar sigue confirmando (en tono de peligro) y avisa el resultado', async () => {
@@ -259,14 +260,14 @@ describe('editor de casos: feedback de acciones', () => {
     let answer!: (value: boolean) => void;
     dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
 
-    const first = component.confirmPublish(CASE_VERSION_ID);
-    const second = component.confirmPublish(CASE_VERSION_ID);
+    const first = component.confirmDeleteNode(CASE_VERSION_ID, node);
+    const second = component.confirmDeleteNode(CASE_VERSION_ID, node);
     await settle();
 
     expect(dialog.confirm).toHaveBeenCalledTimes(1);
     answer(false);
     await Promise.all([first, second]);
-    expect(sim['publishCase']).not.toHaveBeenCalled();
+    expect(sim['deleteNode']).not.toHaveBeenCalled();
   });
 
   // El formulario del nodo no edita las herramientas requeridas ni los recursos de apoyo;

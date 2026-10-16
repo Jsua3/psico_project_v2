@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
-import { Dashboard, ReporteGrupo } from '../models/sesion.model';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+import { Dashboard, ReporteEstudiante, ReporteGrupo } from '../models/sesion.model';
 
 interface ApiResponse<T> { data: T; }
 
@@ -18,6 +19,18 @@ export class ReporteService {
     let params = new HttpParams();
     if (caseVersionId != null) params = params.set('caseVersionId', caseVersionId);
     return this.http.get<ApiResponse<ReporteGrupo>>(`${this.API}/grupo/${grupoId}`, { params })
+      .pipe(map(r => r.data));
+  }
+
+  /** C3 (E1-10): los intentos de un estudiante con su tiempo y la cobertura «X de N»; solo viajan los filtros pedidos. */
+  getReporteEstudiante(estudianteId: number, options: { caseVersionId?: number | null; limit?: number } = {}) {
+    let params = new HttpParams();
+    if (options.caseVersionId != null) params = params.set('caseVersionId', options.caseVersionId);
+    if (options.limit != null) params = params.set('limit', options.limit);
+    // Un estudiante que no es de sus grupos da 403: la pantalla lo explica con su propio estado, así que el interceptor
+    // no avisa además con su «No tienes permisos…» genérico.
+    const context = new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true);
+    return this.http.get<ApiResponse<ReporteEstudiante>>(`${this.API}/estudiante/${estudianteId}`, { params, context })
       .pipe(map(r => r.data));
   }
 

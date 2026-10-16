@@ -60,7 +60,10 @@ test('el editor de mundo se maneja solo con teclado: colocar, mover, borrar, dib
 
   // ── Llegar al editor de mundo: pestañas con flechas y el selector de sala con Intro ───────────────────────────
   await page.getByRole('tab', { name: 'Grafo DAG' }).focus();
-  for (let step = 0; step < 6; step++) await page.keyboard.press('ArrowRight');
+  // Con las flechas hasta «Mundo»: no se cuentan las pestañas (F10-6 metió «Revisión» antes y 6 flechas ya no bastaban).
+  for (let step = 0; step < 9 && !(await page.getByRole('tab', { name: 'Mundo', selected: true }).isVisible()); step++) {
+    await page.keyboard.press('ArrowRight');
+  }
   await expect(page.getByRole('tab', { name: 'Mundo', selected: true })).toBeVisible();
   const loaded = page.waitForResponse(
     r => r.request().method() === 'GET' && r.url().includes(`/api/authoring/cases/${id}/world-editor`),

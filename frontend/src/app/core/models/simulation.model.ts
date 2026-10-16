@@ -890,3 +890,60 @@ export interface SimulationOutcome {
   feedbackNarrative: string;
   keyDecisions: string[];
 }
+
+
+// ─── Revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ─────────────────────────────────────────
+
+/** Estado de una versión del caso (REGLA-005: lo publicado no se edita, se clona). */
+export type CaseLifecycleState = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+export type CaseLifecycleAction = 'submit' | 'approve' | 'reject' | 'archive' | 'clone';
+
+/** Un hallazgo de la validación en lenguaje llano; `nodeId` y `mapId` dicen a qué elemento llevar al autor. */
+export interface ValidationIssue {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  nodeId?: number;
+  mapId?: number;
+}
+
+export interface CaseValidation {
+  issues: ValidationIssue[];
+  canPublish: boolean;
+}
+
+export interface CaseContentReview {
+  reviewer: string;
+  reviewedOn: string | null;
+  reference: string;
+}
+
+/** La última solicitud de revisión del caso y, si ya se decidió, su decisión. */
+export interface CaseReviewInfo {
+  requestedBy: string | null;
+  requestedAt: string;
+  decision?: string;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  note?: string;
+  reason?: 'FORMA' | 'CONTENIDO';
+  contentReview?: CaseContentReview;
+}
+
+export interface CaseLifecycle {
+  caseVersionId: number;
+  state: CaseLifecycleState;
+  allowedTransitions: CaseLifecycleAction[];
+  /** Por qué no se puede enviar o aprobar (solo cuando esas acciones están permitidas y hay algo que lo impide). */
+  blockedReason?: { code: string; message: string };
+  review?: CaseReviewInfo;
+}
+
+/** Lo que lleva cada transición (`revision` viaja en la cabecera `X-Case-Revision`, no aquí). */
+export interface CaseTransitionRequest {
+  action: CaseLifecycleAction;
+  note?: string;
+  reason?: 'FORMA' | 'CONTENIDO';
+  scope?: 'version' | 'case';
+  contentReview?: CaseContentReview;
+}

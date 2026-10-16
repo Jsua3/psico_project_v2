@@ -62,6 +62,24 @@ async function studentCasePath(page: Page): Promise<string> {
   return new URL(page.url()).pathname;
 }
 
+/**
+ * El reporte del primer estudiante activo de un grupo de la docente (plan visual F10-7†): la ruta lleva el id del
+ * estudiante, que se averigua por la API como lo haría el enlace de la tabla del reporte del grupo. Sin estudiantes en
+ * sus grupos, el recorrido igual pasa por la pantalla (muestra su error de «no encontrado»).
+ */
+async function firstStudentReportPath(page: Page): Promise<string> {
+  const login = await page.request.post('/api/auth/login', { data: CREDENTIALS.profesor });
+  const token = (await login.json()).data?.token as string | undefined;
+  const headers = { Authorization: `Bearer ${token}` };
+  const groups = ((await (await page.request.get('/api/grupos', { headers })).json()).data ?? []) as Array<{ id: number }>;
+  for (const group of groups) {
+    const rows = ((await (await page.request.get(`/api/grupos/${group.id}/estudiantes`, { headers })).json()).data ?? []) as Array<{ id: number; membershipStatus?: string }>;
+    const student = rows.find(row => row.membershipStatus === undefined || row.membershipStatus === 'ACTIVE');
+    if (student) return `/portal/reportes/estudiante/${student.id}?grupo=${group.id}`;
+  }
+  return '/portal/reportes/estudiante/1';
+}
+
 export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'portada', role: 'publico', routePattern: '', path: '/' },
   { id: 'acceso', role: 'publico', routePattern: 'login', path: '/login' },
@@ -101,6 +119,11 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'rubricas', role: 'profesor', routePattern: 'portal/rubricas', path: '/portal/rubricas' },
   { id: 'grupos', role: 'profesor', routePattern: 'portal/grupos', path: '/portal/grupos' },
   { id: 'reportes', role: 'profesor', routePattern: 'portal/reportes', path: '/portal/reportes' },
+  // Plan visual F10-7† (C3): los intentos de un estudiante, a donde lleva el enlace de la tabla del reporte del grupo.
+  {
+    id: 'reporte-estudiante', role: 'profesor', routePattern: 'portal/reportes/estudiante/:estudianteId', resolvePath: firstStudentReportPath,
+    ready: async page => { await page.getByRole('heading', { level: 1 }).waitFor({ state: 'visible', timeout: 15_000 }); },
+  },
 
   // ED-5 (E2): el administrador no juega; la sala y «Mi personaje» ya no son suyos.
   { id: 'panel', role: 'admin', routePattern: 'portal/dashboard', path: '/portal/dashboard' },

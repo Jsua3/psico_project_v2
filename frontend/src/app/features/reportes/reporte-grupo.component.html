@@ -126,7 +126,9 @@
                 <tbody>
                   @for (e of sim.estudiantes; track e.id) {
                     <tr uiRow>
-                      <th scope="row" class="rg-name">{{ e.nombre }}</th>
+                      <th scope="row" class="rg-name">
+                        <a ui-link [routerLink]="['/portal/reportes/estudiante', e.id]" [queryParams]="studentLinkParams()">{{ e.nombre }}<span class="ds-sr-only"> — ver sus intentos</span></a>
+                      </th>
                       <td class="rg-num">{{ e.totalIntentos }}</td>
                       <td class="rg-num">{{ puntaje(e.puntajePromedio) }}</td>
                       <td class="rg-num">{{ e.decisionesAdecuadas }}</td>

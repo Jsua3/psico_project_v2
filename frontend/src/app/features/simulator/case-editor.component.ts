@@ -1,13 +1,13 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { RevisionConflict, revisionConflictOf } from '../../core/api/revision-conflict.util';
-import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   CaseEditorView,
@@ -34,10 +34,10 @@ import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
+import { CaseReviewPanelComponent, ValidationTarget } from './case-review-panel.component';
 import { mapThemeLabel, nodeOptionLabel, statusTone } from './case-editor.options';
 import { DagEditorComponent } from './dag-editor.component';
 import { describeEditorChanges } from './editor-changes.util';
-import { publishReadiness } from './publish-readiness.util';
 import { RevisionConflictAnswer, RevisionConflictDialogComponent, RevisionConflictDialogData } from './revision-conflict-dialog.component';
 import { WorldEditorComponent } from './world-editor';
 import { WorldPreviewComponent } from './world-preview.component';
@@ -59,7 +59,7 @@ type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
     ReactiveFormsModule, RouterLink,
     UiBadge, UiButton, UiCard, UiIconButton, UiPageActions, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiTab, UiTabs,
     UiEmptyState, UiErrorState,
-    DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
+    CaseReviewPanelComponent, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
   ],
   templateUrl: './case-editor.component.html',
   styleUrl: './case-editor.component.scss',
@@ -80,8 +80,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(UiDialog);
-  private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   /** La hoja abierta con el formulario (null si no hay). */
   private sheet: DialogRef<void, CaseEditorSheetComponent> | null = null;
@@ -116,17 +117,12 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando el editor…' : ''));
   protected readonly errorKind = computed(() => errorKindFromStatus(this.errorStatus()));
 
-  /** Solo el administrador publica (matriz `case.publish`); el motivo dice qué falta. */
-  protected readonly readiness = computed(() => {
-    const view = this.editor();
-    return view ? publishReadiness(view, this.auth.currentUser()?.role) : { allowed: false, reason: null };
-  });
   /** Una versión que no es borrador no admite cambios (el servidor responde 400): se dice antes de abrir un formulario. */
   readonly lockReason = computed(() => {
     const status = (this.editor()?.status ?? 'DRAFT').toUpperCase();
-    return status === 'DRAFT'
-      ? null
-      : 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
+    if (status === 'DRAFT') return null;
+    if (status === 'IN_REVIEW') return 'Esta versión está en revisión y no se puede modificar hasta que se apruebe o se devuelva a borrador.';
+    return 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
   });
   protected readonly busyReason = computed(() => (this.busy() ? 'Hay una acción en curso: espera a que termine.' : null));
   /** Cada mapa es la sala de un nodo: sin nodos no se puede crear uno. */
@@ -141,6 +137,12 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     (this.editor()?.nodes ?? []).map(node => ({ id: node.id, key: node.key, title: node.title })));
 
   ngOnInit(): void {
+    // Una transición del ciclo de vida (o un conflicto que dice que el caso ya no es el que se veía) se relee EN SILENCIO,
+    // como cualquier otra mutación: sin esqueleto y sin descartar lo que haya sin guardar. Llega por el servicio y no por
+    // una salida del panel de revisión porque ese panel está en una pestaña y una pestaña inactiva se destruye.
+    this.authoringApi.caseChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(caseVersionId => {
+      if (caseVersionId === this.editor()?.caseVersionId) this.reloadQuietly(caseVersionId);
+    });
     this.load();
   }
 
@@ -160,6 +162,17 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
         this.errorStatus.set(err instanceof HttpErrorResponse ? err.status : null);
         this.error.set('No se pudo cargar el editor.');
         this.loading.set(false);
+      },
+    });
+  }
+
+  /** Relee el caso sin esqueleto: `adopt` conserva las casillas sin guardar; si falla, lo que se veía se queda y se avisa. */
+  private reloadQuietly(caseVersionId: number): void {
+    this.authoringApi.caseEditor(caseVersionId).subscribe({
+      next: model => this.adopt(model),
+      error: (err: unknown) => {
+        const text = apiErrorMessage(err, 'No fue posible actualizar el caso.');
+        if (text) this.notify.error(text);
       },
     });
   }
@@ -519,23 +532,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     }
   }
 
-  // ─── Publicar y clonar ───────────────────────────────────────────────────────────────────────────────────────────
-
-  async confirmPublish(caseVersionId: number): Promise<void> {
-    const confirmed = await this.confirmOnce({
-      title: 'Publicar caso',
-      message: 'Los estudiantes asignados verán esta versión en su catálogo. ¿Publicarla ahora?',
-      confirmLabel: 'Publicar',
-    });
-    if (confirmed) this.publish(caseVersionId);
-  }
-
-  publish(caseVersionId: number): void {
-    this.runAction(
-      revision => this.authoringApi.publishCase(caseVersionId, revision),
-      'Caso publicado.', 'No fue posible publicar el caso.',
-    );
-  }
+  // ─── Clonar ──────────────────────────────────────────────────────────────────────────────────────────────────────
+  // Publicar no está aquí: el único camino es el ciclo de vida de la pestaña «Revisión» (enviar → aprobar), que lleva
+  // nota, constancia de revisión de contenido, bloqueos del servidor y la revisión del caso (decisión del usuario, 2026-10-16).
 
   /** Clona la versión y abre la copia: la URL pasa a ser la de la versión nueva (recargar no vuelve a la anterior). */
   clone(caseVersionId: number): void {
@@ -563,8 +562,33 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     if (first) this.openPanel({ kind: 'object-create', mapId: first.id });
   }
 
+  private notifyMissingElement(): void {
+    this.notify.info('Ese elemento ya no está en el caso: pulsa «Revisar de nuevo».');
+  }
+
   goToRubrics(): void {
     void this.router.navigate(['/portal/rubricas']);
+  }
+
+  /**
+   * Un hallazgo de la validación (F10-6†): el de un mapa lleva al editor de mundo de su sala (ahí se ven el punto de
+   * aparición, los objetos y las zonas); el de una escena abre la hoja de edición del nodo.
+   */
+  openReviewIssue(target: ValidationTarget): void {
+    const view = this.editor();
+    if (!view) return;
+    if (target.mapId !== undefined) {
+      const map = view.maps.find(item => item.id === target.mapId);
+      if (!map) return this.notifyMissingElement();
+      this.selectedWorldNodeId.set(map.nodeId);
+      this.tab.set('mundo');
+      // La pestaña de Revisión se destruye con el botón que se pulsó: el foco va a la pestaña que se abrió.
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus(), { injector: this.injector });
+      return;
+    }
+    const node = view.nodes.find(item => item.id === target.nodeId);
+    if (node) this.openPanel({ kind: 'node-edit', node });
+    else this.notifyMissingElement();
   }
 
   nodeIcon(node: NodeEditorState): string {

@@ -122,6 +122,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/reportes/reporte-grupo.component').then(m => m.ReporteGrupoComponent)
       },
       {
+        // F10-7† (C3): los intentos de un estudiante; se llega desde la tabla del reporte del grupo.
+        path: 'reportes/estudiante/:estudianteId',
+        title: 'Reporte del estudiante',
+        canActivate: [roleGuard(...rolesFor('reportes'))],
+        loadComponent: () => import('./features/reportes/reporte-estudiante.component').then(m => m.ReporteEstudianteComponent)
+      },
+      {
         path: 'admin/usuarios',
         title: 'Usuarios',
         canActivate: [roleGuard(...rolesFor('usuarios'))],
