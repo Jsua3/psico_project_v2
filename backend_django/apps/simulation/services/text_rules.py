@@ -4,24 +4,13 @@ Todo texto que escribe Psicología o el docente (objetivos, contexto, pistas, re
 fundamento, enunciados) pasa por ``validate_plain_text``: devuelve el texto limpio o un 400 que
 nombra el campo. Lo que el estudiante lee nunca trae etiquetas ni enlaces, aunque el cliente lo
 pinte con ``innerHTML``; el tope evita que un campo enorme degrade las vistas y los reportes.
-"""
-import re
 
+La regla en sí es pura y vive en ``casedef.text`` (E4-0): el documento del caso la usa sin DRF.
+"""
 from rest_framework import status
 
+from apps.simulation.casedef.text import plain_text_problem
 from shared.exceptions import ApiError
-
-#: Una etiqueta o un comentario HTML: ``<b>``, ``</p>``, ``<script``, ``<!--``, ``<?xml``. Un
-#: ``<`` que no abre nada («edad < 18», «a < b») es texto y se acepta.
-_TAG = re.compile(r"<(?:/?[A-Za-z]|[!?])")
-#: Un enlace: ``https://…``, ``ftp://…``, ``www.…`` o un esquema que ejecuta o abre algo.
-_LINK = re.compile(
-    r"(?:\b[A-Za-z][A-Za-z0-9+.-]{1,15}://|\bwww\.|\b(?:javascript|vbscript|data|mailto)\s*:)",
-    re.IGNORECASE,
-)
-#: Caracteres de control salvo salto de línea, retorno y tabulación.
-_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_BREAK = re.compile(r"[\r\n]")
 
 
 def _refuse(message, field, index):
@@ -40,21 +29,11 @@ def validate_plain_text(value, max_length, field, *, required=False, multiline=F
     # BORRADOR: los textos de error son nuevos del servidor, pendientes de Psicología (VD-23).
     if value is None:
         value = ""
-    if not isinstance(value, str):
-        raise _refuse("Debe ser un texto.", field, index)
-    text = value.strip()
-    if not text:
+    if isinstance(value, str) and not value.strip():
         if required:
             raise _refuse("No puede estar vacío.", field, index)
         return ""
-    if len(text) > max_length:
-        raise _refuse(f"No puede superar los {max_length} caracteres.", field, index)
-    if _CONTROL.search(text):
-        raise _refuse("Contiene caracteres que no se admiten.", field, index)
-    if not multiline and _BREAK.search(text):
-        raise _refuse("Debe escribirse en una sola línea.", field, index)
-    if _TAG.search(text):
-        raise _refuse("Debe ser texto plano, sin etiquetas ni formato.", field, index)
-    if _LINK.search(text):
-        raise _refuse("Debe ser texto plano, sin enlaces.", field, index)
-    return text
+    problem = plain_text_problem(value, max_length, multiline=multiline)
+    if problem is not None:
+        raise _refuse(problem[1], field, index)
+    return value.strip()
