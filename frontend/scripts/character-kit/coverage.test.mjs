@@ -5,20 +5,19 @@ import { buildBundle } from './bundle.mjs';
 import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
 import { checkSourceMinimums, referencedKeys } from './coverage-sources.mjs';
 
-test('las fuentes del juego se leen: escenarios, personas del seed, guías y hablantes', () => {
+test('las fuentes del juego se leen: escenarios, personas del seed y hablantes', () => {
   const refs = referencedKeys(REPO_ROOT);
   assert.equal(refs.scenarioNpcs.size, 20);
   assert.ok(refs.scenarioNpcs.has('supervisor-cierre'));
   assert.ok(refs.actors.has('familia-crisis') && refs.actors.has('funcionaria-recepcion'));
-  assert.ok(refs.guides.has('Funcionario de derechos'));
   assert.ok(refs.speakers.has('Sobreviviente (22 años)') && refs.speakers.has('Protocolo clínico'));
 });
 
 test('una fuente que deja de leerse falla en vez de cubrir cero', () => {
   const refs = referencedKeys(REPO_ROOT);
   assert.deepEqual(checkSourceMinimums(refs), []);
-  refs.guides.clear();
-  assert.deepEqual(checkSourceMinimums(refs), ['cobertura: la fuente guides dio 0 claves (mínimo 8); ¿se movió de sitio?']);
+  refs.speakers.clear();
+  assert.deepEqual(checkSourceMinimums(refs), ['cobertura: la fuente speakers dio 0 claves (mínimo 6); ¿se movió de sitio?']);
 });
 
 test('cada NPC de escenario nombra una receta que existe', () => {
@@ -40,10 +39,10 @@ test('el catálogo cubre todas las claves que el juego referencia', () => {
 
 test('una clave nueva sin receta se detecta', () => {
   const refs = referencedKeys(REPO_ROOT);
-  refs.guides.add('Guía nueva');
+  refs.actors.add('actor-nuevo');
   refs.speakers.add('Voz nueva');
   assert.deepEqual(checkCatalogKeys(buildBundle().catalog, refs), [
-    'catálogo: falta el guía «Guía nueva»',
+    'catálogo: falta el actor «actor-nuevo»',
     'catálogo: el hablante «Voz nueva» no es receta ni voz sin cuerpo',
   ]);
 });
@@ -60,10 +59,10 @@ test('el catálogo proyecta a un retrato las emociones que master ya aliaba (F§
 test('todo lo que el catálogo nombra existe', () => {
   assert.deepEqual(checkCatalogRecipes(buildBundle()), []);
   const bundle = buildBundle();
-  bundle.catalog.guides['Enfermera de turno'] = 'no-existe';
+  bundle.catalog.actors['familia-crisis'] = 'no-existe';
   bundle.catalog.editor.hair.push('cresta');
   assert.deepEqual(checkCatalogRecipes(bundle), [
-    'catálogo: guides.Enfermera de turno apunta a la receta inexistente «no-existe»',
+    'catálogo: actors.familia-crisis apunta a la receta inexistente «no-existe»',
     'editor: peinado inexistente cresta',
   ]);
 });

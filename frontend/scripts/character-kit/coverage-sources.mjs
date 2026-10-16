@@ -8,7 +8,6 @@ import path from 'node:path';
 
 export const COVERAGE_SOURCES = Object.freeze({
   scenarios: 'frontend/src/assets/game/scenarios',
-  guides: 'frontend/src/app/features/simulator/scene-guide.config.ts',
   seed: 'backend_django/apps/simulation/management/commands/seed_caso_pdf.py',
   speakerLiterals: [
     'frontend/src/app/features/simulator/risky-interaction.config.ts',
@@ -17,7 +16,7 @@ export const COVERAGE_SOURCES = Object.freeze({
 });
 
 /** Claves que da hoy cada fuente (2026-10); menos es una fuente que dejó de leerse. */
-export const SOURCE_MINIMUMS = Object.freeze({ scenarioNpcs: 20, actors: 6, guides: 8, speakers: 6 });
+export const SOURCE_MINIMUMS = Object.freeze({ scenarioNpcs: 20, actors: 6, speakers: 6 });
 
 const read = (root, rel) => readFileSync(path.join(root, rel), 'utf8');
 const all = (text, re) => [...text.matchAll(re)].map(m => m[1]);
@@ -41,7 +40,6 @@ export function referencedKeys(root) {
     scenarioNpcs: scenarioNpcRecipes(root),
     // Personas del caso sembradas por el backend (markers PERSON).
     actors: new Set(all(seed, /"key":\s*"([^"]+)",\s*"label":\s*"[^"]*",\s*"type":\s*"PERSON"/g)),
-    guides: new Set(all(read(root, COVERAGE_SOURCES.guides), /guideName: '([^']+)'/g)),
     speakers: new Set([
       ...all(seed, /"dialogue":\s*\("([^"]+)"/g),
       ...COVERAGE_SOURCES.speakerLiterals.flatMap(rel => all(read(root, rel), /speakerName: '([^']+)'/g)),

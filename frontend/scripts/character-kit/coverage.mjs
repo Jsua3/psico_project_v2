@@ -13,7 +13,6 @@ export const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
 const EMOTIONS = ['neutral', 'vulnerable', 'concerned', 'anxious', 'worried', 'danger', 'negative', 'sad', 'relieved', 'calm', 'receptive', 'closed', 'positive'];
 const MAPS = Object.freeze([
   ['actors', 'el actor'],
-  ['guides', 'el guía'],
   ['portraitKeys', 'la clave de retrato'],
   ['templates', 'la plantilla'],
 ]);
