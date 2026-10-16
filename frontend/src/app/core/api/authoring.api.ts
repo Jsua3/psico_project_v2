@@ -23,25 +23,37 @@ export interface CaseCreateRequest {
   description?: string | null;
 }
 
+/** Cabecera con la revisión que el editor tiene del caso (E2-6): el servidor responde 409 si está vencida. */
+export const CASE_REVISION_HEADER = 'X-Case-Revision';
+
+/** Opciones de petición con la revisión vigente; sin revisión no hay cabecera y el servidor no compara. */
+const withRevision = (revision?: number | null) =>
+  revision == null ? {} : { headers: { [CASE_REVISION_HEADER]: String(revision) } };
+
 /**
  * API de autoría: editor de casos (nodos, decisiones, mapas, objetos, herramientas,
  * checklist), publicación y editor de mundo. Separada de `SimulationService`
  * (Interface Segregation): el jugador no necesita ninguno de estos métodos, y sus
  * únicos consumidores son el editor de casos, el hub de autoría, el store del editor
  * de mundo y la vista previa.
+ *
+ * Toda mutación del borrador acepta la `revision` que el editor tiene (la de la última vista que recibió): viaja
+ * en `X-Case-Revision` y cada respuesta trae la vista nueva con la revisión siguiente (E2-6, RNF-08).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthoringApi {
   private readonly http = inject(HttpClient);
   private readonly caseList = inject(CaseListCache);
+  /** Espacio canónico de la autoría (ED-9); la ruta antigua bajo admin/cases sigue en el servidor como alias. */
+  private readonly API = '/api/authoring/cases';
 
   caseEditor(caseVersionId: number) {
-    return this.http.get<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/editor`)
+    return this.http.get<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/editor`)
       .pipe(map(response => response.data));
   }
 
-  publishCase(caseVersionId: number) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/publish`, {})
+  publishCase(caseVersionId: number, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/publish`, {}, withRevision(revision))
       .pipe(
         map(response => response.data),
         // Publicar agrega un caso a la lista de publicados: la lista guardada ya no sirve.
@@ -50,104 +62,104 @@ export class AuthoringApi {
   }
 
   cloneCaseVersion(caseVersionId: number) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/clone-version`, {})
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/clone-version`, {})
       .pipe(map(response => response.data));
   }
 
   listAuthoringCases() {
-    return this.http.get<ApiResponse<SimulationCaseSummary[]>>('/api/admin/cases')
+    return this.http.get<ApiResponse<SimulationCaseSummary[]>>(this.API)
       .pipe(map(response => response.data));
   }
 
   createCase(body: CaseCreateRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>('/api/admin/cases', body)
+    return this.http.post<ApiResponse<CaseEditorView>>(this.API, body)
       .pipe(map(response => response.data));
   }
 
-  // ─── Node CRUD ──────────────────────────────────────────────────────────────
+  // ─── Node CRUD ──────────────────────────────────────────────────────────
 
-  createNode(caseVersionId: number, body: NodeUpsertRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/nodes`, body)
+  createNode(caseVersionId: number, body: NodeUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/nodes`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  updateNode(caseVersionId: number, nodeId: number, body: NodeUpsertRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/nodes/${nodeId}`, body)
+  updateNode(caseVersionId: number, nodeId: number, body: NodeUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/nodes/${nodeId}`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  deleteNode(caseVersionId: number, nodeId: number) {
-    return this.http.delete<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/nodes/${nodeId}`)
+  deleteNode(caseVersionId: number, nodeId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/nodes/${nodeId}`, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  // ─── Decision CRUD ──────────────────────────────────────────────────────────
+  // ─── Decision CRUD ─────────────────────────────────────────────────────────
 
-  createDecision(caseVersionId: number, body: DecisionOptionUpsertRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/decisions`, body)
+  createDecision(caseVersionId: number, body: DecisionOptionUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/decisions`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  updateDecision(caseVersionId: number, decisionId: number, body: DecisionOptionUpsertRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/decisions/${decisionId}`, body)
+  updateDecision(caseVersionId: number, decisionId: number, body: DecisionOptionUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/decisions/${decisionId}`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  // ─── Map CRUD ───────────────────────────────────────────────────────────────
+  // ─── Map CRUD ──────────────────────────────────────────────────────────
 
-  createMap(caseVersionId: number, body: MapUpsertRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/maps`, body)
+  createMap(caseVersionId: number, body: MapUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  updateMap(caseVersionId: number, mapId: number, body: MapUpsertRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/maps/${mapId}`, body)
+  updateMap(caseVersionId: number, mapId: number, body: MapUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps/${mapId}`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  deleteMap(caseVersionId: number, mapId: number) {
-    return this.http.delete<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/maps/${mapId}`)
+  deleteMap(caseVersionId: number, mapId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps/${mapId}`, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
   // ─── Map Object CRUD ────────────────────────────────────────────────────────
 
-  createObject(caseVersionId: number, mapId: number, body: MapObjectUpsertRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/maps/${mapId}/objects`, body)
+  createObject(caseVersionId: number, mapId: number, body: MapObjectUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps/${mapId}/objects`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  updateObject(caseVersionId: number, objectId: number, body: MapObjectUpsertRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/objects/${objectId}`, body)
+  updateObject(caseVersionId: number, objectId: number, body: MapObjectUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/objects/${objectId}`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  deleteObject(caseVersionId: number, objectId: number) {
-    return this.http.delete<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/objects/${objectId}`)
+  deleteObject(caseVersionId: number, objectId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/objects/${objectId}`, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  // ─── Tool CRUD ──────────────────────────────────────────────────────────────
+  // ─── Tool CRUD ──────────────────────────────────────────────────────────
 
-  createTool(caseVersionId: number, body: ToolUpsertRequest) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/tools`, body)
+  createTool(caseVersionId: number, body: ToolUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/tools`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  updateTool(caseVersionId: number, toolId: number, body: ToolUpsertRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/tools/${toolId}`, body)
+  updateTool(caseVersionId: number, toolId: number, body: ToolUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/tools/${toolId}`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  deleteTool(caseVersionId: number, toolId: number) {
-    return this.http.delete<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/tools/${toolId}`)
+  deleteTool(caseVersionId: number, toolId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/tools/${toolId}`, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
-  // ─── Checklist ──────────────────────────────────────────────────────────────
+  // ─── Checklist ──────────────────────────────────────────────────────────
 
-  updateChecklist(caseVersionId: number, body: ChecklistUpdateRequest) {
-    return this.http.put<ApiResponse<CaseEditorView>>(`/api/admin/cases/${caseVersionId}/checklist`, body)
+  updateChecklist(caseVersionId: number, body: ChecklistUpdateRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/checklist`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
@@ -158,7 +170,7 @@ export class AuthoringApi {
     let params = new HttpParams();
     if (nodeId != null) params = params.set('nodeId', nodeId);
     return this.http.get<ApiResponse<WorldDefinition>>(
-      `/api/admin/cases/${caseVersionId}/world-editor`, { params })
+      `${this.API}/${caseVersionId}/world-editor`, { params })
       .pipe(map(r => r.data));
   }
 
@@ -167,14 +179,14 @@ export class AuthoringApi {
     let params = new HttpParams();
     if (nodeId != null) params = params.set('nodeId', nodeId);
     return this.http.put<ApiResponse<WorldDefinition>>(
-      `/api/admin/cases/${caseVersionId}/world`, body, { params })
+      `${this.API}/${caseVersionId}/world`, body, { params })
       .pipe(map(r => r.data));
   }
 
   /** Ejecuta validacion del mundo sin mutar datos. */
   validateWorld(caseVersionId: number) {
     return this.http.post<ApiResponse<WorldValidationState>>(
-      `/api/admin/cases/${caseVersionId}/world/validate`, {})
+      `${this.API}/${caseVersionId}/world/validate`, {})
       .pipe(map(r => r.data));
   }
 
@@ -183,7 +195,7 @@ export class AuthoringApi {
     let params = new HttpParams();
     if (nodeId != null) params = params.set('nodeId', nodeId);
     return this.http.get<ApiResponse<WorldDefinition>>(
-      `/api/admin/cases/${caseVersionId}/world-preview`, { params })
+      `${this.API}/${caseVersionId}/world-preview`, { params })
       .pipe(map(r => r.data));
   }
 }

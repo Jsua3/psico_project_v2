@@ -23,8 +23,9 @@ import {
   inject,
   input,
   effect,
+  linkedSignal,
   signal,
-  HostListener,
+  untracked,
   ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -32,6 +33,9 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import Konva from 'konva';
+import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
+import { RevisionConflict } from '../../../core/api/revision-conflict.util';
+import { UiDialog } from '../../../shared/ui/dialog/ui-dialog';
 import { AVATAR_LABELS, AvatarPersonalizado, COMPLEXIONS, HAIRS, HAIR_COLORS, SKINS } from '../../character/kit/avatar-v2';
 import { resolveCharacter } from '../../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../../character/kit/kit-figure.component';
@@ -44,6 +48,7 @@ import {
   EditorTool,
   PlaceObjectCommand,
   MoveObjectCommand,
+  ResizeZoneCommand,
   DeleteObjectWithDialogueCommand,
   UpdateInspectorCommand,
   PlaceCollisionZoneCommand,
@@ -64,6 +69,14 @@ import {
   WorldDialogueLine,
   WorldDialogueChoice
 } from '../../../core/models/simulation.model';
+import { CanvasView, cursorFor, fitView, snapZoneRect, wheelZoomFactor, zoomAtPoint } from './canvas-view.util';
+import { Point, cycleKey, elementAt, moveByKey, zoneBetween } from './keyboard-edit.util';
+import { objectTypeLabel } from '../../../shared/ui/labels';
+import {
+  RevisionConflictAnswer,
+  RevisionConflictDialogComponent,
+  RevisionConflictDialogData,
+} from '../revision-conflict-dialog.component';
 import {
   patrolPoints, wanderRadius, setPatternType, setWanderRadius,
   withPatrolPoint, movePatrolPoint, removePatrolPoint, reorderPatrolPoint
@@ -84,6 +97,13 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const GRID_SIZE = 16;
+const TOOL_NAMES: Record<EditorTool, string> = {
+  select: 'seleccionar',
+  pan: 'mover lienzo',
+  'place-object': 'colocar objeto',
+  'place-collision': 'zona de colisión',
+  'place-spawn': 'punto de aparición',
+};
 const SNAP_THRESHOLD = 8;
 const OBJECT_COLORS: Record<string, string> = {
   PERSON: '#4f7cac',
@@ -105,51 +125,62 @@ const OBJECT_COLORS: Record<string, string> = {
   imports: [CommonModule, FormsModule, MatIconModule, MatProgressBarModule, KitFigureComponent],
   providers: [WorldEditorStore],
   template: `
-    <div class="we-root">
+    <div class="we-root" (keydown)="onEditorKeydown($event)">
       <!-- ── Toolbar ─────────────────────────────────────────────────── -->
       <header class="we-toolbar liquid-glass">
-        <div class="we-tools">
-          <button class="we-tool-btn" [class.active]="store.activeTool() === 'select'"
+        <div class="we-tools" role="group" aria-label="Herramientas del lienzo" (keydown)="onToolbarKeydown($event)">
+          <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'select'"
+                  [attr.aria-pressed]="store.activeTool() === 'select'" aria-label="Seleccionar" aria-keyshortcuts="V"
                   (click)="store.setTool('select')" title="Seleccionar (V)">
             <mat-icon>near_me</mat-icon>
           </button>
-          <button class="we-tool-btn" [class.active]="store.activeTool() === 'pan'"
+          <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'pan'"
+                  [attr.aria-pressed]="store.activeTool() === 'pan'" aria-label="Mover lienzo" aria-keyshortcuts="H"
                   (click)="store.setTool('pan')" title="Mover lienzo (H)">
             <mat-icon>pan_tool</mat-icon>
           </button>
           <span class="we-divider"></span>
-          <button class="we-tool-btn" [class.active]="store.activeTool() === 'place-object'"
+          <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-object'"
+                  [disabled]="store.readOnly()"
+                  [attr.aria-pressed]="store.activeTool() === 'place-object'" aria-label="Colocar objeto" aria-keyshortcuts="O"
                   (click)="store.setTool('place-object')" title="Colocar objeto (O)">
             <mat-icon>add_location_alt</mat-icon>
           </button>
-          <button class="we-tool-btn" [class.active]="store.activeTool() === 'place-collision'"
-                  (click)="store.setTool('place-collision')" title="Zona de colision (C)">
+          <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-collision'"
+                  [disabled]="store.readOnly()"
+                  [attr.aria-pressed]="store.activeTool() === 'place-collision'" aria-label="Zona de colisión" aria-keyshortcuts="C"
+                  (click)="store.setTool('place-collision')" title="Zona de colisión (C)">
             <mat-icon>crop_free</mat-icon>
           </button>
-          <button class="we-tool-btn" [class.active]="store.activeTool() === 'place-spawn'"
-                  (click)="store.setTool('place-spawn')" title="Punto de spawn (S)">
+          <button class="we-tool-btn" type="button" [class.active]="store.activeTool() === 'place-spawn'"
+                  [disabled]="store.readOnly()"
+                  [attr.aria-pressed]="store.activeTool() === 'place-spawn'" aria-label="Punto de aparición" aria-keyshortcuts="S"
+                  (click)="store.setTool('place-spawn')" title="Punto de aparición (S)">
             <mat-icon>my_location</mat-icon>
           </button>
         </div>
 
         <div class="we-actions">
-          <button class="we-tool-btn" [disabled]="!store.canUndo()" (click)="store.undo()" title="Deshacer (Ctrl+Z)">
+          <button class="we-tool-btn" type="button" [disabled]="!store.canUndo() || store.readOnly()" (click)="store.undo()"
+                  aria-label="Deshacer" aria-keyshortcuts="Control+Z" title="Deshacer (Ctrl+Z)">
             <mat-icon>undo</mat-icon>
           </button>
-          <button class="we-tool-btn" [disabled]="!store.canRedo()" (click)="store.redo()" title="Rehacer (Ctrl+Y)">
+          <button class="we-tool-btn" type="button" [disabled]="!store.canRedo() || store.readOnly()" (click)="store.redo()"
+                  aria-label="Rehacer" aria-keyshortcuts="Control+Y" title="Rehacer (Ctrl+Y)">
             <mat-icon>redo</mat-icon>
           </button>
           <span class="we-divider"></span>
           <span class="we-zoom-label">{{ (store.zoom() * 100) | number:'1.0-0' }}%</span>
-          <button class="we-tool-btn" (click)="zoomIn()" title="Acercar (+)"><mat-icon>zoom_in</mat-icon></button>
-          <button class="we-tool-btn" (click)="zoomOut()" title="Alejar (-)"><mat-icon>zoom_out</mat-icon></button>
-          <button class="we-tool-btn" (click)="zoomFit()" title="Ajustar (0)"><mat-icon>fit_screen</mat-icon></button>
+          <button class="we-tool-btn" type="button" (click)="zoomIn()" aria-label="Acercar" title="Acercar (+)"><mat-icon>zoom_in</mat-icon></button>
+          <button class="we-tool-btn" type="button" (click)="zoomOut()" aria-label="Alejar" title="Alejar (-)"><mat-icon>zoom_out</mat-icon></button>
+          <button class="we-tool-btn" type="button" (click)="zoomFit()" aria-label="Ajustar a la vista" title="Ajustar (0)"><mat-icon>fit_screen</mat-icon></button>
           <span class="we-divider"></span>
           <button class="psy-button psy-button--glass" (click)="store.validate()" type="button">
             <mat-icon>verified</mat-icon>Validar
           </button>
           <button class="psy-button psy-button--primary" (click)="store.saveNow()" type="button"
-                  [disabled]="store.saving() || !store.dirty()">
+                  aria-keyshortcuts="Control+S" title="Guardar (Ctrl+S)"
+                  [disabled]="store.saving() || !store.dirty() || store.readOnly()">
             <mat-icon>{{ store.saving() ? 'hourglass_empty' : 'save' }}</mat-icon>
             {{ store.saving() ? 'Guardando...' : 'Guardar' }}
           </button>
@@ -162,25 +193,34 @@ const OBJECT_COLORS: Record<string, string> = {
           @if (store.saving()) {
             <span class="we-badge we-badge--saving">Guardando...</span>
           }
+          @if (!store.dirty() && !store.saving() && store.lastSavedAt()) {
+            <span class="we-badge we-badge--saved">Guardado</span>
+          }
           <span class="we-info">
             {{ store.objectCount() }} objetos · {{ store.zoneCount() }} zonas
           </span>
         </div>
+        <!-- Región viva SIEMPRE presente: el estado del guardado se lee sin mirar la barra. -->
+        <p class="ds-sr-only" role="status">{{ saveStatusText() }}</p>
       </header>
 
-      <section class="we-library liquid-glass" aria-label="Biblioteca de autoria">
-        <div class="we-library-group">
+      @if (readOnlyReason(); as reason) {
+        <p class="we-readonly">{{ reason }}</p>
+      }
+
+      <section class="we-library liquid-glass" aria-label="Biblioteca de autoría">
+        <label class="we-library-group">
           <span>Escenario</span>
-          <select [ngModel]="selectedSceneTemplate()" (ngModelChange)="applyScenePreset($event)">
+          <select [ngModel]="selectedSceneTemplate()" [disabled]="store.readOnly()" (ngModelChange)="applyScenePreset($event)">
             <option value="">Personalizado</option>
             @for (scene of sceneTemplates; track scene.id) {
               <option [value]="scene.id">{{ scene.label }}</option>
             }
           </select>
-        </div>
+        </label>
         <div class="we-library-actions">
           @for (template of objectTemplates; track template.id) {
-            <button class="we-template-btn" type="button" (click)="addTemplate(template.id)">
+            <button class="we-template-btn" type="button" [disabled]="store.readOnly()" (click)="addTemplate(template.id)">
               <mat-icon>{{ template.icon }}</mat-icon>
               <span>{{ template.label }}</span>
             </button>
@@ -197,8 +237,16 @@ const OBJECT_COLORS: Record<string, string> = {
           <mat-icon>error</mat-icon>
           <span>{{ store.error() }}</span>
           @if (store.conflictDetected()) {
+            <button class="psy-button psy-button--glass" (click)="store.retryAfterConflict()" type="button"
+                    [disabled]="!store.conflict()">
+              <mat-icon>publish</mat-icon>Reintentar con mi cambio
+            </button>
             <button class="psy-button psy-button--glass" (click)="store.reloadAfterConflict()" type="button">
-              <mat-icon>refresh</mat-icon>Recargar
+              <mat-icon>refresh</mat-icon>Recargar el caso
+            </button>
+          } @else if (store.saveFailed()) {
+            <button class="psy-button psy-button--glass" (click)="store.retrySave()" type="button">
+              <mat-icon>refresh</mat-icon>Reintentar
             </button>
           }
         </div>
@@ -207,20 +255,27 @@ const OBJECT_COLORS: Record<string, string> = {
       <!-- ── Canvas + Inspector layout ─────────────────────────────── -->
       <div class="we-layout">
         <div class="we-canvas-wrap" #canvasWrap>
-          <div #konvaHost class="we-konva-host"></div>
+          <div #konvaHost class="we-konva-host" tabindex="0" role="application"
+               aria-label="Lienzo del editor de mundo" aria-describedby="we-canvas-help"
+               (keydown)="onCanvasKeydown($event)" (focus)="canvasFocused.set(true)" (blur)="canvasFocused.set(false)"></div>
+          <p class="we-canvas-help" id="we-canvas-help">
+            Con el foco en el lienzo: flechas mueven el cursor o lo seleccionado (Mayús: 8 casillas) · Intro actúa según la
+            herramienta · AvPág y RePág recorren los elementos · Supr elimina · V, O, C, S y H eligen herramienta · Ctrl+S guarda.
+          </p>
         </div>
 
         <!-- ── Side Inspector ──────────────────────────────────────── -->
         <aside class="we-inspector liquid-glass">
+         <fieldset class="we-fieldset" [disabled]="store.readOnly()">
           <!-- ── Sala: switcher + zoom + fondo ────────────────────── -->
           @if (store.editorState()) {
             <div class="we-room">
-              <h4>Sala</h4>
+              <h3>Sala</h3>
               @if (store.rooms().length > 1) {
                 <label><span>Sala actual</span>
-                  <select [ngModel]="$safeNavigationMigration(store.definition()?.nodeId)" (ngModelChange)="switchRoom($event)">
+                  <select (change)="onRoomChange($event)">
                     @for (r of store.rooms(); track r.nodeId) {
-                      <option [ngValue]="r.nodeId">{{ r.nodeKey }} — {{ r.title }}</option>
+                      <option [value]="r.nodeId" [selected]="r.nodeId === store.definition()?.nodeId">{{ r.title }} ({{ r.nodeKey }})</option>
                     }
                   </select>
                 </label>
@@ -235,7 +290,7 @@ const OBJECT_COLORS: Record<string, string> = {
             </div>
           }
           @if (store.selectedObject(); as obj) {
-            <h4>Objeto: {{ obj.label }}</h4>
+            <h3>Objeto: {{ obj.label }}</h3>
             <div class="we-form">
               <label><span>Clave</span><input [ngModel]="obj.key" disabled /></label>
               <label><span>Etiqueta</span>
@@ -349,32 +404,37 @@ const OBJECT_COLORS: Record<string, string> = {
 
                 <div class="we-sub">
                   <span class="we-sub-title">Líneas</span>
-                  <button class="we-add" (click)="addLine()" type="button"><mat-icon>add</mat-icon></button>
+                  <button class="we-add" (click)="addLine()" type="button" aria-label="Agregar línea" title="Agregar línea"><mat-icon>add</mat-icon></button>
                 </div>
                 @for (line of dlg.lines; track $index) {
                   <div class="we-row">
                     <input [ngModel]="line.text" (ngModelChange)="updateLine($index, $event)"
+                           [attr.aria-label]="'Línea ' + ($index + 1) + ' del diálogo'"
                            placeholder="Lo que dice el NPC…" />
-                    <button class="we-del" (click)="removeLine($index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="removeLine($index)" type="button"
+                            [attr.aria-label]="'Quitar la línea ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                   </div>
                 }
 
                 <div class="we-sub">
                   <span class="we-sub-title">Opciones de respuesta</span>
-                  <button class="we-add" (click)="addChoice()" type="button"><mat-icon>add</mat-icon></button>
+                  <button class="we-add" (click)="addChoice()" type="button" aria-label="Agregar opción de respuesta" title="Agregar opción de respuesta"><mat-icon>add</mat-icon></button>
                 </div>
                 @for (choice of dlg.choices; track choice.key) {
                   <div class="we-choice">
                     <input [ngModel]="choice.text" (ngModelChange)="updateChoiceText($index, $event)"
+                           [attr.aria-label]="'Texto de la opción ' + ($index + 1)"
                            placeholder="Respuesta del estudiante…" />
                     <select [ngModel]="choice.decisionOptionId"
+                            [attr.aria-label]="'Destino de la opción ' + ($index + 1)"
                             (ngModelChange)="setChoiceDecision($index, $event)">
                       <option [ngValue]="null">— sin destino —</option>
                       @for (dec of store.availableDecisions(); track dec.id) {
                         <option [ngValue]="dec.id">{{ dec.classification }} → {{ dec.targetNodeKey }}: {{ dec.text }}</option>
                       }
                     </select>
-                    <button class="we-del" (click)="removeChoice($index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="removeChoice($index)" type="button"
+                            [attr.aria-label]="'Quitar la opción ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                     <div class="we-choice-reqs">
                       <label><span>Herramienta obligatoria</span>
                         <select [ngModel]="choice.requiredToolCode" (ngModelChange)="setChoiceRequiredTool($index, $event)">
@@ -428,9 +488,12 @@ const OBJECT_COLORS: Record<string, string> = {
                   <div class="we-wp-row">
                     <span class="we-wp-idx">{{ $index + 1 }}</span>
                     <span class="we-wp-xy">{{ pt[0] }}, {{ pt[1] }}</span>
-                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, -1)" type="button"><mat-icon>arrow_upward</mat-icon></button>
-                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, 1)" type="button"><mat-icon>arrow_downward</mat-icon></button>
-                    <button class="we-del" (click)="deleteWaypoint(obj.key, $index)" type="button"><mat-icon>close</mat-icon></button>
+                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, -1)" type="button"
+                            [attr.aria-label]="'Subir el punto ' + ($index + 1)"><mat-icon>arrow_upward</mat-icon></button>
+                    <button class="we-del" (click)="moveWaypointOrder(obj.key, $index, 1)" type="button"
+                            [attr.aria-label]="'Bajar el punto ' + ($index + 1)"><mat-icon>arrow_downward</mat-icon></button>
+                    <button class="we-del" (click)="deleteWaypoint(obj.key, $index)" type="button"
+                            [attr.aria-label]="'Quitar el punto ' + ($index + 1)"><mat-icon>close</mat-icon></button>
                   </div>
                 }
               }
@@ -443,7 +506,7 @@ const OBJECT_COLORS: Record<string, string> = {
                   <select [ngModel]="doorTargetOf(obj)" (ngModelChange)="setDoorTargetFor(obj.key, $event)">
                     <option [ngValue]="''">— sin destino —</option>
                     @for (r of otherRooms(); track r.nodeId) {
-                      <option [ngValue]="r.nodeKey">{{ r.nodeKey }} — {{ r.title }}</option>
+                      <option [ngValue]="r.nodeKey">{{ r.title }} ({{ r.nodeKey }})</option>
                     }
                   </select>
                 </label>
@@ -456,7 +519,7 @@ const OBJECT_COLORS: Record<string, string> = {
               </div>
             }
           } @else if (store.selectedZone(); as zone) {
-            <h4>Zona: {{ zone.label || zone.key }}</h4>
+            <h3>Zona: {{ zone.label || zone.key }}</h3>
             <div class="we-form">
               <label><span>Clave</span><input [ngModel]="zone.key" disabled /></label>
               <label><span>Etiqueta</span>
@@ -478,17 +541,17 @@ const OBJECT_COLORS: Record<string, string> = {
             <div class="we-inspector-empty">
               <mat-icon>touch_app</mat-icon>
               <p>Selecciona un objeto o zona en el lienzo para editar sus propiedades.</p>
-              <p class="we-hint">Atajos: V=seleccionar, O=objeto, C=colision, S=spawn, H=mover, Ctrl+Z/Y=undo/redo, Supr=eliminar</p>
+              <p class="we-hint">Con el foco en el lienzo: V seleccionar · O objeto · C colisión · S aparición · H mover · flechas mover · Supr eliminar · Ctrl+Z / Ctrl+Y · Ctrl+S guardar</p>
             </div>
           }
 
           <!-- Validation panel -->
           @if (store.validationState(); as vs) {
             <div class="we-validation">
-              <h4>
+              <h3>
                 <mat-icon>{{ vs.canPublish ? 'check_circle' : 'error' }}</mat-icon>
                 Validación
-              </h4>
+              </h3>
               @if (vs.errors.length) {
                 <div class="we-val-section we-val-errors">
                   @for (issue of vs.errors; track issue.code) {
@@ -514,6 +577,7 @@ const OBJECT_COLORS: Record<string, string> = {
               }
             </div>
           }
+         </fieldset>
         </aside>
       </div>
     </div>
@@ -552,6 +616,8 @@ const OBJECT_COLORS: Record<string, string> = {
       color: var(--psy-blue-deep);
     }
     .we-tool-btn:disabled { opacity: .35; pointer-events: none; }
+    /* Lo que no se puede usar (solo lectura, nada que guardar) se ve apagado, no igual que lo activo. */
+    .we-actions .psy-button:disabled, .we-template-btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
     .we-tool-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .we-divider {
       display: block;
@@ -588,6 +654,23 @@ const OBJECT_COLORS: Record<string, string> = {
       align-items: center;
       gap: 8px;
       min-width: min(100%, 280px);
+    }
+    .we-readonly {
+      margin: 0;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--ds-surface-2);
+      color: var(--ds-text-1);
+      font-size: var(--ds-type-body-s-size);
+    }
+    /* El fieldset es solo el interruptor de «deshabilitado»: no cambia el diseño del inspector. */
+    .we-fieldset {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
     }
     .we-library-group span {
       color: var(--psy-blue-deep);
@@ -663,7 +746,11 @@ const OBJECT_COLORS: Record<string, string> = {
       background: #f8fbfd;
       min-height: 400px;
     }
-    .we-konva-host { width: 100%; height: 540px; }
+    .we-konva-host { width: 100%; min-height: 360px; overflow: hidden; }
+    /* Hacia dentro: el contenedor recorta (overflow: hidden) lo que sale y el contorno solo se veía a medias. */
+    .we-konva-host:focus-visible { outline: 3px solid var(--ds-focus); outline-offset: -3px; }
+    .we-canvas-help { margin: 8px 0 0; color: var(--ds-text-2); font-size: var(--ds-type-caption-size); line-height: 1.4; }
+    .we-badge--saved { background: var(--ds-success-bg); color: var(--ds-success); }
 
     /* Inspector */
     .we-inspector {
@@ -674,12 +761,28 @@ const OBJECT_COLORS: Record<string, string> = {
       max-height: 80vh;
       overflow-y: auto;
     }
-    .we-inspector h4 {
+    .we-inspector h3, .we-inspector h4 {
       margin: 0;
       font-family: 'Poppins', system-ui, sans-serif;
       letter-spacing: 0;
       font-size: 1.05rem;
       color: var(--psy-ink);
+    }
+    /*
+     * El inspector mide 300 px: toda rejilla con una pista minmax(0, 1fr) (una pista auto crece con el ancho natural
+     * de un campo y el contenido se salía por la derecha de la tarjeta) y los campos de texto al ancho de su pista.
+     */
+    .we-inspector, .we-fieldset, .we-form, .we-room, .we-door, .we-movement, .we-dialogue, .we-npc-kit,
+    .we-form label, .we-room label, .we-door label, .we-movement label, .we-choice-reqs label {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .we-form input:not([type='checkbox']):not([type='color']):not([type='range']), .we-form select,
+    .we-room input:not([type='checkbox']):not([type='color']):not([type='range']), .we-room select,
+    .we-door input:not([type='checkbox']):not([type='color']):not([type='range']), .we-door select,
+    .we-movement input:not([type='checkbox']):not([type='color']):not([type='range']), .we-movement select {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
     .we-form { display: grid; gap: 8px; }
     .we-form label {
@@ -702,7 +805,7 @@ const OBJECT_COLORS: Record<string, string> = {
       border-color: var(--psy-blue);
       box-shadow: 0 0 0 2px var(--psy-focus);
     }
-    .we-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .we-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
     .we-check {
       display: flex !important;
       align-items: center;
@@ -736,7 +839,7 @@ const OBJECT_COLORS: Record<string, string> = {
       padding-top: 12px;
       border-top: 1px solid var(--psy-border);
     }
-    .we-validation h4 {
+    .we-validation h3 {
       display: flex;
       gap: 8px;
       align-items: center;
@@ -776,11 +879,14 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-dialogue-head { display: flex; align-items: center; justify-content: space-between; }
     .we-sub { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
     .we-sub-title { font-weight: 700; color: var(--psy-blue-deep); font-size: .82rem; }
-    .we-row, .we-choice { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
-    .we-choice { grid-template-columns: 1fr 1fr auto; }
+    .we-row, .we-choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .we-choice { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+    .we-row input, .we-choice input, .we-choice select,
+    .we-choice-reqs input, .we-choice-reqs select { width: 100%; min-width: 0; box-sizing: border-box; }
     .we-choice-reqs {
       grid-column: 1 / -1;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 6px;
       padding: 8px;
       border: 1px solid rgba(79,124,172,.12);
@@ -805,12 +911,12 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-npc-preview { display: flex; gap: 6px; align-items: flex-end; }
     .we-movement { display: grid; gap: 8px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--psy-border); }
     .we-movement h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
-    .we-wp-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 6px; align-items: center; }
+    .we-wp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; }
     .we-wp-idx { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(122,111,158,.16); color: #5b5180; font-weight: 800; font-size: .72rem; }
     .we-wp-xy { font-family: 'JetBrains Mono', monospace; font-size: .76rem; color: var(--psy-muted); }
     .we-movement select, .we-movement input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
     .we-room { display: grid; gap: 8px; padding: 0 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--psy-border); }
-    .we-room h4, .we-door h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
+    .we-room h3, .we-door h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
     .we-room label, .we-door label { display: grid; gap: 3px; font-size: .82rem; }
     .we-room label > span, .we-door label > span { font-weight: 700; color: var(--psy-blue-deep); }
     .we-room select, .we-room input, .we-door select, .we-door input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
@@ -822,6 +928,11 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
 
   readonly caseVersionId = input.required<number>();
   readonly nodeId = input<number>();
+  /**
+   * Por qué el mundo no se puede editar (una versión que no es borrador): con texto, el editor se muestra en solo
+   * lectura — se ve, se selecciona y se recorre, pero no se edita ni se guarda (el servidor respondería 400).
+   */
+  readonly readOnlyReason = input<string | null>(null);
   readonly sceneTemplates = AUTHORING_SCENE_TEMPLATES;
   readonly objectTemplates = AUTHORING_OBJECT_TEMPLATES;
   private readonly kit = inject(KitService);
@@ -844,9 +955,18 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   @ViewChild('canvasWrap', { static: false }) canvasWrap!: ElementRef<HTMLDivElement>;
 
   private stage: Konva.Stage | null = null;
+  /** Relleno del mapa y fondo (sin suavizado: pixel art), bajo la rejilla. */
+  private backgroundLayer: Konva.Layer | null = null;
   private mainLayer: Konva.Layer | null = null;
   private gridLayer: Konva.Layer | null = null;
   private uiLayer: Konva.Layer | null = null;
+  /** Asas de tamaño de la zona seleccionada (conecta con ResizeZoneCommand). */
+  private transformer: Konva.Transformer | null = null;
+  /** Los grupos de Konva de lo que se pinta, por clave (el selector `[name=…]` de Konva no encuentra claves con guion). */
+  private readonly nodesByKey = new Map<string, Konva.Group>();
+  /** Qué hay bajo el puntero (cambia el cursor) y si se está arrastrando el lienzo. */
+  private hover: 'none' | 'object' | 'zone' = 'none';
+  private panning = false;
 
   // Drawing state for collision zone creation
   private drawingZone = false;
@@ -859,6 +979,38 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   // Spawn marker
   private spawnMarker: Konva.Group | null = null;
 
+  // ─── Teclado del lienzo (F8-5) ─────────────────────────────────────────
+  private readonly announcer = inject(LiveRegionAnnouncer);
+  private readonly dialog = inject(UiDialog);
+  /** El punto de aparición (encajado a la rejilla): donde empieza el cursor del teclado. */
+  private readonly spawnPoint = computed<Point>(() => {
+    const map = this.store.editorState()?.map;
+    return map ? { x: this.snapToGrid(map.spawnX), y: this.snapToGrid(map.spawnY) } : { x: 0, y: 0 };
+  }, {
+    // Igualdad por VALOR: cada cambio del estado (colocar, mover, borrar, un guardado que adopta ids) recalcula el
+    // computed; sin esto devolvía un objeto nuevo y el cursor del teclado volvía al punto de aparición tras cada edición.
+    equal: (a, b) => a.x === b.x && a.y === b.y,
+  });
+  /** El cursor del teclado (en unidades del mundo): parte del punto de aparición y se mueve con las flechas. */
+  readonly keyboardCursor = linkedSignal<Point>(() => this.spawnPoint());
+  /** Primera esquina de una zona dibujada con el teclado (null: aún no se fijó). */
+  readonly zoneAnchor = signal<Point | null>(null);
+  /** El lienzo tiene el foco del teclado (muestra el cursor). */
+  readonly canvasFocused = signal(false);
+  private cursorLayer: Konva.Layer | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private viewInitialised = false;
+  private lastRoom: number | undefined;
+  private conflictDialogOpen = false;
+
+  /** Lo que dice la región viva del guardado. */
+  protected readonly saveStatusText = computed(() => {
+    if (this.store.saving()) return 'Guardando…';
+    if (this.store.saveFailed()) return 'No se pudo guardar. Tus cambios siguen en esta pantalla.';
+    if (this.store.dirty()) return 'Cambios sin guardar';
+    return this.store.lastSavedAt() ? 'Guardado' : '';
+  });
+
   constructor() {
     this.kit.load().catch(() => undefined);
     // Re-render Konva on editor-state OR selection changes
@@ -866,9 +1018,31 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     effect(() => {
       const state = this.store.editorState();
       this.store.selectedKey();
+      // La herramienta también cuenta: de ella dependen lo arrastrable, el transformador y el cursor.
+      this.store.activeTool();
       if (state && this.stage) {
         this.renderWorld(state);
       }
+    });
+    // El cursor del teclado, la esquina de una zona a medias y el foco: la capa del cursor no se repinta con el mundo.
+    effect(() => {
+      this.keyboardCursor();
+      this.zoneAnchor();
+      this.canvasFocused();
+      this.drawKeyboardCursor();
+    });
+    // La razón de solo lectura llega por entrada; el store es quien rechaza ediciones y guardados.
+    effect(() => {
+      const locked = !!this.readOnlyReason();
+      untracked(() => {
+        this.store.readOnly.set(locked);
+        if (locked && this.store.activeTool().startsWith('place-')) this.store.setTool('select');
+      });
+    });
+    // Un 409 abre la comparación una sola vez; la respuesta decide qué hace el store.
+    effect(() => {
+      const conflict = this.store.conflict();
+      if (conflict) untracked(() => this.openConflictDialog(conflict));
     });
   }
 
@@ -878,53 +1052,335 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.initKonva();
+    this.fitStageToHost();
     this.store.load(this.caseVersionId(), this.nodeId());
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
     this.stage?.destroy();
   }
 
-  // ─── Keyboard shortcuts ───────────────────────────────────────────────
+  // ─── Teclado ───────────────────────────────────────────────────────────
 
-  @HostListener('window:keydown', ['$event'])
-  onKeydown(e: KeyboardEvent): void {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+  /**
+   * Teclado del lienzo (RNF-04): solo con el foco en él, así las letras no secuestran la página (WCAG 2.1.4). Flechas
+   * mueven lo seleccionado (o el cursor del teclado) una casilla, con Mayús ocho; Intro y Espacio actúan según la
+   * herramienta; AvPág y RePág recorren los elementos; Supr borra; V, O, C, S y H eligen herramienta.
+   */
+  onCanvasKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || !this.store.editorState()) return;
+    const letter = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (event.ctrlKey || event.metaKey) {
+      if (letter === 'z') { event.preventDefault(); this.store.undo(); }
+      else if (letter === 'y') { event.preventDefault(); this.store.redo(); }
+      return;
+    }
+    if (event.altKey) return;
 
-    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.store.undo(); }
-    else if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.store.redo(); }
-    else if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSelected(); }
-    else if (e.key === 'v' || e.key === 'V') { this.store.setTool('select'); }
-    else if (e.key === 'o' || e.key === 'O') { this.store.setTool('place-object'); }
-    else if (e.key === 'c' || e.key === 'C') { this.store.setTool('place-collision'); }
-    else if (e.key === 's' && !e.ctrlKey) { this.store.setTool('place-spawn'); }
-    else if (e.key === 'h' || e.key === 'H') { this.store.setTool('pan'); }
-    else if (e.key === '+' || e.key === '=') { this.zoomIn(); }
-    else if (e.key === '-') { this.zoomOut(); }
-    else if (e.key === '0') { this.zoomFit(); }
+    if (event.key.startsWith('Arrow')) {
+      event.preventDefault();
+      this.arrowKey(event.key, event.shiftKey);
+      return;
+    }
+    switch (event.key) {
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        this.activateAtCursor();
+        return;
+      case 'Escape':
+        if (this.zoneAnchor()) {
+          event.preventDefault();
+          this.zoneAnchor.set(null);
+          this.announce('Zona cancelada');
+        } else if (this.store.selectedKey()) {
+          event.preventDefault();
+          this.store.select(null);
+          this.announce('Selección quitada');
+        }
+        return;
+      case 'Delete':
+      case 'Backspace':
+        if (this.store.selectedKey() && !this.store.readOnly()) {
+          event.preventDefault();
+          const label = this.store.selectedObject()?.label ?? this.store.selectedZone()?.label ?? 'Zona';
+          this.deleteSelected();
+          this.announce(label + ' eliminado');
+        }
+        return;
+      case 'PageDown':
+      case 'PageUp':
+        event.preventDefault();
+        this.cycleSelection(event.key === 'PageUp');
+        return;
+      case '+':
+      case '=':
+        event.preventDefault();
+        this.zoomIn();
+        return;
+      case '-':
+        event.preventDefault();
+        this.zoomOut();
+        return;
+      case '0':
+        event.preventDefault();
+        this.zoomFit();
+        return;
+    }
+    this.pickToolByLetter(event, letter);
+  }
+
+  /**
+   * Las letras de herramienta también rigen con el foco en la barra de herramientas: es lo que anuncian sus
+   * `aria-keyshortcuts` (WCAG 2.1.4: el atajo solo está activo con el foco en el propio componente).
+   */
+  onToolbarKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+    this.pickToolByLetter(event, event.key.toLowerCase());
+  }
+
+  private pickToolByLetter(event: KeyboardEvent, letter: string): void {
+    const tools: Record<string, EditorTool> = {
+      v: 'select', o: 'place-object', c: 'place-collision', s: 'place-spawn', h: 'pan',
+    };
+    const tool = tools[letter];
+    if (!tool) return;
+    event.preventDefault();
+    this.store.setTool(tool);
+    this.zoneAnchor.set(null);
+    this.announce('Herramienta: ' + TOOL_NAMES[tool]);
+  }
+
+  /**
+   * Atajos que valen desde cualquier parte del editor (barra, lienzo, inspector): Ctrl+S guarda al instante, aun con
+   * el foco en un campo; Ctrl+Z y Ctrl+Y deshacen y rehacen salvo dentro de un campo de texto (que tiene el suyo).
+   */
+  onEditorKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return;
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || event.altKey) return;
+    const letter = event.key.toLowerCase();
+    if (letter === 's') {
+      event.preventDefault();
+      this.store.saveNow();
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    const typing = !!target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable);
+    if (typing) return;
+    if (letter === 'z') { event.preventDefault(); this.store.undo(); }
+    else if (letter === 'y') { event.preventDefault(); this.store.redo(); }
+  }
+
+  private announce(message: string): void {
+    this.announcer.announce(message, 'polite');
+  }
+
+  /** Flechas: mueven el objeto o la zona seleccionados o, sin selección, el cursor del teclado. */
+  private arrowKey(key: string, shift: boolean): void {
+    const state = this.store.editorState();
+    if (!state) return;
+    // En solo lectura las flechas no editan: aunque haya algo seleccionado, mueven el cursor del teclado.
+    const editable = !this.store.readOnly();
+    const obj = editable ? this.store.selectedObject() : null;
+    const zone = editable ? this.store.selectedZone() : null;
+    if (obj) {
+      const next = moveByKey({ x: obj.x, y: obj.y }, key, shift, GRID_SIZE, state.map);
+      if (next && (next.x !== obj.x || next.y !== obj.y)) {
+        this.store.execute(new MoveObjectCommand(obj.key, obj.x, obj.y, next.x, next.y));
+      }
+      if (next) {
+        this.keyboardCursor.set(next);
+        this.announce(obj.label + ': ' + next.x + ', ' + next.y);
+      }
+    } else if (zone) {
+      const moved = moveByKey({ x: zone.x, y: zone.y }, key, shift, GRID_SIZE, state.map);
+      if (moved) {
+        // La zona entera tiene que caber: su esquina no pasa de (ancho del mapa − ancho de la zona).
+        const next = {
+          x: Math.max(0, Math.min(moved.x, state.map.width - zone.width)),
+          y: Math.max(0, Math.min(moved.y, state.map.height - zone.height)),
+        };
+        if (next.x !== zone.x || next.y !== zone.y) {
+          this.store.execute(new ResizeZoneCommand(
+            zone.key,
+            { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
+            { ...next, width: zone.width, height: zone.height },
+          ));
+        }
+        this.keyboardCursor.set(next);
+        this.announce('Zona ' + (zone.label || zone.key) + ': ' + next.x + ', ' + next.y);
+      }
+    } else {
+      const next = moveByKey(this.keyboardCursor(), key, shift, GRID_SIZE, state.map);
+      if (!next) return;
+      this.keyboardCursor.set(next);
+      const hit = elementAt(state.objects, state.collisionZones, next);
+      const under = hit ? ' · sobre ' + this.labelOf(hit.key) : '';
+      this.announce('Cursor en ' + next.x + ', ' + next.y + under);
+    }
+  }
+
+  /** Intro y Espacio: lo que hace un clic en el cursor del teclado con la herramienta activa. */
+  private activateAtCursor(): void {
+    const state = this.store.editorState();
+    if (!state) return;
+    const cursor = this.keyboardCursor();
+    switch (this.store.activeTool()) {
+      case 'select': {
+        const hit = elementAt(state.objects, state.collisionZones, cursor);
+        this.store.select(hit?.key ?? null);
+        this.announce(hit ? this.selectionText(hit.key) : 'Nada en ' + cursor.x + ', ' + cursor.y);
+        return;
+      }
+      case 'place-object': {
+        const created = this.newObjectAt(cursor.x, cursor.y);
+        this.store.execute(new PlaceObjectCommand(created));
+        this.store.select(created.key);
+        this.store.setTool('select');
+        this.announce('Objeto colocado en ' + cursor.x + ', ' + cursor.y);
+        return;
+      }
+      case 'place-collision': {
+        const anchor = this.zoneAnchor();
+        if (!anchor) {
+          this.zoneAnchor.set(cursor);
+          this.announce('Esquina fijada en ' + cursor.x + ', ' + cursor.y + '. Mueve el cursor y pulsa Intro para crear la zona.');
+          return;
+        }
+        const rect = zoneBetween(anchor, cursor, GRID_SIZE);
+        if (!rect) {
+          this.announce('La zona mide menos de una casilla: mueve el cursor más lejos.');
+          return;
+        }
+        const zone: WorldCollisionZone = { id: this.store.nextLocalId(), key: this.store.generateKey('zone'), label: null, ...rect };
+        this.store.execute(new PlaceCollisionZoneCommand(zone));
+        this.zoneAnchor.set(null);
+        this.announce('Zona creada de ' + rect.width + ' por ' + rect.height);
+        return;
+      }
+      case 'place-spawn':
+        this.store.execute(new UpdateSpawnCommand(cursor.x, cursor.y));
+        this.store.setTool('select');
+        this.announce('Punto de aparición en ' + cursor.x + ', ' + cursor.y);
+        return;
+      default:
+        return;
+    }
+  }
+
+  /** AvPág / RePág: selecciona el elemento siguiente (o anterior): primero los objetos y luego las zonas. */
+  private cycleSelection(backwards: boolean): void {
+    const state = this.store.editorState();
+    if (!state) return;
+    const keys = [...state.objects.map(o => o.key), ...state.collisionZones.map(z => z.key)];
+    const next = cycleKey(keys, this.store.selectedKey(), backwards);
+    if (next === null) return;
+    this.store.select(next);
+    const target = state.objects.find(o => o.key === next) ?? state.collisionZones.find(z => z.key === next);
+    if (target) this.keyboardCursor.set({ x: target.x, y: target.y });
+    this.announce(this.selectionText(next));
+  }
+
+  private labelOf(key: string): string {
+    const state = this.store.editorState();
+    return state?.objects.find(o => o.key === key)?.label
+      ?? (state?.collisionZones.find(z => z.key === key)?.label || 'zona');
+  }
+
+  private selectionText(key: string): string {
+    const state = this.store.editorState();
+    const obj = state?.objects.find(o => o.key === key);
+    if (obj) return obj.label + ', ' + objectTypeLabel(obj.type) + ', en ' + obj.x + ', ' + obj.y;
+    const zone = state?.collisionZones.find(z => z.key === key);
+    return zone
+      ? 'Zona ' + (zone.label || zone.key) + ', ' + zone.width + ' por ' + zone.height + ', en ' + zone.x + ', ' + zone.y
+      : key;
+  }
+
+  /** El objeto con que arranca un «Colocar objeto» (clic o teclado). */
+  private newObjectAt(x: number, y: number): WorldObject {
+    return {
+      id: this.store.nextLocalId(),
+      key: this.store.generateKey('obj'),
+      label: 'Nuevo objeto',
+      type: 'OBJECT' as WorldObjectType,
+      x, y,
+      width: 48, height: 48,
+      zIndex: 0,
+      facing: 'down',
+      colorHex: '#4FA3A5',
+      icon: 'psychology',
+      shortCode: 'NEW',
+      collision: false,
+      visible: true,
+      interactionPrompt: 'Interactuar',
+      interactionText: '',
+      decisionOptionId: null,
+      toolCode: null,
+      unlockCondition: {},
+      movementPattern: {},
+      metadata: {}
+    };
+  }
+
+  /** La comparación del 409 (RNF-08, REGLA-011): el store decide con la respuesta («Reintentar» o «Recargar»). */
+  private openConflictDialog(conflict: RevisionConflict): void {
+    if (this.conflictDialogOpen) return;
+    this.conflictDialogOpen = true;
+    const ref = this.dialog.open<RevisionConflictAnswer, RevisionConflictDialogData, RevisionConflictDialogComponent>(
+      RevisionConflictDialogComponent,
+      {
+        size: 'md',
+        data: {
+          mineRevision: this.store.definition()?.revision ?? null,
+          currentRevision: conflict.revision,
+          changes: ['Otra sesión guardó cambios en este caso mientras editabas esta sala.'],
+        },
+      },
+    );
+    ref.closed.subscribe(answer => {
+      this.conflictDialogOpen = false;
+      if (answer === 'retry') this.store.retryAfterConflict();
+      else if (answer === 'reload') this.store.reloadAfterConflict();
+    });
   }
 
   // ─── Zoom controls ────────────────────────────────────────────────────
 
   zoomIn(): void {
-    this.store.setZoom(this.store.zoom() + 0.15);
-    this.applyZoom();
+    this.zoomAroundCenter(1.2);
   }
 
   zoomOut(): void {
-    this.store.setZoom(this.store.zoom() - 0.15);
-    this.applyZoom();
+    this.zoomAroundCenter(1 / 1.2);
   }
 
+  /** Ajusta el mapa a la vista y lo centra (antes solo cambiaba la escala y el mapa quedaba en una esquina). */
   zoomFit(): void {
-    if (!this.stage || !this.canvasWrap) return;
+    if (!this.stage) return;
     const state = this.store.editorState();
     if (!state) return;
-    const wrapW = this.canvasWrap.nativeElement.clientWidth;
-    const fitZoom = Math.min(wrapW / state.map.width, 540 / state.map.height, 2);
-    this.store.setZoom(fitZoom);
-    this.applyZoom();
+    this.commitView(fitView({ width: this.stage.width(), height: this.stage.height() }, state.map));
+  }
+
+  private zoomAroundCenter(factor: number): void {
+    if (!this.stage) return;
+    const center = { x: this.stage.width() / 2, y: this.stage.height() / 2 };
+    this.commitView(zoomAtPoint(this.currentView(), center, this.store.zoom() * factor));
+  }
+
+  private currentView(): CanvasView {
+    const pan = this.store.panOffset();
+    return { zoom: this.store.zoom(), x: pan.x, y: pan.y };
+  }
+
+  /** La vista del store (zoom y desplazamiento) pasa a la etapa. */
+  private commitView(view: CanvasView): void {
+    this.store.setZoom(view.zoom);
+    this.store.setPan(view.x, view.y);
+    this.applyView();
   }
 
   // ─── Inspector actions ────────────────────────────────────────────────
@@ -1188,8 +1644,20 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   // ─── Room settings (switcher + zoom + background) ─────────────────────
   roomZoom(): number { return cameraZoom(this.store.editorState()?.map.ambient); }
   roomBg(): string { return backgroundImage(this.store.editorState()?.map.ambient); }
+  /** Cambia de sala guardando antes lo pendiente en la de origen (si el guardado falla, no se cambia). */
   switchRoom(nodeId: number): void {
-    if (nodeId != null) this.store.load(this.caseVersionId(), nodeId);
+    if (nodeId != null) this.store.switchRoom(nodeId);
+  }
+  /**
+   * El selector de sala es CONTROLADO: pide la sala elegida y vuelve a mostrar la que hay en pantalla; solo cambia
+   * cuando la nueva llega. Antes quedaba mostrando la sala elegida aunque el guardado previo fallara (o la carga
+   * tardara) y las ediciones siguientes iban a la sala de origen creyendo que eran de la nueva.
+   */
+  onRoomChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const chosen = Number(select.value);
+    if (Number.isFinite(chosen)) this.switchRoom(chosen);
+    select.value = String(this.store.definition()?.nodeId ?? '');
   }
   setRoomZoom(z: number): void {
     const st = this.store.editorState();
@@ -1217,37 +1685,101 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       height
     });
 
+    this.backgroundLayer = new Konva.Layer();
+    // Pixel art: el fondo se pinta sin suavizar (la rejilla va encima, en su propia capa).
+    this.backgroundLayer.imageSmoothingEnabled(false);
     this.gridLayer = new Konva.Layer();
     this.mainLayer = new Konva.Layer();
     this.uiLayer = new Konva.Layer();
 
+    this.cursorLayer = new Konva.Layer({ listening: false });
+
+    this.stage.add(this.backgroundLayer);
     this.stage.add(this.gridLayer);
     this.stage.add(this.mainLayer);
     this.stage.add(this.uiLayer);
+    this.stage.add(this.cursorLayer);
 
     // Mouse events for tools
     this.stage.on('mousedown touchstart', (e) => this.onStageMouseDown(e));
     this.stage.on('mousemove touchmove', (e) => this.onStageMouseMove(e));
     this.stage.on('mouseup touchend', () => this.onStageMouseUp());
     this.stage.on('click tap', (e) => this.onStageClick(e));
+    this.stage.on('mouseleave', () => this.setHover('none'));
 
-    // Wheel zoom
+    // Paneo con la herramienta «Mover lienzo»: la etapa se arrastra y el desplazamiento vuelve al store.
+    // Los arrastres de un objeto o de una zona también suben hasta la etapa: solo cuenta el de la etapa misma.
+    this.stage.on('dragstart', (e) => {
+      if (e.target !== this.stage) return;
+      this.panning = true;
+      this.refreshCursor();
+    });
+    this.stage.on('dragend', (e) => {
+      if (e.target !== this.stage || !this.stage) return;
+      this.panning = false;
+      this.store.setPan(this.stage.x(), this.stage.y());
+      this.refreshCursor();
+    });
+
+    // Zoom con la rueda: hacia el cursor (el punto bajo el puntero no se mueve).
     this.stage.on('wheel', (e) => {
       e.evt.preventDefault();
-      const delta = e.evt.deltaY > 0 ? -0.1 : 0.1;
-      this.store.setZoom(this.store.zoom() + delta);
-      this.applyZoom();
+      const pointer = this.stage?.getPointerPosition();
+      if (!pointer) return;
+      this.commitView(zoomAtPoint(this.currentView(), pointer, this.store.zoom() * wheelZoomFactor(e.evt.deltaY)));
     });
+
+    // El lienzo sigue el ancho de su contenedor (antes 540 px fijos y sin reaccionar a nada).
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.fitStageToHost());
+      this.resizeObserver.observe(container);
+    }
+
+    this.applyView();
+    this.refreshCursor();
+  }
+
+  /** Ancho = el del contenedor; alto = el del mapa a ese ancho, entre 360 y 720 px. */
+  private fitStageToHost(): void {
+    const container = this.konvaHost?.nativeElement;
+    if (!container || !this.stage) return;
+    const width = Math.max(320, container.clientWidth);
+    const map = this.store.editorState()?.map;
+    const aspect = map && map.width > 0 ? map.height / map.width : 9 / 16;
+    const height = Math.round(Math.min(720, Math.max(360, width * aspect)));
+    if (this.stage.width() !== width || this.stage.height() !== height) {
+      this.stage.size({ width, height });
+      this.stage.batchDraw();
+    }
+  }
+
+  /** El cursor de la herramienta activa y de lo que hay bajo el puntero (KON-4). */
+  private refreshCursor(): void {
+    const container = this.stage?.container();
+    if (!container) return;
+    container.style.cursor = cursorFor({ tool: this.store.activeTool(), hover: this.hover, panning: this.panning });
+  }
+
+  private setHover(hover: 'none' | 'object' | 'zone'): void {
+    if (this.hover === hover) return;
+    this.hover = hover;
+    this.refreshCursor();
   }
 
   // ─── Rendering ────────────────────────────────────────────────────────
 
   private renderWorld(state: { map: { width: number; height: number; spawnX: number; spawnY: number; theme: string }; objects: WorldObject[]; collisionZones: WorldCollisionZone[]; dialogues: WorldDialogueTree[] }): void {
-    if (!this.mainLayer || !this.gridLayer || !this.uiLayer) return;
+    if (!this.mainLayer || !this.gridLayer || !this.uiLayer || !this.backgroundLayer) return;
 
     this.mainLayer.destroyChildren();
     this.gridLayer.destroyChildren();
     this.uiLayer.destroyChildren();
+    this.backgroundLayer.destroyChildren();
+    this.transformer = null;
+    this.nodesByKey.clear();
+    this.hover = 'none';
+    this.stage?.draggable(this.store.activeTool() === 'pan');
+    this.refreshCursor();
 
     const { map, objects, collisionZones } = state;
 
@@ -1271,10 +1803,10 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       const group = new Konva.Group({
         x: zone.x, y: zone.y,
         name: zone.key,
-        draggable: this.store.activeTool() === 'select'
+        draggable: this.store.activeTool() === 'select' && !this.store.readOnly()
       });
 
-      group.add(new Konva.Rect({
+      const rect = new Konva.Rect({
         width: zone.width,
         height: zone.height,
         fill: 'rgba(79,124,172,0.08)',
@@ -1282,7 +1814,8 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         strokeWidth: 1,
         dash: [4, 3],
         cornerRadius: 3
-      }));
+      });
+      group.add(rect);
 
       if (zone.label) {
         group.add(new Konva.Text({
@@ -1300,7 +1833,24 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         this.store.select(zone.key);
       });
 
+      // Resaltado al pasar (KON-5): borde y relleno más firmes, y el cursor de mover.
+      group.on('mouseenter', () => {
+        if (this.store.activeTool() !== 'select') return;
+        rect.setAttrs({ fill: 'rgba(79,124,172,0.2)', stroke: 'rgba(79,124,172,0.9)', strokeWidth: 2 });
+        this.setHover('zone');
+        this.mainLayer?.batchDraw();
+      });
+      group.on('mouseleave', () => {
+        rect.setAttrs({ fill: 'rgba(79,124,172,0.08)', stroke: 'rgba(79,124,172,0.4)', strokeWidth: 1 });
+        this.setHover('none');
+        this.mainLayer?.batchDraw();
+      });
+
+      // Arrastrar o cambiar el tamaño se guarda con el mismo comando (antes el arrastre se perdía).
+      group.on('dragend transformend', () => this.commitZone(zone, group));
+
       this.mainLayer.add(group);
+      this.nodesByKey.set(zone.key, group);
     }
 
     // ─── Objects ────────────────────────────────────────────────────
@@ -1309,7 +1859,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       const group = new Konva.Group({
         x: obj.x, y: obj.y,
         name: obj.key,
-        draggable: this.store.activeTool() === 'select',
+        draggable: this.store.activeTool() === 'select' && !this.store.readOnly(),
         opacity: obj.visible ? 1 : 0.4
       });
 
@@ -1368,6 +1918,20 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         }));
       }
 
+      // Resaltado al pasar (KON-5): el cuerpo se agranda y su sombra se intensifica, y el cursor es el de mover.
+      const body = group.findOne('Circle') as Konva.Circle | undefined;
+      group.on('mouseenter', () => {
+        if (this.store.activeTool() !== 'select') return;
+        body?.setAttrs({ strokeWidth: 4, shadowBlur: 16, shadowOpacity: 0.5 });
+        this.setHover('object');
+        this.mainLayer?.batchDraw();
+      });
+      group.on('mouseleave', () => {
+        body?.setAttrs({ strokeWidth: 2, shadowBlur: 8, shadowOpacity: 0.25 });
+        this.setHover('none');
+        this.mainLayer?.batchDraw();
+      });
+
       // Drag events for undo-able move
       group.on('dragstart', () => {
         this.dragStart = { x: obj.x, y: obj.y };
@@ -1389,6 +1953,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       });
 
       this.mainLayer.add(group);
+      this.nodesByKey.set(obj.key, group);
     }
 
     // ─── Spawn marker ───────────────────────────────────────────────
@@ -1418,21 +1983,84 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     this.uiLayer.add(this.spawnMarker);
 
     this.drawPatternOverlay();
+    this.attachTransformer();
+
+    // Un mapa más grande que el lienzo se ve entero al abrirlo (la primera vez de cada sala).
+    const room = untracked(() => this.store.definition()?.nodeId);
+    if (room !== this.lastRoom) {
+      this.lastRoom = room;
+      this.viewInitialised = false;
+    }
+    if (!this.viewInitialised) {
+      this.viewInitialised = true;
+      this.fitStageToHost();
+      if (this.stage && (map.width > this.stage.width() || map.height > this.stage.height())) this.zoomFit();
+    }
 
     this.mainLayer.draw();
     this.uiLayer.draw();
     this.highlightSelected(this.store.selectedKey());
   }
 
+  /**
+   * La zona seleccionada con «Seleccionar» lleva ocho asas para cambiarle el tamaño (KON-7). Un tamaño por debajo de
+   * una casilla se rechaza mientras se arrastra; al soltar, la geometría se encaja a la rejilla.
+   */
+  private attachTransformer(): void {
+    if (!this.mainLayer || !this.uiLayer || this.store.activeTool() !== 'select' || this.store.readOnly()) return;
+    const zone = this.store.selectedZone();
+    if (!zone) return;
+    const group = this.nodesByKey.get(zone.key);
+    if (!group) return;
+    this.transformer = new Konva.Transformer({
+      rotateEnabled: false,
+      keepRatio: false,
+      ignoreStroke: true,
+      padding: 0,
+      anchorSize: 12,
+      borderStroke: '#004876',
+      borderStrokeWidth: 2,
+      anchorStroke: '#004876',
+      anchorFill: '#ffffff',
+      boundBoxFunc: (oldBox, newBox) =>
+        Math.abs(newBox.width) < GRID_SIZE || Math.abs(newBox.height) < GRID_SIZE ? oldBox : newBox,
+    });
+    // Primero a la capa y después los nodos: con `nodes` en la configuración las asas quedaban sin colocar.
+    this.uiLayer.add(this.transformer);
+    this.transformer.nodes([group]);
+  }
+
+  /** Confirma el sitio o el tamaño nuevo de una zona: encajado a la rejilla y como UN paso deshacible. */
+  private commitZone(zone: WorldCollisionZone, group: Konva.Group): void {
+    const next = snapZoneRect(
+      { x: group.x(), y: group.y(), width: zone.width, height: zone.height, scaleX: group.scaleX(), scaleY: group.scaleY() },
+      GRID_SIZE,
+    );
+    // La escala del transformador ya se aplicó al ancho y al alto: el nodo vuelve a escala 1.
+    group.scale({ x: 1, y: 1 });
+    group.position({ x: next.x, y: next.y });
+    const unchanged = next.x === zone.x && next.y === zone.y && next.width === zone.width && next.height === zone.height;
+    if (unchanged) {
+      this.mainLayer?.batchDraw();
+      return;
+    }
+    this.store.execute(new ResizeZoneCommand(
+      zone.key,
+      { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
+      next,
+    ));
+  }
+
   private readonly bgCache = new Map<string, HTMLImageElement>();
   private drawBackground(width: number, height: number): void {
-    if (!this.gridLayer) return;
+    if (!this.backgroundLayer) return;
     const url = backgroundImage(this.store.editorState()?.map.ambient);
     if (!url) return;
     const add = (img: HTMLImageElement) => {
-      if (!this.gridLayer) return;
-      this.gridLayer.add(new Konva.Image({ image: img, x: 0, y: 0, width, height, listening: false, opacity: 0.95 }));
-      this.gridLayer.draw();
+      if (!this.backgroundLayer) return;
+      // En su capa (bajo la rejilla) y sin transparencia: el pixel art se ve como lo verá el jugador.
+      this.backgroundLayer.add(new Konva.Image({ image: img, x: 0, y: 0, width, height, listening: false }));
+      this.backgroundLayer.draw();
     };
     const cached = this.bgCache.get(url);
     if (cached && cached.complete) { add(cached); return; }
@@ -1444,13 +2072,14 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private drawGrid(mapWidth: number, mapHeight: number): void {
     if (!this.gridLayer) return;
 
-    // Background
-    this.gridLayer.add(new Konva.Rect({
+    // Fondo del mapa: en la capa de abajo, para que la imagen y la rejilla queden encima en este orden.
+    this.backgroundLayer?.add(new Konva.Rect({
       x: 0, y: 0,
       width: mapWidth, height: mapHeight,
       fill: '#f8fbfd',
       listening: false
     }));
+    this.backgroundLayer?.draw();
 
     // Grid lines
     for (let x = 0; x <= mapWidth; x += GRID_SIZE) {
@@ -1475,6 +2104,9 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   // ─── Mouse handlers ───────────────────────────────────────────────────
 
   private onStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void {
+    // Konva cancela el `mousedown` del lienzo y el navegador ya no mueve el foco: sin esto, tras seleccionar con el
+    // ratón Supr y las flechas no llegarían al lienzo (RNF-04).
+    this.konvaHost?.nativeElement.focus({ preventScroll: true });
     const tool = this.store.activeTool();
     const pos = this.getPointerPos();
     if (!pos) return;
@@ -1560,31 +2192,9 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     if (tool === 'place-object') {
       const x = this.snapToGrid(pos.x);
       const y = this.snapToGrid(pos.y);
-      const key = this.store.generateKey('obj');
-      const obj: WorldObject = {
-        id: this.store.nextLocalId(),
-        key,
-        label: 'Nuevo objeto',
-        type: 'OBJECT' as WorldObjectType,
-        x, y,
-        width: 48, height: 48,
-        zIndex: 0,
-        facing: 'down',
-        colorHex: '#4FA3A5',
-        icon: 'psychology',
-        shortCode: 'NEW',
-        collision: false,
-        visible: true,
-        interactionPrompt: 'Interactuar',
-        interactionText: '',
-        decisionOptionId: null,
-        toolCode: null,
-        unlockCondition: {},
-        movementPattern: {},
-        metadata: {}
-      };
+      const obj = this.newObjectAt(x, y);
       this.store.execute(new PlaceObjectCommand(obj));
-      this.store.select(key);
+      this.store.select(obj.key);
       this.store.setTool('select');
     }
 
@@ -1594,6 +2204,30 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       this.store.execute(new UpdateSpawnCommand(x, y));
       this.store.setTool('select');
     }
+  }
+
+  /** La cruz del cursor del teclado (solo con el foco en el lienzo) y la zona a medias entre su esquina y el cursor. */
+  private drawKeyboardCursor(): void {
+    if (!this.cursorLayer) return;
+    this.cursorLayer.destroyChildren();
+    if (this.canvasFocused()) {
+      const { x, y } = this.keyboardCursor();
+      const anchor = this.zoneAnchor();
+      if (anchor) {
+        this.cursorLayer.add(new Konva.Rect({
+          x: Math.min(anchor.x, x), y: Math.min(anchor.y, y),
+          width: Math.abs(x - anchor.x), height: Math.abs(y - anchor.y),
+          stroke: '#004876', strokeWidth: 2, dash: [6, 4], fill: 'rgba(0,72,118,0.08)',
+        }));
+      }
+      const arm = 12;
+      this.cursorLayer.add(new Konva.Line({ points: [x - arm, y, x + arm, y], stroke: '#004876', strokeWidth: 3 }));
+      this.cursorLayer.add(new Konva.Line({ points: [x, y - arm, x, y + arm], stroke: '#004876', strokeWidth: 3 }));
+      this.cursorLayer.add(new Konva.Rect({
+        x: x - 5, y: y - 5, width: 10, height: 10, stroke: '#ffffff', strokeWidth: 2, fill: '#004876',
+      }));
+    }
+    this.cursorLayer.batchDraw();
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────
@@ -1614,12 +2248,13 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
   }
 
-  private applyZoom(): void {
-    if (!this.stage || !this.mainLayer || !this.gridLayer || !this.uiLayer) return;
+  /** Zoom y desplazamiento en la etapa (no por capa): el desplazamiento y el zoom hacia el cursor lo necesitan. */
+  private applyView(): void {
+    if (!this.stage) return;
     const zoom = this.store.zoom();
-    this.mainLayer.scale({ x: zoom, y: zoom });
-    this.gridLayer.scale({ x: zoom, y: zoom });
-    this.uiLayer.scale({ x: zoom, y: zoom });
+    const pan = this.store.panOffset();
+    this.stage.scale({ x: zoom, y: zoom });
+    this.stage.position({ x: pan.x, y: pan.y });
     this.stage.batchDraw();
   }
 
@@ -1631,7 +2266,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
 
     if (!key) { this.mainLayer.batchDraw(); return; }
 
-    const node = this.mainLayer.findOne(`[name=${key}]`);
+    const node = this.nodesByKey.get(key);
     if (!node) { this.mainLayer.batchDraw(); return; }
 
     // Object selection ring
@@ -1645,24 +2280,9 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         name: 'selection-ring',
         listening: false
       });
-      (node as Konva.Group).add(ring);
+      node.add(ring);
     }
-    // Zone selection ring
-    else if (this.store.selectedZone()) {
-      const zone = this.store.selectedZone()!;
-      const ring = new Konva.Rect({
-        x: -2, y: -2,
-        width: zone.width + 4,
-        height: zone.height + 4,
-        stroke: '#4f7cac',
-        strokeWidth: 2,
-        dash: [4, 3],
-        fill: 'transparent',
-        name: 'selection-ring',
-        listening: false
-      });
-      (node as Konva.Group).add(ring);
-    }
+    // Una zona seleccionada no lleva anillo: sus asas (transformador) ya la marcan.
 
     this.mainLayer.batchDraw();
   }

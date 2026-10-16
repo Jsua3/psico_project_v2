@@ -1,0 +1,130 @@
+<div class="dag">
+  <div class="dag-toolbar">
+    <button ui-icon-button icon="zoom_out" label="Alejar" [disabledReason]="zoomOutReason()" (click)="zoomOut()"></button>
+    <span class="dag-zoom">{{ zoomPercent() }} %</span>
+    <button ui-icon-button icon="zoom_in" label="Acercar" [disabledReason]="zoomInReason()" (click)="zoomIn()"></button>
+    <button ui-button type="button" variant="secondary" size="sm" icon="fit_screen" (click)="fit()">Ajustar a la vista</button>
+  </div>
+
+  <ul class="dag-legend" aria-label="Leyenda del grafo">
+    @for (item of legend; track item.id) {
+      <li class="dag-legend__item">
+        <svg class="dag-legend__sample" width="36" height="20" viewBox="0 0 36 20" aria-hidden="true" focusable="false">
+          @if (item.sample === 'node') {
+            <rect class="dag-node__box" [class]="'dag-sample--' + item.id" x="2" y="2" width="32" height="16" rx="4" />
+          } @else {
+            <path class="dag-edge__path" [class]="'dag-sample-edge--' + item.id" d="M2 10 H34" />
+          }
+        </svg>
+        {{ item.label }}
+      </li>
+    }
+  </ul>
+
+  @if (warnings().length) {
+    <ul class="dag-warnings">
+      @for (warning of warnings(); track warning) {
+        <li><ui-badge tone="warning">{{ warning }}</ui-badge></li>
+      }
+    </ul>
+  }
+
+  @if (nodes().length === 0) {
+    <ui-empty-state kind="first-use" title="Aún no hay nodos"
+      description="Crea el primer nodo para ver el grafo del caso y unirlo con decisiones." />
+  } @else {
+    <p class="dag-hint" id="dag-help">
+      Flechas: moverse entre nodos · Inicio y Fin: primer y último nodo · Enter: abrir el detalle · Esc: cerrarlo ·
+      + y −: acercar y alejar.
+    </p>
+    <div class="dag-scroll" #scroller [class.dag-scroll--panning]="panning()"
+      (pointerdown)="onPanStart($event)" (pointermove)="onPanMove($event)" (pointerup)="onPanEnd()" (pointercancel)="onPanEnd()">
+      <svg class="dag-svg" role="group" aria-label="Grafo DAG del caso" aria-describedby="dag-help"
+        [attr.width]="width()" [attr.height]="height()" [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height"
+        (keydown)="onKeydown($event)">
+        <defs>
+          @for (kind of ['adequate', 'risky', 'inadequate', 'prohibited']; track kind) {
+            <marker [id]="'dag-arrow-' + kind" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+              <polygon [class]="'dag-arrow dag-arrow--' + kind" points="0 0, 12 5, 0 10" />
+            </marker>
+          }
+        </defs>
+
+        @for (view of edgeViews(); track view.line.edge.id) {
+          <g class="dag-edge" [class]="'dag-edge--' + view.kind" [class.dag-edge--readonly]="!!lockReason()"
+            aria-hidden="true" [attr.data-edge-id]="view.line.edge.id" (click)="onEdgeClick(view.line.edge)">
+            <path class="dag-edge__path" [attr.d]="view.path" [attr.marker-end]="'url(#dag-arrow-' + view.kind + ')'" />
+            <text class="dag-edge__label" [attr.x]="view.line.mx" [attr.y]="view.line.my - 8" text-anchor="middle">{{ view.label }}</text>
+            <text class="dag-edge__score" [attr.x]="view.line.mx" [attr.y]="view.line.my + 10" text-anchor="middle">{{ view.score }}</text>
+          </g>
+        }
+
+        @for (view of nodeViews(); track view.id) {
+          <g class="dag-node" [class]="'dag-node--' + view.type" [class.dag-node--orphan]="view.orphan"
+            [class.dag-node--selected]="selectedId() === view.id" role="button"
+            [attr.data-node-id]="view.id" [attr.transform]="'translate(' + view.x + ',' + view.y + ')'"
+            [attr.tabindex]="view.id === tabStopId() ? 0 : -1" [attr.aria-label]="view.name"
+            [attr.aria-describedby]="'dag-node-desc-' + view.id" [attr.aria-pressed]="selectedId() === view.id"
+            (click)="onNodeClick(view.id)" (focus)="focusedId.set(view.id)">
+            <rect class="dag-node__box" [attr.width]="NODE_W" [attr.height]="NODE_H" rx="12" />
+            <!-- Los espacios entre los <text> hacen que el texto del nodo, leído tal cual, sea su nombre accesible. -->
+            <text class="dag-node__key" [attr.x]="NODE_W / 2" y="22" text-anchor="middle">{{ view.box.node.key }}</text>{{ ' ' }}
+            @for (line of view.lines; track $index) {
+              <text class="dag-node__title" [attr.x]="NODE_W / 2" [attr.y]="42 + $index * 18" text-anchor="middle">{{ line }}</text>{{ ' ' }}
+            }
+            <text class="dag-node__type" [attr.x]="NODE_W / 2" [attr.y]="NODE_H - 12" text-anchor="middle">{{ view.typeText }}</text>
+          </g>
+        }
+      </svg>
+    </div>
+    @for (view of nodeViews(); track view.id) {
+      <span hidden [id]="'dag-node-desc-' + view.id">{{ view.description }}</span>
+    }
+  }
+
+  @if (selectedNode(); as current) {
+    <ui-card class="dag-detail">
+      <div class="dag-detail__head">
+        <div class="dag-detail__heading">
+          <ui-badge [tone]="current.startNode ? 'success' : current.terminal ? 'info' : 'neutral'">{{ nodeType(current) }}</ui-badge>
+          <h3 class="dag-detail__title">{{ current.title }}</h3>
+          <code class="dag-detail__key">{{ current.key }}</code>
+        </div>
+        <span class="dag-detail__actions">
+          <button ui-button type="button" variant="secondary" size="sm" icon="edit" [disabledReason]="lockReason()"
+            (click)="nodeEdit.emit(current)">Editar nodo</button>
+          <button ui-icon-button icon="close" label="Cerrar detalle" (click)="closeDetail()"></button>
+        </span>
+      </div>
+      <p class="dag-detail__narrative">{{ current.narrative }}</p>
+      @if (current.requiredTools.length) {
+        <p class="dag-detail__meta">Herramientas: {{ current.requiredTools.join(', ') }}</p>
+      }
+      @if (current.sensitiveContent) {
+        <p class="dag-detail__meta">Contiene contenido sensible.</p>
+      }
+      <h4 class="dag-detail__subtitle">Decisiones salientes</h4>
+      @if (selectedEdges().length) {
+        <ul class="dag-detail-edges">
+          @for (edge of selectedEdges(); track edge.id) {
+            <li class="dag-detail-edges__item">
+              <ui-badge [tone]="edgeTones[edgeKind(edge)]">{{ edgeLabels[edgeKind(edge)] }}</ui-badge>
+              <span class="dag-detail-edges__text">{{ edge.text }}</span>
+              <span class="dag-detail-edges__target">→ {{ targetTitle(edge) }}</span>
+              <button ui-icon-button icon="edit" [label]="'Editar decisión: ' + edge.text" [disabledReason]="lockReason()"
+                (click)="edgeEdit.emit(edge)"></button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="dag-detail__meta">Sin decisiones salientes. Agrega una con «Nueva decisión».</p>
+      }
+      <div class="dag-detail__foot">
+        <button ui-button type="button" icon="add_link" [disabledReason]="lockReason()"
+          (click)="addEdge.emit(current)">Nueva decisión</button>
+        <button ui-button type="button" variant="danger" icon="delete_outline" [disabledReason]="lockReason()"
+          (click)="nodeDelete.emit(current)">Eliminar nodo</button>
+      </div>
+    </ui-card>
+  }
+</div>

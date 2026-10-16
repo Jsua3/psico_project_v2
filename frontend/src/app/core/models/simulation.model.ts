@@ -489,8 +489,34 @@ export interface ClinicalToolEditorState {
   active: boolean;
 }
 
+/** Un ítem de la lista de publicación (E2-7): el código y el texto los fija el servidor. */
+export interface PublicationChecklistItem {
+  code: string;
+  label: string;
+  /** Obligatorio para publicar (con la bandera estricta se suma el ítem de alcance educativo). */
+  required: boolean;
+  fulfilled: boolean;
+  /** Texto en borrador, pendiente de la validación de Psicología (decisión 17). */
+  draft: boolean;
+}
+
+/** La lista de publicación del editor (E2-7): ítems del autor y la constancia de revisión de contenido (solo lectura). */
+export interface PublicationChecklistView {
+  items: PublicationChecklistItem[];
+  /** «Revisión de contenido por Psicología»: la cumple la constancia que registra el ADMIN, no una casilla. */
+  contentReview: {
+    fulfilled: boolean;
+    reviewer?: string | null;
+    reviewedOn?: string | null;
+    reference?: string | null;
+  };
+  strict: boolean;
+}
+
 export interface CaseEditorView {
   caseVersionId: number;
+  /** Revisión del borrador (E2-6): viaja en `X-Case-Revision` en cada mutación y la respuesta trae la siguiente. */
+  revision: number;
   title: string;
   semanticVersion: string;
   status: string;
@@ -502,6 +528,7 @@ export interface CaseEditorView {
   rubrics: RubricEvaluationView[];
   checklistCompletion: number;
   publishable: boolean;
+  checklist: PublicationChecklistView;
 }
 
 // ─── Authoring CRUD request models ────────────────────────────────────────────
@@ -580,6 +607,8 @@ export interface ChecklistUpdateRequest {
   noStigmatizing: boolean;
   triggerWarnings: boolean;
   accessibilityOk: boolean;
+  /** Ítem de alcance educativo (E2-7): opcional salvo con la bandera estricta del servidor. */
+  scopeEducational?: boolean;
 }
 
 // ─── WorldDefinition v2 — contrato canónico entre editor y juego (Fase 2) ────

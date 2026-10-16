@@ -30,7 +30,7 @@ async function apiLogin(request: APIRequestContext): Promise<string> {
 }
 
 async function readWorld(request: APIRequestContext, token: string, versionId: number, nodeId: number): Promise<Json> {
-  const response = await request.get(`/api/admin/cases/${versionId}/world-editor?nodeId=${nodeId}`, {
+  const response = await request.get(`/api/authoring/cases/${versionId}/world-editor?nodeId=${nodeId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(response.status(), 'GET world-editor').toBe(200);
@@ -40,11 +40,11 @@ async function readWorld(request: APIRequestContext, token: string, versionId: n
 /** Los objetos de todas las demás versiones de caso, para comprobar que nada ajeno cambia. */
 async function foreignObjects(request: APIRequestContext, token: string, ownVersionId: number): Promise<string> {
   const headers = { Authorization: `Bearer ${token}` };
-  const versions: Json[] = (await (await request.get('/api/admin/cases', { headers })).json()).data;
+  const versions: Json[] = (await (await request.get('/api/authoring/cases', { headers })).json()).data;
   const rows: Json[] = [];
   for (const version of versions) {
     if (version['caseVersionId'] === ownVersionId) continue;
-    const view = (await (await request.get(`/api/admin/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
+    const view = (await (await request.get(`/api/authoring/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
     rows.push({ version: version['caseVersionId'], objects: view.objects });
   }
   return JSON.stringify(rows);
@@ -57,18 +57,18 @@ async function foreignObjects(request: APIRequestContext, token: string, ownVers
 async function openWorldEditor(page: Page, versionId: number): Promise<void> {
   await page.getByRole('tab', { name: 'Mundo' }).click();
   const loaded = page.waitForResponse(
-    r => r.request().method() === 'GET' && r.url().includes(`/api/admin/cases/${versionId}/world-editor`),
+    r => r.request().method() === 'GET' && r.url().includes(`/api/authoring/cases/${versionId}/world-editor`),
     { timeout: scaled(30_000) },
   );
-  await page.getByRole('button', { name: /inicio\s+—\s+Inicio del caso/ }).click();
+  await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
   await loaded;
-  await expect(page.getByRole('heading', { name: 'Sala', level: 4 })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
 }
 
 /** Ejecuta `action` y espera a que el autoguardado (PUT .../world) responda y el editor quede sin cambios. */
 async function autosaved(page: Page, versionId: number, action: () => Promise<void>): Promise<void> {
   const response = page.waitForResponse(
-    r => r.request().method() === 'PUT' && r.url().includes(`/api/admin/cases/${versionId}/world`),
+    r => r.request().method() === 'PUT' && r.url().includes(`/api/authoring/cases/${versionId}/world`),
     { timeout: scaled(30_000) },
   );
   await action();
@@ -81,7 +81,7 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   const token = await apiLogin(request);
 
   // Caso nuevo: una versión DRAFT con el nodo «inicio» y su escena vacía.
-  const created = await request.post('/api/admin/cases', {
+  const created = await request.post('/api/authoring/cases', {
     headers: { Authorization: `Bearer ${token}` },
     data: { title: `Editor e2e ${Date.now()}` },
   });
@@ -130,7 +130,9 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   expect(withDialogue['dialogues']).toHaveLength(1);
   expect(withDialogue['dialogues'][0]['mapObjectId'], 'el diálogo apunta al id REAL de su objeto').toBe(owner['id']);
 
-  // 3. Borrar el objeto seleccionado: la macro quita también su diálogo.
+  // 3. Borrar el objeto seleccionado: la macro quita también su diálogo. Supr rige con el foco en el lienzo (F8-5),
+  //    no desde un botón cualquiera del inspector: se lleva el foco al lienzo, que conserva la selección.
+  await page.locator('.we-konva-host').focus();
   await autosaved(page, versionId, async () => { await page.keyboard.press('Delete'); });
   const afterDelete = await readWorld(request, token, versionId, nodeId);
   expect(afterDelete['objects']).toHaveLength(2);
@@ -175,7 +177,7 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   expect(reloaded['objects'].some((o: Json) => o['key'] === ownerKey), 'el objeto borrado no reaparece').toBe(false);
 
   // 7. Borrar la zona (seleccionada con el ratón sobre el lienzo): el servidor la quita.
-  await page.keyboard.press('v');
+  await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
   const reloadedBox = await centerCanvas();
   await page.mouse.click(reloadedBox.x + 220, reloadedBox.y + 160);
   await autosaved(page, versionId, async () => {

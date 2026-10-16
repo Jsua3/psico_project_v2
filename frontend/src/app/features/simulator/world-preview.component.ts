@@ -6,17 +6,29 @@
  *   - No SimulationAttempt created
  *   - No attempt_events persisted
  *   - No audit_logs for gameplay
- *   - Scoring only in memory
+ *   - Sin puntaje: la vista previa solo cuenta lo que hizo quien autora (objetos revisados, decisiones probadas)
  *
  * Transforms WorldDefinition → SimulationWorldState for compatibility
  * with the existing GameWorldComponent contract.
+ *
+ * F8-6: recargar o cambiar de nodo NO desmonta el tablero (Phaser no se destruye ni se vuelve a crear: la entrada
+ * `world` cambia en su sitio), una respuesta tardía de una petición anterior se descarta y no hay métricas inventadas.
  */
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, ViewChild, inject, input, signal, effect, ChangeDetectionStrategy } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ViewChild, computed, effect, inject, input, signal, untracked,
+} from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { Subscription } from 'rxjs';
 import { AuthoringApi } from '../../core/api/authoring.api';
+import { UiBadge } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { objectTypeLabel, plural } from '../../shared/ui/labels';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { ERROR_STATE_COPY } from '../../shared/ui/state/state-copy';
+import { errorKindFromStatus } from '../../shared/ui/state/ui-data-state';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import {
   ClinicalToolState,
   CollisionZoneState,
@@ -26,78 +38,76 @@ import {
   WorldClinicalTool,
   WorldCollisionZone,
   WorldDefinition,
-  WorldDialogueTree,
   WorldObject
 } from '../../core/models/simulation.model';
+import { nodeOptionLabel } from './case-editor.options';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 
-// ─── In-memory ephemeral state ──────────────────────────────────────────────
-
-interface EphemeralScore {
-  accumulatedScore: number;
-  stressIndex: number;
-  interactionsCount: number;
-  toolsUsed: string[];
-  inspectedKeys: string[];
-  viewedDialogues: string[];
-}
+/** Lo que el autor ha hecho en esta vista previa (solo en memoria; nada de puntaje inventado). */
+const DECISION_TRIED_TEXT =
+  'Decisión probada: en la simulación real se registraría y el caso avanzaría; aquí no se guarda ni se califica.';
 
 @Component({
   selector: 'app-world-preview',
   standalone: true,
   imports: [
-    CommonModule,
     MatIconModule,
-    MatProgressBarModule,
     GameWorldComponent,
     DialoguePanelComponent,
-    ToolInventoryComponent
+    ToolInventoryComponent,
+    UiBadge,
+    UiButton,
+    UiControl,
+    UiEmptyState,
+    UiErrorState,
+    UiField,
+    UiSkeleton,
   ],
   template: `
     <div class="preview-root">
       <!-- Header bar -->
       <header class="preview-header">
-        <div class="preview-badge">
-          <mat-icon>visibility</mat-icon>
-          <span>Vista previa efímera</span>
+        <div class="preview-heading">
+          <ui-badge tone="info">Vista previa efímera</ui-badge>
+          <p class="preview-note">Nada de lo que hagas aquí se guarda ni se califica.</p>
         </div>
-        <div class="preview-info">
-          @if (definition()) {
-            <span class="info-chip">Rev {{ definition()!.revision }}</span>
-            <span class="info-chip">Schema v{{ definition()!.schemaVersion }}</span>
+        <div class="preview-info" role="group" aria-label="Estado de la vista previa">
+          @if (definition(); as def) {
+            <ui-badge>Revisión {{ def.revision }}</ui-badge>
+            <ui-badge>Esquema v{{ def.schemaVersion }}</ui-badge>
           }
-          @if (ephemeral(); as score) {
-            <span class="info-chip score-chip">Puntaje: {{ score.accumulatedScore }}</span>
-            <span class="info-chip stress-chip">Estrés: {{ score.stressIndex }}%</span>
-            <span class="info-chip">Interacciones: {{ score.interactionsCount }}</span>
+          @if (worldState(); as world) {
+            <ui-badge>Objetos revisados: {{ inspectedKeys().length }} de {{ world.objects.length }}</ui-badge>
+            <ui-badge>Decisiones probadas: {{ decisionsTried().length }}</ui-badge>
           }
         </div>
         <div class="preview-actions">
           @if (nodeOptions().length > 1) {
-            <select class="node-select" (change)="onNodeChange($event)" [value]="selectedNodeId()">
-              @for (node of nodeOptions(); track node.id) {
-                <option [value]="node.id">{{ node.label }}</option>
-              }
-            </select>
+            <ui-field class="node-field" label="Nodo">
+              <select uiControl (change)="onNodeChange($event)" [value]="selectedNodeId()">
+                @for (node of nodeOptions(); track node.id) {
+                  <option [value]="node.id">{{ node.label }}</option>
+                }
+              </select>
+            </ui-field>
           }
-          <button class="psy-button psy-button--glass" type="button" (click)="reload()" [disabled]="loading()">
-            <mat-icon>refresh</mat-icon>Recargar
+          <button ui-button type="button" variant="secondary" icon="refresh" [loading]="loading()" (click)="reload()">
+            Recargar
           </button>
         </div>
       </header>
 
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate" />
-      }
+      <!-- Región viva siempre presente: qué está pasando con la vista previa. -->
+      <p class="preview-feedback" role="status">{{ statusText() }}</p>
 
-      @if (previewError()) {
-        <div class="preview-error" role="alert">
-          <mat-icon>error</mat-icon>
-          <span>{{ previewError() }}</span>
-          <button class="psy-button psy-button--ghost" type="button" (click)="reload()">Reintentar</button>
-        </div>
+      @if (previewError(); as message) {
+        <ui-error-state
+          [kind]="errorKind()"
+          [message]="message"
+          [status]="errorStatus()"
+          (retry)="reload()" />
       }
 
       @if (validationWarning()) {
@@ -108,7 +118,7 @@ interface EphemeralScore {
       }
 
       @if (worldState(); as currentWorld) {
-        <div class="preview-board">
+        <div class="preview-board" [class.preview-board--refreshing]="loading()" [attr.aria-busy]="loading()">
           <div class="preview-main">
             <div class="preview-stage">
               <!-- Phaser canvas -->
@@ -152,7 +162,7 @@ interface EphemeralScore {
             <!-- Tools -->
             <app-tool-inventory
               [tools]="toolStates()"
-              [inventory]="ephemeral().toolsUsed"
+              [inventory]="toolsUsed()"
               (select)="selectTool($event)" />
 
             <!-- Accessible interaction list -->
@@ -167,7 +177,7 @@ interface EphemeralScore {
                     type="button"
                     class="interaction-card psy-liquid-ripple"
                     [class.interaction-card--selected]="selectedInteraction()?.key === obj.key"
-                    [class.interaction-card--inspected]="ephemeral().inspectedKeys.includes(obj.key)"
+                    [class.interaction-card--inspected]="inspectedKeys().includes(obj.key)"
                     (click)="openInteraction(obj)">
                     <span class="interaction-dot" [style.background]="obj.color">{{ obj.shortCode }}</span>
                     <span>
@@ -180,14 +190,15 @@ interface EphemeralScore {
             </section>
           </aside>
         </div>
-      }
-
-      @if (!loading() && !worldState() && !previewError()) {
-        <div class="preview-empty">
-          <mat-icon>map</mat-icon>
-          <h3>Sin mapa configurado</h3>
-          <p>Este nodo no tiene un mapa asociado. Crea uno en la pestaña «Mapas» para habilitar la vista previa.</p>
+      } @else if (loading()) {
+        <!-- Primera carga: la forma del tablero, para que la pantalla no salte cuando llegue. -->
+        <div class="preview-placeholder" aria-busy="true">
+          <ui-skeleton shape="chart" />
         </div>
+      } @else if (!previewError()) {
+        <ui-empty-state
+          title="Sin mapa configurado"
+          description="Este nodo no tiene un mapa asociado. Crea uno en la pestaña «Mapas» para habilitar la vista previa." />
       }
     </div>
   `,
@@ -203,71 +214,41 @@ interface EphemeralScore {
       justify-content: space-between;
       padding: 10px 0;
     }
-    .preview-badge {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: rgba(79,163,165,.12);
-      color: var(--psy-teal-deep, #2a6f6f);
-      font-size: .84rem;
-      font-weight: 800;
+    .preview-heading {
+      display: grid;
+      gap: 6px;
+      justify-items: start;
+    }
+    .preview-note {
+      margin: 0;
+      color: var(--ds-text-2);
+      font-size: var(--ds-type-caption-size);
     }
     .preview-info {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
     }
-    .info-chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(79,124,172,.08);
-      color: var(--psy-blue-deep);
-      font-size: .76rem;
-      font-weight: 700;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .score-chip { background: rgba(140,191,166,.16); color: #2f7c5f; }
-    .stress-chip { background: rgba(169,155,214,.16); color: #5b4f8f; }
-
     .preview-actions {
       display: flex;
       gap: 10px;
-      align-items: center;
+      align-items: flex-end;
     }
-    .node-select {
-      padding: 8px 12px;
-      border: 1px solid rgba(79,124,172,.22);
-      border-radius: 10px;
-      background: rgba(255,255,255,.8);
-      font-size: .86rem;
-      color: var(--psy-ink);
-      font-family: inherit;
-      max-width: 220px;
-    }
-    .node-select:focus {
-      outline: none;
-      border-color: var(--psy-blue);
-      box-shadow: 0 0 0 3px var(--psy-focus);
+    .node-field { min-width: 14rem; max-width: 22rem; }
+    .preview-feedback {
+      margin: 0;
+      min-height: 1.25rem;
+      color: var(--ds-text-2);
+      font-size: var(--ds-type-body-s-size);
     }
 
-    .preview-error, .preview-warning {
+    .preview-warning {
       display: flex;
       gap: 10px;
       align-items: center;
       padding: 12px 16px;
       border-radius: 14px;
       font-size: .88rem;
-    }
-    .preview-error {
-      background: rgba(168,80,98,.08);
-      border: 1px solid rgba(168,80,98,.24);
-      color: #8b3145;
-    }
-    .preview-warning {
       background: rgba(198,168,80,.08);
       border: 1px solid rgba(198,168,80,.24);
       color: #7a6320;
@@ -279,6 +260,8 @@ interface EphemeralScore {
       gap: 16px;
       align-items: start;
     }
+    /* Recargando: el tablero sigue ahí (no se desmonta), solo se atenúa mientras llega lo nuevo. */
+    .preview-board--refreshing .preview-stage { opacity: .6; }
     .preview-main {
       display: grid;
       gap: 12px;
@@ -287,10 +270,19 @@ interface EphemeralScore {
     .preview-stage {
       position: relative;
       aspect-ratio: 16 / 9;
+      transition: opacity var(--ds-dur-slow) var(--ds-ease-out);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .preview-stage { transition: none; }
     }
     .preview-stage app-game-world {
       position: absolute;
       inset: 0;
+    }
+    .preview-placeholder {
+      display: grid;
+      aspect-ratio: 16 / 9;
+      max-width: 100%;
     }
 
     .preview-status-bar {
@@ -384,44 +376,20 @@ interface EphemeralScore {
       line-height: 1.22;
     }
 
-    .preview-empty {
-      display: grid;
-      justify-items: center;
-      gap: 12px;
-      padding: 48px 16px;
-      text-align: center;
-    }
-    .preview-empty mat-icon {
-      font-size: 52px;
-      width: 52px;
-      height: 52px;
-      color: var(--psy-muted);
-    }
-    .preview-empty h3 {
-      margin: 0;
-      font-family: 'Poppins', system-ui, sans-serif;
-      letter-spacing: 0;
-      color: var(--psy-ink);
-    }
-    .preview-empty p {
-      margin: 0;
-      color: var(--psy-muted);
-      max-width: 440px;
-    }
-
     @media (max-width: 1100px) {
       .preview-board { grid-template-columns: 1fr; }
     }
     @media (max-width: 680px) {
       .preview-header { display: grid; }
       .preview-actions { width: 100%; }
-      .node-select { width: 100%; max-width: none; }
+      .node-field { max-width: none; flex: 1; }
     }
   `]
 })
-export class WorldPreviewComponent implements OnInit {
+export class WorldPreviewComponent {
   readonly objectTypeLabel = objectTypeLabel;
   private readonly authoringApi = inject(AuthoringApi);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Case version ID to preview — passed from the parent case editor. */
   readonly caseVersionId = input.required<number>();
@@ -438,6 +406,7 @@ export class WorldPreviewComponent implements OnInit {
 
   readonly loading = signal(false);
   readonly previewError = signal('');
+  readonly errorStatus = signal<number | null>(null);
   readonly validationWarning = signal('');
   readonly definition = signal<WorldDefinition | null>(null);
   readonly worldState = signal<SimulationWorldState | null>(null);
@@ -448,49 +417,63 @@ export class WorldPreviewComponent implements OnInit {
   readonly playerPos = signal<{ x: number; y: number }>({ x: 0, y: 0 });
   readonly toolStates = signal<ClinicalToolState[]>([]);
 
-  readonly ephemeral = signal<EphemeralScore>({
-    accumulatedScore: 0,
-    stressIndex: 0,
-    interactionsCount: 0,
-    toolsUsed: [],
-    inspectedKeys: [],
-    viewedDialogues: []
+  /** Lo que el autor hizo en esta vista previa (en memoria; se reinicia al recargar o cambiar de nodo). */
+  readonly inspectedKeys = signal<string[]>([]);
+  readonly decisionsTried = signal<number[]>([]);
+  readonly toolsUsed = signal<string[]>([]);
+
+  /** El último aviso de una acción del autor («Vista previa actualizada», «Decisión probada…»). */
+  private readonly lastMessage = signal('');
+
+  /** Lo que dice la región viva: cargando, actualizada o lo que se hizo. */
+  readonly statusText = computed(() => {
+    if (this.loading()) return this.worldState() ? 'Actualizando la vista previa…' : 'Cargando la vista previa…';
+    return this.lastMessage();
   });
 
-  /** Computed node options for the dropdown. */
-  readonly nodeOptions = signal<{ id: number; label: string }[]>([]);
+  readonly errorKind = computed(() => errorKindFromStatus(this.errorStatus()));
+
+  /** Computed node options for the dropdown ("Título (clave)"). */
+  readonly nodeOptions = computed(() =>
+    this.nodes().map(n => ({ id: n.id, label: nodeOptionLabel(n) })));
+
+  /** La petición en vuelo: una nueva la cancela, y su respuesta tardía ya no pisa a la última. */
+  private inflight: Subscription | null = null;
+
+  /** La versión del caso para la que se eligió el nodo actual (clonar abre otra versión con nodos nuevos). */
+  private loadedCase: number | null = null;
 
   constructor() {
-    // React to node list changes from parent
+    this.destroyRef.onDestroy(() => this.inflight?.unsubscribe());
+    // Primera carga y cambios de versión: si no hay nodo elegido, o el elegido ya no está en la lista o es de otra
+    // versión del caso (clonar), se vuelve al primero y se carga su vista previa. Una lista nueva con los mismos
+    // nodos no recarga nada.
     effect(() => {
       const nodes = this.nodes();
-      this.nodeOptions.set(
-        nodes.map(n => ({ id: n.id, label: `${n.key} — ${n.title}` }))
-      );
-      // Auto-select the first node if none selected
-      if (!this.selectedNodeId() && nodes.length > 0) {
-        this.selectedNodeId.set(nodes[0].id);
-      }
+      const caseId = this.caseVersionId();
+      untracked(() => {
+        const selected = this.selectedNodeId();
+        const stillThere = selected !== null && nodes.some(node => node.id === selected);
+        if (stillThere && this.loadedCase === caseId) return;
+        const first = nodes[0];
+        if (!first) return;
+        this.loadedCase = caseId;
+        this.selectedNodeId.set(first.id);
+        this.resetProgress();
+        this.loadPreview();
+      });
     });
-  }
-
-  ngOnInit(): void {
-    // Initial load is deferred until the first node is selected
-    if (this.nodes().length > 0) {
-      this.selectedNodeId.set(this.nodes()[0].id);
-      this.loadPreview();
-    }
   }
 
   onNodeChange(event: Event): void {
     const nodeId = Number((event.target as HTMLSelectElement).value);
     this.selectedNodeId.set(nodeId);
-    this.resetEphemeral();
+    this.resetProgress();
     this.loadPreview();
   }
 
   reload(): void {
-    this.resetEphemeral();
+    this.resetProgress();
     this.loadPreview();
   }
 
@@ -501,13 +484,8 @@ export class WorldPreviewComponent implements OnInit {
     this.gameWorld?.focus(obj.key);
 
     // Track inspection in memory
-    const eph = this.ephemeral();
-    if (!eph.inspectedKeys.includes(obj.key)) {
-      this.ephemeral.set({
-        ...eph,
-        inspectedKeys: [...eph.inspectedKeys, obj.key],
-        interactionsCount: eph.interactionsCount + 1
-      });
+    if (!this.inspectedKeys().includes(obj.key)) {
+      this.inspectedKeys.update(keys => [...keys, obj.key]);
     }
 
     // Build dialogue from WorldDefinition if available
@@ -522,16 +500,15 @@ export class WorldPreviewComponent implements OnInit {
     this.dialogue.set(null);
   }
 
-  /** Simulate a decision execution (ephemeral — score in memory only). */
+  /**
+   * Probar una decisión: en la vista previa no hay intento ni servidor que la evalúe, así que solo se anota que se
+   * probó (sin puntaje) y se dice con claridad qué haría la simulación real.
+   */
   simulateDecision(decisionOptionId: number): void {
-    // In ephemeral mode, we just show feedback without backend persistence
-    const eph = this.ephemeral();
-    this.ephemeral.set({
-      ...eph,
-      accumulatedScore: eph.accumulatedScore + 10, // placeholder score delta
-      interactionsCount: eph.interactionsCount + 1
-    });
-
+    if (!this.decisionsTried().includes(decisionOptionId)) {
+      this.decisionsTried.update(ids => [...ids, decisionOptionId]);
+    }
+    this.lastMessage.set(DECISION_TRIED_TEXT);
     this.dialogue.set(null);
     this.selectedInteraction.set(null);
     this.nearbyInteraction.set(null);
@@ -539,12 +516,8 @@ export class WorldPreviewComponent implements OnInit {
 
   /** Simulate tool usage (ephemeral — no backend persistence). */
   simulateToolUse(toolCode: string): void {
-    const eph = this.ephemeral();
-    if (!eph.toolsUsed.includes(toolCode)) {
-      this.ephemeral.set({
-        ...eph,
-        toolsUsed: [...eph.toolsUsed, toolCode]
-      });
+    if (!this.toolsUsed().includes(toolCode)) {
+      this.toolsUsed.update(codes => [...codes, toolCode]);
     }
   }
 
@@ -585,57 +558,81 @@ export class WorldPreviewComponent implements OnInit {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
+  /**
+   * Pide el mundo del nodo elegido. El tablero que ya está en pantalla NO se desmonta: mientras llega la respuesta
+   * sigue ahí (atenuado) y al llegar el mundo cambia en su sitio. Una petición nueva cancela la anterior.
+   */
   private loadPreview(): void {
     const cvId = this.caseVersionId();
     const nodeId = this.selectedNodeId() ?? undefined;
 
     if (!cvId) return;
 
+    this.inflight?.unsubscribe();
     this.loading.set(true);
     this.previewError.set('');
+    this.errorStatus.set(null);
     this.validationWarning.set('');
-    this.worldState.set(null);
-    this.definition.set(null);
+    this.lastMessage.set('');
 
-    this.authoringApi.worldPreview(cvId, nodeId).subscribe({
-      next: (def: WorldDefinition) => {
-        this.definition.set(def);
-
-        // Check validation state for warnings
-        if (def.validation && !def.validation.canPublish) {
-          const errorCount = def.validation.errors?.length ?? 0;
-          const warnCount = def.validation.warnings?.length ?? 0;
-          this.validationWarning.set(
-            `Validación: ${plural(errorCount, 'error', 'errores')}, ${plural(warnCount, 'advertencia')}. Corrige los errores antes de publicar.`
-          );
-        }
-
-        // Transform WorldDefinition → SimulationWorldState
-        const worldState = this.toWorldState(def);
-        this.worldState.set(worldState);
-
-        // Extract tool states
-        this.toolStates.set(
-          def.clinicalTools.map(t => this.toToolState(t))
-        );
-
-        // Set initial player position from map spawn
-        this.playerPos.set({ x: def.map.spawnX, y: def.map.spawnY });
-
-        this.loading.set(false);
-      },
-      error: (err) => {
-        const status = err?.status;
-        if (status === 404) {
-          this.previewError.set('No hay mapa configurado para este nodo. Crea uno en la pestaña «Mapas».');
-        } else if (status === 400) {
-          this.previewError.set('El caso no tiene un nodo con mapa asociado.');
-        } else {
-          this.previewError.set('No se pudo cargar la vista previa. Verifica que el caso exista y tengas permisos.');
-        }
-        this.loading.set(false);
-      }
+    this.inflight = this.authoringApi.worldPreview(cvId, nodeId).subscribe({
+      next: (def: WorldDefinition) => this.onLoaded(def),
+      error: (err) => this.onFailed(err, nodeId),
     });
+  }
+
+  private onLoaded(def: WorldDefinition): void {
+    const reloaded = this.worldState() !== null;
+    this.definition.set(def);
+
+    // Check validation state for warnings
+    if (def.validation && !def.validation.canPublish) {
+      const errorCount = def.validation.errors?.length ?? 0;
+      const warnCount = def.validation.warnings?.length ?? 0;
+      this.validationWarning.set(
+        `Validación: ${plural(errorCount, 'error', 'errores')}, ${plural(warnCount, 'advertencia')}. Corrige los errores antes de publicar.`
+      );
+    }
+
+    // Transform WorldDefinition → SimulationWorldState
+    this.worldState.set(this.toWorldState(def));
+
+    // Extract tool states
+    this.toolStates.set(def.clinicalTools.map(t => this.toToolState(t)));
+
+    // Set initial player position from map spawn
+    this.playerPos.set({ x: def.map.spawnX, y: def.map.spawnY });
+
+    this.lastMessage.set(reloaded ? 'Vista previa actualizada.' : 'Vista previa lista.');
+    this.loading.set(false);
+  }
+
+  private onFailed(err: { status?: number } | null, requestedNodeId: number | undefined): void {
+    const status = err?.status ?? null;
+    // El tablero que hay en pantalla solo se conserva si es del mismo nodo que se pidió: si no, el selector dice
+    // un nodo y el tablero muestra otro.
+    const hadBoard = this.worldState() !== null;
+    const sameNode = requestedNodeId === undefined || this.definition()?.nodeId === requestedNodeId;
+    const keepBoard = hadBoard && sameNode;
+    if (hadBoard && !keepBoard) {
+      this.worldState.set(null);
+      this.definition.set(null);
+      this.toolStates.set([]);
+    }
+
+    let message: string;
+    if (status === 404) {
+      message = 'No hay mapa configurado para este nodo. Crea uno en la pestaña «Mapas».';
+    } else if (status === 400) {
+      message = 'El caso no tiene un nodo con mapa asociado.';
+    } else {
+      message = ERROR_STATE_COPY[errorKindFromStatus(status)].message;
+    }
+    if (keepBoard) message += ' Se conserva la última versión cargada.';
+
+    this.errorStatus.set(status);
+    this.previewError.set(message);
+    this.loading.set(false);
   }
 
   /**
@@ -799,15 +796,11 @@ export class WorldPreviewComponent implements OnInit {
     };
   }
 
-  private resetEphemeral(): void {
-    this.ephemeral.set({
-      accumulatedScore: 0,
-      stressIndex: 0,
-      interactionsCount: 0,
-      toolsUsed: [],
-      inspectedKeys: [],
-      viewedDialogues: []
-    });
+  /** Reinicia lo que el autor hizo y cierra el diálogo: el mundo que viene es otro (o el mismo, recién leído). */
+  private resetProgress(): void {
+    this.inspectedKeys.set([]);
+    this.decisionsTried.set([]);
+    this.toolsUsed.set([]);
     this.selectedInteraction.set(null);
     this.nearbyInteraction.set(null);
     this.dialogue.set(null);

@@ -1,556 +1,329 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnChanges, SimpleChanges, computed, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
-import { DecisionEdgeState, NodeEditorState, WorldValidationIssue } from '../../core/models/simulation.model';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+
+import { DecisionEdgeState, NodeEditorState } from '../../core/models/simulation.model';
+import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
+import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
 import { plural } from '../../shared/ui/labels';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import {
+  DAG_NODE_H,
+  DAG_NODE_W,
+  DagDirection,
+  DagEdgeLine,
+  DagNodeBox,
+  computeDagLayout,
+  neighbourOf,
+  wrapLabel,
+} from './dag-layout.util';
 
-interface LayoutNode {
-  node: NodeEditorState;
-  cx: number;
-  cy: number;
-  col: number;
-  row: number;
+type EdgeClass = 'adequate' | 'risky' | 'inadequate' | 'prohibited';
+
+const EDGE_LABELS: Record<EdgeClass, string> = {
+  adequate: 'Adecuada',
+  risky: 'Riesgosa',
+  inadequate: 'Inadecuada',
+  prohibited: 'Prohibida',
+};
+
+const EDGE_TONES: Record<EdgeClass, UiBadgeTone> = {
+  adequate: 'success',
+  risky: 'warning',
+  inadequate: 'neutral',
+  prohibited: 'danger',
+};
+
+/** Qué dibuja el grafo, en el orden de la leyenda: cada ítem tiene su muestra y su texto. */
+const LEGEND = [
+  { id: 'start', label: 'Inicio', sample: 'node' },
+  { id: 'terminal', label: 'Terminal', sample: 'node' },
+  { id: 'orphan', label: 'Sin salida', sample: 'node' },
+  { id: 'adequate', label: 'Decisión adecuada', sample: 'edge' },
+  { id: 'risky', label: 'Decisión riesgosa', sample: 'edge' },
+  { id: 'inadequate', label: 'Decisión inadecuada', sample: 'edge' },
+  { id: 'prohibited', label: 'Decisión prohibida', sample: 'edge' },
+] as const;
+
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.25;
+/** Cuántos caracteres del texto de una decisión caben entre dos columnas sin pisar a los nodos. */
+const EDGE_LABEL_CHARS = 20;
+
+interface NodeView {
+  box: DagNodeBox;
+  id: number;
+  /** Esquina superior izquierda (el centro menos media caja). */
+  x: number;
+  y: number;
+  lines: string[];
+  type: 'start' | 'terminal' | 'plain';
+  orphan: boolean;
+  /** El texto del tipo, tal como se ve debajo del título. */
+  typeText: string;
+  /** Nombre accesible: EXACTAMENTE el texto que se ve (WCAG 2.5.3), de modo que lo contiene. */
+  name: string;
+  /** Lo que el texto visible recorta: título completo y cantidad de decisiones. */
+  description: string;
 }
 
-interface LayoutEdge {
-  edge: DecisionEdgeState;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  mx: number;
-  my: number;
-  color: string;
+interface EdgeView {
+  line: DagEdgeLine;
+  kind: EdgeClass;
+  path: string;
+  label: string;
+  score: string;
 }
 
-const NODE_W = 168;
-const NODE_H = 76;
-const COL_GAP = 240;
-const ROW_GAP = 110;
-const PAD = 56;
-
+/**
+ * Grafo del caso (plan visual F8-3): disposición pura en `dag-layout.util`, leyenda que dice lo que se dibuja, nodos
+ * como botones con nombre que contiene su texto visible (WCAG 2.5.3: cerraba los `label-content-name-mismatch` de
+ * Axe), recorrido con flechas, Inicio y Fin, Enter/Espacio para abrir el detalle y Esc para cerrarlo (RNF-04), detalle
+ * que sigue al nodo vigente, aristas que abren su decisión, y zoom, ajuste y desplazamiento. Las aristas son solo
+ * para el puntero (`aria-hidden`): el teclado y los lectores llegan a las mismas decisiones desde el detalle del nodo.
+ * Un caso que no es borrador (`lockReason`) deja ver el grafo pero no ofrece cambiarlo.
+ */
 @Component({
   selector: 'app-dag-editor',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
-  template: `
-    <div class="dag-shell">
-      <div class="dag-legend">
-        <span class="legend-dot legend-dot--start"></span>Inicio
-        <span class="legend-dot legend-dot--terminal"></span>Terminal
-        <span class="legend-dot legend-dot--adequate"></span>Adecuada
-        <span class="legend-dot legend-dot--risky"></span>Riesgosa
-        <span class="legend-dot legend-dot--prohibited"></span>Prohibida
-      </div>
-
-      @if (graphWarnings().length) {
-        <div class="dag-graph-warnings">
-          @for (warn of graphWarnings(); track warn) {
-            <span class="dag-warn-chip"><mat-icon>warning</mat-icon>{{ warn }}</span>
-          }
-        </div>
-      }
-
-      @if (nodes().length === 0) {
-        <div class="dag-empty">
-          <mat-icon>account_tree</mat-icon>
-          <p>No hay nodos. Crea el primer nodo DAG para visualizar el grafo del caso.</p>
-        </div>
-      } @else {
-        <div class="dag-scroll">
-          <svg [attr.width]="svgWidth()" [attr.height]="svgHeight()" class="dag-svg" role="group" aria-label="Grafo DAG del caso">
-            <defs>
-              <marker id="arrow-adequate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#4fa3a5" />
-              </marker>
-              <marker id="arrow-risky" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#a99bd6" />
-              </marker>
-              <marker id="arrow-prohibited" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#c0392b" />
-              </marker>
-            </defs>
-
-            <!-- Edges -->
-            @for (le of layoutEdges(); track le.edge.id) {
-              <g class="dag-edge-group"
-                 [class.dag-edge--adequate]="le.edge.classification === 'ADEQUATE'"
-                 [class.dag-edge--risky]="le.edge.classification === 'RISKY'"
-                 [class.dag-edge--prohibited]="le.edge.prohibitedConduct"
-                 (click)="edgeClick.emit(le.edge)">
-                <path
-                  [attr.d]="curvePath(le)"
-                  fill="none"
-                  [attr.stroke]="le.color"
-                  [attr.stroke-width]="2.5"
-                  [attr.stroke-dasharray]="le.edge.prohibitedConduct ? '6,4' : null"
-                  [attr.marker-end]="markerFor(le.edge)" />
-                <text [attr.x]="le.mx" [attr.y]="le.my - 6" class="edge-label" text-anchor="middle">
-                  {{ le.edge.text | slice:0:24 }}{{ le.edge.text.length > 24 ? '…' : '' }}
-                </text>
-                <text [attr.x]="le.mx" [attr.y]="le.my + 10" class="edge-score" text-anchor="middle">
-                  {{ le.edge.scoreDelta >= 0 ? '+' : '' }}{{ le.edge.scoreDelta }}pts · {{ le.edge.stressDelta >= 0 ? '+' : '' }}{{ le.edge.stressDelta }}%
-                </text>
-              </g>
-            }
-
-            <!-- Nodes -->
-            @for (ln of layoutNodes(); track ln.node.id) {
-              <g class="dag-node-group"
-                 [class.dag-node--start]="ln.node.startNode"
-                 [class.dag-node--terminal]="ln.node.terminal"
-                 [class.dag-node--orphan]="isOrphan(ln.node)"
-                 [class.dag-node--selected]="selectedNodeId() === ln.node.id"
-                 [attr.transform]="'translate(' + (ln.cx - NODE_W/2) + ',' + (ln.cy - NODE_H/2) + ')'"
-                 (click)="selectNode(ln.node)"
-                 role="button"
-                 [attr.aria-label]="'Nodo ' + ln.node.key + ': ' + ln.node.title"
-                 tabindex="0"
-                 (keydown.enter)="selectNode(ln.node)"
-                 (keydown.space)="$event.preventDefault(); selectNode(ln.node)">
-                <rect
-                  [attr.width]="NODE_W"
-                  [attr.height]="NODE_H"
-                  rx="14"
-                  class="dag-node-rect" />
-                <text x="84" y="24" class="dag-node-key" text-anchor="middle">{{ ln.node.key }}</text>
-                <text x="84" y="44" class="dag-node-title" text-anchor="middle">
-                  {{ ln.node.title | slice:0:20 }}{{ ln.node.title.length > 20 ? '…' : '' }}
-                </text>
-                <text x="84" y="62" class="dag-node-badge" text-anchor="middle">
-                  {{ ln.node.terminal ? '■ Terminal' : ln.node.startNode ? '▶ Inicio' : '● Nodo' }}
-                </text>
-              </g>
-            }
-          </svg>
-        </div>
-      }
-
-      @if (selectedNode(); as node) {
-        <aside class="dag-detail liquid-glass">
-          <div class="dag-detail-head">
-            <div>
-              <span class="psy-chip">{{ node.startNode ? 'Inicio' : node.terminal ? 'Terminal' : 'Nodo' }}</span>
-              <h3>{{ node.title }}</h3>
-              <code>{{ node.key }}</code>
-            </div>
-            <div class="dag-detail-actions">
-              <button class="psy-button psy-button--glass" type="button" (click)="nodeEdit.emit(node)">
-                <mat-icon>edit</mat-icon>Editar
-              </button>
-              <button class="psy-icon-button" type="button" aria-label="Cerrar" (click)="selectedNode.set(null)">
-                <mat-icon>close</mat-icon>
-              </button>
-            </div>
-          </div>
-          <p class="dag-narrative">{{ node.narrative }}</p>
-          @if (node.requiredTools.length) {
-            <p class="dag-meta"><mat-icon>build</mat-icon> Herramientas: {{ node.requiredTools.join(', ') }}</p>
-          }
-          @if (node.sensitiveContent) {
-            <p class="dag-meta"><mat-icon>health_and_safety</mat-icon> Contenido sensible</p>
-          }
-          <div class="dag-edges-list">
-            <p class="psy-eyebrow">Decisiones salientes</p>
-            @for (edge of outgoingEdges(node.id); track edge.id) {
-              <div class="dag-edge-chip" [class.dag-edge-chip--prohibited]="edge.prohibitedConduct">
-                <mat-icon>{{ iconForClass(edge.classification, edge.prohibitedConduct) }}</mat-icon>
-                <span>{{ edge.text }}</span>
-                <em>→ {{ edge.targetKey }}</em>
-                <button class="psy-icon-button psy-icon-button--sm" type="button" (click)="edgeEdit.emit(edge)">
-                  <mat-icon>edit</mat-icon>
-                </button>
-              </div>
-            }
-            @if (!outgoingEdges(node.id).length) {
-              <p class="dag-empty-edges">Sin decisiones salientes. Agrega una arista desde el panel de decisiones.</p>
-            }
-          </div>
-          <div class="dag-node-actions">
-            <button class="psy-button psy-button--primary" type="button" (click)="addEdge.emit(node)">
-              <mat-icon>add_link</mat-icon>Nueva decisión
-            </button>
-            <button class="psy-button" type="button"
-                    style="color: #8b3145; border-color: rgba(168,80,98,.28);"
-                    (click)="nodeDelete.emit(node)">
-              <mat-icon>delete_outline</mat-icon>Eliminar nodo
-            </button>
-          </div>
-        </aside>
-      }
-    </div>
-  `,
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [`
-    .dag-shell { display: grid; gap: 16px; }
-
-    .dag-legend {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      padding: 10px 14px;
-      border: 1px solid var(--psy-border);
-      border-radius: 12px;
-      background: rgba(255,255,255,.62);
-      font-size: .8rem;
-      color: var(--psy-muted);
-    }
-    .legend-dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-    .legend-dot--start { background: #4fa3a5; }
-    .legend-dot--terminal { background: #4f7cac; }
-    .legend-dot--adequate { background: #8cbfa6; }
-    .legend-dot--risky { background: #a99bd6; }
-    .legend-dot--prohibited { background: #c0392b; }
-
-    .dag-graph-warnings {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding: 8px 12px;
-      border: 1px solid rgba(198,168,80,.28);
-      border-radius: 12px;
-      background: rgba(198,168,80,.06);
-    }
-    .dag-warn-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(198,168,80,.14);
-      color: #7a6320;
-      font-size: .78rem;
-      font-weight: 700;
-    }
-    .dag-warn-chip mat-icon { font-size: 14px; width: 14px; height: 14px; }
-
-    .dag-node--orphan .dag-node-rect {
-      stroke: #c6a850 !important;
-      stroke-dasharray: 6,4;
-    }
-
-    .dag-empty {
-      display: grid;
-      place-items: center;
-      gap: 12px;
-      min-height: 240px;
-      border: 2px dashed rgba(79,124,172,.22);
-      border-radius: 18px;
-      color: var(--psy-muted);
-      text-align: center;
-    }
-    .dag-empty mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: .4; }
-
-    .dag-scroll {
-      overflow: auto;
-      border: 1px solid rgba(79,124,172,.14);
-      border-radius: 18px;
-      background: #f6f9fb;
-      max-height: 560px;
-    }
-    .dag-svg { display: block; }
-
-    .dag-node-group {
-      cursor: pointer;
-    }
-    .dag-node-group:focus-visible .dag-node-rect { stroke: #004876; stroke-width: 4; }
-    .dag-node-rect {
-      fill: rgba(255,255,255,.88);
-      stroke: rgba(79,124,172,.3);
-      stroke-width: 2;
-      filter: drop-shadow(0 4px 12px rgba(36,50,58,.12));
-      transition: filter .15s, stroke .15s;
-    }
-    .dag-node--start .dag-node-rect {
-      fill: rgba(79,163,165,.1);
-      stroke: #4fa3a5;
-    }
-    .dag-node--terminal .dag-node-rect {
-      fill: rgba(79,124,172,.1);
-      stroke: #4f7cac;
-    }
-    .dag-node--selected .dag-node-rect {
-      stroke: #2f5f8f;
-      stroke-width: 3;
-      filter: drop-shadow(0 6px 18px rgba(47,95,143,.28));
-    }
-    .dag-node-group:hover .dag-node-rect {
-      filter: drop-shadow(0 6px 16px rgba(36,50,58,.18));
-    }
-    .dag-node-key {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 700;
-      fill: var(--psy-blue-deep);
-      letter-spacing: .06em;
-    }
-    .dag-node-title {
-      font-size: 13px;
-      font-weight: 600;
-      fill: var(--psy-ink);
-    }
-    .dag-node-badge {
-      font-size: 10px;
-      fill: var(--psy-muted);
-    }
-
-    .dag-edge-group { cursor: pointer; }
-    .edge-label {
-      font-size: 11px;
-      fill: var(--psy-muted);
-      font-weight: 600;
-      pointer-events: none;
-    }
-    .edge-score {
-      font-size: 10px;
-      fill: var(--psy-blue-deep);
-      pointer-events: none;
-    }
-
-    /* Detail panel */
-    .dag-detail {
-      display: grid;
-      gap: 14px;
-      padding: 20px;
-      border-radius: 20px;
-    }
-    .dag-detail-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    .dag-detail-head h3 {
-      margin: 6px 0 4px;
-      font-family: 'Poppins', system-ui, sans-serif;
-      letter-spacing: 0;
-    }
-    .dag-detail-head code {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .78rem;
-      color: var(--psy-blue-deep);
-    }
-    .dag-detail-actions { display: flex; gap: 8px; }
-    .dag-narrative { margin: 0; color: var(--psy-muted); line-height: 1.56; }
-    .dag-meta {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0;
-      font-size: .84rem;
-      color: var(--psy-muted);
-    }
-    .dag-edges-list { display: grid; gap: 8px; }
-    .dag-empty-edges { font-size: .82rem; color: var(--psy-muted); margin: 0; }
-    .dag-edge-chip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border: 1px solid rgba(79,124,172,.18);
-      border-radius: 12px;
-      background: rgba(255,255,255,.6);
-      font-size: .84rem;
-    }
-    .dag-edge-chip em {
-      margin-left: auto;
-      font-size: .76rem;
-      color: var(--psy-muted);
-      font-style: normal;
-    }
-    .dag-edge-chip--prohibited {
-      border-color: rgba(192,57,43,.28);
-      background: rgba(192,57,43,.06);
-    }
-    .dag-node-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-top: 6px;
-      border-top: 1px solid var(--psy-border);
-    }
-    .psy-icon-button--sm {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-    }
-    .psy-icon-button--sm mat-icon { font-size: 16px; width: 16px; height: 16px; }
-  `]
+  imports: [UiBadge, UiButton, UiCard, UiEmptyState, UiIconButton],
+  templateUrl: './dag-editor.component.html',
+  styleUrl: './dag-editor.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DagEditorComponent implements OnChanges {
+export class DagEditorComponent {
   readonly nodes = input<NodeEditorState[]>([]);
   readonly edges = input<DecisionEdgeState[]>([]);
-  readonly validationIssues = input<WorldValidationIssue[]>([]);
+  /** Por qué el caso no se puede modificar (versión que no es borrador); null si se puede. */
+  readonly lockReason = input<string | null>(null);
   readonly nodeEdit = output<NodeEditorState>();
   readonly nodeDelete = output<NodeEditorState>();
   readonly edgeEdit = output<DecisionEdgeState>();
-  readonly edgeClick = output<DecisionEdgeState>();
   readonly addEdge = output<NodeEditorState>();
 
-  readonly NODE_W = NODE_W;
-  readonly NODE_H = NODE_H;
-  readonly selectedNode = signal<NodeEditorState | null>(null);
-  readonly selectedNodeId = computed(() => this.selectedNode()?.id ?? null);
+  protected readonly NODE_W = DAG_NODE_W;
+  protected readonly NODE_H = DAG_NODE_H;
+  protected readonly legend = LEGEND;
+  protected readonly edgeLabels = EDGE_LABELS;
+  protected readonly edgeTones = EDGE_TONES;
 
-  readonly layoutNodes = signal<LayoutNode[]>([]);
-  readonly layoutEdges = signal<LayoutEdge[]>([]);
-  readonly svgWidth = signal(800);
-  readonly svgHeight = signal(400);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['nodes'] || changes['edges']) {
-      this.computeLayout();
-    }
-  }
+  /** El nodo abierto en el detalle (por id: el detalle lee el nodo VIGENTE, no una copia). */
+  readonly selectedId = signal<number | null>(null);
+  /** El nodo que tiene la parada de tabulación (foco itinerante). */
+  protected readonly focusedId = signal<number | null>(null);
+  readonly zoom = signal(1);
+  protected readonly zoomPercent = computed(() => Math.round(this.zoom() * 100));
+  protected readonly zoomOutReason = computed(() => (this.zoom() <= ZOOM_MIN ? 'Ya está en el mínimo (50 %).' : null));
+  protected readonly zoomInReason = computed(() => (this.zoom() >= ZOOM_MAX ? 'Ya está en el máximo (200 %).' : null));
 
-  selectNode(node: NodeEditorState) {
-    this.selectedNode.set(this.selectedNode()?.id === node.id ? null : node);
-  }
+  protected readonly layout = computed(() => computeDagLayout(this.nodes(), this.edges()));
+  protected readonly width = computed(() => this.layout().width * this.zoom());
+  protected readonly height = computed(() => this.layout().height * this.zoom());
 
-  /** Computed: graph-level warnings based on topology analysis. */
-  readonly graphWarnings = computed(() => {
-    const ns = this.nodes();
-    const es = this.edges();
+  protected readonly selectedNode = computed(() => this.nodes().find(node => node.id === this.selectedId()) ?? null);
+
+  /** Cada nodo con lo que la plantilla pinta y lo que lee el lector, calculado una sola vez. */
+  protected readonly nodeViews = computed<NodeView[]>(() => {
+    const edges = this.edges();
+    return this.layout().nodes.map(box => {
+      const node = box.node;
+      const outgoing = edges.filter(edge => edge.sourceNodeId === node.id);
+      const orphan = !node.terminal && outgoing.length === 0;
+      const type = node.startNode ? 'start' : node.terminal ? 'terminal' : 'plain';
+      const base = type === 'start' ? 'Inicio' : type === 'terminal' ? 'Terminal' : 'Nodo';
+      const typeText = orphan ? `${base} · Sin salida` : base;
+      const lines = wrapLabel(node.title);
+      return {
+        box,
+        id: node.id,
+        x: box.cx - DAG_NODE_W / 2,
+        y: box.cy - DAG_NODE_H / 2,
+        lines,
+        type,
+        orphan,
+        typeText,
+        name: [node.key, ...lines, typeText].join(' '),
+        description: `Título completo: ${node.title}. ${plural(outgoing.length, 'decisión saliente', 'decisiones salientes')}.`,
+      };
+    });
+  });
+
+  protected readonly edgeViews = computed<EdgeView[]>(() =>
+    this.layout().edges.map(line => {
+      const { edge } = line;
+      const dx = (line.x2 - line.x1) * 0.5;
+      const text = edge.text.length > EDGE_LABEL_CHARS ? `${edge.text.slice(0, EDGE_LABEL_CHARS)}…` : edge.text;
+      const sign = (value: number) => (value >= 0 ? '+' : '');
+      return {
+        line,
+        kind: this.edgeKind(edge),
+        path: `M ${line.x1} ${line.y1} C ${line.x1 + dx} ${line.y1}, ${line.x2 - dx} ${line.y2}, ${line.x2} ${line.y2}`,
+        label: text,
+        score: `${sign(edge.scoreDelta)}${edge.scoreDelta} pts · ${sign(edge.stressDelta)}${edge.stressDelta} %`,
+      };
+    }));
+
+  /** El nodo con la parada de tabulación: el último enfocado, o el inicial (o el primero) si aún no se enfocó ninguno. */
+  protected readonly tabStopId = computed(() => {
+    const views = this.nodeViews();
+    const focused = this.focusedId();
+    if (focused !== null && views.some(view => view.id === focused)) return focused;
+    return (views.find(view => view.type === 'start') ?? views[0])?.id ?? null;
+  });
+
+  /** Avisos de topología (antes calculados aparte): sin inicio, varios inicios, sin terminal, nodos sin salida. */
+  protected readonly warnings = computed(() => {
+    const nodes = this.nodes();
     const warnings: string[] = [];
-    const startNodes = ns.filter(n => n.startNode);
-    const terminalNodes = ns.filter(n => n.terminal);
-    if (ns.length > 0 && startNodes.length === 0) warnings.push('Sin nodo inicial');
-    if (ns.length > 0 && startNodes.length > 1) warnings.push('Multiples nodos iniciales');
-    if (ns.length > 0 && terminalNodes.length === 0) warnings.push('Sin nodo terminal');
-    const orphans = ns.filter(n => !n.terminal && !es.some(e => e.sourceNodeId === n.id));
-    if (orphans.length > 0) warnings.push(`${plural(orphans.length, 'nodo')} sin decisiones salientes`);
+    if (nodes.length === 0) return warnings;
+    const starts = nodes.filter(node => node.startNode).length;
+    if (starts === 0) warnings.push('Sin nodo inicial');
+    if (starts > 1) warnings.push('Varios nodos iniciales');
+    if (!nodes.some(node => node.terminal)) warnings.push('Sin nodo terminal');
+    const orphans = this.nodeViews().filter(view => view.orphan).length;
+    if (orphans > 0) warnings.push(`${plural(orphans, 'nodo')} sin decisiones salientes`);
     return warnings;
   });
 
-  /** Check if a node is an "orphan" — has no outgoing edges and isn't terminal. */
-  isOrphan(node: NodeEditorState): boolean {
-    return !node.terminal && !this.edges().some(e => e.sourceNodeId === node.id);
+  protected readonly selectedEdges = computed(() => {
+    const id = this.selectedId();
+    return id === null ? [] : this.edges().filter(edge => edge.sourceNodeId === id);
+  });
+
+  protected edgeKind(edge: DecisionEdgeState): EdgeClass {
+    if (edge.prohibitedConduct) return 'prohibited';
+    if (edge.classification === 'ADEQUATE') return 'adequate';
+    if (edge.classification === 'RISKY') return 'risky';
+    return 'inadequate';
   }
 
-  outgoingEdges(nodeId: number): DecisionEdgeState[] {
-    return this.edges().filter(e => e.sourceNodeId === nodeId);
+  protected nodeType(node: NodeEditorState): string {
+    if (node.startNode) return 'Inicio';
+    return node.terminal ? 'Terminal' : 'Nodo';
   }
 
-  iconForClass(classification: string, prohibited: boolean): string {
-    if (prohibited) return 'block';
-    if (classification === 'ADEQUATE') return 'check_circle';
-    if (classification === 'RISKY') return 'warning';
-    return 'cancel';
+  protected targetTitle(edge: DecisionEdgeState): string {
+    return this.nodes().find(node => node.id === edge.targetNodeId)?.title ?? edge.targetKey;
   }
 
-  markerFor(edge: DecisionEdgeState): string {
-    if (edge.prohibitedConduct) return 'url(#arrow-prohibited)';
-    if (edge.classification === 'RISKY') return 'url(#arrow-risky)';
-    return 'url(#arrow-adequate)';
+  // ─── Selección y foco ──────────────────────────────────────────────────────────────────────────────────────────
+
+  protected onNodeClick(id: number): void {
+    this.focusedId.set(id);
+    this.selectedId.update(current => (current === id ? null : id));
   }
 
-  curvePath(le: LayoutEdge): string {
-    const dx = (le.x2 - le.x1) * 0.5;
-    return `M ${le.x1} ${le.y1} C ${le.x1 + dx} ${le.y1}, ${le.x2 - dx} ${le.y2}, ${le.x2} ${le.y2}`;
+  protected closeDetail(): void {
+    const id = this.selectedId();
+    this.selectedId.set(null);
+    if (id !== null) this.focusNode(id);
   }
 
-  private computeLayout() {
-    const ns = this.nodes();
-    if (!ns.length) {
-      this.layoutNodes.set([]);
-      this.layoutEdges.set([]);
+  protected onEdgeClick(edge: DecisionEdgeState): void {
+    if (this.lockReason()) return;
+    this.edgeEdit.emit(edge);
+  }
+
+  private idOf(target: EventTarget | null): number | null {
+    const element = (target as Element | null)?.closest?.('[data-node-id]');
+    const value = element?.getAttribute('data-node-id');
+    return value === null || value === undefined ? null : Number(value);
+  }
+
+  private focusNode(id: number): void {
+    this.focusedId.set(id);
+    this.host.nativeElement.querySelector<SVGGElement>(`g.dag-node[data-node-id="${id}"]`)?.focus();
+  }
+
+  /** Flechas, Inicio, Fin, Enter, Espacio y Esc sobre el grafo; `+`, `−` y `0` acercan, alejan y restablecen. */
+  protected onKeydown(event: KeyboardEvent): void {
+    const id = this.idOf(event.target);
+    const directions: Record<string, DagDirection> = {
+      ArrowRight: 'right', ArrowLeft: 'left', ArrowUp: 'up', ArrowDown: 'down', Home: 'first', End: 'last',
+    };
+    const direction = directions[event.key];
+    if (direction && id !== null) {
+      event.preventDefault();
+      const next = neighbourOf(this.layout(), this.edges(), id, direction);
+      if (next !== null) this.focusNode(next);
       return;
     }
-
-    // Topological column assignment via BFS from start nodes
-    const colMap = new Map<number, number>();
-    const rowMap = new Map<number, number>();
-    const edgeMap = this.edges();
-
-    // Build adjacency
-    const outgoing = new Map<number, number[]>();
-    const incoming = new Map<number, number[]>();
-    ns.forEach(n => { outgoing.set(n.id, []); incoming.set(n.id, []); });
-    edgeMap.forEach(e => {
-      outgoing.get(e.sourceNodeId)?.push(e.targetNodeId);
-      incoming.get(e.targetNodeId)?.push(e.sourceNodeId);
-    });
-
-    // BFS column assignment
-    const queue: number[] = ns.filter(n => n.startNode || !incoming.get(n.id)?.length).map(n => n.id);
-    if (!queue.length) queue.push(ns[0].id);
-    queue.forEach(id => colMap.set(id, 0));
-
-    const bfsVisited = new Set<number>(queue);
-    let head = 0;
-    while (head < queue.length) {
-      const id = queue[head++];
-      const col = colMap.get(id) ?? 0;
-      (outgoing.get(id) ?? []).forEach(tid => {
-        const cur = colMap.get(tid) ?? -1;
-        if (cur < col + 1) colMap.set(tid, col + 1);
-        if (!bfsVisited.has(tid)) {
-          bfsVisited.add(tid);
-          queue.push(tid);
-        }
-      });
+    switch (event.key) {
+      case 'Enter':
+      case ' ':
+        if (id === null) return;
+        event.preventDefault();
+        this.onNodeClick(id);
+        break;
+      case 'Escape':
+        if (this.selectedId() === null) return;
+        event.preventDefault();
+        this.closeDetail();
+        break;
+      case '+':
+      case '=':
+        event.preventDefault();
+        this.zoomIn();
+        break;
+      case '-':
+      case '_':
+        event.preventDefault();
+        this.zoomOut();
+        break;
+      case '0':
+        event.preventDefault();
+        this.zoom.set(1);
+        break;
     }
-    // Unvisited nodes get last column
-    ns.forEach(n => { if (!colMap.has(n.id)) colMap.set(n.id, Math.max(...colMap.values()) + 1); });
+  }
 
-    // Assign rows within each column
-    const colCounts = new Map<number, number>();
-    ns.forEach(n => {
-      const col = colMap.get(n.id) ?? 0;
-      const row = colCounts.get(col) ?? 0;
-      rowMap.set(n.id, row);
-      colCounts.set(col, row + 1);
-    });
+  // ─── Zoom, ajuste y desplazamiento ─────────────────────────────────────────────────────────────────────────────
 
-    // Compute positions
-    const maxCol = Math.max(...colMap.values());
-    const maxRowsInAnyCol = Math.max(...[...colCounts.values()]);
+  protected zoomIn(): void {
+    this.zoom.update(value => Math.min(ZOOM_MAX, value + ZOOM_STEP));
+  }
 
-    const layoutNodes: LayoutNode[] = ns.map(n => {
-      const col = colMap.get(n.id) ?? 0;
-      const row = rowMap.get(n.id) ?? 0;
-      const totalInCol = colCounts.get(col) ?? 1;
-      const colHeight = totalInCol * NODE_H + (totalInCol - 1) * (ROW_GAP - NODE_H);
-      const startY = (maxRowsInAnyCol * ROW_GAP - colHeight) / 2;
-      return {
-        node: n,
-        col,
-        row,
-        cx: PAD + col * COL_GAP + NODE_W / 2,
-        cy: PAD + startY + row * ROW_GAP + NODE_H / 2
-      };
-    });
+  protected zoomOut(): void {
+    this.zoom.update(value => Math.max(ZOOM_MIN, value - ZOOM_STEP));
+  }
 
-    // Compute edge paths
-    const posMap = new Map(layoutNodes.map(ln => [ln.node.id, { x: ln.cx, y: ln.cy }]));
-    const layoutEdges: LayoutEdge[] = edgeMap.map(edge => {
-      const src = posMap.get(edge.sourceNodeId) ?? { x: 0, y: 0 };
-      const tgt = posMap.get(edge.targetNodeId) ?? { x: 0, y: 0 };
-      const color = edge.prohibitedConduct ? '#c0392b'
-        : edge.classification === 'ADEQUATE' ? '#4fa3a5'
-        : edge.classification === 'RISKY' ? '#a99bd6'
-        : '#687a86';
-      return {
-        edge,
-        x1: src.x + NODE_W / 2,
-        y1: src.y,
-        x2: tgt.x - NODE_W / 2,
-        y2: tgt.y,
-        mx: (src.x + NODE_W / 2 + tgt.x - NODE_W / 2) / 2,
-        my: (src.y + tgt.y) / 2,
-        color
-      };
-    });
+  /** Escala el grafo para que quepa a lo ancho de la vista (sin agrandarlo más allá del 100 %). */
+  protected fit(): void {
+    const available = this.scroller()?.nativeElement.clientWidth ?? 0;
+    if (available <= 0) {
+      this.zoom.set(1);
+      return;
+    }
+    const scale = Math.floor((available / this.layout().width) / 0.05) * 0.05;
+    this.zoom.set(Math.min(1, Math.max(ZOOM_MIN, Math.round(scale * 100) / 100)));
+  }
 
-    this.svgWidth.set(PAD * 2 + (maxCol + 1) * COL_GAP);
-    this.svgHeight.set(PAD * 2 + maxRowsInAnyCol * ROW_GAP);
-    this.layoutNodes.set(layoutNodes);
-    this.layoutEdges.set(layoutEdges);
+  private pan: { x: number; y: number; left: number; top: number } | null = null;
+  protected readonly panning = signal(false);
+
+  /** Arrastrar el fondo desplaza el lienzo (con el puntero; con teclado, las flechas llevan el foco y el lienzo lo sigue). */
+  protected onPanStart(event: PointerEvent): void {
+    if (event.button !== 0 || (event.target as Element | null)?.closest?.('.dag-node, .dag-edge')) return;
+    const scroller = this.scroller()?.nativeElement;
+    if (!scroller) return;
+    this.pan = { x: event.clientX, y: event.clientY, left: scroller.scrollLeft, top: scroller.scrollTop };
+    this.panning.set(true);
+    scroller.setPointerCapture?.(event.pointerId);
+  }
+
+  protected onPanMove(event: PointerEvent): void {
+    const scroller = this.scroller()?.nativeElement;
+    if (!this.pan || !scroller) return;
+    scroller.scrollLeft = this.pan.left - (event.clientX - this.pan.x);
+    scroller.scrollTop = this.pan.top - (event.clientY - this.pan.y);
+  }
+
+  protected onPanEnd(): void {
+    this.pan = null;
+    this.panning.set(false);
   }
 }

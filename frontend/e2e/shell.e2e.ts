@@ -37,14 +37,14 @@ test.describe('@shell barra de vidrio del portal', () => {
     await expect(page.locator('header.cromo')).toHaveCount(0);
   });
 
-  test('docente: al desplazarse se pliegan Rúbricas, Grupos y Reportes, y vuelven con Tab', async ({ page }) => {
+  test('docente: al desplazarse se pliegan Rúbricas, Grupos, Reportes y Editar casos, y vuelven con Tab', async ({ page }) => {
     await loginAs(page, 'profesor');
     const bar = page.locator('header.cromo');
     await expect(bar).toHaveAttribute('data-estado', 'inicial');
     await scrollDown(page);
     await expect(bar).toHaveAttribute('data-estado', 'scroll');
     const folded = bar.locator('a.control-plegable');
-    await expect(folded).toHaveText(['Rúbricas', 'Grupos', 'Reportes']);
+    await expect(folded).toHaveText(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
     for (const link of await folded.all()) await expect(link).toBeHidden();
     await expect(bar.getByRole('link', { name: 'Trazabilidad', exact: true })).toBeVisible();
 
@@ -154,8 +154,8 @@ test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas',
     await expect(sheet).toBeVisible();
     await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
     // Nombres accesibles (el icono es decorativo; su ligadura no forma parte del nombre).
-    await expect(sheet.getByRole('link')).toHaveCount(3);
-    for (const name of ['Rúbricas', 'Grupos', 'Reportes']) await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible();
+    await expect(sheet.getByRole('link')).toHaveCount(4);
+    for (const name of ['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']) await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
     await expect(more).toBeFocused();

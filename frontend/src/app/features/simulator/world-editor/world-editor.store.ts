@@ -7,13 +7,17 @@
  * Responsibilities:
  *   - Load WorldDefinition from backend
  *   - Track local edits via command stack (undo/redo)
- *   - Auto-save with debounce → PUT /world with revision
+ *   - Auto-save with debounce → PUT /world with revision (F8-5: sobrevive a un error, guarda al instante con
+ *     `saveNow`/`retrySave` y no escribe el estado de una sala bajo otra). Los guardados van EN SERIE: uno que va en
+ *     vuelo no se cancela (el servidor ya pudo aplicarlo) y el siguiente se arma cuando termina, con los ids reales
+ *     y la revisión que devolvió; lo editado durante el vuelo sigue pendiente.
  *   - Handle 409 Conflict (optimistic lock) without silent data loss
  *   - Run validation on demand
  */
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Subject, debounceTime, switchMap, catchError, of, EMPTY } from 'rxjs';
+import { Observable, Subject, Subscription, debounceTime, concatMap, catchError, of, EMPTY, map, merge } from 'rxjs';
 import { AuthoringApi } from '../../../core/api/authoring.api';
+import { RevisionConflict, revisionConflictOf } from '../../../core/api/revision-conflict.util';
 import {
   WorldDefinition,
   WorldObject,
@@ -371,14 +375,33 @@ export class WorldEditorStore {
   readonly dirty = signal(false);
   readonly error = signal('');
   readonly conflictDetected = signal(false);
+  /** El 409 de la última orden de guardado: la revisión vigente del servidor (para «Reintentar con mi cambio»). */
+  readonly conflict = signal<RevisionConflict | null>(null);
+  /** El último intento de guardado falló (la orden «Reintentar» lo repite al instante). */
+  readonly saveFailed = signal(false);
+  /** Cuándo se guardó por última vez (null: aún no en esta sesión). */
+  readonly lastSavedAt = signal<number | null>(null);
+  /** La versión no es un borrador (o no hay permiso): se mira, no se edita ni se guarda. */
+  readonly readOnly = signal(false);
   readonly validationState = signal<WorldValidationState | null>(null);
   readonly availableDecisions = signal<WorldOutgoingDecision[]>([]);
   readonly rooms = signal<WorldRoom[]>([]);
 
-  // ─── Auto-save debounce ───────────────────────────────────────────────
+  // ─── Auto-save ────────────────────────────────────────────────────────
+  /** Cada cambio: se guarda tras 1500 ms de calma. */
   private readonly saveSubject = new Subject<void>();
+  /** «Guardar», Ctrl+S y «Reintentar»: se guarda ya. */
+  private readonly flushSubject = new Subject<void>();
+  /** Cambia en cada carga: un guardado de la sala anterior que llega tarde no pisa la sala nueva. */
+  private generation = 0;
+  /** Sube con cada edición: al terminar un guardado se sabe si hubo ediciones DESPUÉS de armar su cuerpo. */
+  private editVersion = 0;
   private caseVersionId = 0;
+  /** El nodo de la sala que HAY en pantalla (se fija al llegar la carga, no al pedirla). */
   private nodeId: number | undefined;
+  /** Una sala pedida mientras había algo por guardar: se carga cuando ese guardado termine bien. */
+  private pendingRoom: number | null = null;
+  private loadSubscription: Subscription | null = null;
 
   // ─── Computed ─────────────────────────────────────────────────────────
   readonly selectedObject = computed(() => {
@@ -406,28 +429,67 @@ export class WorldEditorStore {
   readonly zoneCount = computed(() => this.editorState()?.collisionZones.length ?? 0);
 
   constructor() {
-    // Auto-save pipeline: debounce 1500ms → PUT /world
-    this.saveSubject.pipe(
-      debounceTime(1500),
-      switchMap(() => this.executeSave()),
-      catchError(err => {
-        if (err?.status === 409) {
-          this.conflictDetected.set(true);
-          this.error.set('Este caso cambió en otra sesión. Tus cambios locales se conservan. Recarga para ver la versión más reciente.');
-        } else {
-          this.error.set('No se pudo guardar el borrador.');
-        }
-        this.saving.set(false);
-        return EMPTY;
-      })
-    ).subscribe(def => {
-      if (def) {
-        this.definition.set(def);
-        this.adoptSavedIds(def);
-        this.saving.set(false);
-        this.dirty.set(false);
-      }
+    // Auto-save pipeline: debounce 1500 ms (o ya, con saveNow/retrySave) → PUT /world.
+    // El `catchError` va DENTRO de `executeSave`: un fallo cierra solo ESE guardado y el flujo sigue vivo (antes un error
+    // lo completaba y los cambios siguientes ya no se guardaban solos hasta recargar).
+    // `concatMap`: los guardados van en serie. Un guardado en vuelo NO se cancela (el servidor ya pudo aplicarlo y
+    // cancelarlo perdía los ids reales: el siguiente volvía a crear lo nuevo y chocaba con la clave única) y el
+    // cuerpo del siguiente se arma cuando le toca, con el estado, los ids y la revisión de ese momento.
+    merge(this.saveSubject.pipe(debounceTime(1500)), this.flushSubject).pipe(
+      concatMap(() => this.executeSave()),
+    ).subscribe(result => {
+      if (!result || result.generation !== this.generation) return;
+      this.onSaved(result);
     });
+  }
+
+  /** Un intento de guardado empieza: «Guardando…» sustituye al aviso del fallo anterior. */
+  private beginSave(): void {
+    if (this.saveFailed()) this.error.set('');
+    this.saveFailed.set(false);
+    this.saving.set(true);
+  }
+
+  private onSaved(saved: { definition: WorldDefinition; editVersion: number }): void {
+    this.definition.set(saved.definition);
+    this.adoptSavedIds(saved.definition);
+    this.saving.set(false);
+    // Lo editado mientras el guardado iba en vuelo no estaba en su cuerpo: sigue pendiente (antes se daba por guardado).
+    const pending = this.editVersion !== saved.editVersion;
+    this.dirty.set(pending);
+    this.saveFailed.set(false);
+    this.conflictDetected.set(false);
+    this.conflict.set(null);
+    this.lastSavedAt.set(Date.now());
+
+    if (this.pendingRoom !== null && !pending) {
+      // Había una sala pedida detrás de este guardado: lo escrito ya está en el servidor, se carga la nueva.
+      const room = this.pendingRoom;
+      this.pendingRoom = null;
+      this.load(this.caseVersionId, room);
+    } else if (pending) {
+      // Con una sala esperando se guarda ya; si no, el autoguardado de siempre.
+      if (this.pendingRoom !== null) this.flushSubject.next();
+      else this.saveSubject.next();
+    }
+  }
+
+  /** Un guardado falló: se avisa (con el 409 aparte) y los cambios locales se conservan. */
+  private onSaveError(err: unknown, generation: number): void {
+    // Un fallo de una sala que ya no es la actual no es de nadie.
+    if (generation !== this.generation) return;
+    this.saving.set(false);
+    this.saveFailed.set(true);
+    // Si había una sala esperando este guardado, no se cambia: lo escrito sigue en pantalla y se avisa.
+    this.pendingRoom = null;
+    const conflict = revisionConflictOf(err);
+    if (conflict || (err as { status?: number } | null)?.status === 409) {
+      this.conflict.set(conflict ?? { revision: this.definition()?.revision ?? 0, current: null, message: '' });
+      this.conflictDetected.set(true);
+      this.error.set('Este caso cambió en otra sesión. Tus cambios locales se conservan. Recarga para ver la versión más reciente.');
+    } else {
+      this.error.set('No se pudo guardar el borrador.');
+    }
   }
 
   /**
@@ -473,15 +535,29 @@ export class WorldEditorStore {
   // ─── Load ─────────────────────────────────────────────────────────────
 
   load(caseVersionId: number, nodeId?: number): void {
+    // Una carga nueva cancela la anterior: dos respuestas desordenadas no pueden dejar el estado de una sala bajo el
+    // nodo de otra.
+    this.loadSubscription?.unsubscribe();
     this.caseVersionId = caseVersionId;
-    this.nodeId = nodeId;
+    // Lo que estaba por guardarse de la sala anterior se descarta (para guardarlo antes: `switchRoom`); un guardado
+    // en vuelo cuya respuesta llegue ahora ya no es de esta carga y se ignora.
+    this.generation += 1;
+    const generation = this.generation;
+    this.pendingRoom = null;
+    this.saving.set(false);
+    this.saveFailed.set(false);
+    this.conflict.set(null);
     this.loading.set(true);
     this.error.set('');
     this.conflictDetected.set(false);
     this.resetCommandStack();
 
-    this.authoringApi.worldEditor(caseVersionId, nodeId).subscribe({
+    this.loadSubscription = this.authoringApi.worldEditor(caseVersionId, nodeId).subscribe({
       next: def => {
+        if (generation !== this.generation) return;
+        // El nodo de lo que hay en pantalla se fija AQUÍ: si la carga falla, la pantalla sigue siendo la sala de
+        // origen y guardarla no puede escribirse bajo el nodo pedido (antes se fijaba al pedir).
+        this.nodeId = def.nodeId ?? nodeId;
         this.definition.set(def);
         const objKeyById = new Map(def.objects.map(o => [o.id, o.key]));
         const dialogues = def.dialogues.map(d => ({
@@ -502,6 +578,7 @@ export class WorldEditorStore {
         this.dirty.set(false);
       },
       error: () => {
+        if (generation !== this.generation) return;
         this.error.set('No se pudo cargar el mundo para edición.');
         this.loading.set(false);
       }
@@ -510,9 +587,17 @@ export class WorldEditorStore {
 
   // ─── Command execution ────────────────────────────────────────────────
 
+  /**
+   * Las ediciones se aceptan solo con una sala cargada y editable: en solo lectura no hay nada que guardar y,
+   * mientras llega otra sala, lo escrito sobre la anterior se perdería al reemplazarla.
+   */
+  private get acceptsEdits(): boolean {
+    return !this.readOnly() && !this.loading();
+  }
+
   execute(command: EditorCommand): void {
     const current = this.editorState();
-    if (!current) return;
+    if (!current || !this.acceptsEdits) return;
 
     const next = command.execute(current);
     this.editorState.set(next);
@@ -526,6 +611,7 @@ export class WorldEditorStore {
   }
 
   undo(): void {
+    if (!this.acceptsEdits) return;
     const command = this.undoStack.pop();
     if (!command) return;
     const current = this.editorState();
@@ -539,6 +625,7 @@ export class WorldEditorStore {
   }
 
   redo(): void {
+    if (!this.acceptsEdits) return;
     const command = this.redoStack.pop();
     if (!command) return;
     const current = this.editorState();
@@ -560,6 +647,8 @@ export class WorldEditorStore {
   // ─── Tools ────────────────────────────────────────────────────────────
 
   setTool(tool: EditorTool): void {
+    // En solo lectura se puede seleccionar y recorrer el lienzo, no colocar nada.
+    if (this.readOnly() && tool.startsWith('place-')) return;
     this.activeTool.set(tool);
     if (tool !== 'select') this.selectedKey.set(null);
   }
@@ -576,8 +665,44 @@ export class WorldEditorStore {
 
   // ─── Save (manual) ───────────────────────────────────────────────────
 
+  /** «Guardar» y Ctrl+S: guarda ya, sin esperar la calma del autoguardado. */
   saveNow(): void {
-    this.saveSubject.next();
+    this.flushSubject.next();
+  }
+
+  /** «Reintentar» tras un fallo de guardado: lo mismo que `saveNow`, con un nombre que dice para qué sirve. */
+  retrySave(): void {
+    this.flushSubject.next();
+  }
+
+  /**
+   * «Reintentar con mi cambio» tras un 409: el guardado local se vuelve a mandar con la revisión vigente del servidor
+   * (lo de la otra sesión en ESTA sala queda sustituido por lo que hay en pantalla).
+   */
+  retryAfterConflict(): void {
+    const conflict = this.conflict();
+    if (!conflict) return;
+    this.definition.update(def => (def ? { ...def, revision: conflict.revision } : def));
+    this.conflictDetected.set(false);
+    this.conflict.set(null);
+    this.error.set('');
+    this.flushSubject.next();
+  }
+
+  /**
+   * Cambia de sala SIN perder lo escrito: lo pendiente se guarda primero (por la misma cola de guardados, en la sala
+   * de origen y con su nodo) y, si sale bien, se carga la nueva; si falla, no se cambia de sala (lo escrito sigue en
+   * pantalla y se avisa). Mientras otra sala está cargando, o si es la misma sala, se ignora: pedir una tercera
+   * guardaba el estado de la primera bajo el nodo de la segunda.
+   */
+  switchRoom(nodeId: number): void {
+    if (this.loading() || nodeId === this.nodeId) return;
+    if (!this.dirty() && !this.saving()) {
+      this.load(this.caseVersionId, nodeId);
+      return;
+    }
+    this.pendingRoom = nodeId;
+    this.flushSubject.next();
   }
 
   // ─── Validate ─────────────────────────────────────────────────────────
@@ -615,18 +740,34 @@ export class WorldEditorStore {
   // ─── Private ──────────────────────────────────────────────────────────
 
   private markDirty(): void {
+    this.editVersion += 1;
     this.dirty.set(true);
     this.saveSubject.next(); // Trigger debounced auto-save
   }
 
-  private executeSave() {
+  /**
+   * Un guardado, armado cuando le toca (la cola es en serie): lee el estado, los ids reales y la revisión de ESE
+   * momento. Sin nada pendiente, en solo lectura o con otra sala cargando no hace nada.
+   */
+  private executeSave(): Observable<{ definition: WorldDefinition; generation: number; editVersion: number } | null> {
     const def = this.definition();
     const state = this.editorState();
-    if (!def || !state) return of(null);
+    // Mientras carga otra sala no se guarda: el estado de pantalla aún es el de la anterior.
+    if (!def || !state || this.loading() || this.readOnly()) return of(null);
+    // Un cambio ya guardado (p. ej. por «Guardar» antes de que venza la espera) no se guarda otra vez.
+    if (!this.dirty() && !this.saveFailed()) return of(null);
 
-    this.saving.set(true);
+    const generation = this.generation;
+    const editVersion = this.editVersion;
+    this.beginSave();
     const body = buildWorldSaveRequest(def, state);
-    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId);
+    return this.authoringApi.saveWorld(this.caseVersionId, body, this.nodeId).pipe(
+      map(definition => ({ definition, generation, editVersion })),
+      catchError(err => {
+        this.onSaveError(err, generation);
+        return EMPTY;
+      }),
+    );
   }
 
   private resetCommandStack(): void {

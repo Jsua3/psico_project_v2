@@ -540,7 +540,7 @@ interface HubMock {
 async function openHub(page: Page, mock: HubMock = {}): Promise<{ created: unknown[] }> {
   const created: unknown[] = [];
   await loginAs(page, 'admin');
-  await page.route('**/api/admin/cases', route => {
+  await page.route('**/api/authoring/cases', route => {
     if (route.request().method() === 'POST') {
       created.push(route.request().postDataJSON());
       return mock.createStatus

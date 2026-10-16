@@ -160,20 +160,20 @@ describe('CachedSimulationService (proxy de caché)', () => {
     it('publicar un caso invalida la lista', () => {
       pedir();
       TestBed.inject(AuthoringApi).publishCase(5).subscribe();
-      http.expectOne('/api/admin/cases/5/publish').flush({ data: {} });
+      http.expectOne('/api/authoring/cases/5/publish').flush({ data: {} });
       expect(pedir([summary(1), summary(5)]).peticiones).toBe(1);
     });
 
     it('si publicar falla, la lista guardada se conserva', () => {
       pedir();
       TestBed.inject(AuthoringApi).publishCase(5).subscribe({ error: () => undefined });
-      http.expectOne('/api/admin/cases/5/publish').flush({}, { status: 409, statusText: 'err' });
+      http.expectOne('/api/authoring/cases/5/publish').flush({}, { status: 409, statusText: 'err' });
       expect(pedir().peticiones).toBe(0);
     });
 
     it.each([
-      ['clonar una versión', (a: AuthoringApi) => a.cloneCaseVersion(5), '/api/admin/cases/5/clone-version'],
-      ['crear un caso', (a: AuthoringApi) => a.createCase({ title: 't' }), '/api/admin/cases'],
+      ['clonar una versión', (a: AuthoringApi) => a.cloneCaseVersion(5), '/api/authoring/cases/5/clone-version'],
+      ['crear un caso', (a: AuthoringApi) => a.createCase({ title: 't' }), '/api/authoring/cases'],
     ])('%s no invalida: no cambia los casos publicados', (_n, call, url) => {
       pedir();
       call(TestBed.inject(AuthoringApi)).subscribe();

@@ -1,0 +1,188 @@
+// Editor de casos (plan visual F8-1): piel portal, solo tokens --ds-*, superficies con borde y sin sombras duras ni
+// bordes punteados (VD-3). El foco lo pinta el anillo global. Reglas de F7: el host de `ui-section` se queda en bloque
+// y toda rejilla lleva `minmax(0, 1fr)`.
+:host {
+  display: block;
+  color: var(--ds-text-1);
+}
+
+.ce-section {
+  display: block;
+  min-width: 0;
+}
+
+.ce-loading,
+.ce-error {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  margin-block-start: var(--ds-space-6);
+  justify-items: start;
+}
+
+// ── Resumen: estado, versión y avance de la lista de publicación ────────────────────────────────────────────────
+.ce-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3) var(--ds-space-5);
+  margin-block-start: var(--ds-space-5);
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.ce-summary__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-width: 0;
+
+  ui-progress {
+    width: 8rem;
+  }
+}
+
+.ce-lock {
+  margin: var(--ds-space-4) 0 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-warning-bg);
+  color: var(--ds-warning-text);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.ce-tabs {
+  display: block;
+  margin-block-start: var(--ds-space-6);
+  min-width: 0;
+}
+
+.ce-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  margin-block: var(--ds-space-4);
+}
+
+.ce-lead {
+  margin: var(--ds-space-3) 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Tarjetas de mapas, objetos, herramientas y criterios ────────────────────────────────────────────────────────
+.ce-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--ds-space-4);
+  margin: var(--ds-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ce-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  align-content: start;
+  height: 100%;
+}
+
+.ce-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.ce-card__actions {
+  display: inline-flex;
+  gap: var(--ds-space-1);
+}
+
+.ce-card__title {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+  overflow-wrap: anywhere;
+}
+
+.ce-card__text,
+.ce-card__meta {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+  overflow-wrap: anywhere;
+}
+
+.ce-card__meta code {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-mono-size);
+}
+
+// ── Lista de publicación ────────────────────────────────────────────────────────────────────────────────────────
+.ce-checklist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ce-checklist__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+}
+
+.ce-checklist__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.ce-review {
+  margin-block-start: var(--ds-space-6);
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-2);
+  color: var(--ds-text-1);
+}
+
+.ce-review__title {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-type-body-size);
+  line-height: var(--ds-type-body-line);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.ce-review p {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Selector de nodo del editor de mundo ────────────────────────────────────────────────────────────────────────
+.ce-node-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
