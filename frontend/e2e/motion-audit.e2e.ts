@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { visitEditorTabs } from './support/editor-tabs';
 import { TOUR_SCREENS, loginAs, openScreen } from './support/screen-tour';
 import type { SignedRole } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -57,30 +58,11 @@ for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as const) {
 // req: RNF-04, RNF-005
 test('@motion-audit editor de casos: cada pestaña (incluidos Mundo y Vista previa) sin movimiento fuera de criterio', async ({ page, request }) => {
   test.setTimeout(scaled(5 * 60_000));
-  const admin = { email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', password: process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!' };
-  const token: string = (await (await request.post('/api/auth/login', { data: admin })).json()).data.token;
-  const headers = { Authorization: `Bearer ${token}` };
-  const list = (await (await request.get('/api/authoring/cases', { headers })).json()).data as Array<Record<string, any>>;
-  const version = list[0];
-  const detail = (await (await request.get(`/api/authoring/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
-  const node = detail['nodes'][0];
-
-  await loginAs(page, 'admin');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${version['caseVersionId']}/editor`);
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
   const findings: Finding[] = [];
-  for (const tab of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Mundo', 'Vista previa']) {
-    await page.getByRole('tab', { name: tab }).click();
-    if (tab === 'Mundo') {
-      const escaped = String(node['title']).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const label = new RegExp(`${escaped}\\s+\\(`);
-      await page.getByRole('button', { name: label }).click();
-      await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
-    }
-    if (tab === 'Vista previa') await expect(page.locator('app-world-preview [data-world-ready="true"]')).toHaveCount(1, { timeout: scaled(30_000) });
+  await visitEditorTabs(page, request, async tab => {
     const finding = await measure(page, `editor · ${tab}`);
     if (finding) findings.push(finding);
-  }
+  });
   expect(findings, 'pestañas del editor con movimiento fuera de criterio').toEqual([]);
 });

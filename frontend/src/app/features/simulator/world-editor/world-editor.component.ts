@@ -265,7 +265,8 @@ const OBJECT_COLORS: Record<string, string> = {
         </div>
 
         <!-- ── Side Inspector ──────────────────────────────────────── -->
-        <aside class="we-inspector liquid-glass">
+        <!-- En solo lectura todos sus controles están deshabilitados: sin foco propio, el teclado no podría desplazarla. -->
+        <aside class="we-inspector liquid-glass" aria-label="Propiedades del mundo" [attr.tabindex]="store.readOnly() ? 0 : null">
          <fieldset class="we-fieldset" [disabled]="store.readOnly()">
           <!-- ── Sala: switcher + zoom + fondo ────────────────────── -->
           @if (store.editorState()) {
@@ -830,7 +831,7 @@ const OBJECT_COLORS: Record<string, string> = {
       color: rgba(79,124,172,.3);
     }
     .we-inspector-empty p { margin: 0; font-size: .84rem; line-height: 1.5; }
-    .we-hint { font-size: .72rem !important; font-family: 'JetBrains Mono', monospace; }
+    .we-hint { font-size: .75rem !important; font-family: 'JetBrains Mono', monospace; }
 
     /* Validation */
     .we-validation {
@@ -921,6 +922,19 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-room label > span, .we-door label > span { font-weight: 700; color: var(--psy-blue-deep); }
     .we-room select, .we-room input, .we-door select, .we-door input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
     .we-door { display: grid; gap: 8px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--psy-border); }
+    /* El control de zoom de cámara mide al menos 24 px de alto (WCAG 2.5.8). */
+    .we-room input[type='range'], .we-check { min-height: 24px; }
+    /* Con puntero táctil, todo lo que se pulsa mide al menos 44 px (F9-2). */
+    @media (pointer: coarse) {
+      .we-tool-btn, .we-add, .we-del { width: 44px; height: 44px; }
+      .we-check { min-height: 44px; }
+      .we-template-btn, .we-library select, .we-room select, .we-door select, .we-movement select,
+      .we-form select, .we-choice select, .we-choice-reqs select { min-height: 44px; }
+      .we-room input:not([type='checkbox']), .we-door input:not([type='checkbox']), .we-movement input:not([type='checkbox']),
+      .we-form input:not([type='checkbox']):not([type='color']), .we-row input, .we-choice input, .we-choice-reqs input,
+      .we-dialogue input:not([type='checkbox']), .we-dialogue select { min-height: 44px; }
+      .we-form input[type='color'] { min-height: 44px; min-width: 44px; }
+    }
   `]
 })
 export class WorldEditorComponent implements OnInit, OnDestroy {

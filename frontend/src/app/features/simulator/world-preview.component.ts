@@ -356,14 +356,14 @@ const DECISION_TRIED_TEXT =
       height: 42px;
       border-radius: 14px;
       color: #fff;
-      font-size: .72rem;
+      font-size: .75rem;
       font-weight: 900;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
     }
     .interaction-card em {
       display: block;
       color: var(--psy-muted);
-      font-size: .68rem;
+      font-size: .75rem;
       font-style: normal;
       font-weight: 900;
       letter-spacing: .08em;

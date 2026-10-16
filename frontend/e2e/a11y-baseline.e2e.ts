@@ -24,7 +24,7 @@ import { scaled } from './support/time-scale';
  * Salida: `a11y.json` y `a11y-resumen.md` en SIEP_UI_BASELINE_DIR (por defecto `.superpowers/baseline-ui/<fecha>`).
  */
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
-const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 390, height: 844 }] as const;
+const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 390, height: 844 }] as const;
 const today = new Date().toISOString().slice(0, 10);
 const OUT_DIR = resolve(process.env['SIEP_UI_BASELINE_DIR'] ?? join(__dirname, '..', '..', '.superpowers', 'baseline-ui', today));
 
