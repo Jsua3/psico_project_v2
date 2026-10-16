@@ -14,17 +14,28 @@ from apps.simulation.casedef.export import to_document
 from apps.simulation.casedef.model import (
     CaseDefinition,
     Character,
+    CollisionZone as CollisionZoneModel,
     Criterion,
+    DialogueChoice as DialogueChoiceModel,
+    DialogueLine as DialogueLineModel,
+    DialogueTree as DialogueTreeModel,
     Option,
     Rubric,
     Scene,
     Tool,
+    World,
+    WorldObject,
 )
 from apps.simulation.models import (
     CaseCharacter,
     CaseVersion,
     ClinicalTool,
+    CollisionZone,
     DecisionOption,
+    DialogueChoice,
+    DialogueLine,
+    DialogueTree,
+    MapObject,
     Rubric as RubricRow,
     RubricCriterion,
     SceneHint,
@@ -69,6 +80,59 @@ def _options_by_source(rows, node_keys):
     return grouped
 
 
+def _worlds(version_id, option_keys, character_keys):
+    """``{id de mapa: World}`` con cinco consultas más (colisiones, objetos, árboles, líneas y elecciones)."""
+    collisions, objects, objects_by_id = {}, {}, {}
+    for zone in CollisionZone.objects.filter(scene_map__case_version_id=version_id).order_by("scene_map_id", "id"):
+        collisions.setdefault(zone.scene_map_id, []).append(CollisionZoneModel(
+            key=zone.zone_key, label=_text(zone.label), x=zone.position_x, y=zone.position_y,
+            width=zone.width, height=zone.height,
+        ))
+    for row in MapObject.objects.filter(scene_map__case_version_id=version_id).order_by("scene_map_id", "id"):
+        objects_by_id[row.id] = row.object_key
+        objects.setdefault(row.scene_map_id, []).append(WorldObject(
+            key=row.object_key, label=row.label, type=row.object_type, x=row.position_x, y=row.position_y,
+            width=row.width, height=row.height, z_index=row.z_index, facing=row.facing,
+            color_hex=row.color_hex, icon=row.icon, short_code=row.short_code, collision=row.collision,
+            visible=row.visible, interaction_prompt=row.interaction_prompt,
+            interaction_text=row.interaction_text, option=option_keys.get(row.decision_option_id),
+            character=character_keys.get(row.character_id), tool_code=row.tool_code,
+            unlock_condition=read_map(row.unlock_condition_json),
+            movement_pattern=read_map(row.movement_pattern_json), metadata=read_map(row.metadata_json),
+        ))
+    lines, choices = {}, {}
+    for line in DialogueLine.objects.filter(dialogue_tree__scene_map__case_version_id=version_id).order_by(
+        "dialogue_tree_id", "display_order", "id"
+    ):
+        lines.setdefault(line.dialogue_tree_id, []).append(DialogueLineModel(
+            order=line.display_order, speaker=line.speaker_name, text=line.text, emotion=line.emotion,
+        ))
+    for choice in DialogueChoice.objects.filter(dialogue_tree__scene_map__case_version_id=version_id).order_by(
+        "dialogue_tree_id", "display_order", "id"
+    ):
+        choices.setdefault(choice.dialogue_tree_id, []).append(DialogueChoiceModel(
+            key=choice.choice_key, text=choice.text, option=option_keys.get(choice.decision_option_id),
+            required_tool=choice.required_tool_code, effect=read_map(choice.effect_json),
+            order=choice.display_order,
+        ))
+    trees = {}
+    for tree in DialogueTree.objects.filter(scene_map__case_version_id=version_id).order_by("scene_map_id", "id"):
+        trees.setdefault(tree.scene_map_id, []).append(DialogueTreeModel(
+            key=tree.tree_key, speaker=tree.speaker_name, portrait_key=tree.portrait_key, emotion=tree.emotion,
+            object_key=objects_by_id.get(tree.map_object_id), lines=tuple(lines.get(tree.id, ())),
+            choices=tuple(choices.get(tree.id, ())),
+        ))
+    worlds = {}
+    for scene_map in SceneMap.objects.filter(case_version_id=version_id).order_by("id"):
+        worlds[scene_map.id] = (scene_map, World(
+            key=scene_map.map_key, title=scene_map.title, width=scene_map.width, height=scene_map.height,
+            theme=scene_map.theme, spawn_x=scene_map.spawn_x, spawn_y=scene_map.spawn_y,
+            ambient=read_map(scene_map.ambient_json), collisions=tuple(collisions.get(scene_map.id, ())),
+            objects=tuple(objects.get(scene_map.id, ())), dialogues=tuple(trees.get(scene_map.id, ())),
+        ))
+    return worlds
+
+
 def _rubrics(version_id):
     rubric_rows = list(RubricRow.objects.filter(case_version_id=version_id).order_by("id"))
     criteria = {}
@@ -104,10 +168,14 @@ def load_definition(case_version_id):
         SimulationNode.objects.filter(case_version_id=version.id).order_by("display_order", "id")
     )
     node_keys = {node.id: node.node_key for node in nodes}
-    options = _options_by_source(
-        DecisionOption.objects.filter(case_version_id=version.id).order_by("id"), node_keys
+    option_rows = list(DecisionOption.objects.filter(case_version_id=version.id).order_by("id"))
+    option_keys = {row.id: row.option_key for row in option_rows}
+    options = _options_by_source(option_rows, node_keys)
+    character_rows = list(
+        CaseCharacter.objects.filter(case_version_id=version.id).order_by("display_order", "id")
     )
-    maps = {m.node_id: m.id for m in SceneMap.objects.filter(case_version_id=version.id).order_by("id")}
+    worlds = _worlds(version.id, option_keys, {row.id: row.character_key for row in character_rows})
+    maps = {scene_map.node_id: map_id for map_id, (scene_map, _) in worlds.items()}
     hints = {}
     for hint in SceneHint.objects.filter(scene_map__case_version_id=version.id).order_by(
         "scene_map_id", "hint_order", "id"
@@ -125,6 +193,7 @@ def load_definition(case_version_id):
             x=node.position_x or 0, y=node.position_y or 0, prompt=_text(node.decision_prompt),
             hints=tuple(hints.get(maps.get(node.id), ())),
             options=tuple(options.get(node.id, ())),
+            world=worlds[maps[node.id]][1] if node.id in maps else None,
         )
         for node in nodes
     )
@@ -134,7 +203,7 @@ def load_definition(case_version_id):
             portrait_key=row.portrait_key, show_in_brief=row.show_in_brief,
             display_order=row.display_order,
         )
-        for row in CaseCharacter.objects.filter(case_version_id=version.id).order_by("display_order", "id")
+        for row in character_rows
     )
     tools = tuple(
         Tool(

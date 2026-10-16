@@ -51,6 +51,93 @@ class Rubric:
 
 
 @dataclass(frozen=True)
+class CollisionZone:
+    key: str
+    label: str
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
+class WorldObject:
+    key: str
+    label: str
+    #: ``PERSON`` | ``OBJECT`` | ``EXIT`` | ``TOOL``… (``map_objects.object_type``).
+    type: str
+    x: int
+    y: int
+    width: int
+    height: int
+    z_index: int = 0
+    facing: str = ""
+    color_hex: str = ""
+    icon: str = ""
+    short_code: str = ""
+    collision: bool = False
+    visible: bool = True
+    interaction_prompt: str = ""
+    interaction_text: str = ""
+    #: Clave de la opción que ofrece el objeto, si ofrece alguna.
+    option: str | None = None
+    #: Clave del personaje que representa (solo los ``PERSON``).
+    character: str | None = None
+    tool_code: str | None = None
+    unlock_condition: dict = field(default_factory=dict)
+    movement_pattern: dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DialogueLine:
+    order: int
+    speaker: str
+    text: str
+    emotion: str = ""
+
+
+@dataclass(frozen=True)
+class DialogueChoice:
+    key: str
+    text: str
+    #: Clave de la opción que la elección ofrece, si ofrece alguna.
+    option: str | None = None
+    required_tool: str | None = None
+    effect: dict = field(default_factory=dict)
+    order: int = 0
+
+
+@dataclass(frozen=True)
+class DialogueTree:
+    key: str
+    speaker: str
+    portrait_key: str | None = None
+    emotion: str = ""
+    #: Clave del objeto del que cuelga el diálogo.
+    object_key: str | None = None
+    lines: tuple[DialogueLine, ...] = ()
+    choices: tuple[DialogueChoice, ...] = ()
+
+
+@dataclass(frozen=True)
+class World:
+    """La sala de una escena: su mapa, los objetos, las colisiones y los diálogos."""
+
+    key: str
+    title: str
+    width: int
+    height: int
+    theme: str
+    spawn_x: int
+    spawn_y: int
+    ambient: dict = field(default_factory=dict)
+    collisions: tuple[CollisionZone, ...] = ()
+    objects: tuple[WorldObject, ...] = ()
+    dialogues: tuple[DialogueTree, ...] = ()
+
+
+@dataclass(frozen=True)
 class Option:
     key: str
     text: str
@@ -89,8 +176,8 @@ class Scene:
     #: Las pistas del mapa de la escena, por ``hint_order``.
     hints: tuple[str, ...] = ()
     options: tuple[Option, ...] = ()
-    #: El mundo (mapa, objetos, diálogos): ``None`` hasta que E4-1b lo carga.
-    world: object = None
+    #: La sala de la escena, o ``None`` si la escena no tiene mapa.
+    world: World | None = None
 
 
 @dataclass(frozen=True)

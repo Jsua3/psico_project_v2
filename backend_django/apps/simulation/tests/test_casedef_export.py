@@ -1,7 +1,7 @@
 """E4-1a · El documento base canónico y su huella (RF-12, RNF-07, TD-02).
 
 Sin base de datos: una ``CaseDefinition`` armada a mano se vuelve el documento del DSL del taller
-(``to_document``) con ids por posición, y los mismos datos dan siempre los mismos bytes y la misma
+(``to_base_document``) con ids por posición, y los mismos datos dan siempre los mismos bytes y la misma
 huella. La base es una **proyección fiel** (R7): lo que no cabe en el esquema del taller (un
 personaje sin rol, una herramienta sin descripción, una escena que solo se alcanza por una puerta) no
 se inventa ni se completa: se omite de la base.
@@ -12,7 +12,7 @@ import json
 import pytest
 
 from apps.simulation.casedef import canonical
-from apps.simulation.casedef.export import DERIVED_PROMPT, ids_of, to_document
+from apps.simulation.casedef.export import DERIVED_PROMPT, ids_of, to_base_document
 from apps.simulation.casedef.model import (
     CaseDefinition,
     Character,
@@ -77,7 +77,7 @@ def _definition(**overrides):
 
 # ─── ids por posición y mapeo de la base (R6, R8) ─────────────────────────────────────────────
 def test_ids_are_assigned_by_position():
-    doc = to_document(_definition())
+    doc = to_base_document(_definition())
     assert [s["id"] for s in doc["escenas"]] == ["E01", "E02", "E03"]
     assert [s["orden"] for s in doc["escenas"]] == [1, 2, 3]
     assert doc["escenas"][0]["decision"]["id"] == "D01"
@@ -92,7 +92,7 @@ def test_ids_are_assigned_by_position():
 
 
 def test_the_case_block_follows_the_correspondence_table():
-    caso = to_document(_definition())["caso"]
+    caso = to_base_document(_definition())["caso"]
     assert caso == {
         "id": "CASO-001", "titulo": "Conflicto en una organización",
         "descripcion": "Un conflicto entre dos integrantes.", "version": "1.2.0", "estado": "BORRADOR",
@@ -106,11 +106,11 @@ def test_the_case_block_follows_the_correspondence_table():
     [("DRAFT", "BORRADOR"), ("IN_REVIEW", "BORRADOR"), ("PUBLISHED", "PUBLICADO"), ("ARCHIVED", "ARCHIVADO")],
 )
 def test_the_state_is_translated(status, estado):
-    assert to_document(_definition(status=status))["caso"]["estado"] == estado
+    assert to_base_document(_definition(status=status))["caso"]["estado"] == estado
 
 
 def test_a_scene_with_options_carries_a_decision_with_classification_and_hints():
-    first = to_document(_definition())["escenas"][0]
+    first = to_base_document(_definition())["escenas"][0]
     assert first["titulo"] == "Reunión de equipo"
     assert first["descripcion"] == "El equipo discute."
     decision = first["decision"]
@@ -125,7 +125,7 @@ def test_a_scene_with_options_carries_a_decision_with_classification_and_hints()
 
 
 def test_a_scene_without_options_is_a_conclusion_without_a_decision():
-    last = to_document(_definition())["escenas"][2]
+    last = to_base_document(_definition())["escenas"][2]
     assert "decision" not in last
 
 
@@ -136,7 +136,7 @@ def test_a_prohibited_option_carries_its_reason():
         "intervenir", "Intervenir ya", "cierre", "INADEQUATE", prohibited=True, reason="Revictimiza.",
     )
     scenes[0] = Scene(**{**scenes[0].__dict__, "options": tuple(options)})
-    option = to_document(_definition(scenes=tuple(scenes)))["escenas"][0]["decision"]["opciones"][1]
+    option = to_base_document(_definition(scenes=tuple(scenes)))["escenas"][0]["decision"]["opciones"][1]
     assert option["conductaProhibida"] is True
     assert option["motivoProhibicion"] == "Revictimiza."
     assert option["clasificacion"] == "INADECUADA"
@@ -145,15 +145,15 @@ def test_a_prohibited_option_carries_its_reason():
 def test_sensitive_scenes_carry_their_warning():
     scenes = list(_definition().scenes)
     scenes[1] = Scene(**{**scenes[1].__dict__, "sensitive": True, "warning": "Contenido sensible."})
-    scene = to_document(_definition(scenes=tuple(scenes)))["escenas"][1]
+    scene = to_base_document(_definition(scenes=tuple(scenes)))["escenas"][1]
     assert scene["contenidoSensible"] is True
     assert scene["advertencia"] == "Contenido sensible."
-    assert "contenidoSensible" not in to_document(_definition())["escenas"][0]
+    assert "contenidoSensible" not in to_base_document(_definition())["escenas"][0]
 
 
 # ─── la base es una proyección fiel: no se inventa nada (R7) ──────────────────────────────────
 def test_a_character_without_a_role_and_a_tool_without_a_description_stay_out_of_the_base():
-    doc = to_document(_definition())
+    doc = to_base_document(_definition())
     assert [p["nombre"] for p in doc["personajes"]] == ["Laura"]
     assert doc["personajes"][0] == {"id": "P01", "nombre": "Laura", "rol": "Líder del equipo"}
     assert [h["nombre"] for h in doc["herramientas"]] == ["Mapa de actores"]
@@ -163,15 +163,15 @@ def test_a_character_without_a_role_and_a_tool_without_a_description_stay_out_of
 
 
 def test_missing_text_is_omitted_not_invented():
-    doc = to_document(_definition(description="   "))
+    doc = to_base_document(_definition(description="   "))
     assert "descripcion" not in doc["caso"]
-    doc = to_document(_definition(objectives=()))
+    doc = to_base_document(_definition(objectives=()))
     assert "objetivosAprendizaje" not in doc["caso"]
 
 
 def test_a_draft_without_a_start_scene_exports_without_an_initial_scene():
     scenes = tuple(Scene(**{**s.__dict__, "start": False}) for s in _definition().scenes)
-    doc = to_document(_definition(scenes=scenes))
+    doc = to_base_document(_definition(scenes=scenes))
     assert "escenaInicial" not in doc["caso"]
     assert [s["id"] for s in doc["escenas"]] == ["E01", "E02", "E03"]  # sin inicio nada queda fuera
 
@@ -179,7 +179,7 @@ def test_a_draft_without_a_start_scene_exports_without_an_initial_scene():
 def test_a_scene_that_options_never_reach_stays_out_of_the_base():
     hub = Scene(key="recepcion", title="Recepción", narrative="Un pasillo que solo se alcanza por una puerta.")
     definition = _definition(scenes=_definition().scenes + (hub,))
-    doc = to_document(definition)
+    doc = to_base_document(definition)
     assert [s["id"] for s in doc["escenas"]] == ["E01", "E02", "E03"]
     assert "recepcion" not in ids_of(definition).scene
     assert ids_of(definition).base_scenes == ("inicio", "mapa", "cierre")
@@ -188,12 +188,12 @@ def test_a_scene_that_options_never_reach_stays_out_of_the_base():
 def test_an_empty_prompt_is_derived_with_a_neutral_text():
     scenes = list(_definition().scenes)
     scenes[0] = Scene(**{**scenes[0].__dict__, "prompt": ""})
-    doc = to_document(_definition(scenes=tuple(scenes)))
+    doc = to_base_document(_definition(scenes=tuple(scenes)))
     assert doc["escenas"][0]["decision"]["pregunta"] == DERIVED_PROMPT
 
 
 def test_feedback_is_a_separate_entry_only_with_text_and_theory():
-    doc = to_document(_definition())
+    doc = to_base_document(_definition())
     assert doc["retroalimentacion"] == [{
         "id": "R01", "opcion": "OP01", "mensaje": "Analizar primero ayuda.",
         "fundamentoTeorico": "Psicología social",
@@ -202,7 +202,7 @@ def test_feedback_is_a_separate_entry_only_with_text_and_theory():
 
 def test_a_rubric_without_usable_criteria_stays_out_and_the_case_has_no_rubric():
     empty = Rubric(name="Sin criterios", criteria=())
-    doc = to_document(_definition(rubrics=(empty,)))
+    doc = to_base_document(_definition(rubrics=(empty,)))
     assert doc["rubricas"] == []
     assert "rubrica" not in doc["caso"]
 
@@ -210,7 +210,7 @@ def test_a_rubric_without_usable_criteria_stays_out_and_the_case_has_no_rubric()
 def test_the_case_rubric_is_the_first_active_one():
     inactive = Rubric(name="Vieja", active=False, criteria=(Criterion(competency="X", title="X"),))
     active = Rubric(name="Vigente", active=True, criteria=(Criterion(competency="Y", title="Y"),))
-    doc = to_document(_definition(rubrics=(inactive, active)))
+    doc = to_base_document(_definition(rubrics=(inactive, active)))
     assert doc["caso"]["rubrica"] == "RUB-02"
     assert [r["activa"] for r in doc["rubricas"]] == [False, True]
     assert [c["id"] for r in doc["rubricas"] for c in r["criterios"]] == ["CR01", "CR02"]
@@ -218,24 +218,24 @@ def test_the_case_rubric_is_the_first_active_one():
 
 # ─── determinismo y huella (R11) ──────────────────────────────────────────────────────────────
 def test_the_same_definition_gives_the_same_bytes():
-    a = canonical.canonical_bytes(to_document(_definition()))
-    b = canonical.canonical_bytes(to_document(copy.deepcopy(_definition())))
+    a = canonical.canonical_bytes(to_base_document(_definition()))
+    b = canonical.canonical_bytes(to_base_document(copy.deepcopy(_definition())))
     assert a == b
     assert a == json.dumps(json.loads(a), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def test_text_keeps_accents_and_the_enie_as_utf8():
-    raw = canonical.canonical_bytes(to_document(_definition(title="Año de la niña")))
+    raw = canonical.canonical_bytes(to_base_document(_definition(title="Año de la niña")))
     assert "Año de la niña".encode("utf-8") in raw
     assert b"\\u" not in raw
 
 
 def test_the_hash_ignores_the_state_and_follows_the_content():
-    draft = canonical.definition_hash(to_document(_definition(status="DRAFT")))
-    published = canonical.definition_hash(to_document(_definition(status="PUBLISHED")))
+    draft = canonical.definition_hash(to_base_document(_definition(status="DRAFT")))
+    published = canonical.definition_hash(to_base_document(_definition(status="PUBLISHED")))
     assert draft == published
     assert draft.startswith("sha256:") and len(draft) == 71
-    assert canonical.definition_hash(to_document(_definition(title="Otro título"))) != draft
+    assert canonical.definition_hash(to_base_document(_definition(title="Otro título"))) != draft
 
 
 def test_a_golden_hash_pins_the_format():

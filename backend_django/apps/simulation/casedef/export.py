@@ -8,6 +8,7 @@ viene en el orden canónico.
 """
 from dataclasses import dataclass
 
+from . import siep
 from .model import CaseDefinition
 
 #: ``caso.estado``: ``IN_REVIEW`` no tiene equivalente en el taller y se lee como borrador.
@@ -123,7 +124,39 @@ def ids_of(definition):
     )
 
 
-def _option_document(scene, option, ids):
+def _option_tools(definition):
+    """clave de opción → códigos de herramienta que exigen las elecciones de diálogo que la ofrecen."""
+    required = {}
+    for scene in definition.scenes:
+        if scene.world is None:
+            continue
+        for tree in scene.world.dialogues:
+            for choice in tree.choices:
+                if choice.option:
+                    required.setdefault(choice.option, []).append(choice.required_tool or "")
+    return required
+
+
+def _tool_of(option, required, ids):
+    """El id de la herramienta de la opción, si todas las elecciones que la ofrecen exigen la misma."""
+    codes = set(required.get(option.key, ()))
+    if len(codes) != 1:
+        return None
+    code = next(iter(codes))
+    return ids.tool.get(code) if code else None
+
+
+def _participants(scene, ids):
+    if scene.world is None:
+        return []
+    seen = []
+    for obj in scene.world.objects:
+        if obj.type == "PERSON" and obj.character in ids.character and ids.character[obj.character] not in seen:
+            seen.append(ids.character[obj.character])
+    return seen
+
+
+def _option_document(scene, option, ids, required):
     document = {
         "id": ids.option[(scene.key, option.key)],
         "texto": option.text,
@@ -136,10 +169,13 @@ def _option_document(scene, option, ids):
         document["motivoProhibicion"] = option.reason
     if _text(option.consequence):
         document["consecuencia"] = option.consequence
+    tool = _tool_of(option, required, ids)
+    if tool:
+        document["herramienta"] = tool
     return document
 
 
-def _scene_document(scene, position, ids):
+def _scene_document(scene, position, ids, required):
     document = {"id": ids.scene[scene.key], "orden": position}
     if _text(scene.title):
         document["titulo"] = scene.title
@@ -149,11 +185,14 @@ def _scene_document(scene, position, ids):
         document["contenidoSensible"] = True
     if _text(scene.warning):
         document["advertencia"] = scene.warning
+    participants = _participants(scene, ids)
+    if participants:
+        document["participantes"] = participants
     if scene.options:
         decision = {
             "id": ids.decision[scene.key],
             "pregunta": scene.prompt if _text(scene.prompt) else DERIVED_PROMPT,
-            "opciones": [_option_document(scene, option, ids) for option in scene.options],
+            "opciones": [_option_document(scene, option, ids, required) for option in scene.options],
         }
         hints = [hint for hint in scene.hints if _text(hint)]
         if hints:
@@ -200,9 +239,8 @@ def _rubric_documents(definition, ids):
     return documents
 
 
-def to_document(definition: CaseDefinition):
-    """El documento del DSL v1.0 (la «base») de ``definition``; ``x-siep`` lo añade E4-1b."""
-    ids = ids_of(definition)
+def _base_document(definition, ids):
+    required = _option_tools(definition)
     by_key = {scene.key: scene for scene in definition.scenes}
     base_scenes = [by_key[key] for key in ids.base_scenes]
 
@@ -236,7 +274,7 @@ def to_document(definition: CaseDefinition):
             for c in definition.characters if c.key in ids.character
         ],
         "herramientas": [_tool_document(t, ids) for t in definition.tools if t.code in ids.tool],
-        "escenas": [_scene_document(scene, n, ids) for n, scene in enumerate(base_scenes, 1)],
+        "escenas": [_scene_document(scene, n, ids, required) for n, scene in enumerate(base_scenes, 1)],
         "retroalimentacion": _feedback_documents(definition, ids),
         "rubricas": _rubric_documents(definition, ids),
     }
@@ -246,4 +284,17 @@ def _tool_document(tool, ids):
     document = {"id": ids.tool[tool.code], "nombre": tool.label, "descripcion": tool.description}
     if _text(tool.category):
         document["categoria"] = tool.category
+    return document
+
+
+def to_base_document(definition: CaseDefinition):
+    """El documento del DSL v1.0 del taller (la «base»): solo lo que su esquema puede expresar."""
+    return _base_document(definition, ids_of(definition))
+
+
+def to_document(definition: CaseDefinition):
+    """El documento completo: la base más ``x-siep`` (el mundo, las reglas y los extras)."""
+    ids = ids_of(definition)
+    document = _base_document(definition, ids)
+    document["x-siep"] = siep.build(definition, ids)
     return document

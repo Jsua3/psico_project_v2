@@ -11,6 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import jsonschema
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -76,7 +77,8 @@ def _small_version(code, *, flip_creation_order=False, orders=(1, 2)):
 
 
 def _workshop_verdict(document):
-    """El veredicto del validador del taller sobre ``document`` (subproceso, sin acoplar imports)."""
+    """El veredicto del validador del taller sobre la **base** de ``document`` (sin ``x-siep``), por subproceso."""
+    document = {key: value for key, value in document.items() if key != "x-siep"}
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "documento.json"
         path.write_text(json.dumps({
@@ -115,6 +117,42 @@ def test_the_seeded_case_keeps_its_chain_of_scenes_and_leaves_the_door_only_room
     assert sum(1 for s in scenes if "decision" in s) == 6
     assert sum(len(s["decision"]["opciones"]) for s in scenes if "decision" in s) == 19
     assert all(s["decision"]["pregunta"] for s in scenes if "decision" in s)
+
+
+# ─── x-siep del caso sembrado (E4-1b) ─────────────────────────────────────────────────────────
+def test_the_seeded_x_siep_validates_against_its_schema():
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "casedef" / "schema" / "x-siep.schema.json").read_text(encoding="utf-8")
+    )
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(export_definition(_seeded().id)["x-siep"]))
+    assert errors == [], [f"{list(e.absolute_path)}: {e.message}" for e in errors][:3]
+
+
+def test_the_seeded_x_siep_carries_the_whole_world_including_the_door_only_room():
+    version = _seeded()
+    siep = export_definition(version.id)["x-siep"]
+    scenes = siep["escenas"]
+    assert [s["clave"] for s in scenes].count("comisaria-recepcion") == 1
+    hub = next(s for s in scenes if s["clave"] == "comisaria-recepcion")
+    assert "id" not in hub and hub["titulo"] and hub["mapa"]["objetos"]
+    assert len(scenes) == 8
+    assert sum(1 for s in scenes if "id" in s) == 7
+    objects = [o for s in scenes for o in s.get("mapa", {}).get("objetos", [])]
+    assert len(objects) == 41
+    assert sum(1 for o in objects if o["tipo"] == "EXIT") == 10
+    assert siep["reglas"] == json.loads(version.rules)
+    assert siep["contexto"] == version.narrative_context
+    assert sum(1 for s in scenes if s.get("preguntaDerivada")) == 6  # las 6 decisiones sembradas no traen enunciado
+    assert [p["clave"] for p in siep["personajes"]] == [
+        c.character_key for c in version.characters.order_by("display_order", "id")
+    ]
+    assert all("id" not in p for p in siep["personajes"])  # ninguno tiene rol: ninguno está en la base
+
+
+def test_removing_x_siep_leaves_exactly_the_base():
+    full = export_definition(_seeded().id)
+    base = {key: value for key, value in full.items() if key != "x-siep"}
+    assert set(base) == {"versionDsl", "caso", "personajes", "herramientas", "escenas", "retroalimentacion", "rubricas"}
 
 
 # ─── determinismo ─────────────────────────────────────────────────────────────────────────────
