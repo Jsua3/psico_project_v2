@@ -1,7 +1,7 @@
 """Eliminar un grupo con miembros y casos no depende del ``ON DELETE CASCADE`` de la BD.
 
 Una base restaurada de un volcado anterior a E0-8 tiene las FK de ``grupo_estudiante`` y
-``grupo_case_version`` en NO ACTION; el servicio borra las filas de unión por el ORM antes
+``case_assignments`` en NO ACTION; el servicio borra las filas de unión por el ORM antes
 de borrar el grupo para que ``DELETE /api/grupos/{id}`` siga funcionando allí.
 """
 import pytest
@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.db import connection
 from rest_framework.test import APIClient
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import CaseAssignment, Grupo, GrupoEstudiante
 from apps.simulation.models import CaseVersion
 
 User = get_user_model()
@@ -37,7 +37,7 @@ def _fk_sin_cascade(table, referenced):
 def test_eliminar_un_grupo_con_miembros_y_casos_con_fk_en_no_action():
     # Antes de insertar filas: PostgreSQL no deja alterar una tabla con eventos de FK pendientes.
     _fk_sin_cascade("grupo_estudiante", "grupos")
-    _fk_sin_cascade("grupo_case_version", "grupos")
+    _fk_sin_cascade("case_assignments", "grupos")
     profesor = User.objects.create_user(
         email="prof_elim@x.com", password="pass1234", nombre="P", apellido="E", role="PROFESOR"
     )
@@ -47,7 +47,7 @@ def test_eliminar_un_grupo_con_miembros_y_casos_con_fk_en_no_action():
     version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
     grupo = Grupo.objects.create(nombre="Para borrar", codigo="ELIM-1", profesor=profesor)
     GrupoEstudiante.objects.create(grupo_id=grupo.id, estudiante_id=estudiante.id, status="ACTIVE")
-    GrupoCaseVersion.objects.create(grupo_id=grupo.id, case_version_id=version.id)
+    CaseAssignment.objects.create(grupo_id=grupo.id, case_version_id=version.id)
     client = APIClient()
     client.force_authenticate(user=profesor)
 
@@ -56,4 +56,4 @@ def test_eliminar_un_grupo_con_miembros_y_casos_con_fk_en_no_action():
     assert response.status_code == 200, response.data
     assert not Grupo.objects.filter(pk=grupo.id).exists()
     assert not GrupoEstudiante.objects.filter(grupo_id=grupo.id).exists()
-    assert not GrupoCaseVersion.objects.filter(grupo_id=grupo.id).exists()
+    assert not CaseAssignment.objects.filter(grupo_id=grupo.id).exists()

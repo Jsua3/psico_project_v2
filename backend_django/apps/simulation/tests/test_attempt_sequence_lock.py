@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.progression.catalog import is_case_unlocked
 from apps.progression.services import record_case_completion
 from apps.simulation.models import CaseVersion, SimulationCase, SimulationNode
@@ -79,7 +79,7 @@ def _assign(estudiante, profesor, *versions):
     grupo = Grupo.objects.create(nombre="G-sec", codigo=f"SEC{uuid.uuid4().hex[:6].upper()}", profesor=profesor)
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=estudiante, status="ACTIVE")
     for version in versions:
-        GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+        CaseAssignment.objects.create(grupo=grupo, case_version=version)
     return grupo
 
 

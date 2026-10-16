@@ -1,7 +1,9 @@
-"""Listar y crear casos."""
+"""Listar y crear casos, y escribir su ficha (contexto y objetivos de aprendizaje)."""
+import json
 import re
 
 from django.db import transaction
+from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import (
@@ -13,10 +15,19 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.serializers import game_dtos as dto
+from apps.simulation.services.text_rules import validate_plain_text
 from shared import policies
+from shared.exceptions import ApiError
 
 from .editor_view import editor
+from .guards import bump_revision, ensure_draft
 from .publication import create_draft_checklist
+
+#: Topes de la ficha (E3-4): un objetivo cabe en una línea de la pantalla; el contexto, en unos
+#: cuantos párrafos. Doce objetivos son más de los que un caso formativo declara.
+MAX_CONTEXT_LENGTH = 4000
+MAX_OBJECTIVE_LENGTH = 280
+MAX_OBJECTIVES = 12
 
 
 def list_authoring_cases(actor):
@@ -43,7 +54,10 @@ def create_case(request, actor):
     title = (request.get("title") or "").strip()
     if not title:
         raise ValidationError("El titulo del caso es obligatorio")
-    description = (request.get("description") or "").strip()
+    # Es también el contexto que lee el estudiante (``narrative_context``): texto plano con tope.
+    description = validate_plain_text(
+        request.get("description"), MAX_CONTEXT_LENGTH, "description", multiline=True
+    )
     requested_code = (request.get("code") or "").strip()
     if requested_code:
         code = _normalize_case_code(requested_code)
@@ -93,6 +107,50 @@ def create_case(request, actor):
     )
     create_draft_checklist(version, actor)
     return editor(version.id)
+
+
+@transaction.atomic
+def update_brief(case_version_id, request):
+    """``PUT …/brief``: el contexto y los objetivos de aprendizaje de un borrador.
+
+    «Ausente = no tocar»: un cuerpo sin ``context`` deja el contexto como estaba, y uno sin
+    ``learningObjectives`` deja la lista; ``[]`` la vacía. Todo es texto plano con tope.
+    """
+    version = ensure_draft(case_version_id, request.get("revision"))
+    fields = []
+    if "context" in request:
+        version.narrative_context = validate_plain_text(
+            request.get("context"), MAX_CONTEXT_LENGTH, "context", multiline=True
+        )
+        fields.append("narrative_context")
+    if "learningObjectives" in request:
+        version.learning_objectives = json.dumps(
+            _validated_objectives(request.get("learningObjectives")), ensure_ascii=False
+        )
+        fields.append("learning_objectives")
+    if fields:
+        version.save(update_fields=fields)
+    bump_revision(case_version_id)
+    return editor(case_version_id)
+
+
+def _validated_objectives(raw):
+    if raw is None:
+        return []
+    if len(raw) > MAX_OBJECTIVES:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"Un caso admite hasta {MAX_OBJECTIVES} objetivos de aprendizaje.",
+            status.HTTP_400_BAD_REQUEST,
+            field="learningObjectives",
+        )
+    return [
+        validate_plain_text(
+            item, MAX_OBJECTIVE_LENGTH, "learningObjectives", required=True, index=position
+        )
+        for position, item in enumerate(raw)
+    ]
 
 
 def _normalize_case_code(value):

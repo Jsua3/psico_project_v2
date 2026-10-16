@@ -34,7 +34,7 @@ from .import_contract import (
 from shared import policies
 
 from . import memberships, notifications
-from .models import Grupo, GrupoCaseVersion, GrupoEstudiante, MembershipStatus
+from .models import Grupo, CaseAssignment, GrupoEstudiante, MembershipStatus
 
 User = get_user_model()
 
@@ -697,7 +697,7 @@ def listar_casos_asignados(grupo_id, actor):
     if not policies.can(actor, "assignment", "list", owner_id=grupo.profesor_id):
         raise ValidationError("No tiene permiso sobre este grupo")
     ids = list(
-        GrupoCaseVersion.objects.filter(grupo_id=grupo.id)
+        CaseAssignment.objects.filter(grupo_id=grupo.id, active=True)
         .order_by("-assigned_at", "-case_version_id")
         .values_list("case_version_id", flat=True)
     )
@@ -736,7 +736,7 @@ def eliminar(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
     # Las uniones se borran por el ORM antes que el grupo: en una base restaurada de un volcado
     # anterior a E0-8 sus FK son NO ACTION y no existe el ON DELETE CASCADE de la BD nueva.
-    GrupoCaseVersion.objects.filter(grupo_id=grupo.id).delete()
+    CaseAssignment.objects.filter(grupo_id=grupo.id).delete()
     GrupoEstudiante.objects.filter(grupo_id=grupo.id).delete()
     grupo.delete()
     return {"id": grupo_id}
@@ -790,12 +790,18 @@ def asignar_caso(grupo_id, case_version_id, profesor):
         raise NotFound(f"Version de caso no encontrada: {case_version_id}")
     if version.status != "PUBLISHED" or not version.simulation_case.active:
         raise ValidationError("Solo se pueden asignar casos publicados y activos")
-    GrupoCaseVersion.objects.get_or_create(grupo_id=grupo.id, case_version_id=version.id)
+    assignment, created = CaseAssignment.objects.get_or_create(
+        grupo_id=grupo.id, case_version_id=version.id, defaults={"assigned_by": profesor}
+    )
+    if not created and not assignment.active:
+        # La ruta heredada no conoce la pausa: asignar de nuevo la reactiva.
+        assignment.active = True
+        assignment.save(update_fields=["active"])
     return listar_casos_asignados(grupo.id, profesor)
 
 
 @transaction.atomic
 def quitar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
-    GrupoCaseVersion.objects.filter(grupo_id=grupo.id, case_version_id=case_version_id).delete()
+    CaseAssignment.objects.filter(grupo_id=grupo.id, case_version_id=case_version_id).delete()
     return listar_casos_asignados(grupo.id, profesor)

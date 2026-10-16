@@ -83,12 +83,12 @@ def test_las_metricas_del_caso_sin_estado_guardado_inician_todas_en_50(monkeypat
 def test_una_metrica_fuera_de_la_lista_del_caso_tambien_parte_de_50(monkeypatch):
     state = _FakeState({})
     monkeypatch.setattr(case_effects, "_load_state", lambda attempt: state)
-    monkeypatch.setitem(
-        case_effects.OPTION_EFFECTS, "opcion-de-prueba",
-        {"severity": case_effects.SEVERITY_ACCEPTABLE, "flags": {}, "metrics": {"metrica_extra": 10}},
-    )
+    effects = {"severity": case_effects.SEVERITY_ACCEPTABLE, "flags": {}, "metrics": {"metrica_extra": 10}}
 
-    case_effects.apply_case_effects(SimpleNamespace(id=1), SimpleNamespace(option_key="opcion-de-prueba"))
+    case_effects.apply_case_effects(
+        SimpleNamespace(id=1),
+        SimpleNamespace(option_key="opcion-de-prueba", effects=json.dumps(effects)),
+    )
 
     assert json.loads(state.flags_json)["caseMetrics"]["metrica_extra"] == 60
 

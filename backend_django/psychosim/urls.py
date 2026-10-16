@@ -17,6 +17,8 @@ def spa_index(request):
     return HttpResponse((index_path / "index.html").read_bytes(), content_type="text/html")
 
 from apps.grupos.views import (
+    AssignmentDetailView,
+    AssignmentListCreateView,
     GrupoCasoDetailView,
     GrupoCasosView,
     GrupoDetailView,
@@ -32,6 +34,7 @@ from apps.grupos.views import (
     MeInvitationLeaveView,
     MeInvitationsView,
 )
+from apps.simulation.views.rubric_views import CompetencyListCreateView
 from apps.users.views import (
     AdminAccessRequestListView,
     AdminAccessRequestStatusView,
@@ -65,6 +68,9 @@ urlpatterns = [
     path("api/grupos/estudiantes/import/template/", GrupoEstudiantesImportTemplateView.as_view()),
     path("api/grupos/<int:pk>/casos", GrupoCasosView.as_view()),
     path("api/grupos/<int:pk>/casos/<int:case_version_id>", GrupoCasoDetailView.as_view()),
+    # C7 · asignaciones de casos con ventana (E3-1); las rutas de arriba son su alias heredado.
+    path("api/assignments", AssignmentListCreateView.as_view()),
+    path("api/assignments/<int:assignment_id>", AssignmentDetailView.as_view()),
     path("api/reportes/", include("apps.reportes.urls")),
     path("api/simulation/", include("apps.simulation.urls")),
     # ED-9 (por defecto): ``/api/authoring/**`` es el espacio canónico de la autoría y
@@ -81,6 +87,8 @@ urlpatterns = [
     path("api/admin/access-requests/<int:request_id>/status", AdminAccessRequestStatusView.as_view()),
     path("api/instructor/", include("apps.simulation.urls_instructor")),
     path("api/rubrics/", include("apps.simulation.urls_rubrics")),
+    # E3-9 · catálogo de competencias (RQ-NEG-002): el personal lo lee, el ADMIN lo amplía.
+    path("api/competencies", CompetencyListCreateView.as_view()),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("swagger-ui.html", SpectacularSwaggerView.as_view(url_name="schema")),
     # Catch-all del SPA (debe ir al final): cualquier ruta que no sea API,

@@ -13,7 +13,13 @@ from apps.simulation.serializers.requests import (
     SelectDecisionRequest,
     StartAttemptRequest,
 )
-from apps.simulation.services import game_service, rubric_service, world_service
+from apps.simulation.services import (
+    case_brief,
+    game_service,
+    hints as hint_service,
+    rubric_service,
+    world_service,
+)
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
@@ -32,7 +38,24 @@ class CasesView(APIView):
     permission_classes = [policy_permission("catalog", "read")]
 
     def get(self, request):
-        return api_ok(game_service.list_published_cases(request.user))
+        cases = game_service.list_published_cases(request.user)
+        # La decisión de acceso es de progresión (asignación, ventana y secuencia): el servicio
+        # del juego no la conoce, la vista la suma a cada caso (``access``, aditivo).
+        from apps.progression.access import access_map
+
+        decisions = access_map(request.user, [case["caseVersionId"] for case in cases])
+        for case in cases:
+            case["access"] = decisions[case["caseVersionId"]].as_dict()
+        return api_ok(cases)
+
+
+class CaseBriefView(APIView):
+    """C8 · La ficha del caso antes de jugar: contexto, personajes y objetivos, sin crear intento."""
+
+    permission_classes = [policy_permission("catalog", "read")]
+
+    def get(self, request, case_version_id):
+        return api_ok(case_brief.brief_for(request.user, case_version_id))
 
 
 class StartAttemptView(APIView):
@@ -64,6 +87,29 @@ class AttemptView(APIView):
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt(
             attempt_id, _attempt_token(request), request.user,
+        ))
+
+
+class HintStateView(APIView):
+    """C9 · Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan."""
+
+    permission_classes = [policy_permission("attempt", "play")]
+
+    def get(self, request, attempt_id):
+        return _private_ok(hint_service.get_hint_state(
+            attempt_id, _attempt_token(request), request.user,
+        ))
+
+
+class NextHintView(APIView):
+    """C9 · Pedir la siguiente pista de la escena (sin costo, una sola vez por ``requestId``)."""
+
+    permission_classes = [policy_permission("attempt", "play")]
+
+    def post(self, request, attempt_id):
+        token = request.data.get("attemptToken") or _attempt_token(request)
+        return _private_ok(hint_service.reveal_next_hint(
+            attempt_id, token, request.user, request_id=request.data.get("requestId"),
         ))
 
 

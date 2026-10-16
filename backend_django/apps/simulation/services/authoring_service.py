@@ -29,8 +29,10 @@ from shared.exceptions import ApiError
 from .audit_service import auditable
 from .authoring import (
     cases,
+    characters,
     editor_view,
     graph,
+    hints,
     lifecycle,
     publication,
     scenes,
@@ -57,6 +59,11 @@ def editor(case_version_id):
 @auditable("ADMIN_CREATE_NODE", "CASE_VERSION")
 def create_node(case_version_id, request):
     return graph.create_node(case_version_id, request)
+
+
+@auditable("ADMIN_REORDER_NODES", "CASE_VERSION")
+def reorder_nodes(case_version_id, request):
+    return graph.reorder_nodes(case_version_id, request)
 
 
 @auditable("ADMIN_UPDATE_NODE", "NODE", 1)
@@ -144,6 +151,44 @@ def update_tool(case_version_id, tool_id, request):
 @auditable("ADMIN_DELETE_TOOL", "TOOL", 1)
 def delete_tool(case_version_id, tool_id, revision=None):
     return tools.delete_tool(case_version_id, tool_id, revision)
+
+
+# ─── Pistas por escena (E3-5) ────────────────────────────────────────────────
+@auditable("ADMIN_CREATE_HINT", "MAP", 1)
+def create_hint(case_version_id, map_id, request):
+    return hints.create_hint(case_version_id, map_id, request)
+
+
+@auditable("ADMIN_UPDATE_HINT", "HINT", 1)
+def update_hint(case_version_id, hint_id, request):
+    return hints.update_hint(case_version_id, hint_id, request)
+
+
+@auditable("ADMIN_DELETE_HINT", "HINT", 1)
+def delete_hint(case_version_id, hint_id, revision=None):
+    return hints.delete_hint(case_version_id, hint_id, revision)
+
+
+# ─── Ficha del caso (E3-4) ───────────────────────────────────────────────────
+@auditable("ADMIN_UPDATE_BRIEF", "CASE_VERSION")
+def update_brief(case_version_id, request):
+    return cases.update_brief(case_version_id, request)
+
+
+# ─── Personajes del caso (E3-3) ──────────────────────────────────────────────
+@auditable("ADMIN_CREATE_CHARACTER", "CASE_VERSION")
+def create_character(case_version_id, request):
+    return characters.create_character(case_version_id, request)
+
+
+@auditable("ADMIN_UPDATE_CHARACTER", "CHARACTER", 1)
+def update_character(case_version_id, character_id, request):
+    return characters.update_character(case_version_id, character_id, request)
+
+
+@auditable("ADMIN_DELETE_CHARACTER", "CHARACTER", 1)
+def delete_character(case_version_id, character_id, revision=None):
+    return characters.delete_character(case_version_id, character_id, revision)
 
 
 # ─── Checklist, publish and clone ────────────────────────────────────────────

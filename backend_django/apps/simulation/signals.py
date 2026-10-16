@@ -22,5 +22,7 @@ attempt_completed = Signal()
 #: ``ApiError`` y la petición responde con él (el simulador no conoce a quien lo veta; hoy,
 #: progresión exige el desbloqueo lineal). No se emite al reanudar un intento abierto.
 #:
-#: Argumentos: ``sender`` (``SimulationAttempt``), ``student`` (el usuario) y ``case_version_id``.
+#: Argumentos: ``sender`` (``SimulationAttempt``), ``student`` (el usuario), ``case_version_id`` y
+#: ``replacing`` (``True`` si el estudiante pide «empezar de nuevo» sobre un intento abierto: es un
+#: inicio nuevo y no goza de la excepción de «se deja terminar» que solo protege al que ya está en juego).
 attempt_start_requested = Signal()

@@ -40,6 +40,54 @@ class SceneMap(models.Model):
         ]
 
 
+class SceneHint(models.Model):
+    """Una pista de una escena (RF-11, decisión 13): el estudiante las pide una a una, sin costo.
+
+    Cuelga del mapa de la escena (cada nodo tiene un mapa). ``hint_order`` es el orden en que se
+    revelan; el texto es plano y de a lo sumo 280 caracteres. Qué pistas vio cada intento vive en
+    ``attempt_hint_views``: el texto de las que no pidió no viaja al jugador.
+    """
+
+    scene_map = models.ForeignKey(
+        SceneMap, on_delete=models.DB_CASCADE, related_name="hints", db_column="scene_map_id"
+    )
+    hint_order = models.IntegerField(default=0, db_default=0)
+    text = models.CharField(max_length=280)
+
+    class Meta:
+        db_table = "scene_hints"
+        ordering = ["hint_order", "id"]
+        indexes = [
+            models.Index(fields=["scene_map", "hint_order"], name="idx_scene_hints_map_order"),
+        ]
+
+
+class CaseCharacter(models.Model):
+    """Un personaje del caso (RF-07, decisión 16): dato autorable al que apuntan los objetos PERSON.
+
+    ``show_in_brief`` lo decide Psicología: solo los marcados aparecen en la ficha del caso.
+    """
+
+    case_version = models.ForeignKey(
+        CaseVersion, on_delete=models.DB_CASCADE, related_name="characters", db_column="case_version_id"
+    )
+    character_key = models.CharField(max_length=120)
+    display_name = models.CharField(max_length=255)
+    role_label = models.CharField(max_length=255, default="", db_default="")
+    portrait_key = models.CharField(max_length=120, default="", db_default="")
+    show_in_brief = models.BooleanField(default=False, db_default=False)
+    display_order = models.IntegerField(default=0, db_default=0)
+
+    class Meta:
+        db_table = "case_characters"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["case_version", "character_key"],
+                name="case_characters_case_version_id_character_key_key",
+            ),
+        ]
+
+
 class MapObject(models.Model):
     scene_map = models.ForeignKey(
         SceneMap, on_delete=models.DB_CASCADE, related_name="map_objects", db_column="scene_map_id"
@@ -61,6 +109,11 @@ class MapObject(models.Model):
     decision_option = models.ForeignKey(
         DecisionOption, on_delete=models.DB_SET_NULL, null=True, blank=True,
         db_column="decision_option_id",
+    )
+    #: El personaje que este objeto representa (solo los PERSON lo usan); se desvincula al borrarlo.
+    character = models.ForeignKey(
+        CaseCharacter, on_delete=models.DB_SET_NULL, null=True, blank=True,
+        related_name="map_objects", db_column="character_id",
     )
     tool_code = models.CharField(max_length=80, null=True, blank=True)
     unlock_condition_json = models.TextField(default="{}", db_default="{}")

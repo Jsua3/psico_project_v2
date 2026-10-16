@@ -127,6 +127,15 @@ class NodeListView(_AuthoringView):
         return api_ok(svc.create_node(case_version_id, body), "Nodo creado")
 
 
+class NodeReorderView(_AuthoringView):
+    """``PATCH …/nodes/reorder``: el orden informativo de todos los nodos (E3-6, RF-08)."""
+
+    def patch(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.NodeReorderRequest)
+        return api_ok(svc.reorder_nodes(case_version_id, body), "Orden de los nodos actualizado")
+
+
 class NodeDetailView(_AuthoringView):
     def put(self, request, case_version_id, node_id):
         self.version_for(request, case_version_id, mutate=True)
@@ -242,6 +251,59 @@ class ToolDetailView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         return api_ok(
             svc.delete_tool(case_version_id, tool_id, self.revision(request)), "Herramienta eliminada"
+        )
+
+
+# ─── Hint CRUD (E3-5) ───────────────────────────────────────────────────────
+class HintListView(_AuthoringView):
+    def post(self, request, case_version_id, map_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.create_hint(case_version_id, map_id, body), "Pista creada")
+
+
+class HintDetailView(_AuthoringView):
+    def put(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.update_hint(case_version_id, hint_id, body), "Pista actualizada")
+
+    def delete(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_hint(case_version_id, hint_id, self.revision(request)), "Pista eliminada"
+        )
+
+
+# ─── Ficha del caso (E3-4) ──────────────────────────────────────────────────
+class BriefView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.BriefRequest)
+        return api_ok(svc.update_brief(case_version_id, body), "Ficha del caso actualizada")
+
+
+# ─── Character CRUD (E3-3) ──────────────────────────────────────────────────
+class CharacterListView(_AuthoringView):
+    def post(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(svc.create_character(case_version_id, body), "Personaje creado")
+
+
+class CharacterDetailView(_AuthoringView):
+    def put(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(
+            svc.update_character(case_version_id, character_id, body), "Personaje actualizado"
+        )
+
+    def delete(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_character(case_version_id, character_id, self.revision(request)),
+            "Personaje eliminado",
         )
 
 

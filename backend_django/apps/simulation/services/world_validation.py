@@ -5,7 +5,8 @@ dict and returns a WorldValidationState-shaped dict {errors, warnings, canPublis
 Snapshot shape (all coords/sizes are ints):
     {
       "nodes":      [{"id", "startNode", "terminalNode", "x", "y"}],
-      "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason"}],
+      "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason",
+                      "feedbackText"?, "immediateFeedback"?}],
       "maps":       [{"id", "nodeId", "width", "height", "spawnX", "spawnY"}],
       "objects":    [{"id", "mapId", "x", "y", "width", "height", "type"}],
       "collisions": [{"id", "mapId", "x", "y", "width", "height"}],
@@ -40,6 +41,7 @@ def validate(snapshot):
     _validate_graph(snapshot["nodes"], snapshot["decisions"], snapshot.get("maps", []), issues)
     _validate_geometry(snapshot, issues)
     _validate_ethics(snapshot["decisions"], issues)
+    _validate_feedback(snapshot["decisions"], issues)
     _validate_safe_exit(snapshot["hasSafeExit"], issues)
     _validate_limits(snapshot, issues)
 
@@ -232,6 +234,23 @@ def _validate_ethics(decisions, issues):
             issues.append(_err(
                 "PROHIBITED_WITHOUT_REASON",
                 f"La decisión prohibida id={d['id']} debe documentar la razón de prohibición",
+                f"decision:{d['id']}",
+            ))
+
+
+# ─── Feedback ──────────────────────────────────────────────────────────────
+def _validate_feedback(decisions, issues):
+    """Una decisión que no explica nada a quien aprende (RF-10): aviso, nunca bloquea.
+
+    Cuenta como retroalimentación la propia (``feedbackText``) o, como en el reporte, la
+    inmediata que la reemplaza cuando la propia falta (``immediateFeedback``).
+    """
+    for d in decisions:
+        explanation = (d.get("feedbackText") or d.get("immediateFeedback") or "").strip()
+        if not explanation:
+            issues.append(_warn(
+                "DECISION_WITHOUT_FEEDBACK",
+                f"La decisión id={d['id']} no tiene retroalimentación para el estudiante",
                 f"decision:{d['id']}",
             ))
 

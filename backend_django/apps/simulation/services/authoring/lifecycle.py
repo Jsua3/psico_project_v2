@@ -22,7 +22,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status as http
-from rest_framework.exceptions import PermissionDenied
 
 from apps.simulation.models import CaseReview, CaseVersion
 from apps.simulation.models.case import ReviewDecision, ReviewReason
@@ -102,8 +101,12 @@ def _require_transition(version, action, actor):
             state=version.status,
             action=action,
         )
-    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-    raise PermissionDenied("No tiene permiso para esta transición del caso")
+    raise ApiError(
+        "CASE_TRANSITION_FORBIDDEN",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "No tienes permiso para esta transición del caso.",
+        http.HTTP_403_FORBIDDEN,
+    )
 
 
 def publishing_blockers(version):
@@ -199,7 +202,12 @@ def approve(case_version_id, actor, note="", content_review=None, revision=None)
     if version.status == DRAFT and not strict:
         # El atajo del editor de hoy: el ADMIN publica un borrador (con su fila de revisión).
         if not policies.can(actor, "case", "publish"):
-            raise PermissionDenied("No tiene permiso para publicar casos")
+            raise ApiError(
+                "CASE_TRANSITION_FORBIDDEN",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "No tienes permiso para publicar casos.",
+                http.HTTP_403_FORBIDDEN,
+            )
     else:
         _require_transition(version, "approve", actor)
     _require_publishable(version)

@@ -17,6 +17,7 @@ copiado y falla si un campo nuevo del modelo no se declara ni se excluye.
 from dataclasses import dataclass
 
 from ..models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
@@ -27,6 +28,7 @@ from ..models import (
     MapObject,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -44,18 +46,20 @@ class CopySpec:
         return self.model.objects.create(**values, **links)
 
 
-CASE_VERSION = CopySpec(CaseVersion, ("narrative_context", "world_schema_version", "rules"))
+CASE_VERSION = CopySpec(CaseVersion, (
+    "narrative_context", "learning_objectives", "world_schema_version", "rules",
+))
 
 NODE = CopySpec(SimulationNode, (
     "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
     "sensitive_content", "safe_exit_required", "warning_message", "start_node",
-    "terminal_node", "position_x", "position_y",
+    "terminal_node", "position_x", "position_y", "decision_prompt", "display_order",
 ))
 
 DECISION = CopySpec(DecisionOption, (
     "option_key", "text", "classification", "score_delta", "stress_delta",
     "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
-    "consequence_text", "theory_basis", "feedback_text",
+    "consequence_text", "theory_basis", "feedback_text", "effects",
 ))
 
 MAP = CopySpec(SceneMap, (
@@ -64,6 +68,12 @@ MAP = CopySpec(SceneMap, (
 
 COLLISION_ZONE = CopySpec(CollisionZone, (
     "zone_key", "label", "position_x", "position_y", "width", "height",
+))
+
+HINT = CopySpec(SceneHint, ("hint_order", "text"))
+
+CHARACTER = CopySpec(CaseCharacter, (
+    "character_key", "display_name", "role_label", "portrait_key", "show_in_brief", "display_order",
 ))
 
 MAP_OBJECT = CopySpec(MapObject, (

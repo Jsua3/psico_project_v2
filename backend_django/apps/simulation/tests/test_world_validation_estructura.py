@@ -15,7 +15,8 @@ def _snapshot(**cambios):
             {"id": 2, "startNode": False, "terminalNode": True, "x": 0, "y": 0},
         ],
         "decisions": [
-            {"id": 10, "sourceNodeId": 1, "targetNodeId": 2, "prohibitedConduct": False, "prohibitionReason": None},
+            {"id": 10, "sourceNodeId": 1, "targetNodeId": 2, "prohibitedConduct": False, "prohibitionReason": None,
+             "feedbackText": "Explicación de la decisión."},
         ],
         "maps": [
             {"id": 100, "nodeId": 1, "width": 960, "height": 540, "spawnX": 10, "spawnY": 10},
@@ -35,7 +36,10 @@ def _nodo(id_, start=False, terminal=False):
 
 
 def _decision(id_, source, target):
-    return {"id": id_, "sourceNodeId": source, "targetNodeId": target, "prohibitedConduct": False, "prohibitionReason": None}
+    return {
+        "id": id_, "sourceNodeId": source, "targetNodeId": target, "prohibitedConduct": False,
+        "prohibitionReason": None, "feedbackText": "Explicación de la decisión.",
+    }
 
 
 def _mapa(id_, node_id):

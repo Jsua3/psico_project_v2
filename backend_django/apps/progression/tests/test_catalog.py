@@ -25,7 +25,7 @@ def _assign(estudiante, profesor, *case_version_ids):
         )
         for case_version_id in case_version_ids:
             cur.execute(
-                "INSERT INTO grupo_case_version (grupo_id, case_version_id) VALUES (%s, %s)",
+                "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s)",
                 [grupo.id, case_version_id],
             )
     return grupo

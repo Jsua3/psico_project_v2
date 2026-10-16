@@ -15,6 +15,9 @@ from django.utils import timezone
 
 IDLE_CAP_SECONDS = 300
 PAUSE_EVENT = "SAFE_EXIT_REQUESTED"
+#: Eventos que no son actividad que mida tiempo: una pista no parte un intervalo ocioso en dos
+#: (cada mitad con su tope), así que pedirla no suma tiempo (RF-18, «sin costo»).
+IGNORED_EVENTS = ("HINT_VIEWED",)
 #: Eventos que abren una escena nueva en el tiempo por escena.
 SCENE_START_EVENTS = ("NODE_ENTERED", "ROOM_ENTERED")
 #: Campos que cambian al registrar actividad.
@@ -59,6 +62,7 @@ def active_duration_seconds(started_at, ended_at, events, idle_cap=IDLE_CAP_SECO
     """
     if started_at is None or ended_at is None:
         return None
+    events = [event for event in events if event[0] not in IGNORED_EVENTS]
     marks = [("START", started_at), *events, ("END", ended_at)]
     total = 0.0
     for (previous_type, previous_at), (_, current_at) in zip(marks, marks[1:]):
@@ -82,6 +86,8 @@ def scene_durations(events, end_at=None, idle_cap=IDLE_CAP_SECONDS):
     scenes = []
     previous = None  # (event_type, occurred_at) del evento anterior
     for event_type, node_id, occurred_at in events:
+        if event_type in IGNORED_EVENTS:
+            continue
         if previous is not None and scenes and previous[0] != PAUSE_EVENT:
             gap = (occurred_at - previous[1]).total_seconds()
             if gap > 0:

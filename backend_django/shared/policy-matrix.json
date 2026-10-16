@@ -103,6 +103,20 @@
       "ADMIN": "all"
     },
     {
+      "resource": "competency",
+      "action": "manage",
+      "ESTUDIANTE": null,
+      "PROFESOR": null,
+      "ADMIN": "all"
+    },
+    {
+      "resource": "competency",
+      "action": "read",
+      "ESTUDIANTE": null,
+      "PROFESOR": "all",
+      "ADMIN": "all"
+    },
+    {
       "resource": "group",
       "action": "list",
       "ESTUDIANTE": null,
