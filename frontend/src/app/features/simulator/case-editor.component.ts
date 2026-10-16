@@ -8,7 +8,6 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { RevisionConflict, revisionConflictOf } from '../../core/api/revision-conflict.util';
-import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   CaseEditorView,
@@ -39,7 +38,6 @@ import { CaseReviewPanelComponent, ValidationTarget } from './case-review-panel.
 import { mapThemeLabel, nodeOptionLabel, statusTone } from './case-editor.options';
 import { DagEditorComponent } from './dag-editor.component';
 import { describeEditorChanges } from './editor-changes.util';
-import { publishReadiness } from './publish-readiness.util';
 import { RevisionConflictAnswer, RevisionConflictDialogComponent, RevisionConflictDialogData } from './revision-conflict-dialog.component';
 import { WorldEditorComponent } from './world-editor';
 import { WorldPreviewComponent } from './world-preview.component';
@@ -82,7 +80,6 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(UiDialog);
-  private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -120,11 +117,6 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando el editor…' : ''));
   protected readonly errorKind = computed(() => errorKindFromStatus(this.errorStatus()));
 
-  /** Solo el administrador publica (matriz `case.publish`); el motivo dice qué falta. */
-  protected readonly readiness = computed(() => {
-    const view = this.editor();
-    return view ? publishReadiness(view, this.auth.currentUser()?.role) : { allowed: false, reason: null };
-  });
   /** Una versión que no es borrador no admite cambios (el servidor responde 400): se dice antes de abrir un formulario. */
   readonly lockReason = computed(() => {
     const status = (this.editor()?.status ?? 'DRAFT').toUpperCase();
@@ -540,23 +532,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     }
   }
 
-  // ─── Publicar y clonar ───────────────────────────────────────────────────────────────────────────────────────────
-
-  async confirmPublish(caseVersionId: number): Promise<void> {
-    const confirmed = await this.confirmOnce({
-      title: 'Publicar caso',
-      message: 'Los estudiantes asignados verán esta versión en su catálogo. ¿Publicarla ahora?',
-      confirmLabel: 'Publicar',
-    });
-    if (confirmed) this.publish(caseVersionId);
-  }
-
-  publish(caseVersionId: number): void {
-    this.runAction(
-      revision => this.authoringApi.publishCase(caseVersionId, revision),
-      'Caso publicado.', 'No fue posible publicar el caso.',
-    );
-  }
+  // ─── Clonar ──────────────────────────────────────────────────────────────────────────────────────────────────────
+  // Publicar no está aquí: el único camino es el ciclo de vida de la pestaña «Revisión» (enviar → aprobar), que lleva
+  // nota, constancia de revisión de contenido, bloqueos del servidor y la revisión del caso (decisión del usuario, 2026-10-16).
 
   /** Clona la versión y abre la copia: la URL pasa a ser la de la versión nueva (recargar no vuelve a la anterior). */
   clone(caseVersionId: number): void {

@@ -109,7 +109,6 @@ describe('editor de casos (F8-1)', () => {
       updateTool: vi.fn(() => of(editorView({ revision: 4 }))),
       deleteTool: vi.fn(() => of(editorView({ revision: 4 }))),
       updateChecklist: vi.fn(() => of(editorView({ revision: 4 }))),
-      publishCase: vi.fn(() => of(editorView({ revision: 4, status: 'PUBLISHED' }))),
       cloneCaseVersion: vi.fn(() => of(editorView({ revision: 1 }))),
       lifecycle: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'DRAFT', allowedTransitions: ['submit', 'archive'] })),
       validateCase: vi.fn(() => of({ issues: [], canPublish: true })),
@@ -203,49 +202,55 @@ describe('editor de casos (F8-1)', () => {
   });
 
   // req: RF-05, CU-01, REGLA-011
-  describe('cabecera: clonar y publicar', () => {
-    it('el administrador ve «Publicar» deshabilitado con el motivo «Falta: …» mientras la lista esté incompleta', async () => {
-      await render();
-      const publish = buttonLabelled('Publicar')!;
-      expect(publish).toBeDefined();
-      expect(publish.getAttribute('aria-disabled')).toBe('true');
-      expect(text(publish.querySelector('span[hidden]'))).toBe('Falta: Revisión ética y Sin lenguaje estigmatizante ni estereotipos clínicos.');
-    });
-
-    it('con la lista completa, «Publicar» queda habilitado', async () => {
+  describe('cabecera: clonar; la publicación es la del panel «Revisión» (decisión del usuario, 2026-10-16)', () => {
+    it('nadie ve «Publicar» en la cabecera, tampoco el administrador con la lista completa: se publica por el camino formal', async () => {
       await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
-      expect(buttonLabelled('Publicar')!.getAttribute('aria-disabled')).not.toBe('true');
+      expect(buttonLabelled('Publicar')).toBeUndefined();
+      expect(buttonLabelled('Clonar versión')).toBeDefined();
     });
 
-    it('el docente no ve «Publicar» (solo el administrador publica) pero sí «Clonar versión»', async () => {
+    it('el docente tampoco, y conserva «Clonar versión»', async () => {
       await render({ role: 'PROFESOR' });
       expect(buttonLabelled('Publicar')).toBeUndefined();
       expect(buttonLabelled('Clonar versión')).toBeDefined();
     });
 
-    it('publicar pide confirmación y no llama al servidor hasta confirmar; envía la revisión vigente', async () => {
-      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+    it('enviar a revisión pide confirmación y no llama al servidor hasta confirmar; envía la revisión vigente', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
       let answer!: (value: boolean) => void;
       dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
 
-      buttonLabelled('Publicar')!.click();
-      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Publicar caso', confirmLabel: 'Publicar' }));
-      expect(api['publishCase']).not.toHaveBeenCalled();
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Enviar a revisión', confirmLabel: 'Enviar' }));
+      expect(api['transitionCase']).not.toHaveBeenCalled();
 
       answer(true);
       await settle();
-      expect(api['publishCase']).toHaveBeenCalledWith(CASE_ID, 3);
-      expect(notify['success']).toHaveBeenCalledWith('Caso publicado.');
+      expect(api['transitionCase']).toHaveBeenCalledWith(CASE_ID, { action: 'submit' }, 3);
+      expect(notify['success']).toHaveBeenCalledWith('El caso se envió a revisión.');
     });
 
-    it('si se cancela la confirmación no se publica', async () => {
-      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+    it('si se cancela la confirmación no se envía', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
       dialog.confirm.mockResolvedValue(false);
 
-      buttonLabelled('Publicar')!.click();
+      buttonLabelled('Enviar a revisión')!.click();
       await settle();
 
-      expect(api['publishCase']).not.toHaveBeenCalled();
+      expect(api['transitionCase']).not.toHaveBeenCalled();
+    });
+
+    it('la lista de publicación dice a dónde ir cuando está completa: se envía a revisión desde «Revisión»', async () => {
+      await render({ view: editorView({ checklistCompletion: 100, publishable: true, checklist: COMPLETE_CHECKLIST as never }) });
+      tab('Checklist ético')!.click();
+      await settle();
+
+      expect(text(host().querySelector('.ce-lead'))).toContain('desde la pestaña «Revisión»');
     });
   });
 

@@ -8,7 +8,7 @@ import { scaled } from './support/time-scale';
 /**
  * Editor de casos (plan visual F8-1), contra el servidor REAL de la base desechable (sin `page.route`): la hoja de
  * formularios (foco, trampa, Esc, retorno del foco), la revisión del caso en cada guardado y el conflicto 409 entre dos
- * personas, la lista de publicación leída del servidor y «Publicar» con su motivo.
+ * personas, la lista de publicación leída del servidor y el envío a revisión con su motivo (la cabecera ya no publica: decisión del usuario, 2026-10-16).
  */
 type Json = Record<string, any>;
 
@@ -184,17 +184,21 @@ test.describe('@editor-casos pestañas de datos', () => {
 });
 
 // req: RF-05, CU-01, REGLA-011
-test.describe('@editor-casos lista de publicación y «Publicar»', () => {
-  test('«Publicar» dice qué falta; al cumplir la lista obligatoria se habilita (sin publicar)', async ({ page, request }) => {
+test.describe('@editor-casos lista de publicación y envío a revisión', () => {
+  test('«Enviar a revisión» dice qué falta; al cumplir la lista obligatoria el motivo pasa de la lista a la validación (sin enviar)', async ({ page, request }) => {
     const token = await apiToken(request, ADMIN);
     const created = await createCase(request, token, `Lista e2e ${Date.now()}`);
     await loginAs(page, 'admin');
     await openEditor(page, created['caseVersionId'], created['title']);
 
-    const publish = page.getByRole('button', { name: 'Publicar' });
-    await expect(publish).toHaveAttribute('aria-disabled', 'true');
-    await publish.focus();
-    await expect(publish).toHaveAccessibleDescription(/Falta: Contenido original/);
+    // Se publica por el camino formal (decisión del usuario, 2026-10-16): la cabecera ya no tiene «Publicar».
+    await expect(page.getByRole('button', { name: 'Publicar' })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Revisión' }).click();
+    const submit = page.getByRole('button', { name: 'Enviar a revisión' });
+    await expect(submit).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByText(/Falta para avanzar: El checklist/)).toBeVisible();
+    await submit.focus();
+    await expect(submit).toHaveAccessibleDescription(/checklist/i);
 
     await page.getByRole('tab', { name: 'Checklist ético' }).click();
     await expect(page.getByText('Pendiente: la constancia la registra el administrador')).toBeVisible();
@@ -204,7 +208,10 @@ test.describe('@editor-casos lista de publicación y «Publicar»', () => {
     await page.getByRole('button', { name: 'Guardar lista' }).click();
     await expect(toast(page, 'Lista de verificación guardada.')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Publicar' })).not.toHaveAttribute('aria-disabled', 'true');
+    // Cumplida la lista, lo que impide avanzar ya no es la lista sino la validación del mundo (un caso nuevo no tiene escena final ni salida segura).
+    await page.getByRole('tab', { name: 'Revisión' }).click();
+    await expect(page.getByText(/Falta para avanzar: El caso tiene \d+ error/)).toBeVisible();
+    await expect(page.getByText(/Falta para avanzar: El checklist/)).toHaveCount(0);
     // Recargar trae las casillas como las dejó el servidor (antes el formulario siempre partía en blanco).
     await page.reload();
     await page.getByRole('tab', { name: 'Checklist ético' }).click();
@@ -222,15 +229,21 @@ test.describe('@editor-casos lista de publicación y «Publicar»', () => {
 
     await expect(page.locator('p.ce-lock')).toContainText('Esta versión no es un borrador y no se puede modificar');
     await expect(page.getByRole('button', { name: 'Nuevo nodo' })).toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByRole('button', { name: 'Publicar' })).toHaveAttribute('aria-disabled', 'true');
     await page.getByRole('button', { name: 'Nuevo nodo' }).click({ force: true });
     await expect(page.getByRole('dialog', { name: 'Nuevo nodo DAG' })).toHaveCount(0);
+
+    // La pestaña «Revisión» lo dice con el estado y no ofrece más tránsito que archivar o clonar (la cabecera no tiene «Publicar»).
+    await expect(page.getByRole('button', { name: 'Publicar' })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Revisión' }).click();
+    await expect(page.locator('app-case-review-panel ui-badge').first()).toHaveText('Publicado');
+    await expect(page.getByRole('button', { name: 'Enviar a revisión' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Aprobar y publicar' })).toHaveCount(0);
   });
 });
 
 // req: E2-4, RNF-08, REGLA-011
 test.describe('@editor-casos docente y conflicto entre dos personas', () => {
-  test('el docente autora lo suyo y no ve «Publicar»; el hub ya no dice «administrador»', async ({ page, request }) => {
+  test('el docente autora lo suyo y lo envía a revisión desde «Revisión» (sin «Publicar» en la cabecera); el hub ya no dice «administrador»', async ({ page, request }) => {
     const token = await apiToken(request, PROFESOR);
     const created = await createCase(request, token, `Docente e2e ${Date.now()}`);
     await loginAs(page, 'profesor');
@@ -245,6 +258,10 @@ test.describe('@editor-casos docente y conflicto entre dos personas', () => {
     await expect(page.getByRole('button', { name: 'Publicar' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Nuevo nodo' }).click();
     await expect(page.getByRole('dialog', { name: 'Nuevo nodo DAG' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByRole('tab', { name: 'Revisión' }).click();
+    await expect(page.getByRole('button', { name: 'Enviar a revisión' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Aprobar y publicar' })).toHaveCount(0);
   });
 
   test('si otra persona editó el caso, guardar abre la comparación y «Reintentar» lo aplica sobre la versión vigente', async ({ page, request }) => {
