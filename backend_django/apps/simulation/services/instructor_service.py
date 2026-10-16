@@ -4,19 +4,17 @@ Instructor review of student attempts: recent list, full trace (timeline +
 DECRYPTED reflections for authorized review + rubric summaries, with anonymized
 student alias), and rubric evaluation read/save.
 """
-from django.db import connection, transaction
+from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.simulation.serializers import game_dtos as dto
 from shared import policies
 from shared.exceptions import ApiError
-from shared.jsonutils import read_map as _read_map
 
 from ..models import (
     AttemptEvent,
     ReflectionJournal,
-    RubricCriterion,
     RubricEvaluation,
     SimulationAttempt,
 )
@@ -190,39 +188,4 @@ def _to_trace_event(event):
         "stressDelta": event.stress_delta,
         "detail": event.detail,
         "occurredAt": _dt(event.occurred_at),
-    }
-
-
-def _criterion_view(criterion):
-    return {
-        "id": criterion.id,
-        "competency": criterion.competency,
-        "title": criterion.title,
-        "description": criterion.description,
-        "maxScore": criterion.max_score,
-        "displayOrder": criterion.display_order,
-    }
-
-
-def _score_view(score):
-    return {
-        "criterionId": score.rubric_criterion_id,
-        "score": float(score.score),
-        "comment": score.comment,
-        "evidence": _read_map(score.evidence_json),
-    }
-
-
-def _rubric_view(rubric_obj, scores, total_score, comment):
-    return {
-        "rubricId": rubric_obj.id,
-        "rubricName": rubric_obj.name,
-        "description": rubric_obj.description,
-        "criteria": [
-            _criterion_view(c)
-            for c in RubricCriterion.objects.filter(rubric_id=rubric_obj.id).order_by("display_order")
-        ],
-        "scores": [_score_view(s) for s in scores],
-        "totalScore": total_score,
-        "comment": comment,
     }

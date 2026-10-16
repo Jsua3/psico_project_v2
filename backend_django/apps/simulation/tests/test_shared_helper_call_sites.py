@@ -22,7 +22,6 @@ from apps.simulation.serializers import game_dtos
 from apps.simulation.services import (
     case_effects,
     decision_effects,
-    instructor_service,
     world_service,
 )
 
@@ -152,26 +151,6 @@ def test_node_state_con_json_invalido_o_ausente_devuelve_listas_vacias():
 
     assert state["supportResources"] == []
     assert state["requiredTools"] == []
-
-
-# ── instructor_service._score_view ───────────────────────────────────────────
-def _score(evidence_json):
-    return SimpleNamespace(
-        rubric_criterion_id=3, score=4.5, comment="Bien", evidence_json=evidence_json
-    )
-
-
-def test_score_view_lee_la_evidencia_como_diccionario():
-    view = instructor_service._score_view(_score('{"eventIds": [1, 2]}'))
-
-    assert view == {
-        "criterionId": 3, "score": 4.5, "comment": "Bien", "evidence": {"eventIds": [1, 2]},
-    }
-
-
-@pytest.mark.parametrize("raw", [None, "", "[1, 2]", "no es json"])
-def test_score_view_con_evidencia_que_no_es_un_objeto_devuelve_diccionario_vacio(raw):
-    assert instructor_service._score_view(_score(raw))["evidence"] == {}
 
 
 # ── world_service.use_tool: el estrés queda acotado ──────────────────────────

@@ -8,7 +8,6 @@ import json
 import math
 import re
 
-from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -18,7 +17,6 @@ from ..models import (
     INDICATOR_MAX,
     INDICATOR_MIN,
     AttemptEvent,
-    AttemptWorldState,
     ClinicalTool,
     CollisionZone,
     DialogueChoice,
