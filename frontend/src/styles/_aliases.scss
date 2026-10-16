@@ -1,50 +1,32 @@
 // Alias de los espacios de nombres heredados (plan visual §3.2 «alias, no renombrado»): las clases y estilos
-// viejos siguen funcionando y ya pintan con los tokens nuevos. Se retiran en F9-4, cuando ui:lint marque 0 usos.
+// viejos siguen funcionando y ya pintan con los tokens nuevos. F9-4 retiró los 19 que ya nadie referenciaba; los que
+// quedan tienen usos vivos y se retiran cuando `ui:lint` (colores literales) llegue a 0.
 :root {
   --siep-blue: var(--ds-primary);
   --siep-blue-dark: var(--ds-primary-hover);
   --siep-blue-soft: var(--ds-info);
   --siep-bg: var(--ds-surface-page);
   --siep-surface: var(--ds-surface-1);
-  --siep-text: var(--ds-text-1);
   --siep-muted: var(--ds-text-2);
-  --siep-border: var(--ds-border);
-  --siep-radius-lg: var(--ds-radius-xl);
-  --siep-radius-md: var(--ds-radius-xl);
   --siep-shadow-soft: var(--ds-shadow-e2);
 
   --psy-bg: var(--ds-surface-page);
   --psy-surface: var(--ds-surface-1);
-  --psy-surface-soft: var(--ds-surface-2);
   --psy-ink: var(--ds-text-1);
   --psy-muted: var(--ds-text-2);
   --psy-blue: var(--ds-info);
   --psy-blue-deep: var(--ds-primary);
   --psy-teal: var(--ds-info);
   --psy-teal-deep: var(--ds-primary-hover);
-  --psy-green: var(--ds-success);
-  --psy-green-deep: var(--ds-success);
-  --psy-lavender: var(--ds-border-strong);
-  --psy-lavender-soft: var(--ds-surface-2);
   --psy-border: var(--ds-border);
   --psy-focus: var(--ds-focus);
-  --psy-radius-sm: var(--ds-radius-md);
   --psy-radius: var(--ds-radius-lg);
-  --psy-radius-lg: var(--ds-radius-xl);
   --psy-pill: var(--ds-radius-pill);
-  --psy-space-1: var(--ds-space-1);
-  --psy-space-2: var(--ds-space-2);
-  --psy-space-3: var(--ds-space-3);
   --psy-space-4: var(--ds-space-4);
-  --psy-space-5: var(--ds-space-5);
-  --psy-space-6: var(--ds-space-6);
-  --psy-space-7: var(--ds-space-7);
-  --psy-space-8: var(--ds-space-8);
   --psy-shadow-soft: var(--ds-shadow-e2);
   --psy-shadow-card: var(--ds-shadow-e1);
   --psy-z-nav: var(--ds-z-cubierta);
   --psy-ease-out: var(--ds-ease-out);
   --psy-motion-fast: var(--ds-dur-fast) var(--ds-ease-out);
   --psy-motion-ui: var(--ds-dur-slow) var(--ds-ease-out);
-  --psy-motion-section: var(--ds-dur-slow) var(--ds-ease-out);
 }

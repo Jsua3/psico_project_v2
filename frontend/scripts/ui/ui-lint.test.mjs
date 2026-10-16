@@ -17,7 +17,7 @@ const component = (styles, template = '<p>x</p>', path = 'src/app/x/x.component.
 }];
 
 test('expone las métricas del plan visual (§4 F0-2)', () => {
-  for (const metric of ['colorLiterals', 'transitionAll', 'easeIn', 'scale0', 'hoverUnguarded', 'important',
+  for (const metric of ['colorLiterals', 'transitionAll', 'easeIn', 'scale0', 'infiniteAnimation', 'hoverUnguarded', 'important',
     'zIndexLiteral', 'fontSizeLiteral', 'backdropFilter', 'clickableNoActive', 'inlineStyleAttr', 'bodyGameMode', 'unaccentedCopy']) {
     assert.ok(METRICS.includes(metric), metric);
   }
@@ -38,6 +38,14 @@ test('transitionAll, easeIn y scale0', () => {
   assert.equal(count('easeIn', scss('.a { transition: opacity .2s ease-in; } .b { transition: opacity .2s ease-in-out; }')), 1);
   assert.equal(count('easeIn', scss(':root { --e: ease-in; } .a { transition-timing-function: var(--e); }')), 1, 'resuelve var()');
   assert.equal(count('scale0', scss('.a { transform: scale(0); } .b { transform: scale(0.97); } .c { scale: 0; }')), 2);
+});
+
+test('infiniteAnimation: cuenta los bucles infinitos que no son un indicador de carga (esqueleto, spinner, progreso)', () => {
+  assert.equal(count('infiniteAnimation', scss('.a { animation: blink .6s step-end infinite; }')), 1);
+  assert.equal(count('infiniteAnimation', scss('.a { animation: ui-spinner-turn .8s linear infinite; } .b { animation: ui-skeleton-shimmer 1.4s linear infinite; } .c { animation: ui-progress-slide 1.4s ease infinite; } .d { animation: siep-boot-slide 1100ms linear infinite; }')), 0);
+  assert.equal(count('infiniteAnimation', scss('.a { animation: pulse 1s ease 3; } .b { animation: pulse 1s ease both; }')), 0);
+  assert.equal(count('infiniteAnimation', scss('.a { animation-name: sheen; animation-iteration-count: infinite; }')), 1);
+  assert.equal(count('infiniteAnimation', scss('.a { animation-name: ui-spinner-turn; animation-iteration-count: infinite; }')), 0);
 });
 
 test('hoverUnguarded: solo cuenta :hover fuera de @media (hover: hover)', () => {

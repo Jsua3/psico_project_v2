@@ -183,7 +183,7 @@ const LAMP_CENTERS = [150, 234] as const;
       border-radius: 6px;
       background: rgba(5,8,14,.72);
       color: rgba(244,247,251,.86);
-      font-size: .74rem;
+      font-size: .75rem;
       line-height: 1.2;
       font-weight: 700;
       letter-spacing: .06em;

@@ -1,4 +1,5 @@
 import { A11yModule } from '@angular/cdk/a11y';
+import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -1577,6 +1578,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       if (this.busy()) untracked(() => this.dismissActionError());
     });
+    // Interacción → respuesta (RNF-05): la respuesta es el diálogo que aparece, así que la medida termina en el pintado
+    // que lo muestra, con la red incluida. Sin una interacción en curso no mide nada (otros diálogos no cuentan).
+    effect(() => {
+      if (this.dialogue()) untracked(() => perfEndNextPaint('interaction-to-response'));
+    });
   }
 
   ngOnDestroy(): void {
@@ -1657,6 +1663,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Primer cuadro del mundo pintado: el indicador de arranque se retira (no vuelve con cada cambio de sala). */
   onWorldReady(): void {
+    perfEnd('decision-to-scene');
     this.worldRendered.set(true);
     // El mundo pintó después de que el plazo venciera: el error de ese arranque ya no es verdad y taparía el juego.
     if (this.bootFailureShown && this.error()) {
@@ -1866,6 +1873,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   openInteraction(interaction: MapObjectState) {
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS' || this.inputBlocked() || this.busy()) return;
+    // La respuesta es el diálogo que se abre: la medida termina en el pintado que lo muestra (efecto del constructor).
+    perfStart('interaction-to-response');
 
     // Una persona del escenario llega como `npc:{clave}`: no es un objeto del servidor (POST /interactions/npc:… da 404).
     if (interaction.key.startsWith('npc:')) {
@@ -1875,6 +1884,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
 
     if (interaction.type === 'EXIT' && this.doorTargetNodeKey(interaction)) {
+      // Cruzar una puerta no abre un diálogo: no es una «respuesta» y su medida no se arrastra a otro.
+      perfCancel('interaction-to-response');
       this.tryOpenDoor(interaction);
       return;
     }
@@ -2002,6 +2013,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.busy.set(false);
       },
       error: err => {
+        perfCancel('interaction-to-response');
         this.selectedInteraction.set(null);
         this.releaseDialogue();
         this.reportApiError(err, 'No pudimos abrir la interacción.');
@@ -2281,6 +2293,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pendingEvidenceMissing = [];
     const previousDialogue = this.dialogue();
     this.busy.set(true);
+    perfStart('decision-to-scene');
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
@@ -2292,6 +2305,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
           // esta decisión no lo pisa con uno anterior.
           if (this.attempt()?.status === 'PAUSED') {
+            perfCancel('decision-to-scene');
             this.busy.set(false);
             this.fadeActive.set(false);
             return;
@@ -2317,6 +2331,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           }
         },
         error: err => {
+          perfCancel('decision-to-scene');
           // Se devuelve la conversación para poder reintentar en vez de dejar al estudiante en el mapa.
           this.dialogue.set(previousDialogue);
           this.releaseDialogue();

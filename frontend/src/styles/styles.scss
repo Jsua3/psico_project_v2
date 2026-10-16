@@ -11,9 +11,7 @@
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7) y las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */
   --psy-blur: blur(18px) saturate(125%);
-  --psy-header-h: 76px;
   --psy-button-h: 48px;
-  --psy-z-dialog: 200;
 }
 
 * { box-sizing: border-box; }
@@ -53,7 +51,7 @@ img {
   max-width: 100%;
 }
 
-code, .psy-mono {
+code {
   font-family: 'JetBrains Mono', Consolas, monospace;
 }
 
@@ -161,8 +159,7 @@ code, .psy-mono {
     var(--psy-shadow-soft);
 }
 
-.psy-game-panel,
-.psy-dialogue-glass {
+.psy-game-panel {
   position: relative;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.66);
@@ -173,8 +170,7 @@ code, .psy-mono {
     0 24px 54px -28px rgba(36, 50, 58, .22);
 }
 
-.psy-game-panel::before,
-.psy-dialogue-glass::before {
+.psy-game-panel::before {
   content: '';
   position: absolute;
   inset: 0 auto auto -60%;
@@ -183,7 +179,9 @@ code, .psy-mono {
   transform: skewX(-16deg);
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.24), transparent);
   pointer-events: none;
-  animation: psy-liquid-sheen 8s ease-in-out infinite;
+  /* Un solo barrido al aparecer (F9-1: sin bucles infinitos decorativos). Sin `fill-mode`: al terminar vuelve a su sitio
+     fuera del panel; con `both` se quedaba en el 2–46 % del panel como un velo fijo. */
+  animation: psy-liquid-sheen 2.4s var(--psy-ease-out) 1;
 }
 
 .psy-liquid-ripple {
@@ -198,7 +196,7 @@ code, .psy-mono {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  transform: translate(-50%, -50%) scale(0);
+  transform: translate(-50%, -50%) scale(.2);
   background: rgba(79, 163, 165, .18);
   opacity: 0;
   pointer-events: none;
@@ -210,45 +208,6 @@ code, .psy-mono {
   opacity: 1;
 }
 
-.psy-map-marker {
-  filter: drop-shadow(0 10px 18px rgba(47, 95, 143, .22));
-}
-
-.psy-stress-vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at center, transparent 48%, rgba(168,80,98,.14) 100%);
-  mix-blend-mode: multiply;
-}
-
-.liquid-tilt {
-  transition: transform var(--psy-motion-ui), box-shadow var(--psy-motion-ui), border-color var(--psy-motion-ui);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .liquid-tilt:hover {
-    transform: translateY(-4px) rotateX(.8deg) rotateY(-.8deg);
-    border-color: rgba(79, 163, 165, .34);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .76),
-      0 28px 58px -34px rgba(36, 50, 58, .42);
-  }
-}
-
-.psy-page {
-  min-height: 100vh;
-}
-
-.psy-section {
-  padding: clamp(56px, 8vw, 104px) clamp(18px, 4vw, 56px);
-}
-
-.psy-section__inner {
-  width: min(1180px, 100%);
-  margin: 0 auto;
-}
-
 .psy-eyebrow {
   margin: 0 0 10px;
   color: var(--siep-blue-soft);
@@ -256,91 +215,6 @@ code, .psy-mono {
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
-}
-
-.psy-title {
-  margin: 0;
-  color: var(--siep-blue);
-  font-family: 'Poppins', system-ui, sans-serif;
-  font-weight: 800;
-  font-size: clamp(2.1rem, 5vw, 4.75rem);
-  line-height: 1.02;
-  letter-spacing: 0;
-}
-
-.psy-subtitle {
-  max-width: 720px;
-  margin: 18px 0 0;
-  color: var(--psy-muted);
-  font-size: clamp(1rem, 1.8vw, 1.22rem);
-  line-height: 1.68;
-}
-
-.psy-grid {
-  display: grid;
-  gap: 18px;
-}
-
-.psy-grid--3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.psy-grid--4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.psy-card,
-.siep-card {
-  position: relative;
-  overflow: hidden;
-  padding: clamp(1.5rem, 4vw, 2.25rem);
-  border: 1px solid var(--psy-border);
-  border-radius: var(--siep-radius-md);
-  background: var(--siep-surface);
-  box-shadow: var(--psy-shadow-card);
-}
-
-.siep-card {
-  background: var(--siep-bg);
-  border-radius: var(--siep-radius-lg);
-  padding: clamp(1.5rem, 4vw, 3.5rem);
-}
-
-.psy-card::after {
-  content: '';
-  position: absolute;
-  inset: auto -28% -42% auto;
-  width: 170px;
-  height: 170px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(79,163,165,.14), transparent 62%);
-  pointer-events: none;
-}
-
-.psy-card h3,
-.siep-card h3 {
-  margin: 12px 0 8px;
-  font-size: clamp(1.08rem, 2vw, 1.35rem);
-  color: var(--siep-blue);
-  font-weight: 700;
-}
-
-.psy-card p {
-  margin: 0;
-  color: var(--psy-muted);
-  line-height: 1.58;
-}
-
-.psy-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 7px 12px;
-  border-radius: var(--psy-pill);
-  background: rgba(231, 226, 245, .72);
-  color: #4F4777;
-  font-size: .82rem;
-  font-weight: 600;
 }
 
 .psy-button {
@@ -364,8 +238,7 @@ code, .psy-mono {
   transform: scale(.97);
 }
 
-.psy-button--primary,
-.siep-btn-primary {
+.psy-button--primary {
   background: var(--siep-blue);
   color: #fff;
   border-radius: 18px;
@@ -375,14 +248,12 @@ code, .psy-mono {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .psy-button--primary:hover,
-  .siep-btn-primary:hover {
+  .psy-button--primary:hover {
     background: var(--siep-blue-dark);
   }
 }
 
-.psy-button--ghost,
-.siep-btn-secondary {
+.psy-button--ghost {
   background: var(--siep-surface);
   color: var(--siep-blue);
   border: 2px solid var(--siep-blue);
@@ -409,116 +280,19 @@ code, .psy-mono {
   cursor: pointer;
 }
 
-.psy-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
-
-.psy-public-nav {
-  position: fixed;
-  z-index: var(--psy-z-nav);
-  top: 16px;
-  left: 50%;
-  width: min(1160px, calc(100% - 32px));
-  min-height: 62px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 9px 12px 9px 18px;
-  border-radius: var(--psy-pill);
-}
-
-.psy-auth-card {
-  border-radius: var(--psy-radius-lg);
-  padding: clamp(24px, 4vw, 42px);
-}
-
-.psy-skeleton {
-  position: relative;
-  overflow: hidden;
-  min-height: 18px;
-  border-radius: var(--psy-radius-sm);
-  background: rgba(79, 124, 172, .1);
-}
-
-.psy-skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
-  animation: psy-shimmer 1.4s infinite;
-}
-
-.psy-reveal {
-  animation: psy-page-fade 150ms var(--psy-ease-out) backwards;
-}
-
 .mat-mdc-form-field {
   width: 100%;
 }
 
-@keyframes psy-page-fade {
-  from { opacity: 0; }
-}
-
-@keyframes psy-card-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes psy-liquid-sheen {
-  0%, 72% { transform: translateX(-120%); }
-  100% { transform: translateX(140%); }
-}
-
-@keyframes psy-shimmer {
-  100% { transform: translateX(100%); }
-}
-
-@keyframes psy-focus-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 124, 172, .28); }
-  50% { box-shadow: 0 0 0 8px rgba(79, 124, 172, 0); }
-}
-
-@media (max-width: 920px) {
-  .psy-grid--3,
-  .psy-grid--4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  from { transform: translateX(-120%); }
+  to { transform: translateX(140%); }
 }
 
 @media (max-width: 640px) {
   :root {
-    --psy-header-h: 66px;
     --psy-button-h: 44px;
   }
-
-  .psy-section {
-    padding: 52px 18px;
-  }
-
-  .psy-grid--3,
-  .psy-grid--4 {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ─── Fase 7: Accessibility utilities ──────────────────────────────────────── */
-
-/** Bloquea el scroll de la página cuando un modal SIEP está abierto. */
-html.siep-scroll-locked,
-body.siep-scroll-locked {
-  overflow: hidden !important;
-}
-
-body.siep-scroll-locked {
-  position: fixed;
-  width: 100%;
 }
 
 /** Screen-reader-only: visually hidden but announced by assistive tech. */
@@ -570,14 +344,6 @@ main[tabindex="-1"]:focus,
 #main-content:focus {
   outline: none;
   box-shadow: none;
-}
-
-/* El anillo de foco y el eyebrow del juego los da la piel (`.game-container[data-skin='game']`: --ds-focus,
-   --ds-primary), no reglas sobre <body> (REGLA-010, plan visual F6-1). */
-
-/** AA contrast fix: psy-muted is #687A86 on white bg = 4.03:1. Darkened to 4.5:1+. */
-.psy-aa-text {
-  color: #566975;
 }
 
 /**

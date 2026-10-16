@@ -320,7 +320,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
     .cursor {
       display: inline-block;
-      animation: blink .6s step-end infinite;
+      /* Finito: el cursor se oculta al terminar de escribir (.cursor--done); 30 ciclos (18 s) cubren cualquier línea. */
+      animation: blink .6s step-end 30;
       color: #B69CFF;
       margin-left: 1px;
     }

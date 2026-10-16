@@ -24,7 +24,13 @@ import { scaled } from './support/time-scale';
  * Salida: `a11y.json` y `a11y-resumen.md` en SIEP_UI_BASELINE_DIR (por defecto `.superpowers/baseline-ui/<fecha>`).
  */
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
-const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 390, height: 844 }] as const;
+const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 390, height: 844 }] as const;
+/**
+ * El juego se mide en escritorio y en teléfono, como hasta F8: su flujo (caminar hasta la persona de la familia) no está
+ * ajustado a la tableta vertical y agotaba el tiempo en `openFamilyDialogue`. F9-2 añadió 768 para ver las pantallas
+ * del portal a ese ancho, no el juego.
+ */
+const GAME_VIEWPORTS = VIEWPORTS.filter(viewport => viewport.width !== 768);
 const today = new Date().toISOString().slice(0, 10);
 const OUT_DIR = resolve(process.env['SIEP_UI_BASELINE_DIR'] ?? join(__dirname, '..', '..', '.superpowers', 'baseline-ui', today));
 
@@ -124,7 +130,7 @@ for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as const) {
   });
 }
 
-for (const viewport of VIEWPORTS) {
+for (const viewport of GAME_VIEWPORTS) {
   test(`@a11y-baseline juego · ${viewport.width}x${viewport.height}`, async ({ page }) => {
     test.setTimeout(scaled(6 * 60_000));
     const label = `${viewport.width}x${viewport.height}`;
