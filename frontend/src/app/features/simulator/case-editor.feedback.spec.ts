@@ -44,6 +44,8 @@ describe('editor de casos: feedback de acciones', () => {
       createMap: ok(), updateMap: ok(), deleteMap: ok(),
       createObject: ok(), updateObject: ok(), deleteObject: ok(),
       createTool: ok(), updateTool: ok(), deleteTool: ok(),
+      // El editor escucha los cambios del caso que avisa la API (F10-6: transiciones del ciclo de vida).
+      caseChanges: new Subject<number>() as unknown as Mock,
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     dialog = {
