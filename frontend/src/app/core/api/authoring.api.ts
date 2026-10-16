@@ -72,15 +72,6 @@ export class AuthoringApi {
       .pipe(map(response => response.data));
   }
 
-  publishCase(caseVersionId: number, revision?: number) {
-    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/publish`, {}, withRevision(revision))
-      .pipe(
-        map(response => response.data),
-        // Publicar agrega un caso a la lista de publicados: la lista guardada ya no sirve.
-        tap(() => this.caseList.invalidate()),
-      );
-  }
-
   cloneCaseVersion(caseVersionId: number) {
     return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/clone-version`, {})
       .pipe(map(response => response.data));

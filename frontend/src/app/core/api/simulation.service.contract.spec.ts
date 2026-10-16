@@ -99,7 +99,6 @@ const CONTRACTS: Contract[] = [
 
   // ── autoría ────────────────────────────────────────────────────────────────
   { method: 'caseEditor', call: s => s.caseEditor(9), verb: 'GET', url: `${A}/9/editor` },
-  { method: 'publishCase', call: s => s.publishCase(9), verb: 'POST', url: `${A}/9/publish`, body: {} },
   { method: 'cloneCaseVersion', call: s => s.cloneCaseVersion(9), verb: 'POST', url: `${A}/9/clone-version`, body: {} },
   { method: 'listAuthoringCases', call: s => s.listAuthoringCases(), verb: 'GET', url: A },
   { method: 'createCase', call: s => s.createCase({ title: 'T', code: 'C', description: null }), verb: 'POST', url: A,
@@ -288,13 +287,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(51);
+    expect(publicMethods).toHaveLength(50);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(51);
-    expect([player.length, authoring.length, instructor.length]).toEqual([19, 27, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
+    expect([player.length, authoring.length, instructor.length]).toEqual([19, 26, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

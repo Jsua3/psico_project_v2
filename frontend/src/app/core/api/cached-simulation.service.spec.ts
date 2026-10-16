@@ -157,17 +157,17 @@ describe('CachedSimulationService (proxy de caché)', () => {
       expect(pedir().peticiones).toBe(1);
     });
 
-    it('publicar un caso invalida la lista', () => {
+    it('aprobar un caso (publicarlo) invalida la lista', () => {
       pedir();
-      TestBed.inject(AuthoringApi).publishCase(5).subscribe();
-      http.expectOne('/api/authoring/cases/5/publish').flush({ data: {} });
+      TestBed.inject(AuthoringApi).transitionCase(5, { action: 'approve' }).subscribe();
+      http.expectOne('/api/authoring/cases/5/lifecycle').flush({ data: {} });
       expect(pedir([summary(1), summary(5)]).peticiones).toBe(1);
     });
 
-    it('si publicar falla, la lista guardada se conserva', () => {
+    it('si la transición falla, la lista guardada se conserva', () => {
       pedir();
-      TestBed.inject(AuthoringApi).publishCase(5).subscribe({ error: () => undefined });
-      http.expectOne('/api/authoring/cases/5/publish').flush({}, { status: 409, statusText: 'err' });
+      TestBed.inject(AuthoringApi).transitionCase(5, { action: 'approve' }).subscribe({ error: () => undefined });
+      http.expectOne('/api/authoring/cases/5/lifecycle').flush({}, { status: 409, statusText: 'err' });
       expect(pedir().peticiones).toBe(0);
     });
 
