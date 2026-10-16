@@ -6,7 +6,6 @@ import {
   KIT_ICON_OFFSET_Y,
   KIT_LABEL_OFFSET_Y,
   extrasCharacterRef,
-  guideCharacterRef,
   markerEmphasis,
   npcCharacterRef,
   personCharacterRef,
@@ -54,9 +53,7 @@ describe('world-characters.util — NPC, personas, guía y figurantes', () => {
     expect(personCharacterRef(bundle, object)).toEqual(expected);
   });
 
-  it('el guía usa la receta de su rol; uno sin receta, el figurante', () => {
-    expect(guideCharacterRef(bundle, 'Colega de psicología')).toEqual(recipe('psicologa-hospitalaria'));
-    expect(guideCharacterRef(bundle, 'Guía sin receta')).toEqual(recipe('paciente-espera'));
+  it('los figurantes usan la receta de respaldo del catálogo', () => {
     expect(extrasCharacterRef(bundle)).toEqual(recipe('paciente-espera'));
   });
 });

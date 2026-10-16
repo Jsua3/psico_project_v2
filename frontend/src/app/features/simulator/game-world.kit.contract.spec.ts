@@ -50,10 +50,9 @@ describe('game-world: NPC, personas, guía y figurantes del kit; nada los deform
     expect(body('private buildDoorSprite(')).toContain('.setFlipX(');
   });
 
-  it('NPC, personas, guía y figurantes se resuelven con el punto único', () => {
+  it('NPC, personas y figurantes se resuelven con el punto único', () => {
     expect(source).toContain('this.actorVisual(npcCharacterRef(npc))');
     expect(source).toContain('personCharacterRef(this.callbacks.kit, object)');
-    expect(source).toContain('guideCharacterRef(kit, entry.guideName)');
     expect(source).toContain('extrasCharacterRef(kit)');
   });
 

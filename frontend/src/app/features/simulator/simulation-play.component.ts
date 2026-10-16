@@ -56,7 +56,6 @@ import {
   getSceneInteractionDescription,
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
-import { getSceneGuide } from './scene-guide.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
@@ -374,7 +373,7 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (world(); as w) {
               <app-game-world #gameWorld id="game-area" class="game-surface" [world]="w"
                 [scenarioConfig]="scenarioConfig()"
-                [guide]="sceneGuide()" [viewedNpcKeys]="viewedNpcKeys()" [shortcuts]="shortcuts.enabled()"
+                [viewedNpcKeys]="viewedNpcKeys()" [shortcuts]="shortcuts.enabled()"
                 [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
@@ -1413,12 +1412,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly stageLabel = computed<string | null>(() => {
     const key = this.attempt()?.currentNode.key;
     return getDecisionCounter(key) ?? this.fallbackStageLabel();
-  });
-  readonly sceneGuide = computed(() => {
-    const guide = getSceneGuide(this.attempt()?.currentNode.key);
-    const world = this.world();
-    if (!guide || !world?.objects.some(object => object.key === guide.targetKey)) return null;
-    return guide;
   });
 
   /**

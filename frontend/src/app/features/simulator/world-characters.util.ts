@@ -1,6 +1,6 @@
 /**
  * Quién es cada personaje del mundo (spec §8.2): el jugador, los NPC de escenario,
- * las personas del caso, el guía y los figurantes, como CharacterRef del kit.
+ * las personas del caso y los figurantes, como CharacterRef del kit.
  * Lógica pura; game-world solo dibuja lo que esto resuelve.
  */
 import { authoredAvatarV2, parseStoredAvatar } from '../character/kit/avatar-v2';
@@ -51,11 +51,6 @@ export function markerEmphasis(
 /** Figurantes de los mapas legados y respaldo de todo actor sin receta (spec §7.2). */
 export function extrasCharacterRef(bundle: KitBundle): CharacterRef {
   return { kind: 'receta', recipeId: bundle.catalog.extras };
-}
-
-/** El guía usa la receta de su rol según `guideName` (spec §7.2). */
-export function guideCharacterRef(bundle: KitBundle, guideName: string): CharacterRef {
-  return { kind: 'receta', recipeId: resolveRecipeId(bundle, { guide: guideName }) ?? bundle.catalog.extras };
 }
 
 /**
