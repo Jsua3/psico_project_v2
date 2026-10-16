@@ -10,7 +10,6 @@ import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
-import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
@@ -1218,7 +1217,6 @@ const CASE_INTRO_PARAGRAPHS = [
 })
 export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
-  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);

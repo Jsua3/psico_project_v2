@@ -89,7 +89,7 @@ import {
 } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
 import {
-  KIT_HINT_OFFSET_Y, KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
+  KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
   extrasCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
 import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
