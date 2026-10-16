@@ -34,6 +34,7 @@ import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
+import { CaseReviewPanelComponent, ValidationTarget } from './case-review-panel.component';
 import { mapThemeLabel, nodeOptionLabel, statusTone } from './case-editor.options';
 import { DagEditorComponent } from './dag-editor.component';
 import { describeEditorChanges } from './editor-changes.util';
@@ -59,7 +60,7 @@ type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
     ReactiveFormsModule, RouterLink,
     UiBadge, UiButton, UiCard, UiIconButton, UiPageActions, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiTab, UiTabs,
     UiEmptyState, UiErrorState,
-    DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
+    CaseReviewPanelComponent, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
   ],
   templateUrl: './case-editor.component.html',
   styleUrl: './case-editor.component.scss',
@@ -565,6 +566,24 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
 
   goToRubrics(): void {
     void this.router.navigate(['/portal/rubricas']);
+  }
+
+  /**
+   * Un hallazgo de la validación (F10-6†): el de un mapa lleva al editor de mundo de su sala (ahí se ven el punto de
+   * aparición, los objetos y las zonas); el de una escena abre la hoja de edición del nodo.
+   */
+  openReviewIssue(target: ValidationTarget): void {
+    const view = this.editor();
+    if (!view) return;
+    if (target.mapId !== undefined) {
+      const map = view.maps.find(item => item.id === target.mapId);
+      if (!map) return;
+      this.selectedWorldNodeId.set(map.nodeId);
+      this.tab.set('mundo');
+      return;
+    }
+    const node = view.nodes.find(item => item.id === target.nodeId);
+    if (node) this.openPanel({ kind: 'node-edit', node });
   }
 
   nodeIcon(node: NodeEditorState): string {

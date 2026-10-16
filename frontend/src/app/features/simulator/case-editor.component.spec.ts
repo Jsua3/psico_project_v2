@@ -109,6 +109,9 @@ describe('editor de casos (F8-1)', () => {
       updateChecklist: vi.fn(() => of(editorView({ revision: 4 }))),
       publishCase: vi.fn(() => of(editorView({ revision: 4, status: 'PUBLISHED' }))),
       cloneCaseVersion: vi.fn(() => of(editorView({ revision: 1 }))),
+      lifecycle: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'DRAFT', allowedTransitions: ['submit', 'archive'] })),
+      validateCase: vi.fn(() => of({ issues: [], canPublish: true })),
+      transitionCase: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] })),
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     dialog = {
@@ -141,13 +144,13 @@ describe('editor de casos (F8-1)', () => {
 
   // req: RNF-04, BLOQUE-H
   describe('estructura y estados', () => {
-    it('un solo h1 con el título del caso, la región de estado siempre presente y las ocho pestañas', async () => {
+    it('un solo h1 con el título del caso, la región de estado siempre presente y las nueve pestañas', async () => {
       await render();
       expect(host().querySelectorAll('h1')).toHaveLength(1);
       expect(text(host().querySelector('h1'))).toBe('Caso de duelo');
       expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
       expect([...host().querySelectorAll('[role="tab"]')].map(text)).toEqual([
-        'Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Mundo', 'Vista previa',
+        'Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión', 'Mundo', 'Vista previa',
       ]);
     });
 
@@ -376,6 +379,73 @@ describe('editor de casos (F8-1)', () => {
     });
   });
 
+  // req: RF-12, RF-13, CU-05
+  describe('revisión del caso (F10-6)', () => {
+    const hasButtonWith = (fragment: string) => [...host().querySelectorAll('button')].some(button => text(button).includes(fragment));
+
+    it('la pestaña «Revisión» muestra el estado de la versión y lo que el servidor permite hacer', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
+
+      expect(api['lifecycle']).toHaveBeenCalledWith(CASE_ID);
+      expect(api['validateCase']).toHaveBeenCalledWith(CASE_ID);
+      expect(host().querySelector('app-case-review-panel')).not.toBeNull();
+      expect(buttonLabelled('Enviar a revisión')).toBeDefined();
+    });
+
+    it('enviar a revisión desde la pestaña manda la revisión del editor y recarga el editor', async () => {
+      await render();
+      tab('Revisión')!.click();
+      await settle();
+
+      buttonLabelled('Enviar a revisión')!.click();
+      await settle();
+
+      expect(api['transitionCase']).toHaveBeenCalledWith(CASE_ID, { action: 'submit' }, 3);
+      expect(api['caseEditor']).toHaveBeenCalledTimes(2);
+    });
+
+    it('un hallazgo de una escena abre la hoja de edición de ese nodo', async () => {
+      await render();
+      component().openReviewIssue({ nodeId: 1 });
+
+      expect(dialog.sheet).toHaveBeenCalledWith(CaseEditorSheetComponent, expect.objectContaining({ side: 'end' }));
+      expect(component().panel()).toMatchObject({ kind: 'node-edit', node: expect.objectContaining({ id: 1 }) });
+    });
+
+    it('un hallazgo de un mapa lleva al editor de mundo de su sala', async () => {
+      await render();
+      component().openReviewIssue({ nodeId: 1, mapId: 11 });
+
+      expect(component().selectedWorldNodeId()).toBe(1);
+      expect(component().tab()).toBe('mundo');
+    });
+
+    it('un hallazgo de algo que ya no existe no hace nada', async () => {
+      await render();
+      component().openReviewIssue({ mapId: 999 });
+      component().openReviewIssue({ nodeId: 999 });
+
+      expect(dialog.sheet).not.toHaveBeenCalled();
+      expect(component().selectedWorldNodeId()).toBeNull();
+    });
+
+    it('en una versión que no es borrador los hallazgos se leen pero no ofrecen ir a la escena', async () => {
+      await render({ view: editorView({ status: 'IN_REVIEW' }) });
+      api['validateCase'].mockReturnValue(of({
+        canPublish: false,
+        issues: [{ code: 'WORLD.NODE_WITHOUT_MAP', severity: 'error', message: 'La escena «Inicio del caso» no tiene mapa.', nodeId: 1 }],
+      }));
+      api['lifecycle'].mockReturnValue(of({ caseVersionId: CASE_ID, state: 'IN_REVIEW', allowedTransitions: [] }));
+      tab('Revisión')!.click();
+      await settle();
+
+      expect(text(host())).toContain('La escena «Inicio del caso» no tiene mapa.');
+      expect(hasButtonWith('Ir a la escena')).toBe(false);
+    });
+  });
+
   // req: RNF-08, REGLA-005
   describe('clonar la versión', () => {
     it('abre la copia: la pantalla y la URL pasan a la versión nueva, sin dejar el mundo del nodo anterior', async () => {
@@ -398,7 +468,7 @@ describe('editor de casos (F8-1)', () => {
   describe('accesibilidad de los botones', () => {
     it('todo botón del editor tiene nombre accesible, en cada pestaña de datos', async () => {
       await render();
-      for (const name of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético']) {
+      for (const name of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión']) {
         tab(name)!.click();
         await settle();
       }

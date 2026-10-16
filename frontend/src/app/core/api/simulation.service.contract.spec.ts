@@ -125,6 +125,11 @@ const CONTRACTS: Contract[] = [
   { method: 'saveWorld', call: s => s.saveWorld(9, body('mundo')), verb: 'PUT', url: `${A}/9/world`, body: body('mundo') },
   { method: 'validateWorld', call: s => s.validateWorld(9), verb: 'POST', url: `${A}/9/world/validate`, body: {} },
   { method: 'worldPreview', call: s => s.worldPreview(9), verb: 'GET', url: `${A}/9/world-preview` },
+
+  // ── revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ───────────────────────────────────────────
+  { method: 'validateCase', call: s => s.validateCase(9), verb: 'POST', url: `${A}/9/validate`, body: {} },
+  { method: 'lifecycle', call: s => s.lifecycle(9), verb: 'GET', url: `${A}/9/lifecycle` },
+  { method: 'transitionCase', call: s => s.transitionCase(9, { action: 'submit' }), verb: 'POST', url: `${A}/9/lifecycle`, body: { action: 'submit' } },
 ];
 
 describe('SimulationService contrato HTTP', () => {
@@ -283,13 +288,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(48);
+    expect(publicMethods).toHaveLength(51);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(48);
-    expect([player.length, authoring.length, instructor.length]).toEqual([19, 24, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(51);
+    expect([player.length, authoring.length, instructor.length]).toEqual([19, 27, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

@@ -252,6 +252,12 @@
           </ui-section>
         </ng-template>
 
+        <!-- ── Revisión (estado del caso y qué falta para publicar; F10-6) ─────────── -->
+        <ng-template uiTab="revision" label="Revisión">
+          <app-case-review-panel [caseVersionId]="model.caseVersionId" [revision]="model.revision"
+            [editable]="!lockReason()" (changed)="load()" (issueOpen)="openReviewIssue($event)" />
+        </ng-template>
+
         <!-- ── Mundo (editor visual Konva) ───────────────────────────────────────── -->
         <ng-template uiTab="mundo" label="Mundo">
           <ui-section class="ce-section" title="Editor de mundo">

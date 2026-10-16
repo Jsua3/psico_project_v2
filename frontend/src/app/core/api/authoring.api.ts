@@ -3,6 +3,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { map, tap } from 'rxjs/operators';
 import {
   CaseEditorView,
+  CaseLifecycle,
+  CaseTransitionRequest,
+  CaseValidation,
   ChecklistUpdateRequest,
   DecisionOptionUpsertRequest,
   MapObjectUpsertRequest,
@@ -188,6 +191,28 @@ export class AuthoringApi {
     return this.http.post<ApiResponse<WorldValidationState>>(
       `${this.API}/${caseVersionId}/world/validate`, {})
       .pipe(map(r => r.data));
+  }
+
+  /** C6: la validación del caso con hallazgos en lenguaje llano y a qué escena o mapa llevar al autor. */
+  validateCase(caseVersionId: number) {
+    return this.http.post<ApiResponse<CaseValidation>>(`${this.API}/${caseVersionId}/validate`, {})
+      .pipe(map(response => response.data));
+  }
+
+  /** C4: el estado de la versión, las transiciones que quien llama puede hacer y la última revisión. */
+  lifecycle(caseVersionId: number) {
+    return this.http.get<ApiResponse<CaseLifecycle>>(`${this.API}/${caseVersionId}/lifecycle`)
+      .pipe(map(response => response.data));
+  }
+
+  /** C4: enviar a revisión, aprobar, devolver o archivar; devuelve el ciclo resultante (el de la copia si es clonar). */
+  transitionCase(caseVersionId: number, request: CaseTransitionRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseLifecycle>>(`${this.API}/${caseVersionId}/lifecycle`, request, withRevision(revision))
+      .pipe(
+        map(response => response.data),
+        // Aprobar o archivar cambia qué casos ven los estudiantes: la lista guardada ya no sirve.
+        tap(() => this.caseList.invalidate()),
+      );
   }
 
   /** Preview efimero del mundo DRAFT (sin crear attempt). */

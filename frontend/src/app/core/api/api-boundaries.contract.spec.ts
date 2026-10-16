@@ -24,6 +24,7 @@ describe('fronteras de las APIs por rol', () => {
     expect(injecting('AuthoringApi')).toEqual([
       'features/simulator/case-authoring-hub.component.ts',
       'features/simulator/case-editor.component.ts',
+      'features/simulator/case-review-panel.component.ts',
       'features/simulator/world-editor/world-editor.store.ts',
       'features/simulator/world-preview.component.ts',
     ]);
@@ -39,6 +40,7 @@ describe('fronteras de las APIs por rol', () => {
   it.each([
     'features/simulator/case-authoring-hub.component.ts',
     'features/simulator/case-editor.component.ts',
+    'features/simulator/case-review-panel.component.ts',
     'features/simulator/world-editor/world-editor.store.ts',
     'features/simulator/world-preview.component.ts',
     'features/simulator/instructor-trace.component.ts',
