@@ -179,8 +179,9 @@ code {
   transform: skewX(-16deg);
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.24), transparent);
   pointer-events: none;
-  /* Un solo barrido al aparecer (F9-1: sin bucles infinitos decorativos). */
-  animation: psy-liquid-sheen 2.4s var(--psy-ease-out) 1 both;
+  /* Un solo barrido al aparecer (F9-1: sin bucles infinitos decorativos). Sin `fill-mode`: al terminar vuelve a su sitio
+     fuera del panel; con `both` se quedaba en el 2–46 % del panel como un velo fijo. */
+  animation: psy-liquid-sheen 2.4s var(--psy-ease-out) 1;
 }
 
 .psy-liquid-ripple {

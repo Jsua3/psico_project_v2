@@ -51,10 +51,19 @@ export function perfEnd(name: string): number | null {
   }
 }
 
-/** Mide desde ahora hasta el SEGUNDO fotograma: el primero aún pinta lo de antes del cambio de estado. */
-export function perfNextPaint(name: string): void {
-  perfStart(name);
-  if (typeof requestAnimationFrame !== 'function') return;
+/** Descarta una medida empezada que ya no va a terminar (la interacción o la decisión no llegó a mostrar nada). */
+export function perfCancel(name: string): void {
+  starts.delete(name);
+}
+
+/**
+ * Termina la medida en el SEGUNDO fotograma desde ahora: se llama cuando la respuesta ya está puesta en la pantalla
+ * (la señal que la muestra ya cambió) y el primer fotograma aún pinta lo de antes. La duración cuenta desde el
+ * `perfStart`, así que incluye lo que tardó la red. Sin un `perfStart` previo no mide nada: un diálogo que no nació de
+ * una interacción no cuenta.
+ */
+export function perfEndNextPaint(name: string): void {
+  if (!starts.has(name) || typeof requestAnimationFrame !== 'function') return;
   requestAnimationFrame(() => requestAnimationFrame(() => { perfEnd(name); }));
 }
 

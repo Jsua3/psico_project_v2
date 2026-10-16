@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PERF_MAX_SAMPLES, percentile, perfEnd, perfNextPaint, perfReset, perfStart, perfSummary } from './perf-marks';
+import { PERF_MAX_SAMPLES, percentile, perfCancel, perfEnd, perfEndNextPaint, perfReset, perfStart, perfSummary } from './perf-marks';
 
 /**
  * Instrumentación del cliente para RNF-05 (plan visual F9-3): cuánto pasa de «decisión elegida» a «escena visible» y de
@@ -10,6 +10,11 @@ describe('perf-marks', () => {
   beforeEach(() => {
     perfReset();
     vi.restoreAllMocks();
+  });
+
+  // Un aserto fallido no puede dejar el fotograma simulado puesto para las demás pruebas.
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   // req: RNF-05, RNF-005
@@ -74,21 +79,40 @@ describe('perf-marks', () => {
     expect(perfSummary()['decision-to-scene']).toBeUndefined();
   });
 
-  it('perfNextPaint mide hasta el segundo fotograma (el primero aún es el de antes del cambio)', () => {
+  it('perfEndNextPaint termina en el segundo fotograma DESPUÉS de llamarla, contando desde el perfStart (la respuesta ya estaba puesta)', () => {
     const frames: Array<() => void> = [];
     vi.stubGlobal('requestAnimationFrame', (callback: () => void) => frames.push(callback));
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
 
-    perfNextPaint('interaction-to-response');
-    now = 16;
-    frames.shift()!();
+    perfStart('interaction-to-response');   // el clic
+    now = 250;                               // la respuesta llegó por la red y se puso en pantalla
+    perfEndNextPaint('interaction-to-response');
+    now = 266;
+    frames.shift()!();                       // el primer fotograma aún pinta lo de antes
     expect(perfSummary()['interaction-to-response']).toBeUndefined();
-    now = 33;
+    now = 283;
     frames.shift()!();
 
-    expect(perfSummary()['interaction-to-response']).toEqual({ count: 1, p50: 33, p95: 33 });
-    vi.unstubAllGlobals();
+    expect(perfSummary()['interaction-to-response']).toEqual({ count: 1, p50: 283, p95: 283 });
+  });
+
+  it('perfEndNextPaint sin perfStart no mide nada (el diálogo que no nació de una interacción no cuenta)', () => {
+    const frames: Array<() => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => frames.push(callback));
+
+    perfEndNextPaint('interaction-to-response');
+
+    expect(frames).toHaveLength(0);
+    expect(perfSummary()['interaction-to-response']).toBeUndefined();
+  });
+
+  it('perfCancel descarta una medida empezada que ya no va a terminar', () => {
+    perfStart('decision-to-scene');
+    perfCancel('decision-to-scene');
+
+    expect(perfEnd('decision-to-scene')).toBeNull();
+    expect(perfSummary()['decision-to-scene']).toBeUndefined();
   });
 
   it('si el navegador no tiene performance.now, medir no rompe nada', () => {

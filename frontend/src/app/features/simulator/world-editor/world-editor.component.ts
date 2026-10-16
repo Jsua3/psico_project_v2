@@ -593,6 +593,9 @@ const OBJECT_COLORS: Record<string, string> = {
       border: 1px solid var(--ds-border);
       box-shadow: var(--ds-shadow-e1);
     }
+    /* Los botones de vidrio del editor (Validar, Agregar diálogo, Editar ruta…) van sobre superficies sólidas: su
+       desenfoque no tenía nada que difuminar y cada uno costaba una capa del presupuesto con canvas (F9-3). */
+    .we-root .psy-button--glass { backdrop-filter: none; }
 
     /* Toolbar */
     .we-toolbar {
@@ -615,7 +618,7 @@ const OBJECT_COLORS: Record<string, string> = {
       background: transparent;
       color: var(--psy-muted);
       cursor: pointer;
-      transition: background-color var(--psy-motion-fast), color var(--psy-motion-fast);
+      transition: background-color var(--psy-motion-fast), border-color var(--psy-motion-fast), color var(--psy-motion-fast);
     }
     .we-tool-btn:hover { background: rgba(79,124,172,.08); color: var(--psy-blue-deep); }
     .we-tool-btn.active {
@@ -728,7 +731,7 @@ const OBJECT_COLORS: Record<string, string> = {
       align-items: center;
       padding: 2px 10px;
       border-radius: 999px;
-      font-size: .72rem;
+      font-size: .75rem;
       font-weight: 800;
     }
     .we-badge--dirty { background: rgba(198,168,80,.16); color: #7a6320; }
@@ -920,7 +923,7 @@ const OBJECT_COLORS: Record<string, string> = {
     .we-movement { display: grid; gap: 8px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--psy-border); }
     .we-movement h4 { margin: 0; font-size: 1.05rem; color: var(--psy-ink); }
     .we-wp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; }
-    .we-wp-idx { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(122,111,158,.16); color: #5b5180; font-weight: 800; font-size: .72rem; }
+    .we-wp-idx { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(122,111,158,.16); color: #5b5180; font-weight: 800; font-size: .75rem; }
     .we-wp-xy { font-family: 'JetBrains Mono', monospace; font-size: .76rem; color: var(--psy-muted); }
     .we-movement select, .we-movement input { padding: 5px 8px; border: 1px solid rgba(79,124,172,.18); border-radius: 8px; background: rgba(255,255,255,.8); font: inherit; font-size: .82rem; }
     .we-room { display: grid; gap: 8px; padding: 0 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--psy-border); }

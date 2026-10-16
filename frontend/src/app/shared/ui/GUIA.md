@@ -109,7 +109,7 @@ Criterio: nada anima sin función; cero `ease-in`, cero `transition: all`, cero 
 
 | Dónde | Antes | Ahora | Por qué |
 |---|---|---|---|
-| Paneles de vidrio del juego y de la Vista previa (`.psy-game-panel`, `.psy-dialogue-glass`) | un brillo cruzaba el panel cada 8 s, sin parar | un solo barrido de 2,4 s al aparecer | un bucle decorativo infinito distrae y gasta GPU sin informar nada |
+| Paneles de vidrio del juego y de la Vista previa (`.psy-game-panel`; `.psy-dialogue-glass`, que tenía lo mismo, se retiró en F9-4) | un brillo cruzaba el panel cada 8 s, sin parar | un solo barrido de 2,4 s al aparecer | un bucle decorativo infinito distrae y gasta GPU sin informar nada |
 | Cursor del diálogo del juego | parpadeo infinito | 30 ciclos (18 s) y se oculta al terminar de escribir (`.cursor--done`) | ningún bucle debe sobrevivir a su función |
 | Botones de herramientas del editor de mundo | `transition: all` | solo `background-color` y `color` | `all` anima propiedades que no se querían (ancho, borde) y se contagia de cambios futuros |
 | Ondulación `.psy-liquid-ripple` | nacía en `scale(0)` | nace en `scale(.2)` (con opacidad 0) | nada aparece de la nada (§2.7) |
