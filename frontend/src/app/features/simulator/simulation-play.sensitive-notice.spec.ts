@@ -13,7 +13,7 @@ vi.mock('phaser', () => ({
 
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, of } from 'rxjs';
+import { of } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -38,7 +38,7 @@ describe('SimulationPlayComponent: aviso del nodo sensible', () => {
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
       providers: [
-        { provide: SimulationService, useValue: { getActiveAttempt: vi.fn(() => of(null)), getInterventionRules: vi.fn(() => EMPTY) } },
+        { provide: SimulationService, useValue: { getActiveAttempt: vi.fn(() => of(null)) } },
         { provide: AudioDirectorService, useValue: { init: vi.fn(), dispose: vi.fn(), stopIntroLament: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false) } },
         { provide: AuthService, useValue: {} },
         { provide: Router, useValue: { navigate: vi.fn() } },

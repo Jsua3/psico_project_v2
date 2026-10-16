@@ -164,8 +164,9 @@ for (const viewport of [
 
     test('un aviso de conexión queda arriba a la izquierda y no tapa «Salida segura», «Interactuar» ni la cruceta', async ({ page }) => {
       test.setTimeout(scaled(180_000));
-      // El archivo estático de reglas falla: el interceptor HTTP emite el aviso de conexión (un error, que no se va solo).
-      await page.route('**/intervention-rules.json', route => route.abort('failed'));
+      // El archivo estático de la sala falla (la escena cae a su dibujo de respaldo): el interceptor HTTP emite el aviso
+      // de conexión (un error, que no se va solo).
+      await page.route('**/assets/game/scenarios/*.json', route => route.abort('failed'));
       await openLobby(page);
       await reachWorld(page);
 

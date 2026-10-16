@@ -60,7 +60,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     sessionStorage.clear();
     sim = {
-      getInterventionRules: vi.fn(() => EMPTY),
       getActiveAttempt: vi.fn(() => EMPTY),
       safeExit: vi.fn(() => EMPTY),
       updateWorldState: vi.fn(() => EMPTY),

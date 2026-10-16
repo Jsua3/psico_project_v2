@@ -13,13 +13,11 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
-  DialogueState, InteractionResult, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
+  DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
-import {
-  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
-} from './patient-state.util';
+import { PATIENT_INITIAL_STATE } from './patient-state.util';
 import {
   choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
 } from './evidence-gating.config';
@@ -1354,7 +1352,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
   readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
-  private interventionRules: InterventionRuleSet = DEFAULT_INTERVENTION_RULES;
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
@@ -1595,10 +1592,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const stopCoarse = watchMedia(COARSE_POINTER_QUERY, matches => this.coarsePointer.set(matches));
     const stopNarrow = watchMedia(NARROW_QUERY, matches => this.narrowScreen.set(matches));
     this.stopCompactWatch = () => { stopCompact(); stopCoarse(); stopNarrow(); };
-    this.simulationService.getInterventionRules().subscribe({
-      next: raw => { this.interventionRules = parseInterventionRules(raw); },
-      error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
-    });
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) { this.fail('Caso no encontrado.', null, null); return; }
 

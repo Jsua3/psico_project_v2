@@ -74,7 +74,6 @@ const storedConsent: ConsentRecorder = {
 describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => {
   let component: SimulationPlayComponent;
   let sim: {
-    getInterventionRules: Mock;
     getActiveAttempt: Mock;
     startAttempt: Mock;
     getProgressMap: Mock;
@@ -102,7 +101,6 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   function setup(activeAttempt: SimulationAttemptState | null) {
     sessionStorage.clear();
     sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => of(activeAttempt)),
       startAttempt: vi.fn(() => of(makeAttempt())),
       getProgressMap: vi.fn(() => EMPTY),

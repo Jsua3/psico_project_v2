@@ -70,11 +70,6 @@ export class SimulationService {
     return this.http.get<ScenarioConfig>(`/assets/game/scenarios/${assetKey}.json`);
   }
 
-  /** Reglas de reacción del paciente (asset frontend versionado, Fase 8). */
-  getInterventionRules() {
-    return this.http.get<unknown>('/assets/game/scenarios/intervention-rules.json');
-  }
-
   /** Fase 5: walk-through spatial door — load the target room (non-scored).
    *  doorKey es obligatorio; el backend deriva la entrada desde sus metadatos. */
   enterRoom(attemptId: string, attemptToken: string, targetNodeKey: string, doorKey: string) {

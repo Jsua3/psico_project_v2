@@ -864,23 +864,6 @@ export interface PatientState {
   crisisLevel: number;
 }
 
-export interface PatientStateDelta {
-  emotionalState?: number;
-  trustLevel?: number;
-  openness?: number;
-  crisisLevel?: number;
-}
-
-/** Patient deltas keyed by decision classification. `prohibited` overrides classification. */
-export interface InterventionRuleSet {
-  byClassification: {
-    ADEQUATE:   PatientStateDelta;
-    RISKY:      PatientStateDelta;
-    INADEQUATE: PatientStateDelta;
-  };
-  prohibited: PatientStateDelta;
-}
-
 // ─── Revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ─────────────────────────────────────────
 
 /** Estado de una versión del caso (REGLA-005: lo publicado no se edita, se clona). */

@@ -13,7 +13,7 @@ vi.mock('phaser', () => ({
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, throwError } from 'rxjs';
+import { EMPTY } from 'rxjs';
 
 import { LIVE_WRITE_DELAY_MS, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -64,7 +64,6 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     sessionStorage.clear();
     const sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => EMPTY),
       getProgressMap: vi.fn(() => EMPTY),
       getWorld: vi.fn(() => EMPTY),

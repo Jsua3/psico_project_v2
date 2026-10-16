@@ -78,7 +78,6 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     sessionStorage.clear();
     localStorage.clear();
     sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => of(null)),
       startAttempt: vi.fn(() => of(makeAttempt())),
       getProgressMap: vi.fn(() => EMPTY),

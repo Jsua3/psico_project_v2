@@ -245,15 +245,6 @@ describe('SimulationService contrato HTTP', () => {
       req.flush({ id: 'esc' });
       expect(result).toEqual({ id: 'esc' });
     });
-
-    it('getInterventionRules lee las reglas de intervención', () => {
-      let result: unknown;
-      service.getInterventionRules().subscribe(r => (result = r));
-      const req = httpMock.expectOne('/assets/game/scenarios/intervention-rules.json');
-      expect(req.request.method).toBe('GET');
-      req.flush({ rules: [] });
-      expect(result).toEqual({ rules: [] });
-    });
   });
 
   describe('editor de mundo con nodeId', () => {
@@ -282,18 +273,18 @@ describe('SimulationService contrato HTTP', () => {
     const publicMethods = ROLE_CLASSES.flatMap(publicMethodsOf);
     const documented = new Set([
       ...CONTRACTS.map(c => c.method),
-      'getActiveAttempt', 'studentReport', 'getScenarioConfig', 'getInterventionRules',
+      'getActiveAttempt', 'studentReport', 'getScenarioConfig',
     ]);
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(50);
+    expect(publicMethods).toHaveLength(49);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
-    expect([player.length, authoring.length, instructor.length]).toEqual([19, 26, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(49);
+    expect([player.length, authoring.length, instructor.length]).toEqual([18, 26, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

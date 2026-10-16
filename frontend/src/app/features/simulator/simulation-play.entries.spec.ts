@@ -13,7 +13,7 @@ vi.mock('phaser', () => ({
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, throwError } from 'rxjs';
+import { EMPTY } from 'rxjs';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -133,7 +133,6 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
     record = vi.fn(() => { const next = deferred<void>(); recordings.push(next); return next; });
     consequence = vi.fn(() => { const next = deferred<'continue' | 'proceed'>(); consequences.push(next); return next; });
     const sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => EMPTY),
       getProgressMap: vi.fn(() => EMPTY),
       getWorld: vi.fn(() => EMPTY),
