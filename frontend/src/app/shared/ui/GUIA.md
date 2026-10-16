@@ -102,3 +102,16 @@ Por pantalla, antes de darla por hecha:
 - [ ] sin errores en la consola;
 - [ ] Axe WCAG 2.2 AA sin hallazgos serios ni críticos en su piel;
 - [ ] en la galería, si se creó o cambió una pieza de `shared/ui`.
+
+## Auditoría de movimiento (F9-1)
+
+Criterio: nada anima sin función; cero `ease-in`, cero `transition: all`, cero `scale(0)` y ningún bucle infinito que no sea un **indicador de carga** (esqueleto, spinner, barra de progreso, pantalla de arranque). Se mide en dos sitios: `npm run ui:lint` (métricas `transitionAll`, `easeIn`, `scale0` e `infiniteAnimation`, con trinquete) y el e2e `@motion-audit` (`e2e/motion-audit.e2e.ts`: en cada pantalla del recorrido y en cada pestaña del editor de casos, ya asentada, busca bucles infinitos y `transition: all` en lo que el navegador realmente pinta; rojo visto contra el CSS anterior).
+
+| Dónde | Antes | Ahora | Por qué |
+|---|---|---|---|
+| Paneles de vidrio del juego y de la Vista previa (`.psy-game-panel`, `.psy-dialogue-glass`) | un brillo cruzaba el panel cada 8 s, sin parar | un solo barrido de 2,4 s al aparecer | un bucle decorativo infinito distrae y gasta GPU sin informar nada |
+| Cursor del diálogo del juego | parpadeo infinito | 30 ciclos (18 s) y se oculta al terminar de escribir (`.cursor--done`) | ningún bucle debe sobrevivir a su función |
+| Botones de herramientas del editor de mundo | `transition: all` | solo `background-color` y `color` | `all` anima propiedades que no se querían (ancho, borde) y se contagia de cambios futuros |
+| Ondulación `.psy-liquid-ripple` | nacía en `scale(0)` | nace en `scale(.2)` (con opacidad 0) | nada aparece de la nada (§2.7) |
+
+No se hizo la revisión «en cámara lenta y fotograma a fotograma» del plan: es una pasada humana con el navegador; queda pendiente.

@@ -6,9 +6,12 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export const METRICS = [
-  'colorLiterals', 'transitionAll', 'easeIn', 'scale0', 'hoverUnguarded', 'important', 'zIndexLiteral',
+  'colorLiterals', 'transitionAll', 'easeIn', 'scale0', 'infiniteAnimation', 'hoverUnguarded', 'important', 'zIndexLiteral',
   'fontSizeLiteral', 'backdropFilter', 'clickableNoActive', 'inlineStyleAttr', 'bodyGameMode', 'unaccentedCopy',
 ];
+
+/** Un bucle infinito solo es admisible como INDICADOR DE CARGA (esqueleto, spinner, barra de progreso): F9-1. */
+const LOADING_ANIMATION = /skeleton|shimmer|spinner|progress|boot/i;
 
 /** Carpetas donde un color literal ES un token (las crea F1). */
 const TOKEN_DIRS = ['src/styles/tokens/', 'src/styles/skins/'];
@@ -396,6 +399,9 @@ export function countMetrics({ css, templates, scripts }) {
       if (/^(transition|animation|transition-timing-function|animation-timing-function)$/.test(d.prop)
         && /(?<![\w-])ease-in(?![\w-])/.test(resolveVars(d.value))) add('easeIn', block.file, d.line, where);
       if (/scale(?:3d)?\(\s*0(?:\.0+)?\s*[,)]/.test(d.value) || (d.prop === 'scale' && /^0(\.0+)?(\s|$)/.test(d.value))) add('scale0', block.file, d.line, where);
+      if (d.prop === 'animation' && /(^|\s)infinite(?=\s|;|,|$)/.test(d.value) && !LOADING_ANIMATION.test(d.value)) add('infiniteAnimation', block.file, d.line, where);
+      if (d.prop === 'animation-iteration-count' && /(^|\s)infinite(?=\s|;|,|$)/.test(d.value)
+        && !decls.some(other => other.prop === 'animation-name' && LOADING_ANIMATION.test(other.value))) add('infiniteAnimation', block.file, d.line, where);
       if (/!\s*important/.test(d.value)) add('important', block.file, d.line, where);
       if (d.prop === 'z-index' && !/var\(/.test(d.value) && /^-?\d+/.test(d.value) && Number.parseInt(d.value, 10) !== 0) add('zIndexLiteral', block.file, d.line, where);
       if (d.prop === 'font-size' && !/var\(/.test(d.value) && !/^(inherit|initial|unset|100%|1em)(\s*!important)?$/.test(d.value)) add('fontSizeLiteral', block.file, d.line, where);

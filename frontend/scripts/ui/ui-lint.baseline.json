@@ -1,11 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15",
+  "generatedAt": "2026-10-16",
   "counts": {
     "colorLiterals": 509,
-    "transitionAll": 1,
+    "transitionAll": 0,
     "easeIn": 0,
-    "scale0": 1,
+    "scale0": 0,
+    "infiniteAnimation": 0,
     "hoverUnguarded": 4,
     "important": 26,
     "zIndexLiteral": 30,

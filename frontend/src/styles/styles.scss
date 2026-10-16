@@ -183,7 +183,8 @@ code, .psy-mono {
   transform: skewX(-16deg);
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.24), transparent);
   pointer-events: none;
-  animation: psy-liquid-sheen 8s ease-in-out infinite;
+  /* Un solo barrido al aparecer (F9-1: sin bucles infinitos decorativos). */
+  animation: psy-liquid-sheen 2.4s var(--psy-ease-out) 1 both;
 }
 
 .psy-liquid-ripple {
@@ -198,7 +199,7 @@ code, .psy-mono {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  transform: translate(-50%, -50%) scale(0);
+  transform: translate(-50%, -50%) scale(.2);
   background: rgba(79, 163, 165, .18);
   opacity: 0;
   pointer-events: none;
@@ -472,8 +473,8 @@ code, .psy-mono {
 }
 
 @keyframes psy-liquid-sheen {
-  0%, 72% { transform: translateX(-120%); }
-  100% { transform: translateX(140%); }
+  from { transform: translateX(-120%); }
+  to { transform: translateX(140%); }
 }
 
 @keyframes psy-shimmer {

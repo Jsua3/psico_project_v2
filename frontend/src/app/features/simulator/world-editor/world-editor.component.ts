@@ -607,7 +607,7 @@ const OBJECT_COLORS: Record<string, string> = {
       background: transparent;
       color: var(--psy-muted);
       cursor: pointer;
-      transition: all var(--psy-motion-fast);
+      transition: background-color var(--psy-motion-fast), color var(--psy-motion-fast);
     }
     .we-tool-btn:hover { background: rgba(79,124,172,.08); color: var(--psy-blue-deep); }
     .we-tool-btn.active {

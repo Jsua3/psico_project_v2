@@ -1,0 +1,86 @@
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { TOUR_SCREENS, loginAs, openScreen } from './support/screen-tour';
+import type { SignedRole } from './support/screen-tour';
+import { scaled } from './support/time-scale';
+
+/**
+ * Auditoría de movimiento en el navegador (plan visual F9-1; RNF-04, RNF-005): en cada pantalla del recorrido, ya
+ * asentada, NO queda ningún bucle infinito que no sea un indicador de carga (esqueleto, spinner, barra de progreso) y
+ * ningún elemento anima con `transition: all`. El mismo criterio está en `ui:lint` para el código; esto lo mide en
+ * lo que el navegador realmente pinta.
+ */
+const LOADING = /skeleton|shimmer|spinner|progress|boot/i;
+
+interface Finding { screen: string; loops: string[]; transitionAll: string[] }
+
+/** Lo que el navegador tiene animando ahora: bucles infinitos (por nombre) y elementos con `transition: all` activa. */
+async function measure(page: Page, screen: string): Promise<Finding | null> {
+  // Las animaciones finitas terminan solas; los bucles de carga ya no deberían estar.
+  await page.waitForTimeout(2500);
+  const found = await page.evaluate(() => {
+    const loops = document.getAnimations()
+      .filter(animation => animation.effect?.getComputedTiming().iterations === Infinity)
+      .map(animation => (animation as CSSAnimation).animationName || animation.id || 'sin nombre');
+    const transitionAll = new Set<string>();
+    for (const element of Array.from(document.querySelectorAll('*'))) {
+      const style = getComputedStyle(element);
+      const properties = style.transitionProperty.split(',').map(part => part.trim());
+      const durations = style.transitionDuration.split(',').map(part => Number.parseFloat(part));
+      if (properties.includes('all') && durations.some(duration => duration > 0)) {
+        transitionAll.add(`${element.tagName.toLowerCase()}.${String(element.className ?? '').split(/\s+/).slice(0, 2).join('.')}`);
+      }
+    }
+    return { loops, transitionAll: Array.from(transitionAll).slice(0, 12) };
+  });
+  const loops = found.loops.filter(name => !LOADING.test(name));
+  return loops.length || found.transitionAll.length ? { screen, loops, transitionAll: found.transitionAll } : null;
+}
+
+for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as const) {
+  // req: RNF-04, RNF-005
+  test(`@motion-audit ${role}: sin bucles infinitos que no sean de carga y sin «transition: all»`, async ({ page }) => {
+    test.setTimeout(scaled(8 * 60_000));
+    if (role !== 'publico') await loginAs(page, role as SignedRole);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const findings: Finding[] = [];
+    for (const screen of TOUR_SCREENS.filter(item => item.role === role)) {
+      await openScreen(page, screen);
+      const finding = await measure(page, screen.id);
+      if (finding) findings.push(finding);
+    }
+    expect(findings, 'pantallas con movimiento fuera de criterio').toEqual([]);
+  });
+}
+
+// req: RNF-04, RNF-005
+test('@motion-audit editor de casos: cada pestaña (incluidos Mundo y Vista previa) sin movimiento fuera de criterio', async ({ page, request }) => {
+  test.setTimeout(scaled(5 * 60_000));
+  const admin = { email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', password: process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!' };
+  const token: string = (await (await request.post('/api/auth/login', { data: admin })).json()).data.token;
+  const headers = { Authorization: `Bearer ${token}` };
+  const list = (await (await request.get('/api/authoring/cases', { headers })).json()).data as Array<Record<string, any>>;
+  const version = list[0];
+  const detail = (await (await request.get(`/api/authoring/cases/${version['caseVersionId']}/editor`, { headers })).json()).data;
+  const node = detail['nodes'][0];
+
+  await loginAs(page, 'admin');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/portal/casos/${version['caseVersionId']}/editor`);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
+  const findings: Finding[] = [];
+  for (const tab of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Mundo', 'Vista previa']) {
+    await page.getByRole('tab', { name: tab }).click();
+    if (tab === 'Mundo') {
+      const escaped = String(node['title']).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const label = new RegExp(`${escaped}\\s+\\(`);
+      await page.getByRole('button', { name: label }).click();
+      await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
+    }
+    if (tab === 'Vista previa') await expect(page.locator('app-world-preview [data-world-ready="true"]')).toHaveCount(1, { timeout: scaled(30_000) });
+    const finding = await measure(page, `editor · ${tab}`);
+    if (finding) findings.push(finding);
+  }
+  expect(findings, 'pestañas del editor con movimiento fuera de criterio').toEqual([]);
+});
