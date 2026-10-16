@@ -1,24 +1,9 @@
 /**
  * Kenney.nl asset frame indices for Phaser spritesheets.
  *
- * Tiny Town / Tiny Dungeon (tilemap_packed.png): 192×176 → 12 cols × 11 rows, 16×16 px tiles.
+ * Tiny Dungeon (tilemap_packed.png): 192×176 → 12 cols × 11 rows, 16×16 px tiles.
  *   Frame index = row * 12 + col
  */
-export const KenneyTownFrames = {
-  /** Light wooden floor tile — row 1, col 4 of tiny-town packed */
-  FLOOR_WOOD: 16,
-  /** Stone floor tile — row 1, col 6 */
-  FLOOR_STONE: 18,
-  /** Horizontal wall segment */
-  WALL_H: 0,
-  /** Vertical wall segment */
-  WALL_V: 12,
-  /** Closed door tile */
-  DOOR_CLOSED: 44,
-  /** Open door tile */
-  DOOR_OPEN: 45,
-} as const;
-
 export const KenneyDungeonFrames = {
   /** Door / gate icon for EXIT markers — row 0, col 6 (0×12+6=6) */
   DOOR: 6,

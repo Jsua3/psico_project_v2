@@ -10,16 +10,13 @@ import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
-import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
-  DialogueState, InteractionResult, InterventionRuleSet, MapObjectState, NpcConfig, PatientState,
+  DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
-import {
-  DEFAULT_INTERVENTION_RULES, PATIENT_INITIAL_STATE, parseInterventionRules,
-} from './patient-state.util';
+import { PATIENT_INITIAL_STATE } from './patient-state.util';
 import {
   choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
 } from './evidence-gating.config';
@@ -56,7 +53,6 @@ import {
   getSceneInteractionDescription,
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
-import { getSceneGuide } from './scene-guide.config';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
@@ -374,7 +370,7 @@ const CASE_INTRO_PARAGRAPHS = [
             @if (world(); as w) {
               <app-game-world #gameWorld id="game-area" class="game-surface" [world]="w"
                 [scenarioConfig]="scenarioConfig()"
-                [guide]="sceneGuide()" [viewedNpcKeys]="viewedNpcKeys()" [shortcuts]="shortcuts.enabled()"
+                [viewedNpcKeys]="viewedNpcKeys()" [shortcuts]="shortcuts.enabled()"
                 [nearbyInteraction]="nearbyInteraction()" [selectedInteractionKey]="selectedInteraction()?.key ?? null"
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
@@ -1221,7 +1217,6 @@ const CASE_INTRO_PARAGRAPHS = [
 })
 export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly simulationService = inject(SimulationService);
-  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly audioDirector = inject(AudioDirectorService);
@@ -1355,7 +1350,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
   readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
-  private interventionRules: InterventionRuleSet = DEFAULT_INTERVENTION_RULES;
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
@@ -1413,12 +1407,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly stageLabel = computed<string | null>(() => {
     const key = this.attempt()?.currentNode.key;
     return getDecisionCounter(key) ?? this.fallbackStageLabel();
-  });
-  readonly sceneGuide = computed(() => {
-    const guide = getSceneGuide(this.attempt()?.currentNode.key);
-    const world = this.world();
-    if (!guide || !world?.objects.some(object => object.key === guide.targetKey)) return null;
-    return guide;
   });
 
   /**
@@ -1602,10 +1590,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const stopCoarse = watchMedia(COARSE_POINTER_QUERY, matches => this.coarsePointer.set(matches));
     const stopNarrow = watchMedia(NARROW_QUERY, matches => this.narrowScreen.set(matches));
     this.stopCompactWatch = () => { stopCompact(); stopCoarse(); stopNarrow(); };
-    this.simulationService.getInterventionRules().subscribe({
-      next: raw => { this.interventionRules = parseInterventionRules(raw); },
-      error: () => { this.interventionRules = DEFAULT_INTERVENTION_RULES; },
-    });
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) { this.fail('Caso no encontrado.', null, null); return; }
 

@@ -9,7 +9,6 @@ Contrato:
 - forzar un intento nuevo cierra el pausado de forma terminal y honesta;
 - los intentos pausados no puntúan en reportes.
 """
-import pytest
 from django.contrib.auth import get_user_model
 
 from apps.reportes.services import SCORED_STATUSES, _estudiante_sim_dto

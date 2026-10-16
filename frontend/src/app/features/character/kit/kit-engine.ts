@@ -195,7 +195,6 @@ export interface Catalog {
   speakers: Record<string, string>;
   voices: string[];
   portraitKeys: Record<string, string>;
-  guides: Record<string, string>;
   templates: Record<string, string>;
   extras: string;
   emotionToPortrait: Record<string, PortraitState>;

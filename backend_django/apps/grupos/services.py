@@ -76,11 +76,6 @@ class ImportValidationError(Exception):
     result: dict
 
 
-def _total_estudiantes(grupo_id):
-    """Los estudiantes del grupo: solo los que aceptaron (``ACTIVE``)."""
-    return GrupoEstudiante.objects.filter(grupo_id=grupo_id, status=MembershipStatus.ACTIVE).count()
-
-
 def _membership_counts(grupo_ids):
     """``{grupo_id: {"ACTIVE": n, "INVITED": m}}`` en UNA consulta, para varios grupos a la vez."""
     counts = {}

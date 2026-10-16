@@ -41,7 +41,6 @@ describe('AuthoringApi: la revisión del caso en cada mutación', () => {
     ['updateTool', (a, r) => a.updateTool(9, 2, body, r), 'PUT', '/api/authoring/cases/9/tools/2'],
     ['deleteTool', (a, r) => a.deleteTool(9, 2, r), 'DELETE', '/api/authoring/cases/9/tools/2'],
     ['updateChecklist', (a, r) => a.updateChecklist(9, body, r), 'PUT', '/api/authoring/cases/9/checklist'],
-    ['publishCase', (a, r) => a.publishCase(9, r), 'POST', '/api/authoring/cases/9/publish'],
     ['transitionCase', (a, r) => a.transitionCase(9, { action: 'submit' }, r), 'POST', '/api/authoring/cases/9/lifecycle'],
   ];
 

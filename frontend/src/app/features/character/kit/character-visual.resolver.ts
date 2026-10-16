@@ -135,7 +135,6 @@ export interface CharacterLookup {
   /** Clave de un objeto PERSON del mundo o `portraitKey` de un diálogo. */
   actor?: string | null;
   template?: string | null;
-  guide?: string | null;
   speaker?: string | null;
 }
 
@@ -146,7 +145,6 @@ export function resolveRecipeId(bundle: KitBundle, lookup: CharacterLookup): str
   return known(lookup.recipeId)
     ?? known(lookup.actor ? catalog.actors[lookup.actor] ?? catalog.portraitKeys[lookup.actor] : null)
     ?? known(lookup.template ? catalog.templates[lookup.template] : null)
-    ?? known(lookup.guide ? catalog.guides[lookup.guide] : null)
     ?? (lookup.speaker && !catalog.voices.includes(lookup.speaker) ? known(catalog.speakers[lookup.speaker]) : null);
 }
 

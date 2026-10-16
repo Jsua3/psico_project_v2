@@ -1,4 +1,3 @@
-import { HOSPITAL_SCENE_OBJECTIVE } from './hospital-map.config';
 import { ORIENTATION_COPY } from './orientation.config';
 
 export interface SceneProgressDef {
@@ -6,25 +5,6 @@ export interface SceneProgressDef {
   total: number;
   stepLabel: string;
 }
-
-export const SCENE_OBJECTIVES: Record<string, string> = {
-  // ── Caso PDF: Violencia Familiar y Tentativa de Feminicidio ──
-  'hospital-urgencias': HOSPITAL_SCENE_OBJECTIVE,
-  'hospital-sala-escucha':
-    'Define el marco normativo y técnico que orienta la atención hospitalaria de este caso.',
-  'hospital-accion-etica':
-    'Define qué hacer —y qué evitar— técnica y éticamente con la familia y la sobreviviente.',
-  'hospital-cierre-bloque':
-    'Valora el riesgo, activa medidas de protección y orienta derechos sin revictimizar.',
-  'comisaria-consultorio':
-    'Establece el marco normativo del restablecimiento de derechos.',
-  'comisaria-accion-final':
-    'Cierra la actuación técnica y ética: víctima, dependientes, nivel de riesgo y rutas.',
-  'cierre-caso':
-    'Caso consolidado: revisa tu reporte final, tus métricas y el final alcanzado.',
-  'comisaria-recepcion':
-    'Revisa el expediente y la orientación de ingreso antes de pasar al consultorio.',
-};
 
 /**
  * Etapas del caso. `stepLabel` es el TÍTULO de la etapa (sin el prefijo «Paso k — »: el contador
@@ -41,11 +21,6 @@ export const SCENE_PROGRESS: Record<string, SceneProgressDef> = {
   'cierre-caso': { step: 6, total: 6, stepLabel: 'Caso cerrado' },
   'comisaria-recepcion': { step: 4, total: 6, stepLabel: 'Recepción institucional' },
 };
-
-export function getSceneObjective(nodeKey: string | undefined | null): string | null {
-  if (!nodeKey) return null;
-  return SCENE_OBJECTIVES[nodeKey] ?? null;
-}
 
 export function getSceneProgress(nodeKey: string | undefined | null): SceneProgressDef | null {
   if (!nodeKey) return null;

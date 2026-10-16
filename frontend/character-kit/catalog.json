@@ -32,16 +32,6 @@
     "escucha-segura": "sobreviviente",
     "sobreviviente-consulta": "sobreviviente"
   },
-  "guides": {
-    "Apoyo psicosocial": "profesional-psicosocial",
-    "Colega de psicología": "psicologa-hospitalaria",
-    "Defensora de familia": "orientadora-juridica",
-    "Enfermera de turno": "enfermera-urgencias",
-    "Funcionario de derechos": "supervisor-clinico",
-    "Orientadora jurídica": "orientadora-juridica",
-    "Psicóloga hospitalaria": "psicologa-hospitalaria",
-    "Trabajadora social": "trabajadora-social"
-  },
   "templates": {
     "adolescente": "adolescente",
     "hombre-adulto": "paciente-espera",

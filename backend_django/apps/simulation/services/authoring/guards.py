@@ -196,30 +196,6 @@ def in_version(model, pk, case_version_id, *, not_found=None):
     return instance
 
 
-def require_node_in_version(node_id, case_version_id):
-    return in_version(SimulationNode, node_id, case_version_id)
-
-
-def require_decision_in_version(decision_id, case_version_id):
-    return in_version(DecisionOption, decision_id, case_version_id)
-
-
-def require_map_in_version(map_id, case_version_id):
-    return in_version(SceneMap, map_id, case_version_id)
-
-
-def require_object_in_version(object_id, case_version_id):
-    return in_version(MapObject, object_id, case_version_id)
-
-
-def require_tool_in_version(tool_id, case_version_id):
-    return in_version(ClinicalTool, tool_id, case_version_id)
-
-
-def require_dialogue_in_version(tree_id, case_version_id):
-    return in_version(DialogueTree, tree_id, case_version_id)
-
-
 def decision_link(decision_option_id, case_version_id):
     """La decisión que un objeto o una opción de diálogo enlaza, o ``None`` si ya no existe.
 

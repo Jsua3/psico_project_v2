@@ -10,8 +10,7 @@ import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'journal-panel.component.ts'), 'utf-8');
 
-// ts-jest no aplica la transformación JIT de Angular a los inputs con signals: se escribe el nodo
-// interno como en confirm-dialog.component.spec.ts.
+// ts-jest no aplica la transformación JIT de Angular a los inputs con signals: se escribe el nodo interno.
 type InputSignalNodeLike<T> = {
   applyValueToInputSignal(node: InputSignalNodeLike<T>, value: T): void;
 };

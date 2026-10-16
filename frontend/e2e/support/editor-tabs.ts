@@ -5,7 +5,7 @@ import { loginAs } from './screen-tour';
 import { scaled } from './time-scale';
 
 /** Las pestañas del editor de casos, en el orden en que se ven. «Mundo» y «Vista previa» cargan Konva y Phaser. */
-export const EDITOR_TABS = ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Mundo', 'Vista previa'] as const;
+export const EDITOR_TABS = ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión', 'Mundo', 'Vista previa'] as const;
 
 type Json = Record<string, any>;
 

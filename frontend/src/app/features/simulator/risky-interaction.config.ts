@@ -28,14 +28,3 @@ export function isRiskyInteraction(key: string): boolean {
 export function getRiskyInteractionDef(key: string): RiskyInteractionDef | null {
   return RISKY_INTERACTIONS[key] ?? null;
 }
-
-/** Contextual HUD step hint when the student is near a high-stakes interaction point. */
-export const PROXIMITY_STEP_HINTS: Record<string, string> = {
-  'cuestionario-prematuro': 'Paso 1/6 — Área médica restringida',
-  'contacto-agresor': 'Paso 4/6 — Acción riesgosa: contacto con agresor',
-};
-
-export function getProximityStepHint(interactionKey: string | null | undefined): string | null {
-  if (!interactionKey) return null;
-  return PROXIMITY_STEP_HINTS[interactionKey] ?? null;
-}

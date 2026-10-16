@@ -4,9 +4,6 @@ import { FRAME, SHEETS, SheetId, VIEW_ROWS, ViewId } from '../character/kit/kit-
 /** Escenario de la intro en píxeles nativos (16:9). */
 export const INTRO_STAGE_WIDTH = 384;
 export const INTRO_STAGE_HEIGHT = 216;
-/** Cuadro del personaje en la escena: el del kit. */
-export const INTRO_FRAME_WIDTH = FRAME.width;
-export const INTRO_FRAME_HEIGHT = FRAME.height;
 
 const INTRO_MAX_SCALE = 4;
 

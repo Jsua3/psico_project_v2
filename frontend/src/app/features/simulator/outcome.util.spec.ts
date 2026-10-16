@@ -1,16 +1,10 @@
-import { decisionTotal, adequacyPercent, performanceLabel } from './outcome.util';
+import { decisionTotal, performanceLabel } from './outcome.util';
 
 const base = { adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0, prohibitedDecisions: 0 };
 
 describe('outcome.util', () => {
   it('decisionTotal sums the three decision kinds', () => {
     expect(decisionTotal({ ...base, adequateDecisions: 2, riskyDecisions: 1, inadequateDecisions: 1 })).toBe(4);
-  });
-
-  it('adequacyPercent', () => {
-    expect(adequacyPercent({ ...base, adequateDecisions: 4 })).toBe(100);
-    expect(adequacyPercent({ ...base, adequateDecisions: 2, riskyDecisions: 1, inadequateDecisions: 1 })).toBe(50);
-    expect(adequacyPercent(base)).toBe(0);
   });
 
   it('performanceLabel by adequacy ratio', () => {

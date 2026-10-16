@@ -27,15 +27,14 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { DRAFT_COPY } from './draft-copy';
-import { RECONSIDERED_LABEL, isRetryEventType } from './reconsidered.util';
 import { ReplaceAttemptDialogComponent, ReplaceAttemptDialogData } from './replace-attempt-dialog.component';
 import {
   FeedbackPanelView, SummaryFeedbackKey, TraceFeedbackDialogComponent, TraceFeedbackDialogData,
 } from './trace-feedback-dialog.component';
 import {
-  RUBRIC_MIN_LABEL, RUBRIC_MIN_SCORE, RUBRIC_SCORE_STEP, TraceAccent, classificationLabel, cleanText, formatTraceDate, formatTraceDuration,
+  RUBRIC_MIN_LABEL, RUBRIC_MIN_SCORE, RUBRIC_SCORE_STEP, TraceAccent, cleanText, formatTraceDate, formatTraceDuration,
   formatTraceNumber, formativeLevelLabel, formativeLevelTone, signedNumber, timelineEntryAccent, timelineEntryLabel,
-  timelineEntryTone, timelineFeedback, timelineIconFor,
+  timelineEntryTone, timelineFeedback,
 } from './trace-labels.util';
 
 /**
@@ -356,12 +355,6 @@ export class InstructorTraceComponent implements OnInit {
     return visited.filter(title => title && !reflected.has(title));
   }
 
-  eventTitle(event: TraceEvent): string {
-    if (isRetryEventType(event.type)) return RECONSIDERED_LABEL;
-    if (event.classification) return `Decisión ${classificationLabel(event.classification).toLowerCase()}`;
-    return classificationLabel(event.type);
-  }
-
   timelineEntryLabel(entry: AttemptTimelineEntry): string {
     return timelineEntryLabel(entry);
   }
@@ -377,10 +370,6 @@ export class InstructorTraceComponent implements OnInit {
   /** Acento de la fila. Un reintento NO es una decisión registrada: sin el tono de «contraindicada». */
   timelineEntryAccent(entry: AttemptTimelineEntry): TraceAccent {
     return timelineEntryAccent(entry);
-  }
-
-  timelineIcon(entry: AttemptTimelineEntry): string {
-    return timelineIconFor(entry.type);
   }
 
   private isDecisionEvent(event: TraceEvent): boolean {

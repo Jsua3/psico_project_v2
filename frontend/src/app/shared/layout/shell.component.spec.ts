@@ -3,13 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 
-import { routes } from '../../app.routes';
 import { AuthService } from '../../core/auth/auth.service';
 import { User } from '../../core/models/user.model';
 import { UiDialog } from '../ui/dialog/ui-dialog';
 import { UiMenu } from '../ui/menu/ui-menu';
 import { BottomTab } from './bottom-tabs.component';
-import { isGameRoute } from './game-route.util';
 import { ShellComponent } from './shell.component';
 
 @Component({ template: '<p>pantalla</p>' })
@@ -167,31 +165,4 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(bodyClasses()).toEqual(before);
   });
 
-  it('las rutas con chrome: hidden (leídas de app.routes) son exactamente las que reconoce isGameRoute', () => {
-    const children = routes.find(route => route.path === 'portal')!.children ?? [];
-    const screens = children.filter(child => child.path && !child.redirectTo && child.path !== '**');
-    expect(screens.length).toBeGreaterThan(5);
-    for (const child of screens) {
-      const url = `/portal/${child.path!.replace(/:[^/]+/g, '42')}`;
-      expect(isGameRoute(url), url).toBe(child.data?.['chrome'] === 'hidden');
-    }
-  });
-});
-
-describe('isGameRoute', () => {
-  it('matches a specific simulador play route', () => {
-    expect(isGameRoute('/portal/simulador/42')).toBe(true);
-  });
-
-  it('matches the jugar menu world', () => {
-    expect(isGameRoute('/portal/jugar')).toBe(true);
-  });
-
-  it('does not match the simulador list', () => {
-    expect(isGameRoute('/portal/simulador')).toBe(false);
-  });
-
-  it('does not match other portal routes', () => {
-    expect(isGameRoute('/portal/dashboard')).toBe(false);
-  });
 });

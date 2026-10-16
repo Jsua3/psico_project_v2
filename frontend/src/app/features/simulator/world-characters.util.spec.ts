@@ -2,11 +2,9 @@ import { testKitBundle } from '../character/kit/testing/kit-testing';
 import {
   DIMMED_ALPHA,
   KIT_BODY_HEIGHT,
-  KIT_HINT_OFFSET_Y,
   KIT_ICON_OFFSET_Y,
   KIT_LABEL_OFFSET_Y,
   extrasCharacterRef,
-  guideCharacterRef,
   markerEmphasis,
   npcCharacterRef,
   personCharacterRef,
@@ -23,10 +21,9 @@ describe('world-characters.util — jugador', () => {
       .toEqual({ kind: 'jugador', avatar: { schemaVersion: 2, mode: 'elenco', recipeId: 'david', bata: true } });
   });
 
-  it('nombre, aviso e icono quedan sobre la cabeza más alta que admite la biblia (66 px)', () => {
+  it('nombre e icono quedan sobre la cabeza más alta que admite la biblia (66 px)', () => {
     expect(KIT_BODY_HEIGHT).toBe(64);
     expect(-KIT_LABEL_OFFSET_Y).toBeGreaterThan(66);
-    expect(KIT_HINT_OFFSET_Y).toBeLessThan(KIT_LABEL_OFFSET_Y);
     expect(-KIT_ICON_OFFSET_Y).toBeGreaterThanOrEqual(66);
   });
 });
@@ -54,9 +51,7 @@ describe('world-characters.util — NPC, personas, guía y figurantes', () => {
     expect(personCharacterRef(bundle, object)).toEqual(expected);
   });
 
-  it('el guía usa la receta de su rol; uno sin receta, el figurante', () => {
-    expect(guideCharacterRef(bundle, 'Colega de psicología')).toEqual(recipe('psicologa-hospitalaria'));
-    expect(guideCharacterRef(bundle, 'Guía sin receta')).toEqual(recipe('paciente-espera'));
+  it('los figurantes usan la receta de respaldo del catálogo', () => {
     expect(extrasCharacterRef(bundle)).toEqual(recipe('paciente-espera'));
   });
 });

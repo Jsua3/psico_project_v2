@@ -13,7 +13,7 @@ vi.mock('phaser', () => ({
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, throwError } from 'rxjs';
+import { EMPTY } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -60,7 +60,6 @@ describe('SimulationPlayComponent: una sola «Salida segura» operable por estad
   beforeEach(() => {
     sessionStorage.clear();
     const sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => EMPTY),
       getProgressMap: vi.fn(() => EMPTY),
       getWorld: vi.fn(() => EMPTY),

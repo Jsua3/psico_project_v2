@@ -3,11 +3,6 @@ import { MapObjectState } from '../../core/models/simulation.model';
 /** Scene map key — Comisaría de Familia (node: valoracion-comisaria). */
 export const COMISARIA_MAP_KEY = 'valoracion-comisaria';
 
-export const COMISARIA_NODE_KEY = 'valoracion-comisaria';
-
-export const COMISARIA_SCENE_OBJECTIVE =
-  'Realiza entrevista segura, valora el riesgo de feminicidio y activa medidas de protección proporcionales.';
-
 /** Frontend display labels — backend keys remain stable. */
 export const COMISARIA_INTERACTION_LABELS: Record<string, string> = {
   'riesgo-estructurado': 'Valoración de riesgo',

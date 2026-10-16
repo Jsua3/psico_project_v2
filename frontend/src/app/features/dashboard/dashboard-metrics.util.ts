@@ -8,14 +8,6 @@ export function metricDisplay(value: number | string): string {
 /** Texto de un dato que no se pudo cargar. */
 export const NO_DATA_LABEL = 'Sin datos';
 
-/**
- * Conteo para mostrar: el número tal cual (también el 0) si la carga que lo alimenta salió bien,
- * «Sin datos» si falló. Un cero de una carga fallida sería un dato falso.
- */
-export function countDisplay(value: number, unavailable: boolean): string {
-  return unavailable ? NO_DATA_LABEL : String(value);
-}
-
 /** Intentos terminados de verdad. SAFE_EXITED significa interrumpido, no completado. */
 export function completedAttemptCount(attempts: readonly { status: string }[]): number {
   return attempts.filter(attempt => attempt.status === 'COMPLETED').length;

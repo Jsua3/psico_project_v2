@@ -83,7 +83,6 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     sessionStorage.clear();
     sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => of(null)),
       startAttempt: vi.fn(() => of(makeAttempt({ attemptId: 'attempt-2', attemptToken: 'token-2' }))),
       getProgressMap: vi.fn(() => EMPTY),

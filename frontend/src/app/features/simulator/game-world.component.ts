@@ -25,7 +25,6 @@ import {
   reached, resolvePattern, stepToward,
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
-import { SceneGuideEntry } from './scene-guide.config';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
@@ -90,8 +89,8 @@ import {
 } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
 import {
-  KIT_HINT_OFFSET_Y, KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
-  extrasCharacterRef, guideCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
+  KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
+  extrasCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
 import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
@@ -199,20 +198,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private motionPaused = false;
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
   private readonly AMBIENT_RETARGET_MS = 2600;
-  private guideEntry: SceneGuideEntry | null = null;
-  private guideContainer?: Phaser.GameObjects.Container;
-  /** Visual del guía actual y su última pose (null = marcador geométrico). */
-  private guideVisual: CharacterVisual | null = null;
-  private guidePose: { direction: PlayerDirection | null; walking: boolean } = { direction: null, walking: false };
-  private guideDirection: PlayerDirection = 'down';
-  private guideSprite?: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
-  private guideBubble?: Phaser.GameObjects.Container;
-  private guideTarget: { x: number; y: number } | null = null;
-  private guideArrived = false;
-  private readonly GUIDE_SPEED = 70;        // px/sec
-  private readonly GUIDE_HINT_RANGE = 92;   // px
-  private guideBubbleHeight = 0;
-  private guideBubbleHalfW = 0;
   private world?: SimulationWorldState;
   /** Clave del candidato PRINCIPAL en rango: la de un marcador o `npc:{clave}`. */
   private nearestKey: string | null = null;
@@ -539,10 +524,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction();
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
-    this.updateGuide(delta);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
-    if (this.guideContainer) this.ysort(this.guideContainer);
     for (const mover of this.ambientMovers.values()) {
       const marker = this.markers.get(mover.key);
       if (marker) this.ysort(marker);
@@ -663,138 +646,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   setSelected(key: string | null) {
     this.selectedKey = key;
     this.refreshMarkerStates();
-  }
-
-  setGuide(entry: SceneGuideEntry | null) {
-    this.guideEntry = entry;
-    if (this.ready && this.world) this.buildGuide();
-  }
-
-  /** Builds (or rebuilds) the guide NPC for the current node + markers. */
-  private buildGuide() {
-    this.guideContainer?.destroy();
-    this.guideContainer = undefined;
-    this.guideBubble = undefined;
-    this.guideSprite = undefined;
-    this.guideVisual = null;
-    this.guideTarget = null;
-    this.guideArrived = false;
-
-    const entry = this.guideEntry;
-    if (!entry) return;
-
-    // Resolve the target tool's on-screen position from its marker (already
-    // merged with any Tiled position); fall back to the raw object data.
-    const targetMarker = this.markers.get(entry.targetKey);
-    const targetData = this.markerData.get(entry.targetKey);
-    const targetPos = targetMarker
-      ? { x: targetMarker.x, y: targetMarker.y }
-      : targetData ? { x: targetData.x, y: targetData.y } : null;
-
-    const kit = this.callbacks.kit;
-    const visual = kit ? this.actorVisual(guideCharacterRef(kit, entry.guideName)) : null;
-    const shadow = this.add.ellipse(0, 0, 20, 6, 0x000000, 0.2);
-    let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc;
-    if (visual) {
-      sprite = this.add.sprite(0, 0, kitSheetKey(visual, 'idle'), kitFrameIndex('idle', 'down')).setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
-    } else {
-      sprite = this.add.circle(0, -20, 9, 0x8a6cff, 1).setStrokeStyle(2, 0xffffff, 0.9);
-    }
-    const name = this.add.text(0, KIT_LABEL_OFFSET_Y, entry.guideName, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: '9px', color: '#cdd9ff',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
-    }).setOrigin(0.5, 1);
-
-    this.guideContainer = this.add.container(entry.spawnX, entry.spawnY, [shadow, sprite, name]);
-    this.setFeetOffset(this.guideContainer, 0);
-    this.guideSprite = sprite;
-    this.guideVisual = visual;
-    this.guidePose = { direction: null, walking: false };
-    this.guideDirection = 'down';
-    this.applyGuidePose('down', false);
-    this.guideBubble = this.buildGuideBubble(entry.hint);
-
-    this.guideTarget = targetPos
-      ? freeTileNear(targetPos, (x, y) => this.wouldCollide(x, y), 26, 3)
-      : null;
-
-    if (this.callbacks.reduceMotion) {
-      // No walking — place beside the target and show the hint statically.
-      if (this.guideTarget) this.guideContainer.setPosition(this.guideTarget.x, this.guideTarget.y);
-      this.guideArrived = true;
-      this.showGuideBubble(true);
-    }
-  }
-
-  /** Pose del guía (camina hacia la herramienta, reposa de frente al llegar), solo si cambió. */
-  private applyGuidePose(direction: PlayerDirection, walking: boolean): void {
-    if (this.guidePose.direction === direction && this.guidePose.walking === walking) return;
-    this.guidePose = { direction, walking };
-    if (this.guideVisual && this.guideSprite instanceof Phaser.GameObjects.Sprite) {
-      playKitPose(this.guideSprite, this.guideVisual, direction, walking, this.callbacks.reduceMotion);
-    }
-  }
-
-  private buildGuideBubble(hint: string): Phaser.GameObjects.Container {
-    const text = this.add.text(0, 0, hint, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: '10px', color: '#eef3ff',
-      align: 'center', wordWrap: { width: 168 }, padding: { x: 8, y: 6 },
-    }).setOrigin(0.5, 1);
-    const b = text.getBounds();
-    const bg = this.add.rectangle(0, 0, b.width + 16, b.height + 12, 0x141b2e, 0.94)
-      .setStrokeStyle(1, 0x6f7cff, 0.6).setOrigin(0.5, 1);
-    this.guideBubbleHeight = b.height + 12;
-    this.guideBubbleHalfW = (b.width + 16) / 2;
-    return this.add.container(0, 0, [bg, text]).setDepth(DEPTH.UI).setVisible(false);
-  }
-
-  private showGuideBubble(show: boolean) {
-    if (!this.guideBubble || !this.guideContainer) return;
-    if (!show) { this.guideBubble.setVisible(false); return; }
-    // The bubble is bottom-anchored at (x, y); keep the whole bubble inside the
-    // camera's visible world rect so it never clips at an edge.
-    const view = this.cameras.main.worldView;
-    const margin = 6;
-    const x = Phaser.Math.Clamp(
-      this.guideContainer.x,
-      view.left + this.guideBubbleHalfW + margin,
-      view.right - this.guideBubbleHalfW - margin,
-    );
-    const bottomY = Phaser.Math.Clamp(
-      this.guideContainer.y + KIT_LABEL_OFFSET_Y - 4,
-      view.top + margin + this.guideBubbleHeight,
-      view.bottom - margin,
-    );
-    this.guideBubble.setPosition(x, bottomY).setVisible(true);
-  }
-
-  private updateGuide(delta: number) {
-    if (!this.guideContainer || !this.guideEntry) return;
-
-    if (!this.callbacks.reduceMotion && !this.guideArrived && this.guideTarget) {
-      const step = this.GUIDE_SPEED * (delta / 1000);
-      const next = stepToward(this.guideContainer, this.guideTarget, step);
-      this.guideDirection = resolveDirection(next.x - this.guideContainer.x, next.y - this.guideContainer.y, this.guideDirection);
-      // Straight-line move with collision slide (consistent with player movement).
-      if (!this.wouldCollide(next.x, next.y)) {
-        this.guideContainer.setPosition(next.x, next.y);
-      } else if (!this.wouldCollide(next.x, this.guideContainer.y)) {
-        this.guideContainer.setPosition(next.x, this.guideContainer.y);
-      } else if (!this.wouldCollide(this.guideContainer.x, next.y)) {
-        this.guideContainer.setPosition(this.guideContainer.x, next.y);
-      } else {
-        this.guideArrived = true;   // fully blocked — stop at the nearest free spot
-      }
-      if (reached(this.guideContainer, this.guideTarget, 3)) this.guideArrived = true;
-      this.applyGuidePose(this.guideArrived ? 'down' : this.guideDirection, !this.guideArrived);
-    }
-
-    if (this.player && !this.callbacks.reduceMotion) {
-      const d = Phaser.Math.Distance.Between(
-        this.player.x, this.player.y, this.guideContainer.x, this.guideContainer.y,
-      );
-      this.showGuideBubble(d <= this.GUIDE_HINT_RANGE);
-    }
   }
 
   nudge(direction: 'up' | 'down' | 'left' | 'right') {
@@ -1148,7 +999,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.applyPixelCamera(metadata.bounds.width, metadata.bounds.height);
       this.refreshMarkerStates();
       this.updateNearestInteraction(true);
-      this.buildGuide();
       this.applyCrisisVignette();
       this.playIntroFade();
       this.callbacks.onReady();
@@ -1231,7 +1081,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     this.refreshMarkerStates();
     this.updateNearestInteraction(true); // suppress blip on initial spawn
-    this.buildGuide();
     this.applyLightingOverlay();
     this.applyCrisisVignette();
     this.playIntroFade();
@@ -1377,7 +1226,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyPixelCamera(actualMapW, actualMapH);
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
-    this.buildGuide();
     // Evitar doble lighting: si el renderer ya pintó su capa de luz, la viñeta
     // genérica solo ensuciaría/oscurecería la escena premium.
     if (!sceneMetadata?.paintedLayers.includes('lighting')) this.applyLightingOverlay();
@@ -1627,16 +1475,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.applyNpcFacing(container, npc.facing ?? 'down');
       this.registerNpcMover(npc, pos);
     }
-  }
-
-  /** true si alguna persona está a distancia de diálogo del jugador. */
-  private isAnyNpcInRange(): boolean {
-    if (!this.player) return false;
-    for (const container of this.npcMarkers.values()) {
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (d <= NPC_INTERACT_RADIUS) return true;
-    }
-    return false;
   }
 
   /** Clave de proximidad de una persona (`npc:{clave}`), creada una vez para no concatenar por cuadro. */
@@ -2853,7 +2691,6 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
     return interactionVerb(nearby, door).text;
   });
-  readonly guide = input<SceneGuideEntry | null>(null);
   /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
   readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
   /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): con false WASD y E no hacen nada en el mundo. */
@@ -2961,7 +2798,6 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['world'] || changes['viewedNpcKeys']) this.pushExamined();
     if (changes['shortcuts']) this.scene?.setShortcutsEnabled(this.shortcuts());
     if (changes['selectedInteractionKey']) this.scene?.setSelected(this.selectedInteractionKey());
-    if (changes['guide']) this.scene?.setGuide(this.guide());
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
     if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
     if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
@@ -3175,7 +3011,6 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     window.setTimeout(() => {
       this.scene?.setScenarioConfig(this.scenarioConfig());
       if (this.world()) this.scene?.setWorld(this.world()!);
-      this.scene?.setGuide(this.guide());
       this.scene?.setMotionPaused(this.motionPaused());
       this.scene?.setSfxMuted(this.sfxMuted());
       this.scene?.setReduceMotion(this.effectiveReduceMotion());

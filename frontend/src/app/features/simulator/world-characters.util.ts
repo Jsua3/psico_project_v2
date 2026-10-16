@@ -1,6 +1,6 @@
 /**
  * Quién es cada personaje del mundo (spec §8.2): el jugador, los NPC de escenario,
- * las personas del caso, el guía y los figurantes, como CharacterRef del kit.
+ * las personas del caso y los figurantes, como CharacterRef del kit.
  * Lógica pura; game-world solo dibuja lo que esto resuelve.
  */
 import { authoredAvatarV2, parseStoredAvatar } from '../character/kit/avatar-v2';
@@ -12,7 +12,6 @@ import type { MapObjectState, NpcConfig } from '../../core/models/simulation.mod
 export const KIT_BODY_HEIGHT = 64;
 /** Nombre y aviso «E» sobre la cabeza, e icono del estado clínico justo encima de ella. */
 export const KIT_LABEL_OFFSET_Y = -(KIT_BODY_HEIGHT + 4);
-export const KIT_HINT_OFFSET_Y = KIT_LABEL_OFFSET_Y - 14;
 export const KIT_ICON_OFFSET_Y = -(KIT_BODY_HEIGHT + 2);
 
 /** El jugador según lo guardado (v1 o v2; lo inválido cae al valor por defecto). */
@@ -51,11 +50,6 @@ export function markerEmphasis(
 /** Figurantes de los mapas legados y respaldo de todo actor sin receta (spec §7.2). */
 export function extrasCharacterRef(bundle: KitBundle): CharacterRef {
   return { kind: 'receta', recipeId: bundle.catalog.extras };
-}
-
-/** El guía usa la receta de su rol según `guideName` (spec §7.2). */
-export function guideCharacterRef(bundle: KitBundle, guideName: string): CharacterRef {
-  return { kind: 'receta', recipeId: resolveRecipeId(bundle, { guide: guideName }) ?? bundle.catalog.extras };
 }
 
 /**

@@ -162,13 +162,3 @@ export function timelineEntryAccent(entry: AttemptTimelineEntry): TraceAccent {
   if (entry.prohibited) return 'inadequate';
   return classificationAccent(entry.classification);
 }
-
-export function timelineIconFor(type: string): string {
-  const normalized = type.toUpperCase();
-  if (normalized.includes('DECISION')) return 'rule';
-  if (normalized.includes('TOOL')) return 'construction';
-  if (normalized.includes('WORLD')) return 'open_with';
-  if (normalized.includes('REFLECTION')) return 'edit_note';
-  if (normalized.includes('COMPLETE')) return 'verified';
-  return 'timeline';
-}

@@ -2,7 +2,6 @@ import {
   getDisplayLabel,
   getInteractionDescription,
   isHospitalMap,
-  isRestrictedAreaInteraction,
 } from './hospital-map.config';
 
 describe('hospital-map.config', () => {
@@ -26,10 +25,5 @@ describe('hospital-map.config', () => {
       interactionText: '',
     });
     expect(desc).toContain('familia');
-  });
-
-  it('flags restricted clinical area interaction', () => {
-    expect(isRestrictedAreaInteraction('cuestionario-prematuro')).toBe(true);
-    expect(isRestrictedAreaInteraction('escucha-segura')).toBe(false);
   });
 });

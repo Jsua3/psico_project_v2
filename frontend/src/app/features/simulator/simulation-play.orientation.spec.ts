@@ -98,7 +98,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     sessionStorage.clear();
     localStorage.clear();
     sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => of(null)),
       startAttempt: vi.fn(() => of(makeAttempt())),
       getProgressMap: vi.fn(() => EMPTY),

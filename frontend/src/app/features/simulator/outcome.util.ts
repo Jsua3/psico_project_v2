@@ -11,11 +11,6 @@ export function decisionTotal(r: DecisionCounts): number {
   return r.adequateDecisions + r.riskyDecisions + r.inadequateDecisions;
 }
 
-export function adequacyPercent(r: DecisionCounts): number {
-  const total = decisionTotal(r);
-  return total === 0 ? 0 : Math.round((r.adequateDecisions / total) * 100);
-}
-
 const TIERS: Performance[] = ['Requiere refuerzo', 'En desarrollo', 'Adecuado', 'Excelente'];
 
 export function performanceLabel(r: DecisionCounts): Performance {

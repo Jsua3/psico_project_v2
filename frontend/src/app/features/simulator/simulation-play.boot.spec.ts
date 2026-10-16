@@ -74,7 +74,6 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
     sessionStorage.clear();
     if (options.consent !== false) sessionStorage.setItem(consentKey(makeAttempt()), 'given');
     sim = {
-      getInterventionRules: vi.fn(() => throwError(() => new Error('sin reglas'))),
       getActiveAttempt: vi.fn(() => of(options.active ?? null)),
       startAttempt: vi.fn(() => of(makeAttempt())),
       getProgressMap: vi.fn(() => EMPTY),

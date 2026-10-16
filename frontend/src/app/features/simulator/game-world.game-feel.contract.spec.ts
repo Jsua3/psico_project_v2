@@ -35,7 +35,7 @@ describe('game-world: game feel del bloque B', () => {
   });
 
   it('la sala única con renderer registrado también pinta la crisis', () => {
-    expect(source).toMatch(/\n {6}this\.buildGuide\(\);\s*this\.applyCrisisVignette\(\);\s*this\.playIntroFade\(\);\s*this\.callbacks\.onReady\(\);\s*return;/);
+    expect(source).toMatch(/\n {6}this\.applyCrisisVignette\(\);\s*this\.playIntroFade\(\);\s*this\.callbacks\.onReady\(\);\s*return;/);
   });
 
   it('ningún render dispara el destello: espera a que la sala se vea', () => {

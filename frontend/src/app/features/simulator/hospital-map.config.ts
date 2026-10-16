@@ -3,13 +3,6 @@ import { MapObjectState } from '../../core/models/simulation.model';
 /** Scene map key for Escenario 1 — Hospital / urgencias. */
 export const HOSPITAL_MAP_KEY = 'urgencias-crisis';
 
-/** Node key for the first playable scene in the seed case. */
-export const HOSPITAL_NODE_KEY = 'urgencias-crisis';
-
-/** Visible pedagogical objective for the hospital scene. */
-export const HOSPITAL_SCENE_OBJECTIVE =
-  'Estabiliza emocionalmente a la familia y evita acciones prematuras que puedan aumentar la crisis.';
-
 /** Frontend display labels — backend keys remain stable. */
 export const INTERACTION_LABELS: Record<string, string> = {
   'escucha-segura': 'Iniciar escucha segura',
@@ -55,10 +48,6 @@ export const INTERACTION_DESCRIPTIONS: Record<string, string> = {
 /** Warning shown before allowing a risky backend interaction. */
 export const RESTRICTED_AREA_WARNING_MESSAGE =
   'Acción sensible: la sobreviviente está en atención médica crítica. Interrogarla ahora puede aumentar revictimización. ¿Deseas continuar?';
-
-/** Pedagogical block when interacting with the restricted clinical area. */
-export const RESTRICTED_AREA_BLOCK_MESSAGE =
-  'La entrevista no es procedente en este momento. La prioridad es la estabilización médica y la contención emocional de la familia.';
 
 export const PROTOCOL_INFO_MESSAGE =
   'Protocolo EPICEE / SPIKES: prepara el entorno, valora qué sabe la familia, brinda información clara y acompaña la reacción emocional antes de documentar o activar rutas institucionales.';
@@ -115,12 +104,6 @@ export function getInteractionDescription(
     ''
   );
 }
-
-export function isRestrictedAreaInteraction(key: string): boolean {
-  return key === 'cuestionario-prematuro';
-}
-
-/** @deprecated Prefer isRiskyInteraction from risky-interaction.config.ts */
 
 export function isAmbientInteraction(key: string): boolean {
   return key.startsWith('ambient:');

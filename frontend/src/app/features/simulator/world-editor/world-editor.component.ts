@@ -64,7 +64,6 @@ import {
   WorldObject,
   WorldObjectType,
   WorldCollisionZone,
-  WorldValidationState,
   WorldDialogueTree,
   WorldDialogueLine,
   WorldDialogueChoice
@@ -104,7 +103,6 @@ const TOOL_NAMES: Record<EditorTool, string> = {
   'place-collision': 'zona de colisión',
   'place-spawn': 'punto de aparición',
 };
-const SNAP_THRESHOLD = 8;
 const OBJECT_COLORS: Record<string, string> = {
   PERSON: '#4f7cac',
   OBJECT: '#4fa3a5',
