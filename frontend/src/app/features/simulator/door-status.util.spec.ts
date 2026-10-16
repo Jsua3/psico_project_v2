@@ -1,5 +1,5 @@
 import { MapObjectState } from '../../core/models/simulation.model';
-import { DoorStatusContext, doorBlockedMessage, doorStateMap, doorStatus } from './door-status.util';
+import { DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { CopyContext } from './evidence-copy.util';
 import { interactionVerb } from './interaction-verb.util';
 import { ORIENTATION_COPY, RoomGroup } from './orientation.config';
@@ -118,12 +118,6 @@ describe('doorStatus: salida del hospital (requiresNodes)', () => {
 });
 
 describe('puertas auxiliares', () => {
-  it('doorBlockedMessage devuelve el motivo o null', () => {
-    expect(doorBlockedMessage(door({ requiresInspected: ['familia-crisis'] }), ctxFor('urgencias', {}, [FAMILIA])))
-      .toBe('Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
-    expect(doorBlockedMessage(door({}), ctxFor('urgencias'))).toBeNull();
-  });
-
   it('doorStateMap solo mira las salidas de la sala', () => {
     const objects = [
       obj('puerta-sala-escucha', 'EXIT', 838, 440, 'Sala de escucha familiar', { requiresInspected: ['familia-crisis'] }),
@@ -141,7 +135,6 @@ describe('puertas auxiliares', () => {
     const verb = interactionVerb(exit, status);
     expect(verb.locked).toBe(true);
     expect(verb.reason).toBe(status.message);
-    expect(doorBlockedMessage(exit, ctxFor('recepcion', {}, [EXPEDIENTE, exit]))).toBe(status.message);
   });
 
   it('el respaldo para una puerta que el servidor rechaza no usa el texto antiguo del seed', () => {

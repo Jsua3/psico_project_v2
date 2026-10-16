@@ -59,7 +59,6 @@ interface SceneProbe {
   revealed: string[];
   targetRing?: { halo: FakeNode; ring: FakeNode };
   updateNearestInteraction(suppressSound?: boolean): void;
-  isAnyNpcInRange(): boolean;
   interactNearest(): void;
   setOrientation(next: { nextTargetKey: string | null; doorStates: Record<string, 'open' | 'locked'>; dimmedKeys: ReadonlySet<string> }): void;
   setCompactLabels(compact: boolean): void;
@@ -233,15 +232,6 @@ describe('DataDrivenWorldScene: proximidad unificada de personas y objetos', () 
     h.scene.player.x = 480; h.scene.player.y = 430; h.scene.updateNearestInteraction();
     h.scene.player.x = 559; h.scene.player.y = 373; h.scene.updateNearestInteraction();
     expect(h.scene.sound.play).toHaveBeenCalledTimes(1);
-  });
-
-  it('isAnyNpcInRange se conserva y usa el alcance nuevo', () => {
-    const h = crearEscena();
-    expect(h.scene.isAnyNpcInRange()).toBe(false);
-    move(h, 560, 400);
-    expect(h.scene.isAnyNpcInRange()).toBe(true);
-    move(h, 560, 410);
-    expect(h.scene.isAnyNpcInRange()).toBe(false);
   });
 });
 

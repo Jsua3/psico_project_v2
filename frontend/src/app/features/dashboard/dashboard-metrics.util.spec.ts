@@ -2,7 +2,6 @@ import { StudentAttemptSummary } from '../../core/models/simulation.model';
 import {
   attemptStateLabel,
   completedAttemptCount,
-  countDisplay,
   metricDisplay,
   totalActiveSeconds
 } from './dashboard-metrics.util';
@@ -22,13 +21,6 @@ describe('dashboard-metrics.util', () => {
     expect(metricDisplay(0)).toBe('0');
     expect(metricDisplay(12)).toBe('12');
     expect(metricDisplay('Sin datos')).toBe('Sin datos');
-  });
-
-  it('countDisplay muestra el conteo, también el 0, y «Sin datos» si la carga falló', () => {
-    expect(countDisplay(0, false)).toBe('0');
-    expect(countDisplay(7, false)).toBe('7');
-    expect(countDisplay(0, true)).toBe('Sin datos');
-    expect(countDisplay(7, true)).toBe('Sin datos');
   });
 
   it('completedAttemptCount solo cuenta los intentos COMPLETED', () => {

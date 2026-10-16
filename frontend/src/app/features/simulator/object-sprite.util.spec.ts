@@ -1,16 +1,10 @@
 import {
   objectSpriteSpecs,
   resolveObjectTextureKey,
-  resolveToolSprite,
   resolveToolTextureKey,
 } from './object-sprite.util';
 
 describe('object-sprite.util', () => {
-  it('resolveToolSprite mapea el toolCode a su asset', () => {
-    expect(resolveToolSprite('PAP')).toBe('/assets/game/objects/tool_pap.png');
-    expect(resolveToolSprite('REFLECTION_JOURNAL')).toBe('/assets/game/objects/tool_reflection_journal.png');
-  });
-
   it('resolveToolTextureKey mapea el toolCode (TOOL) a su clave de textura', () => {
     expect(resolveToolTextureKey('PAP')).toBe('object-tool_pap');
     expect(resolveToolTextureKey('RISK_METER')).toBe('object-tool_risk_meter');
@@ -27,7 +21,7 @@ describe('object-sprite.util', () => {
     expect(resolveToolTextureKey('NOPE')).toBeNull();
     expect(resolveObjectTextureKey('XXX')).toBeNull();
     expect(resolveObjectTextureKey(null)).toBeNull();
-    expect(resolveToolSprite(undefined)).toBeNull();
+    expect(resolveToolTextureKey(undefined)).toBeNull();
   });
 
   it('objectSpriteSpecs lista los 10 sprites (5 herramientas + 5 escenario)', () => {

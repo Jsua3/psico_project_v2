@@ -33,12 +33,6 @@ describe('game-world: contrato público de orientación (F§6.4)', () => {
     expect(source).toMatch(/this\.scene\?\.setOrientation\(\{\s*nextTargetKey: this\.nextTargetKey\(\),\s*doorStates: this\.doorStates\(\),\s*dimmedKeys: this\.dimmedKeys\(\),\s*\}\);/);
   });
 
-  it('se conservan isAnyNpcInRange y nearbyInteractionChannel', () => {
-    expect(source).toMatch(/private isAnyNpcInRange\(\): boolean \{/);
-    const util = readFileSync(join(__dirname, 'interaction-priority.util.ts'), 'utf-8');
-    expect(util).toContain('export function nearbyInteractionChannel(');
-  });
-
   it('interactNearest despacha por clave: personas por npc:, marcadores como siempre, y avisa si no hay nada', () => {
     const body = bodyOf(/\n  interactNearest\(\) \{\n    const key/, /\n  \/\*\*/);
     expect(body).toMatch(/key\.startsWith\(NPC_KEY_PREFIX\)/);

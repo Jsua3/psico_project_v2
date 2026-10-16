@@ -6,7 +6,6 @@ import {
   caseRoomCollisions,
   caseRoomKind,
   collidesInCaseRoom,
-  isCasePdfRoomKey,
 } from './case-pdf-rooms.geometry';
 import { CASE_PDF_ROOM_RENDERERS, caseRoomMetadata } from './case-pdf-rooms.renderer';
 import { resolveSceneRenderer } from './scene-renderer.registry';
@@ -70,7 +69,6 @@ describe('case-pdf-rooms (geometría + renderers + escenarios)', () => {
     expect(caseRoomKind('comisaria-consultorio-marco')).toBe('comisaria-consultorio');
     expect(caseRoomKind('comisaria-consultorio-cierre')).toBe('comisaria-consultorio');
     expect(caseRoomKind('urgencias-crisis')).toBeNull();           // legacy intacto
-    expect(isCasePdfRoomKey('hospital-urgencias')).toBe(true);
   });
 
   it('cada sala tiene colisiones de paredes + muebles', () => {

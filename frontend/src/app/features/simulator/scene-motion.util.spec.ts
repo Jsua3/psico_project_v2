@@ -1,7 +1,7 @@
 import {
-  AVOIDANT_STEP_MAX, avoidantTarget, bobOffset, clampToZone, defaultPatternForType,
+  AVOIDANT_STEP_MAX, avoidantTarget, clampToZone, defaultPatternForType,
   effectiveNpcBehavior, freeTileNear, nextAnchorIndex, npcPause, npcSpeed, npcZone,
-  parseMovementPattern, pickWanderTarget, pickZoneTarget, pointInZone, reached,
+  parseMovementPattern, pickWanderTarget, pickZoneTarget, reached,
   resolvePattern, stepToward,
 } from './scene-motion.util';
 
@@ -57,13 +57,6 @@ describe('scene-motion.util', () => {
     });
   });
 
-  describe('bobOffset', () => {
-    it('is zero at t=0 and bounded by amplitude', () => {
-      expect(bobOffset(0, 3, 1000)).toBeCloseTo(0);
-      expect(Math.abs(bobOffset(250, 3, 1000))).toBeLessThanOrEqual(3 + 1e-9);
-    });
-  });
-
   describe('freeTileNear', () => {
     it('returns the target itself when free', () => {
       expect(freeTileNear({ x: 50, y: 50 }, () => false)).toEqual({ x: 50, y: 50 });
@@ -91,9 +84,9 @@ describe('scene-motion.util', () => {
       }
     });
 
-    it('clampToZone/pointInZone delimitan la zona', () => {
-      expect(pointInZone({ x: 120, y: 210 }, zone)).toBe(true);
-      expect(pointInZone({ x: 90, y: 210 }, zone)).toBe(false);
+    it('clampToZone delimita la zona: lo de dentro no se mueve y lo de fuera se pega al borde', () => {
+      expect(clampToZone({ x: 120, y: 210 }, zone)).toEqual({ x: 120, y: 210 });
+      expect(clampToZone({ x: 90, y: 210 }, zone)).toEqual({ x: 100, y: 210 });
       expect(clampToZone({ x: 0, y: 999 }, zone)).toEqual({ x: 100, y: 240 });
     });
 
@@ -112,7 +105,7 @@ describe('scene-motion.util', () => {
       const player = { x: 100, y: 200 };  // esquina superior izquierda de la zona
       const from = { x: 110, y: 210 };
       const target = avoidantTarget(zone, from, player, Math.random);
-      expect(pointInZone(target, zone)).toBe(true);
+      expect(clampToZone(target, zone)).toEqual(target);
       const before = Math.hypot(from.x - player.x, from.y - player.y);
       const after = Math.hypot(target.x - player.x, target.y - player.y);
       expect(after).toBeGreaterThanOrEqual(before);

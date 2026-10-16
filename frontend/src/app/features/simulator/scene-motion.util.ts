@@ -74,10 +74,6 @@ export function pickWanderTarget(
   return { x: origin.x + Math.cos(angle) * r, y: origin.y + Math.sin(angle) * r };
 }
 
-export function bobOffset(elapsedMs: number, amplitudePx: number, periodMs: number): number {
-  return amplitudePx * Math.sin((2 * Math.PI * elapsedMs) / periodMs);
-}
-
 // ─── NPC motion (flujo competitivo) — sobrio, clínico, nada arcade ───────────
 
 export const NPC_BEHAVIOR_SPEED: Record<NpcMotionBehavior, number> = {
@@ -106,11 +102,6 @@ export function npcZone(cfg: NpcMotionConfig, origin: { x: number; y: number }):
   if (cfg.zone) return cfg.zone;
   const r = cfg.radius ?? DEFAULT_NPC_ZONE_HALF;
   return { x: origin.x - r, y: origin.y - r, width: r * 2, height: r * 2 };
-}
-
-export function pointInZone(p: { x: number; y: number }, zone: NpcMovementZone): boolean {
-  return p.x >= zone.x && p.x <= zone.x + zone.width
-    && p.y >= zone.y && p.y <= zone.y + zone.height;
 }
 
 export function clampToZone(p: { x: number; y: number }, zone: NpcMovementZone): { x: number; y: number } {

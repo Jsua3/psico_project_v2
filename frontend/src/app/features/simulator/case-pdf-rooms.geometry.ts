@@ -61,10 +61,6 @@ export function caseRoomKind(mapKey: string | null | undefined): string | null {
   return null;
 }
 
-export function isCasePdfRoomKey(mapKey: string | null | undefined): boolean {
-  return caseRoomKind(mapKey) !== null;
-}
-
 /** Colisiones completas (paredes + muebles) de una sala del caso PDF, o null. */
 export function caseRoomCollisions(mapKey: string | null | undefined): readonly RoomRect[] | null {
   const kind = caseRoomKind(mapKey);

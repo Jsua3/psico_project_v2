@@ -38,13 +38,6 @@ export function objectSpriteSpecs(): { textureKey: string; assetPath: string }[]
   }));
 }
 
-/** Ruta del sprite para un `toolCode`, o `null` si no hay (→ fallback al badge). */
-export function resolveToolSprite(toolCode: string | null | undefined): string | null {
-  if (!toolCode) return null;
-  const name = TOOL_SPRITE[toolCode];
-  return name ? `/assets/game/objects/${name}.png` : null;
-}
-
 /** Clave de textura Phaser para un `toolCode` (TOOL), o `null`. */
 export function resolveToolTextureKey(toolCode: string | null | undefined): string | null {
   if (!toolCode) return null;

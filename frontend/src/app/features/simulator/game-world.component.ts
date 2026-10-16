@@ -1629,16 +1629,6 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
-  /** true si alguna persona está a distancia de diálogo del jugador. */
-  private isAnyNpcInRange(): boolean {
-    if (!this.player) return false;
-    for (const container of this.npcMarkers.values()) {
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-      if (d <= NPC_INTERACT_RADIUS) return true;
-    }
-    return false;
-  }
-
   /** Clave de proximidad de una persona (`npc:{clave}`), creada una vez para no concatenar por cuadro. */
   private npcKeyOf(key: string): string {
     let candidateKey = this.npcKeys.get(key);

@@ -58,11 +58,6 @@ export function doorStatus(door: MapObjectState, ctx: DoorStatusContext): DoorSt
   return { state: 'locked', missing, stageLocked, message: parts.join(' ') };
 }
 
-/** Motivo por el que la puerta no se abre (null si está abierta). */
-export function doorBlockedMessage(door: MapObjectState, ctx: DoorStatusContext): string | null {
-  return doorStatus(door, ctx).message;
-}
-
 /** `doorStates` para el mundo: estado de cada salida de la sala actual, por clave. */
 export function doorStateMap(
   objects: readonly MapObjectState[], ctx: DoorStatusContext,

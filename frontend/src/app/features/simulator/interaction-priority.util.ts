@@ -1,19 +1,3 @@
-export type NearbyInteractionChannel = 'marker' | 'npc' | 'none';
-
-/**
- * Unifica teclado y touch: un marcador clínico cercano conserva prioridad;
- * si no existe, el mismo control puede conversar con el NPC en rango.
- *
- * Se conserva por compatibilidad: la escena ahora decide con `pickNearby` y despacha por clave.
- */
-export function nearbyInteractionChannel(
-  markerKey: string | null,
-  npcInRange: boolean,
-): NearbyInteractionChannel {
-  if (markerKey) return 'marker';
-  return npcInRange ? 'npc' : 'none';
-}
-
 /** Alcance del cliente para hablar con una persona del escenario. El servidor acepta 60 + 16 de tolerancia. */
 export const NPC_INTERACT_RADIUS = 72;
 /** Lo más lejos que el servidor acepta una conversación con una persona (radio sembrado 60 + tolerancia 16). */
