@@ -45,9 +45,12 @@ describe('hoja de formularios del editor (F8-1)', () => {
       mapForm: null,
       objectForm: null,
       toolForm: null,
+      hintForm: null,
+      characterForm: null,
       panelTitle: () => ({
         'node-create': 'Nuevo nodo DAG', 'decision-create': 'Nueva decisión', 'map-create': 'Nuevo mapa',
         'object-create': 'Nuevo objeto del mapa', 'tool-create': 'Nueva herramienta clínica',
+        'hint-create': 'Nueva ayuda', 'hint-edit': 'Editar ayuda', 'character-create': 'Nuevo personaje',
       } as Record<string, string>)[panel?.kind ?? ''] ?? '',
       fieldError: (control: AbstractControl, message: string) => (control.touched && control.invalid ? message : null),
       save: vi.fn(),
@@ -71,7 +74,7 @@ describe('hoja de formularios del editor (F8-1)', () => {
 
   const nodeForm = () => fb.group({
     nodeKey: ['', Validators.required], title: ['', Validators.required], narrative: ['', Validators.required],
-    warningMessage: [''], startNode: [false], terminal: [false], sensitiveContent: [false], safeExitRequired: [false],
+    decisionPrompt: [''], warningMessage: [''], startNode: [false], terminal: [false], sensitiveContent: [false], safeExitRequired: [false],
     positionX: [null], positionY: [null],
   });
 
@@ -98,7 +101,7 @@ describe('hoja de formularios del editor (F8-1)', () => {
 
     expect(text(root().querySelector('h2'))).toBe('Nuevo nodo DAG');
     expect(fieldLabels()).toEqual([
-      'Clave del nodo', 'Título', 'Narrativa', 'Mensaje de advertencia',
+      'Clave del nodo', 'Título', 'Narrativa', 'Enunciado de la decisión', 'Mensaje de advertencia',
       'Nodo inicial', 'Nodo terminal', 'Contenido sensible', 'Salida segura obligatoria',
       'Posición X', 'Posición Y',
     ]);
@@ -139,6 +142,7 @@ describe('hoja de formularios del editor (F8-1)', () => {
       sourceNodeId: ['', Validators.required], targetNodeId: ['', Validators.required], optionKey: [''],
       text: ['', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
       prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+      consequenceText: [''], feedbackText: [''], theoryBasis: [''],
     });
     await render({ kind: 'decision-create' }, { decisionForm: form });
 
@@ -219,5 +223,136 @@ describe('hoja de formularios del editor (F8-1)', () => {
     const tool = fb.group({ toolCode: ['', Validators.required], label: ['', Validators.required], icon: ['psychology'], category: ['clinical'], description: ['', Validators.required] });
     await render({ kind: 'tool-create' }, { toolForm: tool });
     expect(fieldLabels()).toEqual(['Código', 'Etiqueta', 'Categoría', 'Icono Material', 'Descripción']);
+  });
+
+  // req: RF-06, RF-09, CU-04
+  describe('el nodo: enunciado de la decisión y conclusión con contenido propio (F10-3)', () => {
+    it('el enunciado es opcional, con su ayuda, y una escena que no es conclusión llama «Narrativa» a su texto', async () => {
+      await render({ kind: 'node-create' }, { nodeForm: nodeForm() });
+
+      const prompt = field('Enunciado de la decisión')!;
+      expect(prompt.querySelector('textarea')).not.toBeNull();
+      expect(prompt.querySelector('[aria-required="true"]')).toBeNull();
+      expect(text(prompt.querySelector('.ui-field__message'))).toContain('La pregunta que lee la persona antes de elegir');
+      expect(field('Narrativa')).toBeDefined();
+      expect(field('Texto de la conclusión')).toBeUndefined();
+    });
+
+    it('al marcar «Nodo terminal» el texto pasa a ser «Texto de la conclusión» y dice que cada conclusión tiene el suyo', async () => {
+      const form = nodeForm();
+      await render({ kind: 'node-create' }, { nodeForm: form });
+
+      // Con el gesto real (la casilla), no con `patchValue`: un cambio programático entre dos pasadas da NG0100.
+      root().querySelector<HTMLInputElement>('input[formControlName="terminal"]')!.click();
+      fixture.detectChanges();
+
+      expect(form.get('terminal')!.value).toBe(true);
+      expect(field('Narrativa')).toBeUndefined();
+      const conclusion = field('Texto de la conclusión')!;
+      expect(conclusion.querySelector('[aria-required="true"]')).not.toBeNull();
+      expect(text(conclusion.querySelector('.ui-field__message'))).toContain('Cada conclusión tiene su propio texto');
+      expect(text(field('Enunciado de la decisión')!.querySelector('.ui-field__message'))).toContain('Déjalo vacío si esta escena es una conclusión');
+    });
+  });
+
+  // req: RF-10, CU-04
+  describe('la decisión: consecuencia, retroalimentación y fundamento teórico (F10-3)', () => {
+    const decisionForm = () => fb.group({
+      sourceNodeId: [1, Validators.required], targetNodeId: [2, Validators.required], optionKey: [''],
+      text: ['x', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
+      prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+      consequenceText: [''], feedbackText: [''], theoryBasis: [''],
+    });
+
+    it('los tres textos van tras el mensaje inmediato, opcionales, con su ayuda y con el tope de 1.200 caracteres', async () => {
+      await render({ kind: 'decision-create' }, { decisionForm: decisionForm() });
+
+      expect(fieldLabels()).toEqual([
+        'Nodo origen', 'Nodo destino', 'Texto de la decisión', 'Clasificación', 'Cambio de puntaje', 'Cambio de estrés (%)',
+        'Retroalimentación inmediata', 'Consecuencia en la historia', 'Retroalimentación pedagógica', 'Fundamento teórico',
+        'Conducta prohibida (penalización grave)',
+      ]);
+      for (const label of ['Consecuencia en la historia', 'Retroalimentación pedagógica', 'Fundamento teórico']) {
+        const textarea = field(label)!.querySelector('textarea')!;
+        expect(textarea.getAttribute('maxlength'), label).toBe('1200');
+        expect(field(label)!.querySelector('[aria-required="true"]'), label).toBeNull();
+      }
+      expect(text(field('Consecuencia en la historia')!.querySelector('.ui-field__message'))).toContain('Lo que ve la persona justo después de elegir');
+      expect(text(field('Retroalimentación pedagógica')!.querySelector('.ui-field__message'))).toContain('Por qué esta opción es adecuada o no');
+      expect(text(field('Fundamento teórico')!.querySelector('.ui-field__message'))).toContain('El concepto o la referencia que respalda');
+    });
+
+    it('lo que se escribe llega al formulario de la pantalla', async () => {
+      const form = decisionForm();
+      await render({ kind: 'decision-create' }, { decisionForm: form });
+
+      const write = (label: string, value: string) => {
+        const textarea = field(label)!.querySelector('textarea')!;
+        textarea.value = value;
+        textarea.dispatchEvent(new Event('input'));
+      };
+      write('Retroalimentación pedagógica', 'Validar sin juzgar sostiene la alianza.');
+      write('Fundamento teórico', 'Rogers (1957).');
+
+      expect(form.get('feedbackText')!.value).toBe('Validar sin juzgar sostiene la alianza.');
+      expect(form.get('theoryBasis')!.value).toBe('Rogers (1957).');
+    });
+  });
+
+  // req: RF-11, CU-04
+  describe('la ayuda (F10-3)', () => {
+    const hintForm = () => fb.group({ text: ['', [Validators.required, Validators.maxLength(280)]], hintOrder: [null as number | null] });
+    const withMaps = { editor: signal({ ...view, maps: [{ id: 11, title: 'Sala de espera' }] } as unknown as CaseEditorView) };
+
+    it('nombra la sala y pide el texto (obligatorio, hasta 280 caracteres) y, opcional, el orden', async () => {
+      await render({ kind: 'hint-create', mapId: 11 }, { hintForm: hintForm(), ...withMaps });
+
+      expect(text(root().querySelector('h2'))).toBe('Nueva ayuda');
+      expect(text(root().querySelector('.cs-context'))).toBe('Sala «Sala de espera»');
+      expect(fieldLabels()).toEqual(['Texto de la ayuda', 'Lugar entre las ayudas de la sala']);
+      const body = field('Texto de la ayuda')!;
+      expect(body.querySelector('[aria-required="true"]')).not.toBeNull();
+      expect(body.querySelector('textarea')!.getAttribute('maxlength')).toBe('280');
+      expect(text(body.querySelector('.ui-field__message'))).toContain('Texto plano, hasta 280 caracteres');
+      expect(field('Lugar entre las ayudas de la sala')!.querySelector('[aria-required="true"]')).toBeNull();
+      expect(button('Guardar ayuda')).toBeDefined();
+    });
+
+    it('sin texto, tocado, dice qué falta en el campo', async () => {
+      const form = hintForm();
+      form.get('text')!.markAsTouched();
+      await render({ kind: 'hint-create', mapId: 11 }, { hintForm: form, ...withMaps });
+
+      expect(text(field('Texto de la ayuda')!.querySelector('.ui-field__message'))).toBe('Escribe el texto de la ayuda.');
+    });
+
+    it('un texto de más de 280 caracteres (pegado) dice el tope en el campo', async () => {
+      const form = hintForm();
+      form.get('text')!.setValue('a'.repeat(281));
+      form.get('text')!.markAsTouched();
+      await render({ kind: 'hint-create', mapId: 11 }, { hintForm: form, ...withMaps });
+
+      expect(text(field('Texto de la ayuda')!.querySelector('.ui-field__message'))).toBe('La ayuda admite hasta 280 caracteres.');
+    });
+  });
+
+  // req: RF-07, CU-04
+  describe('el personaje (F10-3)', () => {
+    const characterForm = () => fb.group({
+      characterKey: ['', Validators.required], displayName: ['', Validators.required], roleLabel: [''], portraitKey: [''],
+      showInBrief: [true], displayOrder: [0],
+    });
+
+    it('pide clave y nombre, y opcionales el rol, el retrato, si sale en la ficha y el orden', async () => {
+      await render({ kind: 'character-create' }, { characterForm: characterForm() });
+
+      expect(fieldLabels()).toEqual([
+        'Clave del personaje', 'Nombre', 'Rol', 'Retrato (clave del kit)', 'Aparece en la ficha del caso', 'Orden en la ficha',
+      ]);
+      expect(field('Clave del personaje')!.querySelector('[aria-required="true"]')).not.toBeNull();
+      expect(field('Nombre')!.querySelector('[aria-required="true"]')).not.toBeNull();
+      expect(field('Rol')!.querySelector('[aria-required="true"]')).toBeNull();
+      expect(button('Guardar personaje')).toBeDefined();
+    });
   });
 });

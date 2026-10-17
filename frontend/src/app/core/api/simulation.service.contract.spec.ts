@@ -125,6 +125,16 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteTool', call: s => s.deleteTool(9, 2), verb: 'DELETE', url: `${A}/9/tools/2` },
   { method: 'updateChecklist', call: s => s.updateChecklist(9, body('lista')), verb: 'PUT', url: `${A}/9/checklist`, body: body('lista') },
 
+  // ── ayudas, personajes, ficha y orden de las escenas (F10-3†: E3-3 a E3-6) ─────────────────────────────
+  { method: 'createHint', call: s => s.createHint(9, 3, body('pista')), verb: 'POST', url: `${A}/9/maps/3/hints`, body: body('pista') },
+  { method: 'updateHint', call: s => s.updateHint(9, 2, body('pista')), verb: 'PUT', url: `${A}/9/hints/2`, body: body('pista') },
+  { method: 'deleteHint', call: s => s.deleteHint(9, 2), verb: 'DELETE', url: `${A}/9/hints/2` },
+  { method: 'createCharacter', call: s => s.createCharacter(9, body('personaje')), verb: 'POST', url: `${A}/9/characters`, body: body('personaje') },
+  { method: 'updateCharacter', call: s => s.updateCharacter(9, 2, body('personaje')), verb: 'PUT', url: `${A}/9/characters/2`, body: body('personaje') },
+  { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
+  { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
+  { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
+
   // ── editor de mundo ────────────────────────────────────────────────────────
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
   { method: 'saveWorld', call: s => s.saveWorld(9, body('mundo')), verb: 'PUT', url: `${A}/9/world`, body: body('mundo') },
@@ -284,13 +294,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(52);
+    expect(publicMethods).toHaveLength(60);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(52);
-    expect([player.length, authoring.length, instructor.length]).toEqual([21, 26, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(60);
+    expect([player.length, authoring.length, instructor.length]).toEqual([21, 34, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

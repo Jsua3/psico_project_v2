@@ -474,6 +474,10 @@ export interface NodeEditorState {
   startNode: boolean;
   positionX: number | null;
   positionY: number | null;
+  /** El enunciado de la decisión (E3-6, RF-06): lo que se lee antes de elegir; vacío = la escena no lo declara. */
+  decisionPrompt: string;
+  /** El lugar de la escena en la lista del editor (E3-6, RF-08): 0…n-1 tras reordenar; informativo, no cambia el grafo. */
+  displayOrder: number;
 }
 
 export interface DecisionEdgeState {
@@ -491,6 +495,12 @@ export interface DecisionEdgeState {
   stressDelta: number;
   prohibitedPenalty: number;
   immediateFeedback: string;
+  /** Lo que pasa en la historia al elegir la opción (E3-7). */
+  consequenceText: string;
+  /** El fundamento teórico que respalda la retroalimentación (E3-7). */
+  theoryBasis: string;
+  /** La retroalimentación pedagógica: por qué la opción es adecuada o no (E3-7, RF-10). */
+  feedbackText: string;
 }
 
 export interface MapEditorState {
@@ -537,6 +547,27 @@ export interface ClinicalToolEditorState {
   active: boolean;
 }
 
+/** Una ayuda (pista) de la sala de un nodo (E3-5, RF-11): `order` es su lugar entre las de esa sala. */
+export interface HintEditorState {
+  id: number;
+  mapId: number;
+  order: number;
+  text: string;
+}
+
+/** Un personaje del catálogo del caso (E3-3, RF-07). */
+export interface CharacterEditorState {
+  id: number;
+  key: string;
+  displayName: string;
+  roleLabel: string;
+  /** Clave del kit de personajes; vacía = el retrato se elige por el nombre. */
+  portraitKey: string;
+  /** Si aparece en la ficha del caso antes de empezar (los que se descubren jugando, no). */
+  showInBrief: boolean;
+  displayOrder: number;
+}
+
 /** Un ítem de la lista de publicación (E2-7): el código y el texto los fija el servidor. */
 export interface PublicationChecklistItem {
   code: string;
@@ -568,11 +599,17 @@ export interface CaseEditorView {
   title: string;
   semanticVersion: string;
   status: string;
+  /** El contexto de la ficha del caso (E3-4). */
+  context: string;
+  /** Los objetivos de aprendizaje de la ficha (E3-4). */
+  learningObjectives: string[];
   nodes: NodeEditorState[];
   decisions: DecisionEdgeState[];
   maps: MapEditorState[];
   objects: MapObjectEditorState[];
   tools: ClinicalToolEditorState[];
+  hints: HintEditorState[];
+  characters: CharacterEditorState[];
   rubrics: RubricEvaluationView[];
   checklistCompletion: number;
   publishable: boolean;
@@ -594,6 +631,8 @@ export interface NodeUpsertRequest {
   startNode: boolean;
   positionX: number | null;
   positionY: number | null;
+  /** Ausente = el servidor no lo toca; vacío = la escena no declara enunciado. */
+  decisionPrompt?: string;
 }
 
 export interface DecisionOptionUpsertRequest {
@@ -608,6 +647,32 @@ export interface DecisionOptionUpsertRequest {
   stressDelta: number;
   prohibitedPenalty: number;
   immediateFeedback: string;
+  /** Texto plano de hasta 1.200 caracteres (E3-7); ausente = no se toca, vacío = se borra. */
+  consequenceText?: string;
+  theoryBasis?: string;
+  feedbackText?: string;
+}
+
+/** Una ayuda de una sala: texto plano de hasta 280 caracteres; sin `hintOrder` se agrega al final. */
+export interface HintUpsertRequest {
+  text: string;
+  hintOrder?: number;
+}
+
+/** Un personaje del caso; los opcionales ausentes no se tocan. */
+export interface CharacterUpsertRequest {
+  characterKey: string;
+  displayName: string;
+  roleLabel?: string;
+  portraitKey?: string;
+  showInBrief?: boolean;
+  displayOrder?: number;
+}
+
+/** La ficha del caso: ausente = no se toca; `[]` vacía los objetivos. */
+export interface BriefUpdateRequest {
+  context?: string;
+  learningObjectives?: string[];
 }
 
 export interface MapUpsertRequest {

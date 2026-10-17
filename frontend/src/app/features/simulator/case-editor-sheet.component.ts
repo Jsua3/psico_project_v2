@@ -4,8 +4,10 @@ import { AbstractControl, FormGroup, ReactiveFormsModule } from '@angular/forms'
 
 import {
   CaseEditorView,
+  CharacterEditorState,
   ClinicalToolEditorState,
   DecisionEdgeState,
+  HintEditorState,
   MapEditorState,
   MapObjectEditorState,
   NodeEditorState,
@@ -29,6 +31,10 @@ export type EditorPanel =
   | { kind: 'object-edit'; obj: MapObjectEditorState }
   | { kind: 'tool-create' }
   | { kind: 'tool-edit'; tool: ClinicalToolEditorState }
+  | { kind: 'hint-create'; mapId: number }
+  | { kind: 'hint-edit'; hint: HintEditorState }
+  | { kind: 'character-create' }
+  | { kind: 'character-edit'; character: CharacterEditorState }
   | null;
 
 /**
@@ -45,6 +51,8 @@ export interface CaseEditorSheetHost {
   readonly mapForm: FormGroup | null;
   readonly objectForm: FormGroup | null;
   readonly toolForm: FormGroup | null;
+  readonly hintForm: FormGroup | null;
+  readonly characterForm: FormGroup | null;
   panelTitle(): string;
   fieldError(control: AbstractControl, message: string): string | null;
   save(): void;
@@ -63,7 +71,12 @@ const SAVE_LABELS: Record<string, string> = {
   map: 'Guardar mapa',
   object: 'Guardar objeto',
   tool: 'Guardar herramienta',
+  hint: 'Guardar ayuda',
+  character: 'Guardar personaje',
 };
+
+/** El tope de las tres retroalimentaciones de una opción (E3-7): el campo lo dice y el servidor lo exige. */
+const FEEDBACK_LIMIT_MESSAGE = 'Admite hasta 1.200 caracteres.';
 
 /**
  * Formularios del editor de casos en una hoja lateral (plan F8-1): antes un panel `role="dialog"` sin foco inicial ni
@@ -88,8 +101,9 @@ export class CaseEditorSheetComponent {
   protected readonly classifications = CLASSIFICATIONS;
   protected readonly nodeOptionLabel = nodeOptionLabel;
   protected readonly shorten = shorten;
+  protected readonly feedbackLimitMessage = FEEDBACK_LIMIT_MESSAGE;
 
-  /** `node`, `decision`, `map`, `object` o `tool`: qué formulario se presenta. */
+  /** `node`, `decision`, `map`, `object`, `tool`, `hint` o `character`: qué formulario se presenta. */
   protected readonly section = computed(() => (this.host.panel()?.kind ?? '').split('-')[0]);
   protected readonly saveLabel = computed(() => SAVE_LABELS[this.section()] ?? 'Guardar');
 
@@ -109,11 +123,25 @@ export class CaseEditorSheetComponent {
       case 'map': return this.host.mapForm;
       case 'object': return this.host.objectForm;
       case 'tool': return this.host.toolForm;
+      case 'hint': return this.host.hintForm;
+      case 'character': return this.host.characterForm;
       default: return null;
     }
   }
 
   protected control(group: FormGroup, name: string): AbstractControl {
     return group.get(name)!;
+  }
+
+  /** El título de la sala a la que pertenece la ayuda que se crea o edita. */
+  protected hintMapTitle(): string {
+    const panel = this.host.panel();
+    const mapId = panel?.kind === 'hint-create' ? panel.mapId : panel?.kind === 'hint-edit' ? panel.hint.mapId : null;
+    return this.host.editor()?.maps.find(map => map.id === mapId)?.title ?? '';
+  }
+
+  /** Vacía o de más de 280 caracteres: el campo dice cuál de las dos. */
+  protected hintTextMessage(control: AbstractControl): string {
+    return control.errors?.['maxlength'] ? 'La ayuda admite hasta 280 caracteres.' : 'Escribe el texto de la ayuda.';
   }
 }

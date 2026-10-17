@@ -3,12 +3,15 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Subject } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import {
+  BriefUpdateRequest,
   CaseEditorView,
   CaseLifecycle,
   CaseTransitionRequest,
   CaseValidation,
+  CharacterUpsertRequest,
   ChecklistUpdateRequest,
   DecisionOptionUpsertRequest,
+  HintUpsertRequest,
   MapObjectUpsertRequest,
   MapUpsertRequest,
   NodeUpsertRequest,
@@ -164,6 +167,50 @@ export class AuthoringApi {
 
   deleteTool(caseVersionId: number, toolId: number, revision?: number) {
     return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/tools/${toolId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Ayudas, personajes, ficha y orden de las escenas (E3-3 a E3-6) ─────────
+
+  createHint(caseVersionId: number, mapId: number, body: HintUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps/${mapId}/hints`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  updateHint(caseVersionId: number, hintId: number, body: HintUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/hints/${hintId}`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  deleteHint(caseVersionId: number, hintId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/hints/${hintId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  createCharacter(caseVersionId: number, body: CharacterUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/characters`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  updateCharacter(caseVersionId: number, characterId: number, body: CharacterUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/characters/${characterId}`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  deleteCharacter(caseVersionId: number, characterId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/characters/${characterId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** El contexto y los objetivos de la ficha del caso. */
+  updateBrief(caseVersionId: number, body: BriefUpdateRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/brief`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** El orden de las escenas: los ids de TODAS, en el orden pedido (el servidor lo guarda como su posición). */
+  reorderNodes(caseVersionId: number, order: number[], revision?: number) {
+    return this.http.patch<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/nodes/reorder`, { order }, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
