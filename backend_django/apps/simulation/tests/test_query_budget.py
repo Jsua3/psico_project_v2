@@ -37,13 +37,11 @@ pytestmark = pytest.mark.req("RNF-05")
 #: Presupuesto de consultas por request. Solo baja (E5-1).
 QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
-    # E1-3 (cerrojo del intento, R4): +1 consulta (SELECT … FOR UPDATE) por orden que muta el
-    # intento; decidir suma otra por la búsqueda de repetición. E5-1 las consolida.
-    "get_world": 14,  # (0) era 16 con 2 escrituras: una LECTURA que escribía (D-15); E1-6 la volvió pura
-    # El primer PATCH tras cargar el mundo ya persiste la sincronización que antes hacía el GET
-    # (+1 INSERT del estado): 19 → 20 por el cerrojo (E1-3) → 21 por esa sincronización (E1-6).
-    "patch_world_state": 21,  # (4) era 19 (3); E5-1 apunta a ≤ 6
-    "enter_room": 26,  # (3) era 25: +1 cerrojo (E1-3) y +1 UPDATE del tiempo (E1-5), −1 sync del GET (E1-6)
+    # E5-1: carga de árboles/líneas/opciones en 3 consultas y AttemptWorldState junto al intento.
+    "get_world": 8,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
+    # E5-1: acuse mínimo + cerrojo en la lectura del intento + INSERT directo del estado inicial.
+    "patch_world_state": 6,  # (2) era 21 (4)
+    "enter_room": 13,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
     "post_decision": 12,  # (5)
@@ -213,3 +211,47 @@ def test_presupuesto_de_consultas(name, estudiante, case_version_id):
         f"presupuesto {QUERY_BUDGETS[name]}. El presupuesto solo baja: si la medición "
         f"bajó, pon QUERY_BUDGETS[{name!r}] = {worst.queries}; si subió, optimiza."
     )
+
+
+def test_list_published_cases_no_hace_count_por_caso(estudiante, case_version_id):
+    """E5-1: ``list_published_cases`` anota ``node_count`` en una sola consulta sin N+1 por versión."""
+    from apps.simulation.models import CaseVersion, SimulationCase, SimulationNode
+    from apps.simulation.services import game_service
+    from shared.testing import assert_queries_at_most, fetch_mode_raise, seal_version
+
+    assign_case_to_student(estudiante, case_version_id, "BUD-CASES")
+    extra_case = SimulationCase.objects.create(
+        code="SIM-EXTRA-E5", title="Extra", description="x", active=True, created_by=estudiante
+    )
+    extra_ver = CaseVersion.objects.create(
+        simulation_case=extra_case, semantic_version="1.0.0", status="DRAFT", created_by=estudiante
+    )
+    SimulationNode.objects.create(
+        case_version=extra_ver, node_key="n1", title="N1", narrative="x", start_node=True, terminal_node=True
+    )
+    CaseVersion.objects.filter(pk=extra_ver.id).update(status="PUBLISHED")
+    seal_version(extra_ver)
+
+    with fetch_mode_raise(), assert_queries_at_most(1):
+        items = game_service.list_published_cases(actor=None)
+    assert len(items) >= 2
+    by_code = {item["code"]: item["nodeCount"] for item in items}
+    assert by_code["SIM-EXTRA-E5"] == 1
+
+
+def test_patch_world_state_devuelve_acuse_minimo_salvo_cambio_de_sala(estudiante, case_version_id):
+    """E5-1: ``PATCH world-state`` devuelve el acuse mínimo cuando no cambió la sala."""
+    _, client, attempt_id, token, _ = _start(estudiante, case_version_id, "BUD-ACK")
+    map_key = _map_key(client, attempt_id, token)
+    response = client.patch(
+        f"/api/simulation/attempts/{attempt_id}/world-state",
+        {"attemptToken": token, "playerX": 340, "playerY": 430, "currentMapKey": map_key},
+        format="json",
+    )
+    assert response.status_code == 200
+    data = response.data["data"]
+    assert data["map"] == {"key": map_key}
+    assert data["player"] == {"x": 340, "y": 430}
+    assert "objects" not in data
+    assert "tools" not in data
+

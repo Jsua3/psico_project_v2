@@ -107,7 +107,7 @@ def _require_published(case_version_id):
     return version
 
 
-def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
+def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, lock=False):
     """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04).
 
     Un docente o el ADMIN no leen un intento ajeno por token: su vía es ``/api/instructor/**``
@@ -115,14 +115,23 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
 
     ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
     alcanzable, aunque el estudiante ya no tenga el caso asignado).
+    ``lock=True`` toma ``SELECT … FOR UPDATE OF simulation_attempts_v2`` en la misma consulta
+    (E5-1: ahorra el viaje separado de ``lock_attempt_row``).
     """
     if not attempt_token:
         raise ValidationError("El token del intento es obligatorio")
+    qs = SimulationAttempt.objects.filter(
+        pk=attempt_id, attempt_token_hash=_hash_token(attempt_token)
+    )
+    if lock:
+        qs = qs.select_for_update(of=("self",))
     attempt = (
-        SimulationAttempt.objects.filter(
-            pk=attempt_id, attempt_token_hash=_hash_token(attempt_token)
+        qs.select_related(
+            "case_version__simulation_case",
+            "current_node",
+            "student",
+            "world_state__scene_map",
         )
-        .select_related("case_version__simulation_case", "current_node", "student")
         # E1-4: la asignación vigente del dueño viaja en la misma consulta (sin un viaje más).
         .annotate(owner_has_assignment=assignments.assignment_exists(
             OuterRef("student_id"), OuterRef("case_version_id")
@@ -166,9 +175,12 @@ _student_can_access_case = assignments.student_has_assignment
 
 
 def list_published_cases(actor=None):
+    from django.db.models import Count
+
     versions = (
         CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
         .select_related("simulation_case")
+        .annotate(node_count=Count("nodes"))
         .order_by("-published_at")
     )
     if actor is not None and getattr(actor, "role", None) == "ESTUDIANTE":
@@ -176,11 +188,7 @@ def list_published_cases(actor=None):
         if not assigned_ids:
             return []
         versions = versions.filter(id__in=assigned_ids)
-    result = []
-    for v in versions:
-        node_count = SimulationNode.objects.filter(case_version_id=v.id).count()
-        result.append(dto.case_summary(v, node_count))
-    return result
+    return [dto.case_summary(v, v.node_count) for v in versions]
 
 
 def _close_active_attempts(student, case_version_id, reason):

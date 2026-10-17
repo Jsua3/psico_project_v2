@@ -23,6 +23,16 @@ def stamp_position_sync(world_state, flags=None):
     return flags
 
 
+def _cached_world_state(attempt):
+    if "world_state" in attempt._state.fields_cache:
+        return attempt._state.fields_cache["world_state"]
+    return (
+        AttemptWorldState.objects.filter(attempt_id=attempt.id)
+        .select_related("scene_map")
+        .first()
+    )
+
+
 def resolve_world_state(attempt, tolerate_missing_map=False):
     """El estado del mundo del intento SIN escribir nada (E1-6, D-15).
 
@@ -33,12 +43,15 @@ def resolve_world_state(attempt, tolerate_missing_map=False):
     Con ``tolerate_missing_map``, un nodo sin escena (un final sin mapa) devuelve el
     último mundo guardado en vez de fallar; sin estado guardado sigue siendo un 404.
     """
+    state = _cached_world_state(attempt)
+    flags = _read_map(state.flags_json) if state is not None else {}
+    if (
+        state is not None
+        and state.scene_map_id is not None
+        and flags.get("syncedNodeId") == attempt.current_node_id
+    ):
+        return state, False
     expected_map = SceneMap.objects.filter(node_id=attempt.current_node_id).first()
-    state = (
-        AttemptWorldState.objects.filter(attempt_id=attempt.id)
-        .select_related("scene_map")
-        .first()
-    )
     if expected_map is None:
         if tolerate_missing_map and state is not None and state.scene_map_id is not None:
             return state, False
@@ -55,7 +68,6 @@ def resolve_world_state(attempt, tolerate_missing_map=False):
     # Fase 5: the displayed room is reset to the DAG node's map ONLY when the node
     # changed (e.g. a decision advanced it), tracked via flags.syncedNodeId. Between
     # node changes, a spatial door may have set a different room — respect it.
-    flags = _read_map(state.flags_json)
     if state.scene_map_id is None or flags.get("syncedNodeId") != attempt.current_node_id:
         state.scene_map = expected_map
         state.player_x = expected_map.spawn_x
@@ -77,7 +89,7 @@ def require_world_state(attempt):
     """El estado del mundo para una orden que lo MUTA: se sincroniza con el nodo y se guarda."""
     state, dirty = resolve_world_state(attempt)
     if dirty:
-        state.save()
+        state.save(force_insert=state._state.adding)
     return state
 
 
