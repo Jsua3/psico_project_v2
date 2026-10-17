@@ -1,0 +1,103 @@
+"""E5-9 · Contrato OpenAPI con trinquete de avisos y tipos TypeScript (DJG-6, §5.1).
+
+Verifica que:
+1. ``drf-spectacular`` genera el esquema completo con 0 errores y 0 avisos (trinquete en 0).
+2. Ningún esquema de respuesta expone campos prohibidos (``password``, ``encrypted_text``, secretos).
+3. Las rutas canónicas ``/api/...`` están documentadas sin duplicados con barra final y con ``BearerAuth``.
+4. El archivo TypeScript generado ``frontend/src/app/core/api/generated/openapi-contracts.d.ts``
+   coincide exactamente con el esquema OpenAPI actual.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+from drf_spectacular.drainage import GENERATOR_STATS
+from drf_spectacular.generators import SchemaGenerator
+
+from shared.openapi import PROHIBITED_SCHEMA_FIELDS, render_typescript_contracts
+
+pytestmark = pytest.mark.req("RNF-07")
+
+MAX_OPENAPI_WARNINGS = 0
+MAX_OPENAPI_ERRORS = 0
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+TS_CONTRACTS_FILE = REPO_ROOT / "frontend" / "src" / "app" / "core" / "api" / "generated" / "openapi-contracts.d.ts"
+
+
+def _collect_schema_property_names(node: Any) -> set[str]:
+    found: set[str] = set()
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict):
+            for prop_name, prop_val in props.items():
+                found.add(str(prop_name))
+                found.update(_collect_schema_property_names(prop_val))
+        for key, value in node.items():
+            if key != "properties":
+                found.update(_collect_schema_property_names(value))
+    elif isinstance(node, list):
+        for item in node:
+            found.update(_collect_schema_property_names(item))
+    return found
+
+
+def test_openapi_schema_generates_with_zero_warnings_and_zero_errors():
+    GENERATOR_STATS.reset()
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    warnings = list(GENERATOR_STATS._warn_cache)
+    errors = list(GENERATOR_STATS._error_cache)
+
+    assert len(errors) <= MAX_OPENAPI_ERRORS, f"Errores OpenAPI sobre el trinquete ({MAX_OPENAPI_ERRORS}): {errors}"
+    assert len(warnings) <= MAX_OPENAPI_WARNINGS, f"Avisos OpenAPI sobre el trinquete ({MAX_OPENAPI_WARNINGS}): {warnings}"
+    assert schema.get("openapi", "").startswith("3.0.")
+
+
+def test_openapi_schema_covers_canonical_endpoints_and_bearer_auth():
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    paths = schema.get("paths", {})
+
+    expected_paths = {
+        "/api/auth/login",
+        "/api/admin/audit",
+        "/api/instructor/attempts",
+        "/api/simulation/catalog",
+        "/api/simulation/cases",
+        "/api/simulation/attempts/{attempt_id}/world",
+        "/api/simulation/attempts/{attempt_id}/world-state",
+        "/api/grupos",
+        "/api/assignments",
+        "/api/rubrics",
+    }
+    missing = expected_paths - set(paths.keys())
+    assert not missing, f"Faltan rutas canónicas en OpenAPI: {sorted(missing)}"
+
+    trailing_duplicates = [p for p in paths.keys() if p != "/api/" and p.endswith("/")]
+    assert not trailing_duplicates, f"Rutas con barra final duplicada en OpenAPI: {trailing_duplicates}"
+
+    security_schemes = schema.get("components", {}).get("securitySchemes", {})
+    assert "BearerAuth" in security_schemes
+    assert security_schemes["BearerAuth"]["scheme"] == "bearer"
+
+
+def test_openapi_schema_never_exposes_prohibited_fields():
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    components = schema.get("components", {}).get("schemas", {})
+    exposed = _collect_schema_property_names(components) & PROHIBITED_SCHEMA_FIELDS
+    assert not exposed, f"Campos prohibidos expuestos en components.schemas: {sorted(exposed)}"
+
+    synthetic = {"BadSchema": {"type": "object", "properties": {"encrypted_text": {"type": "string"}}}}
+    assert _collect_schema_property_names(synthetic) & PROHIBITED_SCHEMA_FIELDS == {"encrypted_text"}
+
+
+def test_generated_typescript_contracts_match_openapi_schema():
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    expected = render_typescript_contracts(schema).replace("\r\n", "\n")
+    assert TS_CONTRACTS_FILE.exists(), f"No existe {TS_CONTRACTS_FILE}; ejecuta `node scripts/openapi/generate-types.mjs`."
+    current = TS_CONTRACTS_FILE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert current == expected, (
+        "Los tipos TypeScript de OpenAPI están desactualizados respecto al esquema actual. "
+        "Ejecuta `node scripts/openapi/generate-types.mjs`."
+    )

@@ -20,7 +20,8 @@
     "verify:estructural": "node scripts/verify-estructural.mjs",
     "load:aula": "node scripts/load/aula.mjs",
     "ui:lint": "npm run ui:lint --prefix frontend",
-    "e2e:types": "npm run e2e:types --prefix frontend"
+    "e2e:types": "npm run e2e:types --prefix frontend",
+    "openapi:types": "node scripts/openapi/generate-types.mjs"
   },
   "engines": {
     "node": "^24.15.0 || >=26.0.0"

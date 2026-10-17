@@ -6,11 +6,13 @@ Solo ADMIN (``policy_permission("audit", "read")``). Permite filtrar por ``actor
 """
 from datetime import datetime
 
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
 from apps.simulation.services import audit_service
 from shared.exceptions import ApiError
+from shared.openapi import AuditListResponseSchemaSerializer
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -49,6 +51,7 @@ def _parse_dt(request, name):
 class AdminAuditListView(APIView):
     permission_classes = [policy_permission("audit", "read")]
 
+    @extend_schema(responses=AuditListResponseSchemaSerializer)
     def get(self, request):
         actor_id = _parse_int(request, "actorId")
         action = request.query_params.get("action")

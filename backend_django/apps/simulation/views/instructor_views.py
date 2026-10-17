@@ -2,10 +2,12 @@
 
 All endpoints PROFESOR/ADMIN.
 """
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
 from shared.exceptions import ApiError
+from shared.openapi import InstructorAttemptsListSchemaSerializer
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -32,6 +34,7 @@ def _int_param(request, *names):
 class InstructorAttemptsView(APIView):
     permission_classes = [policy_permission("attempt", "review")]
 
+    @extend_schema(responses=InstructorAttemptsListSchemaSerializer)
     def get(self, request):
         grupo_id = _int_param(request, "grupoId", "groupId")
         estudiante_id = _int_param(request, "estudianteId", "studentId")

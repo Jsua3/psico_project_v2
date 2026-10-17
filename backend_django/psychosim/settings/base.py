@@ -112,7 +112,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
     ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
 
@@ -260,6 +260,10 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend Django para el simulador SIEP (contrato idéntico a Spring).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
+    "PREPROCESSING_HOOKS": [
+        "shared.openapi.preprocess_canonical_api_endpoints",
+    ],
 }
 
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
