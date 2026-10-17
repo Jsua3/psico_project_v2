@@ -169,10 +169,11 @@ def _env_flag(name, default=False):
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8) ───────────
-# Apagadas por defecto: lo nuevo que cambia lo que el visual consume ya está en el servidor, pero
-# el comportamiento anterior sigue activo hasta que el visual migre. Cada una se retira (pasa a
-# «activa» y se borra lo viejo) en F9-10 del visual o en E5-10, lo que ocurra primero.
+# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
+# Estado al cierre de E5-10 (con el plan visual en F9-3): todas las rutas de contrato estricto
+# están implementadas y verificadas juntas en `test_contract_closure.py`. Las banderas conmutan
+# a su valor `target_contract` al cerrarse F9-10 del plan visual (o activando la variable de
+# entorno en despliegue).
 #: E1-1 · con un intento abierto, `forceNew` de un ESTUDIANTE → 409 ATTEMPT_ALREADY_OPEN (RN-07).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
 #: E1-7 · la respuesta de una decisión no trae clasificación, deltas ni mensaje evaluativo: la
@@ -185,18 +186,46 @@ RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
 #: E2-5 · la publicación pasa por revisión: solo se publica desde ``IN_REVIEW`` (``POST …/publish``
 #: sobre un borrador responde 409 ``REVIEW_REQUIRED``), con la lista completa de siete ítems y la
-#: constancia de revisión de contenido de Psicología. Apagada: ``/publish`` del ADMIN sigue
-#: publicando un borrador y la constancia es opcional (el editor de hoy tiene seis casillas).
+#: constancia de revisión de contenido de Psicología.
 REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
 #: E2-6 · ``revision`` es obligatoria en toda mutación de autoría (400 ``REVISION_REQUIRED`` si falta).
-#: Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409
-#: ``REVISION_CONFLICT``.
 REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
-#: E2-10 · PUENTE transitorio (revisión de fase): invitar a un estudiante lo une al grupo de una
-#: vez, sin aceptación ni correo, como hasta E1. Apagada (por defecto): la invitación espera la
-#: respuesta del estudiante (decisión 22). Se enciende solo mientras el visual no tenga la bandeja
-#: de invitaciones (F7+) y se retira cuando la tenga.
+#: E2-10 · PUENTE transitorio: Apagada por defecto (la invitación espera la respuesta del
+#: estudiante, decisión 22).
 INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
+
+CONTRACT_FLAGS_REGISTRY = {
+    "ATTEMPT_START_STRICT": {
+        "env": "SIEP_ATTEMPT_START_STRICT",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (retiro de forceNew en cliente)",
+    },
+    "FEEDBACK_AT_CLOSE_ONLY": {
+        "env": "SIEP_FEEDBACK_AT_CLOSE_ONLY",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cierre de F6/F10-4)",
+    },
+    "RUBRIC_NUMERIC_TOTAL": {
+        "env": "SIEP_RUBRIC_NUMERIC_TOTAL",
+        "target_contract": False,
+        "retirement_gate": "ED-2 / RN-09 (evaluación formativa por niveles, permanece False)",
+    },
+    "REVIEW_WORKFLOW_STRICT": {
+        "env": "SIEP_REVIEW_WORKFLOW_STRICT",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cierre de F10-6† en e2e)",
+    },
+    "REVISION_REQUIRED": {
+        "env": "SIEP_REVISION_REQUIRED",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cabecera X-Case-Revision obligatoria en todos los clientes)",
+    },
+    "INVITATIONS_AUTO_ACCEPT": {
+        "env": "SIEP_INVITATIONS_AUTO_ACCEPT",
+        "target_contract": False,
+        "retirement_gate": "Activa en estado final (False por defecto desde E2-10 / F10-8†)",
+    },
+}
 #: R16 · máximo de avisos de invitación que sale de UNA importación (el resto queda invitado y lo
 #: ve en su bandeja): acota el tiempo de la petición y el volumen de correo.
 INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25"))
