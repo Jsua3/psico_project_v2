@@ -94,7 +94,10 @@ async function openGroups(page: Page, grupos: unknown[] = GRUPOS): Promise<void>
     ? route.fulfill({ json: { success: true, data: grupos } })
     : route.continue());
   await page.route('**/api/grupos/*/estudiantes', route => route.fulfill({ json: { success: true, data: ESTUDIANTES } }));
-  await page.route('**/api/grupos/*/casos', route => route.fulfill({ json: { success: true, data: [CASOS[0]] } }));
+  // F10-5: los casos asignados salen de las asignaciones con ventana (C7), no de `/grupos/{id}/casos`.
+  await page.route(/\/api\/assignments(\?.*)?$/, route => route.fulfill({
+    json: { success: true, data: [{ id: 5, caseVersionId: 1, target: { type: 'GROUP', groupId: 1 }, state: 'OPEN', active: true, sortOrder: 0 }] },
+  }));
   await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
   await page.goto('/portal/grupos');
 }

@@ -21,7 +21,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { attemptTone, formatDate, openAttempt } from '../dashboard/student-dashboard.util';
 import { formatAttemptDuration, historyDurationSeconds } from './attempt-history-duration.util';
-import { blockedNotice, lockReason } from './case-lock.util';
+import { blockedNotice, lockLabel, lockReason } from './case-lock.util';
 import { StudentReportDialogComponent, StudentReportDialogData } from './student-report-dialog.component';
 
 type HttpLikeError = { status?: number };
@@ -94,7 +94,7 @@ export class SimulationCatalogComponent {
     // anterior): continuar, pausar o terminar (RN-07) manda sobre el desbloqueo lineal.
     const lock = open ? null : lockReason(this.catalogItems(), item.caseVersionId);
     const done = !open && !!this.catalogItems().find(entry => entry.caseVersionId === item.caseVersionId)?.completed;
-    return { item, open, startLabel, lock, done };
+    return { item, open, startLabel, lock, lockLabel: lockLabel(this.catalogItems(), item.caseVersionId), done };
   }));
   protected readonly rows = computed(() => this.history().map(attempt => ({
     attempt,

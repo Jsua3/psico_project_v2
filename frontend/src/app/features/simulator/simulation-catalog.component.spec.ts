@@ -256,6 +256,23 @@ describe('SimulationCatalogComponent', () => {
     expect(text(card('Caso 1').querySelector('ui-badge.case-card__done'))).toBe('Resuelto');
   });
 
+  // req: RN-04, RF-15, RF-14 (F10-5)
+  it('F10-5: un caso cuya ventana aún no abre o ya cerró se rotula así, con la fecha, y no manda a completar otro caso', async () => {
+    const scheduled = { ...catalogItem(2, 2, false), access: { allowed: false as const, reason: 'NOT_YET_OPEN' as const, opensAt: '2026-10-20T08:00:00-05:00' } };
+    const closed = { ...catalogItem(3, 3, false), access: { allowed: false as const, reason: 'CLOSED' as const, closesAt: '2026-10-05T23:59:00-05:00' } };
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
+      getCatalog: () => of([catalogItem(1, 1, true, true), scheduled, closed]),
+    });
+    expect(text(card('Caso 2').querySelector('ui-badge.case-card__lock'))).toBe('Aún no abre');
+    expect(text(card('Caso 2').querySelector('.case-card__reason'))).toMatch(/20 de oct/);
+    expect(text(card('Caso 2').querySelector('.case-card__reason'))).not.toContain('Completa');
+    expect(text(card('Caso 3').querySelector('ui-badge.case-card__lock'))).toBe('Ya cerró');
+    expect(text(card('Caso 3').querySelector('.case-card__reason'))).toMatch(/5 de oct/);
+    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('F5-5: si el catálogo de desbloqueo falla, no se inventa ningún bloqueo (decide el servidor)', async () => {
     await render('ESTUDIANTE', { listCases: () => of([caseSummary(1), caseSummary(2)]), getCatalog: httpFailure });
     expect(host().querySelector('.case-card__lock')).toBeNull();

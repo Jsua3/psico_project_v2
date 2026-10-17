@@ -26,6 +26,7 @@ import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { GroupAssignmentsComponent } from './group-assignments.component';
 
 /** E2-10: un servidor anterior no mandaba `membershipStatus` (todas eran membresías activas). */
 function membershipOf(student: GrupoEstudiante): MembershipStatus {
@@ -66,7 +67,7 @@ function removeLabel(student: GrupoEstudiante): string {
   imports: [
     ReactiveFormsModule, RouterLink,
     UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiStat,
-    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
+    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable, GroupAssignmentsComponent,
   ],
   templateUrl: './grupo-list.component.html',
   styleUrl: './grupo-list.component.scss',
@@ -99,7 +100,8 @@ export class GrupoListComponent implements OnInit {
   casosDisponibles = signal<SimulationCaseSummary[]>([]);
   /** Los casos publicados ya respondieron (una cifra de 0 solo es verdad después de que respondan). */
   casosCargados = signal(false);
-  casosAsignados = signal<SimulationCaseSummary[]>([]);
+  /** Cuántos casos tiene asignados el grupo abierto: lo dice la sección de asignaciones (F10-5) y lo cuenta el encabezado. */
+  casosAsignadosTotal = signal(0);
   mensajeEstudiante = signal('');
   importSpec = signal<GrupoImportSpec | null>(null);
   archivoImportacion = signal<File | null>(null);
@@ -110,7 +112,6 @@ export class GrupoListComponent implements OnInit {
   detailLoading = signal(false);
   saving = signal(false);
   agregandoEstudiante = signal(false);
-  asignandoCaso = signal(false);
   importandoEstudiantes = signal(false);
   error = signal('');
   /** Hay un archivo sobre la zona de importación (se resalta mientras dure). */
@@ -131,6 +132,8 @@ export class GrupoListComponent implements OnInit {
     const invitados = this.invitados().length;
     const partes = [`${miembros} ${miembros === 1 ? 'estudiante' : 'estudiantes'}`];
     if (invitados) partes.push(`${invitados} ${invitados === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}`);
+    const casos = this.casosAsignadosTotal();
+    partes.push(`${casos} ${casos === 1 ? 'caso asignado' : 'casos asignados'}`);
     return partes.join(' · ');
   });
   protected readonly membershipBadge = membershipBadge;
@@ -150,10 +153,6 @@ export class GrupoListComponent implements OnInit {
     return this.estudiantes().filter(student =>
       `${student.nombre} ${student.apellido} ${student.email}`.toLowerCase().includes(query)
     );
-  });
-  casosDisponiblesParaAsignar = computed(() => {
-    const asignados = new Set(this.casosAsignados().map(caso => caso.caseVersionId));
-    return this.casosDisponibles().filter(caso => !asignados.has(caso.caseVersionId));
   });
 
   /** Estado de la lista de grupos (esqueleto, error, primer uso o listo): una sola señal, de a uno. */
@@ -178,7 +177,6 @@ export class GrupoListComponent implements OnInit {
 
   form = this.fb.group({ nombre: ['', Validators.required], codigo: ['', Validators.required] });
   estudianteForm = this.fb.group({ email: ['', [Validators.required, Validators.email]] });
-  casoForm = this.fb.group({ caseVersionId: ['', Validators.required] });
 
   ngOnInit() {
     this.cargar();
@@ -439,10 +437,6 @@ export class GrupoListComponent implements OnInit {
         this.detailLoading.set(false);
       }
     });
-    this.grupoService.listarCasos(grupoId).subscribe({
-      next: casos => this.casosAsignados.set(casos),
-      error: () => this.casosAsignados.set([])
-    });
   }
 
   confirmarAgregar() {
@@ -628,43 +622,5 @@ export class GrupoListComponent implements OnInit {
     this.archivoImportacion.set(null);
     this.resultadoImportacion.set(null);
     this.erroresImportacion.set([]);
-  }
-
-  asignarCaso() {
-    const grupo = this.grupoActivo();
-    if (!grupo || this.casoForm.invalid || this.asignandoCaso()) return;
-    const caseVersionId = Number(this.casoForm.value.caseVersionId);
-    this.asignandoCaso.set(true);
-    this.grupoService.asignarCaso(grupo.id, caseVersionId).subscribe({
-      next: casos => {
-        this.casosAsignados.set(casos);
-        this.casoForm.reset();
-        this.asignandoCaso.set(false);
-        this.notify.success('Caso asignado al grupo.');
-      },
-      error: (err: unknown) => {
-        const text = apiErrorMessage(err, 'No fue posible asignar el caso al grupo.');
-        if (text) this.notify.error(text);
-        this.asignandoCaso.set(false);
-      }
-    });
-  }
-
-  quitarCaso(caseVersionId: number) {
-    const grupo = this.grupoActivo();
-    if (!grupo || this.asignandoCaso()) return;
-    this.asignandoCaso.set(true);
-    this.grupoService.quitarCaso(grupo.id, caseVersionId).subscribe({
-      next: casos => {
-        this.casosAsignados.set(casos);
-        this.asignandoCaso.set(false);
-        this.notify.success('Caso retirado del grupo.');
-      },
-      error: (err: unknown) => {
-        const text = apiErrorMessage(err, 'No fue posible retirar el caso del grupo.');
-        if (text) this.notify.error(text);
-        this.asignandoCaso.set(false);
-      }
-    });
   }
 }

@@ -183,6 +183,11 @@ export async function assignCase(request: APIRequestContext, caseVersionId: numb
 export async function retireCase(request: APIRequestContext, caseVersionId: number, records: AssignmentRecord[] = []): Promise<void> {
   try {
     const professor = await apiToken(request, PROFESOR);
+    // Las asignaciones que la prueba creó por la interfaz (y no están en `records`) también se apagan.
+    const created = ((await (await request.get(`/api/assignments?caseVersionId=${caseVersionId}`, { headers: bearer(professor) })).json()).data ?? []) as Array<{ id: number }>;
+    for (const assignment of created) {
+      await request.patch(`/api/assignments/${assignment.id}`, { headers: bearer(professor), data: { active: false } });
+    }
     for (const record of records) {
       await request.patch(`/api/assignments/${record.id}`, { headers: bearer(professor), data: { active: false } });
       for (const moved of record.shifted) {

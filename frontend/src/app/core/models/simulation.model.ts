@@ -7,6 +7,8 @@ export interface CatalogItem {
   unlocked: boolean;
   completed: boolean;
   locked: boolean;
+  /** La decisión de acceso del servidor (asignación, ventana y secuencia); `unlocked` sigue diciendo lo mismo en pocas palabras. */
+  access?: CaseAccess;
 }
 
 /** Por qué el servidor no deja iniciar un caso: la asignación, su ventana o la secuencia lineal (E3-2; RN-04, RF-15). */

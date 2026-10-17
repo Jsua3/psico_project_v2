@@ -46,7 +46,7 @@
               <ui-badge class="case-card__attempt" [tone]="tone(open.status)">{{ statusLabel(open.status) }}</ui-badge>
             }
             @if (card.lock; as reason) {
-              <ui-badge class="case-card__lock" tone="neutral">Bloqueado</ui-badge>
+              <ui-badge class="case-card__lock" tone="neutral">{{ card.lockLabel }}</ui-badge>
               <p class="case-card__reason">{{ reason }}</p>
             }
             @if (card.done) {
