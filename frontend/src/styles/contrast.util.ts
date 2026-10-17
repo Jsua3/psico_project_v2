@@ -38,3 +38,21 @@ export function blend(fg: string, alpha: number, bg: string): string {
   const b = hexToRgb(bg);
   return rgbToHex(f.map((c, i) => c * a + b[i] * (1 - a)) as Rgb);
 }
+
+/** La tinta oscura de la interfaz (la del texto de los títulos): el texto de los colores claros. */
+export const DARK_TEXT = '#14202e';
+const LIGHT_TEXT = '#ffffff';
+
+/**
+ * Texto legible sobre un color que NO elige la interfaz (el color de un objeto del mapa lo elige quien autora el caso):
+ * el blanco o la tinta oscura, el que dé más contraste. Con un color que no se entiende queda el blanco de siempre.
+ * Con un gris medio ninguno llega a 4,5:1; igual se elige el mejor de los dos.
+ */
+export function readableTextOn(background: string | null | undefined): string {
+  if (!background) return LIGHT_TEXT;
+  try {
+    return contrastRatio(DARK_TEXT, background) > contrastRatio(LIGHT_TEXT, background) ? DARK_TEXT : LIGHT_TEXT;
+  } catch {
+    return LIGHT_TEXT;
+  }
+}

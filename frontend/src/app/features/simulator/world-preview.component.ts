@@ -19,6 +19,7 @@ import {
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { Subscription } from 'rxjs';
+import { readableTextOn } from '../../../styles/contrast.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -179,7 +180,7 @@ const DECISION_TRIED_TEXT =
                     [class.interaction-card--selected]="selectedInteraction()?.key === obj.key"
                     [class.interaction-card--inspected]="inspectedKeys().includes(obj.key)"
                     (click)="openInteraction(obj)">
-                    <span class="interaction-dot" [style.background]="obj.color">{{ obj.shortCode }}</span>
+                    <span class="interaction-dot" [style.background]="obj.color" [style.color]="textOn(obj.color)">{{ obj.shortCode }}</span>
                     <span>
                       <em>{{ obj.interactionPrompt }}</em>
                       <strong>{{ obj.label }}</strong>
@@ -388,6 +389,8 @@ const DECISION_TRIED_TEXT =
 })
 export class WorldPreviewComponent {
   readonly objectTypeLabel = objectTypeLabel;
+  /** El color de cada objeto lo elige quien autora el caso: el texto del punto se escoge por contraste con ese color (WCAG 1.4.3). */
+  readonly textOn = readableTextOn;
   private readonly authoringApi = inject(AuthoringApi);
   private readonly destroyRef = inject(DestroyRef);
 
