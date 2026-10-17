@@ -56,8 +56,9 @@ const NODE_BODY = {
 };
 
 /**
- * Un borrador con el mundo completo: dos escenas unidas por una decisión, un mapa por escena, una salida segura y la
- * lista de publicación al 100 %. Sin errores de validación: se puede enviar a revisión y publicar.
+ * Un borrador con el mundo completo: dos escenas unidas por una decisión con su retroalimentación escrita (E3: una
+ * decisión sin ella es un aviso de validación), un mapa por escena, una salida segura y la lista de publicación al
+ * 100 %. Sin errores ni avisos de validación: se puede enviar a revisión y publicar.
  */
 async function publishableDraft(request: APIRequestContext, token: string, title: string): Promise<{ id: number; title: string }> {
   const created = await send(request, token, 'post', '', { title }, 'crear el caso');
@@ -68,7 +69,8 @@ async function publishableDraft(request: APIRequestContext, token: string, title
   const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
   await send(request, token, 'post', `/${id}/decisions`, {
     sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '',
+    prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
+    immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
   }, 'decisión');
   // La escena de inicio ya trae su mapa («escena-inicial»: un mapa por escena); solo falta el de la escena final.
   await send(request, token, 'post', `/${id}/maps`, {
