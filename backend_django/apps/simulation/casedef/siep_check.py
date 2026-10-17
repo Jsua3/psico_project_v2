@@ -169,12 +169,42 @@ def _register(found, siep, list_name, field, noun):
     return keys
 
 
+def _ids_of(items):
+    return {item["id"] for _, item in _items(items) if isinstance(item.get("id"), str)}
+
+
+def _linked_ids(found, siep, document):
+    """Cada ``id`` de DSL que una entrada de ``x-siep`` nombra existe en la base: el personaje, la herramienta,
+    la rúbrica, el criterio y la opción (esta, dentro de la escena a la que la entrada está enlazada)."""
+
+    def check(route_prefix, entries, known, noun):
+        for position, ident in _strings(_items(entries), "id"):
+            if ident not in known:
+                found.add(REF, route_prefix + (position, "id"), f"enlaza con {noun} {_shown(ident)}, que el documento no tiene.")
+
+    check((SIEP_KEY, "personajes"), siep.get("personajes"), _ids_of(document.get("personajes")), "el personaje")
+    check((SIEP_KEY, "herramientas"), siep.get("herramientas"), _ids_of(document.get("herramientas")), "la herramienta")
+    check((SIEP_KEY, "rubricas"), siep.get("rubricas"), _ids_of(document.get("rubricas")), "la rúbrica")
+    criteria = {c for _, r in _items(document.get("rubricas")) for c in _ids_of(r.get("criterios"))}
+    for position, rubric in _items(siep.get("rubricas")):
+        check((SIEP_KEY, "rubricas", position, "criterios"), rubric.get("criterios"), criteria, "el criterio")
+    options = {}
+    for _, scene in _items(document.get("escenas")):
+        decision = scene.get("decision") if isinstance(scene.get("decision"), dict) else {}
+        if isinstance(scene.get("id"), str):
+            options[scene["id"]] = _ids_of(decision.get("opciones"))
+    for position, entry in _items(siep.get("escenas")):
+        known = options.get(entry.get("id"), set())
+        check((SIEP_KEY, "escenas", position, "opciones"), entry.get("opciones"), known, "la opción")
+
+
 def _links(document, siep, names):
     found = _Collector(document, names)
     base = {
         item["id"]: item for _, item in _items(document.get("escenas")) if isinstance(item.get("id"), str)
     }
     entries = _scene_links(base, siep, found)
+    _linked_ids(found, siep, document)
     characters = _register(found, siep, "personajes", "clave", "la clave del personaje")
     tools = _register(found, siep, "herramientas", "codigo", "el código de la herramienta")
 

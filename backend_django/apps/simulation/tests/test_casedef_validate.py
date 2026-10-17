@@ -168,6 +168,24 @@ def test_when_x_siep_lists_the_scenes_it_must_list_every_scene_of_the_base():
 
 
 @pytest.mark.parametrize(
+    ("path", "mutate"),
+    [
+        ("x-siep.personajes[0].id", lambda d: d["x-siep"]["personajes"][0].__setitem__("id", "P09")),
+        ("x-siep.herramientas[0].id", lambda d: d["x-siep"]["herramientas"][0].__setitem__("id", "H09")),
+        ("x-siep.escenas[0].opciones[0].id", lambda d: d["x-siep"]["escenas"][0]["opciones"][0].__setitem__("id", "OP09")),
+        # existe en la base, pero es de la decisión de otra escena
+        ("x-siep.escenas[1].opciones[0].id", lambda d: d["x-siep"]["escenas"][1]["opciones"][0].__setitem__("id", "OP01")),
+        ("x-siep.rubricas[0].id", lambda d: d["x-siep"]["rubricas"][0].__setitem__("id", "RUB-09")),
+        ("x-siep.rubricas[0].criterios[0].id", lambda d: d["x-siep"]["rubricas"][0]["criterios"][0].__setitem__("id", "CR09")),
+    ],
+)
+def test_an_x_siep_entry_that_links_to_an_id_the_base_lacks_is_a_reference_error(path, mutate):
+    document = _document()
+    mutate(document)
+    assert path in {issue.path for issue in _issues(document) if issue.code == "DSL.SIEP_REF"}
+
+
+@pytest.mark.parametrize(
     ("where", "mutate"),
     [
         ("escena", lambda d: d["x-siep"]["escenas"][1].__setitem__("clave", "inicio")),

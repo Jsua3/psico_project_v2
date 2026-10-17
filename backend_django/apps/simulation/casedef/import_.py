@@ -165,27 +165,20 @@ def _by_id(items):
 
 
 class _Keys:
-    """Las claves del producto de cada entidad con id de DSL: las de ``x-siep``, o el propio id."""
+    """Las claves del producto de las escenas y los personajes con id de DSL: las de ``x-siep``, o el propio id.
 
-    def __init__(self, document, siep):
+    Las opciones y las herramientas toman su clave de su propia entrada (``_base_options``, ``_tools``).
+    """
+
+    def __init__(self, siep):
         self.scene = {e["id"]: e["clave"] for e in _dicts(siep.get("escenas")) if "id" in e}
-        self.option = {
-            o["id"]: o["clave"] for e in _dicts(siep.get("escenas")) for o in _dicts(e.get("opciones")) if "id" in o
-        }
         self.character = {p["id"]: p["clave"] for p in _dicts(siep.get("personajes")) if "id" in p}
-        self.tool = {t["id"]: t["codigo"] for t in _dicts(siep.get("herramientas")) if "id" in t}
 
     def of_scene(self, ident):
         return self.scene.get(ident, ident)
 
-    def of_option(self, ident):
-        return self.option.get(ident, ident)
-
     def of_character(self, ident):
         return self.character.get(ident, ident)
-
-    def of_tool(self, ident):
-        return self.tool.get(ident, ident)
 
 
 def _characters(document, siep):
@@ -419,7 +412,7 @@ def to_definition(document):
     """La ``CaseDefinition`` de un documento que ya pasó el validador (lo contrario de ``export``)."""
     caso = document["caso"]
     siep = document.get(SIEP_KEY) if isinstance(document.get(SIEP_KEY), dict) else {}
-    keys = _Keys(document, siep)
+    keys = _Keys(siep)
     feedback = _feedback(document)
     characters = _characters(document, siep)
     base_scenes = _by_id(document.get("escenas"))
