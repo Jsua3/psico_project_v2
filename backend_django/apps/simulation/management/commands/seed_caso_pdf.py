@@ -26,7 +26,6 @@ import json
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.utils import timezone
 
 from apps.simulation.models import (
     CaseVersion,
@@ -44,6 +43,7 @@ from apps.simulation.models import (
     SimulationCase,
     SimulationNode,
 )
+from apps.simulation.services.authoring import gate
 from apps.simulation.services.authoring.characters import ensure_person_characters
 from apps.simulation.services.competencies import link_unlinked_criteria
 from apps.simulation.services.case_effects import DEFAULT_ENDINGS, DEFAULT_METRICS
@@ -1379,22 +1379,20 @@ class Command(BaseCommand):
             simulation_case=case, semantic_version=options["semantic_version"]
         ).first()
         if not version:
+            # Nace como borrador: se publica al final por la compuerta única (E4-4), cuando ya está construida.
             version = CaseVersion.objects.create(
                 simulation_case=case,
                 semantic_version=options["semantic_version"],
-                status="PUBLISHED",
+                status="DRAFT",
                 narrative_context=NARRATIVE_CONTEXT,
                 learning_objectives=json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False),
-                published_at=timezone.now(),
                 created_by=case.created_by,
                 rules=json.dumps(CASE_RULES),
             )
         else:
-            version.status = "PUBLISHED"
             version.rules = json.dumps(CASE_RULES)
             version.narrative_context = NARRATIVE_CONTEXT
             version.learning_objectives = json.dumps(LEARNING_OBJECTIVES, ensure_ascii=False)
-            version.published_at = version.published_at or timezone.now()
             version.save()
 
         # ── Limpieza (reconstrucción total de ESTA versión) ──────────────────
@@ -1662,6 +1660,14 @@ class Command(BaseCommand):
                     display_order=order,
                 )
             self.stdout.write("Rubrica formativa creada para SIM-VBG-001")
+
+        # ── Publicar por la compuerta única (E4-4): valida lo construido y lo sella ──────────
+        # La lista ética es una constancia humana de Psicología: el caso de desarrollo no la tiene.
+        seal = gate.ensure_publishable(version, require_checklist=False)
+        if version.status == "PUBLISHED":
+            gate.stamp(version, seal)  # reconstruida en el lugar: el sello sigue a su documento
+        else:
+            gate.mark_published(version, seal, creator)
 
         archived = (
             CaseVersion.objects.filter(simulation_case=case, status="PUBLISHED")

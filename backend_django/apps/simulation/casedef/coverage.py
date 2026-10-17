@@ -69,6 +69,8 @@ EXCLUDED = {
         "simulation_case": "el caso va por `caso.id`",
         "cloned_from": "procedencia de la versión: la reutilización se mide aparte (`reuse_ratio`)",
         "published_at": "fecha de publicación: el documento no lleva fechas",
+        "validated_at": "fecha del sello de la publicación: la escribe la compuerta; el documento no lleva fechas",
+        "definition_hash": "huella del documento validado: se calcula DEL documento, no entra en él",
         "created_by": "quién creó la versión: el documento no transporta personas",
         "created_at": _STAMP,
         "version": "revisión optimista del editor; no es contenido",

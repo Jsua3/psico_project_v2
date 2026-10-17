@@ -15,6 +15,7 @@ opción hacia una escena ajena) sale **una vez**, con el código del mundo. ``ca
 ningún error; los avisos no bloquean.
 """
 import re
+from dataclasses import dataclass
 
 from apps.simulation.casedef.export import ids_of, to_document
 from apps.simulation.casedef.report import ERROR
@@ -87,8 +88,17 @@ def _can_publish(issues):
     return not any(issue["severity"] == ERROR for issue in issues)
 
 
-def validate_version(case_version_id):
-    """``(issues, canPublish)`` de la versión: el mundo y el documento, sin repetir un mismo defecto."""
+@dataclass(frozen=True)
+class Assessment:
+    """La valoración de una versión: sus hallazgos y el documento que se validó (el que se sella)."""
+
+    issues: list
+    can_publish: bool
+    document: dict
+
+
+def assess_version(case_version_id):
+    """Valora la versión: el mundo y el documento, sin repetir un mismo defecto, y el documento mismo."""
     version = require_version(case_version_id)
     world = run_world_validation(version)
     raw = list(world["errors"]) + list(world["warnings"])
@@ -96,11 +106,18 @@ def validate_version(case_version_id):
 
     loaded = load_definition(case_version_id)
     ids = ids_of(loaded.definition)
+    document = to_document(loaded.definition)
     present = {item["code"] for item in raw}
-    for issue in validate_document(to_document(loaded.definition)):
+    for issue in validate_document(document):
         if not _is_duplicate(present, issue):
             issues.append(_document_issue(issue, loaded, ids))
-    return issues, _can_publish(issues)
+    return Assessment(issues, _can_publish(issues), document)
+
+
+def validate_version(case_version_id):
+    """``(issues, canPublish)`` de la versión: el mundo y el documento, sin repetir un mismo defecto."""
+    assessment = assess_version(case_version_id)
+    return assessment.issues, assessment.can_publish
 
 
 def validate_document_issues(document):

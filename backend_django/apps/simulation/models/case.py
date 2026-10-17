@@ -68,6 +68,11 @@ class CaseVersion(models.Model):
         "self", null=True, blank=True, on_delete=models.DO_NOTHING, db_column="cloned_from_id"
     )
     published_at = models.DateTimeField(null=True, blank=True)
+    # El sello de lo publicado (E4-4, R13): cuándo se validó el documento de la versión y la huella
+    # (``sha256:`` + 64 hex) de ese documento. Lo escribe la compuerta (``authoring.gate``) junto con
+    # ``PUBLISHED``; sin sello no se arranca un intento. Los dos o ninguno (``case_versions_seal_check``).
+    validated_at = models.DateTimeField(null=True, blank=True)
+    definition_hash = models.CharField(max_length=71, null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="created_by",
         related_name="created_versions",
@@ -95,6 +100,13 @@ class CaseVersion(models.Model):
         db_table = "case_versions"
         constraints = [
             models.CheckConstraint(condition=models.Q(status__in=CaseVersionStatus.values), name="case_versions_status_check"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(validated_at__isnull=True, definition_hash__isnull=True)
+                    | models.Q(validated_at__isnull=False, definition_hash__isnull=False)
+                ),
+                name="case_versions_seal_check",
+            ),
             models.UniqueConstraint(fields=["simulation_case", "semantic_version"], name="case_versions_simulation_case_id_semantic_version_key"),
         ]
         indexes = [

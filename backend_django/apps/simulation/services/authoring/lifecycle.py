@@ -7,6 +7,9 @@ El estado vive en la **versión** (REGLA-005: lo publicado no se edita, se clona
       └───────────────────┘                  DRAFT ──archive──▶ ARCHIVED
                        «volver a borrador» = clone (de PUBLISHED o ARCHIVED)
 
+Aprobar pasa por la compuerta única (``gate``): valida el mundo y el documento, calcula el sello (la
+huella del documento validado) y escribe ``PUBLISHED`` con él en un solo ``UPDATE`` (E4-4).
+
 La parte de arriba es una **máquina pura** (``can_transition``, ``allowed_transitions``) que
 toma sus permisos de la matriz de políticas; la de abajo son las transiciones, cada una bajo
 ``SELECT … FOR UPDATE`` de la versión, con su fila en ``case_reviews`` y su auditoría.
@@ -28,9 +31,8 @@ from apps.simulation.models.case import ReviewDecision, ReviewReason
 from shared import policies
 from shared.exceptions import ApiError
 
-from .editor_view import latest_checklist_ratio
+from . import gate
 from .guards import check_revision, revision_bump
-from .validation import validate_version
 
 DRAFT = "DRAFT"
 IN_REVIEW = "IN_REVIEW"
@@ -110,23 +112,7 @@ def _require_transition(version, action, actor):
 
 def publishing_blockers(version):
     """Lo que impide enviar o aprobar: lista incompleta y errores de validación (el mundo y el documento)."""
-    blockers = []
-    if latest_checklist_ratio(version.id) < 100:
-        blockers.append({
-            "code": "CHECKLIST_INCOMPLETE",
-            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-            "message": "El checklist ético y académico debe estar al 100% antes de enviar el caso a revisión.",
-        })
-    issues, _ = validate_version(version.id)
-    errors = [issue for issue in issues if issue["severity"] == "error"]
-    if errors:
-        blockers.append({
-            "code": "VALIDATION_ERRORS",
-            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-            "message": f"El caso tiene {len(errors)} error(es) de validación que impiden publicarlo.",
-            "issues": errors,
-        })
-    return blockers
+    return gate.blockers_of(version)
 
 
 def _require_publishable(version):
@@ -210,11 +196,11 @@ def approve(case_version_id, actor, note="", content_review=None, revision=None)
             )
     else:
         _require_transition(version, "approve", actor)
-    _require_publishable(version)
+    seal = gate.ensure_publishable(version)  # la compuerta única: valida y calcula el sello
     constancia = _parse_content_review(content_review, required=strict)
 
     review = _pending_review(version) or CaseReview(case_version=version, requested_by=actor)
-    now = timezone.now()
+    now = seal.validated_at
     review.decided_by = actor
     review.decided_at = now
     review.decision = ReviewDecision.APPROVED
@@ -224,7 +210,7 @@ def approve(case_version_id, actor, note="", content_review=None, revision=None)
         review.content_reviewed_on = constancia["reviewed_on"]
         review.content_reference = constancia["reference"]
     review.save()
-    _set_status(version, PUBLISHED, actor, published_at=now)
+    gate.mark_published(version, seal, actor)
     return lifecycle_view(version.pk, actor)
 
 

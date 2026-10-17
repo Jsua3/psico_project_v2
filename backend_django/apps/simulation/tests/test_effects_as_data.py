@@ -21,6 +21,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services import case_effects
+from shared.testing import seal_version
 
 pytestmark = [pytest.mark.req("RNF-008"), pytest.mark.req("TD-02")]
 
@@ -78,6 +79,7 @@ def _published(owner, *, rules, effects, classification="ADEQUATE", prohibited=F
         simulation_case=case, semantic_version="1.0.0", status="PUBLISHED", created_by=owner,
         rules=rules if isinstance(rules, str) else json.dumps(rules),
     )
+    seal_version(version)  # arrancar un intento exige el sello de la compuerta (E4-4)
     start = SimulationNode.objects.create(
         case_version=version, node_key="inicio", title="Inicio", narrative="x", start_node=True
     )
