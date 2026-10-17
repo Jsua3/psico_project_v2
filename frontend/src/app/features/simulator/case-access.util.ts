@@ -1,3 +1,5 @@
+import { HttpErrorResponse } from '@angular/common/http';
+
 import { CaseAccess } from '../../core/models/simulation.model';
 import { formatDate } from '../dashboard/student-dashboard.util';
 
@@ -54,4 +56,26 @@ export function accessNotice(access: CaseAccess): AccessNotice | null {
         detail: 'Vuelve al catálogo y revisa si tu docente ya lo asignó o si está abierto.',
       };
   }
+}
+
+/**
+ * El rechazo `403 ACCESS_*` que el servidor da al iniciar un intento nuevo o empezar de nuevo (RN-04, decisión 12):
+ * la misma decisión de acceso que trae la ficha, con la ventana que explica el motivo. Cualquier otro error es `null`.
+ */
+export function accessFromError(error: unknown): CaseAccess | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 403) return null;
+  const body = error.error as { code?: unknown; opensAt?: unknown; closesAt?: unknown } | null;
+  const code = typeof body?.code === 'string' ? body.code : '';
+  if (!code.startsWith('ACCESS_')) return null;
+  const access = { allowed: false, reason: code.slice('ACCESS_'.length) } as CaseAccess;
+  if (typeof body?.opensAt === 'string') access.opensAt = body.opensAt;
+  if (typeof body?.closesAt === 'string') access.closesAt = body.closesAt;
+  return access;
+}
+
+/** El rechazo de acceso en una frase («Ya cerró. El plazo terminó…»), o `null` si el error no es un rechazo de acceso. */
+export function accessErrorMessage(error: unknown): string | null {
+  const access = accessFromError(error);
+  const notice = access ? accessNotice(access) : null;
+  return notice ? `${notice.title}. ${notice.detail}` : null;
 }

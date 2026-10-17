@@ -198,13 +198,14 @@
         <!-- ── Ficha (contexto, objetivos y personajes; F10-3) ───────────────────── -->
         <ng-template uiTab="ficha" label="Ficha">
           <ui-section class="ce-section" title="Ficha del caso">
-            <app-case-brief-editor
-              [context]="model.context" [objectives]="model.learningObjectives" [characters]="model.characters"
-              [lockReason]="lockReason()" [busy]="busy()"
-              (saveBrief)="saveBrief(model.caseVersionId, $event)"
-              (characterCreate)="openPanel({ kind: 'character-create' })"
-              (characterEdit)="openPanel({ kind: 'character-edit', character: $event })"
-              (characterRemove)="confirmDeleteCharacter(model.caseVersionId, $event)" />
+            @if (briefForm; as form) {
+              <app-case-brief-editor
+                [form]="form" [characters]="model.characters" [lockReason]="lockReason()" [busy]="busy()"
+                (saveBrief)="saveBrief(model.caseVersionId, $event)"
+                (characterCreate)="openPanel({ kind: 'character-create' })"
+                (characterEdit)="openPanel({ kind: 'character-edit', character: $event })"
+                (characterRemove)="confirmDeleteCharacter(model.caseVersionId, $event)" />
+            }
           </ui-section>
         </ng-template>
 

@@ -234,6 +234,8 @@ describe('hoja de formularios del editor (F8-1)', () => {
       expect(prompt.querySelector('textarea')).not.toBeNull();
       expect(prompt.querySelector('[aria-required="true"]')).toBeNull();
       expect(text(prompt.querySelector('.ui-field__message'))).toContain('La pregunta que lee la persona antes de elegir');
+      expect(text(prompt.querySelector('.ui-field__message'))).toContain('Hasta 1.200 caracteres.');
+      expect(prompt.querySelector('textarea')!.hasAttribute('maxlength')).toBe(false);
       expect(field('Narrativa')).toBeDefined();
       expect(field('Texto de la conclusión')).toBeUndefined();
     });
@@ -264,7 +266,7 @@ describe('hoja de formularios del editor (F8-1)', () => {
       consequenceText: [''], feedbackText: [''], theoryBasis: [''],
     });
 
-    it('los tres textos van tras el mensaje inmediato, opcionales, con su ayuda y con el tope de 1.200 caracteres', async () => {
+    it('los tres textos van tras el mensaje inmediato, opcionales y con su ayuda, que dice el tope de 1.200 caracteres', async () => {
       await render({ kind: 'decision-create' }, { decisionForm: decisionForm() });
 
       expect(fieldLabels()).toEqual([
@@ -274,12 +276,28 @@ describe('hoja de formularios del editor (F8-1)', () => {
       ]);
       for (const label of ['Consecuencia en la historia', 'Retroalimentación pedagógica', 'Fundamento teórico']) {
         const textarea = field(label)!.querySelector('textarea')!;
-        expect(textarea.getAttribute('maxlength'), label).toBe('1200');
+        // Un `maxlength` recortaría en silencio lo que se pega (y su error nunca saldría): el tope se dice y se valida.
+        expect(textarea.hasAttribute('maxlength'), label).toBe(false);
+        expect(text(field(label)!.querySelector('.ui-field__message')), label).toContain('Hasta 1.200 caracteres.');
         expect(field(label)!.querySelector('[aria-required="true"]'), label).toBeNull();
       }
       expect(text(field('Consecuencia en la historia')!.querySelector('.ui-field__message'))).toContain('Lo que ve la persona justo después de elegir');
       expect(text(field('Retroalimentación pedagógica')!.querySelector('.ui-field__message'))).toContain('Por qué esta opción es adecuada o no');
       expect(text(field('Fundamento teórico')!.querySelector('.ui-field__message'))).toContain('El concepto o la referencia que respalda');
+    });
+
+    it('un texto de más de 1.200 caracteres (pegado) lo dice en su campo, sin recortarlo', async () => {
+      const form = fb.group({
+        sourceNodeId: [1, Validators.required], targetNodeId: [2, Validators.required], optionKey: [''],
+        text: ['x', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
+        prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+        consequenceText: [''], feedbackText: ['a'.repeat(1201), Validators.maxLength(1200)], theoryBasis: [''],
+      });
+      form.get('feedbackText')!.markAsTouched();
+      await render({ kind: 'decision-create' }, { decisionForm: form });
+
+      expect(text(field('Retroalimentación pedagógica')!.querySelector('.ui-field__message'))).toBe('Admite hasta 1.200 caracteres.');
+      expect(field('Retroalimentación pedagógica')!.querySelector('textarea')!.value).toHaveLength(1201);
     });
 
     it('lo que se escribe llega al formulario de la pantalla', async () => {
@@ -312,10 +330,28 @@ describe('hoja de formularios del editor (F8-1)', () => {
       expect(fieldLabels()).toEqual(['Texto de la ayuda', 'Lugar entre las ayudas de la sala']);
       const body = field('Texto de la ayuda')!;
       expect(body.querySelector('[aria-required="true"]')).not.toBeNull();
-      expect(body.querySelector('textarea')!.getAttribute('maxlength')).toBe('280');
+      expect(body.querySelector('textarea')!.hasAttribute('maxlength')).toBe(false);
       expect(text(body.querySelector('.ui-field__message'))).toContain('Texto plano, hasta 280 caracteres');
       expect(field('Lugar entre las ayudas de la sala')!.querySelector('[aria-required="true"]')).toBeNull();
       expect(button('Guardar ayuda')).toBeDefined();
+    });
+
+    it('el lugar menor que 1 lo dice en su campo (antes invalidaba el formulario sin decir por qué)', async () => {
+      const form = fb.group({ text: ['Una ayuda.', Validators.required], hintOrder: [0, Validators.min(1)] });
+      form.get('hintOrder')!.markAsTouched();
+      await render({ kind: 'hint-create', mapId: 11 }, { hintForm: form, ...withMaps });
+
+      expect(text(field('Lugar entre las ayudas de la sala')!.querySelector('.ui-field__message'))).toBe('El lugar empieza en 1.');
+      expect(field('Lugar entre las ayudas de la sala')!.querySelector('input')!.getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('al crear, vaciar el lugar la deja última; al editar, vaciarlo no la mueve (la ayuda lo dice)', async () => {
+      await render({ kind: 'hint-create', mapId: 11 }, { hintForm: hintForm(), ...withMaps });
+      expect(text(field('Lugar entre las ayudas de la sala')!.querySelector('.ui-field__message'))).toBe('Déjalo vacío para que sea la última.');
+      TestBed.resetTestingModule();
+
+      await render({ kind: 'hint-edit', hint: { id: 41, mapId: 11, order: 2, text: 'x' } }, { hintForm: hintForm(), ...withMaps });
+      expect(text(field('Lugar entre las ayudas de la sala')!.querySelector('.ui-field__message'))).toBe('Déjalo vacío para no cambiarlo.');
     });
 
     it('sin texto, tocado, dice qué falta en el campo', async () => {

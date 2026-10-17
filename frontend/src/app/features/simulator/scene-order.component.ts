@@ -122,6 +122,11 @@ export class SceneOrderComponent {
   });
 
   constructor() {
+    // Cuando la pantalla deja de estar ocupada, lo que se pidió ya llegó o falló: un movimiento fallido no deja el foco
+    // armado para un orden igual que llegue más tarde por otra vía. Se limpia tras pintar (el efecto de abajo corre antes).
+    effect(() => {
+      if (!this.busy()) untracked(() => afterNextRender(() => { this.pending = null; }, { injector: this.injector }));
+    });
     // El orden que se pidió llegó: el foco vuelve al botón de la escena que se movió y se dice dónde quedó.
     effect(() => {
       const ids = this.rows().map(row => row.node.id);

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { createPublishedCase, retireCase } from './support/case-fixtures';
+import { createPublishedCase, retireCase, seededGroup } from './support/case-fixtures';
 import { assertQualityState } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { loginStudent } from './support/siep-flow';
@@ -13,6 +13,8 @@ import { scaled } from './support/time-scale';
  * que le pasa al grupo; y lo que ve un estudiante del grupo sigue a la asignación: «Aún no abre» con su fecha, «Ya cerró»,
  * y nada si está en pausa o retirado.
  */
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const groupButton = (page: Page, nombre: string) => page.getByRole('button', { name: new RegExp(`^Ver detalle de ${escape(nombre)}`) });
 const toastText = (page: Page, text: string) => page.getByLabel('Mensajes del sistema').getByText(text);
 
 // req: RF-14, RF-15, CU-06, RN-04, RNF-04
@@ -21,12 +23,14 @@ test('la docente asigna con fecha de apertura, cambia las fechas, pausa y retira
   const fixture = await createPublishedCase(request, {
     title: `Asignación e2e ${Date.now()}`, context: 'Un caso de prueba para las asignaciones.', learningObjectives: ['Probar la ventana.'],
   });
+  // El grupo de la docente al que pertenece el estudiante: sobre otro, lo que el estudiante ve no sería de esta asignación.
+  const group = await seededGroup(request);
   const studentContext = await browser.newContext({ baseURL: (test.info().project.use as { baseURL?: string }).baseURL });
   try {
     await loginAs(page, 'profesor');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/portal/grupos');
-    await page.getByRole('button', { name: /^Ver detalle de / }).first().click();
+    await groupButton(page, group.nombre).click();
     const section = page.locator('app-group-assignments');
     await expect(section.getByRole('heading', { level: 3, name: 'Casos asignados' })).toBeVisible({ timeout: scaled(30_000) });
 
@@ -108,7 +112,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
       await loginAs(page, 'profesor');
       await page.setViewportSize(viewport);
       await page.goto('/portal/grupos');
-      await page.getByRole('button', { name: /^Ver detalle de / }).first().click();
+      await groupButton(page, (await seededGroup(request)).nombre).click();
       await page.locator('app-group-assignments').getByRole('button', { name: 'Asignar un caso' }).click({ timeout: scaled(30_000) });
       const dialog = page.getByRole('dialog', { name: 'Asignar un caso al grupo' });
       await expect(dialog).toBeVisible();

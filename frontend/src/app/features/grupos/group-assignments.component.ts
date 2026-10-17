@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { Observable, firstValueFrom } from 'rxjs';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Observable, Subscription, firstValueFrom } from 'rxjs';
 
 import { AssignmentService } from '../../core/api/assignment.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
@@ -56,10 +56,15 @@ export class GroupAssignmentsComponent {
   private readonly service = inject(AssignmentService);
   private readonly dialog = inject(UiDialog);
   private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly injector = inject(Injector);
+  private loadSubscription: Subscription | null = null;
 
   readonly grupoId = input.required<number>();
   /** Los casos publicados: sirven para nombrar cada asignación y para ofrecer los que el grupo aún no tiene. */
   readonly cases = input<SimulationCaseSummary[]>([]);
+  /** Si los casos publicados ya llegaron: «sin casos que asignar» solo es verdad cuando se pudieron leer. */
+  readonly casesStatus = input<'loading' | 'ready' | 'failed'>('ready');
   /** Cuántos casos tiene asignados el grupo, cuando termina de cargar y cada vez que cambian: el detalle del grupo los cuenta. */
   readonly assignedChange = output<number>();
 
@@ -95,7 +100,14 @@ export class GroupAssignmentsComponent {
     const taken = new Set(this.assignments().map(assignment => assignment.caseVersionId));
     return this.cases().filter(item => !taken.has(item.caseVersionId));
   });
-  protected readonly assignReason = computed(() => (this.assignable().length ? null : 'No hay más casos publicados para asignar.'));
+  /** Por qué no se puede asignar todavía (null si se puede): sin saber qué tiene el grupo o qué hay publicado se ofrecería a ciegas. */
+  protected readonly assignReason = computed(() => {
+    if (this.loading()) return 'Cargando los casos del grupo…';
+    if (this.error()) return 'Primero reintenta cargar los casos asignados.';
+    if (this.casesStatus() === 'loading') return 'Cargando los casos publicados…';
+    if (this.casesStatus() === 'failed') return 'No pudimos cargar los casos publicados.';
+    return this.assignable().length ? null : 'No hay más casos publicados para asignar.';
+  });
   protected readonly busyReason = computed(() => (this.busy() ? 'Hay un cambio en curso: espera un momento.' : null));
 
   constructor() {
@@ -105,13 +117,19 @@ export class GroupAssignmentsComponent {
     });
     effect(() => {
       const count = this.assignments().length;
-      if (!this.loading()) untracked(() => this.assignedChange.emit(count));
+      // Solo un grupo que terminó de cargar tiene un conteo que decir (ni el del anterior ni el de una carga fallida).
+      if (!this.loading() && !this.error()) untracked(() => this.assignedChange.emit(count));
     });
+    inject(DestroyRef).onDestroy(() => this.loadSubscription?.unsubscribe());
   }
 
+  /** Pide las asignaciones del grupo; una petición anterior (de otro grupo) se cancela y la lista vieja no se enseña. */
   protected load(groupId = this.grupoId()): void {
+    this.loadSubscription?.unsubscribe();
+    this.assignments.set([]);
+    this.error.set(null);
     this.loading.set(true);
-    this.service.list(groupId).subscribe({
+    this.loadSubscription = this.service.list(groupId).subscribe({
       next: rows => {
         this.assignments.set(rows);
         this.error.set(null);
@@ -185,6 +203,8 @@ export class GroupAssignmentsComponent {
       this.service.remove(row.assignment.id),
       () => this.assignments.update(rows => rows.filter(item => item.id !== row.assignment.id)),
       'Caso retirado del grupo.', 'No fue posible retirar el caso del grupo.',
+      // El botón que se pulsó desaparece con la fila: el foco va a «Asignar un caso», que sigue ahí.
+      () => afterNextRender(() => this.host.querySelector<HTMLElement>('[data-ga-assign]')?.focus(), { injector: this.injector }),
     );
   }
 
@@ -192,12 +212,19 @@ export class GroupAssignmentsComponent {
     this.assignments.update(rows => rows.map(item => (item.id === updated.id ? updated : item)));
   }
 
-  /** Una acción sobre el servidor: ocupa la sección mientras dura, avisa su resultado y, si falla, no toca la lista. */
-  private run<T>(call: Observable<T>, apply: (value: T) => void, success: string, failure: string): void {
+  /**
+   * Una acción sobre el servidor: ocupa la sección mientras dura, avisa su resultado y, si falla, no toca la lista. Si el
+   * grupo cambió mientras tanto, la respuesta (de otro grupo) no se aplica a la lista que se está viendo.
+   */
+  private run<T>(call: Observable<T>, apply: (value: T) => void, success: string, failure: string, afterApply?: () => void): void {
+    const groupId = this.grupoId();
     this.busy.set(true);
     call.subscribe({
       next: value => {
-        apply(value);
+        if (this.grupoId() === groupId) {
+          apply(value);
+          afterApply?.();
+        }
         this.busy.set(false);
         this.notify.success(success);
       },

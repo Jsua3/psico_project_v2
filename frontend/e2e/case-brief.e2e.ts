@@ -167,8 +167,15 @@ test.describe('@ficha con datos controlados (caso creado y asignado por la API)'
     const start = page.getByRole('button', { name: 'Comenzar', exact: true });
     await expect(start).toHaveAttribute('aria-disabled', 'true');
     // Playwright no hace clic en un control `aria-disabled` salvo con `force`: aquí se quiere comprobar que el clic no hace nada.
+    // Una navegación o un intento pedido llegarían unos instantes después: se les da tiempo antes de dar el clic por inerte.
+    const attemptPosts: string[] = [];
+    page.on('request', req => {
+      if (req.method() === 'POST' && /\/api\/simulation\/attempts(\?|$)/.test(req.url())) attemptPosts.push(req.url());
+    });
     await start.click({ force: true });
+    await page.waitForTimeout(scaled(800));
     await expect(page).toHaveURL(/\/ficha$/);
+    expect(attemptPosts, 'el clic bloqueado no pidió ningún intento').toEqual([]);
     await assertQualityState(page, test.info(), 'ficha del caso con acceso bloqueado');
   });
 

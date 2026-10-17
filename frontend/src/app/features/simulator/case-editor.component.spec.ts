@@ -772,6 +772,18 @@ describe('editor de casos (F8-1)', () => {
         expect(component().panel()).toEqual({ kind: 'hint-create', mapId: 11 });
       });
 
+      it('una ayuda de solo espacios no se envía: marca el campo (antes el servidor respondía 400 «No puede estar vacío»)', async () => {
+        await render();
+        component().openPanel({ kind: 'hint-create', mapId: 11 });
+        component().hintForm!.patchValue({ text: '    ' });
+
+        component().save();
+
+        expect(api['createHint']).not.toHaveBeenCalled();
+        expect(component().hintForm!.get('text')!.touched).toBe(true);
+        expect(component().panel()).toEqual({ kind: 'hint-create', mapId: 11 });
+      });
+
       it('eliminar pide confirmar nombrando la ayuda y solo entonces llama al servidor', async () => {
         await render();
         let answer!: (value: boolean) => void;
@@ -797,6 +809,105 @@ describe('editor de casos (F8-1)', () => {
         await settle();
 
         expect(component().tab()).toBe('mapas');
+      });
+    });
+
+    // req: RF-16, CU-04, RNF-08 (revisión de F10: una pestaña inactiva se destruye y lo escrito no puede morir con ella)
+    describe('Ficha: el formulario es de la pantalla', () => {
+      const brief = () => host().querySelector<HTMLTextAreaElement>('app-case-brief-editor textarea')!;
+      const typeBrief = (value: string) => {
+        const target = brief();
+        target.value = value;
+        target.dispatchEvent(new Event('input'));
+      };
+      const conflictWith = (current: CaseEditorView) => throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: { success: false, code: 'REVISION_CONFLICT', message: 'Este caso fue modificado en otra sesión.', revision: current.revision, current },
+      }));
+
+      it('lo escrito sin guardar sobrevive a cambiar de pestaña y volver', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+
+        await openTab('Escenas');
+        await openTab('Ficha');
+
+        expect(brief().value).toBe('Lo que estoy escribiendo.');
+      });
+
+      it('un guardado de otra cosa (que adopta la vista nueva) no pisa la ficha sin guardar', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+
+        component().saveChecklist(CASE_ID);
+        await settle();
+
+        expect(component().editor()!.revision).toBe(4);
+        expect(brief().value).toBe('Lo que estoy escribiendo.');
+      });
+
+      it('«Recargar» en un conflicto descarta la ficha sin guardar y deja la versión de la otra persona', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+        api['createNode'].mockReturnValueOnce(conflictWith(editorView({ revision: 9, context: 'Contexto de la otra persona.', learningObjectives: ['Su objetivo.'] })));
+        dialog.open.mockReturnValue({ closed: of('reload') });
+        component().openPanel({ kind: 'node-create' });
+        component().nodeForm!.patchValue({ nodeKey: 'nuevo', title: 'Nuevo', narrative: 'Texto' });
+
+        component().saveNode(CASE_ID);
+        await settle();
+
+        expect(brief().value).toBe('Contexto de la otra persona.');
+        expect([...host().querySelectorAll<HTMLTextAreaElement>('app-case-brief-editor textarea')][1].value).toBe('Su objetivo.');
+      });
+
+      it('si no hay nada sin guardar, la ficha sigue lo que cambie en el servidor', async () => {
+        await render();
+        await openTab('Ficha');
+        api['caseEditor'].mockReturnValue(of(editorView({ revision: 5, context: 'Cambió en otra sesión.' })));
+
+        caseChanges.next(CASE_ID);
+        await settle();
+
+        expect(brief().value).toBe('Cambió en otra sesión.');
+      });
+
+      it('al guardar la ficha queda limpia: lo guardado vuelve normalizado y vuelve a seguir al servidor', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('  Nuevo contexto.  ');
+        api['updateBrief'].mockReturnValue(of(editorView({ revision: 4, context: 'Nuevo contexto.' })));
+        host().querySelector('app-case-brief-editor form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(api['updateBrief']).toHaveBeenCalledWith(CASE_ID, expect.objectContaining({ context: 'Nuevo contexto.' }), 3);
+        expect(brief().value).toBe('Nuevo contexto.');
+        expect(component().briefForm!.pristine).toBe(true);
+
+        api['caseEditor'].mockReturnValue(of(editorView({ revision: 6, context: 'Otro cambio.' })));
+        caseChanges.next(CASE_ID);
+        await settle();
+        expect(brief().value).toBe('Otro cambio.');
+      });
+
+      it('si se escribió más mientras se guardaba, lo nuevo no se pierde', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Primera versión.');
+        const pending = new Subject<CaseEditorView>();
+        api['updateBrief'].mockReturnValue(pending);
+        host().querySelector('app-case-brief-editor form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+        typeBrief('Primera versión y algo más.');
+
+        pending.next(editorView({ revision: 4, context: 'Primera versión.' }));
+        pending.complete();
+        await settle();
+
+        expect(brief().value).toBe('Primera versión y algo más.');
+        expect(component().briefForm!.dirty).toBe(true);
       });
     });
 
@@ -834,6 +945,18 @@ describe('editor de casos (F8-1)', () => {
           characterKey: 'sofia', displayName: 'Sofía', roleLabel: 'Consultante', portraitKey: '', showInBrief: true, displayOrder: 1,
         }, 3);
         expect(notify['success']).toHaveBeenCalledWith('Personaje guardado.');
+      });
+
+      it('un personaje con la clave o el nombre de solo espacios no se envía', async () => {
+        await render();
+        component().openPanel({ kind: 'character-create' });
+        component().characterForm!.patchValue({ characterKey: '   ', displayName: 'Sofía' });
+        component().save();
+        component().characterForm!.patchValue({ characterKey: 'sofia', displayName: '  ' });
+        component().save();
+
+        expect(api['createCharacter']).not.toHaveBeenCalled();
+        expect(component().characterForm!.get('characterKey')!.touched).toBe(true);
       });
 
       it('editar un personaje parte de sus datos y guarda sobre él', async () => {

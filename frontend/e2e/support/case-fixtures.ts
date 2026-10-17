@@ -105,6 +105,7 @@ export async function createPublishedCase(request: APIRequestContext, options: C
   }, 'salida segura');
   await send(request, admin, 'put', `${base}/${id}/checklist`, {
     contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true, accessibilityOk: true,
+    scopeEducational: true,
   }, 'lista de publicación');
   if (options.context !== undefined || options.learningObjectives) {
     await send(request, admin, 'put', `${base}/${id}/brief`, {
@@ -156,6 +157,16 @@ export async function seededGroupId(request: APIRequestContext): Promise<number>
   throw new Error(`Ningún grupo de ${PROFESOR.email} tiene a ${ESTUDIANTE.email}`);
 }
 
+/** El grupo de la docente al que pertenece el estudiante de la semilla, con el nombre y el código que se ven en pantalla. */
+export async function seededGroup(request: APIRequestContext): Promise<{ id: number; nombre: string; codigo: string }> {
+  const id = await seededGroupId(request);
+  const professor = await apiToken(request, PROFESOR);
+  const groups = ((await (await request.get('/api/grupos', { headers: bearer(professor) })).json()).data ?? []) as Array<{ id: number; nombre: string; codigo: string }>;
+  const group = groups.find(item => item.id === id);
+  if (!group) throw new Error(`El grupo ${id} no está en la lista de ${PROFESOR.email}`);
+  return group;
+}
+
 /** La asignación creada y las que se movieron para que quedara primera (con el orden que tenían). */
 export interface AssignmentRecord { id: number; shifted: Array<{ id: number; sortOrder: number }> }
 
@@ -198,7 +209,9 @@ export async function retireCase(request: APIRequestContext, caseVersionId: numb
     await request.post(`/api/authoring/cases/${caseVersionId}/lifecycle`, {
       headers: bearer(admin), data: { action: 'archive', scope: 'version' },
     });
-  } catch {
-    // La limpieza no debe tapar el resultado de la prueba.
+  } catch (error) {
+    // La limpieza no debe tapar el resultado de la prueba, pero un fallo aquí deja la asignación activa y el caso de la
+    // semilla bloqueado por la secuencia para las pruebas siguientes: que se vea de dónde viene.
+    console.warn(`retireCase(${caseVersionId}) no terminó: ${String(error)}`);
   }
 }

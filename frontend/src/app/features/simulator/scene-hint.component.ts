@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, InjectionToken, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -49,6 +50,7 @@ export class SceneHintComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly announcer = inject(LiveRegionAnnouncer);
   private readonly cooldownMs = inject(HINT_COOLDOWN_MS);
+  private readonly destroyRef = inject(DestroyRef);
   private cooldownTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly attemptId = input.required<string>();
@@ -77,7 +79,20 @@ export class SceneHintComponent implements OnInit {
   protected readonly message = computed(() => (this.loadFailed() ? 'No pudimos cargar las pistas.' : this.problem()));
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => { if (this.cooldownTimer) clearTimeout(this.cooldownTimer); });
+    this.destroyRef.onDestroy(() => { if (this.cooldownTimer) clearTimeout(this.cooldownTimer); });
+  }
+
+  /** Un fallo se pinta y también se anuncia: quien usa lector de pantalla no ve el renglón. */
+  private fail(text: string, politeness: 'polite' | 'assertive' = 'assertive'): void {
+    this.problem.set(text);
+    this.announcer.announce(text, politeness);
+  }
+
+  /** Respira tras revelar o tras una respuesta sin pista nueva: la ventana de duplicado del servidor. */
+  private startCooldown(): void {
+    this.cooling.set(true);
+    if (this.cooldownTimer) clearTimeout(this.cooldownTimer);
+    this.cooldownTimer = setTimeout(() => this.cooling.set(false), this.cooldownMs);
   }
 
   /** Los datos del intento llegan por entradas: no existen todavía en el constructor. */
@@ -89,7 +104,8 @@ export class SceneHintComponent implements OnInit {
     this.loading.set(true);
     this.loadFailed.set(false);
     this.problem.set(null);
-    this.simulationService.getHints(this.attemptId(), this.attemptToken()).subscribe({
+    // Una respuesta que llega con el panel ya cerrado (el diálogo siguiente) no se aplica ni se anuncia.
+    this.simulationService.getHints(this.attemptId(), this.attemptToken()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: state => {
         this.state.set(state);
         this.loading.set(false);
@@ -97,6 +113,7 @@ export class SceneHintComponent implements OnInit {
       error: () => {
         this.loadFailed.set(true);
         this.loading.set(false);
+        this.announcer.announce('No pudimos cargar las pistas.', 'assertive');
       },
     });
   }
@@ -106,16 +123,20 @@ export class SceneHintComponent implements OnInit {
     this.revealing.set(true);
     this.problem.set(null);
     const before = this.state()?.shown.length ?? 0;
-    this.simulationService.revealNextHint(this.attemptId(), this.attemptToken(), newRequestId()).subscribe({
+    this.simulationService.revealNextHint(this.attemptId(), this.attemptToken(), newRequestId()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: state => {
         this.state.set(state);
         this.revealing.set(false);
         const added = state.shown.length > before ? state.shown[state.shown.length - 1] : null;
         if (added) {
-          this.announcer.announce(`Pista ${added.order}: ${added.text}`, 'polite');
-          this.cooling.set(true);
-          this.cooldownTimer = setTimeout(() => this.cooling.set(false), this.cooldownMs);
+          // El número es el lugar entre las que ya vio, no el de orden de la autoría (que puede ser 0 o 7).
+          this.announcer.announce(`Pista ${state.shown.length}: ${added.text}`, 'polite');
+        } else {
+          // El servidor no reveló otra (su ventana de duplicado, otra pestaña): se dice y se espera, el botón no parece roto.
+          this.problem.set('Esa pista ya estaba a la vista.');
+          this.announcer.announce('Esa pista ya estaba a la vista.', 'polite');
         }
+        this.startCooldown();
       },
       error: (error: HintError) => {
         this.revealing.set(false);
@@ -124,9 +145,9 @@ export class SceneHintComponent implements OnInit {
           // Otra pestaña ya las pidió: se lee el estado real en vez de mostrar un error que no lo es.
           this.load();
         } else if (code === 'ATTEMPT_NOT_PLAYING') {
-          this.problem.set('El intento está en pausa: reanúdalo para pedir pistas.');
+          this.fail('El intento está en pausa: reanúdalo para pedir pistas.');
         } else {
-          this.problem.set('No pudimos pedir la pista. Inténtalo de nuevo.');
+          this.fail('No pudimos pedir la pista. Inténtalo de nuevo.');
         }
       },
     });

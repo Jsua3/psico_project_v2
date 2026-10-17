@@ -174,6 +174,23 @@ describe('SceneOrderComponent', () => {
     expect(document.activeElement).toBe(down);
   });
 
+  it('un movimiento que falló no deja el foco armado: si ese orden llega después por otra vía, no roba el foco ni anuncia', async () => {
+    await render([node(1), node(2)]);
+    const down = button('Bajar «Escena 1»')!;
+    down.focus();
+    down.click();
+    expect(reordered).toEqual([[2, 1]]);
+
+    await update({ busy: true });
+    await update({ busy: false });
+    await new Promise<void>(resolve => setTimeout(resolve));
+    // Otra persona ordena igual, mucho después: la lista cambia sin que nadie la pidiera aquí.
+    await update({ nodes: [node(1, { displayOrder: 1 }), node(2, { displayOrder: 0 })] });
+    await new Promise<void>(resolve => setTimeout(resolve));
+
+    expect(announce).not.toHaveBeenCalled();
+  });
+
   it('sin escenas dice que aún no hay y a dónde ir', async () => {
     await render([]);
 

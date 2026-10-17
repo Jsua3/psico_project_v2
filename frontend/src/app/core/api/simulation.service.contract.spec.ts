@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { AuthoringApi } from './authoring.api';
 import { InstructorApi } from './instructor.api';
 import { SimulationService } from './simulation.service';
@@ -302,6 +303,15 @@ describe('SimulationService contrato HTTP', () => {
     expect(new Set([...player, ...authoring, ...instructor]).size).toBe(60);
     expect([player.length, authoring.length, instructor.length]).toEqual([21, 34, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
+  });
+
+  // req: RN-04, RF-15
+  it('iniciar un intento deja que la pantalla explique el 403 ACCESS_*: no sale además el aviso genérico de permisos', () => {
+    service.startAttempt(9, true).subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(`${S}/attempts`);
+    expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
+    request.flush({}, { status: 403, statusText: 'Forbidden' });
   });
 
   it('el jugador no ve métodos de autoría ni de instructor', () => {

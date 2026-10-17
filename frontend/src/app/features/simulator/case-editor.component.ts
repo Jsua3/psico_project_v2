@@ -24,6 +24,7 @@ import {
   NodeEditorState,
 } from '../../core/models/simulation.model';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { requiredText } from '../../shared/forms/required-text.validator';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
@@ -38,7 +39,7 @@ import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
-import { CaseBriefEditorComponent } from './case-brief-editor.component';
+import { BriefForm, CaseBriefEditorComponent, buildBriefForm, parseObjectives } from './case-brief-editor.component';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
 import { CaseHintsComponent } from './case-hints.component';
 import { CaseReviewPanelComponent, ValidationTarget } from './case-review-panel.component';
@@ -121,6 +122,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   hintForm: FormGroup | null = null;
   characterForm: FormGroup | null = null;
   checklistForm: FormGroup | null = null;
+  /** La ficha vive aquí y no en su pestaña: una pestaña inactiva se destruye y lo escrito sin guardar moriría con ella. */
+  briefForm: BriefForm | null = null;
 
   /** Estado de la pantalla: una sola señal, de a uno (carga, error o listo). */
   readonly state = uiDataState({
@@ -199,6 +202,15 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     if (switched) this.selectedWorldNodeId.set(null);
     // Las casillas sin guardar no se pierden al guardar otra cosa; una recarga o un cambio de versión sí las renueva.
     if (force || switched || !this.checklistForm || this.checklistForm.pristine) this.buildChecklistForm(model);
+    // Lo mismo con la ficha: un refresco no pisa el texto sin guardar; una recarga (descartar lo propio) sí lo renueva.
+    if (force || switched || !this.briefForm || this.briefForm.pristine) this.syncBriefForm(model);
+  }
+
+  private syncBriefForm(model: CaseEditorView): void {
+    const context = model.context ?? '';
+    const objectives = model.learningObjectives ?? [];
+    if (this.briefForm) this.briefForm.reset({ context, objectives: objectives.join('\n') });
+    else this.briefForm = buildBriefForm(context, objectives);
   }
 
   private buildChecklistForm(model: CaseEditorView): void {
@@ -404,7 +416,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
 
   private initHintForm(hint: HintEditorState | null): void {
     this.hintForm = this.fb.group({
-      text: [hint?.text ?? '', [Validators.required, Validators.maxLength(HINT_LIMIT)]],
+      text: [hint?.text ?? '', [requiredText, Validators.maxLength(HINT_LIMIT)]],
       hintOrder: [hint?.order ?? null],
     });
   }
@@ -412,8 +424,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   private initCharacterForm(character: CharacterEditorState | null): void {
     const characters = this.editor()?.characters ?? [];
     this.characterForm = this.fb.group({
-      characterKey: [character?.key ?? '', Validators.required],
-      displayName: [character?.displayName ?? '', Validators.required],
+      characterKey: [character?.key ?? '', requiredText],
+      displayName: [character?.displayName ?? '', requiredText],
       roleLabel: [character?.roleLabel ?? ''],
       portraitKey: [character?.portraitKey ?? ''],
       showInBrief: [character?.showInBrief ?? true],
@@ -565,6 +577,12 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     this.runAction(
       revision => this.authoringApi.updateBrief(caseVersionId, request, revision),
       'Ficha del caso guardada.', 'No fue posible guardar la ficha del caso.',
+      // Lo guardado vuelve normalizado y la ficha queda limpia, salvo que se haya escrito más mientras se guardaba.
+      view => {
+        const written = this.briefForm?.getRawValue();
+        const sameObjectives = written && parseObjectives(written.objectives).join('\n') === request.learningObjectives?.join('\n');
+        if (written && written.context.trim() === request.context && sameObjectives) this.syncBriefForm(view);
+      },
     );
   }
 

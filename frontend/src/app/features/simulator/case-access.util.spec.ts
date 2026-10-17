@@ -1,5 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
+
 import { CaseAccess } from '../../core/models/simulation.model';
-import { accessNotice } from './case-access.util';
+import { accessErrorMessage, accessFromError, accessNotice } from './case-access.util';
 
 // req: RN-04, RF-15, RF-16
 describe('accessNotice (por qué un caso asignado todavía no se puede iniciar)', () => {
@@ -54,5 +56,41 @@ describe('accessNotice (por qué un caso asignado todavía no se puede iniciar)'
 
   it('negado sin motivo también es «no disponible» (el servidor es quien decide)', () => {
     expect(accessNotice({ allowed: false })!.title).toBe('Este caso no está disponible ahora');
+  });
+});
+
+// req: RN-04, RF-15, decisión 12
+describe('accessFromError (el rechazo ACCESS_* del servidor al iniciar un intento)', () => {
+  const refusal = (code: string, extra: Record<string, unknown> = {}) =>
+    new HttpErrorResponse({ status: 403, error: { success: false, code, message: 'texto del servidor', ...extra } });
+
+  it('convierte cada código ACCESS_* en la decisión de acceso, con la ventana que trae', () => {
+    expect(accessFromError(refusal('ACCESS_CLOSED', { closesAt: '2026-10-05T23:59:00-05:00' })))
+      .toEqual({ allowed: false, reason: 'CLOSED', closesAt: '2026-10-05T23:59:00-05:00' });
+    expect(accessFromError(refusal('ACCESS_NOT_YET_OPEN', { opensAt: '2026-10-20T08:00:00-05:00' })))
+      .toEqual({ allowed: false, reason: 'NOT_YET_OPEN', opensAt: '2026-10-20T08:00:00-05:00' });
+    expect(accessFromError(refusal('ACCESS_LOCKED_BY_SEQUENCE'))).toEqual({ allowed: false, reason: 'LOCKED_BY_SEQUENCE' });
+    expect(accessFromError(refusal('ACCESS_NOT_ASSIGNED'))).toEqual({ allowed: false, reason: 'NOT_ASSIGNED' });
+  });
+
+  it('un 403 de otra cosa, otro estado o algo que no es una respuesta HTTP no es un rechazo de acceso', () => {
+    expect(accessFromError(refusal('PASSWORD_CHANGE_REQUIRED'))).toBeNull();
+    expect(accessFromError(new HttpErrorResponse({ status: 403 }))).toBeNull();
+    expect(accessFromError(new HttpErrorResponse({ status: 409, error: { code: 'ACCESS_CLOSED' } }))).toBeNull();
+    expect(accessFromError(new Error('ACCESS_CLOSED'))).toBeNull();
+    expect(accessFromError(null)).toBeNull();
+  });
+
+  it('un código ACCESS_ que el cliente no conoce igual se dice «no disponible» (sin mostrar el código)', () => {
+    const message = accessErrorMessage(refusal('ACCESS_OTRA_COSA'))!;
+    expect(message).toContain('Este caso no está disponible ahora');
+    expect(message).not.toContain('ACCESS_OTRA_COSA');
+  });
+
+  it('el mensaje une el título y el detalle del aviso del caso', () => {
+    const message = accessErrorMessage(refusal('ACCESS_CLOSED', { closesAt: '2026-10-05T23:59:00-05:00' }))!;
+    expect(message).toMatch(/^Ya cerró\. /);
+    expect(message).toContain('ya no se pueden iniciar intentos');
+    expect(accessErrorMessage(new HttpErrorResponse({ status: 500 }))).toBeNull();
   });
 });

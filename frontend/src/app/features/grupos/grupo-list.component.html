@@ -225,7 +225,7 @@
       </ui-card>
 
       <ui-card class="gl-cases-card">
-        <app-group-assignments [grupoId]="grupo.id" [cases]="casosDisponibles()" (assignedChange)="casosAsignadosTotal.set($event)" />
+        <app-group-assignments [grupoId]="grupo.id" [cases]="casosDisponibles()" [casesStatus]="casosEstado()" (assignedChange)="casosAsignadosTotal.set($event)" />
       </ui-card>
     </div>
     </div>

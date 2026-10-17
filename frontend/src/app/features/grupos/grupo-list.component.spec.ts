@@ -30,7 +30,7 @@ const asignacion: Assignment = { id: 5, caseVersionId: 12, target: { type: 'GROU
 interface Api {
   listar: () => Observable<Grupo[]>;
   estudiantes: () => Observable<GrupoEstudiante[]>;
-  asignaciones: () => Observable<Assignment[]>;
+  asignaciones: (groupId: number) => Observable<Assignment[]>;
   casosPublicados: () => Observable<SimulationCaseSummary[]>;
 }
 
@@ -268,6 +268,36 @@ describe('pantalla Grupos (F7-2)', () => {
       await render({ asignaciones: () => of([asignacion, { ...asignacion, id: 6, caseVersionId: 13 }]) });
       await openDetail();
       expect(text(host().querySelector('.gl-detail'))).toContain('2 casos asignados');
+    });
+
+    // req: RF-14 (revisión de F10)
+    it('abrir otro grupo no arrastra el conteo del anterior: el conteo sale cuando ese grupo termina de cargar', async () => {
+      const pending = new Subject<Assignment[]>();
+      await render({ asignaciones: groupId => (groupId === grupoA.id ? of([asignacion]) : pending) });
+      await openDetail(grupoA);
+      expect(text(host().querySelector('.gl-detail'))).toContain('1 caso asignado');
+
+      await openDetail(grupoB);
+      expect(text(host().querySelector('.gl-detail .gl-hint'))).not.toMatch(/casos? asignados?/);
+
+      pending.next([asignacion, { ...asignacion, id: 6, caseVersionId: 13 }]);
+      pending.complete();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.gl-detail .gl-hint'))).toContain('2 casos asignados');
+    });
+
+    it('si los casos publicados fallan, «Asignar un caso» lo dice (no «no hay más casos»); mientras cargan, también', async () => {
+      const casos = new Subject<SimulationCaseSummary[]>();
+      await render({ casosPublicados: () => casos });
+      await openDetail();
+      const assign = () => [...host().querySelectorAll<HTMLButtonElement>('.gl-detail button')].find(button => text(button).includes('Asignar un caso'))!;
+      expect(text(assign().querySelector('[hidden]'))).toBe('Cargando los casos publicados…');
+
+      casos.error({ status: 500 });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(assign().querySelector('[hidden]'))).toBe('No pudimos cargar los casos publicados.');
     });
 
     it('la sección «Casos asignados» es la de asignaciones con ventana y recibe los casos publicados', async () => {

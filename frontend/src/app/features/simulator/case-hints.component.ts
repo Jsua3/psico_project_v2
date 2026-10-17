@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, untracked } from '@angular/core';
 
 import { HintEditorState, MapEditorState, NodeEditorState } from '../../core/models/simulation.model';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
@@ -46,7 +46,7 @@ interface HintScene {
                         <button ui-icon-button type="button" icon="edit" [disabledReason]="lockReason()"
                           [label]="'Editar ayuda ' + (position + 1) + ' de «' + scene.map.title + '»'" (click)="edit.emit(hint)"></button>
                         <button ui-icon-button type="button" icon="delete_outline" [disabledReason]="lockReason()"
-                          [label]="'Eliminar ayuda ' + (position + 1) + ' de «' + scene.map.title + '»'" (click)="remove.emit(hint)"></button>
+                          [label]="'Eliminar ayuda ' + (position + 1) + ' de «' + scene.map.title + '»'" (click)="removeHint(hint)"></button>
                       </span>
                     </li>
                   }
@@ -54,7 +54,7 @@ interface HintScene {
               } @else {
                 <p class="ch-empty">Esta sala aún no tiene ayudas.</p>
               }
-              <button ui-button type="button" variant="secondary" icon="add" [disabledReason]="lockReason()"
+              <button ui-button type="button" variant="secondary" icon="add" [attr.data-ch-add]="scene.map.id" [disabledReason]="lockReason()"
                 (click)="create.emit(scene.map.id)">Agregar ayuda a «{{ scene.map.title }}»</button>
             </ui-card>
           </li>
@@ -83,6 +83,11 @@ interface HintScene {
   `],
 })
 export class CaseHintsComponent {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly injector = inject(Injector);
+  /** La sala de la ayuda que se pidió quitar: cuando la lista se acorte, el foco va a su «Agregar ayuda» (la fila se va). */
+  private removingMapId: number | null = null;
+
   readonly maps = input<MapEditorState[]>([]);
   readonly nodes = input<NodeEditorState[]>([]);
   readonly hints = input<HintEditorState[]>([]);
@@ -94,6 +99,24 @@ export class CaseHintsComponent {
   readonly remove = output<HintEditorState>();
   /** Sin salas no hay dónde poner ayudas: lleva a la pestaña de mapas. */
   readonly goToMaps = output<void>();
+
+  constructor() {
+    let known = this.hints().length;
+    effect(() => {
+      const count = this.hints().length;
+      const mapId = untracked(() => this.removingMapId);
+      const shrank = mapId !== null && count < known;
+      known = count;
+      if (!shrank) return;
+      this.removingMapId = null;
+      afterNextRender(() => this.host.querySelector<HTMLElement>(`[data-ch-add="${mapId}"]`)?.focus(), { injector: this.injector });
+    });
+  }
+
+  protected removeHint(hint: HintEditorState): void {
+    this.removingMapId = hint.mapId;
+    this.remove.emit(hint);
+  }
 
   protected readonly scenes = computed<HintScene[]>(() => {
     const titles = new Map(this.nodes().map(node => [node.id, node.title]));

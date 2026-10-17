@@ -106,6 +106,62 @@ describe('AssignmentDialogComponent', () => {
       button('Cancelar')!.click();
       expect(close).toHaveBeenCalledWith();
     });
+
+    // El control de fecha a medio escribir entrega valor vacío (con `validity.badInput`): no es «sin fecha».
+    const halfTyped = (label: string) => {
+      const input = control(label) as HTMLInputElement;
+      Object.defineProperty(input, 'validity', { configurable: true, value: { badInput: true } });
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+    };
+
+    it('una fecha a medio escribir no se guarda como «sin fecha»: lo dice en su campo y no cierra', () => {
+      write('Caso', '12');
+      halfTyped('Cierra');
+      submit();
+
+      expect(errors()).toEqual(['Escribe la fecha y la hora completas, o borra lo escrito para dejarla vacía.']);
+      expect(control('Cierra').getAttribute('aria-invalid')).toBe('true');
+      expect(close).not.toHaveBeenCalled();
+    });
+
+    it('lo mismo con la apertura, y los dos campos a medias dan un error cada uno', () => {
+      write('Caso', '12');
+      halfTyped('Abre');
+      halfTyped('Cierra');
+      submit();
+
+      expect(errors()).toHaveLength(2);
+      expect(close).not.toHaveBeenCalled();
+    });
+
+    it('al corregir el campo (completarlo o vaciarlo) el error se va al instante, sin esperar al siguiente envío', () => {
+      write('Caso', '12');
+      halfTyped('Cierra');
+      submit();
+      expect(errors()).toHaveLength(1);
+
+      Object.defineProperty(control('Cierra'), 'validity', { configurable: true, value: { badInput: false } });
+      write('Cierra', '2030-03-04T08:00');
+      fixture.detectChanges();
+
+      expect(errors()).toEqual([]);
+      submit();
+      expect(close).toHaveBeenCalledWith(expect.objectContaining({ caseVersionId: 12, closesAt: new Date('2030-03-04T08:00').toISOString() }));
+    });
+
+    it('el error de «el cierre debe ser posterior» se va al cambiar cualquiera de las dos fechas', () => {
+      write('Caso', '12');
+      write('Abre', '2026-10-20T08:00');
+      write('Cierra', '2026-10-19T08:00');
+      submit();
+      expect(errors()).toEqual(['El cierre debe ser posterior a la apertura.']);
+
+      write('Cierra', '2026-10-21T08:00');
+      fixture.detectChanges();
+
+      expect(errors()).toEqual([]);
+    });
   });
 
   describe('cambiar las fechas', () => {
@@ -122,6 +178,17 @@ describe('AssignmentDialogComponent', () => {
       write('Cierra', '');
       submit();
       expect(close).toHaveBeenCalledWith({ opensAt: existing.opensAt, closesAt: null });
+    });
+
+    it('la fecha que no se tocó se devuelve tal cual llegó (con sus segundos), aunque el control solo muestre minutos', () => {
+      TestBed.resetTestingModule();
+      const withSeconds: Assignment = { ...existing, closesAt: new Date(2026, 10, 5, 23, 59, 59).toISOString() };
+      setup({ mode: 'edit', cases: [], assignment: withSeconds, title: 'Caso doce' });
+
+      write('Abre', '2026-10-21T09:30');
+      submit();
+
+      expect(close).toHaveBeenCalledWith({ opensAt: new Date('2026-10-21T09:30').toISOString(), closesAt: withSeconds.closesAt });
     });
   });
 });

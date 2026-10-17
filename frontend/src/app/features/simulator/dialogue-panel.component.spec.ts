@@ -1344,6 +1344,42 @@ describe('DialoguePanelComponent - pistas de la escena (F10-2)', () => {
     expect(getHints).not.toHaveBeenCalled();
   });
 
+  /** Abre un diálogo con las opciones dadas y las deja a la vista (última intervención ya escrita). */
+  function openWith(choices: DialogueState['choices']): HTMLElement {
+    writeInputSignal(component.dialogue, { ...MULTI_LINE_DIALOGUE, choices });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    component.advanceLine();
+    component.skipTypewriter();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  // req: RF-18, CU-09 (revisión de F10: una confirmación de la interfaz no es un momento de decidir)
+  it('una confirmación de la interfaz (sin decisión ni herramienta) no ofrece pistas ni las pide', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    const root = openWith([
+      { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
+      { key: 'frontend:proceed-evidence:7', text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
+    ]);
+
+    expect(root.querySelector('.choices'), 'las opciones sí se ven').not.toBeNull();
+    expect(root.querySelector('app-scene-hint')).toBeNull();
+    expect(getHints).not.toHaveBeenCalled();
+  });
+
+  // req: RF-18, CU-09 (el caso demo llega a la decisión de la familia por la herramienta: sin ella, la lista solo trae esa opción)
+  it('una lista solo de herramientas sí ofrece pistas: así se llega a la decisión de la sala', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    const root = openWith([
+      { key: 'tool-1', text: 'Aplicar PAP a la familia en crisis', decisionOptionId: null, requiredToolCode: 'PAP', effect: {} },
+    ]);
+
+    expect(root.querySelector('app-scene-hint'), 'la franja de pistas está sobre las opciones').not.toBeNull();
+    expect(getHints).toHaveBeenCalledWith('intento-1', 'token-1');
+  });
+
   it('mientras las opciones siguen ocultas (hay más intervenciones por leer) tampoco', () => {
     writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
     writeInputSignal(component.dialogue, MULTI_LINE_DIALOGUE);

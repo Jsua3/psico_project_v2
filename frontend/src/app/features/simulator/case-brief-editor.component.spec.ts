@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { BriefUpdateRequest, CharacterEditorState } from '../../core/models/simulation.model';
-import { CaseBriefEditorComponent } from './case-brief-editor.component';
+import { BriefForm, CaseBriefEditorComponent, buildBriefForm, parseObjectives } from './case-brief-editor.component';
 
 const character = (id: number, over: Partial<CharacterEditorState> = {}): CharacterEditorState => ({
   id, key: `personaje-${id}`, displayName: `Personaje ${id}`, roleLabel: '', portraitKey: '', showInBrief: true, displayOrder: id, ...over,
@@ -12,12 +12,14 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace
 
 /**
  * «Ficha» del editor (plan visual F10-3†; E3-3, E3-4, RF-07, RF-16, CU-04): el contexto y los objetivos de aprendizaje que
- * la persona lee antes de empezar, y el catálogo de personajes del caso. El contexto y los objetivos se guardan juntos;
- * los personajes los edita la hoja de la pantalla. Nada se envía si un campo no cumple los topes del servidor.
+ * la persona lee antes de empezar, y el catálogo de personajes del caso. El formulario es de la pantalla (una pestaña
+ * inactiva se destruye y lo escrito no puede morir con ella); aquí se presenta, se valida contra los topes del servidor y
+ * se avisa qué se guarda. Los personajes los edita la hoja de la pantalla.
  */
 // req: RF-07, RF-16, CU-04, RNF-04
 describe('CaseBriefEditorComponent', () => {
   let fixture: ComponentFixture<CaseBriefEditorComponent>;
+  let form: BriefForm;
   let saved: BriefUpdateRequest[];
   let created: number;
   let edited: CharacterEditorState[];
@@ -35,6 +37,7 @@ describe('CaseBriefEditorComponent', () => {
     .find(item => (item.getAttribute('aria-label') ?? text(item.querySelector('.ui-button__label'))) === label);
   const submit = async () => {
     root().querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    fixture.detectChanges();
     await fixture.whenStable();
   };
   const message = (label: string) => text(field(label)!.querySelector('.ui-field__message'));
@@ -46,10 +49,10 @@ describe('CaseBriefEditorComponent', () => {
     created = 0;
     edited = [];
     removed = [];
+    form = buildBriefForm(inputs.context ?? '', inputs.objectives ?? []);
     TestBed.configureTestingModule({ imports: [CaseBriefEditorComponent], providers: [provideZonelessChangeDetection()] });
     fixture = TestBed.createComponent(CaseBriefEditorComponent);
-    fixture.componentRef.setInput('context', inputs.context ?? '');
-    fixture.componentRef.setInput('objectives', inputs.objectives ?? []);
+    fixture.componentRef.setInput('form', form);
     fixture.componentRef.setInput('characters', inputs.characters ?? []);
     fixture.componentRef.setInput('lockReason', inputs.lockReason ?? null);
     fixture.componentRef.setInput('busy', inputs.busy ?? false);
@@ -60,21 +63,36 @@ describe('CaseBriefEditorComponent', () => {
     await fixture.whenStable();
   }
 
-  async function update(inputs: Record<string, unknown>) {
-    for (const [name, value] of Object.entries(inputs)) fixture.componentRef.setInput(name, value);
-    await fixture.whenStable();
-  }
-
   afterEach(() => TestBed.resetTestingModule());
 
+  describe('el formulario de la pantalla', () => {
+    it('se construye con el contexto y los objetivos del caso, uno por línea', () => {
+      const built = buildBriefForm('Una mujer llega a urgencias.', ['Identificar señales de riesgo.', 'Validar sin juzgar.']);
+      expect(built.getRawValue()).toEqual({ context: 'Una mujer llega a urgencias.', objectives: 'Identificar señales de riesgo.\nValidar sin juzgar.' });
+      expect(built.pristine).toBe(true);
+    });
+
+    it('los objetivos escritos se leen como lista: sin espacios sobrantes ni renglones vacíos', () => {
+      expect(parseObjectives(' Escuchar con atención. \n\n  Nombrar la emoción.  \r\n')).toEqual(['Escuchar con atención.', 'Nombrar la emoción.']);
+      expect(parseObjectives('')).toEqual([]);
+    });
+
+    it('un contexto de más de 4.000 caracteres es inválido (el aviso lo da el campo, no un tope silencioso)', () => {
+      expect(buildBriefForm('a'.repeat(4000), []).controls.context.valid).toBe(true);
+      expect(buildBriefForm('a'.repeat(4001), []).controls.context.valid).toBe(false);
+    });
+  });
+
   describe('contexto y objetivos', () => {
-    it('muestra el contexto y los objetivos del caso, uno por línea, con su ayuda', async () => {
+    it('muestra el contexto y los objetivos del formulario, con su ayuda y sin recortar lo que se pega', async () => {
       await render({ context: 'Una mujer llega a urgencias.', objectives: ['Identificar señales de riesgo.', 'Validar sin juzgar.'] });
 
       expect(textarea('Contexto del caso').value).toBe('Una mujer llega a urgencias.');
       expect(textarea('Objetivos de aprendizaje').value).toBe('Identificar señales de riesgo.\nValidar sin juzgar.');
       expect(message('Contexto del caso')).toContain('Lo que lee la persona antes de empezar');
+      expect(message('Contexto del caso')).toContain('hasta 4.000 caracteres');
       expect(message('Objetivos de aprendizaje')).toContain('Uno por línea');
+      expect(textarea('Contexto del caso').hasAttribute('maxlength'), 'un tope con atributo recortaría en silencio lo que se pega').toBe(false);
     });
 
     it('guardar envía el contexto sin espacios sobrantes y los objetivos como lista, sin renglones vacíos', async () => {
@@ -110,6 +128,30 @@ describe('CaseBriefEditorComponent', () => {
       expect(saved).toEqual([]);
     });
 
+    it('el error de los objetivos se va al corregirlos, sin esperar al siguiente envío', async () => {
+      await render();
+      write('Objetivos de aprendizaje', Array.from({ length: 13 }, (_unused, index) => `Objetivo ${index + 1}`).join('\n'));
+      await submit();
+      expect(message('Objetivos de aprendizaje')).toBe('Un caso admite hasta 12 objetivos de aprendizaje.');
+
+      write('Objetivos de aprendizaje', 'Uno solo.');
+      fixture.detectChanges();
+
+      expect(message('Objetivos de aprendizaje')).toContain('Uno por línea');
+      expect(textarea('Objetivos de aprendizaje').getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('un contexto de más de 4.000 caracteres (pegado) lo dice en su campo y no se envía', async () => {
+      await render();
+
+      write('Contexto del caso', 'a'.repeat(4001));
+      await submit();
+
+      expect(message('Contexto del caso')).toBe('Admite hasta 4.000 caracteres.');
+      expect(textarea('Contexto del caso').getAttribute('aria-invalid')).toBe('true');
+      expect(saved).toEqual([]);
+    });
+
     it('tras un error el foco va al campo que lo tiene', async () => {
       await render();
       document.body.appendChild(root());
@@ -131,36 +173,6 @@ describe('CaseBriefEditorComponent', () => {
       expect(text(save.querySelector('[hidden]'))).toBe(reason);
       save.click();
       expect(saved).toEqual([]);
-    });
-
-    it('si llega la ficha de nuevo (otro guardado, recargar) y no se tocó, el formulario la sigue', async () => {
-      await render({ context: 'Antes.', objectives: ['Uno.'] });
-
-      await update({ context: 'Después.', objectives: ['Uno.', 'Dos.'] });
-
-      expect(textarea('Contexto del caso').value).toBe('Después.');
-      expect(textarea('Objetivos de aprendizaje').value).toBe('Uno.\nDos.');
-    });
-
-    it('si hay texto sin guardar, una ficha que llega por otro guardado no lo pisa', async () => {
-      await render({ context: 'Antes.' });
-      write('Contexto del caso', 'Lo que estoy escribiendo.');
-
-      await update({ context: 'Otro cambio del servidor.' });
-
-      expect(textarea('Contexto del caso').value).toBe('Lo que estoy escribiendo.');
-    });
-
-    it('cuando lo escrito llega guardado, el formulario queda limpio y vuelve a seguir al servidor', async () => {
-      await render({ context: 'Antes.' });
-      write('Contexto del caso', '  Guardado.  ');
-      await submit();
-
-      await update({ context: 'Guardado.' });
-      expect(textarea('Contexto del caso').value).toBe('Guardado.');
-
-      await update({ context: 'Cambió en el servidor.' });
-      expect(textarea('Contexto del caso').value).toBe('Cambió en el servidor.');
     });
   });
 
@@ -211,6 +223,20 @@ describe('CaseBriefEditorComponent', () => {
         target.click();
       }
       expect([created, edited, removed]).toEqual([0, [], []]);
+    });
+
+    it('tras quitar un personaje el foco va a «Agregar personaje» (el botón que se pulsó desaparece)', async () => {
+      const marta = character(1, { displayName: 'Marta' });
+      await render({ characters: [marta, character(2, { displayName: 'Sofía' })] });
+      document.body.appendChild(root());
+      button('Eliminar a «Marta»')!.click();
+
+      fixture.componentRef.setInput('characters', [character(2, { displayName: 'Sofía' })]);
+      await fixture.whenStable();
+      await new Promise<void>(resolve => setTimeout(resolve));
+
+      expect(document.activeElement).toBe(button('Agregar personaje'));
+      root().remove();
     });
   });
 });

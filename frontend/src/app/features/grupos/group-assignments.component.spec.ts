@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AssignmentService } from '../../core/api/assignment.service';
 import { Assignment } from '../../core/models/assignment.model';
@@ -259,5 +259,132 @@ describe('GroupAssignmentsComponent', () => {
     fixture.componentRef.setInput('grupoId', 4);
     await fixture.whenStable();
     expect(api.list).toHaveBeenLastCalledWith(4);
+  });
+
+  // req: RF-14, RN-04 (revisión de F10)
+  describe('al cambiar de grupo con respuestas que llegan en otro orden', () => {
+    const switchTo = async (groupId: number) => {
+      fixture.componentRef.setInput('grupoId', groupId);
+      await fixture.whenStable();
+    };
+
+    it('la respuesta lenta del grupo anterior no pisa la lista del nuevo', async () => {
+      const slow = new Subject<Assignment[]>();
+      const fast = new Subject<Assignment[]>();
+      await render({ api: { list: vi.fn((groupId: number) => (groupId === 3 ? slow : fast)) } });
+      await switchTo(4);
+
+      fast.next([row({ id: 9, caseVersionId: 13, target: { type: 'GROUP', groupId: 4 } })]);
+      await fixture.whenStable();
+      slow.next([row({ id: 5, caseVersionId: 12 })]);
+      await fixture.whenStable();
+
+      expect(items().map(item => text(item.querySelector('strong')))).toEqual(['Caso trece']);
+    });
+
+    it('mientras carga el grupo nuevo no muestra las filas del anterior ni deja asignar (dice por qué)', async () => {
+      const pending = new Subject<Assignment[]>();
+      await render({ api: { list: vi.fn((groupId: number) => (groupId === 3 ? of([row()]) : pending)) } });
+      expect(items()).toHaveLength(1);
+
+      await switchTo(4);
+
+      expect(items()).toHaveLength(0);
+      expect(text(host()), 'cargando no es lo mismo que vacío').not.toContain('No hay casos asignados');
+      const assign = buttonIn(host(), 'Asignar un caso')!;
+      expect(assign.getAttribute('aria-disabled')).toBe('true');
+      expect(text(assign.querySelector('[hidden]'))).toBe('Cargando los casos del grupo…');
+    });
+
+    it('si la carga del grupo nuevo falla, no quedan las filas ni el conteo del anterior: un error con «Reintentar»', async () => {
+      const counts: number[] = [];
+      await render({ api: { list: vi.fn((groupId: number) => (groupId === 3 ? of([row()]) : throwError(() => ({ status: 500 })))) } });
+      fixture.componentInstance.assignedChange.subscribe(count => counts.push(count));
+
+      await switchTo(4);
+
+      expect(items()).toHaveLength(0);
+      expect(host().querySelector('ui-error-state')).not.toBeNull();
+      expect(counts, 'un conteo solo se avisa de un grupo que terminó de cargar').toEqual([]);
+    });
+
+    it('el conteo del grupo nuevo se avisa cuando ese grupo termina de cargar, no antes', async () => {
+      const pending = new Subject<Assignment[]>();
+      const counts: number[] = [];
+      await render({ api: { list: vi.fn((groupId: number) => (groupId === 3 ? of([row()]) : pending)) } });
+      fixture.componentInstance.assignedChange.subscribe(count => counts.push(count));
+
+      await switchTo(4);
+      expect(counts).toEqual([]);
+      pending.next([row({ id: 8 }), row({ id: 9, caseVersionId: 13 })]);
+      await fixture.whenStable();
+
+      expect(counts).toEqual([2]);
+    });
+
+    it('una asignación creada para el grupo anterior no entra a la lista del nuevo', async () => {
+      const created = new Subject<Assignment>();
+      await render({
+        dialog: { caseVersionId: 13, opensAt: null, closesAt: null },
+        api: { list: vi.fn((groupId: number) => of(groupId === 3 ? [row()] : [])), create: vi.fn(() => created) },
+      });
+      buttonIn(host(), 'Asignar un caso')!.click();
+      await fixture.whenStable();
+
+      await switchTo(4);
+      created.next(row({ id: 6, caseVersionId: 13 }));
+      await fixture.whenStable();
+
+      expect(items(), 'la asignación era del grupo 3').toHaveLength(0);
+    });
+  });
+
+  // req: RF-14, RNF-04 (revisión de F10)
+  describe('motivos y nombres', () => {
+    it('«Asignar un caso» dice si los casos publicados aún cargan o fallaron (no «no hay más casos»)', async () => {
+      await render();
+      fixture.componentRef.setInput('casesStatus', 'loading');
+      await fixture.whenStable();
+      expect(text(buttonIn(host(), 'Asignar un caso')!.querySelector('[hidden]'))).toBe('Cargando los casos publicados…');
+
+      fixture.componentRef.setInput('casesStatus', 'failed');
+      await fixture.whenStable();
+      expect(text(buttonIn(host(), 'Asignar un caso')!.querySelector('[hidden]'))).toBe('No pudimos cargar los casos publicados.');
+    });
+
+    it('cada botón de una fila lleva el nombre de su caso, para distinguirlos en la lista de botones', async () => {
+      await render({ api: { list: vi.fn(() => of([row({ id: 5, caseVersionId: 12 }), row({ id: 6, caseVersionId: 13, active: false })])) } });
+
+      const names = items().map(item => Array.from(item.querySelectorAll('button')).map(button => button.getAttribute('aria-label') ?? text(button)));
+      expect(names[0]).toEqual(['Cambiar fechas de «Caso doce»', 'Pausar «Caso doce»', 'Retirar «Caso doce» del grupo']);
+      expect(names[1]).toEqual(['Cambiar fechas de «Caso trece»', 'Reanudar «Caso trece»', 'Retirar «Caso trece» del grupo']);
+    });
+
+    it('«Retirar» dice por qué espera mientras hay un cambio en curso (como los otros botones)', async () => {
+      const pending = new Subject<Assignment>();
+      await render({ api: { update: vi.fn(() => pending) }, confirmed: true });
+      buttonIn(items()[0], 'Pausar «Caso doce»')!.click();
+      await fixture.whenStable();
+      await fixture.whenStable();
+
+      const remove = buttonIn(items()[0], 'Retirar «Caso doce» del grupo')!;
+      expect(remove.getAttribute('aria-disabled')).toBe('true');
+      expect(text(remove.querySelector('[hidden]'))).toBe('Hay un cambio en curso: espera un momento.');
+    });
+
+    it('tras retirar un caso el foco va a «Asignar un caso» (el botón que se pulsó desaparece)', async () => {
+      await render();
+      document.body.appendChild(host());
+      try {
+        buttonIn(items()[0], 'Retirar «Caso doce» del grupo')!.click();
+        await fixture.whenStable();
+        await new Promise<void>(resolve => setTimeout(resolve));
+
+        expect(items()).toHaveLength(0);
+        expect(document.activeElement).toBe(buttonIn(host(), 'Asignar un caso'));
+      } finally {
+        host().remove();
+      }
+    });
   });
 });

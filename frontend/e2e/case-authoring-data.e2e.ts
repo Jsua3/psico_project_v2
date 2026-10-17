@@ -223,7 +223,12 @@ test('las escenas se reordenan solo con el teclado: el foco acompaña a la escen
   await expect(down).toBeFocused();
   await expect(down).toHaveAttribute('aria-disabled', 'true');
   await expect(down).toHaveAccessibleDescription('Ya es la última escena.');
+  const reorders: string[] = [];
+  page.on('request', req => { if (req.method() === 'PATCH' && req.url().endsWith('/nodes/reorder')) reorders.push(req.url()); });
   await page.keyboard.press('Enter');
+  // Un movimiento que sí se hiciera pediría el orden y repintaría la lista unos instantes después de la pulsación.
+  await page.waitForTimeout(scaled(700));
+  expect(reorders, 'el botón bloqueado no pide ningún orden').toEqual([]);
   expect(await titles()).toEqual(['Consulta', 'Cierre del caso', 'Inicio del caso']);
 
   const up = page.getByRole('button', { name: 'Subir «Inicio del caso»' });

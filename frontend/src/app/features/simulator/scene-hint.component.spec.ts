@@ -187,6 +187,60 @@ describe('SceneHintComponent', () => {
     expect(host().querySelector('.scene-hint__note')).toBeNull();
   });
 
+  // req: RF-18, CU-09, RNF-04 (revisión de F10)
+  describe('anuncios y respuestas fuera de lugar', () => {
+    it('un fallo al pedir la pista se anuncia a quien usa lector de pantalla (no solo se pinta)', async () => {
+      await render({ revealNextHint: vi.fn(() => failure(500)) });
+      askButton().click();
+      await fixture.whenStable();
+
+      expect(announce).toHaveBeenCalledWith('No pudimos pedir la pista. Inténtalo de nuevo.', 'assertive');
+    });
+
+    it('el intento en pausa y las pistas que no cargan también se anuncian', async () => {
+      await render({ revealNextHint: vi.fn(() => failure(409, 'ATTEMPT_NOT_PLAYING')) });
+      askButton().click();
+      await fixture.whenStable();
+      expect(announce).toHaveBeenCalledWith('El intento está en pausa: reanúdalo para pedir pistas.', 'assertive');
+      TestBed.resetTestingModule();
+
+      await render({ getHints: vi.fn(() => failure(500)) });
+      expect(announce).toHaveBeenCalledWith('No pudimos cargar las pistas.', 'assertive');
+    });
+
+    it('una respuesta que llega cuando el panel ya se cerró no anuncia nada fuera de contexto', async () => {
+      const pending = new Subject<HintState>();
+      await render({ revealNextHint: vi.fn(() => pending) });
+      askButton().click();
+      await fixture.whenStable();
+
+      fixture.destroy();
+      pending.next(oneShown);
+      pending.complete();
+
+      expect(announce, 'el diálogo siguiente no debe oír la pista del anterior').not.toHaveBeenCalled();
+    });
+
+    it('si el servidor responde sin una pista nueva, lo dice y espera, en vez de parecer roto', async () => {
+      await render({ getHints: vi.fn(() => of(oneShown)), revealNextHint: vi.fn(() => of(oneShown)) });
+      askButton().click();
+      await fixture.whenStable();
+
+      expect(text(host().querySelector('.scene-hint__message'))).toBe('Esa pista ya estaba a la vista.');
+      expect(announce).toHaveBeenCalledWith('Esa pista ya estaba a la vista.', 'polite');
+      expect(askButton().getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('«Pista n» es el lugar entre las vistas, no el número de orden de la autoría (que puede ser 0 o 7)', async () => {
+      const authored: HintState = { available: 0, reason: 'ALL_SHOWN', shown: [{ id: 3, order: 7, text: 'Primera que ve.' }] };
+      await render({ getHints: vi.fn(() => of(two)), revealNextHint: vi.fn(() => of(authored)) });
+      askButton().click();
+      await fixture.whenStable();
+
+      expect(announce).toHaveBeenCalledWith('Pista 1: Primera que ve.', 'polite');
+    });
+  });
+
   it('la lista de pistas vistas es una región con nombre y se puede recorrer con el teclado si crece', async () => {
     await render({ getHints: vi.fn(() => of(allShown)) });
     const list = host().querySelector('.scene-hint__list')!;

@@ -100,8 +100,11 @@ export class GrupoListComponent implements OnInit {
   casosDisponibles = signal<SimulationCaseSummary[]>([]);
   /** Los casos publicados ya respondieron (una cifra de 0 solo es verdad después de que respondan). */
   casosCargados = signal(false);
-  /** Cuántos casos tiene asignados el grupo abierto: lo dice la sección de asignaciones (F10-5) y lo cuenta el encabezado. */
-  casosAsignadosTotal = signal(0);
+  /** Los casos publicados no se pudieron leer (la sección de asignaciones lo dice en vez de «no hay más casos»). */
+  casosFallaron = signal(false);
+  protected readonly casosEstado = computed<'loading' | 'ready' | 'failed'>(() => (this.casosFallaron() ? 'failed' : this.casosCargados() ? 'ready' : 'loading'));
+  /** Cuántos casos tiene asignados el grupo abierto: lo dice la sección de asignaciones (F10-5) cuando ese grupo termina de cargar. */
+  casosAsignadosTotal = signal<number | null>(null);
   mensajeEstudiante = signal('');
   importSpec = signal<GrupoImportSpec | null>(null);
   archivoImportacion = signal<File | null>(null);
@@ -133,7 +136,7 @@ export class GrupoListComponent implements OnInit {
     const partes = [`${miembros} ${miembros === 1 ? 'estudiante' : 'estudiantes'}`];
     if (invitados) partes.push(`${invitados} ${invitados === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}`);
     const casos = this.casosAsignadosTotal();
-    partes.push(`${casos} ${casos === 1 ? 'caso asignado' : 'casos asignados'}`);
+    if (casos !== null) partes.push(`${casos} ${casos === 1 ? 'caso asignado' : 'casos asignados'}`);
     return partes.join(' · ');
   });
   protected readonly membershipBadge = membershipBadge;
@@ -195,7 +198,10 @@ export class GrupoListComponent implements OnInit {
         this.casosDisponibles.set(cases);
         this.casosCargados.set(true);
       },
-      error: () => this.casosDisponibles.set([])
+      error: () => {
+        this.casosDisponibles.set([]);
+        this.casosFallaron.set(true);
+      }
     });
   }
 
@@ -377,7 +383,7 @@ export class GrupoListComponent implements OnInit {
   }
 
   gestionarGrupo(grupo: Grupo) {
-    this.grupoActivo.set(grupo);
+    this.abrirGrupo(grupo);
     this.grupoSeleccionado.set(null);
     this.busquedaEstudiante.set('');
     this.mensajeEstudiante.set('');
@@ -388,7 +394,7 @@ export class GrupoListComponent implements OnInit {
   }
 
   agregarEstudiante(grupo: Grupo) {
-    this.grupoActivo.set(grupo);
+    this.abrirGrupo(grupo);
     this.grupoSeleccionado.set(grupo.id);
     this.busquedaEstudiante.set('');
     this.mensajeEstudiante.set('');
@@ -397,6 +403,12 @@ export class GrupoListComponent implements OnInit {
     this.limpiarImportacion();
     this.cargarDetalle(grupo.id);
     this.enfocar('.gl-add input');
+  }
+
+  /** Abre el detalle de un grupo; el conteo de casos asignados del grupo anterior no se arrastra al nuevo. */
+  private abrirGrupo(grupo: Grupo) {
+    if (this.grupoActivo()?.id !== grupo.id) this.casosAsignadosTotal.set(null);
+    this.grupoActivo.set(grupo);
   }
 
   /** Lleva el foco al destino de lo que el usuario acaba de abrir (el detalle queda debajo de la tabla). */

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { BriefUpdateRequest, CharacterEditorState } from '../../core/models/simulation.model';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
@@ -7,29 +7,43 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 
-/** Los topes del servidor para la ficha (E3-4): el campo los dice antes de enviar. */
+/** Los topes del servidor para la ficha (E3-4): el campo los dice, no se recortan en silencio al pegar. */
 const MAX_CONTEXT = 4000;
 const MAX_OBJECTIVES = 12;
 const MAX_OBJECTIVE_LENGTH = 280;
 
-const objectivesOf = (value: string): string[] => value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+export type BriefForm = FormGroup<{ context: FormControl<string>; objectives: FormControl<string> }>;
+
+/** Los objetivos escritos (uno por línea) como lista: sin espacios sobrantes ni renglones vacíos. */
+export function parseObjectives(value: string): string[] {
+  return value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+}
+
+/** El formulario de la ficha, con lo que el servidor guarda: lo construye la pantalla del editor y lo recibe este componente. */
+export function buildBriefForm(context: string, objectives: readonly string[]): BriefForm {
+  return new FormGroup({
+    context: new FormControl(context, { nonNullable: true, validators: [Validators.maxLength(MAX_CONTEXT)] }),
+    objectives: new FormControl(objectives.join('\n'), { nonNullable: true }),
+  });
+}
 
 /**
  * «Ficha» del editor de casos (plan visual F10-3†; E3-3, E3-4, RF-07, RF-16, CU-04): el contexto y los objetivos de
- * aprendizaje que la persona lee antes de empezar, y el catálogo de personajes del caso. El contexto y los objetivos se
- * guardan juntos (uno por línea, hasta 12 de 280 caracteres) y un campo que no cumple los topes del servidor lo dice y
- * lleva el foco, sin enviar nada. Lo que llega del servidor (otro guardado, recargar) reemplaza el formulario solo si no
- * hay texto sin guardar. Los personajes los crea y edita la hoja de la pantalla; aquí solo se listan. Una versión que no
+ * aprendizaje que la persona lee antes de empezar, y el catálogo de personajes del caso. El formulario es de la pantalla
+ * (una pestaña inactiva se destruye, y con ella lo escrito sin guardar); aquí se presenta y, al guardar, se validan los
+ * topes del servidor (contexto de 4.000 caracteres, hasta 12 objetivos de 280) en el campo que los rompe, con el foco en
+ * él y sin enviar nada. Los personajes los crea y edita la hoja de la pantalla; aquí solo se listan. Una versión que no
  * es borrador (`lockReason`) deja leer la ficha pero no cambiarla.
  */
 @Component({
   selector: 'app-case-brief-editor',
   imports: [ReactiveFormsModule, UiBadge, UiButton, UiControl, UiField, UiIconButton],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  // Eager: los errores de los campos salen de `control.touched`, que no es una señal.
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <form class="cb-form" [formGroup]="form" novalidate (ngSubmit)="submit()">
-      <ui-field label="Contexto del caso" hint="Lo que lee la persona antes de empezar. Texto plano, hasta 4.000 caracteres.">
-        <textarea uiControl rows="6" formControlName="context" [maxlength]="maxContext" [readOnly]="!!lockReason()"></textarea>
+    <form class="cb-form" [formGroup]="form()" novalidate (ngSubmit)="submit()">
+      <ui-field label="Contexto del caso" hint="Lo que lee la persona antes de empezar. Texto plano, hasta 4.000 caracteres." [error]="contextError()">
+        <textarea uiControl rows="6" formControlName="context" [readOnly]="!!lockReason()"></textarea>
       </ui-field>
       <ui-field label="Objetivos de aprendizaje" [error]="objectivesError()"
         hint="Uno por línea, hasta 12 de 280 caracteres cada uno. Los redacta Psicología.">
@@ -43,7 +57,7 @@ const objectivesOf = (value: string): string[] => value.split(/\r?\n/).map(line 
     <section class="cb-characters" aria-labelledby="cb-characters-title">
       <div class="cb-characters__head">
         <h3 class="cb-characters__title" id="cb-characters-title">Personajes</h3>
-        <button ui-button type="button" variant="secondary" icon="add" [disabledReason]="lockReason()"
+        <button ui-button type="button" variant="secondary" icon="add" data-cb-add [disabledReason]="lockReason()"
           (click)="characterCreate.emit()">Agregar personaje</button>
       </div>
       <p class="cb-note">Los que se marcan salen en la ficha antes de empezar; los demás se descubren jugando.</p>
@@ -62,7 +76,7 @@ const objectivesOf = (value: string): string[] => value.split(/\r?\n/).map(line 
                 <button ui-icon-button type="button" icon="edit" [disabledReason]="lockReason()"
                   [label]="'Editar a «' + item.displayName + '»'" (click)="characterEdit.emit(item)"></button>
                 <button ui-icon-button type="button" icon="delete_outline" [disabledReason]="lockReason()"
-                  [label]="'Eliminar a «' + item.displayName + '»'" (click)="characterRemove.emit(item)"></button>
+                  [label]="'Eliminar a «' + item.displayName + '»'" (click)="remove(item)"></button>
               </span>
             </li>
           }
@@ -99,8 +113,8 @@ export class CaseBriefEditorComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly injector = inject(Injector);
 
-  readonly context = input('');
-  readonly objectives = input<string[]>([]);
+  /** El formulario de la ficha: es de la pantalla del editor, que lo conserva aunque esta pestaña se destruya. */
+  readonly form = input.required<BriefForm>();
   readonly characters = input<CharacterEditorState[]>([]);
   /** Por qué el caso no se puede modificar (versión que no es borrador); null si se puede. */
   readonly lockReason = input<string | null>(null);
@@ -111,51 +125,54 @@ export class CaseBriefEditorComponent {
   readonly characterEdit = output<CharacterEditorState>();
   readonly characterRemove = output<CharacterEditorState>();
 
-  protected readonly maxContext = MAX_CONTEXT;
   protected readonly objectivesError = signal<string | null>(null);
-
-  protected readonly form = new FormGroup({
-    context: new FormControl('', { nonNullable: true }),
-    objectives: new FormControl('', { nonNullable: true }),
-  });
+  /** Se pidió quitar un personaje: cuando la lista se acorte, el foco va a «Agregar personaje» (la fila con el botón se va). */
+  private removing = false;
 
   constructor() {
-    // Lo que llega del servidor reemplaza el formulario si no hay texto sin guardar; si lo escrito es lo que llegó (ya
-    // guardado), el formulario queda limpio y vuelve a seguir al servidor.
-    effect(() => {
-      const context = this.context();
-      const objectives = this.objectives();
-      untracked(() => {
-        if (this.form.pristine || this.writtenMatches(context, objectives)) {
-          this.form.reset({ context, objectives: objectives.join('\n') });
-          this.objectivesError.set(null);
-        }
-      });
+    effect(onCleanup => {
+      const subscription = this.form().controls.objectives.valueChanges.subscribe(() => this.objectivesError.set(null));
+      onCleanup(() => subscription.unsubscribe());
     });
+    let known = this.characters().length;
+    effect(() => {
+      const count = this.characters().length;
+      const shrank = untracked(() => this.removing) && count < known;
+      known = count;
+      if (!shrank) return;
+      this.removing = false;
+      afterNextRender(() => this.host.querySelector<HTMLElement>('[data-cb-add]')?.focus(), { injector: this.injector });
+    });
+  }
+
+  protected contextError(): string | null {
+    const control = this.form().controls.context;
+    return control.touched && control.errors?.['maxlength'] ? `Admite hasta ${MAX_CONTEXT.toLocaleString('es-CO')} caracteres.` : null;
   }
 
   protected meta(item: CharacterEditorState): string {
     return [item.roleLabel, item.portraitKey ? `retrato ${item.portraitKey}` : ''].filter(Boolean).join(' · ');
   }
 
+  protected remove(item: CharacterEditorState): void {
+    this.removing = true;
+    this.characterRemove.emit(item);
+  }
+
   protected submit(): void {
     if (this.lockReason() || this.busy()) return;
-    const context = this.form.controls.context.value.trim();
-    const objectives = objectivesOf(this.form.controls.objectives.value);
+    const form = this.form();
+    form.markAllAsTouched();
+    const objectives = parseObjectives(form.controls.objectives.value);
     const error = objectives.length > MAX_OBJECTIVES
       ? `Un caso admite hasta ${MAX_OBJECTIVES} objetivos de aprendizaje.`
       : objectives.some(item => item.length > MAX_OBJECTIVE_LENGTH) ? `Cada objetivo admite hasta ${MAX_OBJECTIVE_LENGTH} caracteres.` : null;
     this.objectivesError.set(error);
-    if (error) {
+    if (error || form.controls.context.invalid) {
+      // Tras pintar los errores, el foco va al primer campo inválido (teclado y lector llegan al problema).
       afterNextRender(() => this.host.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
       return;
     }
-    this.saveBrief.emit({ context, learningObjectives: objectives });
-  }
-
-  private writtenMatches(context: string, objectives: string[]): boolean {
-    const written = objectivesOf(this.form.controls.objectives.value);
-    return this.form.controls.context.value.trim() === context
-      && written.length === objectives.length && written.every((item, index) => item === objectives[index]);
+    this.saveBrief.emit({ context: form.controls.context.value.trim(), learningObjectives: objectives });
   }
 }

@@ -17,9 +17,9 @@
             [error]="host.fieldError(control(g, 'narrative'), g.get('terminal')?.value ? 'Escribe el texto de la conclusión.' : 'Escribe la narrativa del nodo.')">
             <textarea uiControl rows="4" formControlName="narrative"></textarea>
           </ui-field>
-          <ui-field label="Enunciado de la decisión" hint="La pregunta que lee la persona antes de elegir. Déjalo vacío si esta escena es una conclusión."
+          <ui-field label="Enunciado de la decisión" hint="La pregunta que lee la persona antes de elegir. Déjalo vacío si esta escena es una conclusión. Hasta 1.200 caracteres."
             [error]="host.fieldError(control(g, 'decisionPrompt'), feedbackLimitMessage)">
-            <textarea uiControl rows="2" formControlName="decisionPrompt" maxlength="1200"></textarea>
+            <textarea uiControl rows="2" formControlName="decisionPrompt"></textarea>
           </ui-field>
           <ui-field label="Mensaje de advertencia">
             <input uiControl type="text" formControlName="warningMessage" placeholder="Contenido sensible: violencia..." autocomplete="off">
@@ -75,17 +75,17 @@
           <ui-field label="Retroalimentación inmediata">
             <textarea uiControl rows="2" formControlName="immediateFeedback"></textarea>
           </ui-field>
-          <ui-field label="Consecuencia en la historia" hint="Lo que ve la persona justo después de elegir esta opción."
+          <ui-field label="Consecuencia en la historia" hint="Lo que ve la persona justo después de elegir esta opción. Hasta 1.200 caracteres."
             [error]="host.fieldError(control(g, 'consequenceText'), feedbackLimitMessage)">
-            <textarea uiControl rows="3" formControlName="consequenceText" maxlength="1200"></textarea>
+            <textarea uiControl rows="3" formControlName="consequenceText"></textarea>
           </ui-field>
-          <ui-field label="Retroalimentación pedagógica" hint="Por qué esta opción es adecuada o no, explicado para quien aprende."
+          <ui-field label="Retroalimentación pedagógica" hint="Por qué esta opción es adecuada o no, explicado para quien aprende. Hasta 1.200 caracteres."
             [error]="host.fieldError(control(g, 'feedbackText'), feedbackLimitMessage)">
-            <textarea uiControl rows="3" formControlName="feedbackText" maxlength="1200"></textarea>
+            <textarea uiControl rows="3" formControlName="feedbackText"></textarea>
           </ui-field>
-          <ui-field label="Fundamento teórico" hint="El concepto o la referencia que respalda la retroalimentación."
+          <ui-field label="Fundamento teórico" hint="El concepto o la referencia que respalda la retroalimentación. Hasta 1.200 caracteres."
             [error]="host.fieldError(control(g, 'theoryBasis'), feedbackLimitMessage)">
-            <textarea uiControl rows="3" formControlName="theoryBasis" maxlength="1200"></textarea>
+            <textarea uiControl rows="3" formControlName="theoryBasis"></textarea>
           </ui-field>
           <div class="cs-checks">
             <label ui-check><input type="checkbox" formControlName="prohibitedConduct">Conducta prohibida (penalización grave)</label>
@@ -211,9 +211,10 @@
           <p class="cs-context">Sala «{{ hintMapTitle() }}»</p>
           <ui-field label="Texto de la ayuda" required hint="Texto plano, hasta 280 caracteres."
             [error]="host.fieldError(control(g, 'text'), hintTextMessage(control(g, 'text')))">
-            <textarea uiControl rows="3" formControlName="text" maxlength="280"></textarea>
+            <textarea uiControl rows="3" formControlName="text"></textarea>
           </ui-field>
-          <ui-field label="Lugar entre las ayudas de la sala" hint="Déjalo vacío para que sea la última.">
+          <ui-field label="Lugar entre las ayudas de la sala" [error]="host.fieldError(control(g, 'hintOrder'), 'El lugar empieza en 1.')"
+            [hint]="host.panel()?.kind === 'hint-edit' ? 'Déjalo vacío para no cambiarlo.' : 'Déjalo vacío para que sea la última.'">
             <input uiControl type="number" min="1" formControlName="hintOrder">
           </ui-field>
         }

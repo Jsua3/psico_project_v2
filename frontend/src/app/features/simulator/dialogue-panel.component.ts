@@ -97,7 +97,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             @if (notice) {
               <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
             }
-            @if (hintAttempt(); as attemptRef) {
+            <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
+            @if (offersHints(d) && hintAttempt(); as attemptRef) {
               <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken" />
             }
             <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
@@ -689,6 +690,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   /** Alguna opción activa registra una decisión (cabecera con el chip de decisión: VD-24). */
   hasDecisionOptions(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null);
+  }
+
+  /**
+   * Hay una acción del caso que decidir con ayuda: una decisión o una herramienta (en el caso demo la decisión de la sala se
+   * alcanza por la herramienta, y sin ella la lista solo trae esa opción). Las confirmaciones de la interfaz, sin decisión ni
+   * herramienta, no son un momento de decidir: no se ofrecen pistas ni se pide nada al servidor.
+   */
+  offersHints(d: DialogueState): boolean {
+    return !d.stale && d.choices.some(choice => choice.decisionOptionId != null || choice.requiredToolCode != null);
   }
 
   /** Solo las voces de sistema llevan chip y etiqueta de emoción; las personas no (duelo, límite 2). */

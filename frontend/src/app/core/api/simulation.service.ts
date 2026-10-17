@@ -53,9 +53,14 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
+  /**
+   * Inicia el intento o devuelve el abierto. El 403 `ACCESS_*` (cerró, aún no abre, secuencia) lo explica la pantalla de
+   * juego con el aviso del caso, así que el aviso genérico de «sin permisos» no sale además.
+   */
   startAttempt(caseVersionId: number, forceNew = false) {
-    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, { caseVersionId, forceNew })
-      .pipe(map(response => response.data));
+    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, { caseVersionId, forceNew }, {
+      context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
+    }).pipe(map(response => response.data));
   }
 
   getActiveAttempt(caseVersionId: number) {

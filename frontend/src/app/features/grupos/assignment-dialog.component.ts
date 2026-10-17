@@ -27,6 +27,9 @@ export interface AssignmentDialogResult {
 
 type DialogField = 'caseVersionId' | 'opensAt' | 'closesAt';
 
+/** Un control de fecha a medio escribir entrega valor vacío: sin este aviso se guardaría como «sin fecha». */
+const INCOMPLETE_DATE = 'Escribe la fecha y la hora completas, o borra lo escrito para dejarla vacía.';
+
 /**
  * Asignar un caso a un grupo o cambiar su ventana (plan visual F10-5†; C7, RF-14, RF-15, CU-06): el caso, desde cuándo y
  * hasta cuándo. Las fechas son opcionales (sin ellas, abierto desde ya y sin cierre) y su ayuda dice qué pasa en cada
@@ -51,11 +54,11 @@ type DialogField = 'caseVersionId' | 'opensAt' | 'closesAt';
           </ui-field>
         }
         <ui-field label="Abre" hint="Déjalo vacío para que se abra desde ya." [error]="errors().opensAt">
-          <input uiControl type="datetime-local" [value]="opensAt()" (input)="opensAt.set(read($event))" />
+          <input uiControl type="datetime-local" [value]="opensAt()" (input)="onDate('opensAt', $event)" />
         </ui-field>
         <ui-field label="Cierra" hint="Déjalo vacío para que no cierre. Después del cierre nadie puede empezar el caso; quien ya lo empezó puede terminarlo."
           [error]="errors().closesAt">
-          <input uiControl type="datetime-local" [value]="closesAt()" (input)="closesAt.set(read($event))" />
+          <input uiControl type="datetime-local" [value]="closesAt()" (input)="onDate('closesAt', $event)" />
         </ui-field>
         <p class="ad-zone">La hora es la de tu navegador.</p>
       </form>
@@ -86,16 +89,28 @@ export class AssignmentDialogComponent {
   protected readonly opensAt = signal(fromWindowIso(this.data.assignment?.opensAt));
   protected readonly closesAt = signal(fromWindowIso(this.data.assignment?.closesAt));
   protected readonly errors = signal<Partial<Record<DialogField, string>>>({});
+  /** El control de fecha tiene algo escrito que todavía no es una fecha (a medias): no es lo mismo que vacío. */
+  private readonly incomplete = { opensAt: false, closesAt: false };
 
   protected read(event: Event): string {
     return (event.target as HTMLInputElement | HTMLSelectElement).value;
+  }
+
+  /** Cambiar cualquiera de las dos fechas retira los errores de fecha: se vuelven a calcular al enviar. */
+  protected onDate(field: 'opensAt' | 'closesAt', event: Event): void {
+    const input = event.target as HTMLInputElement;
+    (field === 'opensAt' ? this.opensAt : this.closesAt).set(input.value);
+    this.incomplete[field] = input.validity?.badInput === true;
+    this.errors.update(current => (current.caseVersionId ? { caseVersionId: current.caseVersionId } : {}));
   }
 
   protected submit(event: Event): void {
     event.preventDefault();
     const errors: Partial<Record<DialogField, string>> = {};
     if (this.data.mode === 'create' && !this.caseVersionId()) errors.caseVersionId = 'Elige un caso.';
-    const window = windowError(this.opensAt(), this.closesAt());
+    if (this.incomplete.opensAt) errors.opensAt = INCOMPLETE_DATE;
+    if (this.incomplete.closesAt) errors.closesAt = INCOMPLETE_DATE;
+    const window = errors.opensAt || errors.closesAt ? null : windowError(this.opensAt(), this.closesAt());
     if (window) errors.closesAt = window;
     this.errors.set(errors);
     if (Object.keys(errors).length > 0) {
@@ -103,8 +118,15 @@ export class AssignmentDialogComponent {
       afterNextRender(() => this.host.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
       return;
     }
-    const result: AssignmentDialogResult = { opensAt: toWindowIso(this.opensAt()), closesAt: toWindowIso(this.closesAt()) };
+    const result: AssignmentDialogResult = { opensAt: this.windowValue('opensAt'), closesAt: this.windowValue('closesAt') };
     if (this.data.mode === 'create') result.caseVersionId = Number(this.caseVersionId());
     this.ref.close(result);
+  }
+
+  /** La fecha como instante ISO; una que no se tocó vuelve tal cual llegó (el control solo muestra minutos, no segundos). */
+  private windowValue(field: 'opensAt' | 'closesAt'): string | null {
+    const original = this.data.assignment?.[field] ?? null;
+    const typed = field === 'opensAt' ? this.opensAt() : this.closesAt();
+    return typed === fromWindowIso(original) ? original : toWindowIso(typed);
   }
 }

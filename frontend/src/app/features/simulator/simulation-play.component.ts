@@ -54,6 +54,7 @@ import {
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
+import { accessErrorMessage } from './case-access.util';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
@@ -1713,9 +1714,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private beginAttempt(caseVersionId: number, forceNew: boolean) {
     this.simulationService.startAttempt(caseVersionId, forceNew).subscribe({
       next: attempt => this.bootstrapAttempt(attempt),
-      error: cause => this.fail(
-        'No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew),
-      ),
+      // Un rechazo de acceso (cerró, aún no abre, secuencia) se dice con el aviso del caso y no se reintenta: repetirlo
+      // da el mismo 403. Cualquier otro fallo conserva su mensaje y su reintento.
+      error: cause => {
+        const refused = accessErrorMessage(cause);
+        if (refused) this.fail(refused, cause, null);
+        else this.fail('No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+      },
     });
   }
 

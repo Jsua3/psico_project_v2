@@ -97,6 +97,35 @@ describe('CaseHintsComponent', () => {
     expect(removed).toEqual([second]);
   });
 
+  // req: RNF-004, WCAG 2.4.3 (revisión de F10)
+  it('tras quitar una ayuda el foco va a «Agregar ayuda» de esa sala (el botón que se pulsó desaparece con la fila)', async () => {
+    await render({ hints: [hint(1, 11, 1, 'Primera.'), hint(2, 11, 2, 'Segunda.')] });
+    document.body.appendChild(root());
+    button('Eliminar ayuda 1 de «Sala de espera»')!.click();
+
+    fixture.componentRef.setInput('hints', [hint(2, 11, 2, 'Segunda.')]);
+    await fixture.whenStable();
+    await new Promise<void>(resolve => setTimeout(resolve));
+
+    expect(document.activeElement).toBe(button('Agregar ayuda a «Sala de espera»'));
+    root().remove();
+  });
+
+  it('si se pidió quitar y la ayuda sigue (se canceló), el foco no se mueve cuando la lista cambia por otra razón', async () => {
+    await render({ hints: [hint(1, 11, 1, 'Primera.')] });
+    document.body.appendChild(root());
+    button('Eliminar ayuda 1 de «Sala de espera»')!.click();
+    const edit = button('Editar ayuda 1 de «Sala de espera»')!;
+    edit.focus();
+
+    fixture.componentRef.setInput('hints', [hint(1, 11, 1, 'Primera, editada.'), hint(2, 11, 2, 'Nueva.')]);
+    await fixture.whenStable();
+    await new Promise<void>(resolve => setTimeout(resolve));
+
+    expect(document.activeElement).toBe(edit);
+    root().remove();
+  });
+
   it('una versión que no es borrador bloquea agregar, editar y quitar con su motivo', async () => {
     const reason = 'Esta versión no es un borrador y no se puede modificar: clónala para editarla.';
     await render({ hints: [hint(1, 11, 1, 'Mira cómo respira.')], lockReason: reason });
