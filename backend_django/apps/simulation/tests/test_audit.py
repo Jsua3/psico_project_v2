@@ -156,3 +156,91 @@ def test_purge_audit_logs_command(db):
     call_command("purge_audit_logs")
     assert not AuditLog.objects.filter(action="TEST_PURGE_OLD").exists()
     assert AuditLog.objects.filter(action="TEST_PURGE_FUTURE").exists()
+
+
+# --- E5-7: Taxonomía entidad.verbo, lectura /api/admin/audit y alarma del sello ---
+@pytest.mark.req("SIEP-RNF-02", "RNF-007", "TD-16")
+def test_admin_audit_endpoint_filters_pagination_and_permissions(estudiante, admin, published_cv):
+    from apps.simulation.services.audit_service import canonical_action
+
+    assert canonical_action("MEMBERSHIP_INVITED") == "grupo.invitar"
+    assert canonical_action("ATTEMPT_REPLACED") == "intento.reemplazar"
+    assert canonical_action("ANALYTICS_VIEWED") == "analitica.ver"
+    assert canonical_action("CASE_CREATED") == "caso.crear"
+
+    grupo = assign_case_to_student(estudiante, published_cv, "AUDIT-E57")
+    c_est = cl(estudiante)
+    start = c_est.post("/api/simulation/attempts", {"caseVersionId": published_cv}, format="json").data["data"]
+    attempt_id = start["attemptId"]
+
+    profesor = grupo.profesor
+    assert c_est.get("/api/admin/audit").status_code == 403
+    assert cl(profesor).get("/api/admin/audit").status_code == 403
+
+    # El docente lee la traza -> genera evento traza.leer
+    trace_resp = cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace")
+    assert trace_resp.status_code == 200
+
+    c_admin = cl(admin)
+    by_taxonomy = c_admin.get(
+        f"/api/admin/audit?action=intento.iniciar&actorId={estudiante.id}&resourceType=CASE_VERSION"
+    )
+    assert by_taxonomy.status_code == 200
+    data = by_taxonomy.data["data"]
+    assert data["coverage"]["total"] >= 1
+    assert data["items"][0]["taxonomy"] == "intento.iniciar"
+    assert data["items"][0]["actorId"] == estudiante.id
+
+    trace_audit = c_admin.get(f"/api/admin/audit?action=traza.leer&actorId={profesor.id}").data["data"]
+    assert trace_audit["coverage"]["total"] >= 1
+    assert trace_audit["items"][0]["taxonomy"] == "traza.leer"
+    assert trace_audit["items"][0]["resourceId"] == str(attempt_id)
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_configurable_retention_and_review_quality_rubber_stamp_alarm(settings, admin, published_cv):
+    from apps.simulation.models import CaseReview
+    from apps.simulation.services import audit_service
+
+    settings.AUDIT_RETENTION_DAYS = 730
+    assert audit_service.retention_days() == 730
+    settings.AUDIT_RETENTION_DAYS = 90  # nunca menor a 12 meses (360 días)
+    assert audit_service.retention_days() == 360
+
+    cv = CaseVersion.objects.get(pk=published_cv)
+    CaseReview.objects.all().delete()
+    for _ in range(4):
+        CaseReview.objects.create(
+            case_version=cv,
+            requested_by=admin,
+            decided_by=admin,
+            decision="APPROVED",
+        )
+    CaseReview.objects.create(
+        case_version=cv,
+        requested_by=admin,
+        decided_by=admin,
+        decision="REJECTED",
+        reason="FORMA",
+        note="Ajustar ortografía",
+    )
+
+    resp = cl(admin).get("/api/admin/audit?page=1&pageSize=5").data["data"]
+    rq = resp["reviewQuality"]
+    assert rq["decidedReviews"] == 5
+    assert rq["rejectedByForm"] == 1
+    assert rq["rejectedByContent"] == 0
+    assert rq["rubberStampAlarm"] is True
+
+    CaseReview.objects.create(
+        case_version=cv,
+        requested_by=admin,
+        decided_by=admin,
+        decision="REJECTED",
+        reason="CONTENIDO",
+        note="Corregir enfoque clínico",
+    )
+    rq_after = cl(admin).get("/api/admin/audit?page=1&pageSize=5").data["data"]["reviewQuality"]
+    assert rq_after["rejectedByContent"] == 1
+    assert rq_after["rubberStampAlarm"] is False
+

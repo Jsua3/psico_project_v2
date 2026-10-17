@@ -201,6 +201,9 @@ INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
 #: ve en su bandeja): acota el tiempo de la petición y el volumen de correo.
 INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25"))
 
+#: E5-7 · retención mínima de auditoría (≥ 12 meses = 360 días por defecto, RNF-007).
+AUDIT_RETENTION_DAYS = max(360, int(os.environ.get("AUDIT_RETENTION_DAYS", "360")))
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }

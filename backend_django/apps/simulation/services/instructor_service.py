@@ -217,6 +217,9 @@ def trace(attempt_id, instructor=None):
     }
 
 
+trace = auditable("traza.leer", "ATTEMPT")(trace)
+
+
 @transaction.atomic
 def replace_attempt(attempt_id, reason, instructor):
     """Reemplaza un intento abierto por acción docente (RN-07, E1-2): motivo y auditoría.
@@ -256,6 +259,9 @@ def rubric(attempt_id, instructor=None):
 def save_rubric(attempt_id, request, instructor):
     _require_attempt(attempt_id, instructor)
     return rubric_service.save_attempt_evaluation(attempt_id, request, instructor)
+
+
+save_rubric = auditable("rubrica.evaluar", "ATTEMPT")(save_rubric)
 
 
 # ─── DTO builders ─────────────────────────────────────────────────────────────

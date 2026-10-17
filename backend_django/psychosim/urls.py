@@ -43,6 +43,7 @@ from apps.users.views import (
     AdminUserListCreateView,
     AdminUserStatusView,
 )
+from apps.simulation.views.audit_views import AdminAuditListView
 from apps.simulation.views.authoring_views import AdminCaseListCreateView
 from shared.health import health
 
@@ -79,6 +80,7 @@ urlpatterns = [
     path("api/authoring/cases/", include("apps.simulation.urls_admin")),
     path("api/admin/cases", AdminCaseListCreateView.as_view()),
     path("api/admin/cases/", include("apps.simulation.urls_admin")),
+    path("api/admin/audit", AdminAuditListView.as_view()),
     path("api/admin/users", AdminUserListCreateView.as_view()),
     path("api/admin/users/approve", AdminUserApproveView.as_view()),
     path("api/admin/users/<int:user_id>", AdminUserDetailView.as_view()),
