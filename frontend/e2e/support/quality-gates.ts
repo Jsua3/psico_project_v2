@@ -52,7 +52,10 @@ async function waitForFiniteAnimations(page: Page): Promise<void> {
 }
 
 export interface AxeAuditOptions {
-  tags: string[];
+  /** Etiquetas de WCAG o best-practice; si se da `rules`, esas reglas las sustituyen. */
+  tags?: string[];
+  /** Solo estas reglas, por id (p. ej. `['color-contrast']`): la revisión de contraste por píxeles no necesita las demás. */
+  rules?: string[];
   resultTypes: Array<'violations' | 'incomplete' | 'passes' | 'inapplicable'>;
   /** Selector CSS del subárbol a auditar (por defecto, todo el documento). */
   include?: string;
@@ -74,12 +77,12 @@ export async function runAxe(page: Page, options: AxeAuditOptions): Promise<AxeR
       return axeApi !== undefined && axeApi._running !== true;
     }, undefined, { timeout: scaled(30_000) });
     try {
-      return await page.evaluate(async ({ tags, resultTypes, include }) => {
+      return await page.evaluate(async ({ tags, rules, resultTypes, include }) => {
         const axeApi = (window as typeof window & {
           axe: { run(root: Document | { include: string[] }, options: unknown): Promise<AxeResults> };
         }).axe;
         return axeApi.run(include ? { include: [include] } : document, {
-          runOnly: { type: 'tag', values: tags },
+          runOnly: rules ? { type: 'rule', values: rules } : { type: 'tag', values: tags ?? [] },
           resultTypes,
         });
       }, options);
