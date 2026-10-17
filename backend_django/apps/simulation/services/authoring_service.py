@@ -33,6 +33,7 @@ from .authoring import (
     editor_view,
     graph,
     hints,
+    importing,
     lifecycle,
     publication,
     scenes,
@@ -54,6 +55,15 @@ def create_case(request, actor):
 
 def editor(case_version_id):
     return editor_view.editor(case_version_id)
+
+
+@auditable(
+    "CASE_IMPORTED", "CASE_VERSION", -1,
+    context=lambda args, kwargs, result: {"caseVersionId": result["caseVersionId"], "caseId": result["caseId"]},
+)
+def import_case(raw, actor):
+    """E4-5: crea un borrador desde el documento del caso (bytes JSON); el 400 lleva los ``ValidationIssue``."""
+    return importing.import_bytes(raw, actor)
 
 
 # ─── Nodes and decisions ─────────────────────────────────────────────────────

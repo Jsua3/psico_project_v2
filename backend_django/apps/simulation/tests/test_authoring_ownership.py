@@ -148,6 +148,9 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/characters/<int:character_id>",
      {"characterKey": "k", "displayName": "N"}, 403),
     ("delete", "<int:case_version_id>/characters/<int:character_id>", None, 403),
+    # Importar no apunta a un caso por su id: el caso ajeno se decide por ``caso.id`` dentro del documento
+    # (403 ``CASE_NOT_OWNED``, en ``test_definition_import``); un cuerpo vacío es un 400 para cualquiera.
+    ("post", "import", {}, 400),
 ]
 
 

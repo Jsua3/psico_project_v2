@@ -3,6 +3,7 @@ from django.urls import path
 from .views.authoring_views import (
     AdminCaseListCreateView,
     BriefView,
+    CaseImportView,
     CaseValidateView,
     CharacterDetailView,
     CharacterListView,
@@ -35,6 +36,7 @@ from .views.authoring_views import (
 # Mounted at "api/admin/cases" (no trailing slash) — sub-routes start with "/".
 urlpatterns = [
     path("", AdminCaseListCreateView.as_view()),
+    path("import", CaseImportView.as_view()),
     path("<int:case_version_id>/editor", EditorView.as_view()),
     path("<int:case_version_id>/brief", BriefView.as_view()),
     path("<int:case_version_id>/publish", PublishView.as_view()),

@@ -236,6 +236,12 @@ def _map_links(found, route, mapa, option_keys, characters, tools):
             found.unique(dialogue_keys, here + ("clave",), "la clave del diálogo", tree["clave"], "en su mapa")
         if isinstance(tree.get("objeto"), str) and tree["objeto"] not in object_keys:
             found.missing(here + ("objeto",), "el objeto", tree["objeto"])
+        orders = set()
+        for l_position, line in _items(tree.get("lineas")):
+            if isinstance(line.get("orden"), int) and not isinstance(line["orden"], bool):
+                found.unique(
+                    orders, here + ("lineas", l_position, "orden"), "el orden de la línea", line["orden"], "en su diálogo"
+                )
         choice_keys = set()
         for c_position, choice in _items(tree.get("elecciones")):
             there = here + ("elecciones", c_position)

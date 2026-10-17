@@ -36,6 +36,13 @@ def _one(document, code):
     return found[0]
 
 
+def text_route(route):
+    path = ""
+    for step in route:
+        path += f"[{step}]" if isinstance(step, int) else ("." if path else "") + step
+    return path
+
+
 def _scene_entry(document, key):
     return next(e for e in document["x-siep"]["escenas"] if e["clave"] == key)
 
@@ -267,6 +274,51 @@ def test_a_long_paragraph_with_line_breaks_is_fine_in_the_context():
     document = _document()
     document["x-siep"]["contexto"] = "Primer párrafo.\n\nSegundo párrafo con edad < 18."
     assert _issues(document) == []
+
+
+def test_a_lone_surrogate_is_rejected_like_a_control_character():
+    """Un sustituto suelto no se puede escribir en UTF-8: ni en la base ni en la huella."""
+    document = _document()
+    document["escenas"][0]["descripcion"] = "Hola \ud800"
+    assert _one(document, "DSL.TEXT_CONTROL").path == "escenas[0].descripcion"
+
+
+def test_a_control_character_in_the_key_of_a_free_object_is_rejected():
+    document = _document()
+    document["x-siep"]["escenas"][0]["mapa"]["objetos"][0]["metadatos"] = {"mala\x00clave": 1}
+    issue = _one(document, "DSL.TEXT_CONTROL")
+    assert issue.path == "x-siep.escenas[0].mapa.objetos[0].metadatos"
+
+
+@pytest.mark.parametrize(
+    ("route", "limit"),
+    [
+        (("caso", "titulo"), 255),
+        (("caso", "version"), 32),
+        (("escenas", 0, "titulo"), 255),
+        (("herramientas", 0, "nombre"), 255),
+        (("herramientas", 0, "categoria"), 80),
+        (("rubricas", 0, "nombre"), 255),
+        (("rubricas", 0, "version"), 30),
+        (("rubricas", 0, "criterios", 0, "competencia"), 100),
+        (("rubricas", 0, "criterios", 0, "titulo"), 255),
+    ],
+)
+def test_fields_that_land_in_fixed_size_columns_keep_their_size(route, limit):
+    document = _document()
+    node = document
+    for step in route[:-1]:
+        node = node[step]
+    node[route[-1]] = "x" * (limit + 1)
+    assert "DSL.TEXT_TOO_LONG" in {issue.code for issue in _issues(document) if issue.path == text_route(route)}
+
+
+def test_two_lines_of_a_dialogue_cannot_share_an_order():
+    document = _document()
+    lines = document["x-siep"]["escenas"][0]["mapa"]["dialogos"][0]["lineas"]
+    lines.append(copy.deepcopy(lines[0]))
+    issue = _one(document, "DSL.SIEP_DUPLICATE")
+    assert issue.path.endswith(".lineas[1].orden")
 
 
 # ─── límites ──────────────────────────────────────────────────────────────────────────────────

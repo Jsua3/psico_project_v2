@@ -10,7 +10,7 @@
     "version": { "const": "1.0" },
     "contexto": { "type": "string", "maxLength": 4000 },
     "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
-    "mundoVersion": { "type": "integer", "minimum": 1 },
+    "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
     "reglas": { "$ref": "#/$defs/reglas" },
     "personajes": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/personaje" } },
     "herramientas": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/herramienta" } },
@@ -19,6 +19,7 @@
   },
   "$defs": {
     "clave": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "codigoHerramienta": { "type": "string", "minLength": 1, "maxLength": 80, "description": "`clinical_tools.tool_code` mide 80 en la base de datos." },
     "texto": { "type": "string", "maxLength": 20000 },
     "entero": { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
     "nombreDeEfecto": { "type": "string", "pattern": "^[A-Za-z0-9_]{1,60}(?![\\s\\S])" },
@@ -113,7 +114,7 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/idHerramienta" },
-        "codigo": { "$ref": "#/$defs/clave" },
+        "codigo": { "$ref": "#/$defs/codigoHerramienta" },
         "etiqueta": { "type": "string", "maxLength": 255 },
         "descripcion": { "$ref": "#/$defs/texto" },
         "categoria": { "type": "string", "maxLength": 80 },
@@ -249,7 +250,7 @@
         "texto": { "$ref": "#/$defs/texto" },
         "opcion": { "type": ["string", "null"], "maxLength": 120 },
         "personaje": { "type": ["string", "null"], "maxLength": 120 },
-        "herramienta": { "type": ["string", "null"], "maxLength": 120 },
+        "herramienta": { "type": ["string", "null"], "maxLength": 80 },
         "desbloqueo": { "$ref": "#/$defs/objeto_libre" },
         "movimiento": { "$ref": "#/$defs/objeto_libre" },
         "metadatos": { "$ref": "#/$defs/objeto_libre" }
@@ -292,7 +293,7 @@
               "clave": { "$ref": "#/$defs/clave" },
               "texto": { "$ref": "#/$defs/texto" },
               "opcion": { "type": ["string", "null"], "maxLength": 120 },
-              "herramientaRequerida": { "type": ["string", "null"], "maxLength": 120 },
+              "herramientaRequerida": { "type": ["string", "null"], "maxLength": 80 },
               "efecto": { "$ref": "#/$defs/objeto_libre" },
               "orden": { "$ref": "#/$defs/entero" }
             }

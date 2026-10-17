@@ -1,10 +1,13 @@
-"""Filas ↔ modelo ↔ documento (E4): cargar la definición de una versión y exportarla.
+"""Filas ↔ modelo ↔ documento (E4): cargar la definición de una versión, exportarla y escribirla.
 
 ``load_definition`` lee la versión con un número **constante** de consultas (una por tabla, nunca una
 por escena) y la ordena con un ``ORDER BY`` explícito, que es el orden canónico del documento: el
-mismo estado produce los mismos bytes. ``export_definition`` es ``to_document`` de ese modelo. Todo lo
-que no toca la base de datos vive en ``apps.simulation.casedef``.
+mismo estado produce los mismos bytes. ``export_definition`` es ``to_document`` de ese modelo.
+``write_definition`` es la inversa de ``load_definition``: crea la versión borrador y todas sus filas
+(también con un número constante de consultas) en el orden en que el modelo las trae, que es el que
+``load_definition`` vuelve a leer. Todo lo que no toca la base de datos vive en ``apps.simulation.casedef``.
 """
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -31,6 +34,7 @@ from apps.simulation.models import (
     CaseVersion,
     ClinicalTool,
     CollisionZone,
+    Competency,
     DecisionOption,
     DialogueChoice,
     DialogueLine,
@@ -231,3 +235,151 @@ def load_definition(case_version_id):
 def export_definition(case_version_id):
     """El documento canónico de la versión (borrador o publicada)."""
     return to_document(load_definition(case_version_id).definition)
+
+
+# ─── escribir la definición ───────────────────────────────────────────────────────────────────
+def _dump(value):
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _nodes(version, scenes):
+    return SimulationNode.objects.bulk_create([
+        SimulationNode(
+            case_version=version, node_key=scene.key, title=scene.title, narrative=scene.narrative,
+            support_resources_json=_dump(list(scene.support)), required_tools_json=_dump(list(scene.required_tools)),
+            sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
+            warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
+            position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
+        )
+        for position, scene in enumerate(scenes)
+    ])
+
+
+def _options(version, scenes, node_by_key):
+    return DecisionOption.objects.bulk_create([
+        DecisionOption(
+            case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
+            option_key=option.key, text=option.text, classification=option.classification,
+            score_delta=option.score, stress_delta=option.stress, prohibited_penalty=option.penalty,
+            immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
+            prohibition_reason=option.reason, consequence_text=option.consequence,
+            theory_basis=option.theory_basis, feedback_text=option.feedback_text, effects=_dump(option.effects),
+        )
+        for scene in scenes for option in scene.options
+    ])
+
+
+def _world_rows(version, scenes, node_by_key, option_by_key, character_by_key):
+    """Mapas, pistas, colisiones, objetos, diálogos, líneas y elecciones de todas las escenas."""
+    with_world = [scene for scene in scenes if scene.world is not None]
+    maps = SceneMap.objects.bulk_create([
+        SceneMap(
+            case_version=version, node=node_by_key[scene.key], map_key=scene.world.key, title=scene.world.title,
+            width=scene.world.width, height=scene.world.height, theme=scene.world.theme,
+            spawn_x=scene.world.spawn_x, spawn_y=scene.world.spawn_y, ambient_json=_dump(scene.world.ambient),
+        )
+        for scene in with_world
+    ])
+    pairs = list(zip(with_world, maps))
+    SceneHint.objects.bulk_create([
+        SceneHint(scene_map=scene_map, hint_order=order, text=text)
+        for scene, scene_map in pairs for order, text in enumerate(scene.hints, start=1)
+    ])
+    CollisionZone.objects.bulk_create([
+        CollisionZone(
+            scene_map=scene_map, zone_key=zone.key, label=zone.label, position_x=zone.x, position_y=zone.y,
+            width=zone.width, height=zone.height,
+        )
+        for scene, scene_map in pairs for zone in scene.world.collisions
+    ])
+    object_specs = [(scene_map, obj) for scene, scene_map in pairs for obj in scene.world.objects]
+    objects = MapObject.objects.bulk_create([
+        MapObject(
+            scene_map=scene_map, object_key=obj.key, label=obj.label, object_type=obj.type, position_x=obj.x,
+            position_y=obj.y, width=obj.width, height=obj.height, color_hex=obj.color_hex, icon=obj.icon,
+            short_code=obj.short_code, collision=obj.collision, visible=obj.visible,
+            interaction_prompt=obj.interaction_prompt, interaction_text=obj.interaction_text,
+            decision_option=option_by_key.get(obj.option), character=character_by_key.get(obj.character),
+            tool_code=obj.tool_code, unlock_condition_json=_dump(obj.unlock_condition), z_index=obj.z_index,
+            facing=obj.facing, movement_pattern_json=_dump(obj.movement_pattern), metadata_json=_dump(obj.metadata),
+        )
+        for scene_map, obj in object_specs
+    ])
+    object_by_key = {(scene_map.id, obj.key): row for (scene_map, obj), row in zip(object_specs, objects)}
+    tree_specs = [(scene_map, tree) for scene, scene_map in pairs for tree in scene.world.dialogues]
+    trees = DialogueTree.objects.bulk_create([
+        DialogueTree(
+            scene_map=scene_map, map_object=object_by_key.get((scene_map.id, tree.object_key)), tree_key=tree.key,
+            speaker_name=tree.speaker, portrait_key=tree.portrait_key, emotion=tree.emotion,
+        )
+        for scene_map, tree in tree_specs
+    ])
+    DialogueLine.objects.bulk_create([
+        DialogueLine(
+            dialogue_tree=row, display_order=line.order, speaker_name=line.speaker, text=line.text,
+            emotion=line.emotion,
+        )
+        for (_, tree), row in zip(tree_specs, trees) for line in tree.lines
+    ])
+    DialogueChoice.objects.bulk_create([
+        DialogueChoice(
+            dialogue_tree=row, choice_key=choice.key, text=choice.text,
+            decision_option=option_by_key.get(choice.option), required_tool_code=choice.required_tool,
+            effect_json=_dump(choice.effect), display_order=choice.order,
+        )
+        for (_, tree), row in zip(tree_specs, trees) for choice in tree.choices
+    ])
+
+
+def _rubric_rows(version, rubrics, actor):
+    codes = {c.competency_code for rubric in rubrics for c in rubric.criteria if c.competency_code}
+    competencies = {row.code: row for row in Competency.objects.filter(code__in=codes)} if codes else {}
+    rows = RubricRow.objects.bulk_create([
+        RubricRow(
+            case_version=version, name=rubric.name, description=rubric.description, active=rubric.active,
+            version=rubric.version, created_by=actor,
+        )
+        for rubric in rubrics
+    ])
+    RubricCriterion.objects.bulk_create([
+        RubricCriterion(
+            rubric=row, competency=criterion.competency, competency_ref=competencies.get(criterion.competency_code),
+            title=criterion.title, description=criterion.description, max_score=criterion.max_score,
+            weight=Decimal(criterion.weight), active=criterion.active, display_order=order,
+        )
+        for rubric, row in zip(rubrics, rows) for order, criterion in enumerate(rubric.criteria, start=1)
+    ])
+
+
+def write_definition(definition, *, case, actor):
+    """Crea la versión BORRADOR de ``definition`` bajo ``case`` con todas sus filas y la devuelve.
+
+    Es la inversa de ``load_definition``: el orden de cada tupla del modelo es el orden en que se crean
+    las filas (y el que ``load_definition`` vuelve a leer). Debe llamarse dentro de una transacción: si
+    algo falla, no queda ninguna fila.
+    """
+    version = CaseVersion.objects.create(
+        simulation_case=case, semantic_version=definition.semantic_version, status="DRAFT",
+        narrative_context=definition.context, learning_objectives=_dump(list(definition.objectives)),
+        rules=_dump(definition.rules), world_schema_version=definition.world_schema_version, created_by=actor,
+    )
+    node_by_key = {node.node_key: node for node in _nodes(version, definition.scenes)}
+    characters = CaseCharacter.objects.bulk_create([
+        CaseCharacter(
+            case_version=version, character_key=c.key, display_name=c.display_name, role_label=c.role_label,
+            portrait_key=c.portrait_key, show_in_brief=c.show_in_brief, display_order=c.display_order,
+        )
+        for c in definition.characters
+    ])
+    ClinicalTool.objects.bulk_create([
+        ClinicalTool(
+            case_version=version, tool_code=t.code, label=t.label, icon=t.icon, category=t.category,
+            description=t.description, active=t.active,
+        )
+        for t in definition.tools
+    ])
+    option_by_key = {option.option_key: option for option in _options(version, definition.scenes, node_by_key)}
+    character_by_key = {character.character_key: character for character in characters}
+    _world_rows(version, definition.scenes, node_by_key, option_by_key, character_by_key)
+    _rubric_rows(version, definition.rubrics, actor)
+    return version

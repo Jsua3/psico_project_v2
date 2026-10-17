@@ -68,7 +68,7 @@ def _scene_key(path, loaded, ids):
 
 def _document_issue(issue, loaded, ids):
     """``ValidationIssue`` de un hallazgo del documento, con el foco del editor si cae en una escena."""
-    result = _plain(issue)
+    result = issue_dict(issue)
     key = _scene_key(issue.path, loaded, ids)
     if key in loaded.scene_node_ids:
         result["nodeId"] = loaded.scene_node_ids[key]
@@ -77,7 +77,7 @@ def _document_issue(issue, loaded, ids):
     return result
 
 
-def _plain(issue):
+def issue_dict(issue):
     result = {"code": issue.code, "severity": issue.severity, "message": issue.message}
     if issue.path:
         result["path"] = issue.path
@@ -122,7 +122,7 @@ def validate_version(case_version_id):
 
 def validate_document_issues(document):
     """``(issues, canPublish)`` de un documento que aún no es una versión (la importación): solo ``DSL.*``."""
-    issues = [_plain(issue) for issue in validate_document(document)]
+    issues = [issue_dict(issue) for issue in validate_document(document)]
     return issues, _can_publish(issues)
 
 

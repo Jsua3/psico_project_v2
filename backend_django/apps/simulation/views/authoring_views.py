@@ -10,14 +10,16 @@ Cada mutación valida su cuerpo con un serializador de entrada (E2-6: un campo a
 400 que lo nombra, no un 500) y lleva la ``revision`` del caso —en el cuerpo, en
 ``?revision=`` o en la cabecera ``X-Case-Revision``— para el bloqueo optimista.
 """
+from django.core.exceptions import RequestDataTooBig
 from rest_framework.views import APIView
 
 from shared.permissions import policy_permission
-from shared.response import api_ok
+from shared.response import api_created, api_ok
 
+from ..casedef import import_
 from ..serializers import authoring as inputs
 from ..services import authoring_service as svc
-from ..services.authoring import guards, lifecycle
+from ..services.authoring import guards, importing, lifecycle
 
 REVISION_HEADER = "X-Case-Revision"
 
@@ -78,6 +80,23 @@ class AdminCaseListCreateView(_AuthoringView):
 
     def post(self, request):
         return api_ok(svc.create_case(request.data, request.user), "Caso creado")
+
+
+class CaseImportView(_AuthoringView):
+    """E4-5 · ``POST …/cases/import``: el documento del caso en el cuerpo (``application/json``).
+
+    Lee los bytes crudos —el lector de DRF mezclaría claves repetidas y aceptaría ``NaN``—, valida el
+    documento y crea un borrador a nombre de quien importa. 201 ``{caseVersionId, caseId, issues}``.
+    """
+
+    def post(self, request):
+        if (request.content_type or "").lower() != "application/json":
+            raise importing.reject(import_.FORMA, "Solo se admite JSON (application/json).")
+        try:
+            raw = request.body
+        except RequestDataTooBig:
+            raise importing.reject(import_.LIMIT, "El documento es demasiado grande.") from None
+        return api_created(svc.import_case(raw, request.user), "Caso importado")
 
 
 class EditorView(_AuthoringView):

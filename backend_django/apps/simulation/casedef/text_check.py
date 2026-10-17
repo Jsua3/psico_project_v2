@@ -38,8 +38,23 @@ GOVERNED = {
     ("x-siep", "escenas", "*", "opciones", "*", "fundamento"): (1200, True),
 }
 
+#: Campos de la base que van a columnas de tamaño fijo y que el esquema del taller no acota (lo que
+#: ``x-siep`` lleva ya lo acota su esquema): ruta con ``*`` por cada posición de lista → caracteres.
+STORED = {
+    ("caso", "titulo"): 255,
+    ("caso", "version"): 32,
+    ("escenas", "*", "titulo"): 255,
+    ("herramientas", "*", "nombre"): 255,
+    ("herramientas", "*", "categoria"): 80,
+    ("rubricas", "*", "nombre"): 255,
+    ("rubricas", "*", "version"): 30,
+    ("rubricas", "*", "criterios", "*", "competencia"): 100,
+    ("rubricas", "*", "criterios", "*", "titulo"): 255,
+}
+
 # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
 LAX_LINK = "No puede llevar enlaces que no sean https."
+BAD_KEY = "una clave tiene caracteres que no se admiten."
 #: campo del documento → cómo se nombra en el mensaje.
 LABELS = {
     "descripcion": "descripción", "titulo": "título", "nombre": "nombre", "rol": "rol", "texto": "texto",
@@ -69,6 +84,15 @@ def _shape(route):
     return tuple("*" if isinstance(step, int) else step for step in route)
 
 
+def _unencodable(value):
+    """¿Trae un sustituto suelto (``\\ud800``)? No se puede escribir en UTF-8: ni en la base ni en la huella."""
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return True
+    return False
+
+
 def _lax_problem(value):
     if text.CONTROL_CHARS.search(value):
         return text.CONTROL, text.MESSAGES[text.CONTROL]
@@ -77,6 +101,18 @@ def _lax_problem(value):
     if text.has_foreign_link(value):
         return text.LINK, LAX_LINK
     return None
+
+
+def _problem(value, shape):
+    """El primer problema de un texto en el campo ``shape`` (código, mensaje), o ``None``."""
+    if _unencodable(value):
+        return text.CONTROL, text.MESSAGES[text.CONTROL]
+    governed = GOVERNED.get(shape)
+    problem = text.plain_text_problem(value, governed[0], multiline=governed[1]) if governed else _lax_problem(value)
+    stored = STORED.get(shape)
+    if problem is None and stored and len(value.strip()) > stored:
+        problem = (text.TOO_LONG, text.too_long_message(stored))
+    return problem
 
 
 def _where(document, route, names):
@@ -88,25 +124,44 @@ def _where(document, route, names):
     return ", ".join(part for part in (located, label) if part)
 
 
+def bad_keys(document):
+    """Las rutas de los objetos que tienen alguna clave con caracteres de control o un sustituto suelto."""
+    pending = [((), document)]
+    while pending:
+        route, node = pending.pop()
+        if isinstance(node, dict):
+            if any(isinstance(key, str) and (text.CONTROL_CHARS.search(key) or _unencodable(key)) for key in node):
+                yield route
+            children = [(route + (key,), value) for key, value in node.items()]
+        elif isinstance(node, list):
+            children = [(route + (position,), value) for position, value in enumerate(node)]
+        else:
+            continue
+        pending.extend(child for child in children if isinstance(child[1], (dict, list)))
+
+
+def _sentence(where, reason):
+    full = f"{where}: {reason}" if where else reason
+    return full[:1].upper() + full[1:]
+
+
 def check(document, names=None):
     """Los hallazgos de texto del documento: ``DSL.TEXT_*``, una vez por ruta y código."""
     if not isinstance(document, (dict, list)):
         return []
     names = names if names is not None else messages.names_of(document)
     issues, seen = [], set()
-    for route, value in strings(document):
-        governed = GOVERNED.get(_shape(route))
-        problem = (
-            text.plain_text_problem(value, governed[0], multiline=governed[1]) if governed else _lax_problem(value)
-        )
-        if problem is None:
-            continue
-        code = f"{PREFIX}TEXT_{problem[0]}"
-        path = messages.route_text(route)
-        if (code, path) in seen:
-            continue
-        seen.add((code, path))
-        reason = f"{_where(document, route, names)}: {problem[1]}"
-        issues.append(Issue(code, ERROR, path, reason[:1].upper() + reason[1:]))
-    return issues
 
+    def report(code, route, reason):
+        path = messages.route_text(route)
+        if (code, path) not in seen:
+            seen.add((code, path))
+            issues.append(Issue(code, ERROR, path, _sentence(_where(document, route, names), reason)))
+
+    for route, value in strings(document):
+        problem = _problem(value, _shape(route))
+        if problem is not None:
+            report(f"{PREFIX}TEXT_{problem[0]}", route, problem[1])
+    for route in bad_keys(document):
+        report(f"{PREFIX}TEXT_{text.CONTROL}", route, BAD_KEY)
+    return issues
