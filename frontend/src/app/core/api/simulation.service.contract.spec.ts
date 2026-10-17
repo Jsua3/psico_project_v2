@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
@@ -154,7 +154,7 @@ describe('SimulationService contrato HTTP', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SimulationService, AuthoringApi, InstructorApi, provideHttpClient(withXhr()), provideHttpClientTesting()],
+      providers: [SimulationService, AuthoringApi, InstructorApi, provideHttpClient(), provideHttpClientTesting()],
     });
     service = mergeApis(TestBed.inject(SimulationService), TestBed.inject(AuthoringApi), TestBed.inject(InstructorApi));
     httpMock = TestBed.inject(HttpTestingController);

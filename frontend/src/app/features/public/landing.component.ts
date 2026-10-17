@@ -47,7 +47,7 @@ interface EthicsItem {
   standalone: true,
   imports: [RouterLink, MatIconModule, PublicBarComponent, SiepParticleLayerComponent, UiBadge, UiButton],
   templateUrl: './landing.component.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './landing.component.scss'
 })
 export class LandingComponent {

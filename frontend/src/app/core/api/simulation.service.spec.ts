@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Observable } from 'rxjs';
@@ -14,7 +14,7 @@ describe('SimulationService private attempt GETs', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SimulationService, provideHttpClient(withXhr()), provideHttpClientTesting()],
+      providers: [SimulationService, provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(SimulationService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -67,7 +67,7 @@ describe('SimulationService student report', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SimulationService, provideHttpClient(withXhr()), provideHttpClientTesting()],
+      providers: [SimulationService, provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(SimulationService);
     httpMock = TestBed.inject(HttpTestingController);

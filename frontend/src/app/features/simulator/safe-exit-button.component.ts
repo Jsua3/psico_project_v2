@@ -25,7 +25,7 @@ import { MatIconModule } from '@angular/material/icon';
       <kbd class="safe-exit-btn__kbd" aria-hidden="true">Esc</kbd>
     </button>
   `,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     :host { display: inline-flex; }
     .safe-exit-btn {

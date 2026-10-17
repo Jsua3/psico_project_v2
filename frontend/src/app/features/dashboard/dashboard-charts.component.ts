@@ -26,7 +26,7 @@ type DashboardRole = 'ADMIN' | 'PROFESOR';
   selector: 'app-dashboard-charts',
   imports: [UiCard, UiProgress, UiSkeleton],
   templateUrl: './dashboard-charts.component.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './dashboard-charts.component.scss'
 })
 export class DashboardChartsComponent {

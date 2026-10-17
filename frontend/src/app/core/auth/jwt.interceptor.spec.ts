@@ -1,4 +1,4 @@
-import { HttpClient, HttpContext, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { HttpClient, HttpContext, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -37,7 +37,7 @@ describe('jwtInterceptor', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withXhr(), withInterceptors([jwtInterceptor])),
+        provideHttpClient(withInterceptors([jwtInterceptor])),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: auth },
         { provide: Router, useValue: router },
@@ -206,7 +206,6 @@ describe('jwtInterceptor', () => {
       TestBed.configureTestingModule({
         providers: [
           provideHttpClient(
-            withXhr(),
             withInterceptors([
               jwtInterceptor,
               () => throwError(() => boom),

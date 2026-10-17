@@ -106,7 +106,7 @@ async function assertNoBlockingAxeViolations(
   }
 
   const blocking = results.violations.filter(violation =>
-    violation.impact !== null && BLOCKING_IMPACTS.has(violation.impact),
+    violation.impact != null && BLOCKING_IMPACTS.has(violation.impact),
   );
   if (blocking.length > 0) {
     await testInfo.attach(`${stateLabel}-axe-blocking.json`, {

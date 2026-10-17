@@ -19,6 +19,12 @@ describe('app.config: arranque', () => {
     expect(source).toContain('provideAppInitializer(initializeAuthSession)');
   });
 
+  it('usa FetchBackend por defecto (sin withXhr, ANG-9) y escuchas globales de errores (ANG-8)', () => {
+    expect(source).not.toContain('withXhr');
+    expect(source).toContain('provideBrowserGlobalErrorListeners()');
+    expect(source).toContain('SiepErrorHandler');
+  });
+
   it('no registra el motor de @angular/animations (ANG-2: Material anima con CSS)', () => {
     TestBed.configureTestingModule({
       providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],

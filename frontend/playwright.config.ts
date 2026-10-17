@@ -20,13 +20,14 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   timeout: scaled(45_000),
   expect: { timeout: scaled(5_000) },
+  forbidOnly: !!process.env.CI,
   workers: 1,
   // Artefactos (screenshots/traces) fuera del árbol versionado (gitignored).
   outputDir: process.env.E2E_ARTIFACTS_DIR ?? './test-results',
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:4200',
     screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   projects: [{
     name: 'chromium',
