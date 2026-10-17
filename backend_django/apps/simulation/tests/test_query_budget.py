@@ -191,8 +191,11 @@ def test_presupuesto_de_consultas(name, estudiante, case_version_id):
             )
     call, repeats = SCENARIOS[name](estudiante, case_version_id)
 
+    from shared import cache as shared_cache
+
     samples = []
     for _ in range(repeats):
+        shared_cache.clear()
         response, cost = measure(call)
         assert response.status_code == 200, getattr(response, "data", response.content)
         samples.append(cost)

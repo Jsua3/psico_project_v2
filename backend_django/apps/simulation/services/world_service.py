@@ -636,14 +636,15 @@ def _dialogues_by_object_id(scene_map_id):
     return result
 
 
-def _to_world_state(attempt, state):
-    scene_map = state.scene_map
-    inventory = _read_string_list(state.inventory_json)
-    inventory_set = set(inventory)
+def _static_world_key(scene_map_id, case_version):
+    from shared import cache as shared_cache
+
+    return shared_cache.static_world_key(scene_map_id, case_version)
+
+
+def _build_static_world(scene_map, case_version_id):
     dialogues = _dialogues_by_object_id(scene_map.id)
     return {
-        "attemptId": str(attempt.id),
-        "status": attempt.status,
         "map": {
             "id": scene_map.id,
             "key": scene_map.map_key,
@@ -655,13 +656,11 @@ def _to_world_state(attempt, state):
             "spawnY": scene_map.spawn_y,
             "ambient": _read_map(scene_map.ambient_json),
         },
-        "player": {"x": state.player_x, "y": state.player_y},
         "objects": [
             _to_map_object(o, dialogue=dialogues.get(o.id))
             for o in MapObject.objects.filter(
                 scene_map_id=scene_map.id, visible=True
             ).order_by("id")
-            if not _picked_up(o, inventory_set)
         ],
         "collisions": [
             _to_collision_zone(c)
@@ -670,9 +669,48 @@ def _to_world_state(attempt, state):
         "tools": [
             _to_clinical_tool(t)
             for t in ClinicalTool.objects.filter(
-                case_version_id=attempt.case_version_id, active=True
+                case_version_id=case_version_id, active=True
             ).order_by("id")
         ],
+    }
+
+
+def _static_world_for(attempt, scene_map):
+    from shared import cache as shared_cache
+
+    case_version = getattr(attempt, "case_version", None)
+    key = _static_world_key(scene_map.id, case_version)
+    if key is None:
+        return _build_static_world(scene_map, attempt.case_version_id)
+    return shared_cache.get_or_set(
+        key, lambda: _build_static_world(scene_map, attempt.case_version_id)
+    )
+
+
+def _picked_up_dto(obj_dto, inventory_set):
+    return (
+        obj_dto.get("type") == "TOOL"
+        and bool(obj_dto.get("toolCode"))
+        and obj_dto["toolCode"] in inventory_set
+    )
+
+
+def _to_world_state(attempt, state):
+    scene_map = state.scene_map
+    inventory = _read_string_list(state.inventory_json)
+    inventory_set = set(inventory)
+    static = _static_world_for(attempt, scene_map)
+    return {
+        "attemptId": str(attempt.id),
+        "status": attempt.status,
+        "map": static["map"],
+        "player": {"x": state.player_x, "y": state.player_y},
+        "objects": [
+            o for o in static["objects"]
+            if not _picked_up_dto(o, inventory_set)
+        ],
+        "collisions": static["collisions"],
+        "tools": static["tools"],
         "inventory": inventory,
         "inspectedObjectKeys": _read_string_list(state.inspected_object_keys_json),
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
