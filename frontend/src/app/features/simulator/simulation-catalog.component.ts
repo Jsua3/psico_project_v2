@@ -168,9 +168,12 @@ export class SimulationCatalogComponent {
     });
   }
 
-  /** Entrar al caso: con un intento abierto, el juego ofrece reanudarlo (la tarjeta de reanudar es F6-2). */
-  protected openCase(caseVersionId: number): void {
-    void this.router.navigate(['/portal/simulador', caseVersionId]);
+  /**
+   * Entrar al caso. Con un intento abierto se continúa en el juego, que ofrece reanudarlo (F6-2, RN-07). Sin él, primero
+   * la ficha del caso (F10-1, RF-16): contexto, personajes y objetivos, sin crear el intento; su «Comenzar» pasa al juego.
+   */
+  protected openCase(caseVersionId: number, resume: boolean): void {
+    void this.router.navigate(resume ? ['/portal/simulador', caseVersionId] : ['/portal/simulador', caseVersionId, 'ficha']);
   }
 
   protected openEditor(caseVersionId: number): void {

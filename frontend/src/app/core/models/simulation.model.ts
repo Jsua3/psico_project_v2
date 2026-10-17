@@ -9,6 +9,36 @@ export interface CatalogItem {
   locked: boolean;
 }
 
+/** Por qué el servidor no deja iniciar un caso: la asignación, su ventana o la secuencia lineal (E3-2; RN-04, RF-15). */
+export type CaseAccessReason = 'NOT_ASSIGNED' | 'NOT_YET_OPEN' | 'CLOSED' | 'LOCKED_BY_SEQUENCE';
+
+/** La decisión de acceso de un estudiante a una versión (`access` de C8 y del catálogo). Las horas son de Bogotá, sin zona. */
+export interface CaseAccess {
+  allowed: boolean;
+  reason?: CaseAccessReason;
+  opensAt?: string;
+  closesAt?: string;
+}
+
+export interface CaseBriefCharacter {
+  id: number;
+  displayName: string;
+  roleLabel: string;
+  /** Clave del retrato en el kit de personajes (`catalog.actors`). */
+  portraitKey: string;
+}
+
+/** La ficha del caso (C8, RF-16, CU-07): lo que se lee antes de jugar. Pedirla no crea intento. */
+export interface CaseBrief {
+  caseVersionId: number;
+  title: string;
+  context: string;
+  characters: CaseBriefCharacter[];
+  learningObjectives: string[];
+  hasSensitiveContent: boolean;
+  access: CaseAccess;
+}
+
 export interface SimulationCaseSummary {
   caseVersionId: number;
   code: string;

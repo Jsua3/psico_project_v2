@@ -1,0 +1,92 @@
+// Ficha del caso (plan visual F10-1): piel portal y solo tokens --ds-*; tarjetas con borde, sin vidrio (VD-3). Una
+// columna de lectura (72ch) con los personajes en rejilla; minmax(0, 1fr) para que nada ensanche la página.
+
+:host {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-6);
+  color: var(--ds-text-1);
+}
+
+.brief-loading {
+  display: grid;
+  max-width: 72ch;
+}
+
+.brief-section {
+  max-width: 72ch;
+}
+
+.brief-context {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.brief-objectives {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding-left: var(--ds-space-5);
+}
+
+.brief-characters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+  gap: var(--ds-space-4);
+}
+
+.brief-character {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+}
+
+.brief-character__text {
+  min-width: 0;
+}
+
+.brief-character__name {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  line-height: var(--ds-type-h3-line);
+  font-weight: var(--ds-type-h3-weight);
+  overflow-wrap: anywhere;
+}
+
+.brief-character__role {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// Avisos de la ficha: informan, no son errores (el servidor es quien decide el acceso).
+.brief-access,
+.brief-sensitive {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+  max-width: 72ch;
+  margin: 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-info-bg);
+  color: var(--ds-text-1);
+}
+
+.brief-access[data-tone='warning'] {
+  background: var(--ds-warning-bg);
+}
+
+.brief-pending {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ds-text-2);
+}
+
+.brief-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}

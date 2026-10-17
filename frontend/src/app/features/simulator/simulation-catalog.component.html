@@ -55,7 +55,7 @@
             @if (canPlay || canEdit) {
               <div class="case-card__actions">
                 @if (canPlay) {
-                  <button ui-button type="button" variant="primary" icon="play_arrow" [disabledReason]="card.lock" (click)="openCase(card.item.caseVersionId)">
+                  <button ui-button type="button" variant="primary" icon="play_arrow" [disabledReason]="card.lock" (click)="openCase(card.item.caseVersionId, !!card.open)">
                     {{ card.open ? 'Continuar' : card.startLabel }}
                   </button>
                 }
@@ -107,7 +107,7 @@
                   <td class="catalog-nowrap">{{ row.duration }}</td>
                   <td class="catalog-nowrap">
                     @if (row.open) {
-                      <button ui-button type="button" size="sm" variant="primary" icon="play_arrow" (click)="openCase(row.attempt.caseVersionId)">Continuar</button>
+                      <button ui-button type="button" size="sm" variant="primary" icon="play_arrow" (click)="openCase(row.attempt.caseVersionId, true)">Continuar</button>
                     } @else {
                       <button ui-button type="button" size="sm" variant="secondary" icon="description" (click)="openReport(row.attempt)">Ver resumen</button>
                     }

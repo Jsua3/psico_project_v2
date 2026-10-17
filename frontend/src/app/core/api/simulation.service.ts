@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { ApiResponse } from './api-response';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import {
   AttemptCompletionReport,
+  CaseBrief,
   CatalogItem,
   InteractionResult,
   ScenarioConfig,
@@ -38,6 +40,16 @@ export class SimulationService {
   getCatalog() {
     return this.http.get<ApiResponse<CatalogItem[]>>(`${this.API}/catalog`)
       .pipe(map(response => response.data));
+  }
+
+  /**
+   * La ficha del caso (C8, RF-16): contexto, personajes y objetivos, sin crear intento. El 403 `ACCESS_NOT_ASSIGNED` lo
+   * explica la pantalla con su propio texto, así que el aviso genérico de «sin permisos» no sale además.
+   */
+  getCaseBrief(caseVersionId: number) {
+    return this.http.get<ApiResponse<CaseBrief>>(`${this.API}/cases/${caseVersionId}/brief`, {
+      context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
+    }).pipe(map(response => response.data));
   }
 
   startAttempt(caseVersionId: number, forceNew = false) {

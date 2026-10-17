@@ -58,6 +58,8 @@ const CONTRACTS: Contract[] = [
   // ── jugador ────────────────────────────────────────────────────────────────
   { method: 'listCases', call: s => s.listCases(), verb: 'GET', url: `${S}/cases` },
   { method: 'getCatalog', call: s => s.getCatalog(), verb: 'GET', url: `${S}/catalog` },
+  // F10-1 (C8, RF-16): la ficha del caso se lee sin crear intento; un 403 lo explica la pantalla, no el aviso genérico.
+  { method: 'getCaseBrief', call: s => s.getCaseBrief(7), verb: 'GET', url: `${S}/cases/7/brief` },
   { method: 'startAttempt', call: s => s.startAttempt(7), verb: 'POST', url: `${S}/attempts`,
     body: { caseVersionId: 7, forceNew: false } },
   { method: 'getProgressMap', call: s => s.getProgressMap(ATTEMPT, TOKEN), verb: 'GET',
@@ -278,13 +280,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(49);
+    expect(publicMethods).toHaveLength(50);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(49);
-    expect([player.length, authoring.length, instructor.length]).toEqual([18, 26, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
+    expect([player.length, authoring.length, instructor.length]).toEqual([19, 26, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

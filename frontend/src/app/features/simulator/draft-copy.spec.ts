@@ -14,7 +14,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7)-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');
@@ -42,12 +42,12 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['consentSaving', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
+      ['briefPending', 'consentSaving', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
-    // reemplazo docente (F7b-7, RN-07).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(19);
+    // reemplazo docente (F7b-7, RN-07) y el aviso de contenido sensible de la ficha del caso (F10-1).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(20);
   });
 
   // req: RN-07 (F7b-7, revisión)
@@ -64,6 +64,17 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(DRAFT_COPY.traceNoDecisions).toMatchObject({ decision: 'VD-24', text: 'Este intento aún no tiene decisiones guardadas.' });
     expect(DRAFT_COPY.formativeValuationLabel).toMatchObject({ decision: 'RN-09', text: 'Valoración formativa' });
     expect(draftCopyList().filter(entry => /clínic/i.test(entry.text))).toEqual([]);
+  });
+
+  // req: RF-16, ETH-01 (F10-1)
+  it('registra los dos textos de la ficha del caso, y la ficha los lee del registro', () => {
+    expect(DRAFT_COPY.briefSensitiveNote).toMatchObject({ decision: 'F10-1', owner: 'Psicología' });
+    expect(DRAFT_COPY.briefSensitiveNote.text).toContain('Antes de entrar verás un aviso');
+    expect(DRAFT_COPY.briefSensitiveNote.text).toContain('«Salida segura»');
+    expect(DRAFT_COPY.briefPending).toMatchObject({ decision: 'F10-1', review: 'conocimiento' });
+    const brief = readFileSync(join(__dirname, 'case-brief.component.ts'), 'utf-8');
+    expect(brief).toContain('DRAFT_COPY.briefSensitiveNote.text');
+    expect(brief).toContain('DRAFT_COPY.briefPending.text');
   });
 
   it('la nota de ayuda nombra el ajuste con la misma palabra del registro (una sola fuente)', () => {

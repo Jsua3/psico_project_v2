@@ -130,6 +130,23 @@ describe('SimulationCatalogComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 1]);
   });
 
+  // req: RF-16, CU-07
+  it('RF-16: sin intento abierto «Iniciar» lleva primero a la ficha del caso; «Continuar» sigue directo al juego', async () => {
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
+      attemptHistory: () => of([
+        attempt({ attemptId: 'p', caseVersionId: 1, caseTitle: 'Caso 1', status: 'IN_PROGRESS' }),
+        attempt({ attemptId: 'old', caseVersionId: 3, caseTitle: 'Caso 3', status: 'COMPLETED' }),
+      ]),
+    });
+    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 2, 'ficha']);
+    (card('Caso 3').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 3, 'ficha']);
+    (card('Caso 1').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 1]);
+  });
+
   it('historial: la fila en pausa o en curso ofrece «Continuar»; la cerrada, «Ver resumen»; estados humanizados', async () => {
     await render('ESTUDIANTE', {
       attemptHistory: () => of([

@@ -65,6 +65,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/simulator/simulation-catalog.component').then(m => m.SimulationCatalogComponent)
       },
       {
+        // F10-1 (C8, RF-16): la ficha del caso se lee antes de empezar y no crea el intento; «Comenzar» abre el juego.
+        path: 'simulador/:caseVersionId/ficha',
+        title: 'Ficha del caso',
+        canActivate: [roleGuard('ESTUDIANTE')],
+        loadComponent: () => import('./features/simulator/case-brief.component').then(m => m.CaseBriefComponent)
+      },
+      {
         path: 'simulador/:caseVersionId',
         title: 'Simulación',
         data: { chrome: 'hidden' },
