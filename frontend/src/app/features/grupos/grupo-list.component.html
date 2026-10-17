@@ -103,7 +103,7 @@
   <ui-section class="gl-detail" [title]="'Detalle de ' + grupo.nombre">
     <div class="gl-stack">
     <p class="gl-hint">
-      Código {{ grupo.codigo }} · {{ detalleConteo() }} · {{ casosAsignados().length }} casos asignados
+      Código {{ grupo.codigo }} · {{ detalleConteo() }}
     </p>
 
     <div class="gl-detail__grid">
@@ -225,42 +225,7 @@
       </ui-card>
 
       <ui-card class="gl-cases-card">
-        <ui-section title="Casos asignados" [level]="3">
-          <div class="gl-stack">
-          <p class="gl-hint">Solo los casos asignados aparecen para los estudiantes del grupo.</p>
-
-          <form class="gl-assign" [formGroup]="casoForm" novalidate (ngSubmit)="asignarCaso()">
-            <ui-field label="Asignar caso publicado">
-              <select uiControl formControlName="caseVersionId">
-                <option value="">Selecciona un caso</option>
-                @for (caseItem of casosDisponiblesParaAsignar(); track caseItem.caseVersionId) {
-                  <option [value]="caseItem.caseVersionId">{{ caseItem.title }} · v{{ caseItem.semanticVersion }}</option>
-                }
-              </select>
-            </ui-field>
-            <button ui-button type="submit" icon="assignment_add" [loading]="asignandoCaso()"
-              [disabledReason]="casoForm.invalid ? 'Selecciona un caso para asignarlo.' : null">Asignar</button>
-          </form>
-
-          @if (!casosAsignados().length) {
-            <p class="gl-empty">No hay casos asignados. Los estudiantes no verán casos hasta que asignes uno.</p>
-          } @else {
-            <ul class="gl-people">
-              @for (caseItem of casosAsignados(); track caseItem.caseVersionId) {
-                <li class="gl-person">
-                  <span class="gl-person__text">
-                    <strong>{{ caseItem.title }}</strong>
-                    <span>{{ caseItem.code }} · v{{ caseItem.semanticVersion }}</span>
-                  </span>
-                  <button ui-icon-button type="button" icon="delete_outline"
-                    [label]="'Retirar «' + caseItem.title + '» del grupo'"
-                    (click)="quitarCaso(caseItem.caseVersionId)"></button>
-                </li>
-              }
-            </ul>
-          }
-          </div>
-        </ui-section>
+        <app-group-assignments [grupoId]="grupo.id" [cases]="casosDisponibles()" [casesStatus]="casosEstado()" (assignedChange)="casosAsignadosTotal.set($event)" />
       </ui-card>
     </div>
     </div>

@@ -18,6 +18,7 @@ import { By } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 
 import { AuthoringApi } from '../../core/api/authoring.api';
+import { contrastRatio } from '../../../styles/contrast.util';
 import { MapObjectState, SimulationWorldState, WorldDefinition, WorldObject } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
 import { GameWorldComponent } from './game-world.component';
@@ -127,6 +128,26 @@ describe('WorldPreviewComponent: vista previa del autor', () => {
   const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
   const reloadButton = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.preview-actions button')!;
   const nodeSelect = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('select')!;
+
+  // req: RNF-04, WCAG 1.4.3 (la lectura de contraste por píxeles de F9-2 destapó «ENF» en blanco sobre #4FA3A5: 2,95:1)
+  describe('el código corto sobre el color del objeto', () => {
+    it('cada punto de color lleva el texto de mayor contraste con SU color, sea el que sea el que eligió el autor', () => {
+      const def = definition('Sala de espera');
+      def.objects = [
+        worldObject('npc-1', { id: 1, colorHex: '#4FA3A5', shortCode: 'ENF' }),
+        worldObject('puerta', { id: 2, colorHex: '#1B2A4A', shortCode: 'PUE' }),
+      ];
+      respond(0, def);
+
+      const dots = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.interaction-dot'));
+      expect(dots.map(dot => dot.textContent?.trim())).toEqual(['ENF', 'PUE']);
+      const hex = (css: string) => `#${(css.match(/\d+/g) ?? []).slice(0, 3).map(part => Number(part).toString(16).padStart(2, '0')).join('')}`;
+      for (const dot of dots) {
+        const ratio = contrastRatio(hex(dot.style.color), hex(dot.style.background));
+        expect(ratio, `${dot.textContent?.trim()}: ${dot.style.color} sobre ${dot.style.background}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  });
 
   // req: RNF-04
   describe('carga', () => {

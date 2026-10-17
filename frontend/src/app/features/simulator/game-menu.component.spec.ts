@@ -68,20 +68,21 @@ describe('GameMenuComponent — entrada fiable al caso (GAME-09)', () => {
     TestBed.resetTestingModule();
   });
 
-  it('una puerta disponible navega exactamente UNA vez', () => {
+  // req: RF-16, CU-07 (F10-1: la puerta lleva primero a la ficha del caso, que no crea el intento)
+  it('una puerta disponible navega exactamente UNA vez, a la ficha del caso', () => {
     component.catalog.set([makeItem()]);
     component.enter(7);
     expect(component.entering()).toBe('Caso demo');
     vi.advanceTimersByTime(1000);
     expect(router.navigate).toHaveBeenCalledTimes(1);
-    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7, 'ficha']);
   });
 
   // req: RNF-04 (plan visual F5-3: sin la espera ficticia de 900 ms)
   it('entrar navega al instante, sin espera ficticia', () => {
     component.catalog.set([makeItem()]);
     component.enter(7);
-    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
+    expect(router.navigate).toHaveBeenCalledWith(['/portal/simulador', 7, 'ficha']);
   });
 
   it('una puerta bloqueada nunca navega', () => {

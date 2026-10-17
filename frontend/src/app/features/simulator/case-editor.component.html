@@ -55,6 +55,15 @@
           </ui-section>
         </ng-template>
 
+        <!-- ── Escenas (orden de las escenas con «Subir» y «Bajar»; F10-3) ──────────── -->
+        <ng-template uiTab="escenas" label="Escenas">
+          <ui-section class="ce-section" title="Escenas del caso">
+            <app-scene-order [nodes]="model.nodes" [lockReason]="lockReason()" [busy]="busy()"
+              (reorder)="reorderScenes(model.caseVersionId, $event)"
+              (edit)="openPanel({ kind: 'node-edit', node: $event })" />
+          </ui-section>
+        </ng-template>
+
         <!-- ── Mapas ─────────────────────────────────────────────────────────────── -->
         <ng-template uiTab="mapas" label="Mapas">
           <ui-section class="ce-section" title="Mapas del caso">
@@ -171,6 +180,31 @@
               <ui-empty-state kind="first-use" title="Este caso aún no tiene herramientas"
                 description="Las herramientas son los recursos que la persona puede usar durante el caso."
                 [actionLabel]="lockReason() ? null : 'Crear la primera herramienta'" (action)="openPanel({ kind: 'tool-create' })" />
+            }
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Ayudas (pistas de cada sala; F10-3) ───────────────────────────────── -->
+        <ng-template uiTab="ayudas" label="Ayudas">
+          <ui-section class="ce-section" title="Ayudas de cada escena">
+            <app-case-hints [maps]="model.maps" [nodes]="model.nodes" [hints]="model.hints" [lockReason]="lockReason()"
+              (create)="openPanel({ kind: 'hint-create', mapId: $event })"
+              (edit)="openPanel({ kind: 'hint-edit', hint: $event })"
+              (remove)="confirmDeleteHint(model.caseVersionId, $event)"
+              (goToMaps)="tab.set('mapas')" />
+          </ui-section>
+        </ng-template>
+
+        <!-- ── Ficha (contexto, objetivos y personajes; F10-3) ───────────────────── -->
+        <ng-template uiTab="ficha" label="Ficha">
+          <ui-section class="ce-section" title="Ficha del caso">
+            @if (briefForm; as form) {
+              <app-case-brief-editor
+                [form]="form" [characters]="model.characters" [lockReason]="lockReason()" [busy]="busy()"
+                (saveBrief)="saveBrief(model.caseVersionId, $event)"
+                (characterCreate)="openPanel({ kind: 'character-create' })"
+                (characterEdit)="openPanel({ kind: 'character-edit', character: $event })"
+                (characterRemove)="confirmDeleteCharacter(model.caseVersionId, $event)" />
             }
           </ui-section>
         </ng-template>

@@ -1,0 +1,46 @@
+// Pistas de la escena (plan visual F10-2): una franja compacta sobre las opciones de la decisión, solo tokens --ds-*.
+// Se pinta dentro del panel de diálogo del juego (piel oscura): los tokens siguen a la piel, no hay colores propios.
+
+:host {
+  display: block;
+}
+
+.scene-hint {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-3);
+}
+
+.scene-hint__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.scene-hint__counter,
+.scene-hint__message {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// Tope de altura: con varias pistas la lista no empuja las opciones fuera del panel (en un celular cada renglón cuenta); si
+// crece, se recorre con el teclado (tabindex 0) y con el dedo.
+.scene-hint__list {
+  display: grid;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-3) var(--ds-space-6);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-info-bg);
+  color: var(--ds-text-1);
+}
+
+.scene-hint__item {
+  overflow-wrap: anywhere;
+}

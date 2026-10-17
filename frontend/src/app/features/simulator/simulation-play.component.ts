@@ -54,6 +54,7 @@ import {
   isSceneAmbientInteraction,
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
+import { accessErrorMessage } from './case-access.util';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
@@ -414,7 +415,7 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-                [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
+                [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -481,7 +482,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-            [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
+            [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
@@ -1230,6 +1231,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
 
   readonly attempt    = signal<SimulationAttemptState | null>(null);
+  /** El intento al que piden las pistas de la escena las opciones de una decisión (F10-2, C9). */
+  readonly hintAttempt = computed(() => {
+    const current = this.attempt();
+    return current ? { attemptId: current.attemptId, attemptToken: current.attemptToken } : null;
+  });
   readonly pendingActiveAttempt = signal<SimulationAttemptState | null>(null);
   readonly showResumePrompt = signal(false);
   readonly progressMap = signal<ProgressMapState | null>(null);
@@ -1708,9 +1714,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private beginAttempt(caseVersionId: number, forceNew: boolean) {
     this.simulationService.startAttempt(caseVersionId, forceNew).subscribe({
       next: attempt => this.bootstrapAttempt(attempt),
-      error: cause => this.fail(
-        'No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew),
-      ),
+      // Un rechazo de acceso (cerró, aún no abre, secuencia) se dice con el aviso del caso y no se reintenta: repetirlo
+      // da el mismo 403. Cualquier otro fallo conserva su mensaje y su reintento.
+      error: cause => {
+        const refused = accessErrorMessage(cause);
+        if (refused) this.fail(refused, cause, null);
+        else this.fail('No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+      },
     });
   }
 

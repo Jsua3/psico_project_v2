@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { AuthoringApi } from './authoring.api';
 import { InstructorApi } from './instructor.api';
 import { SimulationService } from './simulation.service';
@@ -58,6 +59,8 @@ const CONTRACTS: Contract[] = [
   // ── jugador ────────────────────────────────────────────────────────────────
   { method: 'listCases', call: s => s.listCases(), verb: 'GET', url: `${S}/cases` },
   { method: 'getCatalog', call: s => s.getCatalog(), verb: 'GET', url: `${S}/catalog` },
+  // F10-1 (C8, RF-16): la ficha del caso se lee sin crear intento; un 403 lo explica la pantalla, no el aviso genérico.
+  { method: 'getCaseBrief', call: s => s.getCaseBrief(7), verb: 'GET', url: `${S}/cases/7/brief` },
   { method: 'startAttempt', call: s => s.startAttempt(7), verb: 'POST', url: `${S}/attempts`,
     body: { caseVersionId: 7, forceNew: false } },
   { method: 'getProgressMap', call: s => s.getProgressMap(ATTEMPT, TOKEN), verb: 'GET',
@@ -83,6 +86,10 @@ const CONTRACTS: Contract[] = [
   { method: 'resumeAttempt', call: s => s.resumeAttempt(ATTEMPT, TOKEN), verb: 'POST',
     url: `${att}/resume`, body: { attemptToken: TOKEN } },
   { method: 'attemptHistory', call: s => s.attemptHistory(), verb: 'GET', url: `${S}/attempts/history` },
+  // F10-2 (C9, RF-18): las pistas de la escena, una a una y sin costo; la orden lleva su clave de idempotencia.
+  { method: 'getHints', call: s => s.getHints(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/hints`, attemptToken: true },
+  { method: 'revealNextHint', call: s => s.revealNextHint(ATTEMPT, TOKEN, 'pista-0001-abcd'), verb: 'POST',
+    url: `${att}/hints/next`, body: { attemptToken: TOKEN, requestId: 'pista-0001-abcd' } },
 
   // ── docente ────────────────────────────────────────────────────────────────
   { method: 'recentAttempts', call: s => s.recentAttempts(), verb: 'GET', url: '/api/instructor/attempts/recent' },
@@ -118,6 +125,16 @@ const CONTRACTS: Contract[] = [
   { method: 'updateTool', call: s => s.updateTool(9, 2, body('tool')), verb: 'PUT', url: `${A}/9/tools/2`, body: body('tool') },
   { method: 'deleteTool', call: s => s.deleteTool(9, 2), verb: 'DELETE', url: `${A}/9/tools/2` },
   { method: 'updateChecklist', call: s => s.updateChecklist(9, body('lista')), verb: 'PUT', url: `${A}/9/checklist`, body: body('lista') },
+
+  // ── ayudas, personajes, ficha y orden de las escenas (F10-3†: E3-3 a E3-6) ─────────────────────────────
+  { method: 'createHint', call: s => s.createHint(9, 3, body('pista')), verb: 'POST', url: `${A}/9/maps/3/hints`, body: body('pista') },
+  { method: 'updateHint', call: s => s.updateHint(9, 2, body('pista')), verb: 'PUT', url: `${A}/9/hints/2`, body: body('pista') },
+  { method: 'deleteHint', call: s => s.deleteHint(9, 2), verb: 'DELETE', url: `${A}/9/hints/2` },
+  { method: 'createCharacter', call: s => s.createCharacter(9, body('personaje')), verb: 'POST', url: `${A}/9/characters`, body: body('personaje') },
+  { method: 'updateCharacter', call: s => s.updateCharacter(9, 2, body('personaje')), verb: 'PUT', url: `${A}/9/characters/2`, body: body('personaje') },
+  { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
+  { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
+  { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
 
   // ── editor de mundo ────────────────────────────────────────────────────────
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
@@ -278,14 +295,23 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(49);
+    expect(publicMethods).toHaveLength(60);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(49);
-    expect([player.length, authoring.length, instructor.length]).toEqual([18, 26, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(60);
+    expect([player.length, authoring.length, instructor.length]).toEqual([21, 34, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
+  });
+
+  // req: RN-04, RF-15
+  it('iniciar un intento deja que la pantalla explique el 403 ACCESS_*: no sale además el aviso genérico de permisos', () => {
+    service.startAttempt(9, true).subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(`${S}/attempts`);
+    expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
+    request.flush({}, { status: 403, statusText: 'Forbidden' });
   });
 
   it('el jugador no ve métodos de autoría ni de instructor', () => {

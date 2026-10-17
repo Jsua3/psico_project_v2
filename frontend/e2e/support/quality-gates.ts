@@ -36,9 +36,15 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
     });
     return activeOverlays.every(element => Number.parseFloat(getComputedStyle(element).opacity) >= 0.99);
   }, undefined, { timeout: scaled(10_000) });
-  // Axe mide el contraste con los colores calculados en ese instante: una transición o una
-  // animación FINITA aún en curso (la entrada del panel, el fondo del botón «Salida segura»)
-  // da un color intermedio y un falso «color-contrast». Las infinitas (cursor, pulsos) no se esperan.
+  await waitForFiniteAnimations(page);
+}
+
+/**
+ * Axe mide el contraste con los colores calculados en ese instante: una transición o una animación FINITA aún en curso
+ * (la entrada del panel, el fondo del botón «Salida segura», un botón que pasa de apagado a activo al terminar de cargar)
+ * da un color intermedio y un falso «color-contrast». Las infinitas (cursor, pulsos) no se esperan.
+ */
+async function waitForFiniteAnimations(page: Page): Promise<void> {
   await page.waitForFunction(() => document.getAnimations().every(animation => {
     const timing = animation.effect?.getComputedTiming();
     return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
@@ -46,7 +52,10 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
 }
 
 export interface AxeAuditOptions {
-  tags: string[];
+  /** Etiquetas de WCAG o best-practice; si se da `rules`, esas reglas las sustituyen. */
+  tags?: string[];
+  /** Solo estas reglas, por id (p. ej. `['color-contrast']`): la revisión de contraste por píxeles no necesita las demás. */
+  rules?: string[];
   resultTypes: Array<'violations' | 'incomplete' | 'passes' | 'inapplicable'>;
   /** Selector CSS del subárbol a auditar (por defecto, todo el documento). */
   include?: string;
@@ -59,6 +68,8 @@ export interface AxeAuditOptions {
 export async function runAxe(page: Page, options: AxeAuditOptions): Promise<AxeResults> {
   const installed = await page.evaluate(() => Boolean((window as typeof window & { axe?: unknown }).axe));
   if (!installed) await page.addScriptTag({ content: axe.source });
+  // Quien llama a Axe directo (sin la puerta de calidad) también mide sobre colores ya asentados.
+  await waitForFiniteAnimations(page);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await page.waitForFunction(() => {
@@ -66,12 +77,12 @@ export async function runAxe(page: Page, options: AxeAuditOptions): Promise<AxeR
       return axeApi !== undefined && axeApi._running !== true;
     }, undefined, { timeout: scaled(30_000) });
     try {
-      return await page.evaluate(async ({ tags, resultTypes, include }) => {
+      return await page.evaluate(async ({ tags, rules, resultTypes, include }) => {
         const axeApi = (window as typeof window & {
           axe: { run(root: Document | { include: string[] }, options: unknown): Promise<AxeResults> };
         }).axe;
         return axeApi.run(include ? { include: [include] } : document, {
-          runOnly: { type: 'tag', values: tags },
+          runOnly: rules ? { type: 'rule', values: rules } : { type: 'tag', values: tags ?? [] },
           resultTypes,
         });
       }, options);

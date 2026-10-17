@@ -1,0 +1,75 @@
+<ui-page-header [eyebrow]="brief() ? 'Ficha del caso' : null" [title]="brief()?.title ?? 'Ficha del caso'" />
+
+@switch (state()) {
+  @case ('loading') {
+    <div class="brief-loading" aria-busy="true">
+      <ui-skeleton shape="card" [lines]="4" />
+    </div>
+  }
+  @case ('error') {
+    <ui-error-state blocking autofocus [kind]="errorKind()" [status]="error()?.status" [message]="errorMessage()" (retry)="load()" />
+    <div class="brief-actions">
+      <button ui-button type="button" variant="secondary" icon="arrow_back" (click)="backToCatalog()">Volver al catálogo</button>
+    </div>
+  }
+  @case ('ready') {
+    @if (brief(); as b) {
+      @if (access(); as notice) {
+        <p class="brief-access" [attr.data-tone]="notice.tone">
+          <mat-icon aria-hidden="true">{{ notice.icon }}</mat-icon>
+          <span><strong>{{ notice.title }}.</strong> {{ notice.detail }}</span>
+        </p>
+      }
+
+      @if (hasContext()) {
+        <ui-section class="brief-section" title="Contexto">
+          <p class="brief-context">{{ b.context }}</p>
+        </ui-section>
+      }
+
+      @if (hasObjectives()) {
+        <ui-section class="brief-section" title="Objetivos de aprendizaje">
+          <ul class="brief-objectives">
+            @for (objective of b.learningObjectives; track $index) {
+              <li class="brief-objective">{{ objective }}</li>
+            }
+          </ul>
+        </ui-section>
+      }
+
+      @if (characters().length) {
+        <ui-section class="brief-section" title="Personajes">
+          <div class="brief-characters">
+            @for (character of characters(); track character.id) {
+              <ui-card class="brief-character">
+                @if (character.visual; as visual) {
+                  <app-kit-figure [visual]="visual" portrait="neutral" [scale]="3" />
+                }
+                <div class="brief-character__text">
+                  <h3 class="brief-character__name">{{ character.displayName }}</h3>
+                  <p class="brief-character__role">{{ character.roleLabel }}</p>
+                </div>
+              </ui-card>
+            }
+          </div>
+        </ui-section>
+      }
+
+      @if (isPending()) {
+        <p class="brief-pending">{{ pendingNote }}</p>
+      }
+
+      @if (b.hasSensitiveContent) {
+        <p class="brief-sensitive">
+          <mat-icon aria-hidden="true">health_and_safety</mat-icon>
+          <span>{{ sensitiveNote }}</span>
+        </p>
+      }
+
+      <div class="brief-actions">
+        <button ui-button type="button" variant="primary" size="lg" icon="play_arrow" [disabledReason]="startBlockedReason()" (click)="start()">Comenzar</button>
+        <button ui-button type="button" variant="secondary" size="lg" icon="arrow_back" (click)="backToCatalog()">Volver al catálogo</button>
+      </div>
+    }
+  }
+}

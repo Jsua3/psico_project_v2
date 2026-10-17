@@ -61,9 +61,21 @@ export async function startFreshAttempt(page: Page, startFresh: Locator): Promis
   await expect(consequence).toHaveCount(0, { timeout: scaled(15_000) });
 }
 
+/**
+ * La ficha del caso (plan visual F10-1, RF-16) va antes del juego y no crea el intento: «Comenzar» pasa a él. Desde la
+ * ficha deja la página en el juego (`/portal/simulador/<id>`); si ya está en el juego, no hace nada.
+ */
+export async function leaveBrief(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/portal\/simulador\/\d+(\/ficha)?$/, { timeout: scaled(30_000) });
+  if (!/\/ficha$/.test(new URL(page.url()).pathname)) return;
+  await page.getByRole('button', { name: 'Comenzar', exact: true }).click();
+  await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
+}
+
 export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
+  await leaveBrief(page);
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
   // Recorrido aislado: un intento activo que dejó otra prueba se descarta en
   // vez de heredar su sala y posición (un fallo previo no arrastra a este).

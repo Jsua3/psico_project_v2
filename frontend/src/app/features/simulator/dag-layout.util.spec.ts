@@ -8,7 +8,7 @@ import { computeDagLayout, neighbourOf, wrapLabel } from './dag-layout.util';
 const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key: `n-${id}`, title: `Nodo ${id}`, narrative: '', supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, ...over,
+  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const edge = (id: number, source: number, target: number, over: Partial<DecisionEdgeState> = {}): DecisionEdgeState => ({
