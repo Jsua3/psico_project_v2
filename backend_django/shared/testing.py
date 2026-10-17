@@ -126,3 +126,23 @@ def run_concurrently(*calls, timeout=30):
         thread.join(timeout + 5)
     assert not any(thread.is_alive() for thread in threads), "un hilo no terminó a tiempo"
     return outcomes
+
+
+#: Un sello de relleno para las pruebas que publican una versión por ORM sin pasar por la compuerta.
+TEST_SEAL_HASH = "sha256:" + "0" * 64
+
+
+def seal_version(version):
+    """Sella (con un sello de prueba) una versión publicada por ORM (E4-4).
+
+    Arrancar un intento exige el sello de la compuerta (``authoring.gate``); una prueba que arma una
+    versión ``PUBLISHED`` a mano y empieza un intento sobre ella lo pone con esto. Acepta la versión o
+    su id y devuelve la fila actualizada.
+    """
+    from django.utils import timezone
+
+    from apps.simulation.models import CaseVersion
+
+    pk = getattr(version, "pk", version)
+    CaseVersion.objects.filter(pk=pk).update(validated_at=timezone.now(), definition_hash=TEST_SEAL_HASH)
+    return CaseVersion.objects.get(pk=pk)

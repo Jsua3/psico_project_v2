@@ -1,5 +1,5 @@
 /**
- * Claves de personaje que el juego referencia, leídas de sus fuentes. La cobertura exige que
+ * Claves de personaje que el juego referencia, leídas de sus fuentes (el caso sembrado es un documento JSON). La cobertura exige que
  * cada una resuelva a una receta (o a una voz sin cuerpo). Si una fuente se mueve, se
  * actualiza aquí; SOURCE_MINIMUMS evita que una fuente perdida pase como «cero claves».
  */
@@ -8,7 +8,7 @@ import path from 'node:path';
 
 export const COVERAGE_SOURCES = Object.freeze({
   scenarios: 'frontend/src/assets/game/scenarios',
-  seed: 'backend_django/apps/simulation/management/commands/seed_caso_pdf.py',
+  seed: 'backend_django/apps/simulation/data/cases/SIM-VBG-001.dsl.json',
   speakerLiterals: [
     'frontend/src/app/features/simulator/risky-interaction.config.ts',
     'frontend/src/app/features/simulator/simulation-play.component.ts',
@@ -34,14 +34,35 @@ function scenarioNpcRecipes(root) {
   return recipes;
 }
 
+/** Los mapas del caso sembrado: la semilla es un documento (E4-6) y el mundo vive en `x-siep.escenas[].mapa`. */
+function seedMaps(root) {
+  const document = JSON.parse(read(root, COVERAGE_SOURCES.seed));
+  return document['x-siep'].escenas.flatMap(scene => (scene.mapa ? [scene.mapa] : []));
+}
+
+/**
+ * Hablantes del guion en los diálogos del mapa: los de las personas y los de un objeto que habla con voz propia.
+ * Un objeto de información que habla con su propio nombre («Expediente del caso») no es una voz del guion y no
+ * pide receta.
+ */
+function seedSpeakers(map) {
+  const objects = new Map(map.objetos.map(o => [o.clave, o]));
+  return map.dialogos
+    .filter(tree => {
+      const owner = objects.get(tree.objeto);
+      return owner?.tipo === 'PERSON' || tree.hablante !== owner?.etiqueta;
+    })
+    .map(tree => tree.hablante);
+}
+
 export function referencedKeys(root) {
-  const seed = read(root, COVERAGE_SOURCES.seed);
+  const maps = seedMaps(root);
   return {
     scenarioNpcs: scenarioNpcRecipes(root),
-    // Personas del caso sembradas por el backend (markers PERSON).
-    actors: new Set(all(seed, /"key":\s*"([^"]+)",\s*"label":\s*"[^"]*",\s*"type":\s*"PERSON"/g)),
+    // Personas del caso sembradas por el backend (objetos PERSON de los mapas).
+    actors: new Set(maps.flatMap(map => map.objetos).filter(o => o.tipo === 'PERSON').map(o => o.clave)),
     speakers: new Set([
-      ...all(seed, /"dialogue":\s*\("([^"]+)"/g),
+      ...maps.flatMap(seedSpeakers),
       ...COVERAGE_SOURCES.speakerLiterals.flatMap(rel => all(read(root, rel), /speakerName: '([^']+)'/g)),
     ]),
     // Sin fuente viva: el catálogo los conserva para datos ya guardados (portraitKey de árboles

@@ -1,10 +1,10 @@
 import json
 from pathlib import Path
 
-from apps.simulation.management.commands.seed_caso_pdf import MAPS, MAP_OBJECTS
-
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+#: La semilla es un documento (E4-6): sus mapas son ``x-siep.escenas[].mapa``.
+SEED_DOCUMENT = Path(__file__).resolve().parents[1] / "data" / "cases" / "SIM-VBG-001.dsl.json"
 VISUAL_INVENTORY_PATH = (
     REPO_ROOT / "frontend" / "src" / "assets" / "visual" / "v1" / "inventory.v1.json"
 )
@@ -41,16 +41,26 @@ def _read_json(path: Path) -> dict:
         return json.load(source)
 
 
+def _seeded_maps() -> list[dict]:
+    return [
+        entry["mapa"] for entry in _read_json(SEED_DOCUMENT)["x-siep"]["escenas"] if entry.get("mapa")
+    ]
+
+
+MAPS = [{"key": scene_map["clave"]} for scene_map in _seeded_maps()]
+MAP_OBJECTS = {
+    scene_map["clave"]: [{"type": map_object["tipo"]} for map_object in scene_map["objetos"]]
+    for scene_map in _seeded_maps()
+}
+
+
 def _seeded_line_emotions() -> set[str]:
-    emotions: set[str] = set()
-    for objects in MAP_OBJECTS.values():
-        for map_object in objects:
-            dialogue = map_object.get("dialogue")
-            if dialogue is None:
-                continue
-            _speaker, lines = dialogue
-            emotions.update(emotion for _text, emotion in lines)
-    return emotions
+    return {
+        line["emocion"]
+        for scene_map in _seeded_maps()
+        for tree in scene_map["dialogos"]
+        for line in tree["lineas"]
+    }
 
 
 def test_visual_inventory_tracks_all_seeded_backend_maps_and_exact_bindings():

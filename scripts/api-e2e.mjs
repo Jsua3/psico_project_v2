@@ -174,6 +174,25 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     (await request('POST', '/authoring/cases/1/publish', { token: tokens.PROFESOR, body: {} })).status,
     403,
   );
+  // E4-5: importar crea un borrador desde el documento del caso. Un estudiante no entra; sin un documento
+  // válido, el docente y el ADMIN reciben un 400 con los hallazgos (la matriz no escribe filas).
+  expectStatus(
+    'ESTUDIANTE POST /authoring/cases/import -> 403',
+    (await request('POST', '/authoring/cases/import', { token: tokens.ESTUDIANTE, body: {} })).status,
+    403,
+  );
+  const emptyImport = await request('POST', '/authoring/cases/import', { token: tokens.PROFESOR, body: {} });
+  expectStatus('PROFESOR POST /authoring/cases/import sin documento valido -> 400', emptyImport.status, 400);
+  if (emptyImport.data?.code === 'DSL_INVALID' && Array.isArray(emptyImport.data?.issues) && emptyImport.data.issues.length > 0) {
+    pass('el rechazo de la importacion trae DSL_INVALID con sus hallazgos');
+  } else {
+    fail('el rechazo de la importacion trae DSL_INVALID con sus hallazgos', JSON.stringify(emptyImport.data));
+  }
+  expectStatus(
+    'ADMIN POST /admin/cases/import sin documento valido -> 400',
+    (await request('POST', '/admin/cases/import', { token: tokens.ADMIN, body: {} })).status,
+    400,
+  );
   expectStatus(
     'ADMIN GET /admin/cases -> 200',
     (await request('GET', '/admin/cases', { token: tokens.ADMIN })).status,
@@ -239,6 +258,33 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
       'ESTUDIANTE GET /simulation/cases/0/brief -> 404',
       (await request('GET', '/simulation/cases/0/brief', { token: tokens.ESTUDIANTE })).status,
       404,
+    );
+
+    // E4-7: el documento de la versión con su huella; lo lee quien puede autorar el caso (el ADMIN siempre;
+    // un docente solo el suyo: leer lo ajeno no confirma que exista).
+    const definitionPath = `/authoring/cases/${caseVersionId}/definition`;
+    const definition = await request('GET', definitionPath, { token: tokens.ADMIN });
+    expectStatus('ADMIN GET /authoring/cases/{id}/definition -> 200', definition.status, 200);
+    const definitionData = definition.data?.data;
+    if (
+      typeof definitionData?.definitionHash === 'string'
+      && definitionData.definitionHash.startsWith('sha256:')
+      && definitionData.sealedHash === definitionData.definitionHash
+      && definitionData.definition?.versionDsl === '1.0'
+    ) {
+      pass('la definicion trae su huella (igual a la sellada) y el documento del DSL');
+    } else {
+      fail('la definicion trae su huella (igual a la sellada) y el documento del DSL', JSON.stringify(definitionData)?.slice(0, 200));
+    }
+    expectStatus(
+      'PROFESOR GET /authoring/cases/{id}/definition de un caso ajeno -> 404',
+      (await request('GET', definitionPath, { token: tokens.PROFESOR })).status,
+      404,
+    );
+    expectStatus(
+      'ESTUDIANTE GET /authoring/cases/{id}/definition -> 403',
+      (await request('GET', definitionPath, { token: tokens.ESTUDIANTE })).status,
+      403,
     );
 
     const started = await request('POST', '/simulation/attempts', {

@@ -3,7 +3,7 @@
 //  1. contenido de <mat-icon>…</mat-icon> (nombre suelto o literales dentro de {{ }});
 //  2. propiedades y asignaciones cuyo nombre contiene «icon» (icon: 'x', primaryIcon = 'x');
 //  3. resultados de las funciones que se llaman dentro de un <mat-icon> ({{ iconForClass(…) }});
-//  4. semillas y datos del backend ("icon": "x");
+//  4. semillas y datos del backend ("icon": "x" en Python; "icono": "x" en los documentos del caso);
 //  5. scripts/ui/icons-extra.json: iconos curados para lo que escriben los autores en «Icono Material».
 // Uso: node scripts/ui/icon-names.mjs > nombres.json   (lo consume scripts/ui/subset-icons.py)
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -35,7 +35,8 @@ export function iconNamesIn(files) {
   const iconFunctions = new Set();
   for (const { path, text } of sources) {
     if (path.endsWith('.py') || path.endsWith('.json')) {
-      for (const [, name] of text.matchAll(/["']icon["']\s*:\s*["']([a-z0-9_]+)["']/g)) out.add(name);
+      // «icon» en las semillas de Python y «icono» en los documentos del caso (apps/simulation/data/cases, E4-6).
+      for (const [, name] of text.matchAll(/["']icono?["']\s*:\s*["']([a-z0-9_]+)["']/g)) out.add(name);
       continue;
     }
     for (const [, content] of text.matchAll(/<mat-icon\b[^>]*>([\s\S]*?)<\/mat-icon>/g)) {

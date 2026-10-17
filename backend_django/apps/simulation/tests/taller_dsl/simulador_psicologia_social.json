@@ -1,0 +1,444 @@
+{
+  "dsl": {
+    "nombre": "DSL de casos situacionales de SIEP",
+    "version": "1.0",
+    "esquema": "dsl-casos.schema.json"
+  },
+
+  "escenarios": [
+    {
+      "id": "ESCENARIO-1",
+      "nombre": "Escenario 1. Caso válido: convivencia en un apartamento compartido",
+      "tipo": "valido",
+      "descripcion": "Caso publicado que cumple las reglas OCL-01 a OCL-08 y las reglas propuestas. Incluye la ejecución de un intento (bitácora y evaluación) para mostrar cómo se registra.",
+
+      "caso": {
+        "versionDsl": "1.0",
+
+        "caso": {
+          "id": "CASO-001",
+          "titulo": "Convivencia en un apartamento compartido",
+          "tematica": "Psicología social",
+          "descripcion": "Tres estudiantes comparten un apartamento. Sus horarios de descanso y de trabajo no coinciden y, tras varias semanas de reproches y silencios, piden una conversación. El estudiante actúa como practicante de bienestar universitario: debe facilitar la reunión sin tomar partido por ninguna de las partes.",
+          "version": "1.0.0",
+          "estado": "PUBLICADO",
+          "objetivosAprendizaje": [
+            "Identificar las necesidades y los intereses de cada persona antes de proponer una solución.",
+            "Diferenciar entre facilitar un acuerdo e imponer una solución.",
+            "Reconocer el efecto de exponer a una persona delante de sus compañeros."
+          ],
+          "escenaInicial": "E01",
+          "rubrica": "RUB-01"
+        },
+
+        "personajes": [
+          {
+            "id": "P01",
+            "nombre": "Daniela",
+            "rol": "Residente que pidió la conversación",
+            "caracteristicas": "Madruga por sus prácticas y no ha dicho con claridad que el ruido nocturno le impide descansar."
+          },
+          {
+            "id": "P02",
+            "nombre": "Esteban",
+            "rol": "Residente con turnos de trabajo nocturnos",
+            "caracteristicas": "Llega tarde a casa y siente que lo acusan sin conocer sus horarios."
+          },
+          {
+            "id": "P03",
+            "nombre": "Valentina",
+            "rol": "Residente que evita el conflicto",
+            "caracteristicas": "Suele ceder y guardar silencio para no tomar partido."
+          }
+        ],
+
+        "herramientas": [
+          {
+            "id": "H01",
+            "nombre": "Mapa de actores e intereses",
+            "descripcion": "Herramienta para identificar a las personas involucradas, sus posiciones y los intereses que hay detrás de cada una.",
+            "categoria": "evaluacion"
+          },
+          {
+            "id": "H02",
+            "nombre": "Acuerdo de convivencia",
+            "descripcion": "Formato para registrar, entre todos, los horarios y las normas de uso de los espacios comunes.",
+            "categoria": "comunicacion"
+          }
+        ],
+
+        "escenas": [
+          {
+            "id": "E01",
+            "titulo": "La reunión del apartamento",
+            "orden": 1,
+            "descripcion": "Es jueves por la noche y los tres residentes se reúnen en la sala del apartamento. Daniela dice que lleva semanas durmiendo mal por el ruido que se escucha cuando Esteban llega de su turno. Esteban responde que trabaja de noche y que nadie le había dicho nada. Valentina mira al suelo y no habla.",
+            "participantes": ["P01", "P02", "P03"],
+            "decision": {
+              "id": "D01",
+              "pregunta": "¿Cómo inicia el estudiante su intervención?",
+              "pistas": [
+                "Antes de proponer algo, pregúntese qué necesita cada persona y qué sabe usted de sus horarios.",
+                "Observe quién no ha hablado todavía y qué podría estar evitando."
+              ],
+              "opciones": [
+                {
+                  "id": "OP01",
+                  "texto": "Pedir a cada residente que cuente cómo vive la situación antes de proponer algo",
+                  "siguienteEscena": "E02",
+                  "clasificacion": "ADECUADA",
+                  "herramienta": "H01",
+                  "consecuencia": "Con el mapa de actores a la vista, el estudiante distingue lo que necesita cada persona: Daniela, descansar por las mañanas; Esteban, no sentirse acusado; Valentina, que alguien le pregunte lo que piensa."
+                },
+                {
+                  "id": "OP02",
+                  "texto": "Proponer de inmediato un horario de silencio para todo el apartamento",
+                  "siguienteEscena": "E03",
+                  "clasificacion": "RIESGOSA",
+                  "consecuencia": "La propuesta calma la reunión por unos minutos, pero Esteban siente que le imponen una norma sin haberlo escuchado y Valentina acepta sin decir lo que piensa."
+                },
+                {
+                  "id": "OP03",
+                  "texto": "Pedirle a Esteban que se disculpe con Daniela delante de todos",
+                  "siguienteEscena": "E04",
+                  "clasificacion": "INADECUADA",
+                  "conductaProhibida": true,
+                  "motivoProhibicion": "Expone a una persona ante sus compañeros y le atribuye una culpa antes de conocer su situación.",
+                  "consecuencia": "Esteban se disculpa de mala gana, Daniela se siente incómoda por haber provocado la escena y el grupo queda más distante."
+                }
+              ]
+            }
+          },
+          {
+            "id": "E02",
+            "titulo": "Cada voz en la conversación",
+            "orden": 2,
+            "descripcion": "Cada residente cuenta cómo vive la situación. Daniela explica que sus prácticas empiezan a las cinco de la mañana y que necesita dormir temprano. Esteban cuenta que sale de su turno a las once de la noche y que cocina al llegar porque es su única comida del día. Valentina reconoce que también se despierta, pero que no quería «armar un problema». El ambiente se distiende y el grupo espera una propuesta.",
+            "participantes": ["P01", "P02", "P03"],
+            "decision": {
+              "id": "D02",
+              "pregunta": "Con la situación más clara, ¿qué propone el estudiante?",
+              "pistas": [
+                "Pregúntese quién debería decidir las normas que el grupo va a cumplir."
+              ],
+              "opciones": [
+                {
+                  "id": "OP04",
+                  "texto": "Facilitar que los tres construyan juntos un acuerdo sobre horarios y uso de la sala y la cocina",
+                  "siguienteEscena": "E05",
+                  "clasificacion": "ADECUADA",
+                  "herramienta": "H02",
+                  "consecuencia": "El grupo acuerda horas de silencio entre semana y un lugar para cocinar sin ruido; cada uno propone una concesión y todos aceptan revisar el acuerdo en dos semanas."
+                },
+                {
+                  "id": "OP05",
+                  "texto": "Decidir usted qué horario es justo y comunicárselo al grupo",
+                  "siguienteEscena": "E03",
+                  "clasificacion": "RIESGOSA",
+                  "consecuencia": "El grupo acepta el horario por respeto, pero nadie lo siente como propio y Esteban pregunta quién va a verificar que se cumpla."
+                }
+              ]
+            }
+          },
+          {
+            "id": "E03",
+            "titulo": "Un horario impuesto",
+            "orden": 3,
+            "descripcion": "Fin del caso. El horario se cumple durante dos semanas, pero reaparecen los reproches: la norma no recoge lo que cada uno necesita y nadie se siente responsable de sostenerla. El grupo vuelve a pedir ayuda.",
+            "participantes": ["P01", "P02", "P03"]
+          },
+          {
+            "id": "E04",
+            "titulo": "Una disculpa forzada",
+            "orden": 4,
+            "descripcion": "Fin del caso. La disculpa no resuelve el desacuerdo sobre los horarios. Esteban evita coincidir con Daniela en la sala y Valentina empieza a buscar otro lugar donde vivir.",
+            "participantes": ["P01", "P02", "P03"]
+          },
+          {
+            "id": "E05",
+            "titulo": "Un acuerdo propio",
+            "orden": 5,
+            "descripcion": "Fin del caso. El acuerdo queda escrito y lo firman los tres. Cuando surge un nuevo desacuerdo, el grupo recurre al acuerdo y lo ajusta en lugar de volver a los reproches.",
+            "participantes": ["P01", "P02", "P03"]
+          }
+        ],
+
+        "retroalimentacion": [
+          {
+            "id": "R01",
+            "decision": "D01",
+            "mensaje": "Escuchar a cada persona antes de proponer una solución permite conocer los intereses que hay detrás de las posiciones y evita tratar el conflicto como una disputa de horarios entre dos personas.",
+            "fundamentoTeorico": "Psicología social: conflicto intragrupal y análisis de actores"
+          },
+          {
+            "id": "R02",
+            "opcion": "OP02",
+            "mensaje": "Proponer una norma sin haber escuchado a las partes tiende a producir una aceptación aparente: el grupo cumple por cortesía, pero la norma no recoge lo que cada persona necesita.",
+            "fundamentoTeorico": "Psicología social: toma de decisiones en grupo y participación"
+          },
+          {
+            "id": "R03",
+            "opcion": "OP03",
+            "mensaje": "Exigir una disculpa pública expone a una persona ante sus compañeros y convierte el desacuerdo en una cuestión de culpa, lo que suele aumentar la distancia entre las partes.",
+            "fundamentoTeorico": "Psicología social: presión de grupo y estigmatización"
+          },
+          {
+            "id": "R04",
+            "decision": "D02",
+            "mensaje": "Cuando las personas construyen el acuerdo, se sienten responsables de cumplirlo; una norma impuesta depende de que alguien la vigile.",
+            "fundamentoTeorico": "Psicología social: participación y compromiso con las normas del grupo"
+          }
+        ],
+
+        "rubricas": [
+          {
+            "id": "RUB-01",
+            "nombre": "Rúbrica formativa de intervención en conflictos de convivencia",
+            "descripcion": "Valora el análisis de la situación, la elección de la intervención y la participación de las partes en la solución.",
+            "version": "1.0",
+            "activa": true,
+            "criterios": [
+              {
+                "id": "CR01",
+                "competencia": "ANALISIS_SITUACION",
+                "titulo": "Análisis de la situación y de los actores",
+                "descripcion": "Identifica personas, posiciones e intereses antes de intervenir.",
+                "orden": 1
+              },
+              {
+                "id": "CR02",
+                "competencia": "DECISION_INTERVENCION",
+                "titulo": "Elección de la intervención",
+                "descripcion": "Elige una intervención coherente con el análisis y con sus consecuencias.",
+                "orden": 2
+              },
+              {
+                "id": "CR03",
+                "competencia": "PARTICIPACION",
+                "titulo": "Participación de las partes en la solución",
+                "descripcion": "Facilita que las personas decidan sobre lo que las afecta.",
+                "orden": 3
+              }
+            ]
+          }
+        ],
+
+        "ejecucion": {
+          "estudiantes": [
+            {
+              "id": "EST-01",
+              "nombre": "Estudiante de ejemplo",
+              "correo": "estudiante01@example.org"
+            }
+          ],
+          "intentos": [
+            {
+              "id": "INT-01",
+              "estudiante": "EST-01",
+              "estado": "COMPLETADO",
+              "iniciadoEn": "2026-10-09T15:00:00-05:00",
+              "finalizadoEn": "2026-10-09T15:07:05-05:00",
+              "escenaActual": "E05",
+              "bitacora": {
+                "id": "BIT-01",
+                "creadaEn": "2026-10-09T15:00:00-05:00",
+                "bloqueada": true,
+                "decisiones": [
+                  {
+                    "orden": 1,
+                    "momento": "2026-10-09T15:02:10-05:00",
+                    "aplicada": false,
+                    "opcionElegida": "OP02"
+                  },
+                  {
+                    "orden": 2,
+                    "momento": "2026-10-09T15:04:40-05:00",
+                    "aplicada": true,
+                    "opcionElegida": "OP01"
+                  },
+                  {
+                    "orden": 3,
+                    "momento": "2026-10-09T15:07:05-05:00",
+                    "aplicada": true,
+                    "opcionElegida": "OP04"
+                  }
+                ],
+                "reflexiones": [
+                  {
+                    "escena": "E01",
+                    "texto": "Mi primera idea fue proponer un horario de inmediato, pero aún no sabía qué necesitaba cada uno. Con el mapa de actores entendí que Daniela y Esteban no discuten por el ruido sino por sentirse sin voz.",
+                    "momento": "2026-10-09T15:06:10-05:00"
+                  },
+                  {
+                    "escena": "E02",
+                    "texto": "Prefiero que el acuerdo lo escriban ellos. Si yo decidiera el horario, quedaría como una norma mía y no del grupo.",
+                    "momento": "2026-10-09T15:06:40-05:00"
+                  }
+                ]
+              }
+            }
+          ],
+          "evaluaciones": [
+            {
+              "id": "EV-01",
+              "intento": "INT-01",
+              "rubrica": "RUB-01",
+              "origen": "SISTEMA",
+              "estado": "EVALUADA",
+              "observacionGeneral": "Reconsideró una primera intervención apresurada y llegó a una conclusión coherente con el análisis de los actores.",
+              "evaluadaEn": "2026-10-09T15:07:06-05:00",
+              "valoraciones": [
+                {
+                  "criterio": "CR01",
+                  "nivel": "LOGRADO",
+                  "observacion": "Escuchó a cada residente y usó el mapa de actores antes de proponer una solución."
+                },
+                {
+                  "criterio": "CR02",
+                  "nivel": "EN_PROCESO",
+                  "observacion": "Su primera elección fue imponer un horario; reconsideró después de ver la consecuencia."
+                },
+                {
+                  "criterio": "CR03",
+                  "nivel": "DESTACADO",
+                  "observacion": "Facilitó que los tres construyeran el acuerdo en lugar de decidir por ellos."
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+
+    {
+      "id": "ESCENARIO-2",
+      "nombre": "Escenario 2. Caso con errores: reproches en un equipo de trabajo por un informe atrasado",
+      "tipo": "con-errores",
+      "descripcion": "Borrador con cinco errores deliberados, cada uno atribuible a un solo elemento: OCL-02 en la decisión D01, OCL-03 en la opción OP03, OCL-05 en la opción OP02, OCL-06 en la retroalimentación R02 y OCL-07 en el caso (sin descripción).",
+
+      "caso": {
+        "versionDsl": "1.0",
+
+        "caso": {
+          "id": "CASO-002",
+          "titulo": "Reproches en un equipo de trabajo por un informe atrasado",
+          "tematica": "Psicología social",
+          "descripcion": "",
+          "version": "0.9.0",
+          "estado": "BORRADOR",
+          "objetivosAprendizaje": [
+            "Diferenciar a la persona que incumple de las causas del incumplimiento en el equipo.",
+            "Elegir una intervención que no exponga a un integrante delante de sus compañeros."
+          ],
+          "escenaInicial": "E01"
+        },
+
+        "personajes": [
+          {
+            "id": "P01",
+            "nombre": "Camila",
+            "rol": "Coordinadora del equipo",
+            "caracteristicas": "Responde ante la gerencia por la fecha de entrega y tiende a presionar en público."
+          },
+          {
+            "id": "P02",
+            "nombre": "Julián",
+            "rol": "Analista del equipo",
+            "caracteristicas": "Cubrió el trabajo de un compañero ausente y no lo ha dicho."
+          }
+        ],
+
+        "herramientas": [
+          {
+            "id": "H01",
+            "nombre": "Mapa de actores",
+            "descripcion": "Herramienta para identificar actores e intereses.",
+            "categoria": "evaluacion"
+          }
+        ],
+
+        "escenas": [
+          {
+            "id": "E01",
+            "titulo": "Reunión de seguimiento",
+            "orden": 1,
+            "descripcion": "El informe trimestral lleva tres días de retraso. Camila le reprocha a Julián, delante del equipo, que no cumplió su parte; Julián responde que recibió los datos incompletos y que además cubrió el trabajo de un compañero ausente.",
+            "participantes": ["P01", "P02"],
+            "decision": {
+              "id": "D01",
+              "pregunta": "¿Cómo debería iniciar su intervención el estudiante?",
+              "pistas": [
+                "Pregúntese qué sabe cada persona del retraso antes de sacar conclusiones."
+              ],
+              "opciones": [
+                {
+                  "id": "OP01",
+                  "texto": "Hablar primero con cada persona por separado antes de seguir en grupo",
+                  "siguienteEscena": "E02",
+                  "clasificacion": "ADECUADA",
+                  "herramienta": "H01",
+                  "consecuencia": "Al hablar por separado, Julián cuenta lo que no dijo en la reunión y Camila reconoce que no conocía la carga que él había asumido."
+                }
+              ]
+            }
+          },
+          {
+            "id": "E02",
+            "titulo": "Conversaciones individuales",
+            "orden": 2,
+            "descripcion": "Con lo que escuchó, el estudiante tiene claro que el retraso no es solo de una persona: hubo datos incompletos y una carga de trabajo mal repartida. Camila y Julián esperan una propuesta.",
+            "participantes": ["P01", "P02"],
+            "decision": {
+              "id": "D02",
+              "pregunta": "Con lo que escuchó, ¿qué propone el estudiante?",
+              "opciones": [
+                {
+                  "id": "OP02",
+                  "texto": "Proponer una reunión conjunta con una agenda acordada y un acta de acuerdos",
+                  "siguienteEscena": "E03",
+                  "clasificacion": "ADECUADA",
+                  "herramienta": "H02",
+                  "consecuencia": "Con una agenda acordada, cada persona expone lo que necesita y la reunión se centra en cómo evitar otro retraso."
+                },
+                {
+                  "id": "OP03",
+                  "texto": "Informar a la gerencia quién causó el retraso",
+                  "siguienteEscena": "E09",
+                  "clasificacion": "INADECUADA",
+                  "consecuencia": "La gerencia recibe un nombre, pero el equipo queda dividido y se ocultan las causas del retraso."
+                }
+              ]
+            }
+          },
+          {
+            "id": "E03",
+            "titulo": "Reunión conjunta",
+            "orden": 3,
+            "descripcion": "Fin del caso. Camila y Julián acuerdan cómo recibir los datos completos y cómo repartir la carga de trabajo; el equipo entrega el informe con una nueva fecha y revisa el acuerdo cada semana.",
+            "participantes": ["P01", "P02"]
+          }
+        ],
+
+        "retroalimentacion": [
+          {
+            "id": "R01",
+            "opcion": "OP01",
+            "mensaje": "Conversar con cada persona antes de la reunión conjunta reduce la exposición pública y permite conocer las razones de cada una.",
+            "fundamentoTeorico": "Psicología social: conflicto en grupos y equipos de trabajo"
+          },
+          {
+            "id": "R02",
+            "mensaje": "Atribuir el retraso a una sola persona oculta las causas del equipo, como la distribución del trabajo y la calidad de los datos recibidos.",
+            "fundamentoTeorico": "Psicología social: atribución causal"
+          },
+          {
+            "id": "R03",
+            "decision": "D02",
+            "mensaje": "Una propuesta que parte de lo que dijo cada persona y se decide en conjunto atiende las causas del problema y no solo a quien lo hizo visible.",
+            "fundamentoTeorico": "Psicología social: participación y atribución de causas"
+          }
+        ]
+      }
+    }
+  ]
+}

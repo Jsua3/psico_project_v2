@@ -1,0 +1,115 @@
+"""Una definición de muestra con mundo, personajes, herramientas y una escena que solo se alcanza por una puerta.
+
+La usan las pruebas puras de ``x-siep`` (E4-1b) y las del validador unificado (E4-2b): cuatro escenas
+(``inicio``, ``mapa`` y ``cierre`` en la base; ``recepcion`` solo en ``x-siep``), un personaje con rol y
+otro sin él, dos herramientas (una sin descripción), reglas con métricas y finales, y dos rúbricas.
+"""
+from apps.simulation.casedef.model import (
+    CaseDefinition,
+    Character,
+    CollisionZone,
+    Criterion,
+    DialogueChoice,
+    DialogueLine,
+    DialogueTree,
+    Option,
+    Rubric,
+    Scene,
+    Tool,
+    World,
+    WorldObject,
+)
+
+
+def make_object(key, kind="OBJECT", **extra):
+    return WorldObject(key=key, label=key.title(), type=kind, x=10, y=20, width=48, height=48, **extra)
+
+
+def make_world(key, objects=(), dialogues=(), spawn=(100, 120)):
+    return World(
+        key=key, title=f"Sala {key}", width=960, height=540, theme="hospital", spawn_x=spawn[0], spawn_y=spawn[1],
+        ambient={"music": "calma"},
+        collisions=(CollisionZone(key="pared", label="pared", x=0, y=0, width=960, height=20),),
+        objects=tuple(objects), dialogues=tuple(dialogues),
+    )
+
+
+def sample_definition():
+    inicio = Scene(
+        key="inicio", title="Reunión", narrative="El equipo discute.", start=True, prompt="",
+        hints=("Piensa en los actores.",), x=40, y=60, support=("Línea 106",),
+        options=(
+            Option(
+                key="analizar", text="Analizar", target="mapa", classification="ADEQUATE",
+                consequence="Se ve el mapa.", feedback_text="Analizar ayuda.", theory_basis="Psicología social",
+                immediate_feedback="Bien.", score=10, stress=-5, penalty=0,
+                effects={"severity": "recommended", "flags": {"analizo": True}, "metrics": {"confianza": 5}},
+            ),
+            Option(key="intervenir", text="Intervenir", target="cierre", classification="RISKY",
+                   feedback_text="Solo el mensaje.", immediate_feedback="Apresurado."),
+        ),
+        world=make_world(
+            "sala-inicio",
+            objects=(
+                make_object("laura", "PERSON", character="laura", interaction_prompt="Hablar", interaction_text="Hola",
+                        metadata={"npc": True}),
+                make_object("puerta", "EXIT", metadata={"targetNodeKey": "mapa"}, icon="door_front"),
+                make_object("kit", "TOOL", tool_code="MAPA", option="analizar"),
+            ),
+            dialogues=(
+                DialogueTree(
+                    key="laura", speaker="Laura", portrait_key="laura-1", emotion="neutral", object_key="laura",
+                    lines=(DialogueLine(order=1, speaker="Laura", text="Necesito hablar.", emotion="concerned"),),
+                    choices=(
+                        DialogueChoice(key="c1", text="Analizar los actores", option="analizar", required_tool="MAPA",
+                                       effect={}, order=1),
+                        DialogueChoice(key="c2", text="Intervenir ya", option="intervenir", required_tool=None,
+                                       effect={"x": 1}, order=2),
+                    ),
+                ),
+            ),
+        ),
+    )
+    mapa = Scene(
+        key="mapa", title="Mapa de actores", narrative="Se ordenan.", prompt="¿Y ahora?",
+        options=(Option(key="seguir", text="Seguir", target="cierre", classification="ADEQUATE"),
+                 Option(key="volver", text="Volver", target="cierre", classification="RISKY")),
+        world=make_world("sala-mapa"),
+    )
+    cierre = Scene(key="cierre", title="Cierre", narrative="Fin.", terminal=True, hints=("Una pista suelta.",))
+    recepcion = Scene(
+        key="recepcion", title="Recepción", narrative="Un pasillo que solo se alcanza por una puerta.",
+        sensitive=True, warning="Contenido sensible.",
+        options=(Option(key="salir", text="Salir", target="cierre", classification="ADEQUATE"),),
+        world=make_world("sala-recepcion"),
+    )
+    return CaseDefinition(
+        code="CASO-001", title="Conflicto", description="Descripción.", semantic_version="1.0.0",
+        status="DRAFT", context="Contexto largo.", objectives=("Objetivo uno.",),
+        rules={"secondChance": True, "feedbackTiming": "IMMEDIATE",
+               "metrics": [{"key": "confianza", "initial": 50}],
+               "endings": [{"key": "bueno", "title": "Bueno", "message": "Bien.", "tone": "positive",
+                            "when": {"metric": "confianza", "gte": 60}},
+                           {"key": "base", "title": "Base", "message": "", "tone": "neutral"}]},
+        world_schema_version=2,
+        characters=(
+            Character(key="laura", display_name="Laura", role_label="Líder", portrait_key="laura-1",
+                      show_in_brief=True, display_order=1),
+            Character(key="figurante", display_name="Figurante", role_label="", display_order=2),
+        ),
+        tools=(
+            Tool(code="MAPA", label="Mapa de actores", description="Para ver intereses.", category="evaluacion",
+                 icon="map"),
+            Tool(code="SIN_DESCRIPCION", label="Sin descripción", description="", icon="x", active=False),
+        ),
+        scenes=(inicio, mapa, cierre, recepcion),
+        rubrics=(
+            Rubric(name="Rúbrica", description="Valora.", version="1.0", active=True, criteria=(
+                Criterion(competency="ANALISIS", title="Análisis", description="Identifica.", max_score=5,
+                          weight="60.00", competency_code="ANALISIS"),
+                Criterion(competency="", title="", description="Sin competencia", max_score=5, weight="40.00",
+                          active=False),
+            )),
+            Rubric(name="", description="Sin nombre", criteria=(Criterion(competency="X", title="X"),)),
+        ),
+    )

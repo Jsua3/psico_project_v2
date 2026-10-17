@@ -88,8 +88,17 @@ def _get_version(case_version_id):
 
 
 def _ensure_published(version):
+    """Solo se arranca una versión publicada **y sellada** (E4-4): lo que se ejecuta es lo que se validó."""
     if version.status != "PUBLISHED" or not version.simulation_case.active:
         raise PermissionDenied("El caso no está publicado")
+    if version.validated_at is None or not version.definition_hash:
+        raise ApiError(
+            "CASE_NOT_PUBLISHABLE",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El caso está publicado pero aún no tiene el sello de validación: pide a un administrador "
+            "que lo valide y lo selle antes de empezar.",
+            status.HTTP_409_CONFLICT,
+        )
 
 
 def _require_published(case_version_id):

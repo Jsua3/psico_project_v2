@@ -18,6 +18,9 @@ Reglas (``Violation.rule``):
 - ``permisos-por-politica``: en las vistas, ``permission_classes`` y ``get_permissions`` solo
   nombran ``policy_permission(...)`` (o una variable asignada de él) y ``AllowAny`` de las
   públicas; ninguna clase de rol suelta (E2-4: «ninguna vista decide por su cuenta»).
+- ``publicacion-unica``: solo la compuerta (``services/authoring/gate.py``) escribe el estado
+  ``PUBLISHED`` de una versión (E4-4: «lo que se ejecuta es lo que se validó»); leerlo o escribir
+  otro estado no cuenta.
 
 Las evasiones que la revisión de la fase E0 encontró (imports relativos, alias y
 atributos de ``AllowAny``, SQL en una variable, querysets guardados) están
@@ -54,6 +57,10 @@ QUERYSET_HINTS = {"objects", "filter", "exclude", "all", "get"}
 WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "TRUNCATE", "CREATE")
 EXECUTE_NAMES = {"execute", "executemany"}
 JOIN_TABLES = ("grupo_estudiante", "case_assignments")
+#: El único módulo que escribe el estado ``PUBLISHED`` de una versión (E4-4).
+PUBLISHING_GATE = "apps/simulation/services/authoring/gate.py"
+#: Llamadas que escriben una fila: un ``status=PUBLISHED`` en ellas publica.
+STATUS_WRITES = {"update", "create", "get_or_create", "update_or_create", "CaseVersion"}
 #: Clases de rol que ya no se declaran en una vista: la puerta sale de ``policy_permission``.
 ROLE_PERMISSION_CLASSES = {
     "IsAuthenticated", "IsAdminUser", "IsAdmin", "IsProfesor", "IsProfesorOrAdmin",
@@ -392,6 +399,49 @@ def _permisos_por_politica(rel, tree):
     return found
 
 
+def _is_published(node):
+    """¿El nodo es la constante ``PUBLISHED``, el literal ``"PUBLISHED"`` o un atributo ``….PUBLISHED``?"""
+    if isinstance(node, ast.Constant):
+        return node.value == "PUBLISHED"
+    if isinstance(node, ast.Name):
+        return node.id == "PUBLISHED"
+    return isinstance(node, ast.Attribute) and node.attr == "PUBLISHED"
+
+
+def _status_in_dict(node):
+    return isinstance(node, ast.Dict) and any(
+        isinstance(key, ast.Constant) and key.value == "status" and _is_published(value)
+        for key, value in zip(node.keys, node.values)
+    )
+
+
+def _publicacion_unica(rel, tree):
+    if rel == PUBLISHING_GATE:
+        return []
+    detail = "escribe el estado PUBLISHED (solo la compuerta publica)"
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        elif isinstance(node, ast.Call):
+            name = _call_name(node)
+            writes = name in STATUS_WRITES and any(
+                (keyword.arg == "status" and _is_published(keyword.value))
+                or (keyword.arg == "defaults" and _status_in_dict(keyword.value))
+                for keyword in node.keywords
+            )
+            if writes or (name == "_set_status" and any(_is_published(arg) for arg in node.args)):
+                found.append(Violation("publicacion-unica", rel, detail))
+            continue
+        else:
+            continue
+        if _is_published(value) and any(isinstance(t, ast.Attribute) and t.attr == "status" for t in targets):
+            found.append(Violation("publicacion-unica", rel, detail))
+    return found
+
+
 def check_architecture(root: Path) -> list[Violation]:
     violations: list[Violation] = []
     for rel, tree in _source_files(root):
@@ -426,4 +476,5 @@ def check_architecture(root: Path) -> list[Violation]:
         violations += _allowany_solo_publicas(rel, tree)
         violations += _uniones_por_orm(rel, tree)
         violations += _permisos_por_politica(rel, tree)
+        violations += _publicacion_unica(rel, tree)
     return violations

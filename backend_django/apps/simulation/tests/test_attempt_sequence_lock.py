@@ -16,6 +16,7 @@ from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.progression.catalog import is_case_unlocked
 from apps.progression.services import record_case_completion
 from apps.simulation.models import CaseVersion, SimulationCase, SimulationNode
+from shared.testing import seal_version
 
 pytestmark = pytest.mark.req("SIEP-RF-12")
 
@@ -34,6 +35,7 @@ def _published_version(case, semantic_version, admin):
         simulation_case=case, semantic_version=semantic_version, status="PUBLISHED",
         created_by=admin, published_at=timezone.now(),
     )
+    seal_version(version)  # arrancar un intento exige el sello de la compuerta (E4-4)
     SimulationNode.objects.create(
         case_version=version, node_key="inicio", title="Inicio", narrative="Inicio", start_node=True,
     )
