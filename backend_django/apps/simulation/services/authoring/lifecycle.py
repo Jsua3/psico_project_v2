@@ -25,13 +25,12 @@ from rest_framework import status as http
 
 from apps.simulation.models import CaseReview, CaseVersion
 from apps.simulation.models.case import ReviewDecision, ReviewReason
-from apps.simulation.services import validation_issues
 from shared import policies
 from shared.exceptions import ApiError
 
 from .editor_view import latest_checklist_ratio
 from .guards import check_revision, revision_bump
-from .world_definition import run_world_validation
+from .validation import validate_version
 
 DRAFT = "DRAFT"
 IN_REVIEW = "IN_REVIEW"
@@ -110,7 +109,7 @@ def _require_transition(version, action, actor):
 
 
 def publishing_blockers(version):
-    """Lo que impide enviar o aprobar: lista incompleta y errores de validación del mundo."""
+    """Lo que impide enviar o aprobar: lista incompleta y errores de validación (el mundo y el documento)."""
     blockers = []
     if latest_checklist_ratio(version.id) < 100:
         blockers.append({
@@ -118,13 +117,14 @@ def publishing_blockers(version):
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             "message": "El checklist ético y académico debe estar al 100% antes de enviar el caso a revisión.",
         })
-    errors = run_world_validation(version)["errors"]
+    issues, _ = validate_version(version.id)
+    errors = [issue for issue in issues if issue["severity"] == "error"]
     if errors:
         blockers.append({
             "code": "VALIDATION_ERRORS",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             "message": f"El caso tiene {len(errors)} error(es) de validación que impiden publicarlo.",
-            "issues": validation_issues.build_issues(errors),
+            "issues": errors,
         })
     return blockers
 

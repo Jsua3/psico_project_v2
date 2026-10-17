@@ -1,18 +1,24 @@
-"""El validador del documento base: forma + las 16 reglas del taller (E4-2a).
+"""El validador del documento: la forma y las 16 reglas del taller (E4-2a) y el documento completo (E4-2b).
 
 ``run_rules(documento)`` hace lo que el validador del taller (Fase 4): primero la **forma**, contra
 ``dsl-casos.schema.json`` (los errores que el esquema atribuye a ``OCL-01…08`` los evalúa la función de
 cada regla, no la forma), y después las ocho reglas ``OCL`` y las ocho ``PROP``, siempre todas. El
-resultado es un ``RuleReport``. La clave ``x-siep`` no es parte del DSL del taller: se quita antes de
-mirar la forma (su validación es de E4-2b). Aquí no hay mensajes llanos ni ``ValidationIssue``: eso es
-del traductor de E4-2b; los mensajes de este informe son los del taller, con los ids de DSL.
+resultado es un ``RuleReport``, con los mensajes del taller y sus ids de DSL. La clave ``x-siep`` no es
+parte del DSL del taller: se quita antes de mirar la forma.
+
+``validate_document(documento)`` es el validador **único** del documento completo (R17): los límites,
+la forma y las 16 reglas del taller con sus mensajes por título (``messages``), ``x-siep`` (esquema,
+enlaces, claves, condiciones y métricas: ``siep_check``) y los textos (``text_check``). Devuelve una
+lista de ``Issue`` con código ``DSL.*``, gravedad, ruta y mensaje llano; nunca lanza, sea cual sea el
+documento.
 """
 import functools
 import json
 from pathlib import Path
 
-from . import form
-from .report import CUMPLE, INCUMPLE, NO_APLICA, Finding, Outcome, RuleReport, RuleResult
+from . import form, limits, messages, siep_check, text_check
+from .messages import route_text
+from .report import CUMPLE, ERROR, INCUMPLE, NO_APLICA, PREFIX, WARNING, Finding, Issue, Outcome, RuleReport, RuleResult
 from .rules import REGISTRY
 from . import rules_ocl, rules_prop  # noqa: F401  (registran las reglas, en este orden)
 
@@ -42,17 +48,6 @@ _ROUTE_LABELS = {
 def base_schema():
     """El esquema del taller (copia literal en ``casedef/schema``)."""
     return json.loads((Path(__file__).parent / "schema" / SCHEMA_NAME).read_text(encoding="utf-8"))
-
-
-def route_text(route):
-    """``('escenas', 1, 'decision')`` → ``'escenas[1].decision'``."""
-    text = ""
-    for step in route:
-        if isinstance(step, int):
-            text += f"[{step}]"
-        else:
-            text += ("." if text else "") + str(step)
-    return text or "(raíz)"
 
 
 def _label(kind, obj):
@@ -122,3 +117,41 @@ def run_rules(document, schema=None):
             spec.id, spec.kind, spec.title, state, outcome.evaluados, tuple(outcome.hallazgos), outcome.no_aplica,
         ))
     return RuleReport(tuple(results))
+
+
+def _rule_issues(report, names):
+    """Los hallazgos del taller como ``Issue``: ``DSL.<regla>`` con el mensaje por título."""
+    issues = []
+    for result in report.results:
+        for finding in result.findings:
+            path = "" if finding.path == "(raíz)" else finding.path
+            # Una escena a la que ninguna opción llega es contenido que nadie vería, no un caso roto.
+            severity = WARNING if result.rule == "PROP-02" and path.startswith("escenas[") else ERROR
+            issues.append(Issue(f"{PREFIX}{result.rule}", severity, path, messages.plain_message(finding, names)))
+    return issues
+
+
+def _unique(issues):
+    """Un hallazgo por código y ruta en los que dos pasadas coinciden (topes y textos largos); el primero gana."""
+    seen, kept = set(), []
+    for issue in issues:
+        shared = issue.code.startswith((PREFIX + "TEXT_", PREFIX + "LIMIT_"))
+        key = (issue.code, issue.path) if shared else (issue.code, issue.path, issue.message)
+        if key not in seen:
+            seen.add(key)
+            kept.append(issue)
+    return kept
+
+
+def validate_document(document):
+    """Todos los hallazgos del documento completo (R17), sin lanzar nunca."""
+    exceeded = limits.hard(document)
+    if exceeded:  # un documento fuera de los límites duros no se recorre más
+        return exceeded
+    names = messages.names_of(document)
+    return _unique(
+        limits.soft(document)
+        + _rule_issues(run_rules(document), names)
+        + text_check.check(document, names)
+        + siep_check.check(document, names)
+    )

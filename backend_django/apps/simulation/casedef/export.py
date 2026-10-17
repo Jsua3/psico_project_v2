@@ -48,6 +48,17 @@ def _text(value):
     return value.strip() if isinstance(value, str) else ""
 
 
+def derived_description(definition):
+    """La ``descripcion`` del caso: la suya o, si está vacía, el contexto de la versión.
+
+    La descripción vive en el caso (se escribe al crearlo y no tiene edición posterior); el contexto vive
+    en la versión y se edita con ``PUT …/brief``. Sin este respaldo, un caso creado sin descripción no
+    podría publicarse nunca (OCL-07). Cuando se usa el contexto, ``x-siep.descripcionDerivada`` lo marca
+    para que el importador no lo guarde como descripción.
+    """
+    return definition.description if _text(definition.description) else (definition.context if _text(definition.context) else "")
+
+
 def _width(total):
     return max(2, len(str(total)))
 
@@ -250,8 +261,9 @@ def _base_document(definition, ids):
     }
     if _text(definition.title):
         caso["titulo"] = definition.title
-    if _text(definition.description):
-        caso["descripcion"] = definition.description
+    description = derived_description(definition)
+    if description:
+        caso["descripcion"] = description
     objectives = [text for text in definition.objectives if _text(text)]
     if objectives:
         caso["objetivosAprendizaje"] = objectives

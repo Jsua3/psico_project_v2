@@ -169,6 +169,17 @@ def test_missing_text_is_omitted_not_invented():
     assert "objetivosAprendizaje" not in doc["caso"]
 
 
+def test_an_empty_case_description_falls_back_to_the_context_of_the_version():
+    """La descripción del caso no se puede editar después de crearlo; el contexto sí (``PUT …/brief``)."""
+    doc = to_base_document(_definition(description="", context="El equipo trabaja en un proyecto."))
+    assert doc["caso"]["descripcion"] == "El equipo trabaja en un proyecto."
+
+
+def test_a_case_description_wins_over_the_context():
+    doc = to_base_document(_definition(description="Descripción del caso.", context="Contexto largo."))
+    assert doc["caso"]["descripcion"] == "Descripción del caso."
+
+
 def test_a_draft_without_a_start_scene_exports_without_an_initial_scene():
     scenes = tuple(Scene(**{**s.__dict__, "start": False}) for s in _definition().scenes)
     doc = to_base_document(_definition(scenes=scenes))

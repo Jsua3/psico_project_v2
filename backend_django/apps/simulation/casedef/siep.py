@@ -185,4 +185,6 @@ def build(definition, ids):
     }
     if _text(definition.context):
         siep["contexto"] = definition.context
+        if not _text(definition.description):
+            siep["descripcionDerivada"] = True  # la base lleva el contexto como descripción: no se guarda como tal
     return siep

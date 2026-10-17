@@ -9,6 +9,24 @@ from dataclasses import dataclass
 
 CUMPLE, INCUMPLE, NO_APLICA = "CUMPLE", "INCUMPLE", "NO_APLICA"
 VALID, WITH_ERRORS = "valido", "con-errores"
+ERROR, WARNING = "error", "warning"
+#: Prefijo de los códigos del validador del documento (``DSL.OCL-02``, ``DSL.SIEP_REF``…).
+PREFIX = "DSL."
+
+
+@dataclass(frozen=True)
+class Issue:
+    """Un hallazgo del validador del documento, ya en lenguaje llano (E4-2b, R17 y R19).
+
+    ``code`` es estable (``DSL.OCL-02``, ``DSL.SIEP_REF``, ``DSL.TEXT_MARKUP``…); ``path`` es la ruta en
+    el documento (``escenas[1].decision.opciones``; vacía = el documento entero); ``message`` nombra
+    los elementos por su título, nunca por un id de DSL.
+    """
+
+    code: str
+    severity: str
+    path: str
+    message: str
 
 
 @dataclass(frozen=True)

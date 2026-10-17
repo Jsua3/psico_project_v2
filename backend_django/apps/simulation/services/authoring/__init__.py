@@ -15,6 +15,9 @@ fachada ``services/authoring_service.py``, que además aplica la auditoría.
 - ``publication``      — checklist, publicar y clonar una versión.
 - ``world_definition`` — el editor de mundo (WorldDefinition v2): leer, guardar,
                          validar y previsualizar.
+- ``definition_io``    — las filas de una versión ↔ el modelo puro ↔ el documento canónico (E4).
+- ``validation``       — la validación única de una versión: el mundo (``WORLD.*``) y el documento
+                         (``DSL.*``) en una sola lista de ``ValidationIssue`` (E4-2b).
 
 Dependencias (sin ciclos): ``guards`` y ``request_utils`` no importan nada del paquete;
 ``editor_view`` importa ``guards``; ``graph`` y ``scenes`` importan ``editor_view``,

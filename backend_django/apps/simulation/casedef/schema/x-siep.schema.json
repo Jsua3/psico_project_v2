@@ -9,6 +9,7 @@
   "properties": {
     "version": { "const": "1.0" },
     "contexto": { "type": "string", "maxLength": 4000 },
+    "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
     "mundoVersion": { "type": "integer", "minimum": 1 },
     "reglas": { "$ref": "#/$defs/reglas" },
     "personajes": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/personaje" } },

@@ -1,10 +1,10 @@
 """E2-8 · ``ValidationIssue``: la validación del caso con una forma única (contrato C6).
 
 ``POST …/cases/{id}/validate`` devuelve ``{issues, canPublish}``; cada ``issue`` trae un
-``code`` estable (los 17 errores y los 2 avisos del validador, con prefijo ``WORLD.``), un
-``message`` en lenguaje llano **sin ids** que nombra la escena o el mapa por su título, y el
-``nodeId``/``mapId`` al que el editor puede llevar el foco. ``/world/validate`` conserva la
-forma heredada.
+``code`` estable (los errores y avisos del validador del mundo con prefijo ``WORLD.``; E4 suma los del
+documento con prefijo ``DSL.``), un ``message`` en lenguaje llano **sin ids** que nombra la escena o el
+mapa por su título, y el ``nodeId``/``mapId`` al que el editor puede llevar el foco.
+``/world/validate`` conserva la forma heredada.
 """
 import ast
 import re
@@ -59,7 +59,9 @@ def test_every_code_the_validator_can_emit_has_a_plain_message():
     """Un código nuevo en el validador sin plantilla en lenguaje llano rompe esta prueba."""
     emitted = _codes_in_the_validator()
 
-    assert len(emitted) == 20  # 17 errores + 3 avisos (#67; E3-7 añade «decisión sin retroalimentación»)
+    # 17 errores + 3 avisos (#67; E3-7 añade «decisión sin retroalimentación») + 3 errores de E4
+    # (OPTION_WITHOUT_TRIGGER, REQUIRES_UNKNOWN, DOOR_TARGET_MISSING).
+    assert len(emitted) == 23
     assert emitted == set(validation_issues.PLAIN)
 
 
@@ -89,7 +91,7 @@ def test_the_shape_is_issues_and_can_publish(admin, case):
     for issue in result["issues"]:
         assert set(issue) >= {"code", "severity", "message"}
         assert issue["severity"] in ("error", "warning")
-        assert issue["code"].startswith("WORLD.")
+        assert issue["code"].startswith(("WORLD.", "DSL."))
 
 
 def test_messages_name_the_scene_by_its_title_and_carry_the_focus_target(admin, case):
@@ -185,4 +187,4 @@ def test_a_blocked_submit_reports_the_plain_issues(admin, owner):
 
     assert response.status_code == 409
     blocker = next(b for b in response.data["blockers"] if b["code"] == "VALIDATION_ERRORS")
-    assert blocker["issues"] and all(i["code"].startswith("WORLD.") for i in blocker["issues"])
+    assert blocker["issues"] and all(i["code"].startswith(("WORLD.", "DSL.")) for i in blocker["issues"])
