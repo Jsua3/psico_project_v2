@@ -20,3 +20,17 @@ def test_dockerfile_arranca_gunicorn_con_gthread_y_hilos_dimensionados():
     assert "--worker-class gthread" in dockerfile
     assert "--workers 3" in dockerfile
     assert "--threads 4" in dockerfile
+
+
+@pytest.mark.req("RNF-06", "RNF-006")
+def test_respaldo_restauracion_y_runbook_jornada_academica_presentes():
+    script_path = REPO_ROOT / "scripts" / "ops" / "backup-restore.mjs"
+    assert script_path.exists()
+    script_text = script_path.read_text(encoding="utf-8")
+    assert "pg_dump" in script_text
+    assert "crypto_service.decrypt" in script_text
+
+    runbook = (REPO_ROOT / "docs" / "operacion" / "despliegue-railway.md").read_text(encoding="utf-8")
+    assert "Runbook de la jornada académica" in runbook
+    assert "Lista de seguridad de PostgreSQL" in runbook
+

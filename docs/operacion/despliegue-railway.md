@@ -141,3 +141,40 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
   `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
   las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían
   no descifrarse. No afecta al resto de la app.
+
+---
+
+## 6. Runbook de la jornada académica (E5-5: RNF-06, RNF-006)
+
+Para sostener ≥ 99,5 % de disponibilidad mensual durante las prácticas supervisadas (40–120 estudiantes concurrentes):
+
+1. **Congelamiento de despliegues (T − 24 h antes de la jornada):**
+   - No fusionar cambios a la rama de despliegue durante las 24 horas previas ni durante la franja de clase.
+   - Confirmar que el job nocturno `load` (`scripts/load/aula.mjs`) pasó con 40 estudiantes ($p95 \le 2\text{ s}$) y 120 estudiantes ($p95 \le 4\text{ s}$, tasa de error $\le 1\%$).
+2. **Migraciones y esquema antes de la clase:**
+   - El contenedor ejecuta `python manage.py migrate --noinput` automáticamente antes de arrancar `gunicorn` (`--worker-class gthread --workers 3 --threads 4`).
+   - Si una versión nueva incluye migraciones, desplegarla y verificar `GET /api/health` (`200 {"status": "ok", "db": "ok"}`) **antes** del inicio de la ventana de congelamiento.
+3. **Respaldo previo y verificación de restauración:**
+   - Ejecutar un respaldo lógico con `pg_dump --no-owner --no-acl` antes de abrir la ventana de la cohorte.
+   - Verificar periódicamente la cadena de respaldo, restauración de conteos por tabla y descifrado de `ReflectionJournal` ejecutando:
+     ```bash
+     node scripts/ops/backup-restore.mjs
+     ```
+4. **Monitoreo durante la jornada:**
+   - Vigilar `GET /api/health` y los logs estructurados JSON (`request_id`, `duration_ms`, `status_code`).
+   - Revisar la lista de seguridad de PostgreSQL de la sección [§7. Lista de seguridad de PostgreSQL para el despliegue](#7-lista-de-seguridad-de-postgresql-para-el-despliegue-92).
+
+---
+
+## 7. Lista de seguridad de PostgreSQL para el despliegue (§9.2)
+
+Lista de verificación al aprovisionar o auditar la base de datos de producción (anotada por decisión ED-13):
+
+1. **Row-Level Security (LS-4, ED-13):** la autorización vive hoy en la capa de servicio con matriz ejecutable (`shared/policies.py` y `shared/policy-matrix.json`); reabrir RLS si aparece un segundo cliente directo de la base o si la revisión de despliegue lo exige.
+2. **Separación de roles:** el rol de ejecución de la aplicación no debe ser superusuario ni tener permisos DDL (únicamente `SELECT`, `INSERT`, `UPDATE`, `DELETE` sobre las tablas del esquema); usar credenciales separadas para el paso `migrate` previo a `gunicorn`.
+3. **Red y transporte:** PostgreSQL sin puerto público expuesto a Internet, alcanzable únicamente desde la red interna del servicio; exigir TLS (`sslmode=require` o superior) si la base y la aplicación no comparten red privada aislada.
+4. **Autenticación y secretos:** autenticación `scram-sha-256` y contraseñas de alta entropía fuera del repositorio (`DATABASE_URL` / `DB_PASSWORD`, además de `REFLECTION_ENCRYPTION_KEY` independiente de `DJANGO_SECRET_KEY`).
+5. **Respaldos cifrados y restaurables (E5-5):** volcados cifrados en reposo y restauración verificada con `node scripts/ops/backup-restore.mjs` (incluyendo la prueba de descifrado AES-GCM de `reflection_journals`, dado que contienen reflexiones clínicas y datos personales bajo Ley 1581).
+6. **Versión y parches:** PostgreSQL 18 como línea base (`postgres:18-alpine`, ED-3 / E0-6) con política activa de parches menores.
+7. **Registro operativo:** conexiones, desconexiones y fallos de autenticación habilitados en los registros del motor para correlación con `X-Request-Id`.
+
