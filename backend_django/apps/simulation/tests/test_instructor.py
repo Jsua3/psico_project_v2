@@ -204,3 +204,93 @@ def test_trace_exposes_reconsidered_answers_apart_from_decisions(estudiante, pro
     retry_rows = [t for t in trace["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
     assert [t["type"] for t in retry_rows] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
     assert [e["type"] for e in trace["events"] if e["type"].endswith("RETRY_REQUIRED")] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
+
+
+# --- E5-6: Revisión docente paginada e IdentityPresenter --------------------
+@pytest.mark.req("RF-25", "CU-14", "RQ-NEG-006")
+def test_paginated_attempts_filters_and_exceeds_20_without_published_filter(
+    estudiante, profesor, case_version_id
+):
+    import uuid
+    from apps.simulation.models import SimulationAttempt, SimulationNode
+
+    grupo = assign_case_to_student(estudiante, case_version_id, "INST-PAG", profesor=profesor)
+    published_cv = CaseVersion.objects.select_related("simulation_case").get(pk=case_version_id)
+    archived_cv = CaseVersion.objects.create(
+        simulation_case=published_cv.simulation_case,
+        semantic_version="99.0.0",
+        status="ARCHIVED",
+        created_by=profesor,
+    )
+    start_node = SimulationNode.objects.filter(case_version_id=case_version_id, start_node=True).first()
+
+    for i in range(21):
+        SimulationAttempt.objects.create(
+            attempt_token_hash=uuid.uuid4().hex,
+            student=estudiante,
+            case_version=published_cv,
+            current_node=start_node,
+            status="COMPLETED",
+            accumulated_score=50 + i,
+            active_seconds=120,
+        )
+    archived_attempt = SimulationAttempt.objects.create(
+        attempt_token_hash=uuid.uuid4().hex,
+        student=estudiante,
+        case_version=archived_cv,
+        current_node=start_node,
+        status="PAUSED",
+        accumulated_score=30,
+        active_seconds=45,
+    )
+
+    client = cl(profesor)
+    all_resp = client.get(f"/api/instructor/attempts?grupoId={grupo.id}")
+    assert all_resp.status_code == 200
+    payload = all_resp.data["data"]
+    assert payload["coverage"] == {"shown": 22, "total": 22}
+    assert any(item["attemptId"] == str(archived_attempt.id) for item in payload["items"])
+
+    page1 = client.get(f"/api/instructor/attempts?grupoId={grupo.id}&page=1&pageSize=10").data["data"]
+    assert page1["coverage"] == {"shown": 10, "total": 22}
+    assert page1["page"] == 1
+    assert page1["pageSize"] == 10
+
+    paused_only = client.get(
+        f"/api/instructor/attempts?grupoId={grupo.id}&estudianteId={estudiante.id}"
+        f"&caseVersionId={archived_cv.id}&estado=PAUSED"
+    ).data["data"]
+    assert paused_only["coverage"] == {"shown": 1, "total": 1}
+    assert paused_only["items"][0]["attemptId"] == str(archived_attempt.id)
+    assert paused_only["items"][0]["caseVersionStatus"] == "ARCHIVED"
+
+
+@pytest.mark.req("RF-25", "CU-14")
+def test_paginated_attempts_forbids_foreign_group(estudiante, profesor, otro_profesor, case_version_id):
+    grupo = assign_case_to_student(estudiante, case_version_id, "INST-FOR-GRP", profesor=profesor)
+    resp = cl(otro_profesor).get(f"/api/instructor/attempts?grupoId={grupo.id}")
+    assert resp.status_code == 403
+
+
+@pytest.mark.req("RF-25", "CU-14", "RQ-NEG-006")
+def test_identity_presenter_stable_alias_per_instructor_and_dashboard_links_attempt(
+    estudiante, profesor, otro_profesor, case_version_id
+):
+    from shared.identity import IdentityPresenter
+
+    attempt_id = _play_one_decision(estudiante, case_version_id, "INST-IDP", profesor=profesor)
+    alias_p1 = IdentityPresenter.alias_for(estudiante.id, viewer=profesor)
+    alias_p2 = IdentityPresenter.alias_for(estudiante.id, viewer=otro_profesor)
+    assert alias_p1.startswith("Estudiante-")
+    assert alias_p1 != f"Estudiante-{estudiante.id}"
+    assert alias_p1 != alias_p2
+
+    trace_data = cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
+    assert trace_data["studentAlias"] == alias_p1
+
+    dash = cl(profesor).get("/api/reportes/dashboard").data["data"]
+    row = next(i for i in dash["ultimosIntentos"] if i["attemptId"] == attempt_id)
+    assert row["id"] == attempt_id
+    assert row["estudiante"] == "Est Inst"
+    assert row["studentAlias"] == alias_p1
+

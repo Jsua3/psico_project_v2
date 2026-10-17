@@ -23,6 +23,7 @@ from apps.simulation.models.attempt import (
 )
 from apps.simulation.models.rubric import RubricEvaluation
 from apps.simulation.services.instructor_scope import student_ids_for_instructor
+from shared.identity import IdentityPresenter
 
 User = get_user_model()
 
@@ -34,7 +35,7 @@ SCORED_STATUSES = [AttemptStatus.COMPLETED, AttemptStatus.SAFE_EXITED]
 
 
 def _nombre_completo(user):
-    return f"{user.nombre} {user.apellido}"
+    return IdentityPresenter.display_name(user)
 
 
 def _grupo_student_ids(grupo_id):
@@ -120,8 +121,10 @@ def get_dashboard(usuario):
     ultimos_intentos = [
         {
             "id": str(a.id),
+            "attemptId": str(a.id),
             "casoTitulo": a.case_version.simulation_case.title,
             "estudiante": _nombre_completo(a.student),
+            "studentAlias": IdentityPresenter.alias_for(a.student_id, viewer=usuario),
             "puntaje": a.accumulated_score,
             "estado": a.status,
         }
@@ -371,7 +374,7 @@ def generar_reporte_estudiante(student_id, case_version_id, limit, usuario):
     ]
     mostrados = visibles[:limit]
     return {
-        "student": {"ref": f"Estudiante-{estudiante.id}", "displayName": _nombre_completo(estudiante)},
+        "student": {"ref": IdentityPresenter.student_ref(estudiante.id), "displayName": _nombre_completo(estudiante)},
         "attempts": [
             {
                 "attemptId": str(a.id),

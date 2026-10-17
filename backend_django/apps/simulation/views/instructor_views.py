@@ -2,13 +2,54 @@
 
 All endpoints PROFESOR/ADMIN.
 """
+from rest_framework import status
 from rest_framework.views import APIView
 
+from shared.exceptions import ApiError
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from apps.simulation.serializers.requests import ReplaceAttemptRequest
 from apps.simulation.services import instructor_service
+
+
+def _int_param(request, *names):
+    for name in names:
+        raw = request.query_params.get(name)
+        if raw is not None and raw != "":
+            try:
+                return int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ApiError(
+                    "INVALID_QUERY_PARAM",
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                    f"El parámetro '{name}' debe ser un número entero.",
+                    status.HTTP_400_BAD_REQUEST,
+                ) from exc
+    return None
+
+
+class InstructorAttemptsView(APIView):
+    permission_classes = [policy_permission("attempt", "review")]
+
+    def get(self, request):
+        grupo_id = _int_param(request, "grupoId", "groupId")
+        estudiante_id = _int_param(request, "estudianteId", "studentId")
+        case_version_id = _int_param(request, "caseVersionId")
+        estado = request.query_params.get("estado") or request.query_params.get("status")
+        page = _int_param(request, "page") or 1
+        page_size = _int_param(request, "pageSize", "limit") or instructor_service.DEFAULT_PAGE_SIZE
+        return api_ok(
+            instructor_service.list_attempts(
+                request.user,
+                grupo_id=grupo_id,
+                estudiante_id=estudiante_id,
+                case_version_id=case_version_id,
+                estado=estado,
+                page=page,
+                page_size=page_size,
+            )
+        )
 
 
 class RecentAttemptsView(APIView):
