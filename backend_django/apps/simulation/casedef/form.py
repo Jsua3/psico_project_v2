@@ -32,6 +32,24 @@ def _same(a, b):
     return a == b
 
 
+def _freeze(value):
+    """Un valor hashable que es igual a otro cuando lo son los valores (``==`` de Python, también dentro)."""
+    if isinstance(value, list):
+        return ("l", tuple(_freeze(item) for item in value))
+    if isinstance(value, dict):
+        return ("d", frozenset((key, _freeze(item)) for key, item in value.items()))
+    try:
+        hash(value)
+    except TypeError:  # no es JSON: nunca llega de un documento, pero tampoco debe tumbar al validador
+        return ("x", repr(value))
+    return value
+
+
+def _identity(item):
+    """La clave de ``uniqueItems`` de un elemento: dos son repetidos si y solo si ``_same`` lo dice."""
+    return (True, item) if isinstance(item, bool) else (False, _freeze(item))
+
+
 def _is_type(value, kind):
     if kind == "object":
         return isinstance(value, dict)
@@ -120,12 +138,13 @@ class _Interpreter:
             if "minItems" in node and len(inst) < node["minItems"]:
                 error("minItems", f"la lista tiene {len(inst)} elemento(s); se exigen al menos {node['minItems']}")
             if node.get("uniqueItems"):
-                seen = []
+                seen = set()  # una sola pasada: comparar cada elemento con todos los anteriores era cuadrático
                 for item in inst:
-                    if any(_same(item, other) for other in seen):
+                    identity = _identity(item)
+                    if identity in seen:
                         error("uniqueItems", "la lista tiene elementos repetidos")
                         break
-                    seen.append(item)
+                    seen.add(identity)
             if "items" in node:
                 for position, item in enumerate(inst):
                     self._validate(item, node["items"], route + (position,), None, fixed, out)

@@ -194,8 +194,36 @@ def _linked_ids(found, siep, document):
         if isinstance(scene.get("id"), str):
             options[scene["id"]] = _ids_of(decision.get("opciones"))
     for position, entry in _items(siep.get("escenas")):
-        known = options.get(entry.get("id"), set())
+        scene_id = entry.get("id")
+        known = options.get(scene_id, set()) if isinstance(scene_id, str) else set()
         check((SIEP_KEY, "escenas", position, "opciones"), entry.get("opciones"), known, "la opción")
+
+
+def _unlisted(found, siep, document):
+    """Lo que la base trae y la lista de ``x-siep`` no nombra se rechaza: el importador solo lee las entradas de
+    ``x-siep`` cuando la lista existe, y un personaje, una herramienta, una rúbrica o un criterio sin entrada
+    se perdería sin avisar."""
+    for list_name, noun in (("personajes", "el personaje"), ("herramientas", "la herramienta"), ("rubricas", "la rúbrica")):
+        if not isinstance(siep.get(list_name), list):
+            continue
+        listed = _ids_of(siep[list_name])
+        for _, item in _items(document.get(list_name)):
+            ident = item.get("id")
+            if isinstance(ident, str) and ident not in listed:
+                found.add(REF, (SIEP_KEY, list_name), f"en x-siep falta {noun} {_shown(found.names.get(ident, ident))} del documento.")
+    base = {rubric["id"]: rubric for _, rubric in _items(document.get("rubricas")) if isinstance(rubric.get("id"), str)}
+    for position, entry in _items(siep.get("rubricas")):
+        rubric = base.get(entry["id"]) if isinstance(entry.get("id"), str) else None
+        if rubric is None or not isinstance(entry.get("criterios"), list):
+            continue
+        listed = _ids_of(entry["criterios"])
+        for _, criterion in _items(rubric.get("criterios")):
+            ident = criterion.get("id")
+            if isinstance(ident, str) and ident not in listed:
+                found.add(
+                    REF, (SIEP_KEY, "rubricas", position, "criterios"),
+                    f"en x-siep falta el criterio {_shown(found.names.get(ident, ident))} de la rúbrica.",
+                )
 
 
 def _links(document, siep, names):
@@ -205,6 +233,7 @@ def _links(document, siep, names):
     }
     entries = _scene_links(base, siep, found)
     _linked_ids(found, siep, document)
+    _unlisted(found, siep, document)
     characters = _register(found, siep, "personajes", "clave", "la clave del personaje")
     tools = _register(found, siep, "herramientas", "codigo", "el código de la herramienta")
 

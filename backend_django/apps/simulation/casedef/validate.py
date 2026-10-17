@@ -14,6 +14,7 @@ documento.
 """
 import functools
 import json
+import logging
 from pathlib import Path
 
 from . import form, limits, messages, siep_check, text_check
@@ -21,6 +22,8 @@ from .messages import route_text
 from .report import CUMPLE, ERROR, INCUMPLE, NO_APLICA, PREFIX, WARNING, Finding, Issue, Outcome, RuleReport, RuleResult
 from .rules import REGISTRY
 from . import rules_ocl, rules_prop  # noqa: F401  (registran las reglas, en este orden)
+
+logger = logging.getLogger("siep.casedef")
 
 SCHEMA_NAME = "dsl-casos.schema.json"
 SIEP_KEY = "x-siep"
@@ -143,8 +146,12 @@ def _unique(issues):
     return kept
 
 
-def validate_document(document):
-    """Todos los hallazgos del documento completo (R17), sin lanzar nunca."""
+def validate_unguarded(document):
+    """Todos los hallazgos del documento completo (R17), sin la red de seguridad de ``validate_document``.
+
+    Cada paso es defensivo con los tipos de lo que lee; esta función existe para que las pruebas vean
+    una excepción que la red de seguridad ocultaría.
+    """
     exceeded = limits.hard(document)
     if exceeded:  # un documento fuera de los límites duros no se recorre más
         return exceeded
@@ -155,3 +162,22 @@ def validate_document(document):
         + text_check.check(document, names)
         + siep_check.check(document, names)
     )
+
+
+def validate_document(document):
+    """Todos los hallazgos del documento completo (R17), sin lanzar nunca.
+
+    Un documento que llega de fuera puede traer cualquier forma. Si, aun así, un paso falla por algo que
+    nadie previó, el documento se rechaza con un error de forma (400 en la importación) y el fallo queda
+    en el registro del servidor: jamás un 500 que el autor no sabe cómo arreglar.
+    """
+    try:
+        return validate_unguarded(document)
+    except Exception:  # noqa: BLE001 - la red de seguridad de un límite con entradas hostiles
+        logger.exception("casedef: el validador falló con un documento ajeno")
+        return [Issue(
+            f"{PREFIX}FORMA", ERROR, "",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El documento tiene una forma que no se pudo revisar: comprueba que cada lista, objeto y texto "
+            "sea del tipo que indica el formato.",
+        )]

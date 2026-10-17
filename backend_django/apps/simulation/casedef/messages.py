@@ -57,6 +57,11 @@ def _dicts(value):
     return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
 
 
+def _name(names, ident):
+    """``names[ident]`` o ``None``: un id que no es un texto (una lista, un objeto) no es hashable ni nombra nada."""
+    return names.get(ident) if isinstance(ident, str) else None
+
+
 def names_of(document):
     """``{id de DSL: nombre}`` de cada elemento de la base que tiene id y algo con qué nombrarlo."""
     names = {}
@@ -89,7 +94,7 @@ def names_of(document):
         for criterion in _dicts(rubric.get("criterios")):
             put(criterion, "titulo")
     for feedback in _dicts(document.get("retroalimentacion")):
-        target = names.get(feedback.get("opcion")) or names.get(feedback.get("decision"))
+        target = _name(names, feedback.get("opcion")) or _name(names, feedback.get("decision"))
         if isinstance(feedback.get("id"), str) and target:
             names[feedback["id"]] = target
     return names
@@ -121,7 +126,7 @@ def _name_of(node, keys, names):
     for key in keys:
         if _clip(node.get(key)):
             return _clip(node[key])
-    return _clip(names.get(node.get("id"))) or _clip(node.get("clave")) or _clip(node.get("codigo"))
+    return _clip(_name(names, node.get("id"))) or _clip(node.get("clave")) or _clip(node.get("codigo"))
 
 
 def locate(document, route, names):

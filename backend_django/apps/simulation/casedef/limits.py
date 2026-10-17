@@ -15,6 +15,9 @@ MAX_SCENES = 200
 MAX_OPTIONS_PER_DECISION = 50
 MAX_CHARACTERS = 100
 MAX_TOOLS = 100
+#: Es el tope del editor (``services.authoring.cases.MAX_OBJECTIVES``): este paquete no importa Django y una
+#: prueba compara las dos constantes.
+MAX_OBJECTIVES = 12
 
 
 def measure(document):
@@ -78,4 +81,11 @@ def soft(document):
         found = _list(document.get(key))
         if len(found) > maximum:
             issues.append(_issue(key, f"El caso tiene {len(found)} {noun}: admite hasta {maximum}."))
+    caso = document.get("caso")
+    objectives = _list(caso.get("objetivosAprendizaje")) if isinstance(caso, dict) else []
+    if len(objectives) > MAX_OBJECTIVES:
+        issues.append(_issue(
+            "caso.objetivosAprendizaje",
+            f"El caso tiene {len(objectives)} objetivos de aprendizaje: admite hasta {MAX_OBJECTIVES}.",
+        ))
     return issues

@@ -55,7 +55,11 @@ DEFAULT_MAX_SCORE = 20
 DEFAULT_WEIGHT = "0.00"
 
 # BORRADOR: los textos de los avisos son nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
-_TOKEN = re.compile(r'"(?:[^"\\]|\\.)*"|[\[\]{}]')
+#: Lo único que el medidor de profundidad mira: una comilla (empieza una cadena) o un corchete o llave.
+_STRUCTURE = re.compile(r'["\[\]{}]')
+#: El resto de una cadena hasta su comilla de cierre. El bucle desenrollado tiene dos alternativas que no se
+#: solapan, así que un fallo se deshace una sola vez: nada de retrocesos cuadráticos con una cadena sin cerrar.
+_STRING_REST = re.compile(r'[^"\\]*(?:\\.[^"\\]*)*"', re.DOTALL)
 
 
 class ImportRejected(Exception):
@@ -72,15 +76,27 @@ def _reject(code, message):
 
 # ─── 1. lectura segura ────────────────────────────────────────────────────────────────────────
 def _check_depth(text):
-    """Rechaza un anidamiento de más de ``MAX_DEPTH`` niveles sin interpretar el texto (ni recursión)."""
-    depth = 0
-    for token in _TOKEN.finditer(text):
-        char = token.group()
-        if char in "[{":
+    """Rechaza un anidamiento de más de ``MAX_DEPTH`` niveles sin interpretar el texto (ni recursión).
+
+    Cada carácter se mira una sola vez: una cadena que no se cierra corta la lectura (``json.loads`` la
+    rechaza después con su propio mensaje) en lugar de reintentarse desde cada comilla escapada.
+    """
+    depth, position = 0, 0
+    while True:
+        found = _STRUCTURE.search(text, position)
+        if found is None:
+            return
+        char, position = found.group(), found.end()
+        if char == '"':
+            rest = _STRING_REST.match(text, position)
+            if rest is None:
+                return
+            position = rest.end()
+        elif char in "[{":
             depth += 1
             if depth > MAX_DEPTH:
                 _reject(LIMIT, f"El documento está anidado a demasiada profundidad: admite hasta {MAX_DEPTH} niveles.")
-        elif char in "]}":
+        else:
             depth -= 1
 
 
@@ -372,7 +388,9 @@ def _scene(index, entry, base_scene, document, keys, feedback, characters):
         options = _base_options(base_scene, entry, keys, feedback)
         title, narrative = _text(base_scene.get("titulo")), _text(base_scene.get("descripcion"))
         sensitive, warning = bool(base_scene.get("contenidoSensible", False)), _text(base_scene.get("advertencia"))
-        prompt = "" if entry and entry.get("preguntaDerivada") else _text(decision.get("pregunta"))
+        question = _text(decision.get("pregunta"))
+        # La marca solo vale mientras la pregunta siga siendo la neutra del export: si el autor escribió la suya, es suya.
+        prompt = "" if entry and entry.get("preguntaDerivada") and question == export.DERIVED_PROMPT else question
         hints = tuple(_text(h) for h in decision.get("pistas", ())) or tuple(entry.get("pistas", ()) if entry else ())
     else:
         options = _entry_options(entry)
@@ -408,6 +426,12 @@ def _context(caso, siep):
     return "" if siep else _text(caso.get("descripcion"))
 
 
+def _description(caso, siep):
+    """La descripción del caso; vacía si la base solo lleva el contexto (``descripcionDerivada``) sin que el autor la cambie."""
+    description = _text(caso.get("descripcion"))
+    return "" if siep.get("descripcionDerivada") and description == _text(siep.get("contexto")) else description
+
+
 def to_definition(document):
     """La ``CaseDefinition`` de un documento que ya pasó el validador (lo contrario de ``export``)."""
     caso = document["caso"]
@@ -425,7 +449,7 @@ def to_definition(document):
     )
     return CaseDefinition(
         code=caso["id"], title=_text(caso.get("titulo")),
-        description="" if siep.get("descripcionDerivada") else _text(caso.get("descripcion")),
+        description=_description(caso, siep),
         semantic_version=_text(caso.get("version")), status="DRAFT", context=_context(caso, siep),
         objectives=tuple(o for o in caso.get("objetivosAprendizaje", ()) if isinstance(o, str)),
         rules=siep.get("reglas", {}), world_schema_version=siep.get("mundoVersion", 2),
