@@ -56,12 +56,15 @@ const NODE_BODY = {
 };
 
 /**
- * Un borrador con el mundo completo: dos escenas unidas por una decisión con su retroalimentación escrita (E3: una
- * decisión sin ella es un aviso de validación), un mapa por escena, una salida segura y la lista de publicación al
- * 100 %. Sin errores ni avisos de validación: se puede enviar a revisión y publicar.
+ * Un borrador con el mundo completo: dos escenas unidas por una decisión de dos opciones (E4: OCL-02 exige al menos
+ * dos), cada una con su retroalimentación escrita (E3: una decisión sin ella es un aviso de validación) y un objeto del
+ * mapa que la ofrece (E4: una opción que ningún diálogo ni objeto ofrece no se puede elegir), la descripción del caso
+ * (E4: OCL-07), un mapa por escena, una salida segura y la lista de publicación al 100 %. Sin errores ni avisos de
+ * validación: se puede enviar a revisión y publicar.
  */
 async function publishableDraft(request: APIRequestContext, token: string, title: string): Promise<{ id: number; title: string }> {
-  const created = await send(request, token, 'post', '', { title }, 'crear el caso');
+  const created = await send(request, token, 'post', '',
+    { title, description: 'Caso de prueba: una decisión de dos opciones que llevan al cierre.' }, 'crear el caso');
   const id: number = created['caseVersionId'];
   const startId: number = created['nodes'][0]['id'];
   const withClosing = await send(request, token, 'post', `/${id}/nodes`,
@@ -72,11 +75,24 @@ async function publishableDraft(request: APIRequestContext, token: string, title
     prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
     immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
   }, 'decisión');
+  const withOptions = await send(request, token, 'post', `/${id}/decisions`, {
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', classification: 'RISKY',
+    prohibitedConduct: false, prohibitionReason: null, scoreDelta: -5, stressDelta: 5, prohibitedPenalty: 0,
+    immediateFeedback: 'Postergar el cierre deja el caso abierto sin necesidad.',
+  }, 'segunda opción de la decisión');
+  const optionIds: number[] = withOptions['decisions'].map((decision: Json) => decision['id']);
   // La escena de inicio ya trae su mapa («escena-inicial»: un mapa por escena); solo falta el de la escena final.
   await send(request, token, 'post', `/${id}/maps`, {
     nodeId: closingId, mapKey: 'sala-cierre', title: 'Sala de cierre', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
   }, 'mapa de la escena final');
   const view = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(token) })).json()).data;
+  for (const [index, optionId] of optionIds.entries()) {
+    await send(request, token, 'post', `/${id}/maps/${view['maps'][0]['id']}/objects`, {
+      objectKey: `opcion-${index + 1}`, label: `Opción ${index + 1}`, objectType: 'OBJECT', x: 200 + 100 * index, y: 300, width: 48, height: 48,
+      colorHex: '#4FA3A5', icon: 'touch_app', shortCode: `O${index + 1}`, collision: false, visible: true, interactionPrompt: 'Elegir',
+      interactionText: '', decisionOptionId: optionId, toolCode: null,
+    }, 'objeto que ofrece la opción');
+  }
   await send(request, token, 'post', `/${id}/maps/${view['maps'][0]['id']}/objects`, {
     objectKey: 'salida', label: 'Salida segura', objectType: 'EXIT', x: 800, y: 300, width: 48, height: 48, colorHex: '#4FA3A5',
     icon: 'exit_to_app', shortCode: 'SAL', collision: false, visible: true, interactionPrompt: 'Salir', interactionText: '',
