@@ -30,7 +30,7 @@ import {
   parseLoopbackPort,
   withOwnedTestDatabase,
 } from '../test-runner-support.mjs';
-import { parseAulaArgs, planStudentSession, summarize } from './aula-support.mjs';
+import { checkLoadThresholds, parseAulaArgs, planStudentSession, summarize } from './aula-support.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BACKEND = join(ROOT, 'backend_django');
@@ -302,6 +302,13 @@ async function runLoad(runtime, args, apiPort) {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   console.log(`[siep:load] JSON: ${out}`);
+  const gate = checkLoadThresholds(byOperation, {
+    p95MaxMs: args.p95MaxMs,
+    errorRateMax: args.errorRateMax,
+  });
+  if (!gate.ok) {
+    throw new Error(`Umbrales de carga incumplidos:\n  - ${gate.violations.join('\n  - ')}`);
+  }
   return interruptedExitCode ?? 0;
 }
 

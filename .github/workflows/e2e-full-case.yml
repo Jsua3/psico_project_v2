@@ -104,3 +104,39 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
           if-no-files-found: ignore
+
+  load:
+    name: Carga del aula (40 estudiantes nominal y 3x pico, E5-4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend_django/requirements.txt
+      - name: Crear venv del backend
+        run: |
+          python -m venv backend_django/.venv
+          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+      - name: Carga nominal (40 estudiantes, p95 <= 2 s, error <= 1%)
+        run: >
+          node scripts/load/aula.mjs --students 40 --minutes 2 --server gunicorn
+          --p95-max-ms 2000 --error-rate-max 0.01 --out load-results/load-40x2.json
+      - name: Carga pico 3x (120 estudiantes, p95 <= 4 s, error <= 1%)
+        run: >
+          node scripts/load/aula.mjs --students 120 --minutes 1 --server gunicorn
+          --p95-max-ms 4000 --error-rate-max 0.01 --out load-results/load-120x1.json
+      - name: Subir reporte de carga
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-aula-results
+          path: load-results/
+          retention-days: 14
+          if-no-files-found: ignore
+

@@ -24,7 +24,14 @@ export function summarize(samples) {
 }
 
 export function parseAulaArgs(argv) {
-  const args = { students: 40, minutes: 5, server: 'runserver', out: null };
+  const args = {
+    students: 40,
+    minutes: 5,
+    server: 'runserver',
+    out: null,
+    p95MaxMs: null,
+    errorRateMax: null,
+  };
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -32,6 +39,8 @@ export function parseAulaArgs(argv) {
     else if (flag === '--minutes') args.minutes = Number(value);
     else if (flag === '--server') args.server = value;
     else if (flag === '--out') args.out = value;
+    else if (flag === '--p95-max-ms') args.p95MaxMs = Number(value);
+    else if (flag === '--error-rate-max') args.errorRateMax = Number(value);
     else throw new Error(`Argumento desconocido: ${flag}`);
   }
   if (!Number.isInteger(args.students) || args.students < 1 || args.students > 500) {
@@ -43,7 +52,35 @@ export function parseAulaArgs(argv) {
   if (!['runserver', 'gunicorn'].includes(args.server)) {
     throw new Error('--server debe ser runserver o gunicorn.');
   }
+  if (args.p95MaxMs !== null && !(args.p95MaxMs > 0)) {
+    throw new Error('--p95-max-ms debe ser un número positivo.');
+  }
+  if (args.errorRateMax !== null && !(args.errorRateMax >= 0 && args.errorRateMax <= 1)) {
+    throw new Error('--error-rate-max debe estar entre 0 y 1.');
+  }
   return args;
+}
+
+export function checkLoadThresholds(byOperation, { p95MaxMs = null, errorRateMax = null } = {}) {
+  const violations = [];
+  let totalCount = 0;
+  let totalErrors = 0;
+  for (const [op, metrics] of Object.entries(byOperation)) {
+    totalCount += metrics.count ?? 0;
+    totalErrors += metrics.errors ?? 0;
+    if (p95MaxMs !== null && metrics.p95 !== null && metrics.p95 > p95MaxMs) {
+      violations.push(`${op}: p95=${Math.round(metrics.p95)} ms supera el máximo ${p95MaxMs} ms`);
+    }
+  }
+  if (errorRateMax !== null && totalCount > 0) {
+    const errorRate = totalErrors / totalCount;
+    if (errorRate > errorRateMax) {
+      violations.push(
+        `tasa de error ${(errorRate * 100).toFixed(2)}% (${totalErrors}/${totalCount}) supera ${(errorRateMax * 100).toFixed(2)}%`,
+      );
+    }
+  }
+  return { ok: violations.length === 0, violations };
 }
 
 // Rutas plausibles en hospital-urgencias (spawn 480,430), las mismas que usan las
