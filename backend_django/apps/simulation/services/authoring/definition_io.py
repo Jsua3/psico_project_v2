@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from rest_framework.exceptions import NotFound
 
+from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.casedef.export import to_document
 from apps.simulation.casedef.model import (
     CaseDefinition,
@@ -235,6 +236,24 @@ def load_definition(case_version_id):
 def export_definition(case_version_id):
     """El documento canónico de la versión (borrador o publicada)."""
     return to_document(load_definition(case_version_id).definition)
+
+
+def definition_view(case_version_id):
+    """``{definition, definitionHash, validatedAt, reuseRatio}`` de una versión, borrador o publicada (E4-7).
+
+    El hash es el del documento tal como está **ahora**: en un borrador, el que tendría si se publicara; en lo
+    publicado coincide con su sello. ``validatedAt`` solo lo tiene lo sellado y ``reuseRatio`` solo un clon
+    publicado.
+    """
+    loaded = load_definition(case_version_id)
+    version = CaseVersion.objects.get(pk=case_version_id)
+    document = to_document(loaded.definition)
+    return {
+        "definition": document,
+        "definitionHash": definition_hash(document),
+        "validatedAt": version.validated_at.isoformat() if version.validated_at else None,
+        "reuseRatio": float(version.reuse_ratio) if version.reuse_ratio is not None else None,
+    }
 
 
 # ─── escribir la definición ───────────────────────────────────────────────────────────────────

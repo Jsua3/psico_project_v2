@@ -31,6 +31,7 @@ from .authoring import (
     cases,
     characters,
     editor_view,
+    definition_io,
     graph,
     hints,
     importing,
@@ -55,6 +56,11 @@ def create_case(request, actor):
 
 def editor(case_version_id):
     return editor_view.editor(case_version_id)
+
+
+def definition_of(case_version_id):
+    """E4-7: el documento de la versión con su hash, su sello y su reutilización."""
+    return definition_io.definition_view(case_version_id)
 
 
 @auditable(

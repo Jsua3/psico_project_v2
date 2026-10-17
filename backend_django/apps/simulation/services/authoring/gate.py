@@ -17,14 +17,17 @@ Arrancar un intento exige el sello (``game_service``); reanudar uno abierto, no.
 """
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 
 from django.utils import timezone
 from rest_framework import status as http
 
 from apps.simulation.casedef.canonical import definition_hash
+from apps.simulation.casedef.reuse import reuse_ratio
 from apps.simulation.models import CaseVersion
 from shared.exceptions import ApiError
 
+from .definition_io import load_definition
 from .editor_view import latest_checklist_ratio
 from .guards import revision_bump
 from .validation import assess_version
@@ -39,6 +42,8 @@ class Seal:
     validated_at: datetime
     definition_hash: str
     warnings: tuple = ()
+    #: Cuánto del original conserva el clon (cuatro decimales), o ``None`` si no es un clon (E4-7).
+    reuse_ratio: Decimal | None = None
 
 
 def _assess(version, require_checklist):
@@ -62,6 +67,17 @@ def _assess(version, require_checklist):
     return blockers, assessment
 
 
+def _reuse(version, definition):
+    """``Decimal`` con cuatro decimales de lo que el clon conserva de su origen, o ``None`` si no es un clon."""
+    source = version.cloned_from_id
+    if source is None or not CaseVersion.objects.filter(pk=source).exists():
+        return None
+    ratio = reuse_ratio(load_definition(source).definition, definition)
+    if ratio is None:
+        return None
+    return (Decimal(ratio.numerator) / Decimal(ratio.denominator)).quantize(Decimal("0.0001"))
+
+
 def blockers_of(version, *, require_checklist=True):
     """Lo que impide enviar o aprobar la versión (lista vacía = se puede publicar)."""
     return _assess(version, require_checklist)[0]
@@ -77,7 +93,9 @@ def ensure_publishable(version, *, require_checklist=True):
     if blockers:
         raise ApiError("CASE_NOT_PUBLISHABLE", blockers[0]["message"], http.HTTP_409_CONFLICT, blockers=blockers)
     warnings = tuple(issue for issue in assessment.issues if issue["severity"] == "warning")
-    return Seal(timezone.now(), definition_hash(assessment.document), warnings)
+    return Seal(
+        timezone.now(), definition_hash(assessment.document), warnings, _reuse(version, assessment.definition)
+    )
 
 
 def mark_published(version, seal, actor):
@@ -87,6 +105,7 @@ def mark_published(version, seal, actor):
         published_at=seal.validated_at,
         validated_at=seal.validated_at,
         definition_hash=seal.definition_hash,
+        reuse_ratio=seal.reuse_ratio,
         **revision_bump(actor.id),
     )
     version.refresh_from_db()

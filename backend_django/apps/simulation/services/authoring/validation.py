@@ -95,6 +95,8 @@ class Assessment:
     issues: list
     can_publish: bool
     document: dict
+    #: El modelo del que sale el documento (lo usa la compuerta para medir la reutilización).
+    definition: object
 
 
 def assess_version(case_version_id):
@@ -111,7 +113,7 @@ def assess_version(case_version_id):
     for issue in validate_document(document):
         if not _is_duplicate(present, issue):
             issues.append(_document_issue(issue, loaded, ids))
-    return Assessment(issues, _can_publish(issues), document)
+    return Assessment(issues, _can_publish(issues), document, loaded.definition)
 
 
 def validate_version(case_version_id):

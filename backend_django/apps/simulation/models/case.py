@@ -73,6 +73,9 @@ class CaseVersion(models.Model):
     # ``PUBLISHED``; sin sello no se arranca un intento. Los dos o ninguno (``case_versions_seal_check``).
     validated_at = models.DateTimeField(null=True, blank=True)
     definition_hash = models.CharField(max_length=71, null=True, blank=True)
+    # Cuánto del original sobrevive idéntico en un clon al publicarlo (E4-7, RQ-NEG-007): entre 0 y 1 con cuatro
+    # decimales; vacío en un original y en lo publicado antes de E4. Lo escribe la compuerta (``authoring.gate``).
+    reuse_ratio = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="created_by",
         related_name="created_versions",
@@ -106,6 +109,10 @@ class CaseVersion(models.Model):
                     | models.Q(validated_at__isnull=False, definition_hash__isnull=False)
                 ),
                 name="case_versions_seal_check",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reuse_ratio__isnull=True) | (models.Q(reuse_ratio__gte=0) & models.Q(reuse_ratio__lte=1)),
+                name="case_versions_reuse_ratio_check",
             ),
             models.UniqueConstraint(fields=["simulation_case", "semantic_version"], name="case_versions_simulation_case_id_semantic_version_key"),
         ]

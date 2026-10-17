@@ -109,6 +109,7 @@ def test_create_case_leaves_an_audit_row_with_the_actors_role(prof_a):
 #: Leer lo ajeno es 404; mutarlo, 403; publicar es del ADMIN (403 en la puerta).
 FOREIGN_ROUTES = [
     ("get", "<int:case_version_id>/editor", None, 404),
+    ("get", "<int:case_version_id>/definition", None, 404),
     ("get", "<int:case_version_id>/world-editor", None, 404),
     ("get", "<int:case_version_id>/world-preview", None, 404),
     ("post", "<int:case_version_id>/world/validate", {}, 404),

@@ -260,6 +260,32 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
       404,
     );
 
+    // E4-7: el documento de la versión con su huella; lo lee quien puede autorar el caso (el ADMIN siempre;
+    // un docente solo el suyo: leer lo ajeno no confirma que exista).
+    const definitionPath = `/authoring/cases/${caseVersionId}/definition`;
+    const definition = await request('GET', definitionPath, { token: tokens.ADMIN });
+    expectStatus('ADMIN GET /authoring/cases/{id}/definition -> 200', definition.status, 200);
+    const definitionData = definition.data?.data;
+    if (
+      typeof definitionData?.definitionHash === 'string'
+      && definitionData.definitionHash.startsWith('sha256:')
+      && definitionData.definition?.versionDsl === '1.0'
+    ) {
+      pass('la definicion trae su huella y el documento del DSL');
+    } else {
+      fail('la definicion trae su huella y el documento del DSL', JSON.stringify(definitionData)?.slice(0, 200));
+    }
+    expectStatus(
+      'PROFESOR GET /authoring/cases/{id}/definition de un caso ajeno -> 404',
+      (await request('GET', definitionPath, { token: tokens.PROFESOR })).status,
+      404,
+    );
+    expectStatus(
+      'ESTUDIANTE GET /authoring/cases/{id}/definition -> 403',
+      (await request('GET', definitionPath, { token: tokens.ESTUDIANTE })).status,
+      403,
+    );
+
     const started = await request('POST', '/simulation/attempts', {
       token: tokens.ESTUDIANTE,
       body: { caseVersionId },

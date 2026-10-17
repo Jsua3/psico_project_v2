@@ -71,6 +71,7 @@ EXCLUDED = {
         "published_at": "fecha de publicación: el documento no lleva fechas",
         "validated_at": "fecha del sello de la publicación: la escribe la compuerta; el documento no lleva fechas",
         "definition_hash": "huella del documento validado: se calcula DEL documento, no entra en él",
+        "reuse_ratio": "medida derivada al publicar un clon (cuánto del original conserva): no es contenido",
         "created_by": "quién creó la versión: el documento no transporta personas",
         "created_at": _STAMP,
         "version": "revisión optimista del editor; no es contenido",

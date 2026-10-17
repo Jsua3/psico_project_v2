@@ -99,6 +99,14 @@ class CaseImportView(_AuthoringView):
         return api_created(svc.import_case(raw, request.user), "Caso importado")
 
 
+class CaseDefinitionView(_AuthoringView):
+    """E4-7 · ``GET …/cases/{id}/definition``: el documento de la versión (borrador o publicada)."""
+
+    def get(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=False)
+        return api_ok(svc.definition_of(case_version_id))
+
+
 class EditorView(_AuthoringView):
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
