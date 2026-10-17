@@ -67,11 +67,14 @@ if _DATABASE_URL:
     import dj_database_url
 
     DATABASES = {
-        "default": dj_database_url.parse(_DATABASE_URL, conn_max_age=600),
+        "default": dj_database_url.parse(
+            _DATABASE_URL, conn_max_age=600, conn_health_checks=True
+        ),
     }
     # Sin tope, una BD inalcanzable bloquea /api/health ~130 s (el valor por defecto de
     # psycopg) y gunicorn mata el worker a los 120 s.
     DATABASES["default"].setdefault("OPTIONS", {}).setdefault("connect_timeout", 5)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {
@@ -81,6 +84,7 @@ else:
             "PASSWORD": os.environ.get("DB_PASSWORD", "psychosim_secret"),
             "HOST": os.environ.get("DB_HOST", "localhost"),
             "PORT": os.environ.get("DB_PORT", "5433"),
+            "CONN_HEALTH_CHECKS": True,
             "OPTIONS": {"connect_timeout": 5},
         }
     }
