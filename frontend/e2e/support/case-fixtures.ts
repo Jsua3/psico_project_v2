@@ -119,6 +119,32 @@ export async function createPublishedCase(request: APIRequestContext, options: C
   return { caseVersionId: id, title: created['title'] };
 }
 
+/**
+ * Clona una versión publicada (p. ej. la del caso demo, que se puede jugar de verdad), le pone las mismas pistas en TODAS
+ * sus escenas y la publica. Sirve para probar la interfaz sobre un mundo completo con datos que la semilla no trae.
+ */
+export async function cloneAndPublishCase(
+  request: APIRequestContext, sourceCaseVersionId: number, options: { hints?: string[] } = {},
+): Promise<CaseFixture> {
+  const admin = await apiToken(request, ADMIN);
+  const base = '/api/authoring/cases';
+  const cloned = await send(request, admin, 'post', `${base}/${sourceCaseVersionId}/clone-version`, {}, 'clonar la versión');
+  const id: number = cloned['caseVersionId'];
+  const view = (await (await request.get(`${base}/${id}/editor`, { headers: bearer(admin) })).json()).data as Json;
+  for (const map of view['maps'] as Json[]) {
+    for (const [index, text] of (options.hints ?? []).entries()) {
+      await send(request, admin, 'post', `${base}/${id}/maps/${map['id']}/hints`, { text, hintOrder: index + 1 }, `pista ${index + 1} de ${map['title']}`);
+    }
+  }
+  await send(request, admin, 'put', `${base}/${id}/checklist`, {
+    contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true,
+    accessibilityOk: true, scopeEducational: true,
+  }, 'lista de publicación');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
+  return { caseVersionId: id, title: view['title'] };
+}
+
 /** El grupo de la docente de la semilla al que pertenece el estudiante de la semilla. */
 export async function seededGroupId(request: APIRequestContext): Promise<number> {
   const professor = await apiToken(request, PROFESOR);

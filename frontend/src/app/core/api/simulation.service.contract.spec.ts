@@ -85,6 +85,10 @@ const CONTRACTS: Contract[] = [
   { method: 'resumeAttempt', call: s => s.resumeAttempt(ATTEMPT, TOKEN), verb: 'POST',
     url: `${att}/resume`, body: { attemptToken: TOKEN } },
   { method: 'attemptHistory', call: s => s.attemptHistory(), verb: 'GET', url: `${S}/attempts/history` },
+  // F10-2 (C9, RF-18): las pistas de la escena, una a una y sin costo; la orden lleva su clave de idempotencia.
+  { method: 'getHints', call: s => s.getHints(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/hints`, attemptToken: true },
+  { method: 'revealNextHint', call: s => s.revealNextHint(ATTEMPT, TOKEN, 'pista-0001-abcd'), verb: 'POST',
+    url: `${att}/hints/next`, body: { attemptToken: TOKEN, requestId: 'pista-0001-abcd' } },
 
   // ── docente ────────────────────────────────────────────────────────────────
   { method: 'recentAttempts', call: s => s.recentAttempts(), verb: 'GET', url: '/api/instructor/attempts/recent' },
@@ -280,13 +284,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(50);
+    expect(publicMethods).toHaveLength(52);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(50);
-    expect([player.length, authoring.length, instructor.length]).toEqual([19, 26, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(52);
+    expect([player.length, authoring.length, instructor.length]).toEqual([21, 26, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

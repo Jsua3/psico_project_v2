@@ -39,6 +39,22 @@ export interface CaseBrief {
   access: CaseAccess;
 }
 
+/** Por qué ya no hay pista que pedir en la escena: no tiene ninguna, o el intento ya las vio todas (C9). */
+export type HintReason = 'NONE_FOR_SCENE' | 'ALL_SHOWN';
+
+export interface SceneHint {
+  id: number;
+  order: number;
+  text: string;
+}
+
+/** Las pistas de la escena donde está el jugador (C9, RF-18, CU-09): las que ya pidió y cuántas le quedan. Pedirlas no cuesta puntaje. */
+export interface HintState {
+  available: number;
+  shown: SceneHint[];
+  reason?: HintReason;
+}
+
 export interface SimulationCaseSummary {
   caseVersionId: number;
   code: string;

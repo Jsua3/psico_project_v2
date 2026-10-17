@@ -42,7 +42,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['briefPending', 'consentSaving', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
+      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
@@ -75,6 +75,14 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const brief = readFileSync(join(__dirname, 'case-brief.component.ts'), 'utf-8');
     expect(brief).toContain('DRAFT_COPY.briefSensitiveNote.text');
     expect(brief).toContain('DRAFT_COPY.briefPending.text');
+  });
+
+  // req: RF-18, CU-09 (F10-2)
+  it('registra la nota de las pistas (sin costo), y las pistas la leen del registro', () => {
+    expect(DRAFT_COPY.hintNoCostNote).toMatchObject({ decision: 'F10-2', review: 'conocimiento' });
+    expect(DRAFT_COPY.hintNoCostNote.text).toBe('sin costo');
+    const hint = readFileSync(join(__dirname, 'scene-hint.component.ts'), 'utf-8');
+    expect(hint).toContain('DRAFT_COPY.hintNoCostNote.text');
   });
 
   it('la nota de ayuda nombra el ajuste con la misma palabra del registro (una sola fuente)', () => {

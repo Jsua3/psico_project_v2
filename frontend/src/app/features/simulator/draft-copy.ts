@@ -252,6 +252,17 @@ export const DRAFT_COPY = {
     where: 'Ficha del caso: cuando el caso aún no trae objetivos ni personajes',
     text: 'Tu docente aún no ha redactado los objetivos ni los personajes de este caso. Puedes comenzar de todas formas.',
   },
+  /**
+   * Junto al contador de «Ver pista» (F10-2, RF-18, decisión 13): pedir una pista no cuesta puntaje. Corta a propósito: va
+   * en la misma línea que el botón, porque en un celular cada renglón que se le suma al panel empuja las opciones.
+   */
+  hintNoCostNote: {
+    decision: 'F10-2',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Pistas de la escena: junto al contador de «Ver pista»',
+    text: 'sin costo',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;

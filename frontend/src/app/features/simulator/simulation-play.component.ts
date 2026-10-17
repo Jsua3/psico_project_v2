@@ -414,7 +414,7 @@ const CASE_INTRO_PARAGRAPHS = [
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
                 [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-                [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
+                [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
                 (frontendChoice)="handleFrontendChoice($event)" />
@@ -481,7 +481,7 @@ const CASE_INTRO_PARAGRAPHS = [
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
-            [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()"
+            [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
             (frontendChoice)="handleFrontendChoice($event)" />
@@ -1230,6 +1230,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
 
   readonly attempt    = signal<SimulationAttemptState | null>(null);
+  /** El intento al que piden las pistas de la escena las opciones de una decisión (F10-2, C9). */
+  readonly hintAttempt = computed(() => {
+    const current = this.attempt();
+    return current ? { attemptId: current.attemptId, attemptToken: current.attemptToken } : null;
+  });
   readonly pendingActiveAttempt = signal<SimulationAttemptState | null>(null);
   readonly showResumePrompt = signal(false);
   readonly progressMap = signal<ProgressMapState | null>(null);
