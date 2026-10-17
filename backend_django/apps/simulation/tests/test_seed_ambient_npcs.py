@@ -6,10 +6,10 @@ hacía que hablar con el NPC respondiera 400; ahora la base la construye ``migra
 y la siembra ``seed_caso_pdf``, y estas pruebas fijan que llegue.
 """
 import json
+from pathlib import Path
 
 import pytest
 
-from apps.simulation.management.commands.seed_caso_pdf import MAPS
 from apps.simulation.models import SceneMap
 
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401
@@ -17,7 +17,13 @@ from .test_world_authority import _move, _world
 
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RF-17")]
 
-SEED_AMBIENT = {scene["key"]: scene["ambient"] for scene in MAPS}
+#: La semilla es un documento (E4-6): sus mapas son ``x-siep.escenas[].mapa``.
+DOCUMENT = Path(__file__).resolve().parents[1] / "data" / "cases" / "SIM-VBG-001.dsl.json"
+SEED_AMBIENT = {
+    entry["mapa"]["clave"]: entry["mapa"]["ambiente"]
+    for entry in json.loads(DOCUMENT.read_text(encoding="utf-8"))["x-siep"]["escenas"]
+    if entry.get("mapa")
+}
 NPC_KEYS = ("ambientNpcs", "ambientNpcKeys")
 
 

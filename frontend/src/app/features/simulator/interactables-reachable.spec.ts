@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { caseRoomKind, collidesInCaseRoom } from './case-pdf-rooms.geometry';
 import { MARKER_INTERACT_RADIUS, NPC_INTERACT_RADIUS } from './interaction-priority.util';
-import { SEED_PATH } from './orientation-seed.testing';
+import { readSeed } from './orientation-seed.testing';
 
 /**
  * Prueba de alcanzabilidad (T5.1): toda persona y todo objeto con el que se puede interactuar tiene,
@@ -17,32 +17,13 @@ const STEP = 4;
 
 interface Interactable { room: string; key: string; kind: 'objeto' | 'persona'; x: number; y: number }
 
-/** Objetos de cada mapa del seed (`MAP_OBJECTS`), incluidas las listas compartidas por sala. */
+/** Objetos de cada mapa del documento del caso (`x-siep.escenas[].mapa.objetos`). */
 function seedObjects(): Interactable[] {
-  const text = fs.readFileSync(SEED_PATH, 'utf-8');
-  const objectsRe = /"key":\s*"([^"]+)",\s*"label":\s*"[^"]+",\s*"type":\s*"[A-Z]+",\s*"pos":\s*\((\d+),\s*(\d+)\)/g;
-  const parse = (segment: string) => [...segment.matchAll(objectsRe)]
-    .map(m => ({ key: m[1], x: Number(m[2]), y: Number(m[3]) }));
-
-  const shared = new Map<string, Array<{ key: string; x: number; y: number }>>();
-  for (const m of text.matchAll(/^(_[A-Z_]+_OBJECTS) = \[([\s\S]*?)\n\]/gm)) shared.set(m[1], parse(m[2]));
-
-  const start = text.indexOf('\nMAP_OBJECTS = {');
-  expect(start).toBeGreaterThan(0);
-  const end = text.indexOf('\n}\n', start);
-  const block = text.slice(start, end);
-  const out: Interactable[] = [];
-  const headerRe = /^ {4}"([a-z-]+)": ((?:_[A-Z_]+_OBJECTS \+ )?)\[/gm;
-  const headers = [...block.matchAll(headerRe)];
-  headers.forEach((header, i) => {
-    const body = block.slice(header.index! + header[0].length, headers[i + 1]?.index ?? block.length);
-    const list = [
-      ...(header[2] ? shared.get(header[2].replace(/ \+ $/, '')) ?? [] : []),
-      ...parse(body),
-    ];
-    for (const o of list) out.push({ room: header[1], key: o.key, kind: 'objeto', x: o.x, y: o.y });
-  });
-  return out;
+  const objects = readSeed().objects;
+  expect(objects.length).toBeGreaterThan(0);
+  return objects.filter(o => o.x !== null && o.y !== null).map(o => ({
+    room: o.room, key: o.key, kind: 'objeto' as const, x: o.x!, y: o.y!,
+  }));
 }
 
 /** Personas del escenario de las cuatro salas del caso (JSON de assets). */

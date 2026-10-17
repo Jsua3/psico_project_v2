@@ -12,7 +12,6 @@ import uuid
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.core.management import call_command
 from rest_framework.test import APIClient
 
 from apps.simulation.casedef.canonical import definition_hash
@@ -221,19 +220,6 @@ def test_every_published_version_of_the_database_has_the_seal_of_its_document(db
     for version in published:
         assert version.validated_at is not None, version
         assert version.definition_hash == definition_hash(definition_io.export_definition(version.id)), version
-
-
-def test_the_legacy_seed_leaves_the_seal_of_what_it_just_built(db):
-    """La semilla heredada reconstruye la versión en el lugar y la vuelve a sellar por la compuerta."""
-    CaseVersion.objects.filter(simulation_case__code="SIM-VBG-001", status="PUBLISHED").update(
-        definition_hash="sha256:" + "0" * 64  # un sello viejo: ya no es el de lo que la semilla reconstruye
-    )
-
-    call_command("seed_caso_pdf", verbosity=0)
-
-    version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
-    assert version.validated_at is not None
-    assert version.definition_hash == definition_hash(definition_io.export_definition(version.id))
 
 
 # ─── hilos con commits reales: el sello es el de lo publicado ─────────────────────────────────
