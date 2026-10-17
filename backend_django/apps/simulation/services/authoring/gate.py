@@ -25,6 +25,7 @@ from rest_framework import status as http
 from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.casedef.reuse import reuse_ratio
 from apps.simulation.models import CaseVersion
+from apps.simulation.services import rubric_service
 from shared.exceptions import ApiError
 
 from .definition_io import load_definition
@@ -78,6 +79,13 @@ def _reuse(version, definition):
     return (Decimal(ratio.numerator) / Decimal(ratio.denominator)).quantize(Decimal("0.0001"))
 
 
+def blocker_codes(error):
+    """Los códigos de lo que impidió publicar o sellar, p. ej. ``WORLD.NO_NODES, DSL.OCL-07``."""
+    blockers = getattr(error, "extra", {}).get("blockers", [])
+    codes = [issue["code"] for blocker in blockers for issue in blocker.get("issues", [])]
+    return ", ".join(codes) or str(error.detail)
+
+
 def blockers_of(version, *, require_checklist=True):
     """Lo que impide enviar o aprobar la versión (lista vacía = se puede publicar)."""
     return _assess(version, require_checklist)[0]
@@ -89,6 +97,7 @@ def ensure_publishable(version, *, require_checklist=True):
     ``require_checklist=False`` solo para quien no tiene una constancia humana que exigir (la semilla de
     desarrollo y el sellado de lo ya publicado): el mundo y el documento se validan siempre.
     """
+    rubric_service.normalize_version_rubrics(version.id)  # lo sellado ya trae los pesos que la evaluación usará
     blockers, assessment = _assess(version, require_checklist)
     if blockers:
         raise ApiError("CASE_NOT_PUBLISHABLE", blockers[0]["message"], http.HTTP_409_CONFLICT, blockers=blockers)

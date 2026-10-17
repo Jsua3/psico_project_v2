@@ -357,8 +357,9 @@ def _validate_requirements(snapshot, issues):
     """Lo que una puerta, un objeto o una elección piden existe en el caso.
 
     ``requiresTools`` y ``toolCode``/``requiredTool`` son códigos del catálogo de herramientas;
-    ``requiresNodes``, claves de escena; ``requiresInspected`` y ``requiresNpcs``, claves de objeto.
-    Sin ``tools`` (formato anterior) no se evalúa.
+    ``requiresNodes``, claves de escena; ``requiresInspected``, claves de objeto; ``requiresNpcs``, las
+    claves con que el motor reconoce a un NPC (``viewedNpcKeys``): la de su objeto, la de su diálogo o la
+    de un NPC ambiental de la sala. Sin ``tools`` (formato anterior) no se evalúa.
     """
     if "tools" not in snapshot:
         return
@@ -367,6 +368,11 @@ def _validate_requirements(snapshot, issues):
     nodes_known = all("key" in n for n in snapshot["nodes"])
     object_keys = {o["key"] for o in snapshot["objects"] if "key" in o}
     objects_known = all("key" in o for o in snapshot["objects"])
+    dialogues = snapshot.get("dialogues", [])
+    npcs_known = objects_known and all("key" in d for d in dialogues)
+    npc_keys = object_keys | {d["key"] for d in dialogues if "key" in d} | {
+        key for m in snapshot["maps"] for key in m.get("ambientNpcKeys", ())
+    }
     for o in snapshot["objects"]:
         ref = f"object:{o['id']}"
         meta = o.get("meta") if isinstance(o.get("meta"), dict) else {}
@@ -380,8 +386,12 @@ def _validate_requirements(snapshot, issues):
                 if key not in node_keys:
                     _unknown_requirement(key, ref, issues)
         if objects_known:
-            for key in _names(meta.get("requiresInspected")) + _names(meta.get("requiresNpcs")):
+            for key in _names(meta.get("requiresInspected")):
                 if key not in object_keys:
+                    _unknown_requirement(key, ref, issues)
+        if npcs_known:
+            for key in _names(meta.get("requiresNpcs")):
+                if key not in npc_keys:
                     _unknown_requirement(key, ref, issues)
     for c in snapshot.get("choices", []):
         if c.get("requiredTool") and c["requiredTool"] not in tools:

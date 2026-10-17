@@ -148,3 +148,30 @@ def test_every_new_code_has_a_plain_template_without_digits_or_ids():
     for code in ("OPTION_WITHOUT_TRIGGER", "REQUIRES_UNKNOWN", "DOOR_TARGET_MISSING"):
         template = validation_issues.PLAIN[code]
         assert template and not any(ch.isdigit() for ch in template), code
+
+
+# ─── M3 de la revisión: requiresNpcs acepta todas las claves con que el motor reconoce a un NPC ──
+def test_a_door_may_require_an_npc_by_the_key_of_its_dialogue():
+    objects = [_door(5, key="puerta", meta={"requiresNpcs": ["dialogo-enfermera"]})]
+    dialogues = [{"id": 1, "mapId": 100, "key": "dialogo-enfermera"}]
+    assert _codes(world_validation.validate(_snapshot(objects=objects, dialogues=dialogues))) == []
+
+
+def test_a_door_may_require_an_ambient_npc():
+    maps = [
+        {"id": 100, "nodeId": 1, "width": 960, "height": 540, "spawnX": 10, "spawnY": 10, "ambientNpcKeys": ["vecina"]},
+        {"id": 101, "nodeId": 2, "width": 960, "height": 540, "spawnX": 10, "spawnY": 10},
+    ]
+    objects = [_door(5, key="puerta", meta={"requiresNpcs": ["vecina"]})]
+    assert _codes(world_validation.validate(_snapshot(objects=objects, maps=maps))) == []
+
+
+def test_a_door_that_requires_an_npc_nobody_has_is_an_error_even_with_dialogues():
+    objects = [_door(5, key="puerta", meta={"requiresNpcs": ["nadie"]})]
+    dialogues = [{"id": 1, "mapId": 100, "key": "dialogo-enfermera"}]
+    assert _codes(world_validation.validate(_snapshot(objects=objects, dialogues=dialogues))) == ["REQUIRES_UNKNOWN"]
+
+
+def test_the_snapshot_without_dialogue_keys_does_not_judge_required_npcs():
+    objects = [_door(5, key="puerta", meta={"requiresNpcs": ["cualquiera"]})]
+    assert _codes(world_validation.validate(_snapshot(objects=objects, dialogues=[{"id": 1, "mapId": 100}]))) == []

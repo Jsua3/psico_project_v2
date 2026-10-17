@@ -6,19 +6,15 @@ publicación (``gate.ensure_publishable``, sin exigir la lista ética, que es un
 recibe su sello; las que no validan se **informan** y quedan sin sello (no se despublican). Es
 idempotente; ``--reseal`` recalcula también las ya selladas (cuando el formato del documento cambia a
 propósito). Debe correr tras ``migrate`` en cada despliegue (``bootstrap_dev_db`` lo hace en desarrollo).
+
+Sin ``--strict`` termina con código 0 aunque alguna versión no valide (el arranque de desarrollo no debe
+abortar por ello); con ``--strict`` termina con error si alguna quedó sin sello, para que un despliegue lo vea.
 """
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from rest_framework.exceptions import APIException
 
 from apps.simulation.models import CaseVersion
 from apps.simulation.services.authoring import gate
-
-
-def _problems(error):
-    """Los códigos de lo que impidió sellar, p. ej. ``WORLD.NO_NODES, DSL.OCL-07``."""
-    blockers = getattr(error, "extra", {}).get("blockers", [])
-    codes = [issue["code"] for blocker in blockers for issue in blocker.get("issues", [])]
-    return ", ".join(codes) or str(error.detail)
 
 
 class Command(BaseCommand):
@@ -26,22 +22,29 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reseal", action="store_true", help="Recalcula también el sello de las ya selladas.")
+        parser.add_argument(
+            "--strict", action="store_true", help="Termina con error si alguna versión no se pudo sellar (despliegues)."
+        )
 
     def handle(self, *args, **options):
         published = CaseVersion.objects.filter(status="PUBLISHED").select_related("simulation_case").order_by("id")
         if not options["reseal"]:
             published = published.filter(definition_hash__isnull=True)
         sealed = unsealed = 0
+        failed = []
         for version in published:
             label = f"{version.simulation_case.code} v{version.semantic_version}"
             try:
                 seal = gate.ensure_publishable(version, require_checklist=False)
             except APIException as error:
                 unsealed += 1
-                self.stderr.write(self.style.WARNING(f"Sin sello: {label} no valida ({_problems(error)})."))
+                failed.append(label)
+                self.stderr.write(self.style.WARNING(f"Sin sello: {label} no valida ({gate.blocker_codes(error)})."))
                 continue
             gate.stamp(version, seal)
             sealed += 1
             self.stdout.write(f"Sellada: {label} {seal.definition_hash}")
         summary = f"Selladas: {sealed}. Sin sello por no validar: {unsealed}."
         self.stdout.write(self.style.SUCCESS(summary) if not unsealed else self.style.WARNING(summary))
+        if options["strict"] and failed:
+            raise CommandError("Quedaron sin sello por no validar: " + ", ".join(failed) + ".")

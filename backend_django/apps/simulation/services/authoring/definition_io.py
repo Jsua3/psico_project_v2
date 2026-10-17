@@ -47,6 +47,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from apps.simulation.services import rubric_service
 from shared.jsonutils import read_map, read_string_list
 
 
@@ -239,11 +240,12 @@ def export_definition(case_version_id):
 
 
 def definition_view(case_version_id):
-    """``{definition, definitionHash, validatedAt, reuseRatio}`` de una versión, borrador o publicada (E4-7).
+    """``{definition, definitionHash, sealedHash, validatedAt, reuseRatio}`` de una versión, borrador o publicada (E4-7).
 
-    El hash es el del documento tal como está **ahora**: en un borrador, el que tendría si se publicara; en lo
-    publicado coincide con su sello. ``validatedAt`` solo lo tiene lo sellado y ``reuseRatio`` solo un clon
-    publicado.
+    ``definitionHash`` es el del documento tal como está **ahora**: en un borrador, el que tendría si se
+    publicara. ``sealedHash`` es el que se selló al publicar (``None`` en lo que no tiene sello): en lo
+    publicado deben coincidir, y si no, alguien tocó por fuera lo que se validó. ``validatedAt`` solo lo
+    tiene lo sellado y ``reuseRatio`` solo un clon publicado.
     """
     loaded = load_definition(case_version_id)
     version = CaseVersion.objects.get(pk=case_version_id)
@@ -251,6 +253,7 @@ def definition_view(case_version_id):
     return {
         "definition": document,
         "definitionHash": definition_hash(document),
+        "sealedHash": version.definition_hash or None,
         "validatedAt": version.validated_at.isoformat() if version.validated_at else None,
         "reuseRatio": float(version.reuse_ratio) if version.reuse_ratio is not None else None,
     }
@@ -350,13 +353,13 @@ def _world_rows(version, scenes, node_by_key, option_by_key, character_by_key):
     ])
 
 
-def _rubric_rows(version, rubrics, actor):
+def _rubric_rows(version, rubrics, owner):
     codes = {c.competency_code for rubric in rubrics for c in rubric.criteria if c.competency_code}
     competencies = {row.code: row for row in Competency.objects.filter(code__in=codes)} if codes else {}
     rows = RubricRow.objects.bulk_create([
         RubricRow(
             case_version=version, name=rubric.name, description=rubric.description, active=rubric.active,
-            version=rubric.version, created_by=actor,
+            version=rubric.version, created_by=owner,
         )
         for rubric in rubrics
     ])
@@ -400,5 +403,8 @@ def write_definition(definition, *, case, actor):
     option_by_key = {option.option_key: option for option in _options(version, definition.scenes, node_by_key)}
     character_by_key = {character.character_key: character for character in characters}
     _world_rows(version, definition.scenes, node_by_key, option_by_key, character_by_key)
-    _rubric_rows(version, definition.rubrics, actor)
+    # Las rúbricas son de quien autora el caso: si las dejara a nombre de un ADMIN que importa, las vería todo docente.
+    _rubric_rows(version, definition.rubrics, case.created_by or actor)
+    # Un borrador nace con las ponderaciones que la evaluación usará: así su hash es el que tendría al publicarse.
+    rubric_service.normalize_version_rubrics(version.id)
     return version

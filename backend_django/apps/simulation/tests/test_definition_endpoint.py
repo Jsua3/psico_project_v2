@@ -1,8 +1,9 @@
 """E4-7 · ``GET …/cases/{id}/definition``: el documento de una versión (RF-12, RQ-NEG-007, LS-14).
 
-Devuelve ``{definition, definitionHash, validatedAt, reuseRatio}`` de una versión **borrador o publicada**:
-el mismo documento que se valida, se sella y se importa. El hash de un borrador es el que tendría si se
-publicara; ``validatedAt`` solo lo tiene lo sellado y ``reuseRatio`` solo un clon publicado. Leer lo ajeno
+Devuelve ``{definition, definitionHash, sealedHash, validatedAt, reuseRatio}`` de una versión **borrador o
+publicada**: el mismo documento que se valida, se sella y se importa. El hash de un borrador es el que tendría
+si se publicara; ``sealedHash`` es el que se selló (vacío sin sello), ``validatedAt`` solo lo tiene lo sellado
+y ``reuseRatio`` solo un clon publicado. Leer lo ajeno
 no confirma que exista (404); un estudiante no pasa la puerta (403). Está montado en las dos rutas
 (``/api/authoring/cases`` y su alias ``/api/admin/cases``).
 """
@@ -76,21 +77,21 @@ def test_the_owner_reads_the_document_of_their_draft(owner, draft):
 
     assert response.status_code == 200, response.data
     data = response.data["data"]
-    assert set(data) == {"definition", "definitionHash", "validatedAt", "reuseRatio"}
+    assert set(data) == {"definition", "definitionHash", "sealedHash", "validatedAt", "reuseRatio"}
     assert canonical_bytes(data["definition"]) == canonical_bytes(definition_io.export_definition(draft.id))
     assert data["definitionHash"] == definition_hash(data["definition"])
 
 
 def test_a_draft_has_the_hash_it_would_have_if_it_were_published_and_no_seal(owner, admin, draft):
     before = _get(owner, draft.id).data["data"]
-    assert before["validatedAt"] is None and before["reuseRatio"] is None
+    assert before["validatedAt"] is None and before["sealedHash"] is None and before["reuseRatio"] is None
 
     seal = gate.ensure_publishable(draft, require_checklist=False)
     gate.mark_published(draft, seal, admin)
 
     after = _get(owner, draft.id).data["data"]
     assert after["definitionHash"] == before["definitionHash"] == seal.definition_hash
-    assert after["validatedAt"] is not None
+    assert after["validatedAt"] is not None and after["sealedHash"] == seal.definition_hash
     assert after["reuseRatio"] == 1.0  # un clon sin cambios
 
 

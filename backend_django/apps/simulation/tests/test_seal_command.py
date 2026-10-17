@@ -11,6 +11,7 @@ from io import StringIO
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.models import CaseVersion, SimulationCase, SimulationNode
@@ -107,3 +108,24 @@ def test_drafts_and_archived_versions_are_left_alone(owner):
     for pk in (cv, draft):
         version = CaseVersion.objects.get(pk=pk)
         assert (version.validated_at, version.definition_hash) == (None, None)
+
+
+def test_strict_mode_fails_when_a_version_cannot_be_sealed(owner):
+    """I5 de la revisión: un despliegue necesita saber, por el código de salida, que algo quedó sin sello."""
+    cv = _published_without_seal(owner, "SEAL-F")
+    SimulationNode.objects.filter(case_version_id=cv).delete()
+
+    with pytest.raises(CommandError) as failed:
+        _run("--strict")
+
+    assert "SEAL-F" in str(failed.value)
+    assert CaseVersion.objects.get(pk=cv).definition_hash is None  # igual que sin --strict: no se despublica
+
+
+def test_strict_mode_passes_when_every_version_seals(owner):
+    cv = _published_without_seal(owner, "SEAL-G")
+
+    out, _ = _run("--strict")
+
+    assert CaseVersion.objects.get(pk=cv).definition_hash is not None
+    assert "SEAL-G" in out

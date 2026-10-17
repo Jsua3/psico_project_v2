@@ -269,11 +269,12 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     if (
       typeof definitionData?.definitionHash === 'string'
       && definitionData.definitionHash.startsWith('sha256:')
+      && definitionData.sealedHash === definitionData.definitionHash
       && definitionData.definition?.versionDsl === '1.0'
     ) {
-      pass('la definicion trae su huella y el documento del DSL');
+      pass('la definicion trae su huella (igual a la sellada) y el documento del DSL');
     } else {
-      fail('la definicion trae su huella y el documento del DSL', JSON.stringify(definitionData)?.slice(0, 200));
+      fail('la definicion trae su huella (igual a la sellada) y el documento del DSL', JSON.stringify(definitionData)?.slice(0, 200));
     }
     expectStatus(
       'PROFESOR GET /authoring/cases/{id}/definition de un caso ajeno -> 404',

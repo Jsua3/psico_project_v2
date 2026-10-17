@@ -90,7 +90,8 @@ class CaseImportView(_AuthoringView):
     """
 
     def post(self, request):
-        if (request.content_type or "").lower() != "application/json":
+        # La cabecera llega cruda (``application/json; charset=utf-8``): solo cuenta el tipo de medio.
+        if (request.content_type or "").split(";", 1)[0].strip().lower() != "application/json":
             raise importing.reject(import_.FORMA, "Solo se admite JSON (application/json).")
         try:
             raw = request.body

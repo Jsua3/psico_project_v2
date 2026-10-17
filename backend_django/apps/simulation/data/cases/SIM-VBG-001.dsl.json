@@ -3656,28 +3656,28 @@
             "activo": true,
             "competenciaCodigo": "CONTENCION",
             "id": "CR01",
-            "peso": "0.00",
+            "peso": "25.00",
             "puntajeMaximo": 5
           },
           {
             "activo": true,
             "competenciaCodigo": "MARCO_NORMATIVO",
             "id": "CR02",
-            "peso": "0.00",
+            "peso": "25.00",
             "puntajeMaximo": 5
           },
           {
             "activo": true,
             "competenciaCodigo": "INTERVENCION_ETICA",
             "id": "CR03",
-            "peso": "0.00",
+            "peso": "25.00",
             "puntajeMaximo": 5
           },
           {
             "activo": true,
             "competenciaCodigo": "REFLEXION",
             "id": "CR04",
-            "peso": "0.00",
+            "peso": "25.00",
             "puntajeMaximo": 5
           }
         ],

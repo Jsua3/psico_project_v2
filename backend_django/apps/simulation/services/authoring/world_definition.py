@@ -291,6 +291,14 @@ def _save_collision_zones(scene_map, zones):
 
 
 # ─── world-snapshot validation ────────────────────────────────────────────────
+def _ambient_npc_keys(scene_map):
+    """Las claves de los NPC ambientales de la sala (``ambient.ambientNpcs[].key``)."""
+    npcs = _read_map(scene_map.ambient_json).get("ambientNpcs")
+    if not isinstance(npcs, list):
+        return []
+    return [npc["key"] for npc in npcs if isinstance(npc, dict) and isinstance(npc.get("key"), str)]
+
+
 def run_world_validation(version):
     """El validador del mundo sobre las filas de la versión: ocho consultas, vengan las escenas que vengan."""
     case_version_id = version.id
@@ -343,6 +351,7 @@ def run_world_validation(version):
                 "height": m.height,
                 "spawnX": m.spawn_x,
                 "spawnY": m.spawn_y,
+                "ambientNpcKeys": _ambient_npc_keys(m),
             }
             for m in maps
         ],
@@ -373,7 +382,7 @@ def run_world_validation(version):
             }
             for c in all_collisions
         ],
-        "dialogues": [{"id": d.id, "mapId": d.scene_map_id} for d in all_dialogues],
+        "dialogues": [{"id": d.id, "mapId": d.scene_map_id, "key": d.tree_key} for d in all_dialogues],
         "choices": [
             {"id": pk, "mapId": map_id, "optionId": option_id, "requiredTool": tool}
             for pk, map_id, option_id, tool in choices

@@ -24,6 +24,7 @@ from apps.simulation.models import (
 )
 
 from . import competencies
+from .authoring.guards import ensure_draft
 
 #: Rango de la calificación de un criterio (SIEP-CU-04): el servidor es la única fuente y la
 #: interfaz lo lee del DTO (``minScore``, ``maxScore``, ``step``).
@@ -145,6 +146,17 @@ def _normalize_criteria_weights(criteria):
     return list(_criteria_qs(Rubric.objects.get(pk=rubric_id)))
 
 
+def normalize_version_rubrics(case_version_id):
+    """Deja las ponderaciones de las rúbricas activas de la versión sumando 100, como lo haría la primera evaluación.
+
+    Se hace al importar y, como red de seguridad, antes de sellar: así el documento sellado ya trae los pesos
+    que la evaluación usará y evaluar no reescribe filas de una versión publicada. Una rúbrica inactiva no
+    se toca: ninguna evaluación la elige y activarla exige que sus pesos sumen 100.
+    """
+    for rubric in Rubric.objects.filter(case_version_id=case_version_id, active=True).order_by("id"):
+        _normalize_criteria_weights(list(_criteria_qs(rubric)))
+
+
 def _validate_weights(criteria):
     if not criteria:
         raise ValidationError("La rubrica debe tener al menos un criterio activo")
@@ -222,6 +234,9 @@ def _load_editable(rubric_id, actor):
             "Esta rúbrica es de solo lectura: duplícala para personalizarla.",
             status.HTTP_403_FORBIDDEN,
         )
+    if rubric.case_version_id is not None:
+        # Una rúbrica de la versión es parte del documento que se validó y se selló: solo se toca en un borrador.
+        ensure_draft(rubric.case_version_id)
     return rubric
 
 

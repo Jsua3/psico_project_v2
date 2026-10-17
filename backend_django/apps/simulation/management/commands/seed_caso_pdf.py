@@ -16,6 +16,7 @@ from pathlib import Path
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from rest_framework.exceptions import APIException
 
 from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.models import CaseVersion, SimulationCase
@@ -69,7 +70,17 @@ class Command(BaseCommand):
             return "conservada"
         action = "conservada"
         if version.definition_hash is None:
-            gate.stamp(version, gate.ensure_publishable(version, require_checklist=False))
+            try:
+                seal = gate.ensure_publishable(version, require_checklist=False)
+            except APIException as error:
+                # Una base de desarrollo antigua puede traer una publicada que las reglas nuevas no aceptan:
+                # se informa y el arranque sigue (publica una versión nueva con --semantic-version).
+                self.stderr.write(self.style.WARNING(
+                    f"La versión {label} está publicada pero no valida ({gate.blocker_codes(error)}): se deja sin "
+                    "sello; publica los cambios como una versión nueva (--semantic-version)."
+                ))
+                return "sin sello"
+            gate.stamp(version, seal)
             self.stdout.write(f"Sellada: {label} {version.definition_hash}")
             action = "sellada"
         if version.definition_hash != definition_hash(document):
@@ -106,11 +117,15 @@ class Command(BaseCommand):
         case = version.simulation_case
         SimulationCase.objects.filter(pk=case.pk).update(active=True)
 
-        archived = (
-            CaseVersion.objects.filter(simulation_case=case, status="PUBLISHED")
-            .exclude(pk=version.pk)
-            .update(status="ARCHIVED")
-        )
+        # Las demás publicadas se archivan solo si la de este documento quedó publicada: sembrar una versión
+        # vieja (archivada) no puede dejar el caso sin ninguna.
+        archived = 0
+        if version.status == "PUBLISHED":
+            archived = (
+                CaseVersion.objects.filter(simulation_case=case, status="PUBLISHED")
+                .exclude(pk=version.pk)
+                .update(status="ARCHIVED")
+            )
 
         # ── Retirar casos legacy duplicados del mismo dominio ────────────────
         # SOC-FEM-001 es el caso de feminicidio previo (mismo PDF, código viejo) que quedaba publicado junto
