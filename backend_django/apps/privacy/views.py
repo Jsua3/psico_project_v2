@@ -1,8 +1,9 @@
 """``/api/simulation/cases/{caseVersionId}/consent`` (C12): leer, aceptar y retirar el aviso de contenido (ETH-01).
 
 Solo la persona estudiante (filas ``consent.read`` y ``consent.record`` de la matriz de políticas): el ADMIN y el docente no
-juegan. Cada registro es de quien llama; nada del cuerpo ni de la ruta nombra a otra persona. La ruta no lleva límite de
-peticiones (``api/simulation/`` no lo tiene por diseño: quien está ante el aviso no puede encontrarse con un 429).
+juegan. Cada registro es de quien llama; nada del cuerpo ni de la ruta nombra a otra persona. La ruta no lleva limitador de
+DRF (``api/simulation/`` no lo tiene por diseño): el único 429 posible es el tope de aceptaciones NUEVAS, que cuenta el
+servicio (``consent_user``). Leer y retirar nunca dan 429.
 """
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
@@ -36,7 +37,7 @@ class ConsentView(APIView):
     @extend_schema(responses={200: envelope_of(ConsentStateSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         """La versión vigente del aviso, si el servidor exige el consentimiento y si esta persona ya lo aceptó."""
-        version = consent_service.published_version(case_version_id)
+        version = consent_service.reachable_version(request.user, case_version_id)
         state = consent_service.consent_state(request.user, version)
         return api_ok({
             "required": state.required,
@@ -59,7 +60,7 @@ class ConsentView(APIView):
     )
     def post(self, request, case_version_id):
         """Acepta el aviso. 201 si crea la aceptación y 200 si ya existía (idempotente: no deja otra fila)."""
-        version = consent_service.published_version(case_version_id)
+        version = consent_service.reachable_version(request.user, case_version_id, to_accept=True)
         body = ConsentAcceptRequest(data=request.data)
         body.is_valid(raise_exception=True)
         record, created = consent_service.accept_content_notice(
@@ -77,6 +78,6 @@ class ConsentView(APIView):
     @extend_schema(responses={200: envelope_of(ConsentWithdrawalSerializer), **error_responses(401, 403, 404)})
     def delete(self, request, case_version_id):
         """Retira el consentimiento: impide seguir jugando ese caso y no borra lo hecho. Idempotente."""
-        version = consent_service.published_version(case_version_id)
+        version = consent_service.reachable_version(request.user, case_version_id)
         withdrawn_at = consent_service.withdraw_content_notice(request.user, version)
         return api_ok({"caseVersionId": version.id, "withdrawnAt": _iso(withdrawn_at)})

@@ -4,6 +4,13 @@ El servidor es dueño de la VERSIÓN VIGENTE del aviso (``SIEP_CONTENT_NOTICE_VE
 coincide, 409 ``NOTICE_VERSION_STALE`` con la vigente. Un consentimiento solo cuenta si es de esa persona, de esa versión del
 caso, de la versión ACTUAL del aviso y no está retirado.
 
+Alcance y tope (S3-2a2). ``reachable_version`` ofrece la versión publicada de un caso activo, como la ficha del caso. Una
+archivada (o de un caso dado de baja) se ofrece solo a quien tiene un intento suyo de ella o un registro de consentimiento de
+ella: así puede retirar y, con un intento abierto, volver a aceptar para seguir (como ``lifecycle.archive``, que deja terminar
+los intentos abiertos y cierra solo la puerta a los nuevos). A los demás, el mismo 404. Cada aceptación NUEVA cuenta en
+``consent_user`` (30 por persona y hora, ``apps/security/limits.py``) justo antes de crear la fila: el reenvío idempotente y el
+retiro no cuentan ni se limitan.
+
 ``require_consent`` es la única pieza que decide si se exige; la llama ``game_service._require_attempt`` (el punto por el que
 pasan el mundo y las órdenes de juego del estudiante). Con las dos banderas apagadas no hace nada y no consulta la base.
 Quien está en crisis (pausa, salida segura, reanudar, abandonar, consultar el intento abierto) no pasa por ella: lo dice
@@ -21,9 +28,11 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, Throttled
 
-from apps.simulation.models import CaseVersion, CaseVersionStatus
+from apps.security.limiter import hit, key_hash, retry_after
+from apps.security.limits import LIMITS
+from apps.simulation.models import CaseVersion, CaseVersionStatus, SimulationAttempt
 from apps.simulation.services.audit_service import arg, auditable
 from shared.exceptions import ApiError
 
@@ -71,13 +80,44 @@ def _person_id(person):
     return getattr(person, "pk", person)
 
 
-def published_version(case_version_id) -> CaseVersion:
-    """La versión publicada de un caso activo, o 404: lo que se ofrece a un estudiante (como la ficha del caso)."""
+def reachable_version(person, case_version_id, *, to_accept=False) -> CaseVersion:
+    """La versión que ``person`` puede ver en el consentimiento, o 404 (S3-2a2: ver el docstring del módulo).
+
+    La publicada de un caso activo, como la ficha del caso. Una que ya no lo es solo se ofrece a quien tiene un intento o un
+    registro de consentimiento de ella para LEER su estado y RETIRAR; para ACEPTAR (``to_accept``) hace falta un intento, que es
+    quien retomaría el juego: un registro viejo sin intento no abre una aceptación nueva sobre algo que ya no se juega.
+    """
     version = CaseVersion.objects.select_related("simulation_case").filter(pk=case_version_id).first()
-    if version is None or version.status != CaseVersionStatus.PUBLISHED or not version.simulation_case.active:
-        # BORRADOR: mismo texto que la ficha del caso, pendiente de la aprobación de Psicología (VD-23).
-        raise NotFound("Caso no encontrado")
-    return version
+    if version is None:
+        raise _no_encontrado()
+    if version.status == CaseVersionStatus.PUBLISHED and version.simulation_case.active:
+        return version
+    if to_accept:
+        if _tiene_intento(person, version.pk):
+            return version
+    elif _tiene_intento_o_registro(person, version.pk):
+        return version
+    raise _no_encontrado()
+
+
+def _no_encontrado() -> NotFound:
+    # BORRADOR: mismo texto que la ficha del caso, pendiente de la aprobación de Psicología (VD-23).
+    return NotFound("Caso no encontrado")
+
+
+def _tiene_intento(person, case_version_id) -> bool:
+    """¿Tiene ``person`` un intento suyo de esta versión, como estudiante?"""
+    return SimulationAttempt.objects.filter(case_version_id=case_version_id, student_id=_person_id(person)).exists()
+
+
+def _tiene_intento_o_registro(person, case_version_id) -> bool:
+    """¿Tiene ``person`` un intento suyo de esta versión, como estudiante, o algún registro de su aviso de contenido?"""
+    persona = _person_id(person)
+    intento = _tiene_intento(person, case_version_id)
+    registro = ConsentRecord.objects.filter(
+        person_id=persona, consent_type=CONTENT_NOTICE, case_version_id=case_version_id
+    ).exists()
+    return intento or registro
 
 
 def _vigentes(person, consent_type, case_version_id, notice_version):
@@ -101,6 +141,16 @@ def _require_current_notice(sent, current):
             status.HTTP_409_CONFLICT,
             noticeVersion=current,
         )
+
+
+def _contar_aceptacion(person) -> None:
+    """Cuenta una aceptación NUEVA de ``person`` y la corta al pasar el tope (``consent_user``: 30 por persona y hora).
+
+    Se llama justo antes de crear la fila: el reenvío idempotente y el retiro no pasan por aquí. Con el limitador apagado,
+    ``hit`` devuelve 0 y no se aplica nada.
+    """
+    if hit("consent_user", key_hash(_person_id(person))) > LIMITS["consent_user"].limit:
+        raise Throttled(wait=retry_after("consent_user"))
 
 
 # ── Aviso de contenido (por versión del caso) ────────────────────────────────────────────────────────────────────────────
@@ -159,6 +209,7 @@ def accept_content_notice(person, case_version, notice_version):
     existente = _vigentes(person, CONTENT_NOTICE, version_id, notice_version).first()
     if existente is not None:
         return existente, False
+    _contar_aceptacion(person)
     try:
         return _crear_aceptacion(person, version_id, notice_version), True
     except _YaVigente:
@@ -230,6 +281,7 @@ def accept_data_treatment(person, notice_version):
     existente = _vigentes(person, DATA_TREATMENT, None, notice_version).first()
     if existente is not None:
         return existente, False
+    _contar_aceptacion(person)
     try:
         return _crear_aceptacion_del_tratamiento(person, notice_version), True
     except _YaVigente:
