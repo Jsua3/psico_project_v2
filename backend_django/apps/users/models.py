@@ -62,6 +62,9 @@ class CustomUser(AbstractBaseUser):
     # S1-4 · época de sesión: cerrar sesiones la sube y los tokens emitidos con una época menor dejan de valer
     # (``apps.users.authentication``). Solo ``account_service.revoke_sessions`` la sube.
     session_epoch = models.PositiveIntegerField(default=0, db_default=0)
+    # S1-5 · cuándo se fijó la contraseña temporal (aprobación del ADMIN o clave fijada por un ADMIN). Vacío cuando la
+    # persona ya tiene una propia. Pasados ``SIEP_TEMP_PASSWORD_DAYS`` días, la temporal deja de servir (``account_service``).
+    temp_password_set_at = models.DateTimeField(null=True, blank=True, default=None)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["nombre", "apellido"]

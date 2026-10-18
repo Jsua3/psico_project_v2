@@ -108,12 +108,18 @@ class LoginView(APIView):
         _bloqueo_por_fallos(email, ip)
 
         user = User.objects.filter(email=email).first()
+        # S1-5 · una contraseña temporal caducada no entra: cuenta como credenciales inválidas (abajo) y la cuenta de
+        # una persona vuelve a «pendiente». Se mira ANTES de decidir; el trabajo bcrypt de este intento no cambia.
+        caducada = user is not None and account_service.temporary_password_expired(user)
         # S1-3 · exactamente un bcrypt.checkpw por intento: si no hay contraseña que comparar (correo inexistente
         # o cuenta sin clave usable) se gasta el mismo trabajo con un hash ficticio, y el tiempo no revela cuentas.
         if user is not None and user.has_usable_password():
             matched = user.check_password(password)
         else:
             burn_password_check(password)
+            matched = False
+        if caducada:
+            account_service.return_expired_to_pending(user.id)
             matched = False
         if not (user is not None and user.activo and matched):
             _registrar_fallo(email, ip)
@@ -179,7 +185,9 @@ class GoogleLoginView(APIView):
             # obligatorio). La cuenta queda sin contraseña propia hasta que la persona fije una.
             user.must_change_password = False
             user.set_password(None)
-            user.save(update_fields=["must_change_password", "password"])
+            # S1-5 · sin temporal no hay fecha de caducidad que contar.
+            user.temp_password_set_at = None
+            user.save(update_fields=["must_change_password", "password", "temp_password_set_at"])
             # S1-4 · un token emitido con la contraseña temporal no debe sobrevivir a su anulación.
             user.session_epoch = account_service.revoke_sessions(user.id)
 
