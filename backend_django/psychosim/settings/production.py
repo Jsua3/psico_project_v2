@@ -11,9 +11,11 @@ Required environment variables:
 Optional:
     CORS_ALLOWED_ORIGINS (comma-separated), REFLECTION_ENCRYPTION_KEY
     (defaults to JWT_SECRET, like Spring), DB_NAME/DB_USER/DB_HOST/DB_PORT,
-    DJANGO_SECURE_SSL_REDIRECT (default "false").
+    DJANGO_SECURE_SSL_REDIRECT (default "true": solo "false" lo apaga),
+    SIEP_HSTS_SECONDS (default 3600: entero entre 0 y 63072000).
 """
 import os
+import re
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -118,10 +120,38 @@ elif not _notify:
 else:
     ACCESS_REQUEST_NOTIFY_EMAILS = _notify
 
-# Railway termina TLS en el borde: las cookies seguras y la cabecera de proxy
-# funcionan, pero el redirect a HTTPS lo maneja la plataforma. Por defecto NO
-# forzamos el redirect en Django para evitar bucles; se puede activar con env.
-SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() == "true"
+# HTTPS forzado (S2-2). Railway termina TLS en el borde y declara el esquema en X-Forwarded-Proto, así que Django
+# redirige a https por defecto: solo DJANGO_SECURE_SSL_REDIRECT=false lo apaga. /api/health queda exento a propósito:
+# Railway lo sondea por HTTP plano con Host: healthcheck.railway.app, y un 301 ahí impediría promover el despliegue.
+SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "true").strip().lower() != "false"
+SECURE_REDIRECT_EXEMPT = [r"^api/health$"]
+
+# HSTS escalonado (S2-2): SIEP_HSTS_SECONDS sube por la escalera 3600 → 86400 → 604800 → 15552000, y cada subida
+# se hace solo tras comprobar la redirección y una semana sin problemas (docs/operacion/despliegue-railway.md).
+_HSTS_MAX_SECONDS = 63072000  # 2 años: el tope que admite SIEP_HSTS_SECONDS.
+
+
+def _hsts_seconds():
+    raw = os.environ.get("SIEP_HSTS_SECONDS", "3600").strip()
+    # Solo un entero decimal. El valor leído no entra en el mensaje ni como excepción encadenada.
+    if not re.fullmatch(r"-?[0-9]{1,20}", raw):
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_HSTS_SECONDS no es un entero (valor no mostrado): debe ser un número de segundos entre 0 y 63072000."
+        )
+    segundos = int(raw)
+    if not 0 <= segundos <= _HSTS_MAX_SECONDS:
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_HSTS_SECONDS está fuera del rango 0-63072000 (valor no mostrado)."
+        )
+    return segundos
+
+
+SECURE_HSTS_SECONDS = _hsts_seconds()
+# No se activan hasta fijar el dominio definitivo (decisión SD-5): ver docs/operacion/despliegue-railway.md.
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 
 # HTTPS hardening (assumes a TLS-terminating reverse proxy in front).
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

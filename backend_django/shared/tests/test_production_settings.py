@@ -37,7 +37,7 @@ def _production(monkeypatch, *, recargar_base=True, **overrides):
     for name in (
         "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
-        "SIEP_TRUSTED_PROXIES",
+        "SIEP_TRUSTED_PROXIES", "DJANGO_SECURE_SSL_REDIRECT", "SIEP_HSTS_SECONDS",
     ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
@@ -108,3 +108,75 @@ def test_siep_trusted_proxies_acepta_cero_y_uno(monkeypatch, valor):
     settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES=valor)
 
     assert settings["SIEP_TRUSTED_PROXIES"] == int(valor)
+
+
+# ── S2-2 · HTTPS forzado y HSTS escalonado ──────────────────────────────────────────────────
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+def test_la_redireccion_a_https_viene_activa_y_solo_exime_el_healthcheck(monkeypatch):
+    # Por defecto Django redirige a HTTPS; la única ruta exenta es /api/health, que Railway sondea por HTTP plano.
+    settings = _production(monkeypatch)
+
+    assert settings["SECURE_SSL_REDIRECT"] is True
+    assert settings["SECURE_REDIRECT_EXEMPT"] == [r"^api/health$"]
+
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("valor", ["false", "FALSE", " false "])
+def test_solo_false_explicito_apaga_la_redireccion(monkeypatch, valor):
+    settings = _production(monkeypatch, DJANGO_SECURE_SSL_REDIRECT=valor)
+
+    assert settings["SECURE_SSL_REDIRECT"] is False
+
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("valor", ["true", "", "0", "no"])
+def test_cualquier_otro_valor_deja_la_redireccion_encendida(monkeypatch, valor):
+    settings = _production(monkeypatch, DJANGO_SECURE_SSL_REDIRECT=valor)
+
+    assert settings["SECURE_SSL_REDIRECT"] is True
+
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+def test_hsts_arranca_en_3600_sin_subdominios_ni_preload(monkeypatch):
+    # Subdominios y preload obligan a HTTPS en todo el dominio: no se activan hasta fijar el dominio (SD-5).
+    settings = _production(monkeypatch)
+
+    assert settings["SECURE_HSTS_SECONDS"] == 3600
+    assert settings["SECURE_HSTS_INCLUDE_SUBDOMAINS"] is False
+    assert settings["SECURE_HSTS_PRELOAD"] is False
+
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("valor", ["0", "86400", "604800", "15552000", "63072000"])
+def test_siep_hsts_seconds_acepta_los_escalones_y_los_limites(monkeypatch, valor):
+    settings = _production(monkeypatch, SIEP_HSTS_SECONDS=valor)
+
+    assert settings["SECURE_HSTS_SECONDS"] == int(valor)
+
+
+@pytest.mark.req("RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("valor", "causa"),
+    [
+        ("abc", "no es un entero"),
+        ("1.5", "no es un entero"),
+        ("3600s", "no es un entero"),
+        ("", "no es un entero"),
+        ("-1", "fuera del rango"),
+        ("63072001", "fuera del rango"),
+    ],
+)
+def test_siep_hsts_seconds_rechaza_lo_que_no_es_un_entero_entre_0_y_63072000(monkeypatch, valor, causa):
+    with pytest.raises(ImproperlyConfigured, match=f"SIEP_HSTS_SECONDS.*{causa}") as error:
+        _production(monkeypatch, SIEP_HSTS_SECONDS=valor)
+
+    # La causa va en el mensaje; el valor leído no, ni en el texto ni en una excepción encadenada.
+    assert not valor or valor not in str(error.value)
+    assert error.value.__context__ is None

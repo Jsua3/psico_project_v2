@@ -59,7 +59,9 @@ Artefactos que ya dejé listos en el repo:
 
 4. (Opcional) Variables extra ya soportadas: `JWT_EXPIRATION_HOURS` (default 8),
    `GOOGLE_OAUTH_CLIENT_ID`, `DEFAULT_FROM_EMAIL`, `CORS_ALLOWED_ORIGINS`
-   (solo si algún día sirves el frontend en otro dominio).
+   (solo si algún día sirves el frontend en otro dominio), `DJANGO_SECURE_SSL_REDIRECT`
+   (`true` por defecto; solo `false` lo apaga) y `SIEP_HSTS_SECONDS` (3600 por defecto; ver
+   [HTTPS y HSTS](#https-y-hsts)).
 
 ## 3. Generar el dominio público
 
@@ -104,6 +106,22 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
    - Estudiante: `estudiante@psychosim.edu.co` / `Estudiante123!`
 
    > Cámbialas cuanto antes (o crea usuarios nuevos) si el despliegue es público.
+
+### HTTPS y HSTS
+
+Django redirige a HTTPS por defecto (`DJANGO_SECURE_SSL_REDIRECT`: solo `false` lo apaga). Hay una excepción a propósito: **`/api/health` queda exento**, porque Railway lo sondea por HTTP plano con `Host: healthcheck.railway.app`; un `301` ahí impediría promover el despliegue. Mientras el sondeo sea por HTTP plano, no quites esa exención.
+
+HSTS se controla con `SIEP_HSTS_SECONDS` (3600 por defecto; entero entre 0 y 63072000). Un valor que no sea un entero o que esté fuera de ese rango impide arrancar la aplicación, y el error no muestra el valor leído. `includeSubDomains` y `preload` **no** se activan hasta fijar el dominio definitivo (decisión SD-5).
+
+**Escalera:** 3600 → 86400 → 604800 → 15552000. Sube un escalón solo después de:
+
+1. comprobar la redirección: `curl -I http://TU-DOMINIO` debe responder `301` con `Location: https://…`;
+2. comprobar la cabecera: `curl -I https://TU-DOMINIO` debe llevar `Strict-Transport-Security: max-age=<valor del escalón actual>`, sin `includeSubDomains` ni `preload` (con el primer escalón, `max-age=3600`);
+3. una semana sin problemas con el escalón anterior.
+
+Un navegador que recibió HSTS obliga a HTTPS en ese dominio hasta que venza su `max-age`, aunque el servidor deje de enviar la cabecera. Por eso la escalera sube despacio: si HTTPS falla con un valor alto, esos navegadores no llegan al sitio hasta que venza.
+
+**Retroceso:** bajar `SIEP_HSTS_SECONDS` no deshace lo que ya guardó un navegador. Con `0` Django deja de enviar la cabecera (no envía `max-age=0`), así que hay que esperar a que venza el `max-age` que el navegador recibió.
 
 ---
 
