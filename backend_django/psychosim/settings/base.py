@@ -269,6 +269,11 @@ INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25")
 #: E5-7 · retención mínima de auditoría (≥ 12 meses = 360 días por defecto, RNF-007).
 AUDIT_RETENTION_DAYS = max(360, int(os.environ.get("AUDIT_RETENTION_DAYS", "360")))
 
+#: S1-1 · proxies de confianza delante de Django (SIEP-RNF-02). 0 = no se confía en ninguna cabecera
+#: ``X-Forwarded-For``: la IP de la auditoría y de los límites es ``REMOTE_ADDR``. Producción la exige y no tiene
+#: valor por defecto (psychosim/settings/production.py la valida antes de importar este módulo).
+SIEP_TRUSTED_PROXIES = int(os.environ.get("SIEP_TRUSTED_PROXIES", "0"))
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }

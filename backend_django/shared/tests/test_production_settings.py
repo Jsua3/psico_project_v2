@@ -18,28 +18,33 @@ BASE_ENV = {
     # E2-12: el correo de producción es real y el aviso de solicitudes tiene destino.
     "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co",
+    # S1-1: proxies de confianza delante de Django; producción la exige (sin valor por defecto).
+    "SIEP_TRUSTED_PROXIES": "1",
 }
 
 
 @pytest.fixture(autouse=True)
-def _restore_base_settings():
-    """``production`` hace ``from .base import *``: se recarga ``base`` con el entorno de la prueba
-    y, al terminar (con el entorno ya restaurado), se vuelve a su estado normal."""
+def _restore_base_settings(monkeypatch):
+    """``production`` hace ``from .base import *``: se recarga ``base`` con el entorno de la prueba y, al terminar,
+    se deshace ese entorno ANTES de recargarlo (un SIEP_TRUSTED_PROXIES no numérico haría fallar la recarga)."""
     yield
+    monkeypatch.undo()
     importlib.reload(base_settings)
 
 
-def _production(monkeypatch, **overrides):
+def _production(monkeypatch, *, recargar_base=True, **overrides):
     env = {**BASE_ENV, **overrides}
     for name in (
         "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
+        "SIEP_TRUSTED_PROXIES",
     ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         if value is not None:
             monkeypatch.setenv(name, value)
-    importlib.reload(base_settings)  # production hace ``from .base import *``
+    if recargar_base:  # ``base`` con un valor no numérico lanzaría ValueError antes que production
+        importlib.reload(base_settings)  # production hace ``from .base import *``
     return runpy.run_module("psychosim.settings.production", run_name="production_bajo_prueba")
 
 
@@ -76,3 +81,30 @@ def test_la_conexion_a_la_bd_tiene_un_tope_de_espera(monkeypatch, database_url):
     base = runpy.run_path(str(base_py), run_name="base_bajo_prueba")
 
     assert base["DATABASES"]["default"]["OPTIONS"]["connect_timeout"] <= 10
+
+
+# ── S1-1 · SIEP_TRUSTED_PROXIES: obligatoria en producción y un entero ≥ 0 ────────────────
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_siep_trusted_proxies_es_obligatoria_en_produccion(monkeypatch):
+    # Sin valor por defecto: sin declarar cuántos proxies hay delante, la auditoría anotaría IPs falsificables.
+    with pytest.raises(ImproperlyConfigured, match="SIEP_TRUSTED_PROXIES"):
+        _production(monkeypatch, SIEP_TRUSTED_PROXIES=None)
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("valor", ["abc", "-1", "1.5"])
+def test_siep_trusted_proxies_rechaza_lo_que_no_es_un_entero_no_negativo(monkeypatch, valor):
+    with pytest.raises(ImproperlyConfigured, match="SIEP_TRUSTED_PROXIES"):
+        _production(monkeypatch, recargar_base=False, SIEP_TRUSTED_PROXIES=valor)
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("valor", ["0", "1"])
+def test_siep_trusted_proxies_acepta_cero_y_uno(monkeypatch, valor):
+    settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES=valor)
+
+    assert settings["SIEP_TRUSTED_PROXIES"] == int(valor)

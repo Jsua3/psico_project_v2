@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { buildSteps, evaluateDeployCheck } from './verify-seguridad-support.mjs';
+import { buildSteps, evaluateDeployCheck, selectSteps } from './verify-seguridad-support.mjs';
 
 const ROOT = 'C:/repo';
 const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'JWT_SECRET'];
@@ -145,4 +145,19 @@ test('el baseline real tiene entradas bien formadas: código, motivo y tarea o p
     assert.ok(entrada.motivo?.trim(), codigo);
     assert.ok(entrada.permanente === true || entrada.retira, codigo);
   }
+});
+
+test('el env de check --deploy declara los proxies de confianza que producción exige (S1-1)', () => {
+  const env = porId(pasos(), 'deploy-check').env;
+  assert.match(env.SIEP_TRUSTED_PROXIES, /^\d+$/);
+});
+
+test('--only deja solo los pasos pedidos, en el orden del plan', () => {
+  const steps = pasos();
+  assert.deepEqual(selectSteps(steps, ['deploy-check', 'scripts']).map((step) => step.id), ['scripts', 'deploy-check']);
+  assert.equal(selectSteps(steps, []), steps);
+});
+
+test('--only con un paso que no existe falla y nombra los que hay', () => {
+  assert.throws(() => selectSteps(pasos(), ['no-existe']), /paso desconocido: no-existe.*deploy-check/);
 });

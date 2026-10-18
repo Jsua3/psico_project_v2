@@ -27,6 +27,8 @@ PROD_ENV = {
     "JWT_SECRET": "otra-clave-de-prueba-de-al-menos-sesenta-y-cuatro-caracteres-0123456789",
     "EMAIL_BACKEND": SMTP,
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co, secretaria@siep.example.edu.co",
+    # S1-1: producción exige SIEP_TRUSTED_PROXIES (sin valor por defecto).
+    "SIEP_TRUSTED_PROXIES": "1",
 }
 MAIL_VARS = (
     "EMAIL_BACKEND", "EMAIL_HOST", "EMAIL_PORT", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD",

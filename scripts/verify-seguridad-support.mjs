@@ -34,6 +34,8 @@ function deployEnv() {
     DB_PASSWORD: secretoNuevo(),
     JWT_SECRET: secretoNuevo(),
     DJANGO_ALLOWED_HOSTS: 'localhost',
+    // S1-1: producción exige declarar cuántos proxies de confianza hay delante de Django.
+    SIEP_TRUSTED_PROXIES: '1',
     // Un correo real: con el backend de consola Django marca mail.E001 como error y check --deploy falla.
     EMAIL_BACKEND: 'django.core.mail.backends.smtp.EmailBackend',
     EMAIL_HOST: 'localhost',
@@ -54,6 +56,19 @@ export function findOnPath(name, { platform = process.platform, env = process.en
     }
   }
   return null;
+}
+
+/**
+ * `--only id[,id]`: deja solo esos pasos (los demás no se ejecutan ni salen en el resumen). Un id desconocido es
+ * un error que nombra los que hay: así una orden mal escrita no "pasa" sin correr nada.
+ */
+export function selectSteps(steps, only = []) {
+  if (only.length === 0) return steps;
+  const desconocidos = only.filter((id) => !steps.some((step) => step.id === id));
+  if (desconocidos.length > 0) {
+    throw new Error(`paso desconocido: ${desconocidos.join(', ')} (hay: ${steps.map((step) => step.id).join(', ')})`);
+  }
+  return steps.filter((step) => only.includes(step.id));
 }
 
 /**

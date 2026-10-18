@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.db import connection
+from django.db import DatabaseError, connection
+from django.test import RequestFactory
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -314,3 +315,69 @@ def test_la_lectura_de_la_auditoria_nunca_devuelve_texto_que_escribio_una_person
     items = cl(admin).get("/api/admin/audit", {"action": "asistente.consultar"}).data["data"]["items"]
 
     assert [i["context"] for i in items] == [{"node": 7, "response_length": 4}]
+
+
+# --- S1-1 · la IP de la auditoría la calcula client_ip (SIEP-RNF-02) ---------
+@audit_service.auditable("AUDIT_PRUEBA_IP", "PRUEBA")
+def _operacion_auditada(recurso_id):
+    return recurso_id
+
+
+def _primer_valor_sin_validar(request):
+    """La lectura de antes de S1-1 (control negativo): el primer valor de la cabecera, sin validar."""
+    reenviada = request.META.get("HTTP_X_FORWARDED_FOR")
+    if reenviada and reenviada.strip():
+        return reenviada.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def _auditar_peticion(peticion, recurso_id):
+    """Ejecuta una operación auditada con la petición ligada, como lo hace el middleware, y devuelve su fila."""
+    audit_service.bind_request(peticion)
+    try:
+        _operacion_auditada(recurso_id)
+    finally:
+        audit_service.clear_request()
+    return AuditLog.objects.filter(action="AUDIT_PRUEBA_IP", resource_id=recurso_id).order_by("-id").first()
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_la_auditoria_registra_la_ip_calculada_y_no_la_falsificada(db, settings):
+    settings.SIEP_TRUSTED_PROXIES = 1
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="6.6.6.6, 9.9.9.9", REMOTE_ADDR="203.0.113.7")
+
+    row = _auditar_peticion(peticion, "ip-falsificada")
+
+    assert row is not None
+    assert row.ip_address == "9.9.9.9"
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("saltos", [0, 1])
+def test_una_cabecera_larga_no_hace_perder_la_fila_de_auditoria(db, settings, saltos):
+    """Hallazgo de la revisión S0-3 (SF-20): ``ip_address`` es varchar(80) y ``append`` tragaba el fallo de
+    inserción, así que una cabecera de más de 80 caracteres dejaba la auditoría sin fila y sin aviso."""
+    settings.SIEP_TRUSTED_PROXIES = saltos
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="x" * 200, REMOTE_ADDR="203.0.113.7")
+
+    row = _auditar_peticion(peticion, f"ip-larga-{saltos}")
+
+    assert row is not None
+    assert row.ip_address == "203.0.113.7"
+    assert len(row.ip_address) <= 45
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_control_negativo_la_lectura_sin_validar_pierde_la_fila(db, settings, monkeypatch):
+    """Con la lectura de antes (primer valor, sin validar) la misma petición no deja fila: el control demuestra
+    que la prueba de arriba detecta la regresión. La inserción falla y deja abortada la transacción, así que la
+    consulta posterior lanza un error de base de datos (si la columna se ensanchara, este control avisaría)."""
+    settings.SIEP_TRUSTED_PROXIES = 0
+    monkeypatch.setattr(audit_service, "_client_ip", _primer_valor_sin_validar)
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="x" * 200, REMOTE_ADDR="203.0.113.7")
+
+    with pytest.raises(DatabaseError):
+        _auditar_peticion(peticion, "ip-larga-control")

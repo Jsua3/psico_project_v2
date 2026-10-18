@@ -21,6 +21,8 @@ Reglas (``Violation.rule``):
 - ``publicacion-unica``: solo la compuerta (``services/authoring/gate.py``) escribe el estado
   ``PUBLISHED`` de una versión (E4-4: «lo que se ejecuta es lo que se validó»); leerlo o escribir
   otro estado no cuenta.
+- ``ip-reenviada-solo-client-ip``: la cabecera ``X-Forwarded-For`` solo la lee ``shared/client_ip.py``
+  (S1-1: la IP sale de contar los saltos de confianza; de la cabecera la falsifica el cliente).
 
 Las evasiones que la revisión de la fase E0 encontró (imports relativos, alias y
 atributos de ``AllowAny``, SQL en una variable, querysets guardados) están
@@ -442,6 +444,25 @@ def _publicacion_unica(rel, tree):
     return found
 
 
+#: La única pieza que lee la cabecera ``X-Forwarded-For``: cuenta los saltos de confianza (S1-1).
+CLIENT_IP_MODULE = "shared/client_ip.py"
+FORWARDED_META_KEY = "HTTP_X_FORWARDED_FOR"
+
+
+def _cabecera_ip_solo_en_client_ip(rel, tree):
+    """Ningún módulo salvo ``shared/client_ip.py`` nombra la cabecera de IP reenviada: leerla sin contar los
+    saltos deja que el cliente escriba su propia IP en la auditoría y en los límites por IP."""
+    if rel == CLIENT_IP_MODULE:
+        return []
+    found = {
+        Violation("ip-reenviada-solo-client-ip", rel, "lee X-Forwarded-For (usa shared.client_ip.client_ip)")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        and (FORWARDED_META_KEY in node.value or node.value.lower() == "x-forwarded-for")
+    }
+    return sorted(found, key=lambda v: v.detail)
+
+
 def check_architecture(root: Path) -> list[Violation]:
     violations: list[Violation] = []
     for rel, tree in _source_files(root):
@@ -477,4 +498,5 @@ def check_architecture(root: Path) -> list[Violation]:
         violations += _uniones_por_orm(rel, tree)
         violations += _permisos_por_politica(rel, tree)
         violations += _publicacion_unica(rel, tree)
+        violations += _cabecera_ip_solo_en_client_ip(rel, tree)
     return violations

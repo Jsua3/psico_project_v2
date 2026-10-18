@@ -23,6 +23,8 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 
+from shared.client_ip import client_ip
+
 from ..models import AuditLog, CaseReview
 
 logger = logging.getLogger(__name__)
@@ -165,10 +167,8 @@ def current_actor_id():
 
 
 def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded and forwarded.strip():
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
+    # None (NULL en ``ip_address``) cuando no hay IP: la cadena vacía no es una dirección.
+    return client_ip(request) or None
 
 
 # ─── persistence (Spring AuditLogAdapter.append) ─────────────────────────────

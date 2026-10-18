@@ -5,18 +5,21 @@
  * buildSteps y sale distinto de cero al primer fallo; con --keep-going corre todos y resume al final.
  * Un paso opcional sin su herramienta o sin su carpeta se omite y lo dice.
  *
- * Uso: npm run verify:seguridad [-- --keep-going]
+ * Uso: npm run verify:seguridad [-- --keep-going] [--only id[,id]]   (ids: scripts, security-tests, deploy-check,
+ *      pip-audit, npm-audit, gitleaks, dist-dev-only)
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildSteps, summarize } from './verify-seguridad-support.mjs';
+import { buildSteps, selectSteps, summarize } from './verify-seguridad-support.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const isWin = process.platform === 'win32';
 const keepGoing = process.argv.includes('--keep-going');
+const onlyIndex = process.argv.indexOf('--only');
+const only = onlyIndex >= 0 ? (process.argv[onlyIndex + 1] ?? '').split(',').filter(Boolean) : [];
 const baseline = JSON.parse(readFileSync(join(ROOT, 'scripts', 'security-check-baseline.json'), 'utf8'));
 const results = [];
 let failed = false;
@@ -57,7 +60,15 @@ function runDeployCheck(step) {
   return ok ? 0 : 1;
 }
 
-for (const step of buildSteps({ root: ROOT, baseline })) {
+let steps;
+try {
+  steps = selectSteps(buildSteps({ root: ROOT, baseline }), only);
+} catch (error) {
+  console.error(`[siep:seguridad] ${error.message}`);
+  process.exit(2);
+}
+
+for (const step of steps) {
   if (failed && !keepGoing) {
     results.push({ id: step.id, status: null, seconds: 0, skipped: true });
     continue;

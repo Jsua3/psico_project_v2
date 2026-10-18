@@ -6,7 +6,8 @@ turns off DEBUG, locks down ALLOWED_HOSTS/CORS, and fails fast if any critical
 secret was left at its insecure development default.
 
 Required environment variables:
-    DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, DB_PASSWORD, JWT_SECRET
+    DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, DB_PASSWORD, JWT_SECRET, SIEP_TRUSTED_PROXIES
+    (entero ≥ 0: proxies de confianza delante de Django; sin valor por defecto).
 Optional:
     CORS_ALLOWED_ORIGINS (comma-separated), REFLECTION_ENCRYPTION_KEY
     (defaults to JWT_SECRET, like Spring), DB_NAME/DB_USER/DB_HOST/DB_PORT,
@@ -15,10 +16,6 @@ Optional:
 import os
 
 from django.core.exceptions import ImproperlyConfigured
-
-from .base import *  # noqa
-
-DEBUG = False
 
 
 def _require_env(name):
@@ -29,6 +26,29 @@ def _require_env(name):
             "psychosim.settings.production"
         )
     return value
+
+
+# S1-1 · base.py convierte SIEP_TRUSTED_PROXIES con int() al importarse: un valor que no sea un entero ≥ 0 se
+# rechaza AQUÍ, antes del ``from .base import *``, para que la causa salga como ImproperlyConfigured.
+def _validate_trusted_proxies():
+    value = _require_env("SIEP_TRUSTED_PROXIES").strip()
+    try:
+        valid = int(value) >= 0
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_TRUSTED_PROXIES debe ser un entero ≥ 0: número de proxies de confianza delante de Django "
+            "(0 = ninguno)."
+        )
+
+
+_validate_trusted_proxies()
+
+from .base import *  # noqa
+
+DEBUG = False
 
 
 def _split_csv(value):
