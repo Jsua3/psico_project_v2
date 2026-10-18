@@ -65,6 +65,10 @@ MATRIX: dict[tuple[str, str], dict[str, str]] = {
     ("analytics", "read"): {PROFESOR: MEMBER, ADMIN: ALL},
     # Auditoría: solo ADMIN.
     ("audit", "read"): {ADMIN: ALL},
+    # Consentimiento al aviso de contenido (S3-2a, C12): leer el propio estado y aceptarlo o retirarlo. Solo el estudiante, y el
+    # suyo: el ADMIN y el docente no juegan, así que no tienen un consentimiento que dar.
+    ("consent", "read"): {ESTUDIANTE: OWN},
+    ("consent", "record"): {ESTUDIANTE: OWN},
     # Lecturas de todo usuario autenticado.
     ("catalog", "read"): {ESTUDIANTE: ALL, PROFESOR: ALL, ADMIN: ALL},
     ("account", "self"): {ESTUDIANTE: ALL, PROFESOR: ALL, ADMIN: ALL},

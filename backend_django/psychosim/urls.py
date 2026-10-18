@@ -93,6 +93,9 @@ urlpatterns = [
     path("api/assignments/<int:assignment_id>", AssignmentDetailView.as_view()),
     path("api/reportes/", include("apps.reportes.urls")),
     path("api/simulation/", include("apps.simulation.urls")),
+    # S3-2 · C12: el consentimiento al aviso de contenido vive en ``apps/privacy`` y cuelga del mismo prefijo del simulador
+    # (``/api/simulation/cases/<id>/consent``); sus rutas no chocan con las de arriba.
+    path("api/simulation/", include("apps.privacy.urls")),
     # ED-9 (por defecto): ``/api/authoring/**`` es el espacio canónico de la autoría y
     # ``/api/admin/cases/**`` queda como alias del mismo urlconf hasta que el visual migre.
     path("api/authoring/cases", AdminCaseListCreateView.as_view()),
