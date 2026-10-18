@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "apps.reportes",
     "apps.progression",
     "apps.security",
+    "apps.privacy",
 ]
 
 MIDDLEWARE = [
