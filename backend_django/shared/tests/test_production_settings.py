@@ -1,6 +1,8 @@
 """Los settings de producción que el despliegue necesita (E0-3, revisión de fase)."""
 import importlib
 import runpy
+import secrets
+import string
 from pathlib import Path
 
 import pytest
@@ -10,11 +12,16 @@ from psychosim.settings import base as base_settings
 
 pytestmark = pytest.mark.req("RNF-06")
 
+BACKEND = Path(__file__).resolve().parents[2]
+RAIZ = Path(__file__).resolve().parents[3]
+
 BASE_ENV = {
-    "DJANGO_SECRET_KEY": "una-clave-de-prueba-que-no-es-la-insegura-por-defecto-123456",
+    # S5-1: las llaves de prueba se generan en cada ejecución; ninguna es un literal.
+    "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
     "DJANGO_ALLOWED_HOSTS": "siep.example.edu.co",
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
-    "JWT_SECRET": "otra-clave-de-prueba-de-al-menos-sesenta-y-cuatro-caracteres-0123456789",
+    "JWT_SECRET": secrets.token_urlsafe(48),
+    "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
     # E2-12: el correo de producción es real y el aviso de solicitudes tiene destino.
     "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co",
@@ -38,6 +45,7 @@ def _production(monkeypatch, *, recargar_base=True, **overrides):
         "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
         "SIEP_TRUSTED_PROXIES", "DJANGO_SECURE_SSL_REDIRECT", "SIEP_HSTS_SECONDS",
+        "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET",
     ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
@@ -180,3 +188,214 @@ def test_siep_hsts_seconds_rechaza_lo_que_no_es_un_entero_entre_0_y_63072000(mon
     # La causa va en el mensaje; el valor leído no, ni en el texto ni en una excepción encadenada.
     assert not valor or valor not in str(error.value)
     assert error.value.__context__ is None
+
+
+# ── S5-1 · Secretos de producción: se validan al arrancar y el error nunca muestra su valor ──
+
+_ALFABETO = string.ascii_letters + string.digits
+PLANTILLAS = (RAIZ / ".env.example", BACKEND / ".env.example")
+
+
+def _secreto(longitud):
+    """Un secreto de ``longitud`` caracteres, nuevo en cada ejecución y con al menos 20 caracteres distintos.
+
+    Nunca es un literal, y la regla de los caracteres distintos no depende del azar: 20 se eligen sin repetir.
+    """
+    azar = secrets.SystemRandom()
+    caracteres = azar.sample(_ALFABETO, 20) + [secrets.choice(_ALFABETO) for _ in range(longitud - 20)]
+    azar.shuffle(caracteres)
+    return "".join(caracteres)
+
+
+def _llaves_validas(**cambios):
+    """Las dos llaves de producción tal como las genera la plantilla (``token_urlsafe``), nuevas en cada ejecución."""
+    return {
+        "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
+        "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
+        **cambios,
+    }
+
+
+def _valor_de_plantilla(archivo, clave):
+    """El valor de ``CLAVE=valor`` en un .env.example (las líneas comentadas no cuentan)."""
+    for linea in archivo.read_text(encoding="utf-8").splitlines():
+        if linea.startswith(f"{clave}="):
+            return linea.split("=", 1)[1].strip()
+    return None
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_dos_llaves_generadas_cargan_produccion(monkeypatch):
+    llaves = _llaves_validas()
+
+    settings = _production(monkeypatch, **llaves)
+
+    assert settings["SECRET_KEY"] == llaves["DJANGO_SECRET_KEY"]
+    assert settings["REFLECTION_ENCRYPTION_KEY"] == llaves["REFLECTION_ENCRYPTION_KEY"]
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_django_secret_key_de_49_caracteres_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="DJANGO_SECRET_KEY es demasiado corta"):
+        _production(monkeypatch, DJANGO_SECRET_KEY=_secreto(49))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_django_secret_key_de_50_caracteres_con_20_distintos_carga(monkeypatch):
+    valor = _secreto(50)
+
+    settings = _production(monkeypatch, DJANGO_SECRET_KEY=valor)
+
+    assert settings["SECRET_KEY"] == valor
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_django_secret_key_con_una_sola_letra_repetida_falla(monkeypatch):
+    # Cumple la longitud, pero tiene un único carácter distinto (el mínimo son 20).
+    with pytest.raises(ImproperlyConfigured, match="DJANGO_SECRET_KEY tiene muy pocos caracteres distintos"):
+        _production(monkeypatch, DJANGO_SECRET_KEY=secrets.choice(string.ascii_lowercase) * 60)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_el_literal_inseguro_de_django_sigue_rechazado(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="insecure default"):
+        _production(monkeypatch, DJANGO_SECRET_KEY="django-insecure-change-in-production")
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_cada_marcador_de_ejemplo_dentro_de_la_llave_la_rechaza(monkeypatch):
+    # Los marcadores son los que declara production.py (sin distinguir mayúsculas): se leen del propio módulo.
+    marcadores = _production(monkeypatch).get("EXAMPLE_SECRET_MARKERS")
+    assert marcadores, "production.py debe declarar EXAMPLE_SECRET_MARKERS"
+
+    for marcador in marcadores:
+        for forma in (marcador, marcador.upper()):
+            with pytest.raises(ImproperlyConfigured, match="DJANGO_SECRET_KEY es un valor de ejemplo"):
+                _production(monkeypatch, DJANGO_SECRET_KEY=forma + _secreto(60))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_es_obligatoria(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=None)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_no_hereda_jwt_secret(monkeypatch):
+    # JWT_SECRET definido y la llave propia ausente: antes caía a JWT_SECRET; ahora no arranca.
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=None, JWT_SECRET=_secreto(64))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_de_31_caracteres_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY es demasiado corta"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=_secreto(31))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_de_32_caracteres_carga(monkeypatch):
+    valor = _secreto(32)
+
+    settings = _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=valor)
+
+    assert settings["REFLECTION_ENCRYPTION_KEY"] == valor
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_igual_a_la_de_django_falla(monkeypatch):
+    valor = _secreto(64)
+
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY debe ser distinta de DJANGO_SECRET_KEY"):
+        _production(monkeypatch, DJANGO_SECRET_KEY=valor, REFLECTION_ENCRYPTION_KEY=valor)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_encryption_key_con_marcador_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY es un valor de ejemplo"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY="tu-secreto" + _secreto(40))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_el_default_de_desarrollo_de_base_no_arranca_produccion(monkeypatch):
+    monkeypatch.delenv("REFLECTION_ENCRYPTION_KEY", raising=False)
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    base = runpy.run_path(str(BACKEND / "psychosim" / "settings" / "base.py"), run_name="base_bajo_prueba")
+
+    # base.py ya no hereda JWT_SECRET: su default para las reflexiones es una llave de desarrollo que producción rechaza.
+    assert base["JWT_SECRET"] == ""
+    assert "dev-only" in base["REFLECTION_ENCRYPTION_KEY"]
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ENCRYPTION_KEY"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=base["REFLECTION_ENCRYPTION_KEY"])
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_sin_jwt_secret_y_con_las_dos_llaves_validas_carga(monkeypatch):
+    llaves = _llaves_validas()
+
+    settings = _production(monkeypatch, JWT_SECRET=None, **llaves)
+
+    assert settings["SECRET_KEY"] == llaves["DJANGO_SECRET_KEY"]
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_un_jwt_secret_cualquiera_no_se_valida(monkeypatch):
+    # JWT_SECRET no firma nada en producción: si alguien lo define, ni su longitud ni su contenido se comprueban.
+    settings = _production(monkeypatch, JWT_SECRET=secrets.token_urlsafe(4), **_llaves_validas())
+
+    assert settings["SECRET_KEY"]
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_el_error_nombra_la_variable_y_no_muestra_su_valor(monkeypatch):
+    casos = {
+        "REFLECTION_ENCRYPTION_KEY": _secreto(31),
+        "DJANGO_SECRET_KEY": "cambia-esto" + _secreto(60),
+    }
+    for variable, valor in casos.items():
+        with pytest.raises(ImproperlyConfigured, match=variable) as error:
+            _production(monkeypatch, **{variable: valor})
+
+        # La causa va en el mensaje; el valor, ni entero ni en parte, y tampoco en una excepción encadenada.
+        assert valor not in str(error.value)
+        assert error.value.__context__ is None
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+@pytest.mark.parametrize("archivo", PLANTILLAS, ids=["raiz", "backend"])
+@pytest.mark.parametrize("clave", ["DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY"])
+def test_los_valores_de_la_plantilla_no_arrancan_produccion(monkeypatch, archivo, clave):
+    # Quien copie la plantilla sin cambiarla debe fallar al arrancar: el valor se lee del propio archivo.
+    marcadores = _production(monkeypatch).get("EXAMPLE_SECRET_MARKERS")
+    assert marcadores, "production.py debe declarar EXAMPLE_SECRET_MARKERS"
+    valor = _valor_de_plantilla(archivo, clave)
+    assert valor, f"{archivo} debe definir {clave}"
+    assert any(marcador in valor.lower() for marcador in marcadores), f"{clave} de {archivo} no lleva un marcador"
+
+    with pytest.raises(ImproperlyConfigured, match=clave):
+        _production(monkeypatch, **{clave: valor})
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_base_no_conserva_el_literal_publico_de_jwt_secret():
+    texto = (BACKEND / "psychosim" / "settings" / "base.py").read_text(encoding="utf-8")
+
+    assert "psychosim-jwt-secret" not in texto

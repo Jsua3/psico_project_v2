@@ -45,8 +45,8 @@ Artefactos que ya dejé listos en el repo:
    | Variable | Valor |
    |---|---|
    | `DJANGO_SETTINGS_MODULE` | `psychosim.settings.production` |
-   | `DJANGO_SECRET_KEY` | una cadena larga y aleatoria |
-   | `JWT_SECRET` | otra cadena larga (≥ 32 caracteres) |
+   | `DJANGO_SECRET_KEY` | una cadena aleatoria de **≥ 50 caracteres con ≥ 20 distintos** |
+   | `REFLECTION_ENCRYPTION_KEY` | otra cadena aleatoria de **≥ 32 caracteres**, distinta de `DJANGO_SECRET_KEY` (cifra las reflexiones) |
    | `DJANGO_ALLOWED_HOSTS` | el dominio que te dé Railway, p. ej. `siep-production.up.railway.app` |
    | `DATABASE_URL` | **referencia** a la del Postgres (ver abajo) |
 
@@ -56,6 +56,12 @@ Artefactos que ya dejé listos en el repo:
 
    > Genera secretos seguros, por ejemplo en tu terminal:
    > `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   > Producción no arranca si una llave es demasiado corta o repetitiva, si es un valor de ejemplo del repositorio
+   > (`cambia-esto…`, `dev-only…`, `django-insecure…`) o si las dos llaves son iguales. El error nombra la variable, nunca su valor.
+   >
+   > **Reflexiones ya cifradas:** hasta S5-1, `REFLECTION_ENCRYPTION_KEY` caía a `JWT_SECRET` si no se definía. Si este
+   > despliegue ya guardó reflexiones sin definirla, fija `REFLECTION_ENCRYPTION_KEY` con el valor que tenía `JWT_SECRET`
+   > (cumpliendo las reglas de arriba) o consulta antes de cambiarla: con otra llave, esas reflexiones no se descifran.
 
 4. (Opcional) Variables extra ya soportadas: `JWT_EXPIRATION_HOURS` (default 8),
    `GOOGLE_OAUTH_CLIENT_ID`, `DEFAULT_FROM_EMAIL`, `CORS_ALLOWED_ORIGINS`
@@ -155,10 +161,11 @@ Un navegador que recibió HSTS obliga a HTTPS en ese dominio hasta que venza su 
   ese script además reclasifica como `REPLACED` los intentos reemplazados que se
   guardaron como salida segura. Como cada push redepliega, aplica los scripts
   **antes** de hacer push del código que los necesita.
-- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
-  `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
-  las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían
-  no descifrarse. No afecta al resto de la app.
+- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con la
+  llave de reflexiones local (hasta S5-1, el `JWT_SECRET` local). Si la
+  `REFLECTION_ENCRYPTION_KEY` de Railway es distinta (recomendado), las reflexiones
+  nuevas funcionan con normalidad; las viejas del volcado podrían no descifrarse.
+  No afecta al resto de la app.
 
 ---
 

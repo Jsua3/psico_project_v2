@@ -15,8 +15,12 @@ regexes = [
   '''^[a-z0-9]+(?:-[a-z0-9]+)+$''',
   # Marcadores de posición de .env.example: se piden cambiar antes de desplegar.
   '''^cambia-esto[a-z0-9-]*$''',
-  # Secreto JWT de DESARROLLO por defecto de settings/base.py; producción exige uno propio.
+  # Secreto JWT de DESARROLLO que base.py ya no contiene (S5-1), pero sí el historial de git, que `gitleaks detect`
+  # también escanea: se mantiene la excepción para que el historial no falle.
   '''^psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256$''',
+  # Llave de cifrado de reflexiones de DESARROLLO por defecto de settings/base.py (S5-1): producción la rechaza
+  # (caracteres repetidos y el marcador «dev-only»); no es un secreto.
+  '''^dev-only-reflection-key-never-use-in-production$''',
   # Nombre de la entrada de localStorage con la copia del avatar v1 (AVATAR_V1_BACKUP_KEY en
   # avatar.store.ts): es el nombre de una clave del navegador, no una credencial; la regla salta
   # solo porque la constante termina en _KEY.

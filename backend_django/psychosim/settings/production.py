@@ -1,18 +1,21 @@
 """Production settings.
 
-Everything sensitive (SECRET_KEY, DB credentials, JWT secret, reflection
-encryption key) is read from environment variables in ``base.py``; this module
-turns off DEBUG, locks down ALLOWED_HOSTS/CORS, and fails fast if any critical
-secret was left at its insecure development default.
+Everything sensitive (SECRET_KEY, DB credentials, reflection encryption key) is
+read from environment variables in ``base.py``; this module turns off DEBUG,
+locks down ALLOWED_HOSTS/CORS, and fails fast if a critical secret is missing,
+too short, too repetitive, a placeholder from the repository, or a copy of
+another secret (S5-1: ``_validate_secret``; el error nombra la variable, nunca su valor).
 
 Required environment variables:
-    DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, DB_PASSWORD, JWT_SECRET, SIEP_TRUSTED_PROXIES
-    (entero ≥ 0: proxies de confianza delante de Django; sin valor por defecto).
+    DJANGO_SECRET_KEY (≥ 50 caracteres, ≥ 20 distintos), REFLECTION_ENCRYPTION_KEY
+    (≥ 32 caracteres, ≥ 20 distintos, distinta de DJANGO_SECRET_KEY), DJANGO_ALLOWED_HOSTS,
+    DB_PASSWORD, SIEP_TRUSTED_PROXIES (entero ≥ 0: proxies de confianza delante de Django;
+    sin valor por defecto).
 Optional:
-    CORS_ALLOWED_ORIGINS (comma-separated), REFLECTION_ENCRYPTION_KEY
-    (defaults to JWT_SECRET, like Spring), DB_NAME/DB_USER/DB_HOST/DB_PORT,
+    CORS_ALLOWED_ORIGINS (comma-separated), DB_NAME/DB_USER/DB_HOST/DB_PORT,
     DJANGO_SECURE_SSL_REDIRECT (default "true": solo "false" lo apaga),
     SIEP_HSTS_SECONDS (default 3600: entero entre 0 y 63072000).
+JWT_SECRET ya no se exige ni se valida: no firma nada (la firma de sesión la decide S5-3).
 """
 import os
 import re
@@ -28,6 +31,46 @@ def _require_env(name):
             "psychosim.settings.production"
         )
     return value
+
+
+# S5-1 · Marcadores de los valores de ejemplo del repositorio (plantillas y desarrollo). Un secreto que contenga
+# cualquiera de ellos, sin distinguir mayúsculas, es una plantilla sin cambiar: producción lo rechaza.
+EXAMPLE_SECRET_MARKERS = (
+    "cambia-esto",
+    "change-in-production",
+    "django-insecure",
+    "psychosim-jwt-secret",
+    "dev-only",
+    "changeme",
+    "tu-secreto",
+)
+
+
+# S5-1 · Un secreto de producción se comprueba al arrancar. El error NOMBRA la variable y la causa, pero NUNCA muestra
+# el valor leído ni parte de él: el mensaje va a los registros de la plataforma.
+def _validate_secret(name, value, *, min_length, distinct_from=()):
+    """``distinct_from`` son pares ``(nombre, valor)`` de otros secretos que este no puede repetir."""
+    if len(value) < min_length:
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{name} es demasiado corta (mínimo {min_length} caracteres)."
+        )
+    if len(set(value)) < 20:
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{name} tiene muy pocos caracteres distintos (mínimo 20)."
+        )
+    if any(marker in value.lower() for marker in EXAMPLE_SECRET_MARKERS):
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{name} es un valor de ejemplo del repositorio: genera uno propio."
+        )
+    for other_name, other_value in distinct_from:
+        if value == other_value:
+            raise ImproperlyConfigured(
+                # BORRADOR
+                f"{name} debe ser distinta de {other_name}."
+            )
 
 
 # S1-1 · base.py convierte SIEP_TRUSTED_PROXIES con int() al importarse: un valor que no sea un entero ≥ 0 se
@@ -83,12 +126,21 @@ ALLOWED_HOSTS.append("healthcheck.railway.app")
 SECRET_KEY = _require_env("DJANGO_SECRET_KEY")  # noqa: F811
 if SECRET_KEY == "django-insecure-change-in-production":
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must not be the insecure default in production")
+_validate_secret("DJANGO_SECRET_KEY", SECRET_KEY, min_length=50)
+# S5-1 · La llave de las reflexiones es OBLIGATORIA y propia: ya no cae a JWT_SECRET.
+REFLECTION_ENCRYPTION_KEY = _require_env("REFLECTION_ENCRYPTION_KEY")
+_validate_secret(
+    "REFLECTION_ENCRYPTION_KEY",
+    REFLECTION_ENCRYPTION_KEY,
+    min_length=32,
+    distinct_from=(("DJANGO_SECRET_KEY", SECRET_KEY),),
+)
 
 # La base de datos llega como DATABASE_URL (Railway) o como variables DB_*.
 # Solo exigimos DB_PASSWORD cuando NO se usa DATABASE_URL.
 if not os.environ.get("DATABASE_URL"):
     _require_env("DB_PASSWORD")
-_require_env("JWT_SECRET")
+# S5-1 · JWT_SECRET ya no es obligatorio: no firma nada (la firma de sesión la decide S5-3).
 
 # CORS — al servir el SPA desde el mismo servicio Django el origen es el mismo y
 # no hace falta CORS; si el frontend vive en otro dominio, se listan aquí.

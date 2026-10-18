@@ -144,13 +144,14 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "userId",
 }
 
-# Reflection-at-rest encryption key (defaults to the JWT secret, like Spring's
-# simulation.reflection.encryption-key:${jwt.secret}).
-JWT_SECRET = os.environ.get(
-    "JWT_SECRET",
-    "psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256",
+# S5-1 · JWT_SECRET ya no firma nada (la firma de sesión sale de SECRET_KEY; S5-3 la decide) y no lleva valor por
+# defecto: el literal público que tenía se retira. El nombre se conserva por compatibilidad de entorno.
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+# S5-1 · Llave de cifrado en reposo de las reflexiones. Producción la exige (production.py) y NO la hereda de
+# JWT_SECRET. Aquí solo hay una llave de DESARROLLO inconfundible: el marcador «dev-only» hace que producción la rechace.
+REFLECTION_ENCRYPTION_KEY = os.environ.get(
+    "REFLECTION_ENCRYPTION_KEY", "dev-only-reflection-key-never-use-in-production"
 )
-REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 # E2-9 · Contraseñas: longitud mínima y lista de contraseñas comunes (LS-16). Se aplican donde
 # alguien fija una (alta por el ADMIN, registro, cambio de contraseña); las cuentas que importa
