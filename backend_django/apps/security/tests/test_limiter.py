@@ -146,3 +146,14 @@ def test_veinte_intentos_simultaneos_cuentan_veinte_sin_respuestas_repetidas(
         assert list(RateLimitBucket.objects.filter(key_hash=clave).values_list("count", flat=True)) == [20]
     finally:
         RateLimitBucket.objects.filter(key_hash=clave).delete()
+
+
+def test_key_hash_lleva_la_sal_del_servidor_y_no_es_un_sha256_simple(settings):
+    import hashlib
+
+    direccion = "203.0.113.5"
+    assert limiter.key_hash(direccion) != hashlib.sha256(direccion.encode()).hexdigest()
+
+    antes = limiter.key_hash(direccion)
+    settings.SECRET_KEY = secrets.token_urlsafe(50)
+    assert limiter.key_hash(direccion) != antes

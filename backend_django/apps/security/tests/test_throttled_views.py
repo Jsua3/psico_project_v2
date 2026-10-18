@@ -188,3 +188,27 @@ def test_el_429_del_login_trae_la_forma_throttled_con_la_espera_y_la_cabecera(
         "message": f"Demasiados intentos. Espera {espera} s e inténtalo de nuevo.",
         "retryAfter": espera,
     }
+
+
+def test_un_intento_frenado_por_la_ip_no_gasta_el_tope_global_ni_el_del_correo(cliente, reloj, limitador):
+    """DRF evalúa todos los límites; ``FailFastThrottlesMixin`` corta en el primero que rechaza (revisión de S1-2)."""
+    for _ in range(5):
+        assert _solicitud(cliente, _correo_nuevo(), "198.51.100.71").status_code != 429
+    correo_frenado = _correo_nuevo()
+
+    assert _solicitud(cliente, correo_frenado, "198.51.100.71").status_code == 429
+
+    assert RateLimitBucket.objects.get(scope="access_request_global").count == 5
+    assert not RateLimitBucket.objects.filter(
+        scope="access_request_email", key_hash=limiter.key_hash(correo_frenado)
+    ).exists()
+
+
+def test_un_atacante_frenado_por_su_ip_no_agota_el_tope_global_de_los_demas(
+    cliente, reloj, limitador, monkeypatch
+):
+    monkeypatch.setitem(LIMITS, "access_request_global", Limit(8, 86400))
+    for _ in range(40):
+        _solicitud(cliente, _correo_nuevo(), "203.0.113.90")  # 5 pasan, 35 quedan frenadas por la IP
+
+    assert _solicitud(cliente, _correo_nuevo(), "203.0.113.91").status_code != 429

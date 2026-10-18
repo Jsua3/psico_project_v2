@@ -4,7 +4,9 @@
 fallan ABIERTOS: si la base no responde devuelven 0 (la petición pasa) y dejan rastro en ``siep.security``.
 La clave que recibe ``hit``/``peek`` ya es un hash (``key_hash``): ni el correo ni la IP se guardan en claro.
 """
+import functools
 import hashlib
+import hmac
 import logging
 import math
 import time
@@ -42,9 +44,18 @@ def _falla_abierta(scope: str, exc: Exception) -> None:
     )
 
 
+@functools.lru_cache(maxsize=4)
+def _sal(secret_key: str) -> bytes:
+    """Sal propia del limitador, derivada de ``SECRET_KEY``: sin ella un volcado de la tabla se revertiría por
+    fuerza bruta (las direcciones IPv4 son solo 2^32). Cambiar la llave solo reinicia los contadores."""
+    return hashlib.sha256(b"siep.throttle.v1" + _SEPARADOR.encode() + secret_key.encode("utf-8")).digest()
+
+
 def key_hash(*partes) -> str:
-    """SHA-256 hexadecimal de las partes unidas por ``_SEPARADOR``: estable y sin el dato en claro."""
-    return hashlib.sha256(_SEPARADOR.join(str(parte) for parte in partes).encode("utf-8")).hexdigest()
+    """HMAC-SHA256 hexadecimal de las partes unidas por ``_SEPARADOR``: estable, distinto por parte y sin el dato
+    en claro ni recuperable sin la llave del servidor."""
+    mensaje = _SEPARADOR.join(str(parte) for parte in partes).encode("utf-8")
+    return hmac.new(_sal(settings.SECRET_KEY), mensaje, hashlib.sha256).hexdigest()
 
 
 def hit(scope: str, key: str) -> int:

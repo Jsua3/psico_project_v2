@@ -1,7 +1,7 @@
 """Inventario de superficie del servidor (plan 03, S0-2).
 
 Recorre el ``urlconf`` real y da, por ruta y método HTTP, quién puede llamarla (``exposure``), qué
-cuerpo admite (``body``) y los campos que llenan S1-2 (``throttle``) y S4-1 (``audit``), hoy vacíos.
+cuerpo admite (``body``), los alcances del limitador (``throttle``, S1-2) y el campo ``audit`` que llena S4-1 (hoy vacío).
 ``shared/surface-inventory.json`` es la evidencia versionada de ese recorrido: si aparece una ruta
 nueva o cambia una exposición, ``shared/tests/test_surface_inventory.py`` falla hasta que se regenere
 con ``python -m shared.surface --write`` (desde ``backend_django/``).
@@ -119,6 +119,16 @@ def _body(method, view_class):
     return "json-small"
 
 
+def _throttle_scopes(view_class):
+    """Alcances del limitador que declara la vista (``throttle_classes``), en el orden en que se evalúan; ``None`` si
+    no tiene ninguno. Se leen del atributo ``scope`` de cada clase: ``shared`` no importa ``apps``."""
+    if view_class is None:
+        return None
+    scopes = [getattr(cls, "scope", "") for cls in getattr(view_class, "throttle_classes", None) or []]
+    scopes = [scope for scope in scopes if scope]
+    return scopes or None
+
+
 def collect_routes(patterns=None):
     """Una fila por ruta (sin barra final) y método HTTP, ordenadas por (ruta, método)."""
     rows = {}
@@ -132,7 +142,7 @@ def collect_routes(patterns=None):
                 "method": method,
                 "exposure": _exposure(view, permissions),
                 "body": _body(method, view_class),
-                "throttle": None,  # S1-2 lo llena
+                "throttle": _throttle_scopes(view_class),
                 "audit": None,  # S4-1 lo llena
             }
             key = (route, method)

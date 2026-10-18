@@ -12,6 +12,20 @@ from .limiter import hit, key_hash, retry_after
 from .limits import LIMITS
 
 
+class FailFastThrottlesMixin:
+    """Evalúa los límites de la vista EN ORDEN y se detiene en el primero que rechaza.
+
+    DRF evalúa todos aunque el primero ya haya rechazado, y cada ``allow_request`` suma a su contador: un intento
+    frenado por IP seguiría gastando el tope global de solicitudes de acceso (200 al día) y el del correo. Con este
+    corte, los contadores posteriores solo cuentan lo que pasó los anteriores.
+    """
+
+    def check_throttles(self, request):
+        for throttle in self.get_throttles():
+            if not throttle.allow_request(request, self):
+                self.throttled(request, throttle.wait())
+
+
 class ScopedThrottle(BaseThrottle):
     scope = ""
 

@@ -15,6 +15,7 @@ from apps.security.throttling import (
     AccessRequestEmailThrottle,
     AccessRequestGlobalThrottle,
     AccessRequestIpThrottle,
+    FailFastThrottlesMixin,
     GoogleIpThrottle,
     LoginIpThrottle,
     PasswordChangeUserThrottle,
@@ -184,10 +185,11 @@ class RegisterView(APIView):
         return api_ok(UserSummarySerializer(user).data, message="Usuario creado exitosamente")
 
 
-class AccessRequestCreateView(APIView):
+class AccessRequestCreateView(FailFastThrottlesMixin, APIView):
     """POST /api/auth/access-request — public student access request."""
 
     permission_classes = [AllowAny]
+    # El orden importa (FailFastThrottlesMixin): el tope global solo cuenta lo que pasó el de la IP y el del correo.
     throttle_classes = [AccessRequestIpThrottle, AccessRequestEmailThrottle, AccessRequestGlobalThrottle]
 
     @extend_schema(responses={201: ApiEnvelopeSerializer})

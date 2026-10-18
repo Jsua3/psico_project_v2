@@ -12,6 +12,7 @@ import pytest
 from django.urls import path
 from rest_framework.views import APIView
 
+from apps.security.limits import LIMITS
 from shared import surface
 from shared.tests import test_public_routes as rutas_publicas
 
@@ -54,9 +55,31 @@ def test_las_rutas_admin_exigen_rol_admin_mas_estricto_que_autenticado():
             assert fila["exposure"].startswith("role:") and "ADMIN" in fila["exposure"], fila
 
 
-def test_throttle_y_audit_van_vacios_hasta_s1_2_y_s4_1():
+def test_el_throttle_de_cada_ruta_son_alcances_conocidos_y_audit_va_vacio_hasta_s4_1():
     for fila in _inventario_versionado()["routes"]:
-        assert fila["throttle"] is None and fila["audit"] is None, fila
+        assert fila["audit"] is None, fila
+        assert fila["throttle"] is None or set(fila["throttle"]) <= set(LIMITS), fila
+
+
+def test_toda_ruta_publica_que_escribe_tiene_limite():
+    """El inventario es la guardia: una ruta pública nueva que recibe cuerpo sin ``throttle_classes`` no pasa (S1-2)."""
+    sin_limite = [
+        (fila["method"], fila["route"])
+        for fila in _inventario_versionado()["routes"]
+        if fila["exposure"] == surface.PUBLIC and fila["method"] in ("POST", "PUT", "PATCH", "DELETE") and not fila["throttle"]
+    ]
+    assert sin_limite == []
+
+
+def test_la_superficie_del_juego_no_declara_limites():
+    """Pausa, salida segura, reanudar y el resto del juego (``api/simulation/``) no se frenan: jamás se bloquea a quien
+    está en crisis. El límite por persona (``api_user``) se decide después de medir ``load:aula``."""
+    con_limite = [
+        (fila["method"], fila["route"])
+        for fila in _inventario_versionado()["routes"]
+        if fila["route"].startswith("api/simulation/") and fila["throttle"]
+    ]
+    assert con_limite == []
 
 
 def test_control_negativo_una_ruta_nueva_sin_regenerar_hace_fallar_el_inventario(monkeypatch):
