@@ -14,6 +14,7 @@ import pytest
 from django.db import IntegrityError, connection, transaction
 
 from apps.simulation.models import (
+    AttemptFeedback,
     CaseReview,
     CaseVersion,
     DecisionOption,
@@ -38,7 +39,7 @@ TABLES = {
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
     "attempt_reports", "case_reviews", "case_characters", "scene_hints", "attempt_hint_views",
-    "competencies",
+    "competencies", "attempt_feedback",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -60,6 +61,7 @@ UNIQUE_COLUMNS = {
     "reflection_journals": [("attempt_id", "node_id")],
     "attempt_events": [("attempt_id", "request_id")],
     "attempt_reports": [("attempt_id",)],
+    "attempt_feedback": [("attempt_id",)],
     "case_reviews": [("case_version_id",)],  # parcial: una sola revisión pendiente por versión
     # parciales: una asignación por (grupo, versión) y otra por (estudiante, versión)
     "case_assignments": [("grupo_id", "case_version_id"), ("estudiante_id", "case_version_id")],
@@ -101,6 +103,7 @@ ON_DELETE = {
     ("attempt_hint_views", "attempt_id"): "CASCADE",
     ("attempt_hint_views", "hint_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
+    ("attempt_feedback", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_characters", "case_version_id"): "CASCADE",
     ("case_reviews", "case_version_id"): "CASCADE",
@@ -266,6 +269,11 @@ def _evaluation(attempt, rubric, origin, instructor):
     return RubricEvaluation.objects.create(attempt=attempt, rubric=rubric, instructor=instructor, origin=origin)
 
 
+def _attempt_feedback_rating():
+    # E6-3: la calificación de la encuesta va de 1 a 5.
+    AttemptFeedback.objects.create(attempt=_an_attempt(), rating=0)
+
+
 def _rubric_evaluations_origin_instructor():
     # E6-1c: una evaluación del sistema no tiene docente (y la del docente sí).
     _evaluation(_an_attempt(), Rubric.objects.create(name="R", created_by=_admin()), "SISTEMA", _admin())
@@ -302,6 +310,7 @@ CHECKS = {
     "case_reviews_reason_check": _case_reviews_reason,
     "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,
     "rubric_evaluations_origin_instructor_check": _rubric_evaluations_origin_instructor,
+    "attempt_feedback_rating_check": _attempt_feedback_rating,
 }
 
 
