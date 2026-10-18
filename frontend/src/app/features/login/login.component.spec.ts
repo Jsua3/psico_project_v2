@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, Input, provideZonelessChangeDetection } from '@angular/core';
+import { CSP_NONCE, Component, Input, Provider, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
@@ -41,9 +41,10 @@ describe('LoginComponent', () => {
   };
   const originalMatchMedia = window.matchMedia;
 
-  async function render(): Promise<void> {
+  async function render(extraProviders: Provider[] = []): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
+        ...extraProviders,
         provideZonelessChangeDetection(),
         provideRouter([{ path: '**', component: Screen }]),
         { provide: AuthService, useValue: { login, googleConfig: () => googleConfig(), requestAccess: (payload: unknown) => requestAccess(payload) } },
@@ -183,6 +184,29 @@ describe('LoginComponent', () => {
       .mockRejectedValue(new Error('sin red'));
     await render();
     await vi.waitFor(() => expect(text(host())).toContain('El acceso con Google no está disponible ahora.'));
+  });
+
+  // req: RNF-002 (S2-4: con la CSP en vigor, Google Identity Services copia el nonce de SU script a la hoja que inyecta)
+  describe('script de Google bajo la política de contenido', () => {
+    const gsiScript = () => document.getElementById('google-gsi-script') as HTMLScriptElement | null;
+    // La prueba anterior de Google espía loadGoogleScript sin restaurarlo: aquí se necesita el método de verdad.
+    beforeEach(() => vi.restoreAllMocks());
+    afterEach(() => gsiScript()?.remove());
+
+    it('lleva el nonce de la página (CSP_NONCE): sin él Google inyecta una hoja que la política bloquea', async () => {
+      googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
+      await render([{ provide: CSP_NONCE, useValue: 'nonce-de-la-pagina' }]);
+      await vi.waitFor(() => expect(gsiScript()).not.toBeNull());
+      expect(gsiScript()!.nonce || gsiScript()!.getAttribute('nonce')).toBe('nonce-de-la-pagina');
+      expect(gsiScript()!.src).toBe('https://accounts.google.com/gsi/client');
+    });
+
+    it('control negativo: sin política (sin nonce) el script se pide igual y no lleva ninguno', async () => {
+      googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
+      await render([{ provide: CSP_NONCE, useValue: null }]);
+      await vi.waitFor(() => expect(gsiScript()).not.toBeNull());
+      expect(gsiScript()!.nonce || gsiScript()!.getAttribute('nonce') || '').toBe('');
+    });
   });
 
   // req: LW-17 (S1-3: campo trampa contra el envío automático de solicitudes de acceso)

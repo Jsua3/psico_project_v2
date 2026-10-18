@@ -29,11 +29,11 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 # S1-3 · el aviso al administrador corre en el acto en las pruebas (se revisa mail.outbox al volver).
 SIEP_BACKGROUND_INLINE = True
-# WhiteNoise sirve los estáticos de producción, pero en test intenta inspeccionar
-# STATIC_ROOT (que no debe existir ni se necesita para la API).
+# WhiteNoise sirve los estáticos de producción (S2-4: la subclase del SPA, sin su index.html), pero en test intenta
+# inspeccionar STATIC_ROOT (que no debe existir ni se necesita para la API).
 MIDDLEWARE = [
     middleware for middleware in MIDDLEWARE  # noqa: F405
-    if middleware != "whitenoise.middleware.WhiteNoiseMiddleware"
+    if middleware != "shared.static_files.SpaStaticFilesMiddleware"
 ]
 MIDDLEWARE.append("shared.test_attestation.TestEnvironmentAttestationMiddleware")
 
