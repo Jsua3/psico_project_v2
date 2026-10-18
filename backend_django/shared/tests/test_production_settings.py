@@ -22,6 +22,9 @@ BASE_ENV = {
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
     "JWT_SECRET": secrets.token_urlsafe(48),
     "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
+    # S5-2: la llave activa es versionada y su secreto cumple las reglas de S5-1 (generado en cada ejecución).
+    "REFLECTION_ACTIVE_KEY": "k1",
+    "REFLECTION_KEYS": f"k1={secrets.token_urlsafe(48)}",
     # E2-12: el correo de producción es real y el aviso de solicitudes tiene destino.
     "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co",
@@ -45,7 +48,7 @@ def _production(monkeypatch, *, recargar_base=True, **overrides):
         "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
         "SIEP_TRUSTED_PROXIES", "DJANGO_SECURE_SSL_REDIRECT", "SIEP_HSTS_SECONDS",
-        "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET",
+        "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET", "REFLECTION_ACTIVE_KEY", "REFLECTION_KEYS",
     ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
@@ -399,3 +402,75 @@ def test_base_no_conserva_el_literal_publico_de_jwt_secret():
     texto = (BACKEND / "psychosim" / "settings" / "base.py").read_text(encoding="utf-8")
 
     assert "psychosim-jwt-secret" not in texto
+
+
+# ── S5-2 · Llaves versionadas de las reflexiones: la activa es obligatoria y cada secreto cumple S5-1 ──────
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_active_key_es_obligatoria_en_produccion(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ACTIVE_KEY"):
+        _production(monkeypatch, REFLECTION_ACTIVE_KEY=None)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_active_key_vacia_o_con_espacios_cuenta_como_ausente(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ACTIVE_KEY es obligatoria"):
+        _production(monkeypatch, REFLECTION_ACTIVE_KEY="   ")
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_active_key_no_puede_ser_la_heredada(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ACTIVE_KEY no puede ser local-aes-gcm-v1"):
+        _production(monkeypatch, REFLECTION_ACTIVE_KEY="local-aes-gcm-v1")
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_reflection_active_key_debe_estar_en_reflection_keys_sin_mostrarla(monkeypatch):
+    activa = "k-ausente-" + secrets.token_hex(4)
+
+    with pytest.raises(ImproperlyConfigured, match="REFLECTION_ACTIVE_KEY debe ser el id de una llave de REFLECTION_KEYS") as error:
+        _production(monkeypatch, REFLECTION_ACTIVE_KEY=activa)
+
+    assert activa not in str(error.value)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_un_secreto_de_reflection_keys_corto_falla_sin_mostrarlo(monkeypatch):
+    corto = _secreto(31)
+
+    with pytest.raises(ImproperlyConfigured, match=r"REFLECTION_KEYS \(par 2\) es demasiado corta") as error:
+        _production(monkeypatch, REFLECTION_KEYS=f"k1={_secreto(64)},k2={corto}")
+
+    assert corto not in str(error.value)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_un_secreto_de_reflection_keys_igual_al_de_django_falla(monkeypatch):
+    valor = _secreto(64)
+
+    with pytest.raises(ImproperlyConfigured, match=r"REFLECTION_KEYS \(par 1\) debe ser distinta de DJANGO_SECRET_KEY"):
+        _production(monkeypatch, DJANGO_SECRET_KEY=valor, REFLECTION_KEYS=f"k1={valor}")
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_un_secreto_de_reflection_keys_con_marcador_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match=r"REFLECTION_KEYS \(par 1\) es un valor de ejemplo"):
+        _production(monkeypatch, REFLECTION_KEYS="k1=tu-secreto" + _secreto(40))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_dos_llaves_versionadas_con_la_activa_declarada_cargan_produccion(monkeypatch):
+    k1, k2 = _secreto(64), _secreto(64)
+
+    settings = _production(monkeypatch, REFLECTION_KEYS=f"k1={k1},k2={k2}", REFLECTION_ACTIVE_KEY="k2")
+
+    assert settings["REFLECTION_ACTIVE_KEY"] == "k2"
+    assert settings["REFLECTION_KEYS"] == {"k1": k1, "k2": k2}

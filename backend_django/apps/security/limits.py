@@ -26,4 +26,10 @@ LIMITS: dict[str, Limit] = {
     # Se DEFINE pero NO se aplica globalmente: contar cada petición autenticada añade una escritura a la base por
     # cada una. Se decide después de medir ``npm run load:aula``.
     "api_user": Limit(600, 60),
+    # Contador, no límite (S4-3): cuenta los fallos al escribir la auditoría para ``security_report``. Ninguna ruta lo
+    # aplica, así que su tope no se usa.
+    "audit_failure": Limit(0, 3600),
 }
+
+#: Los contadores que ``hit`` suma sin aplicar ningún tope. ``security_report`` no los cuenta como límites aplicados.
+CONTADORES = frozenset({"audit_failure"})

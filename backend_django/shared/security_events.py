@@ -1,13 +1,28 @@
-"""Eventos de seguridad: una línea ``security_event`` en el registro ``siep.security`` (S2-6b).
+"""Eventos de seguridad con campos fijos (S4-3).
 
-Mismo formato que ``shared/body_limit.py``: el nombre del evento y su ámbito, nunca la URL, la clave ni el correo de
-nadie. Quien lo llama decide qué es un evento; este módulo solo lo deja escrito.
+Una línea ``security_event`` solo lleva ``event``, ``scope``, ``actor_id`` y ``reason``. Cualquier otro campo se
+descarta antes de llegar al registro: así ningún dato de la persona (correo, IP, cabecera) sale por esta vía aunque
+alguien lo pase por error.
 """
 import logging
 
-security_logger = logging.getLogger("siep.security")
+logger = logging.getLogger("siep.security")
+
+#: Los campos que una línea ``security_event`` puede llevar. ``event`` va siempre; los demás solo si traen valor.
+SECURITY_EVENT_FIELDS = ("event", "scope", "actor_id", "reason")
 
 
-def log_security_event(event, *, scope=None):
-    """Registra un ``security_event`` con el nombre ``event`` y el ámbito ``scope``."""
-    security_logger.info("security_event", extra={"fields": {"event": event, "scope": scope}})
+def _campos_permitidos(event, fields):
+    campos = {"event": event}
+    for nombre in SECURITY_EVENT_FIELDS[1:]:
+        if fields.get(nombre) is not None:
+            campos[nombre] = fields[nombre]
+    return campos
+
+
+def log_security_event(event, *, level=logging.INFO, **fields):
+    """Registra ``security_event`` con ``event`` y los campos permitidos que traiga la llamada.
+
+    ``level`` es el nivel del registro (INFO por defecto); el fallo del limitador se registra en WARNING.
+    """
+    logger.log(level, "security_event", extra={"fields": _campos_permitidos(event, fields)})

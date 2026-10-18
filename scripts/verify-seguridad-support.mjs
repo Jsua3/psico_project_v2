@@ -33,6 +33,9 @@ function deployEnv() {
     DJANGO_SECRET_KEY: secretoNuevo(),
     // S5-1: llave propia de las reflexiones (≥ 32 caracteres, distinta de DJANGO_SECRET_KEY); JWT_SECRET ya no se exige.
     REFLECTION_ENCRYPTION_KEY: secretoNuevo(),
+    // S5-2: la llave activa es versionada: su id va en REFLECTION_ACTIVE_KEY y su secreto nuevo en REFLECTION_KEYS (id=secreto).
+    REFLECTION_ACTIVE_KEY: 'k1',
+    REFLECTION_KEYS: `k1=${secretoNuevo()}`,
     DB_PASSWORD: secretoNuevo(),
     DJANGO_ALLOWED_HOSTS: 'localhost',
     // S1-1: producción exige declarar cuántos proxies de confianza hay delante de Django.

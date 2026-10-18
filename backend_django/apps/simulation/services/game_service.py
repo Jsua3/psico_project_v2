@@ -676,8 +676,10 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
         raise ValidationError("La bitácora ya está bloqueada")
     if not reflection:
         reflection = ReflectionJournal(attempt=attempt, node=node)
-    reflection.encrypted_text = crypto_service.encrypt(text)
-    reflection.encryption_key_ref = crypto_service.key_ref()
+    # S5-2: el texto va cifrado con los datos asociados de su intento y nodo; la referencia es la de esa misma llave.
+    ref = crypto_service.key_ref()
+    reflection.encrypted_text = crypto_service.encrypt(text, key_ref=ref, attempt_id=attempt.id, node_id=node.id)
+    reflection.encryption_key_ref = ref
     reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 

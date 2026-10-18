@@ -3,15 +3,20 @@
 El cliente no depende de los textos: decide por ``code``. Los campos propios de un
 error de dominio (``existingAttemptId``…) viajan en la raíz, junto a ``message``.
 """
+import json
+import logging
+import secrets
 import uuid
 
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import Throttled
-from rest_framework.test import APIClient, APIRequestFactory
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 from rest_framework.views import APIView
 
+from shared import exceptions as shared_exceptions
 from shared.exceptions import ApiError, Conflict, custom_exception_handler
+from shared.jsonlog import JsonFormatter, RequestIdFilter
 
 pytestmark = pytest.mark.req("RNF-06")
 
@@ -21,7 +26,7 @@ User = get_user_model()
 @pytest.fixture
 def estudiante(db):
     return User.objects.create_user(
-        email="codigo_error@x.com", password="pass1234", nombre="Cod", apellido="Err", role="ESTUDIANTE"
+        email="codigo_error@x.com", password=secrets.token_urlsafe(24), nombre="Cod", apellido="Err", role="ESTUDIANTE"
     )
 
 
@@ -163,3 +168,70 @@ def test_limite_sin_espera_conocida_pide_un_segundo():
     assert response.status_code == 429
     assert response.data["retryAfter"] == 1
     assert response["Retry-After"] == "1"
+
+
+# ── S4-3 · una excepción no controlada deja UNA línea ERROR con su causa ─────────────────────────────
+
+
+class VistaRota(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        raise RuntimeError("fallo sin control")
+
+
+@pytest.fixture
+def lineas_de_siep_error():
+    """Las líneas que escribe ``siep.error``, con el formateador JSON de verdad (``shared.jsonlog``)."""
+    lineas = []
+
+    class Manejador(logging.Handler):
+        def emit(self, record):
+            lineas.append(self.format(record))
+
+    manejador = Manejador()
+    manejador.setFormatter(JsonFormatter())
+    manejador.addFilter(RequestIdFilter())
+    registrador = logging.getLogger("siep.error")
+    registrador.addHandler(manejador)
+    try:
+        yield lineas
+    finally:
+        registrador.removeHandler(manejador)
+
+
+def _peticion_que_falla(usuario):
+    peticion = APIRequestFactory().get("/prueba/roto")
+    force_authenticate(peticion, user=usuario)
+    return VistaRota.as_view()(peticion)
+
+
+def _afirmar_una_linea_con_la_causa(lineas, usuario):
+    registros = [json.loads(linea) for linea in lineas]
+    errores = [r for r in registros if r["level"] == "ERROR" and r["logger"] == "siep.error"]
+    assert len(errores) == 1
+    causa = errores[0]
+    assert causa["message"] == "unhandled_exception"
+    assert "RuntimeError: fallo sin control" in causa["exc"]
+    assert causa["path"] == "/prueba/roto"
+    assert causa["method"] == "GET"
+    assert causa["view"] == "VistaRota"
+    assert causa["actor_id"] == usuario.pk
+    assert "request_id" in causa
+
+
+def test_error_no_controlado_deja_una_sola_linea_error_con_la_causa(estudiante, lineas_de_siep_error):
+    respuesta = _peticion_que_falla(estudiante)
+
+    assert respuesta.status_code == 500
+    assert respuesta.data == {"success": False, "code": "INTERNAL_ERROR", "message": "Error interno del servidor"}
+    _afirmar_una_linea_con_la_causa(lineas_de_siep_error, estudiante)
+
+
+def test_control_negativo_sin_la_linea_error_la_causa_no_queda(estudiante, lineas_de_siep_error, monkeypatch):
+    monkeypatch.setattr(shared_exceptions, "_registrar_no_controlada", lambda exc, context: None)
+    _peticion_que_falla(estudiante)
+
+    with pytest.raises(AssertionError):
+        _afirmar_una_linea_con_la_causa(lineas_de_siep_error, estudiante)
