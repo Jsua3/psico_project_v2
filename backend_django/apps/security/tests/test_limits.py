@@ -22,6 +22,7 @@ ESPERADOS = {
     "heavy_user": Limit(30, 60),
     "csp_report_ip": Limit(60, 60),
     "password_change_user": Limit(10, 3600),
+    "consent_user": Limit(30, 3600),
     "api_user": Limit(600, 60),
     "audit_failure": Limit(0, 3600),
     # S4-1 · tope de FILAS de auditoría por correo: diez ``sesion.fallar`` por hash de correo cada 15 minutos.

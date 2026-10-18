@@ -436,6 +436,45 @@ SIEP_MAX_CASE_IMPORT_BODY_BYTES = _entero_env("SIEP_MAX_CASE_IMPORT_BODY_BYTES",
 DATA_UPLOAD_MAX_MEMORY_SIZE = max(SIEP_MAX_BODY_BYTES, SIEP_MAX_CASE_IMPORT_BODY_BYTES)
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
 
+# ─── S3-2 · Consentimiento al aviso de contenido sensible (ETH-01, SIEP-RF-05, RNF-010; ADR-S4) ────────────────────────────
+#: Una versión de aviso es un texto corto sin espacios (cabe en ``consent_records.notice_version``, 40 caracteres).
+_VERSION_DE_AVISO = re.compile(r"[^\s\x00-\x1f\x7f]{1,40}")
+
+
+def _version_de_aviso_env(name, default, *, vacia_vale=False):
+    """Versión de un aviso por variable de entorno (S3-2). Ausente, ``default``; presente, un texto de 1 a 40 caracteres sin
+    espacios ni caracteres de control, o el arranque se detiene. ``vacia_vale`` admite la cadena vacía (= «sin aviso aún»);
+    una variable con solo espacios nunca vale. El valor recibido no entra en el mensaje."""
+    raw = os.environ.get(name)
+    if raw is None or (vacia_vale and raw == ""):
+        return default
+    if not _VERSION_DE_AVISO.fullmatch(raw):
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{name} debe ser un texto de 1 a 40 caracteres sin espacios (valor no mostrado)."
+        )
+    return raw
+
+
+#: La versión VIGENTE del aviso de contenido. El servidor es su dueño: el cliente envía la que mostró y, si no coincide, 409
+#: NOTICE_VERSION_STALE con ésta. Cambiarla hace que todas las personas vuelvan a aceptar (las aceptaciones viejas se conservan
+#: como evidencia). El cliente repite el valor (S3-2b compara los dos). Es un BORRADOR hasta que Psicología apruebe el texto.
+SIEP_CONTENT_NOTICE_VERSION = _version_de_aviso_env("SIEP_CONTENT_NOTICE_VERSION", "2026-10-borrador")
+#: APAGADA hasta que el cliente use el servidor (S3-2b) y la institución entregue el texto. Encendida: cargar el mundo de un
+#: intento y las órdenes de juego responden 403 CONSENT_REQUIRED sin un consentimiento vigente de ese caso y de la versión
+#: actual del aviso. La pausa, la salida segura, reanudar, abandonar y consultar el intento abierto NUNCA lo exigen.
+SIEP_CONSENT_REQUIRED = _env_flag("SIEP_CONSENT_REQUIRED")
+#: Autorización de tratamiento de datos (sin caso). APAGADA hasta que la institución entregue el texto y su versión (SD-8).
+SIEP_DATA_TREATMENT_CONSENT_REQUIRED = _env_flag("SIEP_DATA_TREATMENT_CONSENT_REQUIRED")
+#: Versión vigente de ese aviso; vacía mientras la institución no la entregue.
+SIEP_DATA_TREATMENT_NOTICE_VERSION = _version_de_aviso_env("SIEP_DATA_TREATMENT_NOTICE_VERSION", "", vacia_vale=True)
+if SIEP_DATA_TREATMENT_CONSENT_REQUIRED and not SIEP_DATA_TREATMENT_NOTICE_VERSION:
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "SIEP_DATA_TREATMENT_CONSENT_REQUIRED exige SIEP_DATA_TREATMENT_NOTICE_VERSION: sin la versión del aviso no hay a qué "
+        "aceptar."
+    )
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }

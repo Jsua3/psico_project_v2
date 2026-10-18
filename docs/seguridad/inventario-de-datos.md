@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 40. Columnas: 355.
+Tablas: 41. Columnas: 362.
 
 | Clasificación | Columnas |
 |---|---:|
 | PUBLIC | 143 |
-| PERSONAL | 34 |
+| PERSONAL | 36 |
 | SENSITIVE | 48 |
 | SECRET | 2 |
-| TECHNICAL | 128 |
+| TECHNICAL | 133 |
 
 ## Tablas
 
@@ -318,6 +318,23 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `description` | PUBLIC | — |  |
 | `active` | PUBLIC | — |  |
 | `sort_order` | PUBLIC | — |  |
+
+
+### `consent_records` — privacy.ConsentRecord
+
+**Finalidad:** Evidencia de que el aviso de contenido sensible se mostró y se aceptó (ETH-01): quién lo aceptó, para qué versión del caso y del aviso, cuándo y si lo retiró. También guarda, sin caso, la autorización de tratamiento de datos cuando la institución la entregue.
+
+**Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
+
+| Columna | Clasificación | Salidas | Motivo |
+|---|---|---|---|
+| `id` | TECHNICAL | — |  |
+| `person_id` | PERSONAL | ninguna (uso interno) | persona que vio y aceptó el aviso: enlaza con su cuenta |
+| `consent_type` | TECHNICAL | — |  |
+| `case_version_id` | TECHNICAL | api |  |
+| `notice_version` | TECHNICAL | api |  |
+| `accepted_at` | PERSONAL | api | cuándo aceptó el aviso esa persona (la evidencia de ETH-01) |
+| `withdrawn_at` | TECHNICAL | api |  |
 
 
 ### `criterion_scores` — simulation.CriterionScore

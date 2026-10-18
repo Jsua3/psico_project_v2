@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
-import { setOwnPassword } from './support/own-password';
+import { nameStamp, setOwnPassword } from './support/own-password';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -50,7 +50,7 @@ async function studentWithAttempt(request: APIRequestContext): Promise<{
   const email = `reporte-${stamp}@siep.test`;
   const password = `Clave-${stamp}-2026`;
   const admin = { Authorization: `Bearer ${await apiToken(request, ADMIN.email, ADMIN.password)}` };
-  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reporte', apellido: stamp, role: 'ESTUDIANTE', activo: true } });
+  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reporte', apellido: nameStamp(stamp), role: 'ESTUDIANTE', activo: true } });
   expect(user.status(), 'crear estudiante').toBeLessThan(300);
   const studentId = (await user.json()).data.id as number;
   const ownPassword = await setOwnPassword(request, email, password); // S1-5: la clave que fija un ADMIN es temporal
@@ -67,7 +67,7 @@ async function studentWithAttempt(request: APIRequestContext): Promise<{
   const student = { Authorization: `Bearer ${await apiToken(request, email, ownPassword)}` };
   expect((await request.post(`/api/me/invitations/${groupId}/accept`, { headers: student, data: {} })).status(), 'aceptar').toBe(200);
   expect((await request.post('/api/simulation/attempts', { headers: student, data: { caseVersionId: cases[0].caseVersionId } })).status(), 'iniciar intento').toBe(200);
-  return { groupId, studentId, studentName: `Reporte ${stamp}`, caseLabel: `${cases[0].title} · v${cases[0].semanticVersion}`, teacher, cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); } };
+  return { groupId, studentId, studentName: `Reporte ${nameStamp(stamp)}`, caseLabel: `${cases[0].title} · v${cases[0].semanticVersion}`, teacher, cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); } };
 }
 
 // req: RF-26, CU-15, RF-25, CU-14, RQ-NEG-006
@@ -110,7 +110,7 @@ test.describe('@reporte-estudiante reporte de un estudiante (F10-7)', () => {
       const stamp = Date.now().toString(36);
       const other = { email: `otra-docente-${stamp}@siep.test`, password: `Clave-${stamp}-2026` };
       const admin = { Authorization: `Bearer ${await apiToken(request, ADMIN.email, ADMIN.password)}` };
-      const created = await request.post('/api/admin/users', { headers: admin, data: { ...other, nombre: 'Otra', apellido: stamp, role: 'PROFESOR', activo: true } });
+      const created = await request.post('/api/admin/users', { headers: admin, data: { ...other, nombre: 'Otra', apellido: nameStamp(stamp), role: 'PROFESOR', activo: true } });
       expect(created.status(), 'crear a la otra docente').toBeLessThan(300);
       const otherOwnPassword = await setOwnPassword(request, other.email, other.password); // S1-5: clave temporal
 

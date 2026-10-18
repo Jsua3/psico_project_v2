@@ -130,6 +130,9 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "RUBRIC_UPDATED": "rubrica.actualizar",
     "RUBRIC_ACTIVATED": "rubrica.activar",
     "COMPETENCY_CREATED": "competencia.crear",
+    # S3-2a · el consentimiento al aviso de contenido: se escribe con la etiqueta (``consent_service``).
+    "CONSENT_ACCEPTED": "consentimiento.aceptar",
+    "CONSENT_WITHDRAWN": "consentimiento.retirar",
 }
 
 #: S4-1 · La lista blanca del contexto: por código crudo, los únicos campos que la fila de ese evento puede llevar (más
@@ -162,6 +165,8 @@ CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
     "RUBRIC_UPDATED": frozenset({"rubricId", "changed", "caseVersionId"}),
     "RUBRIC_ACTIVATED": frozenset({"rubricId", "active"}),
     "COMPETENCY_CREATED": frozenset({"competencyId"}),
+    "CONSENT_ACCEPTED": frozenset({"caseVersionId", "noticeVersion"}),
+    "CONSENT_WITHDRAWN": frozenset({"caseVersionId", "noticeVersion"}),
 }
 #: Lo que el sistema pone en toda fila escrita por ``@auditable``/``record``: constantes, nunca datos de la persona.
 _CONTEXTO_DEL_SISTEMA = frozenset({"taxonomy", "method", "class"})

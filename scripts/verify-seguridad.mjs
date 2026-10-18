@@ -6,7 +6,8 @@
  * Un paso opcional sin su herramienta o sin su carpeta se omite y lo dice.
  *
  * Uso: npm run verify:seguridad [-- --keep-going] [--only id[,id]]   (ids: scripts, security-tests, deploy-check,
- *      pip-audit, npm-audit, gitleaks, dist-dev-only)
+ *      pip-audit, npm-audit, actions-pinned, gitleaks, dist-dev-only, image-scan). image-scan escanea la imagen SIEP_IMAGE si hay
+ *      trivy o grype; sin ellos, o sin esa variable, se omite y lo dice.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ const keepGoing = process.argv.includes('--keep-going');
 const onlyIndex = process.argv.indexOf('--only');
 const only = onlyIndex >= 0 ? (process.argv[onlyIndex + 1] ?? '').split(',').filter(Boolean) : [];
 const baseline = JSON.parse(readFileSync(join(ROOT, 'scripts', 'security-check-baseline.json'), 'utf8'));
+const allowlist = JSON.parse(readFileSync(join(ROOT, 'scripts', 'image-scan-allowlist.json'), 'utf8'));
 const results = [];
 let failed = false;
 
@@ -60,9 +62,29 @@ function runDeployCheck(step) {
   return ok ? 0 : 1;
 }
 
+// Escaneo de la imagen: la salida JSON del escáner es larga; el veredicto lo da step.scan y solo se muestran los hallazgos.
+function runImageScan(step) {
+  const run = spawnStep(step, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (run.error) console.error(`[siep:seguridad] no se pudo ejecutar el paso: ${run.error.message}`);
+  if (run.status !== 0) {
+    process.stderr.write(run.stderr ?? '');
+    return run.status ?? 1;
+  }
+  const { ok, problemas } = step.scan(run.stdout ?? '');
+  for (const problema of problemas) console.error(`[siep:seguridad] ${problema}`);
+  return ok ? 0 : 1;
+}
+
+// Paso en proceso (sin comando, p. ej. actions-pinned): sus problemas salen por consola y el veredicto decide la salida.
+function runCheck(step) {
+  const { ok, problemas } = step.check();
+  for (const problema of problemas) console.error(`[siep:seguridad] ${problema}`);
+  return ok ? 0 : 1;
+}
+
 let steps;
 try {
-  steps = selectSteps(buildSteps({ root: ROOT, baseline }), only);
+  steps = selectSteps(buildSteps({ root: ROOT, baseline, allowlist, imagen: process.env.SIEP_IMAGE || undefined }), only);
 } catch (error) {
   console.error(`[siep:seguridad] ${error.message}`);
   process.exit(2);
@@ -80,7 +102,10 @@ for (const step of steps) {
   }
   console.log(`\n[siep:seguridad] ▶ ${step.label}`);
   const started = Date.now();
-  const status = step.evaluate ? runDeployCheck(step) : runInherited(step);
+  const status = step.evaluate ? runDeployCheck(step)
+    : step.scan ? runImageScan(step)
+      : step.check ? runCheck(step)
+        : runInherited(step);
   results.push({ id: step.id, status, seconds: (Date.now() - started) / 1000 });
   if (status !== 0) {
     failed = true;

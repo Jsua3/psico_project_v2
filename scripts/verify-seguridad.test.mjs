@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { buildSteps, evaluateDeployCheck, selectSteps } from './verify-seguridad-support.mjs';
+import { buildSteps, evaluateActionsPinned, evaluateDeployCheck, evaluateImageScan, leerFlujos, selectSteps } from './verify-seguridad-support.mjs';
 
 const ROOT = 'C:/repo';
+const RAIZ = fileURLToPath(new URL('..', import.meta.url));
 const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'REFLECTION_ENCRYPTION_KEY', 'JWT_SIGNING_KEY'];
 const barras = (texto) => texto.replaceAll('\\', '/');
 const porId = (steps, id) => steps.find((step) => step.id === id);
@@ -25,9 +27,14 @@ test('los pasos van en el orden del plan y cada uno tiene comando y argumentos',
   const steps = pasos();
   assert.deepEqual(
     steps.map((step) => step.id),
-    ['scripts', 'security-tests', 'deploy-check', 'pip-audit', 'npm-audit', 'gitleaks', 'dist-dev-only'],
+    ['scripts', 'security-tests', 'deploy-check', 'pip-audit', 'npm-audit', 'actions-pinned', 'gitleaks', 'dist-dev-only', 'image-scan'],
   );
   for (const step of steps) {
+    if (step.check) {
+      // Un paso en proceso (actions-pinned) no lanza un comando: trae su comprobación.
+      assert.equal(typeof step.check, 'function', step.id);
+      continue;
+    }
     assert.ok(step.command, step.id);
     assert.ok(Array.isArray(step.args), step.id);
   }
@@ -201,4 +208,180 @@ test('--only deja solo los pasos pedidos, en el orden del plan', () => {
 
 test('--only con un paso que no existe falla y nombra los que hay', () => {
   assert.throws(() => selectSteps(pasos(), ['no-existe']), /paso desconocido: no-existe.*deploy-check/);
+});
+
+// --- Escaneo de la imagen (S6-1, opcional): trivy o grype, severidad alta o crítica sin corrección -------------------
+
+const TRIVY = (vulnerabilidades) => JSON.stringify({ Results: [{ Target: 'siep:prueba', Vulnerabilities: vulnerabilidades }] });
+const ALTA = { VulnerabilityID: 'CVE-2099-0001', PkgName: 'libcompleja', InstalledVersion: '1.0', FixedVersion: '', Severity: 'HIGH' };
+
+test('image-scan se omite con «no instalado» cuando no hay trivy ni grype', () => {
+  const step = porId(pasos('linux', { imagen: 'siep:prueba' }), 'image-scan');
+  assert.match(step.skip, /no instalado/);
+});
+
+test('image-scan se omite y lo dice cuando no hay imagen que escanear (SIEP_IMAGE)', () => {
+  const step = porId(pasos('linux', { which: (nombre) => (nombre === 'trivy' ? '/usr/bin/trivy' : null) }), 'image-scan');
+  assert.match(step.skip, /SIEP_IMAGE/);
+});
+
+test('image-scan usa trivy si está, pide la imagen en JSON y evalúa la salida', () => {
+  const step = porId(
+    pasos('linux', { which: (nombre) => (nombre === 'trivy' ? '/usr/bin/trivy' : null), imagen: 'siep:prueba' }),
+    'image-scan',
+  );
+  assert.equal(step.skip, undefined);
+  assert.equal(step.command, '/usr/bin/trivy');
+  assert.ok(step.args.includes('json') && step.args.includes('siep:prueba'));
+  assert.equal(typeof step.scan, 'function');
+});
+
+test('image-scan cae a grype cuando no hay trivy', () => {
+  const step = porId(
+    pasos('linux', { which: (nombre) => (nombre === 'grype' ? '/usr/bin/grype' : null), imagen: 'siep:prueba' }),
+    'image-scan',
+  );
+  assert.equal(step.command, '/usr/bin/grype');
+  assert.ok(step.args.includes('siep:prueba'));
+});
+
+test('una vulnerabilidad alta sin corrección bloquea y la nombra (trivy)', () => {
+  const veredicto = evaluateImageScan(TRIVY([ALTA]), {});
+  assert.equal(veredicto.ok, false);
+  assert.match(veredicto.problemas.join('\n'), /CVE-2099-0001/);
+});
+
+test('una alta con corrección disponible no bloquea: la corrige la actualización', () => {
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, FixedVersion: '1.0.1' }]), {}).ok, true);
+});
+
+test('una crítica sin corrección pasa solo si está en la lista justificada', () => {
+  const critica = { ...ALTA, VulnerabilityID: 'CVE-2099-0002', Severity: 'CRITICAL' };
+  assert.equal(evaluateImageScan(TRIVY([critica]), {}).ok, false);
+  assert.equal(evaluateImageScan(TRIVY([critica]), { 'CVE-2099-0002': { motivo: 'No llega a la imagen' } }).ok, true);
+});
+
+test('media y baja sin corrección no bloquean', () => {
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'MEDIUM' }]), {}).ok, true);
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'LOW' }]), {}).ok, true);
+});
+
+test('sin vulnerabilidades pasa; una salida que no es un informe reconocido falla y no se da por buena', () => {
+  assert.equal(evaluateImageScan(TRIVY([]), {}).ok, true);
+  assert.equal(evaluateImageScan('no es json', {}).ok, false);
+  assert.equal(evaluateImageScan('{"otra":1}', {}).ok, false);
+});
+
+test('grype usa su propio formato (matches, fix.state) y la misma regla', () => {
+  const grype = (vulnerabilidad) => JSON.stringify({ matches: [{ vulnerability: vulnerabilidad, artifact: { name: 'libcompleja' } }] });
+  const sinCorreccion = { id: 'CVE-2099-0004', severity: 'High', fix: { state: 'not-fixed', versions: [] } };
+  const corregida = { id: 'CVE-2099-0005', severity: 'High', fix: { state: 'fixed', versions: ['1.0.1'] } };
+  assert.equal(evaluateImageScan(grype(sinCorreccion), {}).ok, false);
+  assert.equal(evaluateImageScan(grype(corregida), {}).ok, true);
+});
+
+test('la lista justificada del escaneo es un JSON cuyas entradas llevan motivo', () => {
+  const lista = JSON.parse(readFileSync(new URL('./image-scan-allowlist.json', import.meta.url), 'utf8'));
+  for (const [id, entrada] of Object.entries(lista)) {
+    assert.ok(entrada.motivo?.trim(), id);
+  }
+});
+
+// --- Acciones de CI fijadas por commit y persist-credentials: false (S6-2) ------------------------------------------
+
+const SHA = '3d3c42e5aac5ba805825da76410c181273ba90b1';
+const FLUJO = (...lineas) => ({ nombre: '.github/workflows/prueba.yml', texto: lineas.join('\n') });
+
+test('los flujos reales fijan cada acción externa por commit y no persisten credenciales de git', () => {
+  const flujos = leerFlujos(RAIZ);
+  assert.ok(flujos.some((flujo) => flujo.nombre === '.github/workflows/ci.yml'), 'se lee ci.yml');
+  assert.deepEqual(evaluateActionsPinned(flujos).problemas, []);
+});
+
+test('una acción con etiqueta móvil falla y la nombra con su línea (@v7)', () => {
+  const veredicto = evaluateActionsPinned([FLUJO(
+    'jobs:',
+    '  prueba:',
+    '    steps:',
+    '      - uses: actions/checkout@v7',
+    '        with:',
+    '          persist-credentials: false',
+  )]);
+  assert.deepEqual(veredicto.problemas, [
+    '.github/workflows/prueba.yml:4: uses: actions/checkout@v7 no está fijado por commit (@<sha de 40 caracteres>)',
+  ]);
+});
+
+test('una acción fijada por commit, con su etiqueta en comentario, pasa', () => {
+  assert.deepEqual(evaluateActionsPinned([FLUJO(`      - uses: actions/setup-node@${SHA} # v7`)]), { ok: true, problemas: [] });
+});
+
+test('un actions/checkout fijado sin persist-credentials: false falla aunque tenga sha', () => {
+  const veredicto = evaluateActionsPinned([FLUJO(`      - uses: actions/checkout@${SHA} # v7`)]);
+  assert.equal(veredicto.ok, false);
+  assert.deepEqual(veredicto.problemas, [
+    `.github/workflows/prueba.yml:1: actions/checkout@${SHA} sin persist-credentials: false`,
+  ]);
+});
+
+test('persist-credentials: false de otro paso no cuenta: cada checkout lo lleva en su propio paso', () => {
+  const veredicto = evaluateActionsPinned([FLUJO(
+    `      - uses: actions/checkout@${SHA} # v7`,
+    '        with:',
+    '          persist-credentials: false',
+    `      - uses: actions/checkout@${SHA} # v7`,
+    '        with:',
+    '          fetch-depth: 0',
+  )]);
+  assert.equal(veredicto.problemas.length, 1);
+  assert.match(veredicto.problemas[0], /prueba\.yml:4: /);
+});
+
+test('persist-credentials: false en un paso con nombre delante del uses pasa', () => {
+  const veredicto = evaluateActionsPinned([FLUJO(
+    '      - name: Clonar',
+    `        uses: actions/checkout@${SHA} # v7`,
+    '        with:',
+    '          persist-credentials: false',
+  )]);
+  assert.deepEqual(veredicto, { ok: true, problemas: [] });
+});
+
+test('una acción local (./) no se fija y no falla', () => {
+  assert.deepEqual(evaluateActionsPinned([FLUJO('      - uses: ./.github/acciones/local')]), { ok: true, problemas: [] });
+});
+
+test('sin flujos que revisar, el paso falla y lo dice', () => {
+  const veredicto = evaluateActionsPinned([]);
+  assert.equal(veredicto.ok, false);
+  assert.match(veredicto.problemas.join('\n'), /no hay flujos/);
+});
+
+test('el paso actions-pinned no lanza un comando: comprueba en proceso los flujos que recibe', () => {
+  const step = porId(pasos('linux', { flujos: [FLUJO('      - uses: actions/checkout@v7')] }), 'actions-pinned');
+  assert.equal(step.command, undefined);
+  assert.equal(step.check().ok, false);
+});
+
+// Controles negativos sobre el flujo real: si se apaga la comprobación, la prueba se pone en rojo.
+function mutar(texto, patron, reemplazo) {
+  const nuevo = texto.replace(patron, reemplazo);
+  assert.notEqual(nuevo, texto, 'la mutación no cambia el flujo: el control no protege nada');
+  return nuevo;
+}
+
+function flujoReal(nombre) {
+  return leerFlujos(RAIZ).find((flujo) => flujo.nombre === nombre);
+}
+
+test('control negativo: un actions/checkout real vuelto a la etiqueta @v7 falla', () => {
+  const ci = flujoReal('.github/workflows/ci.yml');
+  const mutado = { ...ci, texto: mutar(ci.texto, /actions\/checkout@[0-9a-f]{40}/, 'actions/checkout@v7') };
+  assert.equal(evaluateActionsPinned([mutado]).ok, false);
+});
+
+test('control negativo: quitar persist-credentials de un checkout real falla', () => {
+  const ci = flujoReal('.github/workflows/ci.yml');
+  const mutado = { ...ci, texto: mutar(ci.texto, /\n {10}persist-credentials: false/, '') };
+  assert.match(evaluateActionsPinned([mutado]).problemas.join('\n'), /sin persist-credentials: false/);
 });

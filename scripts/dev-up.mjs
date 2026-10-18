@@ -128,7 +128,7 @@ function ensureVenv() {
   console.log('[siep] Instalando dependencias Python...');
   const pip = spawnSync(
     venvPython(),
-    ['-m', 'pip', 'install', '-q', '-r', 'requirements.txt'],
+    ['-m', 'pip', 'install', '-q', '-r', 'requirements-dev.txt'],
     { cwd: BACKEND, stdio: 'pipe', encoding: 'utf8' },
   );
   if (pip.status !== 0) {

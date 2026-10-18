@@ -153,6 +153,9 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ("api/admin/users/approve", "POST"): "USER_APPROVED",
     ("api/admin/access-requests", "GET"): "ACCESS_REQUEST_LIST_VIEWED",
     ("api/admin/access-requests/<int:request_id>/status", "PATCH"): "ACCESS_REQUEST_RESOLVED",
+    # ── Consentimiento al aviso de contenido (ESTUDIANTE, S3-2a) ──
+    ("api/simulation/cases/<int:case_version_id>/consent", "POST"): "consentimiento.aceptar",
+    ("api/simulation/cases/<int:case_version_id>/consent", "DELETE"): "consentimiento.retirar",
     # ── La propia auditoría (ADMIN) ──
     ("api/admin/audit", "GET"): "AUDIT_VIEWED",
     # ── Grupos, membresías y asignaciones de casos ──

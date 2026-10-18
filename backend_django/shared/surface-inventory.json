@@ -1430,6 +1430,30 @@
       "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
+      "route": "api/simulation/cases/<int:case_version_id>/consent",
+      "method": "DELETE",
+      "exposure": "role:ESTUDIANTE",
+      "body": "none",
+      "throttle": null,
+      "audit": "consentimiento.retirar"
+    },
+    {
+      "route": "api/simulation/cases/<int:case_version_id>/consent",
+      "method": "GET",
+      "exposure": "role:ESTUDIANTE",
+      "body": "none",
+      "throttle": null,
+      "audit": null
+    },
+    {
+      "route": "api/simulation/cases/<int:case_version_id>/consent",
+      "method": "POST",
+      "exposure": "role:ESTUDIANTE",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "consentimiento.aceptar"
+    },
+    {
       "route": "api/simulation/catalog",
       "method": "GET",
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
