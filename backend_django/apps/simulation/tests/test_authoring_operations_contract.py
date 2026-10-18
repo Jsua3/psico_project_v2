@@ -82,12 +82,41 @@ def _audit(action, resource_id, admin):
     return row
 
 
+#: La etiqueta ``entidad.verbo`` (E5-7) que cada acción de autoría deja en su contexto. Está escrita a mano a
+#: propósito: si ``AUDIT_TAXONOMY`` cambia una etiqueta, esta tabla lo delata en vez de repetirlo.
+EXPECTED_TAXONOMY = {
+    "ADMIN_CREATE_NODE": "nodo.crear",
+    "ADMIN_UPDATE_NODE": "nodo.actualizar",
+    "ADMIN_DELETE_NODE": "nodo.eliminar",
+    "ADMIN_CREATE_DECISION": "decision.crear",
+    "ADMIN_UPDATE_DECISION": "decision.actualizar",
+    "ADMIN_DELETE_DECISION": "decision.eliminar",
+    "ADMIN_CREATE_MAP": "mapa.crear",
+    "ADMIN_UPDATE_MAP": "mapa.actualizar",
+    "ADMIN_DELETE_MAP": "mapa.eliminar",
+    "ADMIN_CREATE_OBJECT": "objeto.crear",
+    "ADMIN_UPDATE_OBJECT": "objeto.actualizar",
+    "ADMIN_DELETE_OBJECT": "objeto.eliminar",
+    "ADMIN_CREATE_DIALOGUE": "dialogo.crear",
+    "ADMIN_UPDATE_DIALOGUE": "dialogo.actualizar",
+    "ADMIN_DELETE_DIALOGUE": "dialogo.eliminar",
+    "ADMIN_CREATE_TOOL": "herramienta.crear",
+    "ADMIN_UPDATE_TOOL": "herramienta.actualizar",
+    "ADMIN_DELETE_TOOL": "herramienta.eliminar",
+    "ADMIN_CLONE_VERSION": "caso.clonar",
+    "ADMIN_CHECKLIST_UPDATE": "caso.actualizar_checklist",
+    "ADMIN_PUBLISH_CASE": "caso.publicar",
+    "ADMIN_SAVE_WORLD": "mundo.guardar",
+}
+
+
 def _assert_audited(admin, action, resource_type, resource_id, method):
     row = _audit(action, resource_id, admin)
     assert row.resource_type == resource_type
     assert row.actor_role == "ADMIN"
+    assert action in EXPECTED_TAXONOMY, f"falta la etiqueta esperada de {action} en EXPECTED_TAXONOMY"
     context = json.loads(row.context_json)
-    assert context == {"method": method, "class": "authoring_service"}
+    assert context == {"method": method, "class": "authoring_service", "taxonomy": EXPECTED_TAXONOMY[action]}
 
 
 def _new_node(api, cv, key="extra-p05b"):
