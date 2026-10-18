@@ -57,6 +57,10 @@ def _comment(payload):
     return validate_plain_text(payload.get("comment"), COMMENT_MAX_LENGTH, "comment", multiline=True)
 
 
+def _answered(attempt_id):
+    return AttemptFeedback.objects.filter(attempt_id=attempt_id).exists()
+
+
 def _already_sent():
     return ApiError(
         "FEEDBACK_ALREADY_SENT",
@@ -95,13 +99,13 @@ def submit(attempt_id, payload, actor):
             "La encuesta se responde al terminar el intento.",
             status.HTTP_409_CONFLICT,
         )
-    if AttemptFeedback.objects.filter(attempt_id=attempt.id).exists():
+    if _answered(attempt.id):
         raise _already_sent()
     try:
         with transaction.atomic():  # punto de guardado: la perdedora de una carrera no deja abortada la transacción
             response = AttemptFeedback.objects.create(attempt_id=attempt.id, rating=rating, comment=comment)
-    except IntegrityError:
-        if not AttemptFeedback.objects.filter(attempt_id=attempt.id).exists():
+    except IntegrityError:  # otra orden respondió entre la comprobación previa y el INSERT: la base es el árbitro
+        if not _answered(attempt.id):
             raise
         raise _already_sent() from None
     return _state(response)

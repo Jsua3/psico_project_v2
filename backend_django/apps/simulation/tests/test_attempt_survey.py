@@ -82,6 +82,26 @@ def test_una_segunda_respuesta_es_un_409_y_no_cambia_la_primera(completed, surve
     assert (row.rating, row.comment) == (5, "Primera")
 
 
+def test_si_la_carrera_pasa_la_comprobacion_previa_la_base_igual_rechaza_a_la_segunda(completed, survey_on, monkeypatch):
+    """Determinista: la comprobación previa «no ve» la respuesta de la otra orden; la restricción única la rechaza."""
+    client, attempt_id, _ = completed
+    client.post(_url(attempt_id), {"rating": 5, "comment": "Primera"}, format="json")
+    real, asked = attempt_survey._answered, []
+
+    def blind_the_first_time(pk):
+        asked.append(pk)
+        return False if len(asked) == 1 else real(pk)
+
+    monkeypatch.setattr(attempt_survey, "_answered", blind_the_first_time)
+
+    again = client.post(_url(attempt_id), {"rating": 1, "comment": "Segunda"}, format="json")
+
+    assert again.status_code == 409 and again.data["code"] == "FEEDBACK_ALREADY_SENT"
+    assert len(asked) == 2  # antes del INSERT y, tras el choque, para saber de quién fue el conflicto
+    row = AttemptFeedback.objects.get(attempt_id=attempt_id)
+    assert (row.rating, row.comment) == (5, "Primera")
+
+
 def test_el_comentario_es_opcional(completed, survey_on):
     client, attempt_id, _ = completed
 
@@ -174,12 +194,16 @@ def test_un_cuerpo_que_no_es_un_objeto_es_un_400_y_no_un_500(completed, survey_o
     assert AttemptFeedback.objects.count() == 0
 
 
-def test_ninguna_respuesta_de_la_encuesta_se_guarda_en_una_cache(completed, survey_on):
-    client, attempt_id, _ = completed
+def test_ninguna_respuesta_de_la_encuesta_se_guarda_en_una_cache(completed, survey_on, settings):
+    """El middleware de atestación de las pruebas pone ``no-store`` a toda respuesta y taparía a la vista: se quita."""
+    _, attempt_id, _ = completed
+    settings.MIDDLEWARE = [m for m in settings.MIDDLEWARE if "test_attestation" not in m]
+    owner = cl(User.objects.get(pk=SimulationAttempt.objects.get(pk=attempt_id).student_id))  # cliente nuevo: carga el MIDDLEWARE de arriba
 
-    posted = client.post(_url(attempt_id), {"rating": 4}, format="json")
-    read = client.get(_url(attempt_id))
+    posted = owner.post(_url(attempt_id), {"rating": 4}, format="json")
+    read = owner.get(_url(attempt_id))
 
+    assert "X-SIEP-Test-Environment" not in posted.headers  # el encabezado es de la vista, no del entorno de pruebas
     assert posted["Cache-Control"] == read["Cache-Control"] == "no-store"
 
 
