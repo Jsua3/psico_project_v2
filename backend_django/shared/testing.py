@@ -155,3 +155,23 @@ def seal_version(version):
     pk = getattr(version, "pk", version)
     CaseVersion.objects.filter(pk=pk).update(validated_at=timezone.now(), definition_hash=TEST_SEAL_HASH)
     return CaseVersion.objects.get(pk=pk)
+
+
+def purge_audit_rows(queryset):
+    """Borra filas de ``audit_logs`` dentro de una prueba (S4-2).
+
+    La base solo admite ``DELETE`` sobre la auditoría dentro de la ventana de purgado; la prueba que limpia lo que
+    creó lo hace por aquí en vez de ``queryset.delete()``. Devuelve lo que devuelve ``delete()``.
+    """
+    from apps.simulation.services.audit_service import audit_purge_window
+
+    with audit_purge_window():
+        return queryset.delete()
+
+
+def rewrite_audit_rows(queryset, **changes):
+    """Actualiza filas de ``audit_logs`` dentro de una prueba (S4-2); ver ``purge_audit_rows``."""
+    from apps.simulation.services.audit_service import audit_purge_window
+
+    with audit_purge_window():
+        return queryset.update(**changes)

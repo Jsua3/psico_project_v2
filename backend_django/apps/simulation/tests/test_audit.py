@@ -19,6 +19,7 @@ from apps.grupos.models import Grupo
 from apps.security.models import RateLimitBucket
 from apps.simulation.models import AuditLog, CaseVersion
 from apps.simulation.services import audit_service
+from shared.testing import rewrite_audit_rows
 
 User = get_user_model()
 ADMIN_BASE = "/api/admin/cases"
@@ -257,7 +258,7 @@ def _audit_row_at(admin, when, *, resource_type):
         actor=admin, actor_role="ADMIN", action="CASE_CREATED", resource_type=resource_type, resource_id="tz-1",
         retention_until=when + timedelta(days=360),
     )
-    AuditLog.objects.filter(pk=row.pk).update(occurred_at=when)  # auto_now_add pisa el valor dado al crear
+    rewrite_audit_rows(AuditLog.objects.filter(pk=row.pk), occurred_at=when)  # auto_now_add pisa el valor dado al crear
     return row
 
 

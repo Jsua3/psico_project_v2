@@ -17,7 +17,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from apps.simulation.models import AuditLog
 from apps.users.serializers import PsychoSimTokenObtainSerializer, generate_access_token
 from apps.users.services import account_service
-from shared.testing import run_concurrently
+from shared.testing import purge_audit_rows, run_concurrently
 
 pytestmark = [pytest.mark.req("SIEP-RNF-04"), pytest.mark.security]
 
@@ -318,7 +318,7 @@ def test_dos_revocaciones_simultaneas_suman_dos(real_commits):
         usuario.refresh_from_db()
         assert usuario.session_epoch == 2
     finally:
-        AuditLog.objects.filter(action="SESSIONS_REVOKED", resource_id=str(usuario.pk)).delete()
+        purge_audit_rows(AuditLog.objects.filter(action="SESSIONS_REVOKED", resource_id=str(usuario.pk)))
         usuario.delete()
 
 
