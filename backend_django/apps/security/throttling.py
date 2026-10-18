@@ -58,6 +58,12 @@ class AccessRequestIpThrottle(ScopedThrottle):
     scope = "access_request_ip"
 
 
+class CspReportIpThrottle(ScopedThrottle):
+    """Informes de violaciones de la CSP (S2-3a, RNF-002): anónimos, así que el límite cuenta por IP de cliente."""
+
+    scope = "csp_report_ip"
+
+
 def _correo_de(request) -> str:
     datos = request.data
     valor = datos.get("email") if hasattr(datos, "get") else None

@@ -36,6 +36,7 @@ from apps.grupos.views import (
     MeInvitationLeaveView,
     MeInvitationsView,
 )
+from apps.security.csp_report import CspReportView
 from apps.simulation.views.rubric_views import CompetencyListCreateView
 from apps.users.views import (
     AdminAccessRequestListView,
@@ -73,6 +74,8 @@ def _docs_gate(view):
 urlpatterns = [
     # C11: salud del servicio (pública, sin autenticación, sin datos internos).
     path("api/health", health),
+    # S2-3a · informe de violaciones de la CSP (RNF-002): anónimo y limitado por IP; responde 204 sin cuerpo.
+    path("api/security/csp-report", CspReportView.as_view()),
     path("api/auth/", include("apps.users.urls")),
     # S1-4 · cerrar la propia sesión: cualquier persona autenticada, también con el cambio de contraseña pendiente.
     path("api/auth/logout", LogoutView.as_view()),

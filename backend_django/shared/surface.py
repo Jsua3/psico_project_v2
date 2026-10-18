@@ -40,6 +40,7 @@ PUBLIC_ROUTE_REASONS: dict[str, str] = {
     "api/auth/google": "entrar con una cuenta de Google",
     "api/auth/google/config": "configuración pública del acceso con Google",
     "api/auth/access-request": "pedir una cuenta, que aprueba el ADMIN",
+    "api/security/csp-report": "informe anónimo y limitado de violaciones de la política de contenido (CSP)",
     "^(?!api/|schema/|swagger-ui|django-static/).*$": "comodín que sirve la SPA de Angular",
 }
 

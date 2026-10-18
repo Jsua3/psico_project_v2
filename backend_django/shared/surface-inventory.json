@@ -1238,6 +1238,16 @@
       "audit": null
     },
     {
+      "route": "api/security/csp-report",
+      "method": "POST",
+      "exposure": "public",
+      "body": "json-small",
+      "throttle": [
+        "csp_report_ip"
+      ],
+      "audit": null
+    },
+    {
       "route": "api/simulation/ai-assistant",
       "method": "POST",
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",

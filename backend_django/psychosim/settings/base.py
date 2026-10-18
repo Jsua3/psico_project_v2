@@ -8,6 +8,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from django.utils.csp import CSP
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = os.environ.get(
@@ -42,6 +44,9 @@ MIDDLEWARE = [
     # así que lo que quede debajo no llega a esas respuestas.
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "shared.security_headers.SecurityHeadersMiddleware",
+    # S2-3a · política de contenido en modo reporte (RNF-002). Solo pone ``Content-Security-Policy-Report-Only``
+    # (SECURE_CSP_REPORT_ONLY); la que se aplica (SECURE_CSP) sigue vacía hasta S2-4. Va encima de WhiteNoise.
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
     # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
     # producción sin necesidad de un servidor web aparte.
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -383,6 +388,34 @@ SPECTACULAR_SETTINGS = {
 # la bandera, exigen sesión JWT y rol ADMIN; apagada, responden 404 antes de mirar credenciales. Se evalúa en cada petición
 # (psychosim/urls.py, _docs_gate). Solo para desarrollo.
 SIEP_EXPOSE_API_DOCS = _env_flag("SIEP_EXPOSE_API_DOCS")
+
+# S2-3a · política de contenido (RNF-002). En MODO REPORTE el navegador informa de lo que incumple y no bloquea nada;
+# los informes llegan a CSP_REPORT_PATH (ruta pública, anónima y limitada por IP). SECURE_CSP, la política que se
+# aplica, va vacía hasta S2-4, que la activa detrás de una bandera. SIEP_CSP_REPORT_ONLY=false (interruptor de
+# emergencia) quita también la cabecera de reporte.
+CSP_REPORT_PATH = "/api/security/csp-report"
+SIEP_CSP_REPORT_ONLY = _env_flag("SIEP_CSP_REPORT_ONLY", default=True)
+SECURE_CSP = {}
+SECURE_CSP_REPORT_ONLY = (
+    {
+        "default-src": [CSP.SELF],
+        "script-src": [CSP.SELF, "https://accounts.google.com/gsi/client"],
+        "style-src": [CSP.SELF, CSP.UNSAFE_INLINE, "https://accounts.google.com/gsi/style"],
+        "img-src": [CSP.SELF, "data:", "blob:"],
+        "font-src": [CSP.SELF],
+        "media-src": [CSP.SELF, "blob:"],
+        "worker-src": [CSP.SELF, "blob:"],
+        "connect-src": [CSP.SELF, "https://accounts.google.com/gsi/"],
+        "frame-src": ["https://accounts.google.com/gsi/"],
+        "frame-ancestors": [CSP.NONE],
+        "base-uri": [CSP.SELF],
+        "form-action": [CSP.SELF],
+        "object-src": [CSP.NONE],
+        "report-uri": [CSP_REPORT_PATH],
+    }
+    if SIEP_CSP_REPORT_ONLY
+    else {}
+)
 
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
 LOGGING = {
