@@ -71,7 +71,7 @@ describe('jwtInterceptor', () => {
       req.flush({});
     });
 
-    // req: RNF-04 (S1-4: el token solo viaja a la propia API)
+    // req: SIEP-RNF-04 (S1-4: el token solo viaja a la propia API)
     it('no la agrega a una URL absoluta de un tercero ni a una protocolo-relativa', () => {
       http.get('https://otro.sitio/api/cosa').subscribe();
       const ajena = httpMock.expectOne('https://otro.sitio/api/cosa');

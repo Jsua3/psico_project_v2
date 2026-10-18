@@ -59,6 +59,9 @@ class CustomUser(AbstractBaseUser):
     # E2-9 · una cuenta con contraseña temporal (importada y aprobada, o con una restablecida)
     # debe fijar la suya antes de cualquier otra orden (``apps.users.authentication``).
     must_change_password = models.BooleanField(default=False, db_default=False)
+    # S1-4 · época de sesión: cerrar sesiones la sube y los tokens emitidos con una época menor dejan de valer
+    # (``apps.users.authentication``). Solo ``account_service.revoke_sessions`` la sube.
+    session_epoch = models.PositiveIntegerField(default=0, db_default=0)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["nombre", "apellido"]

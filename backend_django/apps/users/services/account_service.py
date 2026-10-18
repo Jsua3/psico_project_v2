@@ -13,6 +13,7 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import F
 from django.utils.crypto import get_random_string
 from rest_framework import status
 
@@ -85,6 +86,8 @@ def _approve_one(user_id):
         user.activo = True
         user.must_change_password = True
         user.save(update_fields=["password", "activo", "must_change_password"])
+        # S1-4 · reactivar la cuenta cierra las sesiones anteriores: no revive tokens viejos.
+        revoke_sessions(user_id)
         try:
             _send_approval_email(user, temporary)
         except Exception:  # noqa: BLE001  (un servidor de correo caído no debe romper el lote)
@@ -157,13 +160,29 @@ def ensure_not_last_admin(user, *, role=None, activo=None):
         )
 
 
+# El id de la persona es el primer argumento: la fila de auditoría lo guarda como recurso (-1 lo dejaría vacío).
+@auditable("SESSIONS_REVOKED", "USER", 0)
+def revoke_sessions(user_id):
+    """Cierra todas las sesiones de ``user_id``: sus tokens emitidos antes dejan de valer (S1-4).
+
+    Una sola sentencia ``UPDATE ... SET session_epoch = session_epoch + 1``: dos revocaciones simultáneas suman dos
+    y ninguna se pierde. Devuelve la época nueva. Debe llamarse dentro de la transacción del cambio que la motiva.
+    """
+    User.objects.filter(pk=user_id).update(session_epoch=F("session_epoch") + 1)
+    return User.objects.filter(pk=user_id).values_list("session_epoch", flat=True).first()
+
+
 def _field_error(field, message):
     return ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field=field)
 
 
 @auditable("PASSWORD_CHANGED", "USER", -1)
 def change_password(user, current_password, new_password):
-    """Cambia la contraseña de ``user`` y apaga el cambio obligatorio."""
+    """Cambia la contraseña de ``user``, apaga el cambio obligatorio y cierra sus sesiones (S1-4).
+
+    Devuelve ``user`` con la época de sesión nueva: la vista le reemite un token a quien la cambió, así su sesión
+    actual sigue y solo mueren las demás (un token robado deja de servir).
+    """
     if not user.check_password(current_password or ""):
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
         raise _field_error("currentPassword", "La contraseña actual no es correcta.")
@@ -173,7 +192,11 @@ def change_password(user, current_password, new_password):
         password_validation.validate_password(new_password, user)
     except DjangoValidationError as exc:
         raise _field_error("newPassword", " ".join(exc.messages)) from None
-    user.set_password(new_password)
-    user.must_change_password = False
-    user.save(update_fields=["password", "must_change_password"])
+    # S1-4 · la contraseña nueva y el cierre de las sesiones van en la misma transacción.
+    with transaction.atomic():
+        user.set_password(new_password)
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+        # La instancia lleva la época nueva: el token que se reemite a quien cambió la clave nace vigente.
+        user.session_epoch = revoke_sessions(user.id)
     return user

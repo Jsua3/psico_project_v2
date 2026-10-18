@@ -3,7 +3,7 @@ import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { THROTTLED_FALLBACK_MESSAGE, retryAfterSeconds, throttledMessage } from './throttled';
 
 /** El 429 del limitador (S1-2): el texto del servidor manda; si falta, los segundos de espera; si no, uno de respaldo. */
-// req: RNF-02
+// req: DJA-2
 describe('429 del limitador', () => {
   const throttled = (init: { error?: unknown; headers?: Record<string, string> } = {}) =>
     new HttpErrorResponse({ status: 429, statusText: 'Too Many Requests', error: init.error, headers: new HttpHeaders(init.headers) });

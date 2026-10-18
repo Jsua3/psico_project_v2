@@ -1,7 +1,7 @@
 import { isSameOriginApiUrl } from './api-origin';
 
 /** El token solo viaja a la propia API (S1-4, hallazgo 15 de la revisión de la línea base). */
-// req: RNF-04
+// req: SIEP-RNF-04
 describe('isSameOriginApiUrl', () => {
   it.each([
     '/api/auth/me',

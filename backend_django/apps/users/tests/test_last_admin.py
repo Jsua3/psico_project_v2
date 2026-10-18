@@ -10,6 +10,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
+from apps.simulation.models import AuditLog
 from shared.testing import run_concurrently
 
 pytestmark = [pytest.mark.req("D-6")]
@@ -118,6 +119,8 @@ def test_two_admins_deactivating_each_other_at_once_leave_one_active(real_commit
         assert codes == [200, 400]
         assert User.objects.filter(pk__in=[first.pk, second.pk], activo=True).count() == 1
     finally:
+        # S1-4 · cada orden deja una fila de auditoría con su actor: se borra antes que la cuenta (clave foránea).
+        AuditLog.objects.filter(actor_id__in=[first.pk, second.pk]).delete()
         first.delete()
         second.delete()
         User.objects.filter(pk__in=previously_active).update(activo=True)

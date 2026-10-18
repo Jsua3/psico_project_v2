@@ -180,6 +180,8 @@ class GoogleLoginView(APIView):
             user.must_change_password = False
             user.set_password(None)
             user.save(update_fields=["must_change_password", "password"])
+            # S1-4 · un token emitido con la contraseña temporal no debe sobrevivir a su anulación.
+            user.session_epoch = account_service.revoke_sessions(user.id)
 
         return api_ok({
             "token": generate_access_token(user),
@@ -263,10 +265,22 @@ class ChangePasswordView(APIView):
     def post(self, request):
         ser = ChangePasswordSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        account_service.change_password(
+        user = account_service.change_password(
             request.user, ser.validated_data["currentPassword"], ser.validated_data["newPassword"]
         )
-        return api_ok(None, message="Contraseña actualizada")
+        # S1-4 · cambiar la contraseña cierra las demás sesiones; la actual sigue con un token nuevo.
+        return api_ok({"token": generate_access_token(user)}, message="Contraseña actualizada")
+
+
+class LogoutView(APIView):
+    """POST /api/auth/logout — la propia persona cierra todas sus sesiones (S1-4)."""
+
+    permission_classes = [policy_permission("account", "self")]
+
+    def post(self, request):
+        account_service.revoke_sessions(request.user.id)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(None, message="Sesión cerrada")
 
 
 class AdminUserApproveView(APIView):
@@ -359,6 +373,22 @@ class AdminUserStatusView(APIView):
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
             account_service.ensure_not_last_admin(user, activo=ser.validated_data["activo"])
+            cambia = user.activo != ser.validated_data["activo"]
             user.activo = ser.validated_data["activo"]
             user.save(update_fields=["activo"])
+            if cambia:
+                # S1-4 · desactivar o reactivar cierra las sesiones de la persona (en ambos sentidos).
+                account_service.revoke_sessions(user.pk)
         return api_ok(AdminUserSerializer(user).data, message="Estado actualizado correctamente")
+
+
+class AdminUserRevokeSessionsView(APIView):
+    """POST /api/admin/users/<id>/revoke-sessions — ADMIN cierra todas las sesiones de una persona (S1-4)."""
+
+    permission_classes = [policy_permission("user", "manage")]
+
+    def post(self, request, user_id):
+        get_object_or_404(User, pk=user_id)  # 404 si la cuenta no existe: no hay nada que cerrar ni auditar
+        account_service.revoke_sessions(user_id)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(None, message="Sesiones cerradas")
