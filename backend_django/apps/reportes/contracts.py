@@ -15,7 +15,7 @@ from apps.simulation.models import FormativeLevel
 #: Los nombres de los niveles formativos, tal cual (valor = etiqueta): así ``drf-spectacular`` los reconoce como un solo enum.
 FORMATIVE_LEVELS = tuple(FormativeLevel.values)
 PERCENT = "Porcentaje de 0 a 100, con un decimal."
-DELTA = "Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal."
+DELTA = "Cambio en porcentaje (puede ser negativo), con un decimal."
 INDEX = "Índice interno de 1 a 4 (no es una nota), con dos decimales."
 
 
@@ -53,7 +53,7 @@ class AnalyticsAcceptableSerializer(serializers.Serializer):
     students = serializers.IntegerField(help_text="Estudiantes con al menos un intento con alguna competencia con nivel.")
     achieved = serializers.IntegerField()
     pct = serializers.FloatField(help_text=PERCENT)
-    level = serializers.ChoiceField(choices=FORMATIVE_LEVELS, help_text="El nivel aceptable con el que se calculó.")
+    levelThreshold = serializers.ChoiceField(choices=FORMATIVE_LEVELS, help_text="El nivel aceptable con el que se calculó.")
 
 
 class AnalyticsReflectionSerializer(serializers.Serializer):
@@ -101,8 +101,11 @@ class AnalyticsDefinitionsSerializer(serializers.Serializer):
 
     status = serializers.ChoiceField(choices=(DEFINITIONS_STATUS,))
     acceptableLevel = serializers.ChoiceField(choices=FORMATIVE_LEVELS)
-    minCellSize = serializers.IntegerField(help_text="Celda mínima: estudiantes distintos que hacen falta para publicar un bloque.")
+    minCell = serializers.IntegerField(help_text="Celda mínima: estudiantes distintos que hacen falta para publicar un bloque.")
     reflectionDefinition = serializers.ChoiceField(choices=REFLECTION_DEFINITIONS)
+    profileRules = serializers.CharField(
+        help_text="Versión de la regla que convierte decisiones en niveles; solo se cuentan los intentos calculados con ella."
+    )
 
 
 class LearningAnalyticsSerializer(serializers.Serializer):

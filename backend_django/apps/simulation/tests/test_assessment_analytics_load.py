@@ -84,14 +84,15 @@ def test_cada_fila_trae_lo_que_el_reporte_la_evaluacion_el_evento_y_la_encuesta_
 
     assert rows[str(first.id)] == AttemptRow(
         attempt_id=str(first.id), student_id=who.id, case_id=world.case_a.id, started_at=T, ordinal=1, schema_version=2,
-        levels=("EN_INICIO", "EN_PROCESO"), non_recommended=3, reflection_definition="ANY", reflection_covered=False,
-        key_evidence=False, system_evaluated=True, teacher_commented=True, feedback_viewed_at=T + timedelta(days=1),
-        rating=4,
+        levels=("EN_INICIO", "EN_PROCESO"), non_recommended=3, reflection_definition="ANY", profile_rules="borrador-1",
+        reflection_covered=False, key_evidence=False, system_evaluated=True, teacher_commented=True,
+        feedback_viewed_at=T + timedelta(days=1), rating=4,
     )
     assert rows[str(second.id)] == AttemptRow(
         attempt_id=str(second.id), student_id=who.id, case_id=world.case_a.id, started_at=T + timedelta(days=2), ordinal=2,
         schema_version=2, levels=("LOGRADO",), non_recommended=1, reflection_definition="PER_DECISION_SCENE",
-        reflection_covered=True, key_evidence=True, system_evaluated=False, teacher_commented=False,
+        profile_rules="borrador-1", reflection_covered=True, key_evidence=True, system_evaluated=False,
+        teacher_commented=False,
         feedback_viewed_at=None, rating=None,
     )
 
@@ -194,6 +195,41 @@ def test_un_reporte_v2_con_claves_de_otro_tipo_se_lee_como_sin_dato(world):
         assert (row.levels, row.non_recommended, row.reflection_definition, row.reflection_covered, row.key_evidence) == (
             (), None, None, None, False
         )
+
+
+def test_un_nivel_que_no_es_texto_se_lee_como_sin_dato_y_no_tumba_la_consulta(world):
+    """Un valor no hashable (una lista, un objeto) lanzaba ``TypeError`` y daba un 500 a TODA la consulta."""
+    who = student()
+    attempt(world, who, world.v_a1, report={
+        "schemaVersion": 2, "nonRecommendedCount": 0, "keyLearningEvidence": False,
+        "competencyLevels": [{"level": ["LOGRADO"]}, {"level": {"a": 1}}, {"level": 3}, {"level": "LOGRADO"}],
+    })
+
+    (row,) = analytics.load_rows({who.id})
+
+    assert row.levels == ("LOGRADO",)
+
+
+def test_el_sello_de_la_regla_del_perfil_se_lee_solo_si_es_texto(world):
+    stamped, unstamped, odd = student(), student(), student()
+    attempt(world, stamped, world.v_a1, report=v2_report())
+    attempt(world, unstamped, world.v_a1, report={**v2_report(), "profileRules": None})
+    attempt(world, odd, world.v_a1, report={**v2_report(), "profileRules": 7})
+
+    rules = {row.student_id: row.profile_rules for row in analytics.load_rows({stamped.id, unstamped.id, odd.id})}
+
+    assert rules == {stamped.id: "borrador-1", unstamped.id: None, odd.id: None}
+
+
+def test_una_evaluacion_pendiente_del_docente_no_cuenta_como_evaluada_con_comentario(world):
+    """Un borrador con un comentario general no es una evaluación terminada: inflaría la meta de «evaluados»."""
+    who = student()
+    record = attempt(world, who, world.v_a1, report=v2_report())
+    evaluate(world, record, origin="DOCENTE", status="PENDING", comment="Falta evaluar los criterios")
+
+    (row,) = analytics.load_rows({who.id})
+
+    assert row.teacher_commented is False
 
 
 def test_los_niveles_que_no_existen_o_no_tienen_dato_no_cuentan(world):

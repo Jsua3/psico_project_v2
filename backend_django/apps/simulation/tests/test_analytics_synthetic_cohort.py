@@ -87,13 +87,16 @@ EXPECTED = {
     "cohort": {"students": 20, "attempts": 40, "suppressed": False},
     "improvement": {"students": 20, "series": 20, "pre": 1.85, "post": 3.03, "deltaPct": 39.2},
     "firstVsSecond": {"students": 20, "series": 20, "firstMean": 3.9, "secondMean": 2.7, "nonRecommendedDeltaPct": -30.8},
-    "acceptable": {"students": 20, "achieved": 14, "pct": 70.0, "level": LOG},
+    "acceptable": {"students": 20, "achieved": 14, "pct": 70.0, "levelThreshold": LOG},
     "reflectionCoverage": {"definition": "ANY", "attempts": 40, "covered": 24, "pct": 60.0},
     "keyEvidence": {"attempts": 40, "keyEvidence": 24, "pct": 60.0},
     "evaluated": {"attempts": 40, "systemPct": 80.0, "commentedPct": 50.0},
     "satisfaction": {"responses": 17, "satisfiedPct": 64.7},
     "improvementAfterFeedback": {"students": 13, "pairs": 13, "deltaPct": 42.3},
-    "definitions": {"status": "BORRADOR", "acceptableLevel": LOG, "minCellSize": 5, "reflectionDefinition": "ANY"},
+    "definitions": {
+        "status": "BORRADOR", "acceptableLevel": LOG, "minCell": 5, "reflectionDefinition": "ANY",
+        "profileRules": "borrador-1",
+    },
 }
 
 

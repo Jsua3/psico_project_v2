@@ -336,6 +336,7 @@ def generar_analitica(grupo_id, case_version_id, usuario):
         min_cell=definitions.min_cell_size(),
         acceptable_level=definitions.acceptable_level(),
         reflection_definition=definitions.reflection_definition(),
+        profile_rules=definitions.PROFILE_RULES,
         survey_enabled=definitions.survey_enabled(),
     )
 

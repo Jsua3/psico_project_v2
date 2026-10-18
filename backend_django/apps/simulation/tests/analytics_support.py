@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from apps.simulation.assessment import definitions
 from apps.simulation.models import (
     AttemptEvent,
     AttemptFeedback,
@@ -43,8 +44,10 @@ def v2_report(levels=("LOGRADO",), non_recommended=0, covered=True, key=True, de
     return {
         "schemaVersion": 2,
         "competencyLevels": [
-            {"code": f"C{i}", "name": f"Competencia {i}", "level": level} for i, level in enumerate(levels)
+            {"code": f"C{i}", "name": f"Competencia {i}", "level": level, "basis": "DEFAULT"}
+            for i, level in enumerate(levels)
         ],
+        "profileRules": definitions.PROFILE_RULES,
         "nonRecommendedCount": non_recommended,
         "reflectionCoverage": {"definition": definition, "reflections": 1, "decisionScenes": 1, "covered": covered},
         "keyLearningEvidence": key,

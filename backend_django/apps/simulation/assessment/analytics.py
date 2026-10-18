@@ -70,6 +70,7 @@ class AttemptRow:
     levels: tuple[str, ...] = ()  # nombres de nivel de las competencias CON nivel (las sin evidencia no están)
     non_recommended: int | None = None  # decisiones registradas no recomendadas (v2)
     reflection_definition: str | None = None  # la definición con la que se congeló ``reflection_covered`` (v2)
+    profile_rules: str | None = None  # la versión de la regla con la que se calculó su perfil por competencia (v2)
     reflection_covered: bool | None = None
     key_evidence: bool | None = None
     system_evaluated: bool = False  # tiene una evaluación del sistema completa (todos sus criterios con nivel)
@@ -177,7 +178,13 @@ def _acceptable(rows, k, level):
     if len(achieved) < k:
         return None
     met = sum(achieved.values())
-    return {"students": len(achieved), "achieved": met, "pct": _pct(met, len(achieved)), "level": level}
+    return {"students": len(achieved), "achieved": met, "pct": _pct(met, len(achieved)), "levelThreshold": level}
+
+
+def _under_rules(rows, profile_rules):
+    """Los intentos cuyo perfil se calculó con la regla VIGENTE: lo cerrado no se recalcula y mezclar reglas distintas
+    daría una «mejora» sin significado (hallazgo I-3 de la revisión de E6)."""
+    return [row for row in rows if row.profile_rules == profile_rules]
 
 
 def _closed_under(rows, definition):
@@ -239,10 +246,12 @@ def _improvement_after_feedback(series, k):
     return {"students": len(students), "pairs": len(pairs), "deltaPct": round_half_up((post - pre) * 100 / _SPAN, 1)}
 
 
-def compute(rows, *, min_cell, acceptable_level, reflection_definition, survey_enabled):
+def compute(rows, *, min_cell, acceptable_level, reflection_definition, profile_rules, survey_enabled):
     """La forma de C13 para estas filas: ``cohort``, los bloques que alcanzan la celda mínima y ``definitions``.
 
-    Puro y determinista: el mismo conjunto de filas, en cualquier orden, da el mismo resultado.
+    Puro y determinista: el mismo conjunto de filas, en cualquier orden, da el mismo resultado. Los bloques que leen
+    NIVELES (mejora, aceptable, mejora tras la retroalimentación) cuentan solo los intentos calculados con la regla
+    ``profile_rules``; los que leen la reflexión, solo los cerrados con la ``reflection_definition`` vigente.
     """
     rows = list(rows)
     k = max(1, min_cell)  # el piso de privacidad lo pone ``definitions.min_cell_size``; aquí solo se evita dividir por cero
@@ -252,22 +261,25 @@ def compute(rows, *, min_cell, acceptable_level, reflection_definition, survey_e
     result = {"cohort": {"students": len(students), "attempts": len(rows), "suppressed": suppressed}}
     if not suppressed:
         series = _series(rows)
+        current = _under_rules(rows, profile_rules)
+        series_current = _series(current)
         blocks = {
-            "improvement": _improvement(series, k),
+            "improvement": _improvement(series_current, k),
             "firstVsSecond": _first_vs_second(series, k),
-            "acceptable": _acceptable(rows, k, level),
+            "acceptable": _acceptable(current, k, level),
             "reflectionCoverage": _reflection(rows, k, reflection_definition),
             "keyEvidence": _key_evidence(rows, k, reflection_definition),
             "evaluated": _evaluated(rows),
             "satisfaction": _satisfaction(rows, k) if survey_enabled else None,
-            "improvementAfterFeedback": _improvement_after_feedback(series, k),
+            "improvementAfterFeedback": _improvement_after_feedback(series_current, k),
         }
         result.update({name: block for name, block in blocks.items() if block is not None})
     result["definitions"] = {
         "status": DEFINITIONS_STATUS,
         "acceptableLevel": level,
-        "minCellSize": k,
+        "minCell": k,
         "reflectionDefinition": reflection_definition,
+        "profileRules": profile_rules,
     }
     return result
 
@@ -291,11 +303,13 @@ def _v2_fields(report):
     coverage = report.get("reflectionCoverage")
     coverage = coverage if isinstance(coverage, dict) else {}
     non_recommended = report.get("nonRecommendedCount")
-    definition, covered = coverage.get("definition"), coverage.get("covered")
+    definition, covered, rules = coverage.get("definition"), coverage.get("covered"), report.get("profileRules")
     return {
         "levels": tuple(
-            entry["level"] for entry in entries if isinstance(entry, dict) and entry.get("level") in _INDEX
+            entry["level"] for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("level"), str) and entry["level"] in _INDEX
         ) if isinstance(entries, list) else (),
+        "profile_rules": rules if isinstance(rules, str) else None,
         "non_recommended": non_recommended if type(non_recommended) is int else None,
         "reflection_definition": definition if isinstance(definition, str) else None,
         "reflection_covered": covered if isinstance(covered, bool) else None,
@@ -334,7 +348,7 @@ def load_rows(student_ids, case_version_id=None):
     ):
         if origin == EvaluationOrigin.SISTEMA and status == "EVALUATED":
             system_done.add(attempt_id)
-        elif origin == EvaluationOrigin.DOCENTE and commented:
+        elif origin == EvaluationOrigin.DOCENTE and status == "EVALUATED" and commented:  # un borrador no es una evaluación
             teacher_commented.add(attempt_id)
     ratings = dict(AttemptFeedback.objects.filter(attempt__in=attempts).values_list("attempt_id", "rating"))
 

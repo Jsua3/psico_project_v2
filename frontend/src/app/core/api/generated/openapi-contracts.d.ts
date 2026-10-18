@@ -18,7 +18,7 @@ export type AccessReasonEnum = 'NOT_ASSIGNED' | 'NOT_YET_OPEN' | 'CLOSED' | 'LOC
 export interface AnalyticsAcceptable {
   readonly achieved: number;
   /** El nivel aceptable con el que se calculó. */
-  readonly level: FormativeLevelEnum;
+  readonly levelThreshold: FormativeLevelEnum;
   /** Porcentaje de 0 a 100, con un decimal. */
   readonly pct: number;
   /** Estudiantes con al menos un intento con alguna competencia con nivel. */
@@ -39,7 +39,9 @@ export interface AnalyticsCohort {
 export interface AnalyticsDefinitions {
   readonly acceptableLevel: FormativeLevelEnum;
   /** Celda mínima: estudiantes distintos que hacen falta para publicar un bloque. */
-  readonly minCellSize: number;
+  readonly minCell: number;
+  /** Versión de la regla que convierte decisiones en niveles; solo se cuentan los intentos calculados con ella. */
+  readonly profileRules: string;
   readonly reflectionDefinition: ReflectionDefinitionEnum;
   readonly status: AnalyticsDefinitionsStatusEnum;
 }
@@ -59,7 +61,7 @@ export interface AnalyticsEvaluated {
 export interface AnalyticsFirstVsSecond {
   /** Media de no recomendadas del primer intento, con dos decimales. */
   readonly firstMean: number;
-  /** Cambio de la media. Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  /** Cambio de la media. Cambio en porcentaje (puede ser negativo), con un decimal. */
   readonly nonRecommendedDeltaPct: number;
   /** Media de no recomendadas del segundo intento, con dos decimales. */
   readonly secondMean: number;
@@ -69,7 +71,7 @@ export interface AnalyticsFirstVsSecond {
 
 /** RQ-NEG-001 · primer frente al último intento de cada serie (estudiante, caso) con al menos dos intentos. */
 export interface AnalyticsImprovement {
-  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio en porcentaje (puede ser negativo), con un decimal. */
   readonly deltaPct: number;
   /** Media del índice del último intento. Índice interno de 1 a 4 (no es una nota), con dos decimales. */
   readonly post: number;
@@ -81,7 +83,7 @@ export interface AnalyticsImprovement {
 
 /** RQ-NEG-005 · mejora entre intentos consecutivos cuando se vio la retroalimentación antes del siguiente. */
 export interface AnalyticsImprovementAfterFeedback {
-  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio en porcentaje (puede ser negativo), con un decimal. */
   readonly deltaPct: number;
   readonly pairs: number;
   readonly students: number;

@@ -14,7 +14,7 @@ from fractions import Fraction
 
 import pytest
 
-from apps.simulation.assessment import analytics
+from apps.simulation.assessment import analytics, definitions
 from apps.simulation.assessment.analytics import AttemptRow
 
 pytestmark = [
@@ -25,10 +25,11 @@ pytestmark = [
 T0 = datetime(2026, 10, 1, 9, 0, 0)
 
 EN_INICIO, EN_PROCESO, LOGRADO, DESTACADO = "EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"
+RULES = definitions.PROFILE_RULES
 
 
 def row(student, ordinal=1, *, case=1, levels=(LOGRADO,), non_recommended=0, covered=False, key=False, system=True,
-        commented=False, viewed=None, rating=None, version=2, definition="ANY", start=None):
+        commented=False, viewed=None, rating=None, version=2, definition="ANY", start=None, rules=RULES):
     """Un intento completado. Por defecto es v2; ``version=1`` es un reporte anterior a E6 (sin las claves nuevas)."""
     v2 = version == 2
     return AttemptRow(
@@ -41,6 +42,7 @@ def row(student, ordinal=1, *, case=1, levels=(LOGRADO,), non_recommended=0, cov
         levels=tuple(levels) if v2 else (),
         non_recommended=non_recommended if v2 else None,
         reflection_definition=definition if v2 else None,
+        profile_rules=rules if v2 else None,
         reflection_covered=covered if v2 else None,
         key_evidence=key if v2 else None,
         system_evaluated=system,
@@ -51,7 +53,10 @@ def row(student, ordinal=1, *, case=1, levels=(LOGRADO,), non_recommended=0, cov
 
 
 def run(rows, **overrides):
-    options = {"min_cell": 5, "acceptable_level": LOGRADO, "reflection_definition": "ANY", "survey_enabled": False}
+    options = {
+        "min_cell": 5, "acceptable_level": LOGRADO, "reflection_definition": "ANY", "profile_rules": RULES,
+        "survey_enabled": False,
+    }
     return analytics.compute(rows, **{**options, **overrides})
 
 
@@ -242,7 +247,7 @@ def test_aceptable_es_el_porcentaje_de_estudiantes_con_algun_intento_con_todas_l
     # est 1 (2.º intento), 2 (2.º), 4 (2.º) y 5 (ambos) alcanzan LOGRADO en TODAS sus competencias; el 3 no → 4 de 5
     block = run(five_students())["acceptable"]
 
-    assert block == {"students": 5, "achieved": 4, "pct": 80.0, "level": LOGRADO}
+    assert block == {"students": 5, "achieved": 4, "pct": 80.0, "levelThreshold": LOGRADO}
 
 
 @pytest.mark.parametrize(
@@ -253,7 +258,7 @@ def test_aceptable_respeta_el_nivel_configurado(level, achieved):
     # DESTACADO solo lo alcanza el estudiante 5 (su 2.º intento); EN_PROCESO, todos (el est. 3 con EN_PROCESO en el 2.º)
     block = run(five_students(), acceptable_level=level)["acceptable"]
 
-    assert (block["achieved"], block["level"], block["pct"]) == (achieved, level, achieved * 20.0)
+    assert (block["achieved"], block["levelThreshold"], block["pct"]) == (achieved, level, achieved * 20.0)
 
 
 def test_aceptable_ignora_los_intentos_sin_competencias_con_nivel():
@@ -306,6 +311,41 @@ def test_evaluadas_cuenta_la_automatica_y_la_del_docente_con_comentario():
     ]  # 9 de 10 con evaluación automática; 3 de 10 con un comentario del docente
 
     assert run(rows)["evaluated"] == {"attempts": 10, "systemPct": 90.0, "commentedPct": 30.0}
+
+
+# ─── la versión de la regla del perfil: lo cerrado con otra no se mezcla (hallazgo I-3 de la revisión) ───
+def test_con_otra_version_de_la_regla_los_bloques_que_dependen_de_los_niveles_se_omiten():
+    """Los niveles de un intento se calcularon con la regla de su época; mezclarlos daría una «mejora» sin significado."""
+    old = run(five_students(rules="borrador-0"))
+
+    for block in ("improvement", "acceptable", "improvementAfterFeedback"):
+        assert block not in old  # ningún intento tiene el perfil de la regla vigente
+    for block in ("firstVsSecond", "reflectionCoverage", "keyEvidence", "evaluated"):
+        assert block in old  # estos no dependen de la regla del perfil
+    assert old["cohort"] == {"students": 5, "attempts": 10, "suppressed": False}
+
+
+def test_un_intento_con_otra_regla_no_hace_serie_con_uno_de_la_vigente():
+    """El 1.er intento con la regla vieja y el 2.º con la nueva: no se comparan (cada uno quedaría solo)."""
+    rows = []
+    for student in range(1, 6):
+        rows.append(row(student, 1, levels=(EN_INICIO,), rules="borrador-0"))
+        rows.append(row(student, 2, levels=(DESTACADO,)))
+
+    result = run(rows)
+
+    assert "improvement" not in result and result["cohort"]["attempts"] == 10
+    assert result["acceptable"]["achieved"] == 5  # el 2.º intento de cada uno es DESTACADO bajo la regla vigente
+
+
+def test_un_reporte_v2_sin_sello_de_regla_tampoco_se_mezcla():
+    assert "improvement" not in run(five_students(rules=None))
+
+
+def test_los_porcentajes_de_reflexion_no_dependen_de_la_regla_del_perfil():
+    result = run(five_students(rules="borrador-0"))
+
+    assert result["reflectionCoverage"]["covered"] == 6 and result["keyEvidence"]["keyEvidence"] == 6
 
 
 # ─── reportes anteriores a E6 ─────────────────────────────────────────────────────────────────
@@ -426,10 +466,12 @@ def test_la_salida_es_json_puro_sin_fracciones_ni_decimales():
 
 
 def test_las_definiciones_dicen_con_que_reglas_se_calculo_y_que_son_borrador():
-    result = run(five_students(), min_cell=7, acceptable_level=EN_PROCESO, reflection_definition="PER_DECISION_SCENE")
+    result = run(five_students(), min_cell=7, acceptable_level=EN_PROCESO, reflection_definition="PER_DECISION_SCENE",
+                 profile_rules="otra-regla")
 
     assert result["definitions"] == {
-        "status": "BORRADOR", "acceptableLevel": EN_PROCESO, "minCellSize": 7, "reflectionDefinition": "PER_DECISION_SCENE",
+        "status": "BORRADOR", "acceptableLevel": EN_PROCESO, "minCell": 7, "reflectionDefinition": "PER_DECISION_SCENE",
+        "profileRules": "otra-regla",
     }
 
 

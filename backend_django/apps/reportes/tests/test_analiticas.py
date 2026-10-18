@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 
 from apps.grupos.models import Grupo, GrupoEstudiante, MembershipStatus
+from apps.simulation.assessment import definitions
 from apps.simulation.models import AuditLog, CaseVersion, Rubric
 from apps.simulation.tests.analytics_support import completed_attempt, make_student, seed_student_pair, v2_report
 from shared.testing import measure
@@ -98,14 +99,15 @@ def test_el_docente_recibe_los_bloques_de_su_grupo_con_las_cifras_conocidas(prof
     assert data["firstVsSecond"] == {
         "students": 5, "series": 5, "firstMean": 4.0, "secondMean": 2.0, "nonRecommendedDeltaPct": -50.0
     }
-    assert data["acceptable"] == {"students": 5, "achieved": 5, "pct": 100.0, "level": "LOGRADO"}
+    assert data["acceptable"] == {"students": 5, "achieved": 5, "pct": 100.0, "levelThreshold": "LOGRADO"}
     assert data["reflectionCoverage"] == {"definition": "ANY", "attempts": 10, "covered": 5, "pct": 50.0}
     assert data["keyEvidence"] == {"attempts": 10, "keyEvidence": 5, "pct": 50.0}
     assert data["evaluated"] == {"attempts": 10, "systemPct": 100.0, "commentedPct": 50.0}
     assert data["improvementAfterFeedback"] == {"students": 5, "pairs": 5, "deltaPct": 50.0}
     assert "satisfaction" not in data  # la encuesta está apagada por defecto
     assert data["definitions"] == {
-        "status": "BORRADOR", "acceptableLevel": "LOGRADO", "minCellSize": 5, "reflectionDefinition": "ANY"
+        "status": "BORRADOR", "acceptableLevel": "LOGRADO", "minCell": 5, "reflectionDefinition": "ANY",
+        "profileRules": "borrador-1",
     }
 
 
@@ -135,7 +137,7 @@ def test_el_nivel_aceptable_configurado_llega_al_calculo(profesor, version, rubr
     with override_settings(ACCEPTABLE_LEVEL="DESTACADO"):
         data = get(profesor, grupoId=group.id).data["data"]
 
-    assert data["acceptable"] == {"students": 5, "achieved": 0, "pct": 0.0, "level": "DESTACADO"}
+    assert data["acceptable"] == {"students": 5, "achieved": 0, "pct": 0.0, "levelThreshold": "DESTACADO"}
     assert data["definitions"]["acceptableLevel"] == "DESTACADO"
 
 
@@ -150,13 +152,25 @@ def test_la_definicion_de_reflexion_configurada_llega_al_calculo(profesor, versi
     assert data["definitions"]["reflectionDefinition"] == "PER_DECISION_SCENE"
 
 
+def test_cambiar_la_version_de_la_regla_del_perfil_deja_fuera_los_niveles_ya_cerrados(profesor, version, rubric, monkeypatch):
+    group, _ = cohort(profesor, version, rubric, 5)
+    monkeypatch.setattr(definitions, "PROFILE_RULES", "borrador-2")
+
+    data = get(profesor, grupoId=group.id).data["data"]
+
+    for block in ("improvement", "acceptable", "improvementAfterFeedback"):
+        assert block not in data  # los reportes se sellaron con ``borrador-1``
+    assert data["firstVsSecond"]["students"] == 5  # lo que no depende de los niveles sigue ahí
+    assert data["definitions"]["profileRules"] == "borrador-2"
+
+
 def test_la_celda_minima_configurada_no_baja_del_piso(profesor, version, rubric):
     group, _ = cohort(profesor, version, rubric, 4)
 
     with override_settings(MIN_CELL_SIZE=2):  # la configuración no puede publicar celdas de menos de 5
         data = get(profesor, grupoId=group.id).data["data"]
 
-    assert data["cohort"]["suppressed"] is True and data["definitions"]["minCellSize"] == 5
+    assert data["cohort"]["suppressed"] is True and data["definitions"]["minCell"] == 5
 
 
 def test_la_celda_minima_configurada_mas_alta_se_respeta(profesor, version, rubric):
@@ -165,7 +179,7 @@ def test_la_celda_minima_configurada_mas_alta_se_respeta(profesor, version, rubr
     with override_settings(MIN_CELL_SIZE=8):
         data = get(profesor, grupoId=group.id).data["data"]
 
-    assert data["cohort"]["suppressed"] is True and data["definitions"]["minCellSize"] == 8
+    assert data["cohort"]["suppressed"] is True and data["definitions"]["minCell"] == 8
 
 
 def test_solo_cuentan_los_estudiantes_con_membresia_activa(profesor, version, rubric):
