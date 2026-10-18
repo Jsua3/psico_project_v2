@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from './auth.service';
@@ -78,5 +78,56 @@ describe('AuthService: cambio de contraseña obligatorio (E2-9)', () => {
     expect(service.mustChangePassword()).toBe(false);
     service.requirePasswordChange();
     expect(service.mustChangePassword()).toBe(true);
+  });
+});
+
+/**
+ * Cerrar sesión (S1-4): avisa al servidor para que el token deje de valer (`POST /api/auth/logout`), pero la salida
+ * local no espera ni depende de eso.
+ */
+// req: RNF-04
+describe('AuthService: cierre de sesión revocable (S1-4)', () => {
+  let service: AuthService;
+  let http: HttpTestingController;
+  const router = { navigate: vi.fn(), url: '/portal/dashboard' };
+
+  beforeEach(() => {
+    localStorage.clear();
+    router.navigate.mockClear();
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), { provide: Router, useValue: router }, provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(AuthService);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    http.verify();
+    localStorage.clear();
+  });
+
+  it('avisa al servidor con el token de la sesión y cierra la sesión local sin esperar la respuesta', () => {
+    const jwt = token();
+    localStorage.setItem('psychosim_token', jwt);
+    service.logout();
+    expect(service.getToken()).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(['/login']);
+    const req = http.expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('Authorization')).toBe(`Bearer ${jwt}`);
+    req.flush({ success: true, message: 'Sesión cerrada', data: null });
+  });
+
+  it('si el servidor falla (sin red, 401, 500) la sesión local ya está cerrada y no hay error', () => {
+    localStorage.setItem('psychosim_token', token());
+    service.logout();
+    http.expectOne('/api/auth/logout').flush({ success: false }, { status: 500, statusText: 'err' });
+    expect(service.getToken()).toBeNull();
+    expect(service.currentUser()).toBeNull();
+  });
+
+  it('sin token no llama al servidor', () => {
+    service.logout();
+    http.expectNone('/api/auth/logout');
   });
 });

@@ -71,6 +71,32 @@ describe('jwtInterceptor', () => {
       req.flush({});
     });
 
+    // req: RNF-04 (S1-4: el token solo viaja a la propia API)
+    it('no la agrega a una URL absoluta de un tercero ni a una protocolo-relativa', () => {
+      http.get('https://otro.sitio/api/cosa').subscribe();
+      const ajena = httpMock.expectOne('https://otro.sitio/api/cosa');
+      expect(ajena.request.headers.has('Authorization')).toBe(false);
+      ajena.flush({});
+
+      http.get('//otro.sitio/api/cosa').subscribe();
+      const relativa = httpMock.expectOne('//otro.sitio/api/cosa');
+      expect(relativa.request.headers.has('Authorization')).toBe(false);
+      relativa.flush({});
+    });
+
+    it('la agrega a una URL absoluta del mismo origen y no a rutas que no son de la API', () => {
+      const propia = `${location.origin}/api/cosa`;
+      http.get(propia).subscribe();
+      const mismoOrigen = httpMock.expectOne(propia);
+      expect(mismoOrigen.request.headers.get('Authorization')).toBe('Bearer jwt-valido');
+      mismoOrigen.flush({});
+
+      http.get('/assets/mundo/fondo.webp').subscribe();
+      const estatico = httpMock.expectOne('/assets/mundo/fondo.webp');
+      expect(estatico.request.headers.has('Authorization')).toBe(false);
+      estatico.flush({});
+    });
+
     it('no la agrega sin token', () => {
       auth.getToken.mockReturnValue(null);
       http.get('/api/cosa').subscribe();

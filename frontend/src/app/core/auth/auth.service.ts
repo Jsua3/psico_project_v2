@@ -44,7 +44,7 @@ export class AuthService {
       }));
   }
 
-  requestAccess(payload: { nombre: string; apellido: string; email: string }) {
+  requestAccess(payload: { nombre: string; apellido: string; email: string; website?: string }) {
     return this.http.post<ApiResponse<{ id: number }>>(`${this.API}/access-request`, payload);
   }
 
@@ -77,7 +77,20 @@ export class AuthService {
   }
 
   logout() {
+    this.revokeOnServer();
     this.endSession();
+  }
+
+  /**
+   * S1-4: avisa al servidor para que el token deje de valer. La salida no espera ni depende de eso: sin red, con la
+   * sesión ya vencida o con cualquier error, la sesión local se cierra igual.
+   */
+  private revokeOnServer(): void {
+    const token = this.getToken();
+    if (!token || this.isTokenExpired(token)) return;
+    this.http.post(`${this.API}/logout`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      .pipe(catchError(() => of(null)))
+      .subscribe();
   }
 
   syncCurrentUser(): Observable<User | null> {

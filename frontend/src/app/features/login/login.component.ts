@@ -10,6 +10,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { EXPIRED_SESSION_REASON } from '../../core/auth/auth.guard';
 import { AuthService } from '../../core/auth/auth.service';
 import { safeReturnUrl } from '../../core/auth/return-url';
+import { throttledMessage } from '../../core/auth/throttled';
 import { APP_BRAND } from '../../core/config/brand.config';
 import { PublicBarComponent } from '../../shared/layout/public-bar.component';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -110,6 +111,8 @@ export class LoginComponent implements AfterViewInit {
     nombre: ['', Validators.required],
     apellido: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
+    // Campo trampa (S1-3): lo ve un formulario, no una persona. Debe viajar vacío.
+    website: [''],
   });
 
   constructor() {
@@ -209,18 +212,18 @@ export class LoginComponent implements AfterViewInit {
       return;
     }
 
-    const { nombre, apellido, email } = this.registerForm.getRawValue();
+    const { nombre, apellido, email, website } = this.registerForm.getRawValue();
     this.registerLoading.set(true);
     this.registerNotice.set('');
     this.registerError.set('');
     this.announcement.set('Enviando solicitud…');
-    this.auth.requestAccess({ nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase() }).subscribe({
+    this.auth.requestAccess({ nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase(), website }).subscribe({
       next: response => {
         const notice = response.message ?? 'Solicitud enviada. El equipo académico revisará tu acceso y te contactará por correo.';
         this.registerNotice.set(notice);
         this.announcement.set(notice);
         this.registerLoading.set(false);
-        this.registerForm.reset({ nombre: '', apellido: '', email: '' });
+        this.registerForm.reset({ nombre: '', apellido: '', email: '', website: '' });
       },
       error: (error: unknown) => {
         this.registerError.set(this.registerErrorMessage(error));
@@ -327,6 +330,7 @@ export class LoginComponent implements AfterViewInit {
 
   private googleErrorMessage(error: unknown): string {
     if (!(error instanceof HttpErrorResponse)) return 'No fue posible conectar con Google. Intenta nuevamente.';
+    if (error.status === 429) return throttledMessage(error);
     if (error.status === 401 || error.status === 403) {
       return 'Esa cuenta de Google no está registrada o está inactiva. Solicita acceso o usa tu correo y contraseña.';
     }
@@ -335,6 +339,7 @@ export class LoginComponent implements AfterViewInit {
 
   private registerErrorMessage(error: unknown): string {
     if (!(error instanceof HttpErrorResponse)) return 'No fue posible enviar la solicitud. Intenta nuevamente en unos minutos.';
+    if (error.status === 429) return throttledMessage(error);
     return error.error?.message || 'No fue posible enviar la solicitud. Intenta nuevamente en unos minutos.';
   }
 
@@ -348,6 +353,7 @@ export class LoginComponent implements AfterViewInit {
 
   private loginErrorMessage(error: unknown): string {
     if (!(error instanceof HttpErrorResponse)) return 'No fue posible conectar con el servidor. Intenta nuevamente.';
+    if (error.status === 429) return throttledMessage(error);
     if (error.status === 401) return 'Correo o contraseña incorrectos. Verifica tus datos e intenta nuevamente.';
     if (error.status === 403) return 'Tu usuario está inactivo o no tiene permisos para ingresar. Contacta al administrador.';
     if (error.status === 0) return 'No fue posible conectar con el servidor. Intenta nuevamente.';
