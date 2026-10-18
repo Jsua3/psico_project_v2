@@ -9,7 +9,12 @@ Los nombres de los campos son los del servicio (camelCase), no los de las column
 """
 from rest_framework import serializers
 
+from apps.grupos.contracts import AccessDecisionSerializer
 from apps.simulation.models import AttemptStatus, CaseVersionStatus
+from shared.openapi import ErrorEnvelopeSerializer
+
+ISSUE_SEVERITIES = ("error", "warning")
+HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
 
 #: Las fechas de la API son la hora local del servidor, sin desfase (``USE_TZ = False``): un cliente que las
 #: reciba debe leerlas como hora de Bogotá, no como UTC.
@@ -116,3 +121,94 @@ class WorldPatchAckSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=AttemptStatus.choices)
     map = WorldPatchAckMapSerializer()
     player = PlayerPositionSerializer()
+
+
+# ─── POST /api/{admin,authoring}/cases/{id}/validate  (C6) ────────────────────
+class ValidationIssueSerializer(serializers.Serializer):
+    """Un hallazgo del validador. El mensaje está en lenguaje llano: nombra los elementos por su título, sin ids."""
+
+    code = serializers.CharField(help_text="Estable: `DSL.OCL-02`, `WORLD.OPTION_WITHOUT_TRIGGER`…")
+    severity = serializers.ChoiceField(choices=ISSUE_SEVERITIES)
+    message = serializers.CharField()
+    path = serializers.CharField(
+        required=False, help_text="Dónde está en el documento (`DSL.*`); no viaja si el hallazgo es del documento entero."
+    )
+    nodeId = serializers.IntegerField(required=False, help_text="La escena a la que el editor lleva el foco.")
+    mapId = serializers.IntegerField(required=False, help_text="El mapa al que el editor lleva el foco.")
+
+
+class CaseValidationSerializer(serializers.Serializer):
+    """El resultado de validar una versión: sus hallazgos y si puede publicarse."""
+
+    issues = ValidationIssueSerializer(many=True)
+    canPublish = serializers.BooleanField(help_text="Falso mientras haya algún error; los avisos no impiden publicar.")
+
+
+# ─── GET /api/{admin,authoring}/cases/{id}/definition y POST …/cases/import  (C10) ───
+class CaseDefinitionSerializer(serializers.Serializer):
+    """El documento de una versión (borrador o publicada) con su hash, su sello y su reutilización."""
+
+    definition = serializers.DictField(help_text="El documento del caso: el mismo formato que se exporta y se importa.")
+    definitionHash = serializers.CharField(help_text="Hash del documento tal como está ahora (`sha256:<hex>`).")
+    sealedHash = serializers.CharField(
+        allow_null=True, help_text="El hash que se selló al publicar; nulo en lo que no tiene sello."
+    )
+    validatedAt = serializers.DateTimeField(allow_null=True, help_text=f"Solo lo sellado la tiene. {LOCAL_TIME}")
+    reuseRatio = serializers.FloatField(
+        allow_null=True, help_text="Qué parte del caso reutiliza de su versión anterior (0 a 1); solo un clon publicado."
+    )
+
+
+class CaseImportedSerializer(serializers.Serializer):
+    """El borrador que creó la importación y los avisos del documento (lo que no se guarda)."""
+
+    caseVersionId = serializers.IntegerField()
+    caseId = serializers.IntegerField()
+    issues = ValidationIssueSerializer(many=True, help_text="Solo avisos: con algún error no se crea nada.")
+
+
+class ImportRejectedEnvelopeSerializer(ErrorEnvelopeSerializer):
+    """El sobre de error de una importación rechazada (`DSL_INVALID`): lleva los hallazgos en la raíz."""
+
+    issues = ValidationIssueSerializer(many=True)
+
+
+# ─── GET /api/simulation/cases/{id}/brief  (C8) ───────────────────────────────
+class BriefCharacterSerializer(serializers.Serializer):
+    """Un personaje que Psicología marcó para la ficha del caso."""
+
+    id = serializers.IntegerField()
+    displayName = serializers.CharField()
+    roleLabel = serializers.CharField(help_text="Puede venir vacío.")
+    portraitKey = serializers.CharField(help_text="Puede venir vacío.")
+
+
+class CaseBriefSerializer(serializers.Serializer):
+    """La ficha del caso: lo que el estudiante lee antes de jugar. No crea intento."""
+
+    caseVersionId = serializers.IntegerField()
+    title = serializers.CharField()
+    context = serializers.CharField(help_text="Puede venir vacío.")
+    characters = BriefCharacterSerializer(many=True)
+    learningObjectives = serializers.ListField(child=serializers.CharField())
+    hasSensitiveContent = serializers.BooleanField()
+    access = AccessDecisionSerializer()
+
+
+# ─── GET /api/simulation/attempts/{id}/hints  (C9) ────────────────────────────
+class ShownHintSerializer(serializers.Serializer):
+    """Una pista que el intento ya pidió. El texto de las que no pidió nunca sale."""
+
+    id = serializers.IntegerField()
+    order = serializers.IntegerField()
+    text = serializers.CharField()
+
+
+class HintStateSerializer(serializers.Serializer):
+    """Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan."""
+
+    available = serializers.IntegerField(help_text="Cuántas quedan por pedir en esta escena.")
+    shown = ShownHintSerializer(many=True)
+    reason = serializers.ChoiceField(
+        choices=HINT_REASONS, required=False, help_text="Solo si no quedan: la escena no tiene o ya se pidieron todas."
+    )

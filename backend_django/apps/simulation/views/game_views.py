@@ -1,5 +1,5 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,7 +8,11 @@ from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
-from apps.simulation.serializers.contracts import WorldPatchAckSerializer
+from apps.simulation.serializers.contracts import (
+    CaseBriefSerializer,
+    HintStateSerializer,
+    WorldPatchAckSerializer,
+)
 from apps.simulation.serializers.requests import (
     ReflectionRequest,
     ResumeAttemptRequest,
@@ -57,6 +61,7 @@ class CaseBriefView(APIView):
 
     permission_classes = [policy_permission("catalog", "read")]
 
+    @extend_schema(responses={200: envelope_of(CaseBriefSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         return api_ok(case_brief.brief_for(request.user, case_version_id))
 
@@ -98,6 +103,10 @@ class HintStateView(APIView):
 
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(
+        parameters=[OpenApiParameter(ATTEMPT_TOKEN_HEADER, str, OpenApiParameter.HEADER, required=True)],
+        responses={200: envelope_of(HintStateSerializer), **error_responses(400, 401, 403, 404)},
+    )
     def get(self, request, attempt_id):
         return _private_ok(hint_service.get_hint_state(
             attempt_id, _attempt_token(request), request.user,

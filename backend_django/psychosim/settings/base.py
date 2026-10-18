@@ -298,6 +298,13 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "AttemptStatusEnum": "apps.simulation.models.AttemptStatus",
         "CaseVersionStatusEnum": "apps.simulation.models.CaseVersionStatus",
+        "AccessReasonEnum": "apps.grupos.access.REASONS",
+        "AssignmentStateEnum": "apps.grupos.contracts.ASSIGNMENT_STATES",
+        "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
+        "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
+        "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
+        "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
+        "HealthDbEnum": "shared.health_docs.HEALTH_DB",
     },
 }
 

@@ -1,6 +1,19 @@
 // ARCHIVO GENERADO AUTOMÁTICAMENTE DESDE EL CONTRATO OPENAPI (E5-9 · DJG-6).
 // No editar a mano: regenerar con `node scripts/openapi/generate-types.mjs`.
 
+/** La decisión de acceso del estudiante a una versión de caso: si puede empezar y, si no, por qué. */
+export interface AccessDecision {
+  readonly allowed: boolean;
+  /** Cierre de la ventana. ISO 8601 con el desfase de Bogotá (-05:00). */
+  readonly closesAt?: string;
+  /** Apertura de la ventana. ISO 8601 con el desfase de Bogotá (-05:00). */
+  readonly opensAt?: string;
+  /** Solo si `allowed` es falso. */
+  readonly reason?: AccessReasonEnum;
+}
+
+export type AccessReasonEnum = 'NOT_ASSIGNED' | 'NOT_YET_OPEN' | 'CLOSED' | 'LOCKED_BY_SEQUENCE';
+
 /** Sobre de éxito de la API: `{success, message?, data?}` (`shared.response.envelope`). `message` y `data` solo viajan cuando tienen valor. Los endpoints que aún no se tipan llevan este sobre con `data` sin forma. */
 export interface ApiEnvelope {
   readonly data?: unknown;
@@ -8,6 +21,44 @@ export interface ApiEnvelope {
   /** Siempre `true` en una respuesta de éxito. */
   readonly success: boolean;
 }
+
+/** Una versión de caso asignada, con su ventana de apertura y cierre (C7). */
+export interface Assignment {
+  /** Una asignación en pausa no habilita nada. */
+  readonly active: boolean;
+  readonly caseVersionId: number;
+  /** Si no hay fecha, no viaja. ISO 8601 con el desfase de Bogotá (-05:00). */
+  readonly closesAt?: string;
+  readonly id: number;
+  /** Si no hay fecha, no viaja. ISO 8601 con el desfase de Bogotá (-05:00). */
+  readonly opensAt?: string;
+  /** Su lugar en la secuencia de casos. */
+  readonly sortOrder: number;
+  /** Dónde está la ventana hoy. */
+  readonly state: AssignmentStateEnum;
+  readonly target: AssignmentTarget;
+}
+
+/** Sobre de éxito: `data` es una lista de `Assignment`. */
+export interface AssignmentListEnvelope {
+  readonly data: ReadonlyArray<Assignment>;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+export type AssignmentStateEnum = 'SCHEDULED' | 'OPEN' | 'CLOSED';
+
+/** A quién se asignó el caso: a un grupo o, directamente, a un estudiante. */
+export interface AssignmentTarget {
+  /** Solo si `type` es `GROUP`. */
+  readonly groupId?: number;
+  /** Solo si `type` es `STUDENT`. */
+  readonly studentId?: number;
+  readonly type: AssignmentTargetTypeEnum;
+}
+
+export type AssignmentTargetTypeEnum = 'GROUP' | 'STUDENT';
 
 export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
 
@@ -51,6 +102,89 @@ export interface AuditLogItem {
   readonly userAgent: string | null;
 }
 
+/** Un personaje que Psicología marcó para la ficha del caso. */
+export interface BriefCharacter {
+  readonly displayName: string;
+  readonly id: number;
+  /** Puede venir vacío. */
+  readonly portraitKey: string;
+  /** Puede venir vacío. */
+  readonly roleLabel: string;
+}
+
+/** La ficha del caso: lo que el estudiante lee antes de jugar. No crea intento. */
+export interface CaseBrief {
+  readonly access: AccessDecision;
+  readonly caseVersionId: number;
+  readonly characters: ReadonlyArray<BriefCharacter>;
+  /** Puede venir vacío. */
+  readonly context: string;
+  readonly hasSensitiveContent: boolean;
+  readonly learningObjectives: ReadonlyArray<string>;
+  readonly title: string;
+}
+
+/** Sobre de éxito: `data` es `CaseBrief`. */
+export interface CaseBriefEnvelope {
+  readonly data: CaseBrief;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El documento de una versión (borrador o publicada) con su hash, su sello y su reutilización. */
+export interface CaseDefinition {
+  /** El documento del caso: el mismo formato que se exporta y se importa. */
+  readonly definition: Readonly<Record<string, unknown>>;
+  /** Hash del documento tal como está ahora (`sha256:<hex>`). */
+  readonly definitionHash: string;
+  /** Qué parte del caso reutiliza de su versión anterior (0 a 1); solo un clon publicado. */
+  readonly reuseRatio: number | null;
+  /** El hash que se selló al publicar; nulo en lo que no tiene sello. */
+  readonly sealedHash: string | null;
+  /** Solo lo sellado la tiene. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly validatedAt: string | null;
+}
+
+/** Sobre de éxito: `data` es `CaseDefinition`. */
+export interface CaseDefinitionEnvelope {
+  readonly data: CaseDefinition;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El borrador que creó la importación y los avisos del documento (lo que no se guarda). */
+export interface CaseImported {
+  readonly caseId: number;
+  readonly caseVersionId: number;
+  /** Solo avisos: con algún error no se crea nada. */
+  readonly issues: ReadonlyArray<ValidationIssue>;
+}
+
+/** Sobre de éxito: `data` es `CaseImported`. */
+export interface CaseImportedEnvelope {
+  readonly data: CaseImported;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El resultado de validar una versión: sus hallazgos y si puede publicarse. */
+export interface CaseValidation {
+  /** Falso mientras haya algún error; los avisos no impiden publicar. */
+  readonly canPublish: boolean;
+  readonly issues: ReadonlyArray<ValidationIssue>;
+}
+
+/** Sobre de éxito: `data` es `CaseValidation`. */
+export interface CaseValidationEnvelope {
+  readonly data: CaseValidation;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 
 /** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
@@ -58,6 +192,54 @@ export interface ErrorEnvelope {
   readonly code: string;
   /** El primer campo que falló la validación. */
   readonly field?: string;
+  readonly message: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+/** El estado mínimo del servicio. No devuelve nada interno: ni versiones ni el texto del error de la base. */
+export interface Health {
+  readonly db: HealthDbEnum;
+  readonly status: HealthStatusEnum;
+}
+
+export type HealthDbEnum = 'ok' | 'error';
+
+/** Sobre de éxito: `data` es `Health`. */
+export interface HealthEnvelope {
+  readonly data: Health;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+export type HealthStatusEnum = 'ok' | 'degraded';
+
+export type HintReasonEnum = 'NONE_FOR_SCENE' | 'ALL_SHOWN';
+
+/** Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan. */
+export interface HintState {
+  /** Cuántas quedan por pedir en esta escena. */
+  readonly available: number;
+  /** Solo si no quedan: la escena no tiene o ya se pidieron todas. */
+  readonly reason?: HintReasonEnum;
+  readonly shown: ReadonlyArray<ShownHint>;
+}
+
+/** Sobre de éxito: `data` es `HintState`. */
+export interface HintStateEnvelope {
+  readonly data: HintState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El sobre de error de una importación rechazada (`DSL_INVALID`): lleva los hallazgos en la raíz. */
+export interface ImportRejectedEnvelope {
+  readonly code: string;
+  /** El primer campo que falló la validación. */
+  readonly field?: string;
+  readonly issues: ReadonlyArray<ValidationIssue>;
   readonly message: string;
   /** Siempre `false` en un error. */
   readonly success: boolean;
@@ -97,6 +279,8 @@ export interface InstructorAttemptsListEnvelope {
   readonly success: boolean;
 }
 
+export type IssueSeverityEnum = 'error' | 'warning';
+
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -121,6 +305,27 @@ export interface ReviewQuality {
   readonly rejectedByForm: number;
   readonly rejectedTotal: number;
   readonly rubberStampAlarm: boolean;
+}
+
+/** Una pista que el intento ya pidió. El texto de las que no pidió nunca sale. */
+export interface ShownHint {
+  readonly id: number;
+  readonly order: number;
+  readonly text: string;
+}
+
+/** Un hallazgo del validador. El mensaje está en lenguaje llano: nombra los elementos por su título, sin ids. */
+export interface ValidationIssue {
+  /** Estable: `DSL.OCL-02`, `WORLD.OPTION_WITHOUT_TRIGGER`… */
+  readonly code: string;
+  /** El mapa al que el editor lleva el foco. */
+  readonly mapId?: number;
+  readonly message: string;
+  /** La escena a la que el editor lleva el foco. */
+  readonly nodeId?: number;
+  /** Dónde está en el documento (`DSL.*`); no viaja si el hallazgo es del documento entero. */
+  readonly path?: string;
+  readonly severity: IssueSeverityEnum;
 }
 
 /** Acuse de la posición guardada (E5-1): sin releer objetos, diálogos ni herramientas. Si la sala del cliente ya no es la actual, la respuesta es el mundo completo: estas mismas claves y además `objects`, `collisions`, `tools`, `inventory`… El cliente solo debe leer de aquí `map.key` y `player`. */
@@ -234,6 +439,7 @@ export interface OpenApiPaths {
   readonly '/api/grupos/{id}/estudiantes/import': 'POST';
   readonly '/api/grupos/{id}/estudiantes/{estudiante_id}': 'DELETE';
   readonly '/api/grupos/{id}/estudiantes/{estudiante_id}/activar': 'POST';
+  readonly '/api/health': 'GET';
   readonly '/api/instructor/attempts': 'GET';
   readonly '/api/instructor/attempts/recent': 'GET';
   readonly '/api/instructor/attempts/{attempt_id}/replace': 'POST';

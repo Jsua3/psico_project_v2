@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -8,12 +9,14 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from django.utils import timezone
 
 from shared.exceptions import ApiError
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
 from shared import policies
 
 from . import assignment_service, memberships, services
+from .contracts import AssignmentSerializer
 from .import_contract import STUDENT_IMPORT_TEMPLATE_FILENAME
 from .serializers import (
     ActualizarGrupoSerializer,
@@ -187,6 +190,13 @@ class AssignmentListCreateView(APIView):
     def get_permissions(self):
         return [(_CAN_LIST_ASSIGNMENTS if self.request.method == "GET" else _CAN_MANAGE_ASSIGNMENTS)()]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("groupId", int, description="Solo las asignaciones de este grupo (el docente debe serlo)."),
+            OpenApiParameter("caseVersionId", int, description="Solo las de esta versión de caso."),
+        ],
+        responses={200: envelope_of(AssignmentSerializer, many=True), **error_responses(400, 401, 403, 404)},
+    )
     def get(self, request):
         rows = assignment_service.list_assignments(
             request.user,

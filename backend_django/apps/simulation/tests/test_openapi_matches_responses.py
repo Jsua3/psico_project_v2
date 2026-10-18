@@ -4,12 +4,15 @@ El esquema que E5 publicó prometía ``status`` donde el servidor responde ``suc
 es un objeto y describía campos que ninguna respuesta trae (``studentId``, ``createdAt``, ``playerX``…). Aquí cada
 contrato tipado se prueba contra la respuesta REAL del endpoint: lo que recibe el cliente tiene que ser lo que el
 documento dice, clave por clave y tipo por tipo (``shared.contract_testing``). Tipar un endpoint nuevo sin darle
-su caso en ``CALLS`` hace fallar la prueba del registro, y la de ``test_openapi_contract`` impide que el número de
-contratos tipados baje.
+su caso en ``CALLS`` hace fallar la prueba del registro, la de ``test_openapi_contract`` impide que el número de
+contratos tipados baje y cada error que un contrato documenta tiene que tener su caso en ``ERRORS``.
 """
+import copy
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
+from decimal import Decimal
 from typing import Callable
 
 import pytest
@@ -18,7 +21,18 @@ from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework.test import APIClient
 
-from apps.simulation.models import AuditLog, CaseReview, CaseVersion, SimulationAttempt, SimulationNode
+from apps.grupos.models import CaseAssignment
+from apps.simulation.models import (
+    AttemptHintView,
+    AuditLog,
+    CaseReview,
+    CaseVersion,
+    SceneHint,
+    SimulationAttempt,
+    SimulationNode,
+)
+from apps.simulation.services.authoring import definition_io
+from apps.simulation.tests import dsl_support
 from shared.contract_testing import assert_matches, response_schema, typed_operations
 
 from .test_instructor import assign_case_to_student, cl
@@ -27,20 +41,27 @@ pytestmark = pytest.mark.req("RNF-07")
 
 User = get_user_model()
 ATTEMPT_HEADER = "HTTP_X_SIEP_ATTEMPT_TOKEN"
+ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista con dos prefijos
+WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
+HINTS = "/api/simulation/attempts/{attempt_id}/hints"
+BRIEF = "/api/simulation/cases/{case_version_id}/brief"
 
 
 @dataclass
 class World:
-    """Datos reales sobre los que se llama a cada endpoint: un intento en curso, uno terminado y auditoría."""
+    """Datos reales sobre los que se llama a cada endpoint: intentos, auditoría, asignaciones, pistas, un borrador."""
 
     admin: object
     profesor: object
     student: object
+    outsider: object  # un estudiante sin ningún caso asignado
     attempt_id: str
     token: str
     map_key: str
     x: int
     y: int
+    version_id: int  # la versión publicada que se sembró
+    draft_id: int  # un borrador vacío, con hallazgos de validación
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +76,8 @@ def world(db):
     admin = make(email="admin_contrato@x.com", password="x", nombre="Ad", apellido="Contrato", role="ADMIN")
     profesor = make(email="prof_contrato@x.com", password="x", nombre="Pro", apellido="Contrato", role="PROFESOR")
     student = make(email="est_contrato@x.com", password="x", nombre="Est", apellido="Contrato", role="ESTUDIANTE")
-    assign_case_to_student(student, version.id, "CONTRATO", profesor=profesor)
+    outsider = make(email="fuera_contrato@x.com", password="x", nombre="Fue", apellido="Ra", role="ESTUDIANTE")
+    grupo = assign_case_to_student(student, version.id, "CONTRATO", profesor=profesor)
 
     client = cl(student)
     started = client.post("/api/simulation/attempts", {"caseVersionId": version.id}, format="json").data["data"]
@@ -80,7 +102,28 @@ def world(db):
     CaseReview.objects.create(
         case_version=version, requested_by=admin, decided_by=admin, decision="REJECTED", reason="CONTENIDO", note="x"
     )
-    return World(admin, profesor, student, attempt_id, token, scene["map"]["key"], scene["player"]["x"], scene["player"]["y"])
+    # Asignaciones: la del grupo con ventana abierta y una directa al estudiante ya cerrada (otro destino y estado).
+    now = timezone.now()
+    CaseAssignment.objects.filter(grupo=grupo, case_version=version).update(
+        opens_at=now - timedelta(days=1), closes_at=now + timedelta(days=1)
+    )
+    CaseAssignment.objects.create(
+        case_version=version, estudiante=student, opens_at=now - timedelta(days=9), closes_at=now - timedelta(days=8),
+        sort_order=1, assigned_by=admin,
+    )
+    # Dos pistas en la sala del jugador, una ya pedida: el estado trae ``shown`` y ``available``.
+    for order, text in enumerate(("Mira a tu alrededor.", "Habla con la familia."), start=1):
+        SceneHint.objects.create(scene_map_id=scene["map"]["id"], hint_order=order, text=text)
+    client.post(
+        f"/api/simulation/attempts/{attempt_id}/hints/next", {"attemptToken": token, "requestId": "contrato-1"},
+        format="json",
+    )
+    cl(admin).post("/api/admin/cases", {"title": "Caso de contrato"}, format="json")
+    draft = CaseVersion.objects.get(simulation_case__title="Caso de contrato")
+    return World(
+        admin, profesor, student, outsider, attempt_id, token, scene["map"]["key"], scene["player"]["x"],
+        scene["player"]["y"], version.id, draft.id,
+    )
 
 
 def _patch_position(world, *, x=None, y=None, map_key=None):
@@ -94,6 +137,26 @@ def _patch_position(world, *, x=None, y=None, map_key=None):
         },
         format="json",
     )
+
+
+def _post_document(user, path, document):
+    body = document if isinstance(document, bytes) else json.dumps(document, ensure_ascii=False).encode("utf-8")
+    return cl(user).generic("POST", path, data=body, content_type="application/json")
+
+
+def _import_seeded_copy(world, prefix, code="COPIA-CONTRATO"):
+    document = definition_io.export_definition(world.version_id)
+    document["caso"]["id"] = code
+    return _post_document(world.admin, f"{prefix}/import", document)
+
+
+def _workshop_document(code="TALLER-CONTRATO"):
+    """El primer escenario válido del taller, sin ``ejecucion``: al importarlo el servidor avisa de lo que no guarda."""
+    _, _, document = next(s for s in dsl_support.scenarios() if s[1] == "valido")
+    document = copy.deepcopy(document)
+    document.pop("ejecucion", None)
+    document["caso"]["id"] = code
+    return document
 
 
 #: Contratos tipados que esta prueba recorre: (ruta del documento, método) → (llamada al endpoint real, estado).
@@ -118,9 +181,43 @@ def _instructor_attempts(world):
     return cl(world.profesor).get("/api/instructor/attempts")
 
 
-@calls("/api/simulation/attempts/{attempt_id}/world-state", "PATCH")
+@calls(WORLD_STATE, "PATCH")
 def _world_patch_ack(world):
     return _patch_position(world)
+
+
+@calls("/api/assignments", "GET")
+def _assignments(world):
+    return cl(world.admin).get("/api/assignments")
+
+
+@calls(BRIEF, "GET")
+def _brief(world):
+    return cl(world.student).get(f"/api/simulation/cases/{world.version_id}/brief")
+
+
+@calls(HINTS, "GET")
+def _hints(world):
+    return cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/hints", **{ATTEMPT_HEADER: world.token})
+
+
+@calls("/api/health", "GET")
+def _health(world):
+    return APIClient().get("/api/health")
+
+
+def _register_case_routes(prefix):
+    calls(f"{prefix}/{{case_version_id}}/validate", "POST")(
+        lambda world: cl(world.admin).post(f"{prefix}/{world.draft_id}/validate", {}, format="json")
+    )
+    calls(f"{prefix}/{{case_version_id}}/definition", "GET")(
+        lambda world: cl(world.admin).get(f"{prefix}/{world.version_id}/definition")
+    )
+    calls(f"{prefix}/import", "POST", 201)(lambda world: _import_seeded_copy(world, prefix))
+
+
+for _prefix in ROUTE_FAMILIES:
+    _register_case_routes(_prefix)
 
 
 @pytest.mark.parametrize(("path", "method"), sorted(CALLS))
@@ -141,15 +238,15 @@ def test_todo_contrato_tipado_tiene_su_caso_contra_el_servidor(document):
     )
 
 
-def test_el_listado_de_auditoria_trae_filas_con_y_sin_los_campos_opcionales(document, world):
-    """El caso del registro solo prueba lo que hay: aquí se exige que haya de las dos clases."""
+# ─── Los casos del registro solo prueban lo que hay: aquí se exige que haya de todas las clases ─────────────
+def test_el_listado_de_auditoria_trae_filas_con_y_sin_los_campos_opcionales(world):
     items = _audit(world).json()["data"]["items"]
 
     assert any(i["actorId"] is not None and i["ipAddress"] and i["resourceType"] for i in items)
     assert any(i["actorId"] is None and i["ipAddress"] is None and i["resourceType"] is None for i in items)
 
 
-def test_el_listado_de_revision_trae_intentos_abiertos_y_terminados(document, world):
+def test_el_listado_de_revision_trae_intentos_abiertos_y_terminados(world):
     items = _instructor_attempts(world).json()["data"]["items"]
 
     assert {i["endedAt"] is None for i in items} == {True, False}
@@ -162,8 +259,100 @@ def test_con_la_sala_vieja_el_patch_responde_un_superconjunto_del_acuse(document
     assert response.status_code == 200
     body = response.json()
     assert {"objects", "collisions"} <= set(body["data"])
-    assert_matches(body, response_schema(document, "/api/simulation/attempts/{attempt_id}/world-state", "PATCH"),
-                   document, allow_extra=True)
+    assert_matches(body, response_schema(document, WORLD_STATE, "PATCH"), document, allow_extra=True)
+
+
+def test_las_asignaciones_traen_los_dos_destinos_y_estados_distintos(world):
+    rows = _assignments(world).json()["data"]
+
+    assert {r["target"]["type"] for r in rows} == {"GROUP", "STUDENT"}
+    assert {r["state"] for r in rows} == {"OPEN", "CLOSED"}
+    assert any("opensAt" in r and "closesAt" in r for r in rows)
+
+
+def test_las_pistas_traen_la_pedida_y_las_que_quedan(world):
+    data = _hints(world).json()["data"]
+
+    assert len(data["shown"]) == 1 and data["available"] == 1 and "reason" not in data
+
+
+@pytest.mark.parametrize("hints", [0, 1], ids=["sin pistas en la escena", "todas pedidas"])
+def test_las_pistas_dicen_por_que_no_hay_mas(hints, document, world):
+    SceneHint.objects.all().delete()
+    for order in range(hints):
+        hint = SceneHint.objects.create(scene_map_id=_current_map_id(world), hint_order=order + 1, text="Una pista.")
+        AttemptHintView.objects.create(attempt_id=world.attempt_id, hint=hint)
+
+    body = _hints(world).json()
+
+    assert body["data"]["reason"] == ("ALL_SHOWN" if hints else "NONE_FOR_SCENE")
+    assert_matches(body, response_schema(document, HINTS, "GET"), document)
+
+
+def _current_map_id(world):
+    scene = cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/world", **{ATTEMPT_HEADER: world.token})
+    return scene.json()["data"]["map"]["id"]
+
+
+def test_la_ficha_de_un_caso_cerrado_dice_por_que_y_trae_su_ventana(document, world):
+    """Un intento abierto se deja terminar aunque la ventana cierre: la ficha cerrada es de quien no tiene intento."""
+    late = User.objects.create_user(
+        email="tarde_contrato@x.com", password="x", nombre="Tar", apellido="De", role="ESTUDIANTE"
+    )
+    CaseAssignment.objects.create(
+        case_version_id=world.version_id, estudiante=late, assigned_by=world.admin,
+        opens_at=timezone.now() - timedelta(days=9), closes_at=timezone.now() - timedelta(days=8),
+    )
+
+    body = cl(late).get(f"/api/simulation/cases/{world.version_id}/brief").json()
+
+    assert body["data"]["access"]["allowed"] is False and body["data"]["access"]["reason"] == "CLOSED"
+    assert {"opensAt", "closesAt"} <= set(body["data"]["access"])
+    assert_matches(body, response_schema(document, BRIEF, "GET"), document)
+
+
+def test_la_validacion_de_un_borrador_vacio_trae_hallazgos(world):
+    data = cl(world.admin).post(f"/api/admin/cases/{world.draft_id}/validate", {}, format="json").json()["data"]
+
+    assert data["issues"] and data["canPublish"] is False
+    assert {i["severity"] for i in data["issues"]} <= {"error", "warning"}
+
+
+@pytest.mark.parametrize("sealed", [False, True], ids=["borrador sin sello", "publicada con sello"])
+def test_la_definicion_de_una_version_trae_todos_sus_campos_con_y_sin_sello(sealed, document, world):
+    version_id = world.version_id if sealed else world.draft_id
+    if sealed:
+        CaseVersion.objects.filter(pk=version_id).update(
+            definition_hash="sha256:" + "a" * 64, validated_at=timezone.now(), reuse_ratio=Decimal("0.5")
+        )
+
+    body = cl(world.admin).get(f"/api/admin/cases/{version_id}/definition").json()
+
+    data = body["data"]
+    assert all(data[key] is not None for key in ("sealedHash", "validatedAt", "reuseRatio")) is sealed
+    assert (data["sealedHash"] is None) is not sealed
+    assert_matches(body, response_schema(document, "/api/admin/cases/{case_version_id}/definition", "GET"), document)
+
+
+def test_una_importacion_con_avisos_trae_los_hallazgos(document, world):
+    response = _post_document(world.admin, "/api/admin/cases/import", _workshop_document())
+
+    assert response.status_code == 201, response.content
+    body = response.json()
+    assert body["data"]["issues"], "el documento del taller debería dejar avisos al importarse"
+    assert_matches(body, response_schema(document, "/api/admin/cases/import", "POST", "201"), document)
+
+
+def test_el_estado_de_salud_degradado_es_el_sobre_que_el_documento_declara(document, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("la base de datos no responde")
+
+    monkeypatch.setattr("shared.health.connection.cursor", broken)
+
+    response = APIClient().get("/api/health")
+
+    assert response.status_code == 503
+    assert_matches(response.json(), response_schema(document, "/api/health", "GET", "503"), document)
 
 
 def test_un_endpoint_sin_tipar_se_documenta_con_el_sobre_generico_y_coincide(document, world):
@@ -174,33 +363,89 @@ def test_un_endpoint_sin_tipar_se_documenta_con_el_sobre_generico_y_coincide(doc
     assert_matches(cl(world.profesor).get("/api/grupos").json(), schema, document)
 
 
-WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
+# ─── Errores: cada uno que un contrato tipado documenta tiene su caso ─────────────────────────────────────
+def _case_route_errors(prefix):
+    validate, definition, import_ = (
+        f"{prefix}/{{case_version_id}}/validate", f"{prefix}/{{case_version_id}}/definition", f"{prefix}/import"
+    )
+    return [
+        ("validar sin sesión", validate, "POST", lambda w: APIClient().post(f"{prefix}/{w.draft_id}/validate"),
+         401, "UNAUTHENTICATED"),
+        ("validar sin permiso", validate, "POST", lambda w: cl(w.student).post(f"{prefix}/{w.draft_id}/validate"),
+         403, "FORBIDDEN"),
+        ("validar una versión inexistente", validate, "POST", lambda w: cl(w.admin).post(f"{prefix}/999999/validate"),
+         404, "NOT_FOUND"),
+        ("definición sin sesión", definition, "GET", lambda w: APIClient().get(f"{prefix}/{w.version_id}/definition"),
+         401, "UNAUTHENTICATED"),
+        ("definición sin permiso", definition, "GET", lambda w: cl(w.student).get(f"{prefix}/{w.version_id}/definition"),
+         403, "FORBIDDEN"),
+        ("definición de una versión inexistente", definition, "GET", lambda w: cl(w.admin).get(f"{prefix}/999999/definition"),
+         404, "NOT_FOUND"),
+        ("importar sin sesión", import_, "POST", lambda w: APIClient().post(f"{prefix}/import", {}, format="json"),
+         401, "UNAUTHENTICATED"),
+        ("importar sin permiso", import_, "POST", lambda w: _post_document(w.student, f"{prefix}/import", {}),
+         403, "FORBIDDEN"),
+        ("importar un documento inválido", import_, "POST", lambda w: _post_document(w.admin, f"{prefix}/import", {}),
+         400, "DSL_INVALID"),
+        ("importar una versión que ya existe", import_, "POST",
+         lambda w: _post_document(w.admin, f"{prefix}/import", definition_io.export_definition(w.version_id)),
+         409, "CASE_VERSION_EXISTS"),
+    ]
+
+
 ERRORS = [
-    ("sin sesión", "/api/admin/audit", "GET", lambda w: APIClient().get("/api/admin/audit"), 401, "UNAUTHENTICATED"),
-    ("sin permiso", "/api/admin/audit", "GET", lambda w: cl(w.student).get("/api/admin/audit"), 403, "FORBIDDEN"),
-    ("parámetro inválido", "/api/admin/audit", "GET",
+    ("auditoría sin sesión", "/api/admin/audit", "GET", lambda w: APIClient().get("/api/admin/audit"), 401, "UNAUTHENTICATED"),
+    ("auditoría sin permiso", "/api/admin/audit", "GET", lambda w: cl(w.student).get("/api/admin/audit"), 403, "FORBIDDEN"),
+    ("auditoría con parámetro inválido", "/api/admin/audit", "GET",
      lambda w: cl(w.admin).get("/api/admin/audit", {"actorId": "abc"}), 400, "INVALID_QUERY_PARAM"),
-    ("sin sesión", "/api/instructor/attempts", "GET", lambda w: APIClient().get("/api/instructor/attempts"),
+    ("revisión sin sesión", "/api/instructor/attempts", "GET", lambda w: APIClient().get("/api/instructor/attempts"),
      401, "UNAUTHENTICATED"),
-    ("sin permiso", "/api/instructor/attempts", "GET", lambda w: cl(w.student).get("/api/instructor/attempts"),
+    ("revisión sin permiso", "/api/instructor/attempts", "GET", lambda w: cl(w.student).get("/api/instructor/attempts"),
      403, "FORBIDDEN"),
-    ("estado desconocido", "/api/instructor/attempts", "GET",
+    ("revisión con estado desconocido", "/api/instructor/attempts", "GET",
      lambda w: cl(w.profesor).get("/api/instructor/attempts", {"estado": "NOEXISTE"}), 400, "INVALID_QUERY_PARAM"),
-    ("grupo inexistente", "/api/instructor/attempts", "GET",
+    ("revisión de un grupo inexistente", "/api/instructor/attempts", "GET",
      lambda w: cl(w.profesor).get("/api/instructor/attempts", {"grupoId": 999999}), 404, "NOT_FOUND"),
-    ("sin sesión", WORLD_STATE, "PATCH",
+    ("posición sin sesión", WORLD_STATE, "PATCH",
      lambda w: APIClient().patch(f"/api/simulation/attempts/{w.attempt_id}/world-state", {}, format="json"),
      401, "UNAUTHENTICATED"),
-    ("sin permiso", WORLD_STATE, "PATCH",
+    ("posición sin permiso", WORLD_STATE, "PATCH",
      lambda w: cl(w.profesor).patch(f"/api/simulation/attempts/{w.attempt_id}/world-state", {}, format="json"),
      403, "FORBIDDEN"),
     ("posición fuera del mapa", WORLD_STATE, "PATCH", lambda w: _patch_position(w, x=5000), 400, "VALIDATION_ERROR"),
-    ("intento inexistente", WORLD_STATE, "PATCH",
+    ("posición de un intento inexistente", WORLD_STATE, "PATCH",
      lambda w: cl(w.student).patch(
          f"/api/simulation/attempts/{uuid.uuid4()}/world-state",
          {"attemptToken": w.token, "playerX": 1, "playerY": 1, "currentMapKey": w.map_key}, format="json"),
      404, "NOT_FOUND"),
+    ("asignaciones sin sesión", "/api/assignments", "GET", lambda w: APIClient().get("/api/assignments"),
+     401, "UNAUTHENTICATED"),
+    ("asignaciones sin permiso", "/api/assignments", "GET", lambda w: cl(w.student).get("/api/assignments"),
+     403, "FORBIDDEN"),
+    ("asignaciones con un grupo que no es número", "/api/assignments", "GET",
+     lambda w: cl(w.admin).get("/api/assignments", {"groupId": "abc"}), 400, "VALIDATION_ERROR"),
+    ("asignaciones de un grupo inexistente", "/api/assignments", "GET",
+     lambda w: cl(w.admin).get("/api/assignments", {"groupId": 999999}), 404, "NOT_FOUND"),
+    ("ficha sin sesión", BRIEF, "GET", lambda w: APIClient().get(f"/api/simulation/cases/{w.version_id}/brief"),
+     401, "UNAUTHENTICATED"),
+    ("ficha de un caso no asignado", BRIEF, "GET",
+     lambda w: cl(w.outsider).get(f"/api/simulation/cases/{w.version_id}/brief"), 403, "ACCESS_NOT_ASSIGNED"),
+    ("ficha de un caso inexistente", BRIEF, "GET", lambda w: cl(w.student).get("/api/simulation/cases/999999/brief"),
+     404, "NOT_FOUND"),
+    ("pistas sin sesión", HINTS, "GET",
+     lambda w: APIClient().get(f"/api/simulation/attempts/{w.attempt_id}/hints"), 401, "UNAUTHENTICATED"),
+    ("pistas sin permiso", HINTS, "GET",
+     lambda w: cl(w.profesor).get(f"/api/simulation/attempts/{w.attempt_id}/hints", **{ATTEMPT_HEADER: w.token}),
+     403, "FORBIDDEN"),
+    ("pistas sin el token del intento", HINTS, "GET",
+     lambda w: cl(w.student).get(f"/api/simulation/attempts/{w.attempt_id}/hints"), 400, "VALIDATION_ERROR"),
+    ("pistas de un intento inexistente", HINTS, "GET",
+     lambda w: cl(w.student).get(f"/api/simulation/attempts/{uuid.uuid4()}/hints", **{ATTEMPT_HEADER: w.token}),
+     404, "NOT_FOUND"),
+    *[row for prefix in ROUTE_FAMILIES for row in _case_route_errors(prefix)],
 ]
+#: Estados documentados que no son un ``ErrorEnvelope`` y tienen su propio caso arriba.
+OTHER_DOCUMENTED = {("/api/health", "GET"): {503}}
 
 
 @pytest.mark.parametrize(
@@ -218,12 +463,11 @@ def test_los_errores_reales_son_el_sobre_de_error_que_el_documento_declara(
     declared = document["paths"][path][method.lower()]["responses"]
     assert str(status) in declared, f"{method} {path} no documenta su respuesta {status}"
     assert_matches(body, declared[str(status)]["content"]["application/json"]["schema"], document)
-    assert_matches(body, {"$ref": "#/components/schemas/ErrorEnvelope"}, document)
 
 
 def test_cada_error_que_un_contrato_tipado_documenta_tiene_su_caso(document):
     """Documentar un 404 sin probarlo es prometer sin evidencia: lo documentado y lo probado son lo mismo."""
-    tested: dict[tuple[str, str], set[int]] = {}
+    tested: dict[tuple[str, str], set[int]] = {key: set(statuses) for key, statuses in OTHER_DOCUMENTED.items()}
     for _what, path, method, _call, status, _code in ERRORS:
         tested.setdefault((path, method), set()).add(status)
     for path, method in CALLS:

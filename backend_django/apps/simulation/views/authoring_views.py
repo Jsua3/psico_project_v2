@@ -11,13 +11,21 @@ Cada mutación valida su cuerpo con un serializador de entrada (E2-6: un campo a
 ``?revision=`` o en la cabecera ``X-Case-Revision``— para el bloqueo optimista.
 """
 from django.core.exceptions import RequestDataTooBig
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.views import APIView
 
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
 from ..casedef import import_
 from ..serializers import authoring as inputs
+from ..serializers.contracts import (
+    CaseDefinitionSerializer,
+    CaseImportedSerializer,
+    CaseValidationSerializer,
+    ImportRejectedEnvelopeSerializer,
+)
 from ..services import authoring_service as svc
 from ..services.authoring import guards, importing, lifecycle
 
@@ -89,6 +97,15 @@ class CaseImportView(_AuthoringView):
     documento y crea un borrador a nombre de quien importa. 201 ``{caseVersionId, caseId, issues}``.
     """
 
+    @extend_schema(
+        responses={
+            201: envelope_of(CaseImportedSerializer),
+            400: OpenApiResponse(
+                ImportRejectedEnvelopeSerializer, description="El documento no se puede importar: los hallazgos van en `issues`."
+            ),
+            **error_responses(401, 403, 409),
+        }
+    )
     def post(self, request):
         # La cabecera llega cruda (``application/json; charset=utf-8``): solo cuenta el tipo de medio.
         if (request.content_type or "").split(";", 1)[0].strip().lower() != "application/json":
@@ -103,6 +120,7 @@ class CaseImportView(_AuthoringView):
 class CaseDefinitionView(_AuthoringView):
     """E4-7 · ``GET …/cases/{id}/definition``: el documento de la versión (borrador o publicada)."""
 
+    @extend_schema(responses={200: envelope_of(CaseDefinitionSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.definition_of(case_version_id))
@@ -377,6 +395,7 @@ class WorldValidateView(_AuthoringView):
 class CaseValidateView(_AuthoringView):
     """C6 · ``{issues: ValidationIssue[], canPublish}`` (E2-8)."""
 
+    @extend_schema(responses={200: envelope_of(CaseValidationSerializer), **error_responses(401, 403, 404)})
     def post(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.validate_case(case_version_id))

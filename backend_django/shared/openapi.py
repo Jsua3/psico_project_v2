@@ -165,7 +165,8 @@ class SiepAutoSchema(AutoSchema):
 def preprocess_canonical_api_endpoints(
     endpoints: list[tuple[str, str, str, Any]],
 ) -> list[tuple[str, str, str, Any]]:
-    """Conserva las rutas ``/api/...`` y deduplica alias con barra final ``/``."""
+    """Conserva las rutas ``/api/...``, deduplica alias con barra final ``/`` y añade las que no son DRF (la salud)."""
+    from shared.health_docs import HealthDocView  # perezoso: importar APIView aquí cerraría un ciclo con la configuración
     canonical_pairs: set[tuple[str, str]] = set()
     for path, _path_regex, method, _callback in endpoints:
         if path.startswith("/api/") and path != "/api/" and not path.endswith("/"):
@@ -184,6 +185,7 @@ def preprocess_canonical_api_endpoints(
             continue
         seen.add(normalized_key)
         filtered.append((stripped, path_regex, method, callback))
+    filtered.append(("/api/health", r"^api/health$", "GET", HealthDocView.as_view()))
     return filtered
 
 
