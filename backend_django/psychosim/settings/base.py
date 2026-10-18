@@ -41,6 +41,9 @@ MIDDLEWARE = [
     # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
     "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # S2-6a · tope del cuerpo ANTES de leerlo. Va encima de las cabeceras y de WhiteNoise, así que su 413 no lleva
+    # las cabeceras de S2-1 ni las de CORS (sale antes de llegar a esos middleware).
+    "shared.body_limit.BodyLimitMiddleware",
     # S2-1 · cabeceras base. Van ENCIMA de WhiteNoise: WhiteNoise responde los estáticos y corta la cadena,
     # así que lo que quede debajo no llega a esas respuestas.
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -326,6 +329,19 @@ SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=Tru
 #: S1-5 · días que vive una contraseña temporal (la de una aprobación o la que fija un ADMIN) antes de caducar. Entero ≥ 1.
 #: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
 SIEP_TEMP_PASSWORD_DAYS = _entero_env("SIEP_TEMP_PASSWORD_DAYS", default=7, minimo=1)
+
+#: S2-6a · tope del cuerpo de una petición, en bytes: por encima, 413 sin leerla (shared/body_limit.py).
+SIEP_MAX_BODY_BYTES = _entero_env("SIEP_MAX_BODY_BYTES", default=1024 * 1024, minimo=1)
+#: S2-6a · tope del sobre de la importación de estudiantes: el archivo (IMPORT_MAX_BYTES, 2 MiB) más el multipart.
+SIEP_MAX_IMPORT_BODY_BYTES = _entero_env("SIEP_MAX_IMPORT_BODY_BYTES", default=3 * 1024 * 1024, minimo=1)
+#: S2-6a · tope del cuerpo de la importación de CASOS (JSON). El importador tiene su propio límite de 1 MiB (``casedef`` ``MAX_BYTES``)
+#: y responde con un 400 estructurado (``DSL.LIMIT_EXCEEDED``) que el autor entiende: esta ruta tiene un tope más holgado para
+#: que ese mensaje llegue hasta 2 MiB; por encima de eso, 413 en el borde (E4, ``test_import_hostile``).
+SIEP_MAX_CASE_IMPORT_BODY_BYTES = _entero_env("SIEP_MAX_CASE_IMPORT_BODY_BYTES", default=2 * 1024 * 1024, minimo=1)
+# Django: lo que lee en memoria (``request.body``) y los campos de un formulario. Explícitos: el mayor de los topes JSON
+# (el middleware es quien recorta por ruta, antes de llegar aquí).
+DATA_UPLOAD_MAX_MEMORY_SIZE = max(SIEP_MAX_BODY_BYTES, SIEP_MAX_CASE_IMPORT_BODY_BYTES)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",

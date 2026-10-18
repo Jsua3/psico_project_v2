@@ -9,8 +9,9 @@ import time
 import zipfile
 import zlib
 from dataclasses import dataclass
-from xml.etree import ElementTree as ET
 
+from defusedxml import DefusedXmlException, DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden
+from defusedxml import ElementTree as SafeET
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
@@ -238,7 +239,12 @@ _UNREADABLE_BOOK = (
     ValueError,
     IndexError,
     OverflowError,
-    ET.ParseError,
+    SafeET.ParseError,
+    # defusedxml (S2-6a): entidades, DTD y referencias externas. Son ValueError, pero se nombran por claridad.
+    DefusedXmlException,
+    DTDForbidden,
+    EntitiesForbidden,
+    ExternalReferenceForbidden,
 )
 _XML_ENCODING = re.compile(
     rb"""^(?:\xef\xbb\xbf)?\s*<\?xml[^>]*?encoding\s*=\s*["']([A-Za-z0-9._-]+)["']""", re.I
@@ -278,7 +284,7 @@ def _xlsx_shared_strings(zf):
         xml = _read_xml(zf, "xl/sharedStrings.xml")
     except KeyError:
         return []
-    root = ET.fromstring(xml)
+    root = SafeET.fromstring(xml)
     ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     values = []
     for si in root.findall("x:si", ns):
@@ -289,8 +295,8 @@ def _xlsx_shared_strings(zf):
 
 def _xlsx_first_sheet_path(zf):
     try:
-        workbook = ET.fromstring(_read_xml(zf, "xl/workbook.xml"))
-        rels = ET.fromstring(_read_xml(zf, "xl/_rels/workbook.xml.rels"))
+        workbook = SafeET.fromstring(_read_xml(zf, "xl/workbook.xml"))
+        rels = SafeET.fromstring(_read_xml(zf, "xl/_rels/workbook.xml.rels"))
     except KeyError:
         raise ValidationError("El archivo Excel no tiene una hoja válida")
     ns = {
@@ -333,7 +339,7 @@ def _parse_xlsx_rows(uploaded_file):
         with zipfile.ZipFile(uploaded_file) as zf:
             shared = _xlsx_shared_strings(zf)
             sheet_path = _xlsx_first_sheet_path(zf)
-            root = ET.fromstring(_read_xml(zf, sheet_path))
+            root = SafeET.fromstring(_read_xml(zf, sheet_path))
         return _sheet_rows(root, shared, started)
     except _UNREADABLE_BOOK:
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
