@@ -1,14 +1,39 @@
+from django.core.validators import RegexValidator
 from rest_framework import serializers
+
+from shared.plain_text import plain_text_problem
+
+#: Los largos de las columnas de ``grupos`` (S2-6b, SF-22): un campo más largo es un 400 con el campo, no un 500.
+NOMBRE_MAX = 255
+CODIGO_MAX = 50
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+CODIGO_FORMATO = RegexValidator(
+    r"^[A-Za-z0-9_-]+$", message="Usa solo letras, números, guion y guion bajo, sin espacios."
+)
+
+
+def _nombre_de_grupo(value):
+    """S2-6b · SF-23: el nombre sale en los correos de invitación, así que es texto plano de una línea."""
+    problema = plain_text_problem(value, NOMBRE_MAX)
+    if problema is not None:
+        raise serializers.ValidationError(problema[1])
+    return value.strip()
 
 
 class CrearGrupoSerializer(serializers.Serializer):
-    nombre = serializers.CharField()
-    codigo = serializers.CharField()
+    nombre = serializers.CharField(max_length=NOMBRE_MAX)
+    codigo = serializers.CharField(max_length=CODIGO_MAX, validators=[CODIGO_FORMATO])
+
+    def validate_nombre(self, value):
+        return _nombre_de_grupo(value)
 
 
 class ActualizarGrupoSerializer(serializers.Serializer):
-    nombre = serializers.CharField(required=False)
-    codigo = serializers.CharField(required=False)
+    nombre = serializers.CharField(required=False, max_length=NOMBRE_MAX)
+    codigo = serializers.CharField(required=False, max_length=CODIGO_MAX, validators=[CODIGO_FORMATO])
+
+    def validate_nombre(self, value):
+        return _nombre_de_grupo(value)
 
     def validate(self, attrs):
         if "nombre" not in attrs and "codigo" not in attrs:

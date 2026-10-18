@@ -326,6 +326,12 @@ SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().
 #: emergencia: no lo apagues en producción).
 SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
 
+#: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
+#: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.
+SIEP_ALLOWED_ASSET_HOSTS = [
+    host.strip().lower() for host in os.environ.get("SIEP_ALLOWED_ASSET_HOSTS", "").split(",") if host.strip()
+]
+
 #: S1-5 · días que vive una contraseña temporal (la de una aprobación o la que fija un ADMIN) antes de caducar. Entero ≥ 1.
 #: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
 SIEP_TEMP_PASSWORD_DAYS = _entero_env("SIEP_TEMP_PASSWORD_DAYS", default=7, minimo=1)
