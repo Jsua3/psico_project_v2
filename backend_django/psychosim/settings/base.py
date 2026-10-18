@@ -38,6 +38,10 @@ MIDDLEWARE = [
     # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
     "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # S2-1 · cabeceras base. Van ENCIMA de WhiteNoise: WhiteNoise responde los estáticos y corta la cadena,
+    # así que lo que quede debajo no llega a esas respuestas.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "shared.security_headers.SecurityHeadersMiddleware",
     # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
     # producción sin necesidad de un servidor web aparte.
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -46,6 +50,14 @@ MIDDLEWARE = [
     # Binds the request to a thread-local for audit-trail actor/IP capture.
     "apps.simulation.middleware.AuditContextMiddleware",
 ]
+
+# S2-1 · cabeceras base (plan 03). Django las pone en SecurityMiddleware y XFrameOptionsMiddleware; las de la API
+# y del portal (Permissions-Policy, no-store, X-Robots-Tag) en shared.security_headers.
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+# El valor por defecto de Django (same-origin) puede cortar la ventana emergente de Google Identity Services con FedCM apagado.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
 ROOT_URLCONF = "psychosim.urls"
 WSGI_APPLICATION = "psychosim.wsgi.application"

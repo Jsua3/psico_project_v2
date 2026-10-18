@@ -1,8 +1,4 @@
 {
-  "security.W002": {
-    "motivo": "Falta XFrameOptionsMiddleware: las respuestas no llevan X-Frame-Options (clickjacking). S2-1 añade X-Frame-Options: DENY con el resto de cabeceras base.",
-    "retira": "S2-1"
-  },
   "security.W003": {
     "motivo": "Sin CsrfViewMiddleware a propósito: no hay SessionMiddleware ni admin de Django y la API autentica solo con JWT en la cabecera Authorization (SiepJWTAuthentication), sin cookies. Permanente mientras no haya autenticación por cookie de sesión.",
     "permanente": true
