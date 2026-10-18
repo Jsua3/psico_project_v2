@@ -1,4 +1,6 @@
 """Root URL dispatcher. App includes are added as each module is implemented."""
+from functools import update_wrapper
+
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.urls import include, path, re_path
@@ -47,7 +49,26 @@ from apps.users.views import (
 )
 from apps.simulation.views.audit_views import AdminAuditListView
 from apps.simulation.views.authoring_views import AdminCaseListCreateView
+from apps.users.authentication import SiepJWTAuthentication
 from shared.health import health
+from shared.permissions import policy_permission
+
+
+def _docs_gate(view):
+    """Compuerta del esquema OpenAPI y su visor (S2-5, RNF-002).
+
+    Con ``SIEP_EXPOSE_API_DOCS`` apagada responde 404 antes de mirar credenciales: no se revela que la ruta existe.
+    La bandera se lee en cada petición, no al importar. Encendida, delega en la vista, que exige sesión y rol ADMIN.
+    ``update_wrapper`` conserva ``cls`` e ``initkwargs``: el inventario de superficie los lee.
+    """
+
+    def gated(request, *args, **kwargs):
+        if not settings.SIEP_EXPOSE_API_DOCS:
+            raise Http404
+        return view(request, *args, **kwargs)
+
+    return update_wrapper(gated, view)
+
 
 urlpatterns = [
     # C11: salud del servicio (pública, sin autenticación, sin datos internos).
@@ -96,8 +117,23 @@ urlpatterns = [
     path("api/rubrics/", include("apps.simulation.urls_rubrics")),
     # E3-9 · catálogo de competencias (RQ-NEG-002): el personal lo lee, el ADMIN lo amplía.
     path("api/competencies", CompetencyListCreateView.as_view()),
-    path("schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("swagger-ui.html", SpectacularSwaggerView.as_view(url_name="schema")),
+    # S2-5 · esquema OpenAPI y su visor: cerrados. Apagada la bandera, 404; encendida, sesión JWT y rol ADMIN.
+    path(
+        "schema/",
+        _docs_gate(SpectacularAPIView.as_view(
+            permission_classes=[policy_permission("user", "manage")],
+            authentication_classes=[SiepJWTAuthentication],
+        )),
+        name="schema",
+    ),
+    path(
+        "swagger-ui.html",
+        _docs_gate(SpectacularSwaggerView.as_view(
+            url_name="schema",
+            permission_classes=[policy_permission("user", "manage")],
+            authentication_classes=[SiepJWTAuthentication],
+        )),
+    ),
     # Catch-all del SPA (debe ir al final): cualquier ruta que no sea API,
     # schema o swagger devuelve el index.html de Angular.
     re_path(r"^(?!api/|schema/|swagger-ui|django-static/).*$", spa_index),

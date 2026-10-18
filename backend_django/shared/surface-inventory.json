@@ -1440,7 +1440,7 @@
     {
       "route": "schema",
       "method": "GET",
-      "exposure": "public",
+      "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
       "audit": null
@@ -1448,7 +1448,7 @@
     {
       "route": "swagger-ui.html",
       "method": "GET",
-      "exposure": "public",
+      "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
       "audit": null

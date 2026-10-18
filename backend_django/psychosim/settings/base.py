@@ -402,6 +402,11 @@ SPECTACULAR_SETTINGS = {
     },
 }
 
+# S2-5 · Esquema OpenAPI y su visor (/schema/, /swagger-ui.html): APAGADOS por defecto y también en producción. Encendida
+# la bandera, exigen sesión JWT y rol ADMIN; apagada, responden 404 antes de mirar credenciales. Se evalúa en cada petición
+# (psychosim/urls.py, _docs_gate). Solo para desarrollo.
+SIEP_EXPOSE_API_DOCS = _env_flag("SIEP_EXPOSE_API_DOCS")
+
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
 LOGGING = {
     "version": 1,
