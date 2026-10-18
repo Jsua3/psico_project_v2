@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 
+import { assertNoUnexpectedConsoleOrPageErrors, KNOWN_CONSOLE_PATTERNS } from './support/console-gate';
 import { assertQualityState } from './support/quality-gates';
 import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
@@ -240,6 +241,9 @@ async function completeFullCase(
     { message: 'el resultado no se desplaza en horizontal a 360 px', timeout: scaled(5_000) },
   ).toBeLessThanOrEqual(0);
   if (original) await page.setViewportSize(original);
+
+  // E5-8 · TOO-7: ningún `pageerror` ni `console.error` inesperado en todo el recorrido.
+  await assertNoUnexpectedConsoleOrPageErrors(page, KNOWN_CONSOLE_PATTERNS);
 }
 
 for (const viewport of REQUIRED_VIEWPORTS) {
