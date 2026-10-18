@@ -681,6 +681,32 @@ DATA_INVENTORY: dict[str, dict] = {
             "user_agent": ["api"],
         },
     },
+    # ── Consentimiento (S3-2) ─────────────────────────────────────────────────────────────────────
+    "consent_records": {
+        "purpose": (
+            "Evidencia de que el aviso de contenido sensible se mostró y se aceptó (ETH-01): quién lo aceptó, para qué "
+            "versión del caso y del aviso, cuándo y si lo retiró. También guarda, sin caso, la autorización de tratamiento "
+            "de datos cuando la institución la entregue."
+        ),
+        "retention": "Sin plazo definido (SD-9, pendiente de la institución).",
+        "default": None,
+        "columns": {
+            "id": TECHNICAL,
+            "person_id": (PERSONAL, "persona que vio y aceptó el aviso: enlaza con su cuenta"),
+            "consent_type": TECHNICAL,
+            "case_version_id": TECHNICAL,
+            "notice_version": TECHNICAL,
+            "accepted_at": (PERSONAL, "cuándo aceptó el aviso esa persona (la evidencia de ETH-01)"),
+            "withdrawn_at": TECHNICAL,
+        },
+        "exits": {
+            "person_id": [],
+            "accepted_at": ["api"],
+            "case_version_id": ["api"],
+            "notice_version": ["api"],
+            "withdrawn_at": ["api"],
+        },
+    },
 }
 
 #: Lo que el documento dice al principio: qué es, cómo se regenera y para qué lo usa el plan (S3-4).

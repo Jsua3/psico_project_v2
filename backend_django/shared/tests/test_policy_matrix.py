@@ -119,6 +119,15 @@ EXPECTED = [
     ("audit", "read", ADMIN, {}, True),
     ("audit", "read", PROFESOR, {}, False),
     ("audit", "read", ESTUDIANTE, {}, False),
+    # Consentimiento al aviso de contenido (S3-2a, C12): solo el estudiante y solo el suyo; el ADMIN y el docente no juegan.
+    ("consent", "read", ESTUDIANTE, {"owner_id": ME}, True),
+    ("consent", "read", ESTUDIANTE, {"owner_id": 99}, False),
+    ("consent", "read", PROFESOR, {"owner_id": ME}, False),
+    ("consent", "read", ADMIN, {"owner_id": ME}, False),
+    ("consent", "record", ESTUDIANTE, {"owner_id": ME}, True),
+    ("consent", "record", ESTUDIANTE, {"owner_id": 99}, False),
+    ("consent", "record", PROFESOR, {"owner_id": ME}, False),
+    ("consent", "record", ADMIN, {"owner_id": ME}, False),
     # Lecturas de todo usuario autenticado (catálogo, su propia cuenta).
     ("catalog", "read", ESTUDIANTE, {}, True),
     ("catalog", "read", PROFESOR, {}, True),
