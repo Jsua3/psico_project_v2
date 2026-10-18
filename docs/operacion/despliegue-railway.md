@@ -153,10 +153,10 @@ Para sostener ≥ 99,5 % de disponibilidad mensual durante las prácticas superv
    - Confirmar que el job nocturno `load` (`scripts/load/aula.mjs`) pasó con 40 estudiantes ($p95 \le 2\text{ s}$) y 120 estudiantes ($p95 \le 4\text{ s}$, tasa de error $\le 1\%$).
 2. **Migraciones y esquema antes de la clase:**
    - El contenedor ejecuta `python manage.py migrate --noinput` automáticamente antes de arrancar `gunicorn` (`--worker-class gthread --workers 3 --threads 4`).
-   - Si una versión nueva incluye migraciones, desplegarla y verificar `GET /api/health` (`200 {"status": "ok", "db": "ok"}`) **antes** del inicio de la ventana de congelamiento.
+   - Si una versión nueva incluye migraciones, desplegarla y verificar `GET /api/health` (`200 {"success": true, "data": {"status": "ok", "db": "ok"}}`; con la base caída, `503` y `"degraded"`/`"error"`) **antes** del inicio de la ventana de congelamiento.
 3. **Respaldo previo y verificación de restauración:**
    - Ejecutar un respaldo lógico con `pg_dump --no-owner --no-acl` antes de abrir la ventana de la cohorte.
-   - Verificar periódicamente la cadena de respaldo, restauración de conteos por tabla y descifrado de `ReflectionJournal` ejecutando:
+   - Ensayar periódicamente el procedimiento (respaldo, restauración, conteos por tabla y descifrado de `ReflectionJournal`) sobre una base desechable, no sobre producción:
      ```bash
      node scripts/ops/backup-restore.mjs
      ```
@@ -174,7 +174,7 @@ Lista de verificación al aprovisionar o auditar la base de datos de producción
 2. **Separación de roles:** el rol de ejecución de la aplicación no debe ser superusuario ni tener permisos DDL (únicamente `SELECT`, `INSERT`, `UPDATE`, `DELETE` sobre las tablas del esquema); usar credenciales separadas para el paso `migrate` previo a `gunicorn`.
 3. **Red y transporte:** PostgreSQL sin puerto público expuesto a Internet, alcanzable únicamente desde la red interna del servicio; exigir TLS (`sslmode=require` o superior) si la base y la aplicación no comparten red privada aislada.
 4. **Autenticación y secretos:** autenticación `scram-sha-256` y contraseñas de alta entropía fuera del repositorio (`DATABASE_URL` / `DB_PASSWORD`, además de `REFLECTION_ENCRYPTION_KEY` independiente de `DJANGO_SECRET_KEY`).
-5. **Respaldos cifrados y restaurables (E5-5):** volcados cifrados en reposo y restauración verificada con `node scripts/ops/backup-restore.mjs` (incluyendo la prueba de descifrado AES-GCM de `reflection_journals`, dado que contienen reflexiones clínicas y datos personales bajo Ley 1581).
+5. **Respaldos restaurables y cifrados en reposo (E5-5):** el volcado de producción debe guardarse cifrado en reposo; eso lo da el almacenamiento donde se guarde y **ningún script de este repositorio lo hace ni lo comprueba**. `node scripts/ops/backup-restore.mjs` solo ensaya el procedimiento sobre una base desechable (siembra, `pg_dump`, restauración, conteos por tabla y descifrado AES-GCM de una reflexión de prueba): no toca volcados de producción, así que cada restauración real se comprueba contando filas y descifrando una reflexión (`reflection_journals` guarda reflexiones clínicas y datos personales bajo Ley 1581).
 6. **Versión y parches:** PostgreSQL 18 como línea base (`postgres:18-alpine`, ED-3 / E0-6) con política activa de parches menores.
 7. **Registro operativo:** conexiones, desconexiones y fallos de autenticación habilitados en los registros del motor para correlación con `X-Request-Id`.
 

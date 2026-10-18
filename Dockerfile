@@ -27,6 +27,9 @@ COPY --from=frontend /fe/dist/psychosim-admin-panel/browser ./frontend_dist
 EXPOSE 8000
 # Railway inyecta $PORT. El esquema lo construye `migrate` (Django es el dueño; E0-8) y se
 # aplica ANTES de servir; con más de una réplica habría que moverlo a un paso de despliegue.
-# Gunicorn sirve la app WSGI de Django con hilos (E5-3: 3 workers × 4 hilos ≈ 164 MB RSS pico).
+# Gunicorn sirve la app WSGI de Django con hilos (E5-3): 3 procesos × 4 hilos. Memoria medida con esta imagen en Linux
+# (2026-10-17, en reposo tras ~480 peticiones): el maestro ≈ 32 MB y cada worker ≈ 96 MB de RSS (≈ 320 MB sumados, con
+# las páginas compartidas contadas dos veces). Bajo la carga del aula la mide el nocturno (E5-4); los 164 MB de RSS pico
+# de E0-2 son de UN proceso de `runserver` con 40 estudiantes, no de esta configuración.
 CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn psychosim.wsgi:application --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 3 --threads 4 --timeout 120 --access-logfile - --error-logfile -"]
 
