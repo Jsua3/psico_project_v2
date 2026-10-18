@@ -2,7 +2,7 @@
 AuditLogCleanupScheduler. Audit is written AFTER a successful operation, never on
 failure, never breaking the business op; retention is occurred_at + 360 days; a
 management command purges expired rows."""
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -244,3 +244,38 @@ def test_configurable_retention_and_review_quality_rubber_stamp_alarm(settings, 
     assert rq_after["rejectedByContent"] == 1
     assert rq_after["rubberStampAlarm"] is False
 
+
+# --- Reparación de E5-7: los filtros de fecha convierten la zona -------------------------------------------
+def _audit_row_at(admin, when, *, resource_type):
+    row = AuditLog.objects.create(
+        actor=admin, actor_role="ADMIN", action="CASE_CREATED", resource_type=resource_type, resource_id="tz-1",
+        retention_until=when + timedelta(days=360),
+    )
+    AuditLog.objects.filter(pk=row.pk).update(occurred_at=when)  # auto_now_add pisa el valor dado al crear
+    return row
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_los_filtros_from_y_to_de_la_auditoria_convierten_la_zona(admin):
+    """La auditoría se guarda en hora local (America/Bogota, USE_TZ=False): un instante con zona se convierte a
+    ella; no se le quita la zona (con «Z» la ventana se corría cinco horas)."""
+    _audit_row_at(admin, datetime(2026, 10, 17, 15, 0, 0), resource_type="TZ_PRUEBA")  # 15:00 en Bogotá
+    client = cl(admin)
+
+    def hits(frm, to):
+        query = {"resourceType": "TZ_PRUEBA", "from": frm, "to": to}
+        return client.get("/api/admin/audit", query).data["data"]["coverage"]["total"]
+
+    assert hits("2026-10-17T20:00:00Z", "2026-10-17T20:00:01Z") == 1  # 20:00 UTC = 15:00 en Bogotá
+    assert hits("2026-10-17T15:00:00-05:00", "2026-10-17T15:00:01-05:00") == 1  # con el desfase explícito
+    assert hits("2026-10-17T15:00:00", "2026-10-17T15:00:01") == 1  # sin zona: hora local de Bogotá
+    assert hits("2026-10-17T15:00:00Z", "2026-10-17T15:00:01Z") == 0  # eso son las 10:00 en Bogotá
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_una_fecha_con_zona_fuera_de_rango_es_un_parametro_invalido_y_no_un_error_del_servidor(admin):
+    """Convertir la zona puede salirse del calendario (año 1 con -05:00): eso es un 400, no un 500."""
+    resp = cl(admin).get("/api/admin/audit", {"from": "0001-01-01T00:00:00Z"})
+
+    assert resp.status_code == 400
+    assert resp.data["code"] == "INVALID_QUERY_PARAM"

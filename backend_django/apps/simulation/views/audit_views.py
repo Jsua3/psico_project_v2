@@ -5,7 +5,9 @@ Solo ADMIN (``policy_permission("audit", "read")``). Permite filtrar por ``actor
 (ISO 8601), con paginación y resumen de calidad de revisiones (``CONTENIDO`` vs ``FORMA``).
 """
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
@@ -33,13 +35,20 @@ def _parse_int(request, name):
 
 
 def _parse_dt(request, name):
+    """Fecha ISO 8601 → hora local del servidor, que es como se guarda la auditoría (``USE_TZ=False``).
+
+    Un instante con zona (``…Z``, ``…-05:00``) se CONVIERTE a ``settings.TIME_ZONE``; quitarle la zona sin
+    convertir corría la ventana cinco horas. Una fecha sin zona ya es hora local.
+    """
     raw = request.query_params.get(name)
     if raw is None or raw == "":
         return None
     try:
         val = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
-        return val.replace(tzinfo=None) if val.tzinfo is not None else val
-    except (TypeError, ValueError) as exc:
+        if val.tzinfo is not None:
+            val = val.astimezone(ZoneInfo(settings.TIME_ZONE)).replace(tzinfo=None)
+        return val
+    except (TypeError, ValueError, OverflowError) as exc:  # OverflowError: la conversión se sale del calendario
         raise ApiError(
             "INVALID_QUERY_PARAM",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
