@@ -21,12 +21,12 @@ from shared.permissions import policy_permission
 from shared.response import api_ok
 
 
-def _parse_int(request, name):
+def _parse_int(request, name, maximum=None):
     raw = request.query_params.get(name)
     if raw is None or raw == "":
         return None
     try:
-        return int(raw)
+        value = int(raw)
     except (TypeError, ValueError) as exc:
         raise ApiError(
             "INVALID_QUERY_PARAM",
@@ -34,6 +34,14 @@ def _parse_int(request, name):
             f"El parámetro '{name}' debe ser un número entero.",
             status.HTTP_400_BAD_REQUEST,
         ) from exc
+    if maximum is not None and value > maximum:
+        raise ApiError(
+            "INVALID_QUERY_PARAM",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El parámetro '{name}' no puede pasar de {maximum}.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+    return value
 
 
 def _parse_dt(request, name):
@@ -72,7 +80,7 @@ class AdminAuditListView(APIView):
                 description="Desde (ISO 8601). Con zona se convierte a la hora local del servidor; sin zona ya lo es.",
             ),
             OpenApiParameter("to", OpenApiTypes.DATETIME, description="Hasta (ISO 8601); misma regla de zona que `from`."),
-            OpenApiParameter("page", int, description="Página, desde 1."),
+            OpenApiParameter("page", int, description="Página, desde 1 y hasta 1000000 (más allá es un 400)."),
             OpenApiParameter("pageSize", int, description="Filas por página (tope 200)."),
         ],
         responses={200: envelope_of(AuditListSerializer), **error_responses(400, 401, 403)},
@@ -83,7 +91,7 @@ class AdminAuditListView(APIView):
         resource_type = request.query_params.get("resourceType")
         from_dt = _parse_dt(request, "from")
         to_dt = _parse_dt(request, "to")
-        page = _parse_int(request, "page") or 1
+        page = _parse_int(request, "page", maximum=audit_service.MAX_PAGE) or 1
         page_size = _parse_int(request, "pageSize") or audit_service.DEFAULT_PAGE_SIZE
         return api_ok(
             audit_service.list_audit_logs(

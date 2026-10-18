@@ -30,6 +30,7 @@ from .instructor_scope import student_ids_for_instructor
 
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
+MAX_PAGE = 1_000_000  # más allá, el OFFSET se sale del rango de la base y el listado cae con un 500
 
 
 def _dt(value):

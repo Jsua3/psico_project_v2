@@ -32,6 +32,7 @@ RETENTION_DAYS = MIN_RETENTION_DAYS
 MAX_USER_AGENT_LEN = 500
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
+MAX_PAGE = 1_000_000  # más allá, el OFFSET se sale del rango de la base y el listado cae con un 500
 
 #: Taxonomía canónica ``entidad.verbo`` (E5-7, §A16, C15).
 AUDIT_TAXONOMY: dict[str, str] = {

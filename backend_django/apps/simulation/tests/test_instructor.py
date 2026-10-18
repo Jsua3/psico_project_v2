@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, DecisionOption
+from apps.simulation.services import instructor_service
 
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
@@ -344,6 +345,28 @@ def test_el_filtro_por_estudiante_respeta_el_alcance_del_docente(estudiante, pro
 
     assert [r["attemptId"] for r in own["items"]] == [attempt_id]
     assert other["items"] == [] and other["coverage"] == {"shown": 0, "total": 0}
+
+
+@pytest.mark.req("RF-25", "CU-14")
+def test_una_pagina_desmesurada_es_un_parametro_invalido_y_no_un_error_del_servidor(db):
+    """Un `OFFSET` fuera del rango de la base daba un 500 (con un docente sin grupos la lista vacía ni llega a la base)."""
+    admin = User.objects.create_user(email="adm_inst@x.com", password="x", nombre="Ad", apellido="Inst", role="ADMIN")
+
+    resp = cl(admin).get("/api/instructor/attempts", {"page": "99999999999999999999"})
+
+    assert resp.status_code == 400
+    assert resp.data["code"] == "INVALID_QUERY_PARAM"
+
+
+@pytest.mark.req("RF-25", "CU-14")
+def test_la_ultima_pagina_permitida_responde_una_lista_vacia(db):
+    admin = User.objects.create_user(email="adm_inst2@x.com", password="x", nombre="Ad", apellido="Inst", role="ADMIN")
+
+    last = cl(admin).get("/api/instructor/attempts", {"page": instructor_service.MAX_PAGE})
+    beyond = cl(admin).get("/api/instructor/attempts", {"page": instructor_service.MAX_PAGE + 1})
+
+    assert last.status_code == 200 and last.data["data"]["items"] == []
+    assert beyond.status_code == 400
 
 
 @pytest.mark.req("RF-25", "CU-14")

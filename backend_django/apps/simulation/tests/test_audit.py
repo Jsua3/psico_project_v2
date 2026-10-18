@@ -14,6 +14,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import AuditLog, CaseVersion
+from apps.simulation.services import audit_service
 
 User = get_user_model()
 ADMIN_BASE = "/api/admin/cases"
@@ -280,6 +281,25 @@ def test_una_fecha_con_zona_fuera_de_rango_es_un_parametro_invalido_y_no_un_erro
 
     assert resp.status_code == 400
     assert resp.data["code"] == "INVALID_QUERY_PARAM"
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_una_pagina_desmesurada_es_un_parametro_invalido_y_no_un_error_del_servidor(admin):
+    """Un `OFFSET` fuera del rango de la base daba un 500: una página que ningún listado alcanza es un 400."""
+    resp = cl(admin).get("/api/admin/audit", {"page": "99999999999999999999"})
+
+    assert resp.status_code == 400
+    assert resp.data["code"] == "INVALID_QUERY_PARAM"
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_la_ultima_pagina_permitida_responde_una_lista_vacia(admin):
+    """El tope es el de la última página que sí se pagina: pasarse una es 400, quedarse en él es una página vacía."""
+    last = cl(admin).get("/api/admin/audit", {"page": audit_service.MAX_PAGE})
+    beyond = cl(admin).get("/api/admin/audit", {"page": audit_service.MAX_PAGE + 1})
+
+    assert last.status_code == 200 and last.data["data"]["items"] == []
+    assert beyond.status_code == 400
 
 
 @pytest.mark.req("SIEP-RNF-02", "RNF-007")
