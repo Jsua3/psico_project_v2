@@ -85,8 +85,10 @@ sin nonce, y `blob:` también en `media-src` y `worker-src`. **Ajustada con lo q
 | `report-uri` | `/api/security/csp-report` | cada incumplimiento deja una línea `csp_violation` sin datos personales (S2-3a) |
 
 **Imágenes de fondo de otro host.** `ambient.backgroundImage` de un caso puede apuntar a un `https` de una lista blanca
-configurable (S2-6). Esa lista debe reflejarse en `img-src`; mientras no, la CSP bloquea esas imágenes (es lo que
-SF-22 pide: una URL ajena no la carga el navegador de cada estudiante sin que alguien lo decida).
+configurable (`SIEP_ALLOWED_ASSET_HOSTS`, S2-6b). Cada host de esa lista entra tal cual a `img-src` de las dos políticas
+(`https://<host>`), así que quien amplíe la lista amplía también la política: lo que SF-22 pide es que una URL ajena no la
+cargue el navegador de cada estudiante sin que alguien lo decida. Un valor que no sea un nombre de host (con esquema,
+puerto, ruta o comodín) impide arrancar.
 
 ## Opciones descartadas
 
@@ -188,5 +190,7 @@ esperado (el orquestador lo comprueba; sale 0 si la sonda lo vio, 1 si siguió e
   los objetos (solo el contexto, los objetivos, las pistas y los personajes pasan por la regla de texto plano); la compuerta
   de publicación lo rechaza (`DSL.TEXT_MARKUP`), de modo que un borrador sí puede llevarlo. S2-6 podría aplicar la misma
   regla al escribir.
-- **Tareas que dependen de esta:** S2-6 (la lista blanca de imágenes de fondo debe reflejarse en `img-src`) y S4-3
-  (`security_report` cuenta las violaciones).
+- **Tareas que dependen de esta:** S2-6b (la lista blanca de imágenes de fondo se refleja en `img-src`, hecho al fusionar
+  las ramas) y S4-3 (`security_report` cuenta las violaciones).
+- **API navegable de DRF:** `DEFAULT_RENDERER_CLASSES` es solo `JSONRenderer` (hallazgo del agente de la sonda): la página
+  HTML de DRF lleva `<script>` y `<style>` en línea y la política en vigor la degradaría; el SPA, las pruebas y `curl` hablan JSON.

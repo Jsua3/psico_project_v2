@@ -165,6 +165,24 @@ test('las llaves de check --deploy tienen 20 caracteres distintos y la de reflex
   assert.notEqual(env.REFLECTION_ENCRYPTION_KEY, env.DJANGO_SECRET_KEY);
 });
 
+test('check --deploy declara una llave de reflexiones activa y versionada, con su secreto en REFLECTION_KEYS (S5-2)', () => {
+  const env = porId(pasos(), 'deploy-check').env;
+  const [id, ...partes] = env.REFLECTION_KEYS.split('=');
+  const secreto = partes.join('=');
+  assert.equal(env.REFLECTION_ACTIVE_KEY, id);
+  assert.notEqual(env.REFLECTION_ACTIVE_KEY, 'local-aes-gcm-v1');
+  assert.ok(secreto.length >= 32);
+  assert.ok(new Set(secreto).size >= 20);
+  assert.notEqual(secreto, env.DJANGO_SECRET_KEY);
+  assert.doesNotMatch(secreto, /[,\s]/);
+});
+
+test('la llave versionada de check --deploy es nueva en cada llamada: nunca un literal (S5-2)', () => {
+  const primero = porId(pasos(), 'deploy-check').env.REFLECTION_KEYS;
+  const segundo = porId(pasos(), 'deploy-check').env.REFLECTION_KEYS;
+  assert.notEqual(primero, segundo);
+});
+
 test('--only deja solo los pasos pedidos, en el orden del plan', () => {
   const steps = pasos();
   assert.deepEqual(selectSteps(steps, ['deploy-check', 'scripts']).map((step) => step.id), ['scripts', 'deploy-check']);

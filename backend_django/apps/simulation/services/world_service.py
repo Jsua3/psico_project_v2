@@ -33,6 +33,8 @@ from .world_state import (
     resolve_world_state,
     stamp_position_sync as _stamp_position_sync,
 )
+from .world_assets import world_asset_url_problem
+from shared import security_events
 from shared.idempotency import normalize_request_id
 from shared.jsonutils import (
     clamp as _clamp,
@@ -444,7 +446,7 @@ def world_for_attempt(attempt):
         state, _ = resolve_world_state(attempt, tolerate_missing_map=True)
     except NotFound:
         return None
-    return _to_world_state(attempt, state)
+    return _to_world_state(attempt, state, estudiante=False)
 
 
 def _current_world(attempt):
@@ -695,15 +697,28 @@ def _picked_up_dto(obj_dto, inventory_set):
     )
 
 
-def _to_world_state(attempt, state):
+def _mapa_para_estudiante(mapa):
+    """S2-6b · Un fondo que no es ruta propia ni host permitido no llega a la persona: el mundo sale sin fondo y queda
+    un ``security_event`` por servida (sin la URL). Una versión ya publicada no pasa por la validación de guardado.
+    Devuelve una copia: el mapa estático vive en la caché y no se toca."""
+    ambient = mapa.get("ambient") or {}
+    if world_asset_url_problem(ambient.get("backgroundImage")) is None:
+        return mapa
+    security_events.log_security_event("world_asset_blocked", scope="background")
+    return {**mapa, "ambient": {clave: valor for clave, valor in ambient.items() if clave != "backgroundImage"}}
+
+
+def _to_world_state(attempt, state, *, estudiante=True):
+    """El estado del mundo tal como lo ve la persona. La traza docente (``estudiante=False``) no filtra el fondo."""
     scene_map = state.scene_map
     inventory = _read_string_list(state.inventory_json)
     inventory_set = set(inventory)
     static = _static_world_for(attempt, scene_map)
+    mapa = _mapa_para_estudiante(static["map"]) if estudiante else static["map"]
     return {
         "attemptId": str(attempt.id),
         "status": attempt.status,
-        "map": static["map"],
+        "map": mapa,
         "player": {"x": state.player_x, "y": state.player_y},
         "objects": [
             o for o in static["objects"]

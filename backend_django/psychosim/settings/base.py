@@ -42,6 +42,9 @@ MIDDLEWARE = [
     # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
     "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # S2-6a · tope del cuerpo ANTES de leerlo. Va encima de las cabeceras y de WhiteNoise, así que su 413 no lleva
+    # las cabeceras de S2-1 ni las de CORS (sale antes de llegar a esos middleware).
+    "shared.body_limit.BodyLimitMiddleware",
     # S2-1 · cabeceras base. Van ENCIMA de WhiteNoise: WhiteNoise responde los estáticos y corta la cadena,
     # así que lo que quede debajo no llega a esas respuestas.
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -136,6 +139,9 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
     ],
+    # S2-4 · Solo JSON: la API navegable de DRF devuelve HTML con <script> y <style> en línea, que la política de
+    # contenido en vigor degrada, y ninguna parte de SIEP la usa (el SPA, las pruebas y curl hablan JSON).
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
@@ -163,6 +169,40 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
 REFLECTION_ENCRYPTION_KEY = os.environ.get(
     "REFLECTION_ENCRYPTION_KEY", "dev-only-reflection-key-never-use-in-production"
 )
+# S5-2 · Llaves versionadas de las reflexiones (rotación sin perder bitácoras). REFLECTION_KEYS es ``id1=secreto1,id2=secreto2``
+# (ids ``[A-Za-z0-9_.-]{1,40}``); REFLECTION_ACTIVE_KEY es el id con el que se CIFRA. ``local-aes-gcm-v1`` es la llave heredada
+# (REFLECTION_ENCRYPTION_KEY): siempre se puede LEER con ella y es la activa por defecto en desarrollo y pruebas.
+# Producción (production.py) exige una activa versionada.
+_REFLECTION_KEY_ID = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+
+
+def _parse_reflection_keys(raw):
+    """``id1=secreto1,id2=secreto2`` → dict. Ignora espacios y trozos vacíos. Un par mal formado detiene el arranque
+    nombrando su POSICIÓN: ni su id ni su secreto aparecen en el mensaje (el trozo entero puede ser un secreto pegado)."""
+    claves = {}
+    for posicion, trozo in enumerate(raw.split(","), start=1):
+        par = trozo.strip()
+        if not par:
+            continue
+        id_, separador, secreto = par.partition("=")
+        id_, secreto = id_.strip(), secreto.strip()
+        if not separador or not _REFLECTION_KEY_ID.fullmatch(id_) or not secreto:
+            raise ImproperlyConfigured(
+                # BORRADOR
+                f"REFLECTION_KEYS: el par {posicion} no tiene la forma id=secreto (valor no mostrado)."
+            )
+        if id_ in claves:
+            raise ImproperlyConfigured(
+                # BORRADOR
+                f"REFLECTION_KEYS: el par {posicion} repite un id ya declarado (valor no mostrado)."
+            )
+        claves[id_] = secreto
+    return claves
+
+
+REFLECTION_KEYS = _parse_reflection_keys(os.environ.get("REFLECTION_KEYS", ""))
+# Vacía o solo con espacios cuenta como ausente: la activa es la heredada.
+REFLECTION_ACTIVE_KEY = os.environ.get("REFLECTION_ACTIVE_KEY", "").strip() or "local-aes-gcm-v1"
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 # S1-3 · dominios de correo que pueden entrar con Google, separados por comas. Vacía = sin restricción (SD-14).
 GOOGLE_ALLOWED_DOMAINS = [
@@ -331,9 +371,37 @@ SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().
 #: emergencia: no lo apagues en producción).
 SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
 
+#: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
+#: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.
+SIEP_ALLOWED_ASSET_HOSTS = [
+    host.strip().lower() for host in os.environ.get("SIEP_ALLOWED_ASSET_HOSTS", "").split(",") if host.strip()
+]
+# S2-4 · cada host entra tal cual a ``img-src`` de la política de contenido: un nombre de host y nada más (sin esquema,
+# puerto, ruta ni comodín). Un valor mal escrito impide arrancar, sin imprimirlo.
+for _host_de_fondo in SIEP_ALLOWED_ASSET_HOSTS:
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", _host_de_fondo):
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_ALLOWED_ASSET_HOSTS: cada elemento debe ser un nombre de host (sin esquema, puerto, ruta ni comodín; "
+            "valor no mostrado)."
+        )
+
 #: S1-5 · días que vive una contraseña temporal (la de una aprobación o la que fija un ADMIN) antes de caducar. Entero ≥ 1.
 #: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
 SIEP_TEMP_PASSWORD_DAYS = _entero_env("SIEP_TEMP_PASSWORD_DAYS", default=7, minimo=1)
+
+#: S2-6a · tope del cuerpo de una petición, en bytes: por encima, 413 sin leerla (shared/body_limit.py).
+SIEP_MAX_BODY_BYTES = _entero_env("SIEP_MAX_BODY_BYTES", default=1024 * 1024, minimo=1)
+#: S2-6a · tope del sobre de la importación de estudiantes: el archivo (IMPORT_MAX_BYTES, 2 MiB) más el multipart.
+SIEP_MAX_IMPORT_BODY_BYTES = _entero_env("SIEP_MAX_IMPORT_BODY_BYTES", default=3 * 1024 * 1024, minimo=1)
+#: S2-6a · tope del cuerpo de la importación de CASOS (JSON). El importador tiene su propio límite de 1 MiB (``casedef`` ``MAX_BYTES``)
+#: y responde con un 400 estructurado (``DSL.LIMIT_EXCEEDED``) que el autor entiende: esta ruta tiene un tope más holgado para
+#: que ese mensaje llegue hasta 2 MiB; por encima de eso, 413 en el borde (E4, ``test_import_hostile``).
+SIEP_MAX_CASE_IMPORT_BODY_BYTES = _entero_env("SIEP_MAX_CASE_IMPORT_BODY_BYTES", default=2 * 1024 * 1024, minimo=1)
+# Django: lo que lee en memoria (``request.body``) y los campos de un formulario. Explícitos: el mayor de los topes JSON
+# (el middleware es quien recorta por ruta, antes de llegar aquí).
+DATA_UPLOAD_MAX_MEMORY_SIZE = max(SIEP_MAX_BODY_BYTES, SIEP_MAX_CASE_IMPORT_BODY_BYTES)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
@@ -429,12 +497,16 @@ CSP_REPORT_PATH = "/api/security/csp-report"
 SIEP_CSP_REPORT_ONLY = _env_flag("SIEP_CSP_REPORT_ONLY", default=True)
 SIEP_CSP_ENFORCE = _env_flag("SIEP_CSP_ENFORCE")
 
+#: Las imágenes que la política deja cargar: las propias, ``data:`` y ``blob:`` (Phaser y el kit del personaje; los midió la
+#: sonda) y los hosts https que el servidor permite para el fondo de sala (SIEP_ALLOWED_ASSET_HOSTS, S2-6b; vacía = solo propias).
+_CSP_IMG_SRC = [CSP.SELF, "data:", "blob:", *(f"https://{host}" for host in SIEP_ALLOWED_ASSET_HOSTS)]
+
 #: La política inicial (S2-3a, modo reporte): ni nonce ni restricciones de scripts en línea.
 CSP_INITIAL_POLICY = {
     "default-src": [CSP.SELF],
     "script-src": [CSP.SELF, "https://accounts.google.com/gsi/client"],
     "style-src": [CSP.SELF, CSP.UNSAFE_INLINE, "https://accounts.google.com/gsi/style"],
-    "img-src": [CSP.SELF, "data:", "blob:"],
+    "img-src": _CSP_IMG_SRC,
     "font-src": [CSP.SELF],
     "media-src": [CSP.SELF, "blob:"],
     "worker-src": [CSP.SELF, "blob:"],
@@ -458,7 +530,7 @@ CSP_ENFORCED_POLICY = {
     "script-src": [CSP.SELF, CSP.NONCE, "https://accounts.google.com/gsi/client"],
     "style-src": [CSP.SELF, CSP.NONCE, "https://accounts.google.com/gsi/style"],
     **({"style-src-attr": [CSP.UNSAFE_INLINE]} if GOOGLE_OAUTH_CLIENT_ID else {}),
-    "img-src": [CSP.SELF, "data:", "blob:"],
+    "img-src": _CSP_IMG_SRC,
     "font-src": [CSP.SELF],
     "media-src": [CSP.SELF],
     "worker-src": [CSP.SELF],

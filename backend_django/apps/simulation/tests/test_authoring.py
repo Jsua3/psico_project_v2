@@ -356,10 +356,11 @@ def test_world_save_persists_ambient(admin, published_cv):
     body = {
         "revision": we["revision"], "objects": we["objects"],
         "collisionZones": we["collisionZones"], "clinicalTools": we["clinicalTools"],
-        "map": {**we["map"], "ambient": {"cameraZoom": 1.5, "backgroundImage": "bg/sala.png"}},
+        # S2-6b: el fondo de sala solo admite una ruta propia de /assets/ (o un host permitido).
+        "map": {**we["map"], "ambient": {"cameraZoom": 1.5, "backgroundImage": "/assets/world/bg.webp"}},
     }
     ok = a.put(f"{BASE}/{clone_id}/world?nodeId={we['nodeId']}", body, format="json")
     assert ok.status_code == 200
     re_amb = a.get(f"{BASE}/{clone_id}/world-editor").data["data"]["map"]["ambient"]
     assert re_amb.get("cameraZoom") == 1.5
-    assert re_amb.get("backgroundImage") == "bg/sala.png"
+    assert re_amb.get("backgroundImage") == "/assets/world/bg.webp"

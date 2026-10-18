@@ -12,6 +12,8 @@ All bodies use the ``{"success": false, "code": ..., "message": ...}`` envelope.
 ``code`` is stable (the client decides by it, never by the text); a domain error can
 add its own fields at the root (``existingAttemptId``…), see ``ApiError``.
 """
+import logging
+
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
 from rest_framework import status
@@ -27,6 +29,9 @@ from rest_framework.exceptions import (
 )
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
+
+# S4-3 · la causa de cada 500 queda en una línea ERROR de este logger (sin cuerpo de petición ni cabeceras).
+logger = logging.getLogger("siep.error")
 
 
 class Conflict(APIException):
@@ -98,11 +103,35 @@ def _flatten(detail, prefix=""):
     return parts
 
 
+def _datos_de_la_peticion(context):
+    """Ruta, método, vista y actor de la petición que falló. No lanza nunca: lo que falte queda en ``None``."""
+    datos = {"path": None, "method": None, "actor_id": None, "view": None}
+    try:
+        request = (context or {}).get("request")
+        vista = (context or {}).get("view")
+        datos["path"] = getattr(request, "path", None)
+        datos["method"] = getattr(request, "method", None)
+        datos["view"] = type(vista).__name__ if vista is not None else None
+        usuario = getattr(request, "user", None)
+        pk = getattr(usuario, "pk", None)
+        if getattr(usuario, "is_authenticated", False) and isinstance(pk, int):
+            datos["actor_id"] = pk
+    except Exception:  # noqa: BLE001 - registrar la causa no puede tumbar la respuesta de error
+        pass
+    return datos
+
+
+def _registrar_no_controlada(exc, context):
+    """Una línea ERROR ``unhandled_exception`` con la traza y la petición. La respuesta al cliente no cambia."""
+    logger.error("unhandled_exception", exc_info=exc, extra={"fields": _datos_de_la_peticion(context)})
+
+
 def custom_exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
 
-    # Uncaught -> 500 "Error interno del servidor" (Spring handleGeneric).
+    # Uncaught -> 500 "Error interno del servidor" (Spring handleGeneric); la causa queda en el log.
     if response is None:
+        _registrar_no_controlada(exc, context)
         return Response(
             {"success": False, "code": "INTERNAL_ERROR", "message": "Error interno del servidor"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,

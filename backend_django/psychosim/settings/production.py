@@ -10,7 +10,9 @@ Required environment variables:
     DJANGO_SECRET_KEY (≥ 50 caracteres, ≥ 20 distintos), REFLECTION_ENCRYPTION_KEY
     (≥ 32 caracteres, ≥ 20 distintos, distinta de DJANGO_SECRET_KEY), DJANGO_ALLOWED_HOSTS,
     DB_PASSWORD, SIEP_TRUSTED_PROXIES (entero ≥ 0: proxies de confianza delante de Django;
-    sin valor por defecto).
+    sin valor por defecto), REFLECTION_ACTIVE_KEY (id de una llave de REFLECTION_KEYS, nunca
+    local-aes-gcm-v1) y REFLECTION_KEYS (id=secreto separados por comas; cada secreto ≥ 32
+    caracteres, ≥ 20 distintos y distinto de DJANGO_SECRET_KEY; S5-2).
 Optional:
     CORS_ALLOWED_ORIGINS (comma-separated), DB_NAME/DB_USER/DB_HOST/DB_PORT,
     DJANGO_SECURE_SSL_REDIRECT (default "true": solo "false" lo apaga),
@@ -135,6 +137,32 @@ _validate_secret(
     min_length=32,
     distinct_from=(("DJANGO_SECRET_KEY", SECRET_KEY),),
 )
+# S5-2 · Llaves versionadas: la ACTIVA cifra todo lo nuevo, así que es obligatoria, debe estar en REFLECTION_KEYS y no puede
+# ser la heredada (producción no cifra sin datos asociados). Cada secreto cumple S5-1. REFLECTION_ENCRYPTION_KEY sigue exigida
+# para leer las filas viejas. Los errores nombran la variable y la causa, nunca el valor (ni el id de la activa).
+REFLECTION_ACTIVE_KEY = _require_env("REFLECTION_ACTIVE_KEY").strip()
+if not REFLECTION_ACTIVE_KEY:
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "REFLECTION_ACTIVE_KEY es obligatoria: el id de la llave con la que se cifran las reflexiones nuevas."
+    )
+if REFLECTION_ACTIVE_KEY == "local-aes-gcm-v1":
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "REFLECTION_ACTIVE_KEY no puede ser local-aes-gcm-v1 en producción: cifra con una llave de REFLECTION_KEYS."
+    )
+if REFLECTION_ACTIVE_KEY not in REFLECTION_KEYS:
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "REFLECTION_ACTIVE_KEY debe ser el id de una llave de REFLECTION_KEYS (valor no mostrado)."
+    )
+for _posicion, _secreto_reflexion in enumerate(REFLECTION_KEYS.values(), start=1):
+    _validate_secret(
+        f"REFLECTION_KEYS (par {_posicion})",
+        _secreto_reflexion,
+        min_length=32,
+        distinct_from=(("DJANGO_SECRET_KEY", SECRET_KEY),),
+    )
 
 # La base de datos llega como DATABASE_URL (Railway) o como variables DB_*.
 # Solo exigimos DB_PASSWORD cuando NO se usa DATABASE_URL.

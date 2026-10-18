@@ -56,10 +56,11 @@ def _directivas(politica):
     return mapa
 
 
-def _ajustes_base(monkeypatch, enforce=None, report_only=None, google=None):
+def _ajustes_base(monkeypatch, enforce=None, report_only=None, google=None, hosts=None):
     """Carga ``psychosim/settings/base.py`` como módulo aparte, con las variables puestas (o quitadas si son ``None``)."""
     variables = (
         ("SIEP_CSP_ENFORCE", enforce), ("SIEP_CSP_REPORT_ONLY", report_only), ("GOOGLE_OAUTH_CLIENT_ID", google),
+        ("SIEP_ALLOWED_ASSET_HOSTS", hosts),
     )
     for nombre, valor in variables:
         if valor is None:
@@ -258,3 +259,83 @@ def test_solo_los_ajustes_de_la_sonda_leen_las_variables_de_control_de_la_sonda(
             ajenos.append(str(ruta.relative_to(RAIZ_DEL_BACKEND)))
 
     assert ajenos == [], f"estos módulos leen variables de control de la sonda: {ajenos}"
+
+
+# ── Los hosts de fondo (S2-6b) entran a img-src; la API navegable de DRF queda fuera (S2-4) ──────────────────
+
+
+@pytest.mark.parametrize("modo", ["enforce", "report"])
+def test_los_hosts_permitidos_para_el_fondo_entran_a_img_src_de_las_dos_politicas(monkeypatch, modo):
+    ajustes = _ajustes_base(monkeypatch, enforce="true" if modo == "enforce" else None, hosts="cdn.ejemplo.edu.co, Imagenes.Ejemplo.org")
+    politica = ajustes.CSP_ENFORCED_POLICY if modo == "enforce" else ajustes.CSP_INITIAL_POLICY
+
+    assert _directivas(build_policy(politica, NONCE))["img-src"] == [
+        "'self'", "data:", "blob:", "https://cdn.ejemplo.edu.co", "https://imagenes.ejemplo.org",
+    ]
+
+
+def test_control_negativo_sin_hosts_permitidos_img_src_no_lleva_ningun_host_externo(monkeypatch):
+    for politica in (
+        _ajustes_base(monkeypatch, enforce="true").CSP_ENFORCED_POLICY,
+        _ajustes_base(monkeypatch).CSP_INITIAL_POLICY,
+    ):
+        assert _directivas(build_policy(politica, NONCE))["img-src"] == ["'self'", "data:", "blob:"]
+
+
+@pytest.mark.parametrize(
+    "valor",
+    [
+        "https://cdn.ejemplo.org",
+        "cdn.ejemplo.org:443",
+        "*.ejemplo.org",
+        "cdn",
+        "cdn.ejemplo.org/ruta",
+        "-malo.ejemplo.org",
+        "malo-.ejemplo.org",
+        "con espacio.ejemplo.org",
+        "cdn.ejemplo.org;script-src",
+    ],
+)
+def test_un_host_de_fondo_mal_escrito_impide_arrancar_sin_mostrar_el_valor(monkeypatch, valor):
+    from django.core.exceptions import ImproperlyConfigured
+
+    with pytest.raises(ImproperlyConfigured) as error:
+        _ajustes_base(monkeypatch, hosts=f"cdn.ejemplo.edu.co,{valor}")
+
+    assert "SIEP_ALLOWED_ASSET_HOSTS" in str(error.value)
+    assert valor.strip() not in str(error.value)
+
+
+def test_la_api_solo_habla_json_ni_a_un_navegador():
+    from rest_framework.views import APIView
+
+    navegador = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    respuesta = Client().get("/api/auth/me", HTTP_ACCEPT=navegador)
+
+    assert [clase.__name__ for clase in APIView.renderer_classes] == ["JSONRenderer"]
+    assert respuesta.status_code == 401
+    assert respuesta["Content-Type"].startswith("application/json")
+    assert b"<script" not in respuesta.content and b"<style" not in respuesta.content
+
+
+def test_control_negativo_la_api_navegable_de_drf_si_devuelve_html_con_script_y_estilo_en_linea():
+    # Si el valor por defecto volviera a incluir BrowsableAPIRenderer, un navegador recibiría esto.
+    from rest_framework.renderers import BrowsableAPIRenderer
+    from rest_framework.response import Response
+    from rest_framework.test import APIRequestFactory
+    from rest_framework.views import APIView
+
+    class Navegable(APIView):
+        renderer_classes = [BrowsableAPIRenderer]
+        authentication_classes = []
+        permission_classes = []
+
+        def get(self, request):
+            return Response({"ok": True})
+
+    peticion = APIRequestFactory().get("/", HTTP_ACCEPT="text/html")
+    respuesta = Navegable.as_view()(peticion)
+    respuesta.render()
+
+    assert respuesta["Content-Type"].startswith("text/html")
+    assert b"<script" in respuesta.content or b"<style" in respuesta.content

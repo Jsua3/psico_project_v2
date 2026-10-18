@@ -14,9 +14,9 @@ import time
 from django.conf import settings
 from django.db import DatabaseError, connection
 
-from .limits import LIMITS
+from shared.security_events import log_security_event
 
-logger = logging.getLogger("siep.security")
+from .limits import LIMITS
 
 #: Separa las partes de ``key_hash``; no puede aparecer en un correo ni en una dirección IP.
 _SEPARADOR = "\x1f"
@@ -37,11 +37,8 @@ def _inicio_de_ventana(scope: str) -> int:
 
 
 def _falla_abierta(scope: str, exc: Exception) -> None:
-    # Nunca se registra la clave ni el valor: solo el alcance y el tipo de error.
-    logger.warning(
-        "security_event",
-        extra={"fields": {"event": "throttle_backend_error", "scope": scope, "error": type(exc).__name__}},
-    )
+    # Nunca se registra la clave ni el valor: solo el alcance y el tipo de error (en ``reason``).
+    log_security_event("throttle_backend_error", level=logging.WARNING, scope=scope, reason=type(exc).__name__)
 
 
 @functools.lru_cache(maxsize=4)
