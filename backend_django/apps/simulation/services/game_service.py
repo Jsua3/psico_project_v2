@@ -115,26 +115,20 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, 
 
     ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
     alcanzable, aunque el estudiante ya no tenga el caso asignado).
-    ``lock=True`` toma ``SELECT … FOR UPDATE OF simulation_attempts_v2`` en la misma consulta que lee el intento
-    (E5-1: ahorra el viaje separado de ``lock_attempt_row``). La fila del intento llega al día —la de después de
-    lo que la orden anterior confirmó—, pero las filas de las demás tablas de la unión llegan como estaban ANTES de
-    esperar el cerrojo. Por eso, bajo cerrojo, la unión lleva solo contenido estático (caso, nodo, estudiante) y NO
-    el estado del mundo, que alguien escribirá de vuelta: se lee después (``resolve_world_state``), ya con el
-    cerrojo en la mano. Si no, el PATCH de posición pisaba lo que otra orden acababa de confirmar (reparación de
-    E5-1). Sin cerrojo (lecturas puras) el estado sí viaja en la misma consulta.
+    ``lock=True`` toma el cerrojo de la fila del intento (``lock_attempt_row``) en su PROPIA sentencia y solo después
+    lee el intento con todas sus uniones. Una sola sentencia con ``FOR UPDATE`` y uniones (la forma de E5-1) devuelve
+    la fila del intento al día pero las demás filas de la unión —el nodo, el estado del mundo— como estaban ANTES de
+    esperar el cerrojo: si la orden anterior avanzó el nodo, el INNER JOIN descartaba la fila nueva (un 404 espurio
+    para un intento que existe) y, si escribió el estado del mundo, el PATCH de posición lo pisaba con una copia
+    vieja. Con el cerrojo ya en la mano, la lectura ve todo lo que esa orden confirmó (reparación de E5-1).
     """
     if not attempt_token:
         raise ValidationError("El token del intento es obligatorio")
-    qs = SimulationAttempt.objects.filter(
-        pk=attempt_id, attempt_token_hash=_hash_token(attempt_token)
-    )
-    related = ["case_version__simulation_case", "current_node", "student"]
     if lock:
-        qs = qs.select_for_update(of=("self",))
-    else:
-        related.append("world_state__scene_map")
+        lock_attempt_row(attempt_id)
     attempt = (
-        qs.select_related(*related)
+        SimulationAttempt.objects.filter(pk=attempt_id, attempt_token_hash=_hash_token(attempt_token))
+        .select_related("case_version__simulation_case", "current_node", "student", "world_state__scene_map")
         # E1-4: la asignación vigente del dueño viaja en la misma consulta (sin un viaje más).
         .annotate(owner_has_assignment=assignments.assignment_exists(
             OuterRef("student_id"), OuterRef("case_version_id")

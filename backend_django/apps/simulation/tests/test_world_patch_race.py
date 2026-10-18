@@ -120,6 +120,31 @@ def test_el_patch_ve_el_estado_del_intento_que_otra_orden_confirmo_mientras_espe
     assert AttemptWorldState.objects.get(attempt_id=a.attempt_id).player_x == x
 
 
+def test_el_patch_no_falla_si_otra_orden_avanza_el_nodo_del_intento_mientras_espera(committed_attempt):
+    """``current_node`` tampoco es estático: con la unión en la sentencia que espera el cerrojo, la fila nueva del
+    intento (otro ``current_node_id``) no casaba con la fila vieja del nodo y el INNER JOIN la descartaba: un 404
+    espurio para un intento que existe."""
+    a = committed_attempt
+    key, x, y = _start_position(a)
+    attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
+    next_map = SceneMap.objects.filter(case_version_id=attempt.case_version_id).exclude(node_id=attempt.current_node_id).first()
+    assert next_map is not None
+
+    def advance_the_node():
+        with transaction.atomic():
+            lock_attempt_row(a.attempt_id)
+            SimulationAttempt.objects.filter(pk=a.attempt_id).update(current_node_id=next_map.node_id)
+            time.sleep(HOLD_SECONDS)
+
+    other, moved = run_concurrently(advance_the_node, _patch_after_a_moment(a, key, x, y))
+
+    assert other.error is None and moved.error is None, (other.error, moved.error)
+    # El mundo sigue al nodo que la otra orden confirmó: el cliente, con la sala vieja, recibe el mundo completo de la nueva.
+    assert moved.value["map"]["key"] == next_map.map_key
+    assert {"objects", "collisions"} <= set(moved.value)
+    assert SimulationAttempt.objects.get(pk=a.attempt_id).current_node_id == next_map.node_id
+
+
 def test_con_la_sala_vieja_el_patch_devuelve_el_mundo_completo_y_con_la_actual_solo_el_acuse(committed_attempt):
     """Las dos mitades de «acuse mínimo salvo cambio de sala» (E5-1), sin hilos."""
     a = committed_attempt
