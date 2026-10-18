@@ -4,8 +4,10 @@ import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
+import { AssignmentService } from '../../core/api/assignment.service';
 import { Grupo, GrupoEstudiante, GrupoImportResult, GrupoService } from '../../core/api/grupo.service';
 import { SimulationService } from '../../core/api/simulation.service';
+import { Assignment } from '../../core/models/assignment.model';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
@@ -23,11 +25,12 @@ const grupoB: Grupo = { id: 2, nombre: 'Cohorte B', codigo: 'COH-B', totalEstudi
 const marta = { id: 11, nombre: 'Marta', apellido: 'Ríos', email: 'marta@siep.test', role: 'ESTUDIANTE', activo: true } as GrupoEstudiante;
 const caso = { caseVersionId: 12, code: 'CASO-12', title: 'Caso doce', semanticVersion: '1.0.0' } as SimulationCaseSummary;
 const otroCaso = { caseVersionId: 13, code: 'CASO-13', title: 'Caso trece', semanticVersion: '2.0.0' } as SimulationCaseSummary;
+const asignacion: Assignment = { id: 5, caseVersionId: 12, target: { type: 'GROUP', groupId: 1 }, state: 'OPEN', active: true, sortOrder: 0 };
 
 interface Api {
   listar: () => Observable<Grupo[]>;
   estudiantes: () => Observable<GrupoEstudiante[]>;
-  casosAsignados: () => Observable<SimulationCaseSummary[]>;
+  asignaciones: (groupId: number) => Observable<Assignment[]>;
   casosPublicados: () => Observable<SimulationCaseSummary[]>;
 }
 
@@ -50,9 +53,8 @@ describe('pantalla Grupos (F7-2)', () => {
       // La especificación de E2: sin columna `password` (RN-10).
       importSpec: vi.fn(() => of({ requiredColumns: ['nombre', 'apellido', 'email'], optionalColumns: [], columns: ['nombre', 'apellido', 'email'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
       listarEstudiantes: vi.fn(api.estudiantes ?? (() => of([marta]))),
-      listarCasos: vi.fn(api.casosAsignados ?? (() => of([caso]))),
       crear: vi.fn(), actualizar: vi.fn(), eliminar: vi.fn(), quitarEstudiante: vi.fn(), agregarEstudiante: vi.fn(),
-      asignarCaso: vi.fn(), quitarCaso: vi.fn(), importarEstudiantes: vi.fn(), descargarPlantillaImportacion: vi.fn(),
+      importarEstudiantes: vi.fn(), descargarPlantillaImportacion: vi.fn(),
     };
     dialog = { confirm: vi.fn(() => Promise.resolve(true)) };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
@@ -62,6 +64,8 @@ describe('pantalla Grupos (F7-2)', () => {
         provideZonelessChangeDetection(), provideRouter([]),
         { provide: GrupoService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(api.casosPublicados ?? (() => of([caso, otroCaso]))) } },
+        // F10-5: los casos asignados los lee y los cambia su propio componente, por las asignaciones con ventana (C7).
+        { provide: AssignmentService, useValue: { list: vi.fn(api.asignaciones ?? (() => of([asignacion]))), create: vi.fn(), update: vi.fn(), remove: vi.fn() } },
         { provide: NotificationService, useValue: notify },
         { provide: UiDialog, useValue: dialog },
       ],
@@ -248,18 +252,62 @@ describe('pantalla Grupos (F7-2)', () => {
     });
 
     it('sin estudiantes ni casos: dos vacíos que dicen qué hacer, no cifras en cero', async () => {
-      await render({ estudiantes: () => of([]), casosAsignados: () => of([]) });
+      await render({ estudiantes: () => of([]), asignaciones: () => of([]) });
       await openDetail();
       const detail = host().querySelector('.gl-detail')!;
       expect(text(detail)).toContain('Este grupo aún no tiene estudiantes.');
       expect(text(detail)).toContain('No hay casos asignados. Los estudiantes no verán casos hasta que asignes uno.');
     });
 
-    it('asignar ofrece solo los casos publicados que el grupo aún no tiene', async () => {
+    // req: RF-14, CU-06 (F10-5)
+    it('el detalle cuenta los casos asignados con lo que dice la sección de asignaciones, en singular y en plural', async () => {
       await render();
       await openDetail();
-      const options = [...host().querySelectorAll('.gl-detail select[formControlName="caseVersionId"] option')].map(el => text(el));
-      expect(options).toEqual(['Selecciona un caso', 'Caso trece · v2.0.0']);
+      expect(text(host().querySelector('.gl-detail'))).toContain('1 caso asignado');
+      TestBed.resetTestingModule();
+      await render({ asignaciones: () => of([asignacion, { ...asignacion, id: 6, caseVersionId: 13 }]) });
+      await openDetail();
+      expect(text(host().querySelector('.gl-detail'))).toContain('2 casos asignados');
+    });
+
+    // req: RF-14 (revisión de F10)
+    it('abrir otro grupo no arrastra el conteo del anterior: el conteo sale cuando ese grupo termina de cargar', async () => {
+      const pending = new Subject<Assignment[]>();
+      await render({ asignaciones: groupId => (groupId === grupoA.id ? of([asignacion]) : pending) });
+      await openDetail(grupoA);
+      expect(text(host().querySelector('.gl-detail'))).toContain('1 caso asignado');
+
+      await openDetail(grupoB);
+      expect(text(host().querySelector('.gl-detail .gl-hint'))).not.toMatch(/casos? asignados?/);
+
+      pending.next([asignacion, { ...asignacion, id: 6, caseVersionId: 13 }]);
+      pending.complete();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(host().querySelector('.gl-detail .gl-hint'))).toContain('2 casos asignados');
+    });
+
+    it('si los casos publicados fallan, «Asignar un caso» lo dice (no «no hay más casos»); mientras cargan, también', async () => {
+      const casos = new Subject<SimulationCaseSummary[]>();
+      await render({ casosPublicados: () => casos });
+      await openDetail();
+      const assign = () => [...host().querySelectorAll<HTMLButtonElement>('.gl-detail button')].find(button => text(button).includes('Asignar un caso'))!;
+      expect(text(assign().querySelector('[hidden]'))).toBe('Cargando los casos publicados…');
+
+      casos.error({ status: 500 });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text(assign().querySelector('[hidden]'))).toBe('No pudimos cargar los casos publicados.');
+    });
+
+    it('la sección «Casos asignados» es la de asignaciones con ventana y recibe los casos publicados', async () => {
+      await render();
+      await openDetail();
+      const section = host().querySelector('.gl-detail app-group-assignments')!;
+      expect(section).not.toBeNull();
+      expect(text(section.querySelector('ui-badge'))).toBe('Abierto');
+      expect([...section.querySelectorAll('button')].map(el => text(el)).some(label => label.includes('Asignar un caso'))).toBe(true);
+      expect(host().querySelector('select[formControlName="caseVersionId"]')).toBeNull();
     });
   });
 

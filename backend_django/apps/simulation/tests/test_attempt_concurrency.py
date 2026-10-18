@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import (
     AttemptEvent,
     CaseVersion,
@@ -227,7 +227,7 @@ def committed_attempt(real_commits):
     )
     grupo = Grupo.objects.create(nombre=f"Hilos {suffix}", codigo=f"HI-{suffix}", profesor=profesor)
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=student, status="ACTIVE")
-    GrupoCaseVersion.objects.create(grupo=grupo, case_version=version)
+    CaseAssignment.objects.create(grupo=grupo, case_version=version)
     started = timezone.now()
     state = game_service.start_attempt(version.id, student)
     try:
@@ -239,7 +239,7 @@ def committed_attempt(real_commits):
         )
     finally:
         SimulationAttempt.objects.filter(student_id=student.id).delete()
-        GrupoCaseVersion.objects.filter(grupo=grupo).delete()
+        CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
         AuditLog.objects.filter(occurred_at__gte=started).delete()
@@ -306,9 +306,12 @@ def test_dos_decisiones_distintas_a_la_vez_desde_el_mismo_nodo_se_serializan(com
     options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], classification="ADEQUATE")[:1])
     other = DecisionOption.objects.filter(source_node_id=a.node["id"]).exclude(pk=options[0].pk).first()
     # Se aplana el reintento: sin segunda oportunidad la otra opción también avanza el intento.
-    CaseVersion.objects.filter(pk=SimulationAttempt.objects.get(pk=a.attempt_id).case_version_id).update(
-        rules=json.dumps({"secondChance": False})
-    )
+    # Se conserva el resto de las reglas (métricas y finales del caso) y se restauran tal cual al
+    # terminar: este caso hace commits reales y lo que deje queda para las pruebas que siguen.
+    version_id = SimulationAttempt.objects.get(pk=a.attempt_id).case_version_id
+    original_rules = CaseVersion.objects.get(pk=version_id).rules
+    flattened = {**json.loads(original_rules or "{}"), "secondChance": False}
+    CaseVersion.objects.filter(pk=version_id).update(rules=json.dumps(flattened))
 
     def decide(option):
         return lambda: game_service.choose_decision(
@@ -324,6 +327,4 @@ def test_dos_decisiones_distintas_a_la_vez_desde_el_mismo_nodo_se_serializan(com
         assert isinstance(losers[0].error, ValidationError)
         assert len(_events(a.attempt_id, *REGISTERED)) == 1
     finally:
-        CaseVersion.objects.filter(pk=SimulationAttempt.objects.get(pk=a.attempt_id).case_version_id).update(
-            rules=json.dumps({"secondChance": True})
-        )
+        CaseVersion.objects.filter(pk=version_id).update(rules=original_rules)

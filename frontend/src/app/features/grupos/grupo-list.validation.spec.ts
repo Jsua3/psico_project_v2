@@ -73,10 +73,9 @@ describe('grupos: validar al enviar el formulario de grupo (comportamiento)', ()
       expect(component.form.controls.codigo.touched).toBe(true);
     });
 
-    it('solo marca el formulario del grupo, no los de casos ni estudiantes', () => {
+    it('solo marca el formulario del grupo, no el de estudiantes', () => {
       component.crear();
 
-      expect(component.casoForm.touched).toBe(false);
       expect(component.estudianteForm.touched).toBe(false);
     });
 

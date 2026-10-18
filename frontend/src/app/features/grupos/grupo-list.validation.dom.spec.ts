@@ -29,7 +29,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
   let fixture: ComponentFixture<GrupoListComponent>;
   let component: GrupoListComponent;
   let root: HTMLElement;
-  let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes' | 'listarCasos', Mock>;
+  let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes', Mock>;
 
   const errorTexts = () => Array.from(root.querySelectorAll('.ui-field__message--error')).map(node => (node.textContent ?? '').trim());
   const groupForm = () => root.querySelector<HTMLFormElement>('.gl-form form')!;
@@ -58,7 +58,6 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       eliminar: vi.fn(),
       importSpec: vi.fn(() => of({ requiredColumns: ['nombre'], optionalColumns: [], columns: ['nombre'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
       listarEstudiantes: vi.fn(() => of([])),
-      listarCasos: vi.fn(() => of([])),
     };
     TestBed.configureTestingModule({
       imports: [GrupoListComponent],
@@ -100,18 +99,15 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       expect(document.activeElement).toBe(groupForm().querySelector('input[formControlName="nombre"]'));
     });
 
-    it('con el detalle de un grupo abierto, el foco va al nombre y no al select del caso', () => {
+    it('con el detalle de un grupo abierto, enviar el formulario del grupo lleva el foco al nombre y no toca el del estudiante', () => {
       component.gestionarGrupo(grupoA);
       fixture.detectChanges();
-      const select = root.querySelector<HTMLSelectElement>('select[formControlName="caseVersionId"]')!;
-      expect(select.classList.contains('ng-invalid')).toBe(true);
 
       submit();
 
       expect(document.activeElement).toBe(groupForm().querySelector('input[formControlName="nombre"]'));
-      expect(document.activeElement).not.toBe(select);
       expect(errorTexts()).toEqual(['Escribe el nombre del grupo.', 'Escribe el código del grupo.']);
-      expect(component.casoForm.touched).toBe(false);
+      expect(component.estudianteForm.touched).toBe(false);
     });
 
     it('el foco se busca solo dentro del formulario del grupo, aunque haya otro control inválido antes en la página', () => {

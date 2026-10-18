@@ -59,7 +59,7 @@ def intento(estudiante):
             [grupo.id, estudiante.id],
         )
         cur.execute(
-            "INSERT INTO grupo_case_version (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             [grupo.id, case_version_id],
         )
     data = cl(estudiante).post(
@@ -191,6 +191,21 @@ def test_encendido_responde_y_deja_auditoria(estudiante, intento, monkeypatch):
     ).order_by("-id").first()
     assert entry is not None
     assert json.loads(entry.context_json)["response_length"] == len("¿Qué observas?")
+
+
+@override_settings(AI_ASSISTANT_ENABLED=True)
+def test_la_auditoria_del_asistente_guarda_cuanto_pregunto_el_estudiante_y_no_que(estudiante, intento, monkeypatch):
+    """La pregunta es texto libre de una persona en un simulador de violencia de género: con la lectura de
+    ``/api/admin/audit`` (E5-7) dejaría de dormir en la base y la leería cualquier ADMIN durante 360 días."""
+    monkeypatch.setattr(AIAssistantView, "_call_llm", lambda self, question, context: "¿Qué observas?")
+    asked = "Mi hermana me contó que su pareja la golpea, ¿qué hago?"
+
+    _ask(cl(estudiante), intento, question=asked, current_node_id=7)
+
+    entry = AuditLog.objects.filter(action="AI_ASSISTANT_QUERY", resource_id=intento).order_by("-id").first()
+    context = json.loads(entry.context_json)
+    assert "question" not in context and asked not in entry.context_json
+    assert context["question_length"] == len(asked)
 
 
 @override_settings(AI_ASSISTANT_ENABLED=True)

@@ -12,14 +12,16 @@ objeto, decisión, herramienta o diálogo solo se admite si es de la versión qu
 from django.conf import settings
 from django.db.models import BigIntegerField, Case, F, When
 from rest_framework import status
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.simulation.models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     DecisionOption,
     DialogueTree,
     MapObject,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -42,6 +44,10 @@ _REFERENCES = {
                    "case_version_id", None),
     DialogueTree: ("Diálogo no encontrado: {id}", "El diálogo {id} no pertenece a la versión {version}",
                    "scene_map__case_version_id", "scene_map"),
+    CaseCharacter: ("Personaje no encontrado: {id}", "El personaje {id} no pertenece a la versión {version}",
+                    "case_version_id", None),
+    SceneHint: ("Pista no encontrada: {id}", "La pista {id} no pertenece a la versión {version}",
+                "scene_map__case_version_id", "scene_map"),
 }
 
 
@@ -67,8 +73,21 @@ def authorize_case_version(actor, case_version_id, *, mutate, action="author"):
     if policies.can(actor, "case", action, owner_id=version.simulation_case.created_by_id):
         return version
     if mutate:
-        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        raise PermissionDenied("Solo quien autora el caso puede modificarlo")
+        # Dos razones distintas, dos códigos: el rol podría hacerlo pero el caso no es suyo, o el
+        # rol nunca puede hacerlo (p. ej. un profesor que intenta aprobar).
+        if getattr(actor, "role", None) in policies.allowed_roles("case", action):
+            raise ApiError(
+                "CASE_NOT_OWNED",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Solo quien autora el caso puede modificarlo.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        raise ApiError(
+            "CASE_ACTION_FORBIDDEN",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Tu rol no puede hacer esto con el caso.",
+            status.HTTP_403_FORBIDDEN,
+        )
     raise NotFound("Version de caso no encontrada")
 
 
@@ -206,5 +225,20 @@ def decision_link(decision_option_id, case_version_id):
         return None
     try:
         return in_version(DecisionOption, decision_option_id, case_version_id)
+    except NotFound:
+        return None
+
+
+def character_link(character_id, case_version_id):
+    """El personaje que un objeto enlaza, o ``None`` si se quita o ya no existe.
+
+    Como ``decision_link``: un personaje borrado en otra sesión no rompe el guardado (el objeto
+    queda sin personaje, que es lo que la base ya hizo), pero uno que existe y es de **otra
+    versión** nunca se acepta (400).
+    """
+    if character_id is None:
+        return None
+    try:
+        return in_version(CaseCharacter, character_id, case_version_id)
     except NotFound:
         return None

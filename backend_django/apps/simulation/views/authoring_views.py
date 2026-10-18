@@ -10,14 +10,24 @@ Cada mutación valida su cuerpo con un serializador de entrada (E2-6: un campo a
 400 que lo nombra, no un 500) y lleva la ``revision`` del caso —en el cuerpo, en
 ``?revision=`` o en la cabecera ``X-Case-Revision``— para el bloqueo optimista.
 """
+from django.core.exceptions import RequestDataTooBig
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.views import APIView
 
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
-from shared.response import api_ok
+from shared.response import api_created, api_ok
 
+from ..casedef import import_
 from ..serializers import authoring as inputs
+from ..serializers.contracts import (
+    CaseDefinitionSerializer,
+    CaseImportedSerializer,
+    CaseValidationSerializer,
+    ImportRejectedEnvelopeSerializer,
+)
 from ..services import authoring_service as svc
-from ..services.authoring import guards, lifecycle
+from ..services.authoring import guards, importing, lifecycle
 
 REVISION_HEADER = "X-Case-Revision"
 
@@ -80,6 +90,42 @@ class AdminCaseListCreateView(_AuthoringView):
         return api_ok(svc.create_case(request.data, request.user), "Caso creado")
 
 
+class CaseImportView(_AuthoringView):
+    """E4-5 · ``POST …/cases/import``: el documento del caso en el cuerpo (``application/json``).
+
+    Lee los bytes crudos —el lector de DRF mezclaría claves repetidas y aceptaría ``NaN``—, valida el
+    documento y crea un borrador a nombre de quien importa. 201 ``{caseVersionId, caseId, issues}``.
+    """
+
+    @extend_schema(
+        responses={
+            201: envelope_of(CaseImportedSerializer),
+            400: OpenApiResponse(
+                ImportRejectedEnvelopeSerializer, description="El documento no se puede importar: los hallazgos van en `issues`."
+            ),
+            **error_responses(401, 403, 409),
+        }
+    )
+    def post(self, request):
+        # La cabecera llega cruda (``application/json; charset=utf-8``): solo cuenta el tipo de medio.
+        if (request.content_type or "").split(";", 1)[0].strip().lower() != "application/json":
+            raise importing.reject(import_.FORMA, "Solo se admite JSON (application/json).")
+        try:
+            raw = request.body
+        except RequestDataTooBig:
+            raise importing.reject(import_.LIMIT, "El documento es demasiado grande.") from None
+        return api_created(svc.import_case(raw, request.user), "Caso importado")
+
+
+class CaseDefinitionView(_AuthoringView):
+    """E4-7 · ``GET …/cases/{id}/definition``: el documento de la versión (borrador o publicada)."""
+
+    @extend_schema(responses={200: envelope_of(CaseDefinitionSerializer), **error_responses(401, 403, 404)})
+    def get(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=False)
+        return api_ok(svc.definition_of(case_version_id))
+
+
 class EditorView(_AuthoringView):
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
@@ -125,6 +171,15 @@ class NodeListView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         body = self.payload(request, inputs.NodeRequest)
         return api_ok(svc.create_node(case_version_id, body), "Nodo creado")
+
+
+class NodeReorderView(_AuthoringView):
+    """``PATCH …/nodes/reorder``: el orden informativo de todos los nodos (E3-6, RF-08)."""
+
+    def patch(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.NodeReorderRequest)
+        return api_ok(svc.reorder_nodes(case_version_id, body), "Orden de los nodos actualizado")
 
 
 class NodeDetailView(_AuthoringView):
@@ -245,6 +300,59 @@ class ToolDetailView(_AuthoringView):
         )
 
 
+# ─── Hint CRUD (E3-5) ───────────────────────────────────────────────────────
+class HintListView(_AuthoringView):
+    def post(self, request, case_version_id, map_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.create_hint(case_version_id, map_id, body), "Pista creada")
+
+
+class HintDetailView(_AuthoringView):
+    def put(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.HintRequest)
+        return api_ok(svc.update_hint(case_version_id, hint_id, body), "Pista actualizada")
+
+    def delete(self, request, case_version_id, hint_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_hint(case_version_id, hint_id, self.revision(request)), "Pista eliminada"
+        )
+
+
+# ─── Ficha del caso (E3-4) ──────────────────────────────────────────────────
+class BriefView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.BriefRequest)
+        return api_ok(svc.update_brief(case_version_id, body), "Ficha del caso actualizada")
+
+
+# ─── Character CRUD (E3-3) ──────────────────────────────────────────────────
+class CharacterListView(_AuthoringView):
+    def post(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(svc.create_character(case_version_id, body), "Personaje creado")
+
+
+class CharacterDetailView(_AuthoringView):
+    def put(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.CharacterRequest)
+        return api_ok(
+            svc.update_character(case_version_id, character_id, body), "Personaje actualizado"
+        )
+
+    def delete(self, request, case_version_id, character_id):
+        self.version_for(request, case_version_id, mutate=True)
+        return api_ok(
+            svc.delete_character(case_version_id, character_id, self.revision(request)),
+            "Personaje eliminado",
+        )
+
+
 # ─── Checklist ──────────────────────────────────────────────────────────────
 class ChecklistView(_AuthoringView):
     def put(self, request, case_version_id):
@@ -287,6 +395,7 @@ class WorldValidateView(_AuthoringView):
 class CaseValidateView(_AuthoringView):
     """C6 · ``{issues: ValidationIssue[], canPublish}`` (E2-8)."""
 
+    @extend_schema(responses={200: envelope_of(CaseValidationSerializer), **error_responses(401, 403, 404)})
     def post(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.validate_case(case_version_id))

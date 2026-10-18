@@ -42,6 +42,15 @@ describe('AuthoringApi: la revisión del caso en cada mutación', () => {
     ['deleteTool', (a, r) => a.deleteTool(9, 2, r), 'DELETE', '/api/authoring/cases/9/tools/2'],
     ['updateChecklist', (a, r) => a.updateChecklist(9, body, r), 'PUT', '/api/authoring/cases/9/checklist'],
     ['transitionCase', (a, r) => a.transitionCase(9, { action: 'submit' }, r), 'POST', '/api/authoring/cases/9/lifecycle'],
+    // F10-3: ayudas, personajes, ficha y orden de las escenas (E3-3 a E3-6).
+    ['createHint', (a, r) => a.createHint(9, 3, body, r), 'POST', '/api/authoring/cases/9/maps/3/hints'],
+    ['updateHint', (a, r) => a.updateHint(9, 2, body, r), 'PUT', '/api/authoring/cases/9/hints/2'],
+    ['deleteHint', (a, r) => a.deleteHint(9, 2, r), 'DELETE', '/api/authoring/cases/9/hints/2'],
+    ['createCharacter', (a, r) => a.createCharacter(9, body, r), 'POST', '/api/authoring/cases/9/characters'],
+    ['updateCharacter', (a, r) => a.updateCharacter(9, 2, body, r), 'PUT', '/api/authoring/cases/9/characters/2'],
+    ['deleteCharacter', (a, r) => a.deleteCharacter(9, 2, r), 'DELETE', '/api/authoring/cases/9/characters/2'],
+    ['updateBrief', (a, r) => a.updateBrief(9, body, r), 'PUT', '/api/authoring/cases/9/brief'],
+    ['reorderNodes', (a, r) => a.reorderNodes(9, [2, 1], r), 'PATCH', '/api/authoring/cases/9/nodes/reorder'],
   ];
 
   it.each(mutations)('%s manda la revisión vigente en X-Case-Revision', (_name, call, method, url) => {
@@ -57,6 +66,13 @@ describe('AuthoringApi: la revisión del caso en cada mutación', () => {
     const request = http.expectOne(url);
     expect(request.request.method).toBe(method);
     expect(request.request.headers.has('X-Case-Revision')).toBe(false);
+    request.flush({ data: {} });
+  });
+
+  it('reordenar manda los ids de TODAS las escenas, en el orden pedido, dentro de «order»', () => {
+    api.reorderNodes(9, [3, 1, 2], 5).subscribe();
+    const request = http.expectOne('/api/authoring/cases/9/nodes/reorder');
+    expect(request.request.body).toEqual({ order: [3, 1, 2] });
     request.flush({ data: {} });
   });
 

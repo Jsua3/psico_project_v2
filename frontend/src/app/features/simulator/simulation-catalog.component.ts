@@ -21,7 +21,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { attemptTone, formatDate, openAttempt } from '../dashboard/student-dashboard.util';
 import { formatAttemptDuration, historyDurationSeconds } from './attempt-history-duration.util';
-import { blockedNotice, lockReason } from './case-lock.util';
+import { blockedNotice, lockLabel, lockReason } from './case-lock.util';
 import { StudentReportDialogComponent, StudentReportDialogData } from './student-report-dialog.component';
 
 type HttpLikeError = { status?: number };
@@ -94,7 +94,7 @@ export class SimulationCatalogComponent {
     // anterior): continuar, pausar o terminar (RN-07) manda sobre el desbloqueo lineal.
     const lock = open ? null : lockReason(this.catalogItems(), item.caseVersionId);
     const done = !open && !!this.catalogItems().find(entry => entry.caseVersionId === item.caseVersionId)?.completed;
-    return { item, open, startLabel, lock, done };
+    return { item, open, startLabel, lock, lockLabel: lockLabel(this.catalogItems(), item.caseVersionId), done };
   }));
   protected readonly rows = computed(() => this.history().map(attempt => ({
     attempt,
@@ -168,9 +168,12 @@ export class SimulationCatalogComponent {
     });
   }
 
-  /** Entrar al caso: con un intento abierto, el juego ofrece reanudarlo (la tarjeta de reanudar es F6-2). */
-  protected openCase(caseVersionId: number): void {
-    void this.router.navigate(['/portal/simulador', caseVersionId]);
+  /**
+   * Entrar al caso. Con un intento abierto se continúa en el juego, que ofrece reanudarlo (F6-2, RN-07). Sin él, primero
+   * la ficha del caso (F10-1, RF-16): contexto, personajes y objetivos, sin crear el intento; su «Comenzar» pasa al juego.
+   */
+  protected openCase(caseVersionId: number, resume: boolean): void {
+    void this.router.navigate(resume ? ['/portal/simulador', caseVersionId] : ['/portal/simulador', caseVersionId, 'ficha']);
   }
 
   protected openEditor(caseVersionId: number): void {

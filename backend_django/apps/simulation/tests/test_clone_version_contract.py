@@ -22,9 +22,11 @@ from django.db import models
 from rest_framework.test import APIClient
 
 from apps.simulation.models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
+    Competency,
     DecisionOption,
     DialogueChoice,
     DialogueLine,
@@ -32,6 +34,7 @@ from apps.simulation.models import (
     MapObject,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -57,13 +60,15 @@ ENTITIES = {
     DecisionOption: ("id", {"source_node": "node_key", "target_node": "node_key"}, {"case_version"}),
     SceneMap: ("id", {"node": "node_key"}, {"case_version"}),
     CollisionZone: ("id", {"scene_map": "map_key"}, set()),
-    MapObject: ("id", {"scene_map": "map_key", "decision_option": "option_key"}, set()),
+    MapObject: ("id", {"scene_map": "map_key", "decision_option": "option_key", "character": "character_key"}, set()),
+    CaseCharacter: ("id", {}, {"case_version"}),
+    SceneHint: ("hint_order", {"scene_map": "map_key"}, set()),
     DialogueTree: ("id", {"scene_map": "map_key", "map_object": "object_key"}, set()),
     DialogueLine: ("display_order", {"dialogue_tree": "tree_key"}, set()),
     DialogueChoice: ("display_order", {"dialogue_tree": "tree_key", "decision_option": "option_key"}, set()),
     ClinicalTool: ("id", {}, {"case_version"}),
     Rubric: ("id", {}, {"case_version", "created_by"}),
-    RubricCriterion: ("display_order", {"rubric": "name"}, set()),
+    RubricCriterion: ("display_order", {"rubric": "name", "competency_ref": "code"}, set()),
 }
 
 #: Campos de lista JSON (los demás `*_json` son objetos).
@@ -85,16 +90,16 @@ def admin(db):
 
 # ── filas y comparación ──────────────────────────────────────────────────────
 _PARENT = {
-    CollisionZone: "scene_map", MapObject: "scene_map", DialogueTree: "scene_map",
+    CollisionZone: "scene_map", MapObject: "scene_map", DialogueTree: "scene_map", SceneHint: "scene_map",
     DialogueLine: "dialogue_tree", DialogueChoice: "dialogue_tree", RubricCriterion: "rubric",
 }
 
 
 def _rows(model, version_id):
     """Filas de una entidad de la versión, en el orden en que el clon las crea."""
-    if model in (SimulationNode, DecisionOption, SceneMap, ClinicalTool, Rubric):
+    if model in (SimulationNode, DecisionOption, SceneMap, ClinicalTool, Rubric, CaseCharacter):
         queryset = model.objects.filter(case_version_id=version_id)
-    elif model in (CollisionZone, MapObject, DialogueTree):
+    elif model in (CollisionZone, MapObject, DialogueTree, SceneHint):
         queryset = model.objects.filter(scene_map__case_version_id=version_id)
     elif model in (DialogueLine, DialogueChoice):
         queryset = model.objects.filter(dialogue_tree__scene_map__case_version_id=version_id)
@@ -172,13 +177,21 @@ def fuente(admin, autor):
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))
-    obj = MapObject.objects.create(scene_map=scene_map, decision_option=decision, **_all_distinct(MapObject, object_type="PROP"))
+    SceneHint.objects.create(scene_map=scene_map, **_all_distinct(SceneHint))
+    character = CaseCharacter.objects.create(case_version=version, **_all_distinct(CaseCharacter))
+    obj = MapObject.objects.create(
+        scene_map=scene_map, decision_option=decision, character=character,
+        **_all_distinct(MapObject, object_type="PROP"),
+    )
     tree = DialogueTree.objects.create(scene_map=scene_map, map_object=obj, **_all_distinct(DialogueTree))
     DialogueLine.objects.create(dialogue_tree=tree, **_all_distinct(DialogueLine))
     DialogueChoice.objects.create(dialogue_tree=tree, decision_option=decision, **_all_distinct(DialogueChoice))
     ClinicalTool.objects.create(case_version=version, **_all_distinct(ClinicalTool))
     rubric = Rubric.objects.create(case_version=version, created_by=autor, **_all_distinct(Rubric))
-    RubricCriterion.objects.create(rubric=rubric, **_all_distinct(RubricCriterion))
+    competency = Competency.objects.create(code="P03_COMPETENCIA", name="p03-competencia")
+    RubricCriterion.objects.create(
+        rubric=rubric, competency_ref=competency, **_all_distinct(RubricCriterion)
+    )
     return version
 
 

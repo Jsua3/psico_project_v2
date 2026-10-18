@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { SimulationService } from './simulation.service';
 
 describe('SimulationService.getCatalog', () => {
@@ -9,7 +9,7 @@ describe('SimulationService.getCatalog', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SimulationService, provideHttpClient(withXhr()), provideHttpClientTesting()],
+      providers: [SimulationService, provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(SimulationService);
     httpMock = TestBed.inject(HttpTestingController);

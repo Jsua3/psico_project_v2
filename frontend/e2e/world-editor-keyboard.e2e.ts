@@ -60,9 +60,16 @@ test('el editor de mundo se maneja solo con teclado: colocar, mover, borrar, dib
 
   // ── Llegar al editor de mundo: pestañas con flechas y el selector de sala con Intro ───────────────────────────
   await page.getByRole('tab', { name: 'Grafo DAG' }).focus();
-  // Con las flechas hasta «Mundo»: no se cuentan las pestañas (F10-6 metió «Revisión» antes y 6 flechas ya no bastaban).
-  for (let step = 0; step < 9 && !(await page.getByRole('tab', { name: 'Mundo', selected: true }).isVisible()); step++) {
+  // Con las flechas hasta «Mundo»: las que hacen falta salen de la lista de pestañas (F10-6 metió «Revisión» antes y 6
+  // flechas ya no bastaban) y cada una espera a que su pestaña quede seleccionada. Preguntar «¿ya es Mundo?» entre
+  // pulsaciones se adelanta al dibujo de la selección y da la vuelta a la lista (la prueba fallaba solo bajo carga).
+  const tabNames = (await page.getByRole('tab').allTextContents()).map(name => name.trim());
+  const from = tabNames.indexOf('Grafo DAG');
+  const steps = tabNames.indexOf('Mundo') - from;
+  expect(steps, 'la pestaña «Mundo» va después de «Grafo DAG»').toBeGreaterThan(0);
+  for (let step = 1; step <= steps; step++) {
     await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: tabNames[from + step], selected: true })).toBeVisible();
   }
   await expect(page.getByRole('tab', { name: 'Mundo', selected: true })).toBeVisible();
   const loaded = page.waitForResponse(

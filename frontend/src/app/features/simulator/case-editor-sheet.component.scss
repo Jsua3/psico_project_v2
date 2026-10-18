@@ -23,3 +23,11 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-1);
 }
+
+// A qué sala pertenece la ayuda que se edita (un renglón, no un campo).
+.cs-context {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}

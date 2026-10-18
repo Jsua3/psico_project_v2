@@ -284,7 +284,7 @@ def test_el_contexto_incluye_el_titulo_del_caso(estudiante, intento, red):
 # ─── Auditoría ───────────────────────────────────────────────────────────────
 @override_settings(AI_ASSISTANT_ENABLED=True, AI_ASSISTANT_PROVIDER="openai",
                    AI_ASSISTANT_API_KEY="k", AI_ASSISTANT_MODEL="m")
-def test_auditoria_recorta_la_pregunta_y_registra_la_decision(estudiante, intento, red):
+def test_auditoria_registra_cuanto_se_pregunto_y_la_decision_pero_no_la_pregunta(estudiante, intento, red):
     red["reply"] = _openai_reply("respuesta")
     largo = "x" * 800
 
@@ -292,9 +292,10 @@ def test_auditoria_recorta_la_pregunta_y_registra_la_decision(estudiante, intent
 
     entry = AuditLog.objects.filter(action="AI_ASSISTANT_QUERY", resource_id=intento).order_by("-id").first()
     context = json.loads(entry.context_json)
-    assert context["question"] == "x" * 500
+    assert "question" not in context  # texto libre de una persona: la auditoría no lo guarda (revisión de E5, I-2)
+    assert context["question_length"] == 800
     assert context["node"] == 3
     assert context["decision_taken"] is True
     assert context["response_length"] == len("respuesta")
-    # La pregunta completa sí viaja al proveedor; solo la auditoría la recorta.
+    # La pregunta completa sí viaja al proveedor; la auditoría solo sabe cuánto preguntó.
     assert red["calls"][0]["body"]["messages"][-1]["content"] == largo

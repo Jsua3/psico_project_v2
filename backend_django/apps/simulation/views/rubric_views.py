@@ -1,14 +1,35 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
+from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
-from ..services import rubric_service
+from ..services import competencies, rubric_service
 
 
 _CAN_READ = policy_permission("rubric", "read")
 _CAN_EDIT = policy_permission("rubric", "edit")
+
+
+class CompetencyListCreateView(APIView):
+    """``GET /api/competencies`` (personal) y ``POST`` (ADMIN): el catálogo de competencias (E3-9)."""
+
+    def get_permissions(self):
+        action = "read" if self.request.method == "GET" else "manage"
+        return [policy_permission("competency", action)()]
+
+    def get(self, request):
+        return api_ok(competencies.list_competencies())
+
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
+    def post(self, request):
+        return api_ok(
+            competencies.create_competency(request.data),
+            message="Competencia creada",
+            http_status=status.HTTP_201_CREATED,
+        )
 
 
 class RubricListCreateView(APIView):
@@ -18,6 +39,7 @@ class RubricListCreateView(APIView):
     def get(self, request):
         return api_ok(rubric_service.list_rubrics(request.user))
 
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         return api_ok(
             rubric_service.create_rubric(request.data, request.user),

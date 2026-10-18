@@ -10,7 +10,7 @@ import { UiToastHost } from './shared/ui/toast/ui-toast-host';
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, UiToastHost],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="psy-skip-link" href="#main-content" (click)="skipTo($event, 'main-content')">Saltar al contenido principal</a>
     @if (isGameRoute()) {

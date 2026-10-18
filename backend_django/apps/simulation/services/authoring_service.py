@@ -29,12 +29,17 @@ from shared.exceptions import ApiError
 from .audit_service import auditable
 from .authoring import (
     cases,
+    characters,
     editor_view,
+    definition_io,
     graph,
+    hints,
+    importing,
     lifecycle,
     publication,
     scenes,
     tools,
+    validation,
     world_definition,
 )
 
@@ -53,10 +58,29 @@ def editor(case_version_id):
     return editor_view.editor(case_version_id)
 
 
+def definition_of(case_version_id):
+    """E4-7: el documento de la versión con su hash, su sello y su reutilización."""
+    return definition_io.definition_view(case_version_id)
+
+
+@auditable(
+    "CASE_IMPORTED", "CASE_VERSION", -1,
+    context=lambda args, kwargs, result: {"caseVersionId": result["caseVersionId"], "caseId": result["caseId"]},
+)
+def import_case(raw, actor):
+    """E4-5: crea un borrador desde el documento del caso (bytes JSON); el 400 lleva los ``ValidationIssue``."""
+    return importing.import_bytes(raw, actor)
+
+
 # ─── Nodes and decisions ─────────────────────────────────────────────────────
 @auditable("ADMIN_CREATE_NODE", "CASE_VERSION")
 def create_node(case_version_id, request):
     return graph.create_node(case_version_id, request)
+
+
+@auditable("ADMIN_REORDER_NODES", "CASE_VERSION")
+def reorder_nodes(case_version_id, request):
+    return graph.reorder_nodes(case_version_id, request)
 
 
 @auditable("ADMIN_UPDATE_NODE", "NODE", 1)
@@ -146,6 +170,44 @@ def delete_tool(case_version_id, tool_id, revision=None):
     return tools.delete_tool(case_version_id, tool_id, revision)
 
 
+# ─── Pistas por escena (E3-5) ────────────────────────────────────────────────
+@auditable("ADMIN_CREATE_HINT", "MAP", 1)
+def create_hint(case_version_id, map_id, request):
+    return hints.create_hint(case_version_id, map_id, request)
+
+
+@auditable("ADMIN_UPDATE_HINT", "HINT", 1)
+def update_hint(case_version_id, hint_id, request):
+    return hints.update_hint(case_version_id, hint_id, request)
+
+
+@auditable("ADMIN_DELETE_HINT", "HINT", 1)
+def delete_hint(case_version_id, hint_id, revision=None):
+    return hints.delete_hint(case_version_id, hint_id, revision)
+
+
+# ─── Ficha del caso (E3-4) ───────────────────────────────────────────────────
+@auditable("ADMIN_UPDATE_BRIEF", "CASE_VERSION")
+def update_brief(case_version_id, request):
+    return cases.update_brief(case_version_id, request)
+
+
+# ─── Personajes del caso (E3-3) ──────────────────────────────────────────────
+@auditable("ADMIN_CREATE_CHARACTER", "CASE_VERSION")
+def create_character(case_version_id, request):
+    return characters.create_character(case_version_id, request)
+
+
+@auditable("ADMIN_UPDATE_CHARACTER", "CHARACTER", 1)
+def update_character(case_version_id, character_id, request):
+    return characters.update_character(case_version_id, character_id, request)
+
+
+@auditable("ADMIN_DELETE_CHARACTER", "CHARACTER", 1)
+def delete_character(case_version_id, character_id, revision=None):
+    return characters.delete_character(case_version_id, character_id, revision)
+
+
 # ─── Checklist, publish and clone ────────────────────────────────────────────
 @auditable("ADMIN_CHECKLIST_UPDATE", "CASE_VERSION")
 def update_checklist(case_version_id, request, actor):
@@ -231,7 +293,7 @@ def validate_world(case_version_id):
 
 
 def validate_case(case_version_id):
-    return world_definition.validate_case(case_version_id)
+    return validation.validate_case(case_version_id)
 
 
 @auditable("ADMIN_SAVE_WORLD", "CASE_VERSION")

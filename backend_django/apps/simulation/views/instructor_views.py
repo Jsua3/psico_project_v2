@@ -2,13 +2,92 @@
 
 All endpoints PROFESOR/ADMIN.
 """
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import status
 from rest_framework.views import APIView
 
+from apps.simulation.models import AttemptStatus
+from apps.simulation.serializers.contracts import InstructorAttemptsListSerializer
+from shared.exceptions import ApiError
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from apps.simulation.serializers.requests import ReplaceAttemptRequest
 from apps.simulation.services import instructor_service
+
+
+def _int_param(request, *names, maximum=None):
+    for name in names:
+        raw = request.query_params.get(name)
+        if raw is not None and raw != "":
+            try:
+                value = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ApiError(
+                    "INVALID_QUERY_PARAM",
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                    f"El parámetro '{name}' debe ser un número entero.",
+                    status.HTTP_400_BAD_REQUEST,
+                ) from exc
+            if maximum is not None and value > maximum:
+                raise ApiError(
+                    "INVALID_QUERY_PARAM",
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                    f"El parámetro '{name}' no puede pasar de {maximum}.",
+                    status.HTTP_400_BAD_REQUEST,
+                )
+            return value
+    return None
+
+
+def _status_param(request):
+    """``estado`` (o ``status``): un estado conocido del intento. Uno mal escrito no es «sin resultados»."""
+    raw = request.query_params.get("estado") or request.query_params.get("status")
+    if not raw:
+        return None
+    if raw not in AttemptStatus.values:
+        raise ApiError(
+            "INVALID_QUERY_PARAM",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El parámetro 'estado' debe ser uno de: {', '.join(AttemptStatus.values)}.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+    return raw
+
+
+class InstructorAttemptsView(APIView):
+    permission_classes = [policy_permission("attempt", "review")]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("grupoId", int, description="Solo los estudiantes de este grupo (el docente debe serlo)."),
+            OpenApiParameter("estudianteId", int, description="Solo los intentos de este estudiante, dentro del alcance."),
+            OpenApiParameter("caseVersionId", int, description="Solo los intentos de esta versión de caso."),
+            OpenApiParameter("estado", str, enum=AttemptStatus.values, description="Solo los intentos en este estado."),
+            OpenApiParameter("page", int, description="Página, desde 1 y hasta 1000000 (más allá es un 400)."),
+            OpenApiParameter("pageSize", int, description="Intentos por página (tope 200)."),
+        ],
+        responses={200: envelope_of(InstructorAttemptsListSerializer), **error_responses(400, 401, 403, 404)},
+    )
+    def get(self, request):
+        grupo_id = _int_param(request, "grupoId", "groupId")
+        estudiante_id = _int_param(request, "estudianteId", "studentId")
+        case_version_id = _int_param(request, "caseVersionId")
+        estado = _status_param(request)
+        page = _int_param(request, "page", maximum=instructor_service.MAX_PAGE) or 1
+        page_size = _int_param(request, "pageSize", "limit") or instructor_service.DEFAULT_PAGE_SIZE
+        return api_ok(
+            instructor_service.list_attempts(
+                request.user,
+                grupo_id=grupo_id,
+                estudiante_id=estudiante_id,
+                case_version_id=case_version_id,
+                estado=estado,
+                page=page,
+                page_size=page_size,
+            )
+        )
 
 
 class RecentAttemptsView(APIView):

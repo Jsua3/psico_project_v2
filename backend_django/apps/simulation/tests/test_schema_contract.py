@@ -29,14 +29,15 @@ from apps.users.models import CustomUser
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-08")]
 
 TABLES = {
-    "users", "access_requests", "grupos", "grupo_estudiante", "grupo_case_version",
+    "users", "access_requests", "grupos", "grupo_estudiante", "case_assignments",
     "student_case_completion", "simulation_cases", "case_versions", "simulation_nodes",
     "decision_options", "simulation_attempts_v2", "attempt_events", "reflection_journals",
     "attempt_world_states", "rubrics", "rubric_criteria", "rubric_evaluations",
     "criterion_scores", "simulation_rubric_assignments", "publication_checklists",
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
-    "attempt_reports", "case_reviews",
+    "attempt_reports", "case_reviews", "case_characters", "scene_hints", "attempt_hint_views",
+    "competencies",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -48,6 +49,7 @@ MAP_OBJECT_TYPES = [
 UNIQUE_COLUMNS = {
     "users": [("email",)],
     "grupos": [("codigo",)],
+    "competencies": [("code",)],
     "simulation_cases": [("code",)],
     "simulation_attempts_v2": [("attempt_token_hash",), ("student_id", "case_version_id")],  # el 2.º, parcial: solo abiertos
     "student_case_completion": [("student_id", "simulation_case_id")],
@@ -58,6 +60,8 @@ UNIQUE_COLUMNS = {
     "attempt_events": [("attempt_id", "request_id")],
     "attempt_reports": [("attempt_id",)],
     "case_reviews": [("case_version_id",)],  # parcial: una sola revisión pendiente por versión
+    # parciales: una asignación por (grupo, versión) y otra por (estudiante, versión)
+    "case_assignments": [("grupo_id", "case_version_id"), ("estudiante_id", "case_version_id")],
     "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
@@ -68,6 +72,8 @@ UNIQUE_COLUMNS = {
     "dialogue_lines": [("dialogue_tree_id", "display_order")],
     "dialogue_choices": [("dialogue_tree_id", "choice_key")],
     "clinical_tools": [("case_version_id", "tool_code")],
+    "case_characters": [("case_version_id", "character_key")],
+    "attempt_hint_views": [("attempt_id", "hint_id")],
     "simulation_rubric_assignments": [("case_version_id",)],  # parcial: solo active = true
 }
 
@@ -81,13 +87,21 @@ INDEXES = {
     "uq_attempts_open_per_student_case",
     "uq_case_reviews_one_pending",
     "idx_grupo_est_student_status",
+    "idx_case_assign_group",
+    "idx_case_assign_student",
+    "idx_case_assign_version",
+    "uq_case_assignments_group_version",
+    "uq_case_assignments_student_version",
 }
 
 #: ON DELETE de cada FK de dominio (todas las demás de la lista son NO ACTION).
 ON_DELETE = {
     ("attempt_events", "attempt_id"): "CASCADE",
+    ("attempt_hint_views", "attempt_id"): "CASCADE",
+    ("attempt_hint_views", "hint_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
+    ("case_characters", "case_version_id"): "CASCADE",
     ("case_reviews", "case_version_id"): "CASCADE",
     ("case_versions", "last_edited_by"): "SET NULL",
     ("case_versions", "simulation_case_id"): "CASCADE",
@@ -103,11 +117,14 @@ ON_DELETE = {
     ("dialogue_lines", "dialogue_tree_id"): "CASCADE",
     ("dialogue_trees", "map_object_id"): "CASCADE",
     ("dialogue_trees", "scene_map_id"): "CASCADE",
-    ("grupo_case_version", "case_version_id"): "CASCADE",
-    ("grupo_case_version", "grupo_id"): "CASCADE",
+    ("case_assignments", "assigned_by"): "SET NULL",
+    ("case_assignments", "case_version_id"): "CASCADE",
+    ("case_assignments", "estudiante_id"): "CASCADE",
+    ("case_assignments", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "estudiante_id"): "CASCADE",
     ("grupo_estudiante", "grupo_id"): "CASCADE",
     ("grupo_estudiante", "invited_by"): "SET NULL",
+    ("map_objects", "character_id"): "SET NULL",
     ("map_objects", "decision_option_id"): "SET NULL",
     ("map_objects", "scene_map_id"): "CASCADE",
     ("publication_checklist_items", "checklist_id"): "CASCADE",
@@ -117,6 +134,8 @@ ON_DELETE = {
     ("rubric_criteria", "rubric_id"): "CASCADE",
     ("rubric_evaluations", "attempt_id"): "CASCADE",
     ("rubrics", "case_version_id"): "CASCADE",
+    ("rubric_criteria", "competency_id"): "SET NULL",
+    ("scene_hints", "scene_map_id"): "CASCADE",
     ("scene_maps", "case_version_id"): "CASCADE",
     ("scene_maps", "node_id"): "CASCADE",
     ("simulation_nodes", "case_version_id"): "CASCADE",
@@ -152,6 +171,16 @@ def _case_versions_status():
     CaseVersion.objects.filter(pk=_published_version().pk).update(status="ZOMBIE")
 
 
+def _case_versions_seal():
+    # E4-4: el sello es completo o no es: una fecha sin huella (o al revés) no entra.
+    CaseVersion.objects.filter(pk=_published_version().pk).update(validated_at=None, definition_hash="sha256:" + "a" * 64)
+
+
+def _case_versions_reuse_ratio():
+    # E4-7: la reutilización es una razón entre 0 y 1.
+    CaseVersion.objects.filter(pk=_published_version().pk).update(reuse_ratio=2)
+
+
 def _decision_options_classification():
     DecisionOption.objects.filter(pk=DecisionOption.objects.first().pk).update(classification="MAYBE")
 
@@ -171,6 +200,24 @@ def _grupo_estudiante_status():
 
     grupo = Grupo.objects.create(nombre="G", codigo="SCH-CK", profesor=_admin())
     GrupoEstudiante.objects.create(grupo=grupo, estudiante=_admin(), status="TALVEZ")
+
+
+def _case_assignments_target():
+    from apps.grupos.models import CaseAssignment
+
+    CaseAssignment.objects.create(case_version=_published_version())  # sin grupo ni estudiante
+
+
+def _case_assignments_window():
+    import datetime
+
+    from apps.grupos.models import CaseAssignment, Grupo
+
+    grupo = Grupo.objects.create(nombre="G", codigo="SCH-WIN", profesor=_admin())
+    CaseAssignment.objects.create(
+        grupo=grupo, case_version=_published_version(),
+        opens_at=datetime.datetime(2026, 10, 20), closes_at=datetime.datetime(2026, 10, 19),
+    )
 
 
 def _case_review(**fields):
@@ -219,6 +266,8 @@ def _attempts_user_trust_range():
 CHECKS = {
     "users_role_check": _users_role,
     "case_versions_status_check": _case_versions_status,
+    "case_versions_seal_check": _case_versions_seal,
+    "case_versions_reuse_ratio_check": _case_versions_reuse_ratio,
     "decision_options_classification_check": _decision_options_classification,
     "map_objects_object_type_check": _map_objects_object_type,
     "publication_checklists_status_check": _publication_checklists_status,
@@ -227,6 +276,8 @@ CHECKS = {
     "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
     "ck_attempts_user_trust_range": _attempts_user_trust_range,
     "grupo_estudiante_status_check": _grupo_estudiante_status,
+    "case_assignments_target_check": _case_assignments_target,
+    "case_assignments_window_check": _case_assignments_window,
     "case_reviews_decision_check": _case_reviews_decision,
     "case_reviews_reason_check": _case_reviews_reason,
     "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,
@@ -266,7 +317,6 @@ def test_las_tablas_de_union_tienen_clave_primaria_compuesta():
     with connection.cursor() as cursor:
         for table, columns in {
             "grupo_estudiante": ["grupo_id", "estudiante_id"],
-            "grupo_case_version": ["grupo_id", "case_version_id"],
         }.items():
             constraints = connection.introspection.get_constraints(cursor, table)
             primary = [c["columns"] for c in constraints.values() if c["primary_key"]]

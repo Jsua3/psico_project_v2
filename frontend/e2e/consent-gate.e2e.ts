@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { leaveBrief } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -34,6 +35,8 @@ async function openCase(page: Page) {
   await page.goto('/portal/simulador');
   await page.locator('.catalog-cases').getByRole('button', { name: /^(iniciar simulación|iniciar nuevo intento|continuar)$/i }).first().click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
+  // Sin intento abierto el catálogo lleva primero a la ficha del caso (F10-1); con uno abierto, «Continuar» va al juego.
+  await leaveBrief(page);
   // Espera determinista: aparece el prompt de reanudación (si hay intento
   // activo) O directamente la advertencia de contenido — sin carreras.
   const resume = page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });

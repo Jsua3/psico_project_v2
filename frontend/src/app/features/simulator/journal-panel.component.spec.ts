@@ -198,3 +198,86 @@ describe('JournalPanelComponent: «Trazabilidad» con los títulos completos', (
     expect(source).toMatch(/\.journal-context li \{[^}]*overflow-wrap: anywhere;/);
   });
 });
+
+// req: RNF-004, WCAG 2.4.3 (plan visual F9-2: al cerrar la bitácora el foco no se pierde)
+describe('JournalPanelComponent: el foco vuelve a donde estaba al cerrarse', () => {
+  let fixture: ComponentFixture<JournalPanelComponent>;
+  let opener: HTMLButtonElement;
+  const added: HTMLElement[] = [];
+
+  /** Un botón fuera del panel que tiene el foco, como el de la bitácora en la cabecera del juego. */
+  function addFocusable(tag: 'button' | 'div' = 'button', id?: string): HTMLButtonElement {
+    const element = document.createElement(tag) as HTMLButtonElement;
+    if (id) element.id = id;
+    if (tag === 'div') element.tabIndex = -1;
+    document.body.appendChild(element);
+    added.push(element);
+    return element;
+  }
+
+  async function setOpen(open: boolean): Promise<void> {
+    writeInputSignal(fixture.componentInstance.open, open);
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [JournalPanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+    });
+    fixture = TestBed.createComponent(JournalPanelComponent);
+    document.body.appendChild(fixture.nativeElement as HTMLElement);
+    fixture.detectChanges();
+    opener = addFocusable();
+    opener.focus();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    added.splice(0).forEach(element => element.remove());
+    TestBed.resetTestingModule();
+  });
+
+  it('vuelve al botón que la abrió', async () => {
+    await setOpen(true);
+    // El foco entró al panel (su botón de cerrar o el primer control).
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('button')?.focus();
+    expect(document.activeElement).not.toBe(opener);
+
+    await setOpen(false);
+
+    expect(document.activeElement, 'el foco regresó al botón que abrió la bitácora').toBe(opener);
+  });
+
+  it('si quien la abrió ya no existe (un menú que se cerró) el foco va al contenedor del juego, no a <body>', async () => {
+    const game = addFocusable('div', 'game-area');
+    await setOpen(true);
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('button')?.focus();
+    opener.remove();
+
+    await setOpen(false);
+
+    expect(document.activeElement).toBe(game);
+  });
+
+  it('si otra capa tomó el foco al cerrarse (la pausa) no se lo quita', async () => {
+    const other = addFocusable();
+    await setOpen(true);
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('button')?.focus();
+    writeInputSignal(fixture.componentInstance.open, false);
+    other.focus();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(document.activeElement).toBe(other);
+  });
+
+  it('abierta sin que nada tuviera el foco (tecla J con el foco en <body>) no inventa un destino al abrir', async () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    await setOpen(true);
+    await setOpen(false);
+
+    expect(document.activeElement === document.body || document.activeElement === null).toBe(true);
+  });
+});

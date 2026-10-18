@@ -1,6 +1,8 @@
 """Reportes endpoints (solo-simulador). Todo el controller es PROFESOR/ADMIN.
 El export CSV devuelve bytes crudos (attachment), NO el envoltorio JSON."""
 from django.http import HttpResponse
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.views import APIView
 
 from shared.permissions import policy_permission
@@ -49,6 +51,10 @@ class ReporteGrupoView(APIView):
 class ReporteGrupoExportView(APIView):
     permission_classes = [policy_permission("analytics", "read")]
 
+    @extend_schema(
+        parameters=[OpenApiParameter("caseVersionId", int, description="Solo los intentos de esta versión de caso.")],
+        responses={(200, "text/csv"): OpenApiTypes.STR},
+    )
     def get(self, request, grupo_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
         csv = services.exportar_csv(grupo_id, case_version_id, request.user)

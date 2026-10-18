@@ -2,12 +2,14 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
@@ -151,6 +153,7 @@ class AccessRequestCreateView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         ser = AccessRequestCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)

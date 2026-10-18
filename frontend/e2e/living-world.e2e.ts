@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
-import { nearbyAction, startFreshAttempt } from './support/siep-flow';
+import { leaveBrief, nearbyAction, startFreshAttempt } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -28,6 +28,7 @@ async function enterPlayableCase(page: Page) {
   await page.goto('/portal/jugar');
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
+  await leaveBrief(page);
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
   // Intento nuevo: la posición de salida no depende de lo que dejó otra prueba.
   const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
@@ -64,6 +65,7 @@ test('in-case world loads with the HUD', async ({ page }) => {
   // spawns next to the first door, so the banner is present on load).
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
+  await leaveBrief(page);
   // Espera determinista: prompt de reanudación (si hay intento activo) O la
   // advertencia de contenido — evita la carrera tras waitForURL.
   const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });

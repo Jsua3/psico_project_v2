@@ -17,7 +17,7 @@ type ParticleDensity = 'low' | 'medium' | 'high';
   selector: 'app-siep-particle-layer',
   standalone: true,
   template: `<canvas #canvas class="siep-particle-layer__canvas" aria-hidden="true"></canvas>`,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       position: absolute;

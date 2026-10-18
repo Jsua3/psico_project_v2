@@ -4,6 +4,7 @@ Cada mutación de autoría devuelve esta vista completa, así que casi todo el
 subsistema depende de este módulo.
 """
 from apps.simulation.models import (
+    CaseCharacter,
     CaseReview,
     ClinicalTool,
     DecisionOption,
@@ -11,10 +12,11 @@ from apps.simulation.models import (
     PublicationChecklist,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
-from shared.jsonutils import read_string_list as _read_string_list
+from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
 from .guards import require_version
@@ -47,6 +49,8 @@ def editor(case_version_id):
         "title": version.simulation_case.title,
         "semanticVersion": version.semantic_version,
         "status": version.status,
+        "context": version.narrative_context or "",
+        "learningObjectives": _read_string_list(version.learning_objectives),
         "nodes": [node_editor_state(n) for n in nodes],
         "decisions": [decision_edge(d) for d in decisions],
         "maps": [map_editor_state(m) for m in maps],
@@ -54,6 +58,16 @@ def editor(case_version_id):
         "tools": [
             clinical_tool_editor(t)
             for t in ClinicalTool.objects.filter(case_version_id=case_version_id).order_by("id")
+        ],
+        "hints": [
+            hint_editor(h)
+            for h in SceneHint.objects.filter(scene_map__case_version_id=case_version_id)
+            .order_by("scene_map_id", "hint_order", "id")
+        ],
+        "characters": [
+            character_editor(c)
+            for c in CaseCharacter.objects.filter(case_version_id=case_version_id)
+            .order_by("display_order", "id")
         ],
         "rubrics": [
             rubric_view(r)
@@ -149,6 +163,8 @@ def node_editor_state(node):
         "startNode": node.start_node,
         "positionX": node.position_x,
         "positionY": node.position_y,
+        "decisionPrompt": node.decision_prompt,
+        "displayOrder": node.display_order,
     }
 
 
@@ -171,6 +187,7 @@ def decision_edge(d):
         "consequenceText": d.consequence_text,
         "theoryBasis": d.theory_basis,
         "feedbackText": d.feedback_text,
+        "effects": _read_map(d.effects),
     }
 
 
@@ -207,8 +224,25 @@ def map_object_editor(o):
         "interactionPrompt": o.interaction_prompt,
         "interactionText": o.interaction_text,
         "decisionOptionId": o.decision_option_id,
+        "characterId": o.character_id,
         "toolCode": o.tool_code,
         "mapId": o.scene_map_id,
+    }
+
+
+def hint_editor(h):
+    return {"id": h.id, "mapId": h.scene_map_id, "order": h.hint_order, "text": h.text}
+
+
+def character_editor(c):
+    return {
+        "id": c.id,
+        "key": c.character_key,
+        "displayName": c.display_name,
+        "roleLabel": c.role_label,
+        "portraitKey": c.portrait_key,
+        "showInBrief": c.show_in_brief,
+        "displayOrder": c.display_order,
     }
 
 

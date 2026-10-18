@@ -1,0 +1,21 @@
+<section class="scene-hint" aria-label="Pistas de la escena">
+  <div class="scene-hint__bar">
+    <button ui-button type="button" variant="secondary" size="sm" icon="lightbulb" [loading]="busy()" [disabledReason]="blockedReason()" (click)="ask()">Ver pista</button>
+    @if (counter(); as text) {
+      <span class="scene-hint__counter">{{ text }}</span>
+    }
+    @if (message(); as text) {
+      <span class="scene-hint__message">{{ text }}</span>
+    }
+    @if (loadFailed()) {
+      <button ui-button type="button" variant="ghost" size="sm" (click)="load()">Reintentar</button>
+    }
+  </div>
+  @if (state()?.shown?.length) {
+    <ol class="scene-hint__list" tabindex="0" aria-label="Pistas que ya viste">
+      @for (hint of state()!.shown; track hint.id) {
+        <li class="scene-hint__item">{{ hint.text }}</li>
+      }
+    </ol>
+  }
+</section>

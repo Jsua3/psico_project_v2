@@ -78,6 +78,14 @@ class NodeRequest(serializers.Serializer):
     startNode = _flag()
     positionX = _number()
     positionY = _number()
+    # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
+    decisionPrompt = _text()
+
+
+class NodeReorderRequest(serializers.Serializer):
+    """``PATCH …/nodes/reorder``: los ids de todos los nodos, en el orden pedido (E3-6)."""
+
+    order = serializers.ListField(child=LenientIntegerField())
 
 
 class DecisionRequest(serializers.Serializer):
@@ -96,6 +104,8 @@ class DecisionRequest(serializers.Serializer):
     consequenceText = _text()
     theoryBasis = _text()
     feedbackText = _text()
+    # Los efectos de la opción (E3-8): el servicio los valida con su forma y su campo.
+    effects = serializers.DictField(required=False, allow_null=True)
 
 
 class MapRequest(serializers.Serializer):
@@ -134,6 +144,8 @@ class ObjectRequest(serializers.Serializer):
     interactionText = _text(default="")
     toolCode = _text(80)
     decisionOptionId = _number()
+    # «Ausente = no tocar»; ``null`` desvincula el personaje (E3-3).
+    characterId = _number()
 
 
 class DialogueLineRequest(serializers.Serializer):
@@ -158,6 +170,34 @@ class ToolRequest(serializers.Serializer):
     icon = _text(80)
     category = _text(80)
     description = _text(default="")
+
+
+class CharacterRequest(serializers.Serializer):
+    """Un personaje del caso (E3-3); los opcionales ausentes no se tocan."""
+
+    characterKey = serializers.CharField(max_length=120)
+    displayName = serializers.CharField(max_length=255)
+    roleLabel = _text(255)
+    portraitKey = _text(120)
+    showInBrief = _flag()
+    displayOrder = _number()
+
+
+class BriefRequest(serializers.Serializer):
+    """La ficha del caso (E3-4): contexto y objetivos; el servicio valida el texto y los topes."""
+
+    context = _text()
+    learningObjectives = serializers.ListField(
+        child=serializers.CharField(allow_blank=True, trim_whitespace=False),
+        required=False, allow_null=True,
+    )
+
+
+class HintRequest(serializers.Serializer):
+    """Una pista de escena (E3-5): el texto lo valida el servicio (plano, ≤ 280)."""
+
+    text = serializers.CharField(trim_whitespace=False)
+    hintOrder = _number()
 
 
 class ChecklistRequest(serializers.Serializer):

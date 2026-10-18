@@ -61,10 +61,21 @@ class CaseVersion(models.Model):
         max_length=24, choices=CaseVersionStatus.choices, default=CaseVersionStatus.DRAFT
     )
     narrative_context = models.TextField(blank=True, null=True)
+    # Los objetivos de aprendizaje del caso (E3-4, RF-16): una lista de textos planos en JSON
+    # (como los demás ``*_json``). Los redacta Psicología; ``[]`` = el caso aún no los tiene.
+    learning_objectives = models.TextField(default="[]", db_default="[]")
     cloned_from = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.DO_NOTHING, db_column="cloned_from_id"
     )
     published_at = models.DateTimeField(null=True, blank=True)
+    # El sello de lo publicado (E4-4, R13): cuándo se validó el documento de la versión y la huella
+    # (``sha256:`` + 64 hex) de ese documento. Lo escribe la compuerta (``authoring.gate``) junto con
+    # ``PUBLISHED``; sin sello no se arranca un intento. Los dos o ninguno (``case_versions_seal_check``).
+    validated_at = models.DateTimeField(null=True, blank=True)
+    definition_hash = models.CharField(max_length=71, null=True, blank=True)
+    # Cuánto del original sobrevive idéntico en un clon al publicarlo (E4-7, RQ-NEG-007): entre 0 y 1 con cuatro
+    # decimales; vacío en un original y en lo publicado antes de E4. Lo escribe la compuerta (``authoring.gate``).
+    reuse_ratio = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="created_by",
         related_name="created_versions",
@@ -92,6 +103,17 @@ class CaseVersion(models.Model):
         db_table = "case_versions"
         constraints = [
             models.CheckConstraint(condition=models.Q(status__in=CaseVersionStatus.values), name="case_versions_status_check"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(validated_at__isnull=True, definition_hash__isnull=True)
+                    | models.Q(validated_at__isnull=False, definition_hash__isnull=False)
+                ),
+                name="case_versions_seal_check",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reuse_ratio__isnull=True) | (models.Q(reuse_ratio__gte=0) & models.Q(reuse_ratio__lte=1)),
+                name="case_versions_reuse_ratio_check",
+            ),
             models.UniqueConstraint(fields=["simulation_case", "semantic_version"], name="case_versions_simulation_case_id_semantic_version_key"),
         ]
         indexes = [
@@ -176,6 +198,11 @@ class SimulationNode(models.Model):
     terminal_node = models.BooleanField(default=False, db_default=False)
     position_x = models.IntegerField(null=True, blank=True, default=0)
     position_y = models.IntegerField(null=True, blank=True, default=0)
+    # El enunciado de la decisión (E3-6, RF-06): lo que el estudiante lee antes de elegir. Texto
+    # plano y blando: vacío = la escena no lo declara.
+    decision_prompt = models.TextField(default="", db_default="")
+    # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
+    display_order = models.IntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "simulation_nodes"
@@ -213,6 +240,9 @@ class DecisionOption(models.Model):
     consequence_text = models.TextField(blank=True, null=True)
     theory_basis = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
+    # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
+    # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
+    effects = models.TextField(default="{}", db_default="{}")
 
     class Meta:
         db_table = "decision_options"

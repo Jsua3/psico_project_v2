@@ -67,11 +67,14 @@ if _DATABASE_URL:
     import dj_database_url
 
     DATABASES = {
-        "default": dj_database_url.parse(_DATABASE_URL, conn_max_age=600),
+        "default": dj_database_url.parse(
+            _DATABASE_URL, conn_max_age=600, conn_health_checks=True
+        ),
     }
     # Sin tope, una BD inalcanzable bloquea /api/health ~130 s (el valor por defecto de
     # psycopg) y gunicorn mata el worker a los 120 s.
     DATABASES["default"].setdefault("OPTIONS", {}).setdefault("connect_timeout", 5)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {
@@ -81,6 +84,7 @@ else:
             "PASSWORD": os.environ.get("DB_PASSWORD", "psychosim_secret"),
             "HOST": os.environ.get("DB_HOST", "localhost"),
             "PORT": os.environ.get("DB_PORT", "5433"),
+            "CONN_HEALTH_CHECKS": True,
             "OPTIONS": {"connect_timeout": 5},
         }
     }
@@ -108,7 +112,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
     ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
 
@@ -165,37 +169,105 @@ def _env_flag(name, default=False):
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8) ───────────
-# Apagadas por defecto: lo nuevo que cambia lo que el visual consume ya está en el servidor, pero
-# el comportamiento anterior sigue activo hasta que el visual migre. Cada una se retira (pasa a
-# «activa» y se borra lo viejo) en F9-10 del visual o en E5-10, lo que ocurra primero.
-#: E1-1 · con un intento abierto, `forceNew` de un ESTUDIANTE → 409 ATTEMPT_ALREADY_OPEN (RN-07).
+# ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
+# Todas arrancan en su valor HEREDADO (apagadas): lo nuevo ya está en el servidor y `test_contract_closure.py` recorre
+# el ciclo completo con todas en su valor final, pero el cliente visual todavía depende de lo viejo. Cada una dice abajo
+# qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY` dice a qué valor van, qué las bloquea hoy y quién las retira.
+#: E1-1 · ATTEMPT_START_STRICT. Encendida: con un intento abierto, `forceNew` de un ESTUDIANTE → 409
+#: ATTEMPT_ALREADY_OPEN con el id del abierto (RN-07: el estudiante reanuda; solo el docente lo reemplaza).
+#: Apagada: `forceNew` cierra el abierto como REPLACED y empieza otro (la ruta heredada de «Reintentar caso»).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
-#: E1-7 · la respuesta de una decisión no trae clasificación, deltas ni mensaje evaluativo: la
-#: retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
+#: E1-7 · FEEDBACK_AT_CLOSE_ONLY. Encendida: la respuesta de una decisión no trae clasificación, deltas ni mensaje
+#: evaluativo (`attempt.feedback` es nulo): la retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
+#: Apagada: cada decisión devuelve de inmediato `feedback` con clasificación, deltas y mensaje (salvo que la versión
+#: del caso declare `feedbackTiming = AT_CLOSE`).
 FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
-#: E1-9 · las vistas del docente incluyen el total numérico de la evaluación (``totalScore``).
-#: Apagada (ED-2, RN-09): la evaluación es formativa, por niveles; el total no viaja y el estudiante
-#: nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
+#: E1-9 · RUBRIC_NUMERIC_TOTAL. Encendida: las vistas del docente incluyen el total numérico de la evaluación
+#: (`totalScore`). Apagada (valor final, ED-2/RN-09): la evaluación es formativa, por niveles; el total no viaja y el
+#: estudiante nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
 RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
-#: E2-5 · la publicación pasa por revisión: solo se publica desde ``IN_REVIEW`` (``POST …/publish``
-#: sobre un borrador responde 409 ``REVIEW_REQUIRED``), con la lista completa de siete ítems y la
-#: constancia de revisión de contenido de Psicología. Apagada: ``/publish`` del ADMIN sigue
-#: publicando un borrador y la constancia es opcional (el editor de hoy tiene seis casillas).
+#: E2-5 · REVIEW_WORKFLOW_STRICT. Encendida: la publicación pasa por revisión: solo se publica desde `IN_REVIEW`
+#: (`POST …/publish` sobre un borrador → 409 REVIEW_REQUIRED), con la lista completa de siete ítems y la constancia de
+#: revisión de contenido de Psicología (400 CONTENT_REVIEW_REQUIRED si falta). Apagada: `/publish` del ADMIN sigue
+#: publicando un borrador, la constancia es opcional y solo los seis ítems originales son obligatorios.
 REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
-#: E2-6 · ``revision`` es obligatoria en toda mutación de autoría (400 ``REVISION_REQUIRED`` si falta).
-#: Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409
-#: ``REVISION_CONFLICT``.
+#: E2-6 · REVISION_REQUIRED. Encendida: `revision` es obligatoria en toda mutación de autoría (400 REVISION_REQUIRED
+#: si falta). Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409 REVISION_CONFLICT.
 REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
-#: E2-10 · PUENTE transitorio (revisión de fase): invitar a un estudiante lo une al grupo de una
-#: vez, sin aceptación ni correo, como hasta E1. Apagada (por defecto): la invitación espera la
-#: respuesta del estudiante (decisión 22). Se enciende solo mientras el visual no tenga la bandeja
-#: de invitaciones (F7+) y se retira cuando la tenga.
+#: E2-10 · INVITATIONS_AUTO_ACCEPT: PUENTE transitorio. Encendida: invitar a un estudiante lo une al grupo de una vez
+#: (`ACTIVE`), sin aceptación ni correo, como hasta E1. Apagada (valor final, decisión 22): la invitación queda
+#: `INVITED` hasta que el estudiante responde.
 INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
+
+#: Una entrada por bandera: `target_contract` es el valor al que va; `retirement_gate` el hito que la retira;
+#: `blocked_by` qué impide encenderla HOY (vacío si ya está en su valor final) y `owner` quién la retira. Lo medido
+#: lo fue el 2026-10-17 corriendo el subconjunto e2e de CI con la bandera encendida; lo vuelve a comprobar quien la
+#: encienda. `test_contract_closure.py` exige las seis entradas completas.
+CONTRACT_FLAGS_REGISTRY = {
+    "ATTEMPT_START_STRICT": {
+        "env": "SIEP_ATTEMPT_START_STRICT",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (retiro de forceNew en cliente)",
+        "blocked_by": (
+            "El juego manda `forceNew` en «Reintentar caso» e «Iniciar nuevo intento» (`SimulationService.startAttempt`): "
+            "encendida, el subconjunto e2e de CI recibe 41 respuestas 409 de `POST /api/simulation/attempts` y falla en "
+            "unas treinta pruebas; la carga nocturna (`scripts/load/aula.mjs`) también abre cada ciclo con `forceNew`."
+        ),
+        "owner": "sesión visual (F9-10); la carga nocturna, estructural",
+    },
+    "FEEDBACK_AT_CLOSE_ONLY": {
+        "env": "SIEP_FEEDBACK_AT_CLOSE_ONLY",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cierre de F6/F10-4)",
+        "blocked_by": (
+            "El juego lee la clasificación y el mensaje de la respuesta de cada decisión (`simulation-play.component.ts`): "
+            "encendida, `@full-case` falla con «Cannot read properties of undefined (reading 'key')»."
+        ),
+        "owner": "sesión visual (F10-4 y F9-10)",
+    },
+    "RUBRIC_NUMERIC_TOTAL": {
+        "env": "SIEP_RUBRIC_NUMERIC_TOTAL",
+        "target_contract": False,
+        "retirement_gate": "ED-2 / RN-09 (evaluación formativa por niveles, permanece False)",
+        "blocked_by": None,
+        "owner": "producto (ED-2): permanece apagada",
+    },
+    "REVIEW_WORKFLOW_STRICT": {
+        "env": "SIEP_REVIEW_WORKFLOW_STRICT",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cierre de F10-6† en e2e)",
+        "blocked_by": (
+            "Dos pruebas e2e (el editor de casos y el conflicto del editor de mundo) publican por el atajo `/publish` o "
+            "con la lista de seis ítems; el cliente de revisión (F10-6) ya usa el ciclo de vida y la constancia."
+        ),
+        "owner": "sesión visual (F9-10)",
+    },
+    "REVISION_REQUIRED": {
+        "env": "SIEP_REVISION_REQUIRED",
+        "target_contract": True,
+        "retirement_gate": "F9-10 (cabecera X-Case-Revision obligatoria en todos los clientes)",
+        "blocked_by": (
+            "Los fixtures e2e que arman casos por API (`frontend/e2e/support/case-fixtures.ts`, `case-review`, "
+            "`case-authoring-data`…) mutan sin `revision`: encendida, fallan 21 pruebas de siete archivos; el editor del "
+            "cliente sí la manda en cada mutación."
+        ),
+        "owner": "sesión visual (F9-10)",
+    },
+    "INVITATIONS_AUTO_ACCEPT": {
+        "env": "SIEP_INVITATIONS_AUTO_ACCEPT",
+        "target_contract": False,
+        "retirement_gate": "Apagada desde E2-10; el puente se borra con F10-8†",
+        "blocked_by": None,
+        "owner": "estructural (el puente se borra cuando el visual tenga la bandeja de invitaciones, F10-8†)",
+    },
+}
 #: R16 · máximo de avisos de invitación que sale de UNA importación (el resto queda invitado y lo
 #: ve en su bandeja): acota el tiempo de la petición y el volumen de correo.
 INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25"))
+
+#: E5-7 · retención mínima de auditoría (≥ 12 meses = 360 días por defecto, RNF-007).
+AUDIT_RETENTION_DAYS = max(360, int(os.environ.get("AUDIT_RETENTION_DAYS", "360")))
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
@@ -253,6 +325,23 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend Django para el simulador SIEP (contrato idéntico a Spring).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
+    "PREPROCESSING_HOOKS": [
+        "shared.openapi.preprocess_canonical_api_endpoints",
+    ],
+    "ENUM_GENERATE_CHOICE_DESCRIPTION": False,  # sin el listado en inglés de las etiquetas de Django
+    # Un nombre estable por conjunto de valores: dos campos `status` con opciones distintas ya no chocan.
+    "ENUM_NAME_OVERRIDES": {
+        "AttemptStatusEnum": "apps.simulation.models.AttemptStatus",
+        "CaseVersionStatusEnum": "apps.simulation.models.CaseVersionStatus",
+        "AccessReasonEnum": "apps.grupos.access.REASONS",
+        "AssignmentStateEnum": "apps.grupos.contracts.ASSIGNMENT_STATES",
+        "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
+        "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
+        "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
+        "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
+        "HealthDbEnum": "shared.health_docs.HEALTH_DB",
+    },
 }
 
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).

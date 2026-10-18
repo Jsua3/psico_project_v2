@@ -4,14 +4,22 @@ dict and returns a WorldValidationState-shaped dict {errors, warnings, canPublis
 
 Snapshot shape (all coords/sizes are ints):
     {
-      "nodes":      [{"id", "startNode", "terminalNode", "x", "y"}],
-      "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason"}],
+      "nodes":      [{"id", "startNode", "terminalNode", "x", "y", "key"?}],
+      "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason",
+                      "feedbackText"?, "immediateFeedback"?}],
       "maps":       [{"id", "nodeId", "width", "height", "spawnX", "spawnY"}],
-      "objects":    [{"id", "mapId", "x", "y", "width", "height", "type"}],
+      "objects":    [{"id", "mapId", "x", "y", "width", "height", "type",
+                      "key"?, "optionId"?, "toolCode"?, "meta"?}],
       "collisions": [{"id", "mapId", "x", "y", "width", "height"}],
       "dialogues":  [{"id", "mapId"}],
+      "choices":    [{"id", "mapId", "optionId", "requiredTool"}]?,
+      "tools":      [{"code"}]?,
       "hasSafeExit": bool,
     }
+
+Las claves con «?» son de E4 (R21): sin ``choices`` no se evalúa ``OPTION_WITHOUT_TRIGGER``, sin
+``tools`` no se evalúa ``REQUIRES_UNKNOWN`` y sin ``key`` en los nodos o los objetos no se comparan
+las claves que piden las puertas; un snapshot del formato anterior sigue valiendo.
 """
 
 MAX_OBJECTS_PER_MAP = 250
@@ -22,12 +30,15 @@ MAX_MAP_HEIGHT = 1920
 DIALOGUE_WARN_THRESHOLD = 50
 
 
-def _issue(severity, code, message, ref):
-    return {"severity": severity, "code": code, "message": message, "entityRef": ref}
+def _issue(severity, code, message, ref, detail=None):
+    issue = {"severity": severity, "code": code, "message": message, "entityRef": ref}
+    if detail is not None:
+        issue["detail"] = detail  # lo que el hallazgo nombra (lo traduce validation_issues)
+    return issue
 
 
-def _err(code, message, ref=None):
-    return _issue("ERROR", code, message, ref)
+def _err(code, message, ref=None, detail=None):
+    return _issue("ERROR", code, message, ref, detail)
 
 
 def _warn(code, message, ref=None):
@@ -40,8 +51,12 @@ def validate(snapshot):
     _validate_graph(snapshot["nodes"], snapshot["decisions"], snapshot.get("maps", []), issues)
     _validate_geometry(snapshot, issues)
     _validate_ethics(snapshot["decisions"], issues)
+    _validate_feedback(snapshot["decisions"], issues)
     _validate_safe_exit(snapshot["hasSafeExit"], issues)
     _validate_limits(snapshot, issues)
+    _validate_option_triggers(snapshot, issues)
+    _validate_requirements(snapshot, issues)
+    _validate_doors(snapshot, issues)
 
     errors = [i for i in issues if i["severity"] == "ERROR"]
     warnings = [i for i in issues if i["severity"] == "WARNING"]
@@ -236,6 +251,23 @@ def _validate_ethics(decisions, issues):
             ))
 
 
+# ─── Feedback ──────────────────────────────────────────────────────────────
+def _validate_feedback(decisions, issues):
+    """Una decisión que no explica nada a quien aprende (RF-10): aviso, nunca bloquea.
+
+    Cuenta como retroalimentación la propia (``feedbackText``) o, como en el reporte, la
+    inmediata que la reemplaza cuando la propia falta (``immediateFeedback``).
+    """
+    for d in decisions:
+        explanation = (d.get("feedbackText") or d.get("immediateFeedback") or "").strip()
+        if not explanation:
+            issues.append(_warn(
+                "DECISION_WITHOUT_FEEDBACK",
+                f"La decisión id={d['id']} no tiene retroalimentación para el estudiante",
+                f"decision:{d['id']}",
+            ))
+
+
 # ─── Safe exit ─────────────────────────────────────────────────────────────
 def _validate_safe_exit(has_safe_exit, issues):
     if not has_safe_exit:
@@ -289,4 +321,106 @@ def _validate_limits(snapshot, issues):
                 "MANY_DIALOGUES",
                 f"Mapa id={m['id']} tiene {dlg_count} diálogos; considera distribuirlos en más nodos",
                 f"map:{m['id']}",
+            ))
+
+
+# ─── Opciones, requisitos y puertas (E4, R21) ──────────────────────────────
+def _validate_option_triggers(snapshot, issues):
+    """Cada opción tiene por dónde elegirse: una elección de diálogo o un objeto del mapa que la ofrezca.
+
+    Antes de E4 un caso podía publicarse con opciones que ningún diálogo ni objeto ofrecía: se
+    publicaba y no se podía jugar. Sin ``choices`` (formato anterior de la instantánea) no se evalúa.
+    """
+    if "choices" not in snapshot:
+        return
+    offered = {c["optionId"] for c in snapshot["choices"] if c.get("optionId") is not None}
+    offered |= {o["optionId"] for o in snapshot["objects"] if o.get("optionId") is not None}
+    for d in snapshot["decisions"]:
+        if d["id"] not in offered:
+            issues.append(_err(
+                "OPTION_WITHOUT_TRIGGER",
+                f"La opción id={d['id']} no la ofrece ninguna elección de diálogo ni objeto del mapa: "
+                "nadie podría elegirla",
+                f"decision:{d['id']}",
+            ))
+
+
+def _names(value):
+    return [name for name in value if isinstance(name, str)] if isinstance(value, list) else []
+
+
+def _unknown_requirement(required, ref, issues):
+    issues.append(_err("REQUIRES_UNKNOWN", f"Se pide «{required}», que el caso no tiene", ref, required))
+
+
+def _validate_requirements(snapshot, issues):
+    """Lo que una puerta, un objeto o una elección piden existe en el caso.
+
+    ``requiresTools`` y ``toolCode``/``requiredTool`` son códigos del catálogo de herramientas;
+    ``requiresNodes``, claves de escena; ``requiresInspected``, claves de objeto; ``requiresNpcs``, las
+    claves con que el motor reconoce a un NPC (``viewedNpcKeys``): la de su objeto, la de su diálogo o la
+    de un NPC ambiental de la sala. Sin ``tools`` (formato anterior) no se evalúa.
+    """
+    if "tools" not in snapshot:
+        return
+    tools = {t["code"] for t in snapshot["tools"]}
+    node_keys = {n["key"] for n in snapshot["nodes"] if "key" in n}
+    nodes_known = all("key" in n for n in snapshot["nodes"])
+    object_keys = {o["key"] for o in snapshot["objects"] if "key" in o}
+    objects_known = all("key" in o for o in snapshot["objects"])
+    dialogues = snapshot.get("dialogues", [])
+    npcs_known = objects_known and all("key" in d for d in dialogues)
+    npc_keys = object_keys | {d["key"] for d in dialogues if "key" in d} | {
+        key for m in snapshot["maps"] for key in m.get("ambientNpcKeys", ())
+    }
+    for o in snapshot["objects"]:
+        ref = f"object:{o['id']}"
+        meta = o.get("meta") if isinstance(o.get("meta"), dict) else {}
+        for code in _names(meta.get("requiresTools")):
+            if code not in tools:
+                _unknown_requirement(code, ref, issues)
+        if o.get("toolCode") and o["toolCode"] not in tools:
+            _unknown_requirement(o["toolCode"], ref, issues)
+        if nodes_known:
+            for key in _names(meta.get("requiresNodes")):
+                if key not in node_keys:
+                    _unknown_requirement(key, ref, issues)
+        if objects_known:
+            for key in _names(meta.get("requiresInspected")):
+                if key not in object_keys:
+                    _unknown_requirement(key, ref, issues)
+        if npcs_known:
+            for key in _names(meta.get("requiresNpcs")):
+                if key not in npc_keys:
+                    _unknown_requirement(key, ref, issues)
+    for c in snapshot.get("choices", []):
+        if c.get("requiredTool") and c["requiredTool"] not in tools:
+            _unknown_requirement(c["requiredTool"], f"map:{c['mapId']}", issues)
+
+
+def _validate_doors(snapshot, issues):
+    """Una puerta con destino lleva a una escena que existe y tiene mapa (si no, no se podría entrar).
+
+    Una salida (``EXIT``) sin ``targetNodeKey`` es la salida segura y es válida. Sin ``key`` en los
+    nodos (formato anterior) no se evalúa.
+    """
+    nodes = snapshot["nodes"]
+    if not all("key" in n for n in nodes):
+        return
+    by_key = {n["key"]: n["id"] for n in nodes}
+    with_map = {m["nodeId"] for m in snapshot["maps"] if "nodeId" in m}
+    maps_known = all("nodeId" in m for m in snapshot["maps"])
+    for o in snapshot["objects"]:
+        if (o["type"] or "").upper() != "EXIT":
+            continue
+        meta = o.get("meta") if isinstance(o.get("meta"), dict) else {}
+        target = meta.get("targetNodeKey")
+        if not isinstance(target, str) or not target.strip():
+            continue
+        node_id = by_key.get(target)
+        if node_id is None or (maps_known and node_id not in with_map):
+            issues.append(_err(
+                "DOOR_TARGET_MISSING",
+                f"La puerta id={o['id']} lleva a la escena «{target}», que no existe o no tiene mapa",
+                f"object:{o['id']}",
             ))

@@ -18,13 +18,13 @@
             "outputPath": "dist/psychosim-admin-panel",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [],
             "tsConfig": "tsconfig.app.json",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": ["src/styles/styles.scss"],
             "stylePreprocessorOptions": { "includePaths": ["src/styles"] },
             "scripts": [],
-            "allowedCommonJsDependencies": ["phaser", "konva", "howler", "axe-core"]
+            "allowedCommonJsDependencies": ["phaser", "howler", "axe-core"]
           },
           "configurations": {
             "production": {

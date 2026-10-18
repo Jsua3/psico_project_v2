@@ -130,6 +130,23 @@ describe('SimulationCatalogComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 1]);
   });
 
+  // req: RF-16, CU-07
+  it('RF-16: sin intento abierto «Iniciar» lleva primero a la ficha del caso; «Continuar» sigue directo al juego', async () => {
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
+      attemptHistory: () => of([
+        attempt({ attemptId: 'p', caseVersionId: 1, caseTitle: 'Caso 1', status: 'IN_PROGRESS' }),
+        attempt({ attemptId: 'old', caseVersionId: 3, caseTitle: 'Caso 3', status: 'COMPLETED' }),
+      ]),
+    });
+    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 2, 'ficha']);
+    (card('Caso 3').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 3, 'ficha']);
+    (card('Caso 1').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 1]);
+  });
+
   it('historial: la fila en pausa o en curso ofrece «Continuar»; la cerrada, «Ver resumen»; estados humanizados', async () => {
     await render('ESTUDIANTE', {
       attemptHistory: () => of([
@@ -237,6 +254,23 @@ describe('SimulationCatalogComponent', () => {
     start.click();
     expect(navigate).not.toHaveBeenCalled();
     expect(text(card('Caso 1').querySelector('ui-badge.case-card__done'))).toBe('Resuelto');
+  });
+
+  // req: RN-04, RF-15, RF-14 (F10-5)
+  it('F10-5: un caso cuya ventana aún no abre o ya cerró se rotula así, con la fecha, y no manda a completar otro caso', async () => {
+    const scheduled = { ...catalogItem(2, 2, false), access: { allowed: false as const, reason: 'NOT_YET_OPEN' as const, opensAt: '2026-10-20T08:00:00-05:00' } };
+    const closed = { ...catalogItem(3, 3, false), access: { allowed: false as const, reason: 'CLOSED' as const, closesAt: '2026-10-05T23:59:00-05:00' } };
+    await render('ESTUDIANTE', {
+      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
+      getCatalog: () => of([catalogItem(1, 1, true, true), scheduled, closed]),
+    });
+    expect(text(card('Caso 2').querySelector('ui-badge.case-card__lock'))).toBe('Aún no abre');
+    expect(text(card('Caso 2').querySelector('.case-card__reason'))).toMatch(/20 de oct/);
+    expect(text(card('Caso 2').querySelector('.case-card__reason'))).not.toContain('Completa');
+    expect(text(card('Caso 3').querySelector('ui-badge.case-card__lock'))).toBe('Ya cerró');
+    expect(text(card('Caso 3').querySelector('.case-card__reason'))).toMatch(/5 de oct/);
+    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('F5-5: si el catálogo de desbloqueo falla, no se inventa ningún bloqueo (decide el servidor)', async () => {

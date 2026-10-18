@@ -109,6 +109,7 @@ def test_create_case_leaves_an_audit_row_with_the_actors_role(prof_a):
 #: Leer lo ajeno es 404; mutarlo, 403; publicar es del ADMIN (403 en la puerta).
 FOREIGN_ROUTES = [
     ("get", "<int:case_version_id>/editor", None, 404),
+    ("get", "<int:case_version_id>/definition", None, 404),
     ("get", "<int:case_version_id>/world-editor", None, 404),
     ("get", "<int:case_version_id>/world-preview", None, 404),
     ("post", "<int:case_version_id>/world/validate", {}, 404),
@@ -139,6 +140,18 @@ FOREIGN_ROUTES = [
     ("post", "<int:case_version_id>/tools", {"toolCode": "T", "label": "T"}, 403),
     ("put", "<int:case_version_id>/tools/<int:tool_id>", {"toolCode": "T", "label": "T"}, 403),
     ("delete", "<int:case_version_id>/tools/<int:tool_id>", None, 403),
+    ("patch", "<int:case_version_id>/nodes/reorder", {"order": []}, 403),
+    ("put", "<int:case_version_id>/brief", {"context": "x"}, 403),
+    ("post", "<int:case_version_id>/maps/<int:map_id>/hints", {"text": "x"}, 403),
+    ("put", "<int:case_version_id>/hints/<int:hint_id>", {"text": "x"}, 403),
+    ("delete", "<int:case_version_id>/hints/<int:hint_id>", None, 403),
+    ("post", "<int:case_version_id>/characters", {"characterKey": "k", "displayName": "N"}, 403),
+    ("put", "<int:case_version_id>/characters/<int:character_id>",
+     {"characterKey": "k", "displayName": "N"}, 403),
+    ("delete", "<int:case_version_id>/characters/<int:character_id>", None, 403),
+    # Importar no apunta a un caso por su id: el caso ajeno se decide por ``caso.id`` dentro del documento
+    # (403 ``CASE_NOT_OWNED``, en ``test_definition_import``); un cuerpo vacío es un 400 para cualquiera.
+    ("post", "import", {}, 400),
 ]
 
 
@@ -248,3 +261,23 @@ def test_admin_edits_any_professors_case(admin, case_a):
 
     assert response.status_code == 200
     assert SimulationCase.objects.get(versions__pk=cv).created_by.role == "PROFESOR"
+
+
+# ─── E3-0 · el 403 de autoría dice por qué, con su código (F7b-6) ───────────────────────────────────
+def test_mutating_a_foreign_case_says_it_is_not_yours(prof_b, case_a):
+    response = cl(prof_b).put(
+        f"{AUTHORING}/{case_a['caseVersionId']}/checklist", {"contentOriginal": True}, format="json"
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "CASE_NOT_OWNED"
+    assert "autora el caso" in response.data["message"]
+
+
+def test_a_professor_trying_to_approve_gets_the_action_code_not_the_owner_one(prof_a, case_a):
+    response = cl(prof_a).post(
+        f"{AUTHORING}/{case_a['caseVersionId']}/lifecycle", {"action": "approve"}, format="json"
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "CASE_ACTION_FORBIDDEN"

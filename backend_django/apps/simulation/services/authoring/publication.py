@@ -10,6 +10,7 @@ from rest_framework import status as http
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.models import (
+    CaseCharacter,
     CaseVersion,
     ClinicalTool,
     CollisionZone,
@@ -22,6 +23,7 @@ from apps.simulation.models import (
     PublicationChecklistItem,
     Rubric,
     RubricCriterion,
+    SceneHint,
     SceneMap,
     SimulationNode,
 )
@@ -128,7 +130,9 @@ def clone_version(case_version_id, actor):
     decision_copies = _clone_decisions(source, clone, node_copies)
     map_copies = _clone_maps(source, clone, node_copies)
     _clone_collision_zones(map_copies)
-    object_copies = _clone_map_objects(map_copies, decision_copies)
+    _clone_hints(map_copies)
+    character_copies = _clone_characters(source, clone)
+    object_copies = _clone_map_objects(map_copies, decision_copies, character_copies)
     _clone_dialogues(map_copies, object_copies, decision_copies)
     _clone_clinical_tools(source, clone)
     _clone_rubrics(source, clone)
@@ -169,7 +173,20 @@ def _clone_collision_zones(map_copies):
             cloning.COLLISION_ZONE.copy(zone, scene_map=cloned_map)
 
 
-def _clone_map_objects(map_copies, decision_copies):
+def _clone_hints(map_copies):
+    for source_map_id, cloned_map in map_copies.items():
+        for hint in SceneHint.objects.filter(scene_map_id=source_map_id).order_by("hint_order", "id"):
+            cloning.HINT.copy(hint, scene_map=cloned_map)
+
+
+def _clone_characters(source, clone):
+    return {
+        c.id: cloning.CHARACTER.copy(c, case_version=clone)
+        for c in CaseCharacter.objects.filter(case_version_id=source.id).order_by("id")
+    }
+
+
+def _clone_map_objects(map_copies, decision_copies, character_copies):
     copies = {}
     for source_map_id, cloned_map in map_copies.items():
         for obj in MapObject.objects.filter(scene_map_id=source_map_id).order_by("id"):
@@ -177,6 +194,7 @@ def _clone_map_objects(map_copies, decision_copies):
                 obj,
                 scene_map=cloned_map,
                 decision_option=decision_copies.get(obj.decision_option_id) if obj.decision_option_id else None,
+                character=character_copies.get(obj.character_id) if obj.character_id else None,
             )
     return copies
 
@@ -210,7 +228,9 @@ def _clone_rubrics(source, clone):
     for rubric in Rubric.objects.filter(case_version_id=source.id).order_by("id"):
         rubric_copy = cloning.RUBRIC.copy(rubric, case_version=clone, created_by=rubric.created_by)
         for criterion in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order"):
-            cloning.RUBRIC_CRITERION.copy(criterion, rubric=rubric_copy)
+            cloning.RUBRIC_CRITERION.copy(
+                criterion, rubric=rubric_copy, competency_ref=criterion.competency_ref
+            )
 
 
 def create_draft_checklist(clone, actor):

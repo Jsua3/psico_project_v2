@@ -36,12 +36,26 @@ PLAIN = {
     "PROHIBITED_WITHOUT_REASON": (
         "La decisión «{decision}» está marcada como conducta prohibida y no explica por qué."
     ),
+    "DECISION_WITHOUT_FEEDBACK": (
+        "La decisión «{decision}» aún no explica a la persona por qué conviene o no: "
+        "agrega su retroalimentación."
+    ),
     "NO_SAFE_EXIT": "El caso necesita una salida segura: agrega un objeto de tipo salida (EXIT).",
     "MAP_TOO_LARGE": "El mapa «{map}» es demasiado grande.",
     "TOO_MANY_OBJECTS": "El mapa «{map}» tiene demasiados objetos.",
     "TOO_MANY_COLLISIONS": "El mapa «{map}» tiene demasiadas zonas de colisión.",
     "TOO_MANY_TRIGGERS": "El mapa «{map}» tiene demasiados disparadores.",
     "MANY_DIALOGUES": "El mapa «{map}» tiene muchos diálogos: considera repartirlos en más escenas.",
+    "OPTION_WITHOUT_TRIGGER": (
+        "La opción «{decision}» no se puede elegir: ningún diálogo ni objeto del mapa la ofrece."
+    ),
+    "REQUIRES_UNKNOWN": (
+        "El mapa «{map}» pide «{required}», que este caso no tiene: revisa las herramientas, "
+        "las escenas y los objetos."
+    ),
+    "DOOR_TARGET_MISSING": (
+        "La puerta «{object}» del mapa «{map}» lleva a una escena que no existe o que no tiene mapa."
+    ),
 }
 _UNKNOWN = "El caso tiene un problema de validación ({code})."
 _SNIPPET = 60
@@ -106,6 +120,8 @@ def _describe(raw, lookups):
     elif kind == "decision" and entity_id in lookups["decision"]:
         decision = lookups["decision"][entity_id]
         values["decision"], node_id = _snippet(decision.text), decision.source_node_id
+    if raw.get("detail"):
+        values["required"] = _snippet(raw["detail"])  # lo que el hallazgo nombra (una clave o un código)
     return values, node_id, map_id
 
 

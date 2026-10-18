@@ -9,7 +9,7 @@ pudiendo leer.
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.grupos.models import Grupo, GrupoCaseVersion, GrupoEstudiante
+from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt, SimulationCase
 
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
@@ -30,7 +30,7 @@ def _deactivate_group(estudiante):
 
 
 def _unassign_case(estudiante):
-    GrupoCaseVersion.objects.filter(grupo__codigo=GROUP_CODE).delete()
+    CaseAssignment.objects.filter(grupo__codigo=GROUP_CODE).delete()
 
 
 LOSE_ACCESS = {

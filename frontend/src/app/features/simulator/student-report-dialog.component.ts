@@ -1,5 +1,6 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 
 import { SimulationService } from '../../core/api/simulation.service';
 import { AttemptCompletionReport } from '../../core/models/simulation.model';
@@ -20,10 +21,10 @@ export interface StudentReportDialogData {
 }
 
 /**
- * Reporte propio de un intento (plan visual F5-2). Antes se pegaba al final del catálogo, lejos de la fila, y si fallaba
- * su error sustituía al del catálogo. Ahora es un diálogo (foco dentro, Esc, el foco vuelve al botón) que carga su
- * reporte con sus propios estados: esqueleto, error con «Reintentar» o el resumen. Lleva el aviso de alcance (RN-01,
- * decisión 17: el resultado).
+ * Reporte propio de un intento (plan visual F5-2; piloto ANG-4 con `rxResource` en E5-8). Antes se pegaba al final del
+ * catálogo, lejos de la fila, y si fallaba su error sustituía al del catálogo. Ahora es un diálogo (foco dentro, Esc,
+ * el foco vuelve al botón) que carga su reporte con sus propios estados: esqueleto, error con «Reintentar» o el resumen.
+ * Lleva el aviso de alcance (RN-01, decisión 17: el resultado).
  */
 @Component({
   selector: 'app-student-report-dialog',
@@ -130,9 +131,16 @@ export class StudentReportDialogComponent {
   protected readonly data = inject<StudentReportDialogData>(DIALOG_DATA);
   private readonly simulation = inject(SimulationService);
 
-  protected readonly report = signal<AttemptCompletionReport | null>(null);
-  private readonly loading = signal(true);
-  private readonly error = signal<{ status?: number } | null>(null);
+  private readonly reportResource = rxResource<AttemptCompletionReport, string>({
+    stream: () => this.simulation.studentReport(this.data.attemptId),
+  });
+  protected readonly report = computed<AttemptCompletionReport | null>(() =>
+    this.reportResource.hasValue() ? (this.reportResource.value() ?? null) : null,
+  );
+  private readonly loading = computed(() => this.reportResource.isLoading());
+  private readonly error = computed<{ status?: number } | null>(() =>
+    (this.reportResource.error() as { status?: number } | undefined) ?? null,
+  );
   protected readonly state = uiDataState({ loading: this.loading, error: this.error, isEmpty: computed(() => false) });
   protected readonly errorKind = computed(() => errorKindFromStatus(this.error()?.status));
   protected readonly errorStatus = computed(() => this.error()?.status ?? null);
@@ -140,22 +148,7 @@ export class StudentReportDialogComponent {
   protected readonly tone = attemptTone;
   protected readonly duration = formatAttemptDuration;
 
-  constructor() {
-    this.load();
-  }
-
   protected load(): void {
-    this.loading.set(true);
-    this.simulation.studentReport(this.data.attemptId).subscribe({
-      next: report => {
-        this.report.set(report);
-        this.error.set(null);
-        this.loading.set(false);
-      },
-      error: (error: { status?: number }) => {
-        this.error.set(error ?? {});
-        this.loading.set(false);
-      },
-    });
+    this.reportResource.reload();
   }
 }

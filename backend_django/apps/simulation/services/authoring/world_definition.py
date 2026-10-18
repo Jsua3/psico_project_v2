@@ -17,7 +17,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from apps.simulation.services import validation_issues, world_validation
+from apps.simulation.services import world_validation
 from shared.jsonutils import (
     coerce_int as _int,
     read_map as _read_map,
@@ -25,7 +25,7 @@ from shared.jsonutils import (
 )
 
 from .editor_view import clinical_tool_editor
-from .guards import bump_revision, decision_link, ensure_draft, require_version
+from .guards import bump_revision, character_link, decision_link, ensure_draft, require_version
 from .icons import validate_icon
 from .scenes import save_dialogue_choices
 
@@ -101,13 +101,6 @@ def world_preview(case_version_id, node_id):
 def validate_world(case_version_id):
     version = require_version(case_version_id)
     return run_world_validation(version)
-
-
-def validate_case(case_version_id):
-    """C6: ``{issues: ValidationIssue[], canPublish}`` con mensajes llanos y sin ids."""
-    version = require_version(case_version_id)
-    issues, can_publish = validation_issues.issues_of(run_world_validation(version))
-    return {"issues": issues, "canPublish": can_publish}
 
 
 @transaction.atomic
@@ -211,6 +204,9 @@ def _save_objects(scene_map, objects, case_version_id):
                 obj.decision_option = decision
         else:
             obj.decision_option = None
+        # «Ausente = no tocar»: el autoguardado del editor actual no manda ``characterId``.
+        if "characterId" in wo:
+            obj.character = character_link(wo.get("characterId"), case_version_id)
         obj.save()
         saved.append(obj)
     return saved
@@ -295,7 +291,16 @@ def _save_collision_zones(scene_map, zones):
 
 
 # ─── world-snapshot validation ────────────────────────────────────────────────
+def _ambient_npc_keys(scene_map):
+    """Las claves de los NPC ambientales de la sala (``ambient.ambientNpcs[].key``)."""
+    npcs = _read_map(scene_map.ambient_json).get("ambientNpcs")
+    if not isinstance(npcs, list):
+        return []
+    return [npc["key"] for npc in npcs if isinstance(npc, dict) and isinstance(npc.get("key"), str)]
+
+
 def run_world_validation(version):
+    """El validador del mundo sobre las filas de la versión: ocho consultas, vengan las escenas que vengan."""
     case_version_id = version.id
     nodes = list(SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id"))
     decisions = list(
@@ -303,12 +308,14 @@ def run_world_validation(version):
         .order_by("id")
     )
     maps = list(SceneMap.objects.filter(case_version_id=case_version_id).order_by("id"))
-
-    all_objects, all_collisions, all_dialogues = [], [], []
-    for m in maps:
-        all_objects.extend(MapObject.objects.filter(scene_map_id=m.id).order_by("id"))
-        all_collisions.extend(CollisionZone.objects.filter(scene_map_id=m.id).order_by("id"))
-        all_dialogues.extend(DialogueTree.objects.filter(scene_map_id=m.id).order_by("id"))
+    in_version = {"scene_map__case_version_id": case_version_id}
+    all_objects = list(MapObject.objects.filter(**in_version).order_by("scene_map_id", "id"))
+    all_collisions = list(CollisionZone.objects.filter(**in_version).order_by("scene_map_id", "id"))
+    all_dialogues = list(DialogueTree.objects.filter(**in_version).order_by("scene_map_id", "id"))
+    choices = DialogueChoice.objects.filter(dialogue_tree__scene_map__case_version_id=case_version_id).values_list(
+        "id", "dialogue_tree__scene_map_id", "decision_option_id", "required_tool_code"
+    )
+    tool_codes = ClinicalTool.objects.filter(case_version_id=case_version_id).values_list("tool_code", flat=True)
 
     has_safe_exit = any((o.object_type or "").upper() == "EXIT" for o in all_objects)
 
@@ -316,6 +323,7 @@ def run_world_validation(version):
         "nodes": [
             {
                 "id": n.id,
+                "key": n.node_key,
                 "startNode": n.start_node,
                 "terminalNode": n.terminal_node,
                 "x": n.position_x if n.position_x is not None else 0,
@@ -330,6 +338,8 @@ def run_world_validation(version):
                 "targetNodeId": d.target_node_id,
                 "prohibitedConduct": d.prohibited_conduct,
                 "prohibitionReason": d.prohibition_reason,
+                "feedbackText": d.feedback_text,
+                "immediateFeedback": d.immediate_feedback,
             }
             for d in decisions
         ],
@@ -341,6 +351,7 @@ def run_world_validation(version):
                 "height": m.height,
                 "spawnX": m.spawn_x,
                 "spawnY": m.spawn_y,
+                "ambientNpcKeys": _ambient_npc_keys(m),
             }
             for m in maps
         ],
@@ -348,11 +359,15 @@ def run_world_validation(version):
             {
                 "id": o.id,
                 "mapId": o.scene_map_id,
+                "key": o.object_key,
                 "x": o.position_x,
                 "y": o.position_y,
                 "width": o.width,
                 "height": o.height,
                 "type": o.object_type,
+                "optionId": o.decision_option_id,
+                "toolCode": o.tool_code,
+                "meta": _read_map(o.metadata_json),
             }
             for o in all_objects
         ],
@@ -367,7 +382,12 @@ def run_world_validation(version):
             }
             for c in all_collisions
         ],
-        "dialogues": [{"id": d.id, "mapId": d.scene_map_id} for d in all_dialogues],
+        "dialogues": [{"id": d.id, "mapId": d.scene_map_id, "key": d.tree_key} for d in all_dialogues],
+        "choices": [
+            {"id": pk, "mapId": map_id, "optionId": option_id, "requiredTool": tool}
+            for pk, map_id, option_id, tool in choices
+        ],
+        "tools": [{"code": code} for code in tool_codes],
         "hasSafeExit": has_safe_exit,
     }
     return world_validation.validate(snapshot)
@@ -408,6 +428,7 @@ def _world_object(o):
         "interactionPrompt": o.interaction_prompt,
         "interactionText": o.interaction_text,
         "decisionOptionId": o.decision_option_id,
+        "characterId": o.character_id,
         "toolCode": o.tool_code,
         "unlockCondition": _read_map(o.unlock_condition_json),
         "movementPattern": _read_map(o.movement_pattern_json),

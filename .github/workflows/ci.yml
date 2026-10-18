@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Node 24 LTS hasta el 2026-10-28: ese día se sube a '26' junto con `.nvmrc` (TOO-8). `engines` ya admite las dos.
   NODE_VERSION: '24'
   PYTHON_VERSION: '3.14'
 
@@ -117,6 +118,7 @@ jobs:
       - run: npm run test:world-art --prefix frontend
       - run: npm run test:ui --prefix frontend
       - run: npm run ui:lint
+      - run: npm run e2e:types
       - run: npm run build:frontend
 
   e2e:

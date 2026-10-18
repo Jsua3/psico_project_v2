@@ -201,7 +201,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       </div>
     }
   `,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     .hud-shell {
       display: flex;
