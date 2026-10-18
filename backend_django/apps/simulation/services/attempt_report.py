@@ -126,6 +126,17 @@ def build_decision_review(events):
     return review
 
 
+def _competency_levels(attempt, events):
+    """El perfil por competencia; es un dato derivado y NUNCA impide cerrar ni leer un reporte: si falla, queda vacío (y
+    se registra). Va en un punto de guardado para que un error de base de datos no deje abortada la transacción."""
+    try:
+        with transaction.atomic():
+            return assessment_competencies.competency_profile(attempt, events)
+    except Exception:  # noqa: BLE001 - el cierre del intento no depende de su perfil por competencia
+        logger.exception("No se pudo calcular el perfil por competencia del intento %s", attempt.id)
+        return []
+
+
 def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
     """El reporte completo (superconjunto del de cierre) con lo de E1-8."""
     payload = dto.build_completion_report(attempt, events)
@@ -134,7 +145,7 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
         {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
         for r in ReflectionJournal.objects.filter(attempt_id=attempt.id).select_related("node").order_by("node_id")
     ]
-    competency_levels = assessment_competencies.competency_profile(attempt, events)
+    competency_levels = _competency_levels(attempt, events)
     coverage = evidence.reflection_coverage(
         [r["nodeId"] for r in reflections], evidence.decision_scene_ids(events), definitions.reflection_definition()
     )
@@ -156,6 +167,7 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
         "reflections": reflections,
         # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
         "competencyLevels": competency_levels,
+        "profileRules": definitions.PROFILE_RULES,  # la versión de la regla con la que se calculó (E6, revisión I-3)
         "nonRecommendedCount": evidence.non_recommended_count(events),
         "reflectionCoverage": coverage,
         "keyLearningEvidence": evidence.key_learning_evidence(
@@ -232,6 +244,20 @@ def _record_system_evaluation(attempt, payload):
             system_evaluation.record_system_evaluation(attempt, payload)
     except Exception:  # noqa: BLE001 - el cierre del intento no depende de su evaluación automática
         logger.exception("No se pudo crear la evaluación del sistema del intento %s", attempt.id)
+
+
+def repair_system_evaluation(attempt):
+    """Crea la evaluación del sistema de un intento CERRADO con reporte v2 que no la tiene; devuelve la fila o ``None``.
+
+    La crea ``freeze_report`` al cerrar, pero ahí un fallo transitorio (un deadlock, un tiempo de espera) solo se
+    registra y el intento quedaría sin ella para siempre: este es el camino de reparación (lo usa
+    ``backfill_attempt_reports``). Lee el reporte CONGELADO —no recalcula nada— y, a diferencia del cierre, deja
+    pasar el error para que quien repara sepa que no pudo. Un reporte v1 no tiene niveles de qué derivarla.
+    """
+    frozen = frozen_report_for(attempt.id)
+    if frozen is None or frozen.get("schemaVersion", 1) < 2:
+        return None
+    return system_evaluation.record_system_evaluation(attempt, frozen)
 
 
 def frozen_report_for(attempt_id):

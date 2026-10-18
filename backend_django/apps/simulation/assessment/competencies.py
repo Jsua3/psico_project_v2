@@ -23,6 +23,8 @@ from apps.simulation.models import LEVEL_INDEX, FormativeLevel, RubricCriterion
 from apps.simulation.services import case_effects, case_rules, rubric_service
 from apps.simulation.services.competencies import normalize_code
 
+from .definitions import PROFILE_RULES  # noqa: F401  (la versión de la regla vive con las definiciones y se sella en el reporte)
+
 Competence = namedtuple("Competence", ["code", "name"])
 
 #: Nivel que aporta una decisión según su severidad (R3, BORRADOR).
@@ -53,17 +55,20 @@ def level_of(contributions):
 def contributions(decision, codes):
     """Lo que aporta una opción: ``{código: (nivel, crítica)}`` para las competencias de ``codes`` que toca.
 
-    ``crítica`` es verdadero solo para el aporte POR DEFECTO de una decisión de severidad crítica: cuando el autor
-    declara el nivel de una competencia, ese nivel es el que quiso y no se le pone tope.
+    ``crítica`` marca el aporte que pone el tope ``CRITICAL_CAP``: el POR DEFECTO de una decisión de severidad crítica
+    y el de CUALQUIER conducta prohibida —aunque el autor le fije otra severidad o le declare el nivel—, porque una
+    conducta revictimizante no puede dar «logrado». Fuera de eso, cuando el autor declara el nivel de una competencia,
+    ese nivel es el que quiso y no se le pone tope.
     """
+    prohibited = bool(getattr(decision, "prohibited_conduct", False))
     overrides = case_rules.competency_overrides(decision)
     if overrides:
         return {
-            code: (FormativeLevel(level), False) for code, level in overrides.items() if code in codes
+            code: (FormativeLevel(level), prohibited) for code, level in overrides.items() if code in codes
         }
     severity = case_effects.option_severity(decision)
     level = LEVEL_BY_SEVERITY[severity]
-    critical = severity == case_rules.SEVERITY_CRITICAL
+    critical = prohibited or severity == case_rules.SEVERITY_CRITICAL
     return {code: (level, critical) for code in codes}
 
 
@@ -102,12 +107,27 @@ def rubric_of(case_version_id):
         return None
 
 
+BASIS_DEFAULT, BASIS_DECLARED, BASIS_MIXED = "DEFAULT", "DECLARED", "MIXED"
+
+
+def _basis(declared_flags):
+    """De dónde salió el nivel: ``DECLARED`` (todas las decisiones que la tocaron declaran ``effects.competencies``),
+    ``DEFAULT`` (ninguna: se infirió de su severidad) o ``MIXED``; ``None`` si ninguna la tocó."""
+    if not declared_flags:
+        return None
+    if all(declared_flags):
+        return BASIS_DECLARED
+    return BASIS_DEFAULT if not any(declared_flags) else BASIS_MIXED
+
+
 def competency_profile(attempt, events):
-    """``[{"code", "name", "level"}]`` del intento: una entrada por competencia de la rúbrica del caso.
+    """``[{"code", "name", "level", "basis"}]`` del intento: una entrada por competencia de la rúbrica del caso.
 
     ``events`` son los eventos del intento con ``decision_option`` cargada. Solo cuentan las decisiones registradas
-    (no los reintentos). ``level`` es ``None`` si ninguna decisión tocó la competencia («sin evidencia»). Sin
-    rúbrica, o sin criterios con competencia, el perfil está vacío.
+    (no los reintentos). ``level`` es ``None`` si ninguna decisión tocó la competencia («sin evidencia»). ``basis``
+    dice si el nivel lo DECLARÓ el autor del caso o se INFIRIÓ de la severidad de las decisiones: sin declaraciones,
+    todas las competencias salen con el mismo nivel (el de la severidad media) y quien lee el reporte debe saberlo.
+    Sin rúbrica, o sin criterios con competencia, el perfil está vacío.
     """
     rubric = rubric_of(attempt.case_version_id)
     if rubric is None:
@@ -117,13 +137,19 @@ def competency_profile(attempt, events):
         return []
     codes = {competence.code for competence in competences}
     gathered = {code: [] for code in codes}
+    declared = {code: [] for code in codes}
     for event in events:
         if event.decision_option_id is None or event.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
             continue
+        is_declared = bool(case_rules.competency_overrides(event.decision_option))
         for code, contribution in contributions(event.decision_option, codes).items():
             gathered[code].append(contribution)
+            declared[code].append(is_declared)
     profile = []
     for competence in competences:
         level = level_of(gathered[competence.code])
-        profile.append({"code": competence.code, "name": competence.name, "level": level.value if level else None})
+        profile.append({
+            "code": competence.code, "name": competence.name,
+            "level": level.value if level else None, "basis": _basis(declared[competence.code]),
+        })
     return profile

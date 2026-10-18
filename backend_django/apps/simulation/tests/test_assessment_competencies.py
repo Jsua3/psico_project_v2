@@ -14,6 +14,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from apps.simulation.assessment import competencies as profile
+from apps.simulation.assessment import definitions
 from apps.simulation.models import (
     CaseVersion,
     Competency,
@@ -92,6 +93,16 @@ def test_con_competencias_declaradas_aporta_solo_a_esas_y_con_esos_niveles():
     assert profile.contributions(option, CODES) == {"PAP": (D, False), "ETICA": (I, False)}
 
 
+def test_una_conducta_prohibida_pone_tope_aunque_el_autor_fije_la_severidad_o_declare_el_nivel():
+    """«Una conducta revictimizante no puede dar logrado»: el tope es de la conducta, no de la severidad que se le puso."""
+    by_severity = _option("ADEQUATE", {"severity": "acceptable"}, prohibited=True)
+    by_override = _option("ADEQUATE", {"competencies": {"PAP": "DESTACADO"}}, prohibited=True)
+
+    assert profile.contributions(by_severity, CODES) == {code: (L, True) for code in CODES}
+    assert profile.contributions(by_override, CODES) == {"PAP": (D, True)}
+    assert profile.level_of([profile.contributions(by_override, CODES)["PAP"]]) == P
+
+
 def test_un_codigo_que_no_es_de_la_rubrica_se_ignora_y_si_no_queda_ninguno_no_aporta_a_nadie():
     mixed = _option("ADEQUATE", {"competencies": {"PAP": "LOGRADO", "OTRA": "DESTACADO"}})
     only_foreign = _option("ADEQUATE", {"competencies": {"OTRA": "DESTACADO"}})
@@ -158,9 +169,9 @@ def test_un_recorrido_todo_adecuado_da_destacado_en_todas(version, rubric):
     levels = profile.competency_profile(_attempt(version), events)
 
     assert levels == [
-        {"code": "T3_PAP", "name": "Primeros auxilios psicológicos", "level": "DESTACADO"},
-        {"code": "T3_ETICA", "name": "Ética profesional", "level": "DESTACADO"},
-        {"code": "REFLEXION_Y_BITACORA", "name": "Reflexión y bitácora", "level": "DESTACADO"},
+        {"code": "T3_PAP", "name": "Primeros auxilios psicológicos", "level": "DESTACADO", "basis": "DEFAULT"},
+        {"code": "T3_ETICA", "name": "Ética profesional", "level": "DESTACADO", "basis": "DEFAULT"},
+        {"code": "REFLEXION_Y_BITACORA", "name": "Reflexión y bitácora", "level": "DESTACADO", "basis": "DEFAULT"},
     ]
 
 
@@ -194,6 +205,42 @@ def test_una_competencia_sin_ninguna_decision_que_la_toque_queda_sin_nivel(versi
     by_code = {e["code"]: e["level"] for e in profile.competency_profile(_attempt(version), events)}
 
     assert by_code == {"T3_PAP": "LOGRADO", "T3_ETICA": None, "REFLEXION_Y_BITACORA": None}
+
+
+def test_una_conducta_prohibida_con_el_nivel_declarado_nunca_da_logrado_en_la_competencia(version, rubric):
+    events = [_event(_option("ADEQUATE", {"competencies": {"T3_PAP": "DESTACADO"}}, prohibited=True))]
+
+    by_code = {e["code"]: e["level"] for e in profile.competency_profile(_attempt(version), events)}
+
+    assert by_code["T3_PAP"] == "EN_PROCESO"  # DESTACADO declarado, con el tope de la conducta prohibida
+
+
+# ─── de dónde sale el nivel: declarado por el autor o inferido de la severidad (hallazgo I-2 de la revisión) ───
+def test_cada_entrada_dice_si_su_nivel_se_infirio_de_la_severidad_o_lo_declaro_el_autor(version, rubric):
+    declared = _event(_option("RISKY", {"competencies": {"T3_PAP": "DESTACADO"}}))
+    inferred = _event(_option("ADEQUATE"))
+
+    only_default = profile.competency_profile(_attempt(version), [inferred])
+    mixed = profile.competency_profile(_attempt(version), [declared, inferred])
+    only_declared = profile.competency_profile(_attempt(version), [declared])
+
+    assert {e["code"]: e["basis"] for e in only_default} == {
+        "T3_PAP": "DEFAULT", "T3_ETICA": "DEFAULT", "REFLEXION_Y_BITACORA": "DEFAULT"}
+    assert {e["code"]: e["basis"] for e in mixed} == {
+        "T3_PAP": "MIXED", "T3_ETICA": "DEFAULT", "REFLEXION_Y_BITACORA": "DEFAULT"}
+    assert {e["code"]: e["basis"] for e in only_declared} == {
+        "T3_PAP": "DECLARED", "T3_ETICA": None, "REFLEXION_Y_BITACORA": None}  # sin evidencia: sin base
+
+
+def test_una_competencia_sin_evidencia_no_tiene_nivel_ni_base(version, rubric):
+    entries = profile.competency_profile(_attempt(version), [])
+
+    assert [(e["level"], e["basis"]) for e in entries] == [(None, None)] * 3
+
+
+def test_la_version_de_la_regla_del_perfil_es_la_de_las_definiciones():
+    """Se sella en cada reporte; cambia al cambiar la tabla severidad → nivel, el tope o el promedio."""
+    assert profile.PROFILE_RULES == definitions.PROFILE_RULES and definitions.PROFILE_RULES == "borrador-1"
 
 
 def test_solo_cuentan_las_decisiones_registradas(version, rubric):

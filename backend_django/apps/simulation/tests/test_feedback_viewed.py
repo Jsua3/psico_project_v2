@@ -9,6 +9,7 @@ lectura sigue. No altera ningún reporte, línea de tiempo ni conteo.
 """
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import connection
 
 from apps.simulation.models import AttemptEvent, AttemptReport, DecisionOption, SimulationAttempt
 from apps.simulation.services import attempt_report, game_service
@@ -171,6 +172,22 @@ def test_si_la_escritura_falla_la_lectura_responde_igual(completed, monkeypatch)
 
     assert response.status_code == 200
     assert response.data["data"]["status"] == "COMPLETED"
+    assert _viewed(attempt_id).count() == 0
+
+
+def test_un_error_real_de_base_de_datos_al_registrar_el_evento_no_rompe_la_lectura(completed, monkeypatch):
+    """Un error de SQL aborta la transacción de PostgreSQL: solo el punto de guardado deja que la lectura siga."""
+    client, attempt_id, token = completed
+
+    def broken(attempt):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1/0")
+
+    monkeypatch.setattr(attempt_report, "_insert_feedback_viewed", broken)
+
+    response = _read(client, "report", attempt_id, token)
+
+    assert response.status_code == 200 and response.data["data"]["status"] == "COMPLETED"
     assert _viewed(attempt_id).count() == 0
 
 

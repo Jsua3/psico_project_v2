@@ -11,8 +11,10 @@ from types import SimpleNamespace
 
 import pytest
 from django.core.management import call_command
+from django.db import connection
 
-from apps.simulation.assessment import evidence
+from apps.simulation.assessment import competencies as assessment_competencies
+from apps.simulation.assessment import definitions, evidence
 from apps.simulation.models import (
     AttemptReport,
     Competency,
@@ -38,7 +40,7 @@ from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
 
 pytestmark = [pytest.mark.req("RQ-NEG-002"), pytest.mark.req("RQ-NEG-003"), pytest.mark.req("RQ-NEG-004")]
 
-NEW_KEYS = ("competencyLevels", "nonRecommendedCount", "reflectionCoverage", "keyLearningEvidence")
+NEW_KEYS = ("competencyLevels", "nonRecommendedCount", "reflectionCoverage", "keyLearningEvidence", "profileRules")
 SEEDED_COMPETENCIES = ["CONTENCION", "MARCO_NORMATIVO", "INTERVENCION_ETICA", "REFLEXION"]
 
 
@@ -137,10 +139,53 @@ def test_un_recorrido_adecuado_da_destacado_en_las_competencias_de_la_rubrica(co
 
     assert [entry["code"] for entry in payload["competencyLevels"]] == SEEDED_COMPETENCIES
     assert {entry["level"] for entry in payload["competencyLevels"]} == {"DESTACADO"}
-    assert all(set(entry) == {"code", "name", "level"} and entry["name"] for entry in payload["competencyLevels"])
+    assert all(set(entry) == {"code", "name", "level", "basis"} and entry["name"] for entry in payload["competencyLevels"])
+    assert {entry["basis"] for entry in payload["competencyLevels"]} == {"DEFAULT"}  # el caso sembrado no declara nada
     assert payload["nonRecommendedCount"] == 0
     assert payload["reflectionCoverage"] == {"definition": "ANY", "reflections": 0, "decisionScenes": 6, "covered": False}
     assert payload["keyLearningEvidence"] is False  # no escribió ninguna reflexión
+
+
+def test_el_reporte_sella_la_version_de_la_regla_con_la_que_se_calculo_el_perfil(completed):
+    _, attempt_id, _ = completed
+
+    _, payload = _frozen(attempt_id)
+
+    assert payload["profileRules"] == definitions.PROFILE_RULES
+
+
+def test_si_el_perfil_falla_el_cierre_se_completa_con_el_perfil_vacio(estudiante, case_version_id, monkeypatch, caplog):
+    """Es un dato derivado: el estudiante no puede quedarse sin terminar el caso porque falle su cálculo."""
+    def broken(attempt, events):
+        raise RuntimeError("el perfil se rompió")
+
+    monkeypatch.setattr(assessment_competencies, "competency_profile", broken)
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+
+    with caplog.at_level("ERROR"):
+        _complete(client, attempt_id, token)
+
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
+    _, payload = _frozen(attempt_id)
+    assert payload["competencyLevels"] == [] and payload["keyLearningEvidence"] is False
+    assert any("perfil por competencia" in message for message in caplog.messages)
+
+
+def test_un_error_real_de_base_de_datos_en_el_perfil_no_aborta_el_cierre(estudiante, case_version_id, monkeypatch):
+    """Un ``RuntimeError`` no aborta la transacción de PostgreSQL; un error de SQL sí, y solo el punto de guardado lo salva."""
+    def broken(attempt, events):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1/0")
+
+    monkeypatch.setattr(assessment_competencies, "competency_profile", broken)
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+
+    _complete(client, attempt_id, token)
+
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
+    assert AttemptReport.objects.filter(attempt_id=attempt_id).exists()
 
 
 def test_el_reporte_no_trae_ningun_indice_numerico_de_competencia(completed):

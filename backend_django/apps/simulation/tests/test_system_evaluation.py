@@ -8,10 +8,12 @@ de grupo y la evaluación que lee el estudiante siguen hablando solo de las eval
 """
 import json
 from decimal import Decimal
+from io import StringIO
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
+from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
@@ -164,6 +166,86 @@ def test_el_relleno_crea_el_reporte_y_la_evaluacion_de_un_intento_anterior(compl
 
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 1
     assert _system(attempt_id).count() == 1
+
+
+def test_el_relleno_repara_la_evaluacion_que_falto_aunque_el_reporte_ya_exista(completed):
+    """Un fallo transitorio al cerrar deja un intento con reporte v2 y sin evaluación: nada la repararía jamás."""
+    _, attempt_id, _ = completed
+    _system(attempt_id).delete()  # lo que dejaría un deadlock o un tiempo de espera al insertarla
+    out = StringIO()
+
+    call_command("backfill_attempt_reports", stdout=out)
+    again = StringIO()
+    call_command("backfill_attempt_reports", stdout=again)  # idempotente: ya no hay nada que reparar
+
+    assert _system(attempt_id).count() == 1
+    assert "Evaluaciones del sistema creadas: 1" in out.getvalue()
+    assert "Evaluaciones del sistema creadas: 0" in again.getvalue()
+
+
+def test_reparar_una_evaluacion_de_un_reporte_cuyo_json_es_v1_no_hace_nada(completed):
+    """La función también se defiende sola: un reporte v1 no trae los niveles de los que derivarla."""
+    _, attempt_id, _ = completed
+    _system(attempt_id).delete()
+    row = AttemptReport.objects.get(attempt_id=attempt_id)
+    payload = json.loads(row.report_json)
+    AttemptReport.objects.filter(pk=row.pk).update(report_json=json.dumps({**payload, "schemaVersion": 1}))
+
+    assert attempt_report.repair_system_evaluation(SimulationAttempt.objects.get(pk=attempt_id)) is None
+    assert _system(attempt_id).count() == 0
+
+
+def test_si_el_caso_ya_no_tiene_rubrica_el_relleno_no_cuenta_una_evaluacion_que_no_creo(completed):
+    _, attempt_id, _ = completed
+    _system(attempt_id).delete()
+    Rubric.objects.update(active=False)  # sin rúbrica no hay nada que evaluar
+    out = StringIO()
+
+    call_command("backfill_attempt_reports", stdout=out)
+
+    assert _system(attempt_id).count() == 0 and "Evaluaciones del sistema creadas: 0" in out.getvalue()
+
+
+def test_un_error_real_de_base_de_datos_en_la_evaluacion_no_aborta_el_cierre(estudiante, case_version_id, monkeypatch):
+    """Un ``RuntimeError`` no aborta la transacción de PostgreSQL; un error de SQL sí, y solo el punto de guardado la salva."""
+    def broken(attempt, report):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1/0")
+
+    monkeypatch.setattr(system_evaluation, "record_system_evaluation", broken)
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+
+    _complete(client, attempt_id, token)
+
+    assert SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
+    assert AttemptReport.objects.filter(attempt_id=attempt_id).exists() and _system(attempt_id).count() == 0
+
+
+def test_el_relleno_no_inventa_una_evaluacion_para_un_reporte_v1(completed):
+    _, attempt_id, _ = completed
+    _system(attempt_id).delete()
+    AttemptReport.objects.filter(attempt_id=attempt_id).update(report_schema_version=1)  # lo cerrado antes de E6
+
+    call_command("backfill_attempt_reports")
+
+    assert _system(attempt_id).count() == 0
+
+
+def test_si_un_intento_no_se_puede_reparar_el_relleno_sigue_con_los_demas_y_avisa(completed, monkeypatch):
+    _, attempt_id, _ = completed
+    _system(attempt_id).delete()
+
+    def broken(attempt, report):
+        raise RuntimeError("la rúbrica se rompió")
+
+    monkeypatch.setattr(system_evaluation, "record_system_evaluation", broken)
+    out, err = StringIO(), StringIO()
+
+    with pytest.raises(CommandError, match="1 evaluación"):
+        call_command("backfill_attempt_reports", stdout=out, stderr=err)
+
+    assert str(attempt_id) in err.getvalue() and _system(attempt_id).count() == 0
 
 
 def test_sin_rubrica_activa_no_hay_evaluacion_del_sistema(estudiante, case_version_id):
