@@ -158,6 +158,40 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
 REFLECTION_ENCRYPTION_KEY = os.environ.get(
     "REFLECTION_ENCRYPTION_KEY", "dev-only-reflection-key-never-use-in-production"
 )
+# S5-2 · Llaves versionadas de las reflexiones (rotación sin perder bitácoras). REFLECTION_KEYS es ``id1=secreto1,id2=secreto2``
+# (ids ``[A-Za-z0-9_.-]{1,40}``); REFLECTION_ACTIVE_KEY es el id con el que se CIFRA. ``local-aes-gcm-v1`` es la llave heredada
+# (REFLECTION_ENCRYPTION_KEY): siempre se puede LEER con ella y es la activa por defecto en desarrollo y pruebas.
+# Producción (production.py) exige una activa versionada.
+_REFLECTION_KEY_ID = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+
+
+def _parse_reflection_keys(raw):
+    """``id1=secreto1,id2=secreto2`` → dict. Ignora espacios y trozos vacíos. Un par mal formado detiene el arranque
+    nombrando su POSICIÓN: ni su id ni su secreto aparecen en el mensaje (el trozo entero puede ser un secreto pegado)."""
+    claves = {}
+    for posicion, trozo in enumerate(raw.split(","), start=1):
+        par = trozo.strip()
+        if not par:
+            continue
+        id_, separador, secreto = par.partition("=")
+        id_, secreto = id_.strip(), secreto.strip()
+        if not separador or not _REFLECTION_KEY_ID.fullmatch(id_) or not secreto:
+            raise ImproperlyConfigured(
+                # BORRADOR
+                f"REFLECTION_KEYS: el par {posicion} no tiene la forma id=secreto (valor no mostrado)."
+            )
+        if id_ in claves:
+            raise ImproperlyConfigured(
+                # BORRADOR
+                f"REFLECTION_KEYS: el par {posicion} repite un id ya declarado (valor no mostrado)."
+            )
+        claves[id_] = secreto
+    return claves
+
+
+REFLECTION_KEYS = _parse_reflection_keys(os.environ.get("REFLECTION_KEYS", ""))
+# Vacía o solo con espacios cuenta como ausente: la activa es la heredada.
+REFLECTION_ACTIVE_KEY = os.environ.get("REFLECTION_ACTIVE_KEY", "").strip() or "local-aes-gcm-v1"
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 # S1-3 · dominios de correo que pueden entrar con Google, separados por comas. Vacía = sin restricción (SD-14).
 GOOGLE_ALLOWED_DOMAINS = [

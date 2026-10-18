@@ -160,11 +160,14 @@ attempt = SimulationAttempt.objects.create(
     current_node=node,
     status="IN_PROGRESS",
 )
+ref = crypto_service.key_ref()
 journal = ReflectionJournal.objects.create(
     attempt=attempt,
     node=node,
-    encrypted_text=crypto_service.encrypt(${JSON.stringify(samplePlaintext)}),
-    encryption_key_ref=crypto_service.key_ref(),
+    encrypted_text=crypto_service.encrypt(
+        ${JSON.stringify(samplePlaintext)}, key_ref=ref, attempt_id=attempt.id, node_id=node.id
+    ),
+    encryption_key_ref=ref,
     locked=False,
 )
 with connection.cursor() as cur:
@@ -237,7 +240,12 @@ with connection.cursor() as cur:
         counts[t] = cur.fetchone()[0]
 
 journal = ReflectionJournal.objects.get(pk=${seeded.journalId})
-decrypted = crypto_service.decrypt(journal.encrypted_text)
+decrypted = crypto_service.decrypt(
+    journal.encrypted_text,
+    key_ref=journal.encryption_key_ref,
+    attempt_id=journal.attempt_id,
+    node_id=journal.node_id,
+)
 print(json.dumps({"counts": counts, "decrypted": decrypted, "keyRef": journal.encryption_key_ref}))
 `;
       const verified = runPythonJson(verifyScript, restoredEnv);
