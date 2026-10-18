@@ -5,7 +5,9 @@ Una cuenta **pendiente** es la que nació de una importación del docente: ``act
 una contraseña temporal **por correo** (nunca por la respuesta de la API ni por el log) y el
 primer inicio la obliga a fijar una propia (``apps.users.authentication``).
 """
+import functools
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -14,14 +16,18 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import F
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from rest_framework import status
 
 from apps.simulation.services.audit_service import auditable
+from shared.background import run_in_background
 from shared.exceptions import ApiError
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+#: Eventos de seguridad (una línea JSON cada uno, sin correos ni contraseñas: ``shared.jsonlog``).
+security_logger = logging.getLogger("siep.security")
 
 #: Sin caracteres ambiguos (0/O, 1/l/I): la persona la teclea desde un correo.
 _TEMPORARY_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -85,7 +91,9 @@ def _approve_one(user_id):
         user.set_password(temporary)
         user.activo = True
         user.must_change_password = True
-        user.save(update_fields=["password", "activo", "must_change_password"])
+        # S1-5 · la temporal caduca: el plazo cuenta desde aquí (``SIEP_TEMP_PASSWORD_DAYS``).
+        user.temp_password_set_at = timezone.now()
+        user.save(update_fields=["password", "activo", "must_change_password", "temp_password_set_at"])
         # S1-4 · reactivar la cuenta cierra las sesiones anteriores: no revive tokens viejos.
         revoke_sessions(user_id)
         try:
@@ -196,7 +204,95 @@ def change_password(user, current_password, new_password):
     with transaction.atomic():
         user.set_password(new_password)
         user.must_change_password = False
-        user.save(update_fields=["password", "must_change_password"])
+        # S1-5 · una clave propia no caduca: se borra la fecha de la temporal.
+        user.temp_password_set_at = None
+        user.save(update_fields=["password", "must_change_password", "temp_password_set_at"])
         # La instancia lleva la época nueva: el token que se reemite a quien cambió la clave nace vigente.
         user.session_epoch = revoke_sessions(user.id)
     return user
+
+
+def temporary_password_expired(user, now=None):
+    """``True`` si la contraseña temporal de ``user`` caducó (S1-5): sigue siendo temporal y se fijó hace más de
+    ``SIEP_TEMP_PASSWORD_DAYS`` días. Una clave propia (sin fecha de temporal) nunca caduca."""
+    if not user.must_change_password or user.temp_password_set_at is None:
+        return False
+    ahora = timezone.now() if now is None else now
+    return ahora - user.temp_password_set_at > timedelta(days=settings.SIEP_TEMP_PASSWORD_DAYS)
+
+
+def return_expired_to_pending(user_id, now=None):
+    """Devuelve a «pendiente» la cuenta cuya temporal caducó (S1-5). Devuelve ``True`` si la devolvió.
+
+    Un ADMIN no vuelve a pendiente: no se bloquea a los administradores; su clave caducada deja de servir y otro ADMIN
+    la repone. Se vuelve a mirar con la fila bloqueada, así dos intentos a la vez no la devuelven dos veces. En el
+    registro solo va el id de la cuenta, nunca el correo.
+    """
+    with transaction.atomic():
+        user = User.objects.select_for_update().filter(pk=user_id).first()
+        if user is None or not temporary_password_expired(user, now=now):
+            return False
+        security_logger.info(
+            "security_event", extra={"fields": {"event": "temp_password_expired", "userId": user_id}}
+        )
+        if user.role == "ADMIN":
+            return False
+        user.activo = False
+        user.set_password(None)
+        user.must_change_password = True
+        user.temp_password_set_at = None
+        user.save(update_fields=["activo", "password", "must_change_password", "temp_password_set_at"])
+        # S1-4 · las sesiones que quedaban abiertas con la temporal dejan de valer.
+        revoke_sessions(user_id)
+    return True
+
+
+def _contexto_de_la_cuenta(args, kwargs, result):
+    """Solo el id de la cuenta en la auditoría: nunca la contraseña que fijó el ADMIN (S1-5)."""
+    user = args[0] if args else kwargs["user"]
+    return {"targetId": user.pk}
+
+
+@auditable("PASSWORD_SET_BY_ADMIN", "USER", -1, context=_contexto_de_la_cuenta)
+def set_password_by_admin(user, password):
+    """Un ADMIN fija la contraseña de ``user`` (S1-5 · SF-21): la clave queda temporal, con cambio obligatorio y fecha.
+
+    Guarda solo la clave y su marca. Quien llama guarda el resto de la cuenta y, si la cuenta ya existía, cierra sus
+    sesiones. La contraseña no sale de aquí: ni a la auditoría ni al registro ni a la respuesta.
+    """
+    user.set_password(password)
+    user.must_change_password = True
+    user.temp_password_set_at = timezone.now()
+    user.save(update_fields=["password", "must_change_password", "temp_password_set_at"])
+    return user
+
+
+def notify_admin_password_change(user):
+    """Avisa a la persona de que un ADMIN le cambió la contraseña (S1-5 · SF-21).
+
+    El aviso sale al confirmarse el cambio y en segundo plano: no bloquea la petición ni la rompe si el correo falla. No
+    lleva la contraseña ni enlaces, y dice «un administrador», no quién.
+    """
+    cuando = timezone.now().strftime("%d/%m/%Y %H:%M")
+    transaction.on_commit(
+        functools.partial(run_in_background, _enviar_aviso_de_cambio, user.id, user.email, user.nombre, cuando)
+    )
+
+
+def _enviar_aviso_de_cambio(user_id, email, nombre, cuando):
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    try:
+        send_mail(
+            "[SIEP] Un administrador cambió tu contraseña",
+            (
+                f"Hola {nombre},\n\n"
+                f"Un administrador cambió la contraseña de tu cuenta en SIEP el {cuando}.\n\n"
+                "Al entrar te pediremos que la cambies por una propia antes de continuar.\n"
+                "Si no esperabas este cambio, comunícate con la institución cuanto antes.\n"
+            ),
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+    except Exception as exc:  # noqa: BLE001  (el aviso no rompe nada; el registro no lleva el correo)
+        logger.error("No se pudo avisar a la cuenta %s del cambio de contraseña (%s)", user_id, type(exc).__name__)

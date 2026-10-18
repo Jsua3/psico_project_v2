@@ -99,6 +99,7 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "ASSIGNMENT_REMOVED": "asignacion.eliminar",
     "USER_APPROVED": "usuario.aprobar",
     "PASSWORD_CHANGED": "usuario.cambiar_clave",
+    "PASSWORD_SET_BY_ADMIN": "usuario.fijar_clave",
     "SESSIONS_REVOKED": "sesion.revocar",
 }
 

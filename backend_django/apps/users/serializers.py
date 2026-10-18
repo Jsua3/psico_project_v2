@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -47,6 +49,19 @@ def validate_new_password(value, user=None):
     return value
 
 
+def _cuenta_propuesta(datos, instance=None):
+    """La cuenta tal como quedará tras guardar (S1-5): correo, nombre y apellido del formulario o, si no vienen, los de la
+    cuenta actual. Así la clave se compara con lo que la cuenta va a ser, también en un alta (que aún no existe)."""
+
+    def dato(campo):
+        valor = datos.get(campo) if hasattr(datos, "get") else None
+        if valor is None and instance is not None:
+            valor = getattr(instance, campo, "")
+        return "" if valor is None else str(valor)
+
+    return SimpleNamespace(email=dato("email"), nombre=dato("nombre"), apellido=dato("apellido"))
+
+
 class UserSummarySerializer(serializers.ModelSerializer):
     """Spring's UserSummary record {id, nombre, apellido, email, role} + ``mustChangePassword``."""
 
@@ -88,7 +103,7 @@ class AdminUserWriteSerializer(serializers.Serializer):
         return value
 
     def validate_password(self, value):
-        return validate_new_password(value, self.instance) if value else value
+        return validate_new_password(value, _cuenta_propuesta(self.initial_data, self.instance)) if value else value
 
     def validate(self, attrs):
         password = attrs.get("password", "")
@@ -98,7 +113,9 @@ class AdminUserWriteSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return User.objects.create_user(password=password, **validated_data)
+        user = User.objects.create_user(password=None, **validated_data)
+        # S1-5 · SF-21: la clave que pone un ADMIN es temporal (cambio obligatorio y fecha de caducidad), y se audita.
+        return account_service.set_password_by_admin(user, password)
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", "")
@@ -106,11 +123,15 @@ class AdminUserWriteSerializer(serializers.Serializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
         if password:
-            instance.set_password(password)
+            # S1-5 · SF-21: la clave que fija un ADMIN queda temporal y se audita con el actor (nunca con la clave).
+            account_service.set_password_by_admin(instance, password)
         instance.save()
         # S1-4 · una contraseña fijada, un cambio de rol o de activo cierran las sesiones de la persona.
         if password or previos != (instance.role, instance.activo):
             account_service.revoke_sessions(instance.pk)
+        if password:
+            # S1-5 · la persona debe saberlo: el aviso sale al confirmarse el cambio (sin la clave ni enlaces).
+            account_service.notify_admin_password_change(instance)
         return instance
 
 
@@ -169,7 +190,7 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate_password(self, value):
-        return validate_new_password(value)
+        return validate_new_password(value, _cuenta_propuesta(self.initial_data))
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)

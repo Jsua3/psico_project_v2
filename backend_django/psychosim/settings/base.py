@@ -5,8 +5,11 @@ migrations of each app (E0-8); the constraints that production enforces live in
 the models' ``Meta`` and are pinned by ``test_schema_contract.py``.
 """
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -166,6 +169,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    # S1-5 · la clave no puede parecerse a la cuenta (correo, parte local, nombre, apellido y sus combinaciones).
+    {"NAME": "apps.users.password_validators.NotSimilarToAccountValidator"},
     # BCrypt solo admite 72 bytes: más largo es un 400 con su campo, no un 500.
     {"NAME": "apps.users.password_validators.MaximumLengthBytesValidator"},
 ]
@@ -187,6 +192,20 @@ def _env_flag(name, default=False):
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _entero_env(name, default, minimo):
+    """Entero por variable de entorno (S1-5). Ausente o vacía, ``default``; un valor que no sea un entero ≥ ``minimo``
+    detiene el arranque. El valor recibido no entra en el mensaje: puede ser un secreto puesto en la variable equivocada."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    if not re.fullmatch(r"[0-9]{1,9}", raw) or int(raw) < minimo:
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{name} debe ser un entero ≥ {minimo} (valor no mostrado)."
+        )
+    return int(raw)
 
 
 # ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
@@ -303,6 +322,10 @@ SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().
 #: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
 #: emergencia: no lo apagues en producción).
 SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+
+#: S1-5 · días que vive una contraseña temporal (la de una aprobación o la que fija un ADMIN) antes de caducar. Entero ≥ 1.
+#: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
+SIEP_TEMP_PASSWORD_DAYS = _entero_env("SIEP_TEMP_PASSWORD_DAYS", default=7, minimo=1)
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
