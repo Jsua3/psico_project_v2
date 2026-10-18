@@ -51,12 +51,25 @@ def assignment_dto(assignment, now=None):
 
 
 # ─── Validación de entrada ────────────────────────────────────────────────────────────────
+#: El rango razonable de una fecha de ventana (S2-6b): ni un año 0001 o 9999, ni una fecha lejana por error.
+FECHA_ANIO_MIN = 2000
+FECHA_ANIO_MAX = 2100
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+_FECHA_FUERA_DE_RANGO = f"La fecha debe estar entre los años {FECHA_ANIO_MIN} y {FECHA_ANIO_MAX}."
+
+
 def _parse_date(raw, field):
     try:
-        return parse_window_value(raw)
+        value = parse_window_value(raw)
+    except OverflowError:
+        # S2-6b · un año 1 o 9999 con desfase se sale del rango de Python al pasarlo a Bogotá: 400, no 500.
+        raise _field_error(field, _FECHA_FUERA_DE_RANGO) from None
     except (TypeError, ValueError):
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
         raise _field_error(field, "La fecha debe ser un texto ISO 8601, p. ej. 2026-10-20T08:00:00-05:00.") from None
+    if value is not None and not FECHA_ANIO_MIN <= value.year <= FECHA_ANIO_MAX:
+        raise _field_error(field, _FECHA_FUERA_DE_RANGO)
+    return value
 
 
 def _parse_sort_order(raw):

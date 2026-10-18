@@ -42,6 +42,10 @@ PLAIN = {
     ),
     "NO_SAFE_EXIT": "El caso necesita una salida segura: agrega un objeto de tipo salida (EXIT).",
     "MAP_TOO_LARGE": "El mapa «{map}» es demasiado grande.",
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    "MAP_BACKGROUND_NOT_ALLOWED": (
+        "El fondo de la sala «{map}» no se puede publicar: solo admite rutas de /assets/ o hosts permitidos."
+    ),
     "TOO_MANY_OBJECTS": "El mapa «{map}» tiene demasiados objetos.",
     "TOO_MANY_COLLISIONS": "El mapa «{map}» tiene demasiadas zonas de colisión.",
     "TOO_MANY_TRIGGERS": "El mapa «{map}» tiene demasiados disparadores.",

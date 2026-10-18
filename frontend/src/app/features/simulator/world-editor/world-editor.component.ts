@@ -283,8 +283,9 @@ const OBJECT_COLORS: Record<string, string> = {
                 <input type="range" min="0.25" max="4" step="0.05" [ngModel]="roomZoom()"
                        (ngModelChange)="setRoomZoom($event)" />
               </label>
+              <!-- BORRADOR (VD-23): el texto del marcador es nuevo (S2-6b) y espera la aprobación de Psicología. -->
               <label><span>Imagen de fondo (URL)</span>
-                <input [ngModel]="roomBg()" (ngModelChange)="setRoomBg($event)" placeholder="assets/… o https://…" />
+                <input [ngModel]="roomBg()" (ngModelChange)="setRoomBg($event)" placeholder="/assets/… (ruta propia) o https://… (host permitido)" />
               </label>
             </div>
           }

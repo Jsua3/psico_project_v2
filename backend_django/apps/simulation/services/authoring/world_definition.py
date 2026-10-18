@@ -4,6 +4,7 @@ Un «mundo» es lo que el estudiante explora en un nodo: su mapa, los objetos, l
 zonas de colisión, los diálogos y las herramientas, más la validación del conjunto.
 """
 from django.db import transaction
+from rest_framework import status
 from rest_framework.exceptions import NotFound
 
 from apps.simulation.models import (
@@ -18,7 +19,10 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services import world_validation
+from shared.exceptions import ApiError
 from shared.jsonutils import (
+    INT4_MAX,
+    INT4_MIN,
     coerce_int as _int,
     read_map as _read_map,
     write_map as _write_map,
@@ -27,7 +31,9 @@ from shared.jsonutils import (
 from .editor_view import clinical_tool_editor
 from .guards import bump_revision, character_link, decision_link, ensure_draft, require_version
 from .icons import validate_icon
+from .limites import _texto
 from .scenes import save_dialogue_choices
+from ..world_assets import world_asset_url_problem
 
 
 def world_editor(case_version_id, node_id):
@@ -114,6 +120,8 @@ def save_world(case_version_id, node_id, request):
     otra sala (A-05).
     """
     ensure_draft(case_version_id, request.get("revision"))
+    _validar_enteros_del_mundo(request)
+    _validar_fondo_de_sala(request.get("map"))
 
     all_maps = list(SceneMap.objects.filter(case_version_id=case_version_id).order_by("id"))
     if node_id is not None:
@@ -150,6 +158,95 @@ def save_world(case_version_id, node_id, request):
     return world_editor(case_version_id, node_id)
 
 
+# ─── Límites de entrada del guardado (S2-6b) ──────────────────────────────────────────────
+def _fuera_de_int4(value):
+    """Un número que no cabe en una columna int4, o infinito (un 1e400 del JSON). Un texto cualquiera no es un
+    número: el guardado lo toma por cero como siempre."""
+    try:
+        numero = int(value)
+    except OverflowError:
+        return True
+    except (TypeError, ValueError):
+        return False
+    return not INT4_MIN <= numero <= INT4_MAX
+
+
+def _id_no_entero(value):
+    try:
+        int(value)
+    except (TypeError, ValueError, OverflowError):
+        return True
+    return False
+
+
+def _filas(value):
+    return [fila for fila in value if isinstance(fila, dict)] if isinstance(value, list) else []
+
+
+def _revisar_numeros(fila, claves, seccion):
+    if not isinstance(fila, dict):
+        return
+    for clave in claves:
+        if fila.get(clave) is not None and _fuera_de_int4(fila[clave]):
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            raise ApiError(
+                "VALIDATION_ERROR",
+                f"El valor de {seccion}.{clave} debe ser un entero entre {INT4_MIN} y {INT4_MAX}.",
+                status.HTTP_400_BAD_REQUEST,
+                field=f"{seccion}.{clave}",
+            )
+
+
+def _revisar_ids(fila, claves, seccion):
+    if not isinstance(fila, dict):
+        return
+    for clave in claves:
+        if fila.get(clave) is not None and _id_no_entero(fila[clave]):
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            raise ApiError(
+                "VALIDATION_ERROR",
+                f"El identificador {seccion}.{clave} debe ser un número entero.",
+                status.HTTP_400_BAD_REQUEST,
+                field=f"{seccion}.{clave}",
+            )
+
+
+def _validar_enteros_del_mundo(request):
+    """Los números y los identificadores del cuerpo que el guardado lee sin validar (S2-6b): un valor fuera de
+    int4 o un id que no es entero es un 400 con su campo, en vez de un 500 de la base de datos."""
+    _revisar_numeros(request.get("map"), ("width", "height", "spawnX", "spawnY"), "map")
+    for objeto in _filas(request.get("objects")):
+        _revisar_numeros(objeto, ("x", "y", "width", "height", "zIndex"), "objects")
+        _revisar_ids(objeto, ("id", "decisionOptionId", "characterId"), "objects")
+    for zona in _filas(request.get("collisionZones")):
+        _revisar_numeros(zona, ("x", "y", "width", "height"), "collisionZones")
+        _revisar_ids(zona, ("id",), "collisionZones")
+    for dialogo in _filas(request.get("dialogues")):
+        _revisar_ids(dialogo, ("id", "mapObjectId"), "dialogues")
+        for linea in _filas(dialogo.get("lines")):
+            _revisar_numeros(linea, ("order",), "dialogues.lines")
+        for opcion in _filas(dialogo.get("choices")):
+            _revisar_numeros(opcion, ("displayOrder",), "choices")
+            _revisar_ids(opcion, ("decisionOptionId",), "choices")
+
+
+def _validar_fondo_de_sala(map_def):
+    """El fondo de sala (``ambient.backgroundImage``) solo puede ser una ruta propia o un host permitido (S2-6b)."""
+    ambient = map_def.get("ambient") if isinstance(map_def, dict) else None
+    if not isinstance(ambient, dict) or "backgroundImage" not in ambient:
+        return
+    problema = world_asset_url_problem(ambient.get("backgroundImage"))
+    if problema is not None:
+        raise ApiError(
+            "VALIDATION_ERROR", problema, status.HTTP_400_BAD_REQUEST, field="map.ambient.backgroundImage"
+        )
+
+
+def _problema_del_fondo(scene_map):
+    """El problema del fondo de la sala guardada, o ``None``: lo mira la publicación (S2-6b)."""
+    return world_asset_url_problem(_read_map(scene_map.ambient_json).get("backgroundImage"))
+
+
 def _apply_map_definition(scene_map, map_def):
     if _int(map_def.get("width")) > 0:
         scene_map.width = _int(map_def.get("width"))
@@ -160,7 +257,7 @@ def _apply_map_definition(scene_map, map_def):
     if _int(map_def.get("spawnY"), -1) >= 0:
         scene_map.spawn_y = _int(map_def.get("spawnY"))
     if map_def.get("theme") is not None:
-        scene_map.theme = map_def.get("theme")
+        scene_map.theme = _texto(SceneMap, "theme", map_def.get("theme"), "map.theme")
     if map_def.get("ambient") is not None:
         scene_map.ambient_json = _write_map(map_def.get("ambient"))
     scene_map.save()
@@ -184,16 +281,28 @@ def _save_objects(scene_map, objects, case_version_id):
         obj.width = _int(wo.get("width")) if _int(wo.get("width")) > 0 else 48
         obj.height = _int(wo.get("height")) if _int(wo.get("height")) > 0 else 48
         obj.z_index = _int(wo.get("zIndex"))
-        obj.facing = wo.get("facing") if wo.get("facing") is not None else "down"
-        obj.color_hex = wo.get("colorHex") if wo.get("colorHex") is not None else "#4FA3A5"
+        obj.facing = (
+            _texto(MapObject, "facing", wo.get("facing"), "objects.facing")
+            if wo.get("facing") is not None else "down"
+        )
+        obj.color_hex = (
+            _texto(MapObject, "color_hex", wo.get("colorHex"), "objects.colorHex")
+            if wo.get("colorHex") is not None else "#4FA3A5"
+        )
         validate_icon(wo.get("icon"), current=obj.icon)
         obj.icon = wo.get("icon") if wo.get("icon") is not None else "psychology"
-        obj.short_code = wo.get("shortCode") if wo.get("shortCode") is not None else "ACT"
+        obj.short_code = (
+            _texto(MapObject, "short_code", wo.get("shortCode"), "objects.shortCode")
+            if wo.get("shortCode") is not None else "ACT"
+        )
         obj.collision = bool(wo.get("collision"))
         obj.visible = bool(wo.get("visible"))
-        obj.interaction_prompt = wo.get("interactionPrompt") if wo.get("interactionPrompt") is not None else ""
+        obj.interaction_prompt = (
+            _texto(MapObject, "interaction_prompt", wo.get("interactionPrompt"), "objects.interactionPrompt")
+            if wo.get("interactionPrompt") is not None else ""
+        )
         obj.interaction_text = wo.get("interactionText") if wo.get("interactionText") is not None else ""
-        obj.tool_code = wo.get("toolCode")
+        obj.tool_code = _texto(MapObject, "tool_code", wo.get("toolCode"), "objects.toolCode")
         obj.unlock_condition_json = _write_map(wo.get("unlockCondition"))
         obj.movement_pattern_json = _write_map(wo.get("movementPattern"))
         obj.metadata_json = _write_map(wo.get("metadata"))
@@ -241,9 +350,12 @@ def _save_dialogues(scene_map, case_version_id, dialogues, saved_objects):
         tree.scene_map = scene_map
         tree.map_object = owner
         tree.tree_key = dt.get("key") or ""
-        tree.speaker_name = dt.get("speakerName") or ""
-        tree.portrait_key = dt.get("portraitKey")
-        tree.emotion = dt.get("emotion") if dt.get("emotion") is not None else "neutral"
+        tree.speaker_name = _texto(DialogueTree, "speaker_name", dt.get("speakerName"), "dialogues.speakerName") or ""
+        tree.portrait_key = _texto(DialogueTree, "portrait_key", dt.get("portraitKey"), "dialogues.portraitKey")
+        tree.emotion = (
+            _texto(DialogueTree, "emotion", dt.get("emotion"), "dialogues.emotion")
+            if dt.get("emotion") is not None else "neutral"
+        )
         tree.save()
         kept_tree_ids.append(tree.id)
         DialogueLine.objects.filter(dialogue_tree=tree).delete()
@@ -251,9 +363,15 @@ def _save_dialogues(scene_map, case_version_id, dialogues, saved_objects):
             DialogueLine.objects.create(
                 dialogue_tree=tree,
                 display_order=_int(ln.get("order")),
-                speaker_name=ln.get("speakerName") or tree.speaker_name,
+                speaker_name=(
+                    _texto(DialogueLine, "speaker_name", ln.get("speakerName"), "dialogues.lines.speakerName")
+                    or tree.speaker_name
+                ),
                 text=ln.get("text") or "",
-                emotion=ln.get("emotion") if ln.get("emotion") is not None else "neutral",
+                emotion=(
+                    _texto(DialogueLine, "emotion", ln.get("emotion"), "dialogues.lines.emotion")
+                    if ln.get("emotion") is not None else "neutral"
+                ),
             )
         DialogueChoice.objects.filter(dialogue_tree=tree).delete()
         save_dialogue_choices(tree, dt.get("choices"), case_version_id)
@@ -280,7 +398,7 @@ def _save_collision_zones(scene_map, zones):
             zone = CollisionZone(scene_map=scene_map)
         width, height = _int(wz.get("width")), _int(wz.get("height"))
         zone.zone_key = wz.get("key") or ""
-        zone.label = wz.get("label")
+        zone.label = _texto(CollisionZone, "label", wz.get("label"), "collisionZones.label")
         zone.position_x = _int(wz.get("x"))
         zone.position_y = _int(wz.get("y"))
         zone.width = width if width > 0 else 1
@@ -352,6 +470,7 @@ def run_world_validation(version):
                 "spawnX": m.spawn_x,
                 "spawnY": m.spawn_y,
                 "ambientNpcKeys": _ambient_npc_keys(m),
+                "backgroundProblem": _problema_del_fondo(m),
             }
             for m in maps
         ],

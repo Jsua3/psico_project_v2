@@ -35,6 +35,11 @@ def write_map(value):
         return "{}"
 
 
+#: Los límites de una columna ``integer`` de PostgreSQL (int4). Un entero fuera de ellos no se puede guardar (S2-6b).
+INT4_MIN = -(2**31)
+INT4_MAX = 2**31 - 1
+
+
 def coerce_int(value, default=0):
     if value is None:
         return default
