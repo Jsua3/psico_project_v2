@@ -107,9 +107,10 @@ jobs:
           if-no-files-found: ignore
 
   load:
-    name: Carga del aula (40 estudiantes nominal y 3x pico, E5-4)
+    name: Carga del aula (40 estudiantes × 60 min nominal y 120 × 10 min a 3x pico, E5-4)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 60 + 10 minutos de carga más el arranque de cada una (BD, migraciones, siembra de los estudiantes).
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -124,14 +125,14 @@ jobs:
         run: |
           python -m venv backend_django/.venv
           backend_django/.venv/bin/pip install -r backend_django/requirements.txt
-      - name: Carga nominal (40 estudiantes, p95 <= 2 s, error <= 1%)
+      - name: Carga nominal (40 estudiantes durante 60 min, p95 <= 2 s, error <= 1%)
         run: >
-          node scripts/load/aula.mjs --students 40 --minutes 2 --server gunicorn
-          --p95-max-ms 2000 --error-rate-max 0.01 --out load-results/load-40x2.json
-      - name: Carga pico 3x (120 estudiantes, p95 <= 4 s, error <= 1%)
+          node scripts/load/aula.mjs --students 40 --minutes 60 --server gunicorn
+          --p95-max-ms 2000 --error-rate-max 0.01 --out load-results/load-40x60.json
+      - name: Carga pico 3x (120 estudiantes durante 10 min, p95 <= 4 s, error <= 1%)
         run: >
-          node scripts/load/aula.mjs --students 120 --minutes 1 --server gunicorn
-          --p95-max-ms 4000 --error-rate-max 0.01 --out load-results/load-120x1.json
+          node scripts/load/aula.mjs --students 120 --minutes 10 --server gunicorn
+          --p95-max-ms 4000 --error-rate-max 0.01 --out load-results/load-120x10.json
       - name: Subir reporte de carga
         if: always()
         uses: actions/upload-artifact@v7
