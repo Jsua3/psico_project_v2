@@ -26,7 +26,7 @@ from apps.simulation.models import (
 from apps.simulation.services import game_service
 from apps.simulation.services.authoring import definition_io, gate, graph, lifecycle, publication
 from shared.exceptions import ApiError
-from shared.testing import run_concurrently
+from shared.testing import purge_audit_rows, run_concurrently
 
 from .test_case_lifecycle import AUTHORING, CHECKLIST, _draft_owned_by
 from .test_game import assign_case_to_student
@@ -248,7 +248,7 @@ def _edit_request(node, **changes):
 def _forget(case, *users):
     started = [v.pk for v in CaseVersion.objects.filter(simulation_case=case)]
     CaseReview.objects.filter(case_version_id__in=started).delete()
-    AuditLog.objects.filter(resource_id__in=[str(pk) for pk in started]).delete()
+    purge_audit_rows(AuditLog.objects.filter(resource_id__in=[str(pk) for pk in started]))
     case.delete()
     for user in users:
         user.delete()

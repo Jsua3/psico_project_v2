@@ -17,7 +17,7 @@ from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationAttempt, SimulationNode
 from apps.simulation.models.rubric import AuditLog
 from apps.simulation.services import game_service
-from shared.testing import run_concurrently
+from shared.testing import purge_audit_rows, run_concurrently
 
 from .test_game import (  # noqa: F401  (fixtures de pytest)
     assign_case_to_student,
@@ -186,7 +186,7 @@ def test_dos_inicios_concurrentes_crean_un_solo_intento(real_commits):
         CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
-        AuditLog.objects.filter(action="ATTEMPT_STARTED", occurred_at__gte=started).delete()
+        purge_audit_rows(AuditLog.objects.filter(action="ATTEMPT_STARTED", occurred_at__gte=started))
         estudiante.delete()
 
 
@@ -258,7 +258,7 @@ def test_force_new_espera_el_cerrojo_y_no_pisa_un_intento_que_se_completo(real_c
         CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
-        AuditLog.objects.filter(occurred_at__gte=started).delete()
+        purge_audit_rows(AuditLog.objects.filter(occurred_at__gte=started))
         estudiante.delete()
 
 

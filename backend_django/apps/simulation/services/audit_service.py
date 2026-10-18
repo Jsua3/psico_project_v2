@@ -18,9 +18,11 @@ import functools
 import json
 import logging
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.security.limiter import hit, key_hash
@@ -36,6 +38,8 @@ MAX_USER_AGENT_LEN = 500
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 MAX_PAGE = 1_000_000  # más allá, el OFFSET se sale del rango de la base y el listado cae con un 500
+#: Bandera de sesión que mira el trigger de la migración 0026 (S4-2): ``on`` deja pasar UPDATE, DELETE y TRUNCATE.
+AUDIT_PURGE_SETTING = "siep.purge"
 
 #: Taxonomía canónica ``entidad.verbo`` (E5-7, §A16, C15).
 AUDIT_TAXONOMY: dict[str, str] = {
@@ -217,6 +221,23 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
         )
     except Exception as ex:  # pragma: no cover - audit must never propagate
         _registrar_fallo_de_auditoria(action, ex)
+
+
+@contextmanager
+def audit_purge_window():
+    """Abre la puerta de la auditoría de solo añadir (S4-2) solo dentro de este bloque.
+
+    Lo usan el purgado (``purge_audit_logs``) y los ayudantes de prueba. ``set_config(..., true)`` enciende
+    ``siep.purge`` hasta el fin de la transacción. Al salir con éxito devuelve el valor que tenía antes, así que una
+    ventana anidada no deja la puerta abierta en la transacción de fuera; si el bloque falla, PostgreSQL deshace el
+    cambio junto con su savepoint.
+    """
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting(%s, true)", [AUDIT_PURGE_SETTING])
+        previous = cursor.fetchone()[0] or ""
+        cursor.execute("SELECT set_config(%s, 'on', true)", [AUDIT_PURGE_SETTING])
+        yield
+        cursor.execute("SELECT set_config(%s, %s, true)", [AUDIT_PURGE_SETTING, previous])
 
 
 # ─── @auditable decorator (Spring SimulationAuditAspect) ─────────────────────
