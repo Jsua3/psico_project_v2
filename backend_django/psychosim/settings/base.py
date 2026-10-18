@@ -141,6 +141,11 @@ from corsheaders.defaults import default_headers  # noqa: E402
 
 CORS_ALLOW_HEADERS = (*default_headers, "x-case-revision")
 
+# S5-3 · Llave que FIRMA los tokens de sesión (simplejwt). Va aparte de DJANGO_SECRET_KEY: rotar esta última no cierra las
+# sesiones de SIEP, y rotar JWT_SIGNING_KEY sí las cierra todas. Producción la exige (production.py); en desarrollo y
+# pruebas, sin ella, cae a SECRET_KEY para no cambiar nada de lo existente.
+JWT_SIGNING_KEY = os.environ.get("JWT_SIGNING_KEY", "").strip() or SECRET_KEY
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
         hours=int(os.environ.get("JWT_EXPIRATION_HOURS", "8"))
@@ -148,10 +153,14 @@ SIMPLE_JWT = {
     "TOKEN_OBTAIN_SERIALIZER": "apps.users.serializers.PsychoSimTokenObtainSerializer",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "userId",
+    # S5-3 · Firma explícita: un cambio de algoritmo o de llave tiene que verse aquí y no ser silencioso.
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "VERIFYING_KEY": "",
 }
 
-# S5-1 · JWT_SECRET ya no firma nada (la firma de sesión sale de SECRET_KEY; S5-3 la decide) y no lleva valor por
-# defecto: el literal público que tenía se retira. El nombre se conserva por compatibilidad de entorno.
+# S5-3 · JWT_SECRET está obsoleto: ya no firma nada ni lo exige producción. Se conserva el nombre por compatibilidad de
+# entorno y no lleva valor por defecto (el literal público que tuvo se retiró en S5-1).
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 # S5-1 · Llave de cifrado en reposo de las reflexiones. Producción la exige (production.py) y NO la hereda de
 # JWT_SECRET. Aquí solo hay una llave de DESARROLLO inconfundible: el marcador «dev-only» hace que producción la rechace.

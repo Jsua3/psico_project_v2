@@ -12,12 +12,13 @@ Required environment variables:
     DB_PASSWORD, SIEP_TRUSTED_PROXIES (entero ≥ 0: proxies de confianza delante de Django;
     sin valor por defecto), REFLECTION_ACTIVE_KEY (id de una llave de REFLECTION_KEYS, nunca
     local-aes-gcm-v1) y REFLECTION_KEYS (id=secreto separados por comas; cada secreto ≥ 32
-    caracteres, ≥ 20 distintos y distinto de DJANGO_SECRET_KEY; S5-2).
+    caracteres, ≥ 20 distintos y distinto de DJANGO_SECRET_KEY; S5-2), JWT_SIGNING_KEY (≥ 50 caracteres, ≥ 20 distintos,
+    distinta de DJANGO_SECRET_KEY y de las llaves de reflexiones; S5-3).
 Optional:
     CORS_ALLOWED_ORIGINS (comma-separated), DB_NAME/DB_USER/DB_HOST/DB_PORT,
     DJANGO_SECURE_SSL_REDIRECT (default "true": solo "false" lo apaga),
     SIEP_HSTS_SECONDS (default 3600: entero entre 0 y 63072000).
-JWT_SECRET ya no se exige ni se valida: no firma nada (la firma de sesión la decide S5-3).
+JWT_SECRET está obsoleto (S5-3): no firma nada y no se exige. La firma de sesión es JWT_SIGNING_KEY.
 """
 import os
 import re
@@ -168,7 +169,28 @@ for _posicion, _secreto_reflexion in enumerate(REFLECTION_KEYS.values(), start=1
 # Solo exigimos DB_PASSWORD cuando NO se usa DATABASE_URL.
 if not os.environ.get("DATABASE_URL"):
     _require_env("DB_PASSWORD")
-# S5-1 · JWT_SECRET ya no es obligatorio: no firma nada (la firma de sesión la decide S5-3).
+# S5-3 · La llave que firma las sesiones es OBLIGATORIA y propia: con las reglas de S5-1 y distinta de DJANGO_SECRET_KEY y
+# de toda llave de cifrado de las reflexiones. base.py la lee de la misma variable, así que lo que aquí se valida es lo que firma.
+JWT_SIGNING_KEY = _require_env("JWT_SIGNING_KEY").strip()
+if not JWT_SIGNING_KEY:
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "JWT_SIGNING_KEY es obligatoria: la llave con la que se firman las sesiones (valor no mostrado)."
+    )
+_validate_secret(
+    "JWT_SIGNING_KEY",
+    JWT_SIGNING_KEY,
+    min_length=50,
+    distinct_from=(
+        ("DJANGO_SECRET_KEY", SECRET_KEY),
+        ("REFLECTION_ENCRYPTION_KEY", REFLECTION_ENCRYPTION_KEY),
+        *(
+            (f"REFLECTION_KEYS (par {_posicion})", _secreto_reflexion)
+            for _posicion, _secreto_reflexion in enumerate(REFLECTION_KEYS.values(), start=1)
+        ),
+    ),
+)
+# S5-1 · JWT_SECRET ya no es obligatorio: no firma nada. La firma de sesión es JWT_SIGNING_KEY (S5-3).
 
 # CORS — al servir el SPA desde el mismo servicio Django el origen es el mismo y
 # no hace falta CORS; si el frontend vive en otro dominio, se listan aquí.

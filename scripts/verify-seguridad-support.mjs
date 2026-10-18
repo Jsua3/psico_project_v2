@@ -36,6 +36,8 @@ function deployEnv() {
     // S5-2: la llave activa es versionada: su id va en REFLECTION_ACTIVE_KEY y su secreto nuevo en REFLECTION_KEYS (id=secreto).
     REFLECTION_ACTIVE_KEY: 'k1',
     REFLECTION_KEYS: `k1=${secretoNuevo()}`,
+    // S5-3: la llave que firma las sesiones es propia: producción la exige (≥ 50 caracteres, distinta de las demás).
+    JWT_SIGNING_KEY: secretoNuevo(),
     DB_PASSWORD: secretoNuevo(),
     DJANGO_ALLOWED_HOSTS: 'localhost',
     // S1-1: producción exige declarar cuántos proxies de confianza hay delante de Django.
