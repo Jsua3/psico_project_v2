@@ -76,37 +76,82 @@ const NODE_BODY = {
   warningMessage: null, terminal: false, startNode: false, positionX: null, positionY: null,
 };
 
-/** Crea el caso, lo completa (dos escenas, mapas, salida segura, lista de publicación y ficha), lo envía a revisión y lo aprueba. */
-export async function createPublishedCase(request: APIRequestContext, options: CaseFixtureOptions): Promise<CaseFixture> {
-  const admin = await apiToken(request, ADMIN);
+export interface DraftOptions {
+  title: string;
+  /** La descripción del caso (E4: OCL-07 la exige); es también el contexto que lee el estudiante. */
+  description?: string;
+  /** Una escena con contenido sensible: la ficha avisa antes de entrar. */
+  sensitive?: boolean;
+}
+
+const DEFAULT_DESCRIPTION = 'Caso de prueba: una decisión de dos opciones que llevan al cierre.';
+
+/**
+ * Un borrador que el validador de E4 acepta, listo para enviar a revisión y publicar: dos escenas unidas por una decisión
+ * de DOS opciones (OCL-02), cada una con su retroalimentación escrita (E3: sin ella es un aviso de validación) y un objeto
+ * del mapa que la ofrece (`WORLD.OPTION_WITHOUT_TRIGGER`: una opción que ningún diálogo ni objeto ofrece no se puede
+ * elegir), la descripción del caso (OCL-07), un mapa por escena, una salida segura y la lista de publicación al 100 %.
+ * Sin errores ni avisos de validación. Lo comparten las pruebas que necesitan un caso publicable (`createPublishedCase`
+ * y la revisión del caso).
+ */
+export async function buildPublishableDraft(
+  request: APIRequestContext, token: string, options: DraftOptions,
+): Promise<{ id: number; title: string }> {
   const base = '/api/authoring/cases';
-  const created = await send(request, admin, 'post', base, { title: options.title }, 'crear el caso');
+  const created = await send(request, token, 'post', base,
+    { title: options.title, description: options.description ?? DEFAULT_DESCRIPTION }, 'crear el caso');
   const id: number = created['caseVersionId'];
   const startId: number = created['nodes'][0]['id'];
-  const withClosing = await send(request, admin, 'post', `${base}/${id}/nodes`, {
+  const withClosing = await send(request, token, 'post', `${base}/${id}/nodes`, {
     ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true,
     sensitiveContent: !!options.sensitive, warningMessage: options.sensitive ? 'Esta escena trata una situación delicada.' : null,
     safeExitRequired: !!options.sensitive,
   }, 'escena final');
   const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
-  await send(request, admin, 'post', `${base}/${id}/decisions`, {
+  await send(request, token, 'post', `${base}/${id}/decisions`, {
     sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
     prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
     immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
   }, 'decisión');
-  await send(request, admin, 'post', `${base}/${id}/maps`, {
+  const withOptions = await send(request, token, 'post', `${base}/${id}/decisions`, {
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', classification: 'RISKY',
+    prohibitedConduct: false, prohibitionReason: null, scoreDelta: -5, stressDelta: 5, prohibitedPenalty: 0,
+    immediateFeedback: 'Postergar el cierre deja el caso abierto sin necesidad.',
+  }, 'segunda opción de la decisión');
+  const optionIds: number[] = withOptions['decisions'].map((decision: Json) => decision['id']);
+  // La escena de inicio ya trae su mapa («escena-inicial»: un mapa por escena); solo falta el de la escena final.
+  await send(request, token, 'post', `${base}/${id}/maps`, {
     nodeId: closingId, mapKey: 'sala-cierre', title: 'Sala de cierre', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
   }, 'mapa de la escena final');
-  const view = (await (await request.get(`${base}/${id}/editor`, { headers: bearer(admin) })).json()).data;
-  await send(request, admin, 'post', `${base}/${id}/maps/${view['maps'][0]['id']}/objects`, {
+  const view = (await (await request.get(`${base}/${id}/editor`, { headers: bearer(token) })).json()).data;
+  const startMapId: number = view['maps'][0]['id'];
+  for (const [index, optionId] of optionIds.entries()) {
+    await send(request, token, 'post', `${base}/${id}/maps/${startMapId}/objects`, {
+      objectKey: `opcion-${index + 1}`, label: `Opción ${index + 1}`, objectType: 'OBJECT', x: 200 + 100 * index, y: 300, width: 48, height: 48,
+      colorHex: '#4FA3A5', icon: 'touch_app', shortCode: `O${index + 1}`, collision: false, visible: true, interactionPrompt: 'Elegir',
+      interactionText: '', decisionOptionId: optionId, toolCode: null,
+    }, 'objeto que ofrece la opción');
+  }
+  await send(request, token, 'post', `${base}/${id}/maps/${startMapId}/objects`, {
     objectKey: 'salida', label: 'Salida segura', objectType: 'EXIT', x: 800, y: 300, width: 48, height: 48, colorHex: '#4FA3A5',
     icon: 'exit_to_app', shortCode: 'SAL', collision: false, visible: true, interactionPrompt: 'Salir', interactionText: '',
     decisionOptionId: null, toolCode: null,
   }, 'salida segura');
-  await send(request, admin, 'put', `${base}/${id}/checklist`, {
+  await send(request, token, 'put', `${base}/${id}/checklist`, {
     contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true, accessibilityOk: true,
     scopeEducational: true,
   }, 'lista de publicación');
+  return { id, title: created['title'] };
+}
+
+/** Crea el caso publicable (`buildPublishableDraft`), le pone la ficha y los personajes, lo envía a revisión y lo aprueba. */
+export async function createPublishedCase(request: APIRequestContext, options: CaseFixtureOptions): Promise<CaseFixture> {
+  const admin = await apiToken(request, ADMIN);
+  const base = '/api/authoring/cases';
+  const draft = await buildPublishableDraft(request, admin, {
+    title: options.title, description: options.context, sensitive: options.sensitive,
+  });
+  const id = draft.id;
   if (options.context !== undefined || options.learningObjectives) {
     await send(request, admin, 'put', `${base}/${id}/brief`, {
       context: options.context ?? '', learningObjectives: options.learningObjectives ?? [],
@@ -117,7 +162,7 @@ export async function createPublishedCase(request: APIRequestContext, options: C
   }
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
-  return { caseVersionId: id, title: created['title'] };
+  return { caseVersionId: id, title: draft.title };
 }
 
 /**
