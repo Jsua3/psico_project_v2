@@ -6,7 +6,13 @@ nada: aquí se prueba cada cosa que debe ver.
 """
 import pytest
 
-from shared.contract_testing import assert_matches, response_schema, typed_operations
+from shared.contract_testing import (
+    assert_matches,
+    declared_properties,
+    exercised_properties,
+    response_schema,
+    typed_operations,
+)
 
 pytestmark = pytest.mark.req("RNF-07")
 
@@ -145,3 +151,46 @@ def test_typed_operations_cuenta_los_sobres_con_data_tipada_y_no_el_generico():
     }
 
     assert typed_operations(document) == {("/a", "GET"), ("/c", "GET"), ("/e", "POST")}
+
+
+def test_un_esquema_con_oneof_o_anyof_falla_en_voz_alta_en_vez_de_dejar_pasar_cualquier_cosa():
+    for key in ("oneOf", "anyOf"):
+        document = {"components": {"schemas": {"Mezcla": {key: [{"type": "string"}, {"type": "integer"}]}}}}
+
+        with pytest.raises(AssertionError) as caught:
+            assert_matches("lo que sea", {"$ref": "#/components/schemas/Mezcla"}, document)
+
+        assert f"{key}" in str(caught.value) and "no sabe comprobar" in str(caught.value)
+
+
+def test_un_date_time_sin_hora_es_un_fallo():
+    assert "$.cuando: no es un date-time" in problems_of({**COSA, "cuando": "2026-10-17"})
+
+
+def _lista_doc():
+    return {"components": {"schemas": {"Lista": DOC["components"]["schemas"]["Lista"], "Cosa": DOC["components"]["schemas"]["Cosa"],
+                                       "Punto": DOC["components"]["schemas"]["Punto"]}}}
+
+
+def test_exercised_properties_dice_que_propiedades_de_que_componente_vio_la_respuesta():
+    seen = exercised_properties(
+        {"items": [{**COSA, "nota": None, "anidada": {"x": 1}}], "total": 1}, {"$ref": "#/components/schemas/Lista"}, DOC
+    )
+
+    assert seen == {
+        "Lista.items", "Lista.total", "Cosa.id", "Cosa.nombre", "Cosa.estado", "Cosa.nota", "Cosa.anidada", "Punto.x",
+    }
+
+
+def test_declared_properties_lista_todas_las_propiedades_alcanzables_desde_un_esquema():
+    declared = declared_properties([{"$ref": "#/components/schemas/Lista"}], DOC)
+
+    assert {"Lista.items", "Lista.total", "Cosa.cuando", "Cosa.cualquiera", "Punto.x"} <= declared
+    assert "Cosa.inventada" not in declared
+
+
+def test_una_lista_vacia_no_ejercita_las_propiedades_de_sus_elementos():
+    seen = exercised_properties({"items": [], "total": 0}, {"$ref": "#/components/schemas/Lista"}, DOC)
+    declared = declared_properties([{"$ref": "#/components/schemas/Lista"}], DOC)
+
+    assert "Cosa.nombre" in declared - seen

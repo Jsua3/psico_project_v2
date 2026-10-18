@@ -6,8 +6,13 @@ que recibe el cliente contra el esquema del documento generado (el mismo que ve 
 claves requeridas, claves que el esquema no declara, tipos básicos, nulos, enumeraciones y los formatos
 ``uuid``, ``date`` y ``date-time``.
 
-Lo que no modela, a propósito: ``oneOf``/``anyOf`` y los ``allOf`` de varias partes (drf-spectacular solo emite
-un ``allOf`` de una parte, para un anidado que admite ``null``).
+Lo que no modela, a propósito: ``oneOf``/``anyOf`` (si un esquema los usa, la comparación FALLA en voz alta en lugar
+de dejar pasar cualquier cosa) y los ``allOf`` de varias partes (drf-spectacular solo emite un ``allOf`` de una
+parte, para un anidado que admite ``null``).
+
+``declared_properties`` y ``exercised_properties`` miden otra cosa: qué propiedades de qué componente declara el
+documento y cuáles llegó a ver alguna respuesta real. Una propiedad que ninguna respuesta real ejercita puede
+renombrarse en el servidor sin que ninguna prueba de contrato falle.
 """
 from __future__ import annotations
 
@@ -58,12 +63,85 @@ def _resolve(node: dict, components: dict) -> dict:
     return node
 
 
+def _component_name(node: dict) -> str | None:
+    return node["$ref"].rsplit("/", 1)[-1] if "$ref" in node else None
+
+
+def declared_response_schemas(document: dict, operations: set[tuple[str, str]]) -> list[dict]:
+    """Los esquemas JSON de TODAS las respuestas (éxito y error) que el documento declara para ``operations``."""
+    roots = []
+    for path, method in sorted(operations):
+        for response in document["paths"][path][method.lower()]["responses"].values():
+            schema = response.get("content", {}).get("application/json", {}).get("schema")
+            if schema is not None:
+                roots.append(schema)
+    return roots
+
+
+def declared_properties(roots: list[dict], document: dict) -> set[str]:
+    """``{"Componente.propiedad"}`` de cada componente con nombre alcanzable desde ``roots``."""
+    components = document.get("components", {}).get("schemas", {})
+    found: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node: dict) -> None:
+        name = _component_name(node)
+        if name is not None:
+            if name in visited:
+                return
+            visited.add(name)
+        resolved = _resolve(node, components)
+        for part in resolved.get("allOf", ()):
+            visit(part)
+        for prop, child in resolved.get("properties", {}).items():
+            if name is not None:
+                found.add(f"{name}.{prop}")
+            visit(child)
+        if "items" in resolved:
+            visit(resolved["items"])
+        if isinstance(resolved.get("additionalProperties"), dict):
+            visit(resolved["additionalProperties"])
+
+    for root in roots:
+        visit(root)
+    return found
+
+
+def exercised_properties(data: Any, schema: dict, document: dict) -> set[str]:
+    """Las ``"Componente.propiedad"`` que ``data`` trae de verdad (una lista vacía no ejercita las de sus elementos)."""
+    components = document.get("components", {}).get("schemas", {})
+    seen: set[str] = set()
+
+    def exercise(value: Any, node: dict) -> None:
+        name = _component_name(node)
+        resolved = _resolve(node, components)
+        for part in resolved.get("allOf", ()):
+            exercise(value, part)
+        if isinstance(value, dict):
+            properties = resolved.get("properties", {})
+            for key, item in value.items():
+                if key in properties:
+                    if name is not None:
+                        seen.add(f"{name}.{key}")
+                    exercise(item, properties[key])
+        elif isinstance(value, list):
+            for item in value:
+                exercise(item, resolved.get("items", {}))
+
+    exercise(data, schema)
+    return seen
+
+
 def _wrong_type(where: str, expected: str, value: Any) -> str:
     return f"{where}: se esperaba {expected}, llegó {type(value).__name__}"
 
 
 def _problems(value: Any, node: dict, components: dict, where: str, allow_extra: bool) -> Iterator[str]:
     node = _resolve(node, components)
+    for key in ("oneOf", "anyOf"):
+        if key in node:
+            yield f"{where}: el esquema usa {key}, que este comparador no sabe comprobar"
+            return
     if value is None:
         if node.get("nullable") or not (node.keys() & {"type", "enum", "allOf"}):
             return
@@ -108,6 +186,8 @@ def _string_problems(value: Any, node: dict, where: str) -> Iterator[str]:
         if kind == "uuid":
             uuid.UUID(value)
         elif kind == "date-time":
+            if len(value) <= 10:  # una fecha sin hora no es un date-time
+                raise ValueError(value)
             datetime.fromisoformat(value)
         elif kind == "date":
             date.fromisoformat(value)

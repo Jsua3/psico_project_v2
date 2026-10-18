@@ -25,16 +25,25 @@ from apps.grupos.models import CaseAssignment
 from apps.simulation.models import (
     AttemptHintView,
     AuditLog,
+    CaseCharacter,
     CaseReview,
     CaseVersion,
     SceneHint,
+    SceneMap,
     SimulationAttempt,
     SimulationNode,
 )
 from apps.simulation.services.authoring import definition_io
 from apps.simulation.tests import dsl_support
 from apps.simulation.views.ai_assistant import AIAssistantView
-from shared.contract_testing import assert_matches, response_schema, typed_operations
+from shared import contract_testing
+from shared.contract_testing import (
+    declared_properties,
+    declared_response_schemas,
+    exercised_properties,
+    response_schema,
+    typed_operations,
+)
 
 from .test_instructor import assign_case_to_student, cl
 
@@ -42,6 +51,17 @@ pytestmark = pytest.mark.req("RNF-07")
 
 User = get_user_model()
 ATTEMPT_HEADER = "HTTP_X_SIEP_ATTEMPT_TOKEN"
+
+#: Las ``Componente.propiedad`` que las respuestas reales de este módulo han mostrado (lo llena ``assert_matches``).
+SEEN: set[str] = set()
+#: Los contratos del registro que ya se probaron: la guardia de propiedades solo vale con todos.
+CASES_RUN: set[tuple[str, str]] = set()
+
+
+def assert_matches(data, schema, document, **options):
+    """``contract_testing.assert_matches`` y, además, apunta qué propiedades declaradas vio esta respuesta."""
+    contract_testing.assert_matches(data, schema, document, **options)
+    SEEN.update(exercised_properties(data, schema, document))
 ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista con dos prefijos
 WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
@@ -82,6 +102,10 @@ def world(db):
     outsider = make(email="fuera_contrato@x.com", password="x", nombre="Fue", apellido="Ra", role="ESTUDIANTE")
     grupo = assign_case_to_student(student, version.id, "CONTRATO", profesor=profesor)
     free_student = make(email="libre_contrato@x.com", password="x", nombre="Li", apellido="Bre", role="ESTUDIANTE")
+    CaseCharacter.objects.create(
+        case_version=version, character_key="madre-contrato", display_name="Marta", role_label="Madre",
+        portrait_key="madre-1", show_in_brief=True,
+    )
     CaseAssignment.objects.create(case_version=version, estudiante=free_student, assigned_by=admin)
 
     client = cl(student)
@@ -125,6 +149,7 @@ def world(db):
     )
     cl(admin).post("/api/admin/cases", {"title": "Caso de contrato"}, format="json")
     draft = CaseVersion.objects.get(simulation_case__title="Caso de contrato")
+    SceneMap.objects.filter(case_version=draft).update(spawn_x=99999)  # un hallazgo del mundo que apunta a su mapa
     return World(
         admin, profesor, student, outsider, attempt_id, token, scene["map"]["key"], scene["player"]["x"],
         scene["player"]["y"], version.id, draft.id, grupo.id, free_student,
@@ -246,6 +271,7 @@ def test_la_respuesta_real_coincide_con_el_esquema_del_documento(path, method, d
     response = call(world)
 
     assert response.status_code == status, response.content
+    CASES_RUN.add((path, method))
     body = response.json()
     assert body["success"] is True and set(body) <= {"success", "message", "data"}  # el sobre real
     assert_matches(body, response_schema(document, path, method, str(status)), document)
@@ -589,3 +615,27 @@ def test_cada_error_que_un_contrato_tipado_documenta_tiene_su_caso(document):
             f"{method} {path}: el documento declara {sorted(declared)} y la prueba cubre "
             f"{sorted(tested.get((path, method), set()))}"
         )
+
+
+#: Propiedades declaradas que ninguna respuesta real de este módulo puede mostrar, con el motivo de cada una.
+NEVER_SEEN: dict[str, str] = {
+    "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",
+}
+
+
+def test_cada_propiedad_declarada_de_un_contrato_tipado_la_vio_alguna_respuesta_real(document):
+    """Una propiedad que ninguna respuesta real ejercita puede renombrarse en el servidor sin que falle ninguna prueba."""
+    if CASES_RUN != set(CALLS):
+        pytest.skip("necesita los casos del registro completos: se ejecutó solo una parte del módulo")
+
+    typed = typed_operations(document)
+    declared = declared_properties(declared_response_schemas(document, typed), document)
+    # ``message`` es opcional en todo sobre y solo lo mandan las mutaciones (`api_ok(..., message=…)`): se comprueba
+    # donde viaja —el acuse del PATCH, la importación, la asignación—; los demás sobres lo comparten por herencia.
+    assert any(prop.endswith("Envelope.message") for prop in SEEN), "ninguna respuesta real trajo `message`"
+    envelope_messages = {prop for prop in declared if prop.endswith("Envelope.message")}
+    unseen = sorted(declared - SEEN - set(NEVER_SEEN) - envelope_messages)
+
+    assert not unseen, "Propiedades declaradas que ninguna respuesta real mostró (añade un caso o anótalas con su motivo):\n  " + "\n  ".join(unseen)
+    assert not (set(NEVER_SEEN) - declared), "NEVER_SEEN lista propiedades que el documento ya no declara"
+    assert not (set(NEVER_SEEN) & SEEN), "NEVER_SEEN lista propiedades que ya se ven: bórralas"
