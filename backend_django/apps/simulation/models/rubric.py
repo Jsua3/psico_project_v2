@@ -105,8 +105,10 @@ class RubricEvaluation(models.Model):
         db_column="attempt_id",
     )
     rubric = models.ForeignKey(Rubric, on_delete=models.DO_NOTHING, db_column="rubric_id")
+    # Quien evaluó: el docente. La evaluación automática del sistema (E6-1c, ``origin = SISTEMA``) no tiene docente:
+    # el CHECK de abajo exige que ``instructor`` sea nulo si y solo si el origen es el sistema.
     instructor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="instructor_id"
+        settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_column="instructor_id", null=True, blank=True,
     )
     total_score = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_default=0)
     comment = models.TextField(null=True, blank=True)
@@ -127,6 +129,19 @@ class RubricEvaluation(models.Model):
             models.CheckConstraint(
                 condition=models.Q(origin__in=EvaluationOrigin.values),
                 name="rubric_evaluations_origin_check",
+            ),
+            # E6-1c: «sistema» y «sin docente» van juntos; la del docente siempre dice quién la hizo.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(origin=EvaluationOrigin.SISTEMA, instructor__isnull=True)
+                    | models.Q(origin=EvaluationOrigin.DOCENTE, instructor__isnull=False)
+                ),
+                name="rubric_evaluations_origin_instructor_check",
+            ),
+            # E6-1c: el sistema evalúa una sola vez cada intento con cada rúbrica (el cierre es idempotente).
+            models.UniqueConstraint(
+                fields=["attempt", "rubric"], condition=models.Q(origin=EvaluationOrigin.SISTEMA),
+                name="uq_rubric_evaluations_system_attempt_rubric",
             ),
         ]
 
