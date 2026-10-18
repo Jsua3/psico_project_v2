@@ -59,6 +59,15 @@ def invalid_req_codes(codes):
     return [code for code in codes if not _REQ_CODE.fullmatch(str(code))]
 
 
+def _tiene_marcador(item, nombre):
+    return next(item.iter_markers(nombre), None) is not None
+
+
+def security_items_without_req(items):
+    """Pruebas marcadas ``security`` que no llevan además ``req`` (plan 03, S0-1)."""
+    return [item for item in items if _tiene_marcador(item, "security") and not _tiene_marcador(item, "req")]
+
+
 @contextmanager
 def fetch_mode_raise():
     """Dentro del bloque, todo QuerySet nuevo nace con ``FETCH_RAISE`` (DJA-7).

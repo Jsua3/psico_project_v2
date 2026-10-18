@@ -1,0 +1,18 @@
+{
+  "security.W002": {
+    "motivo": "Falta XFrameOptionsMiddleware: las respuestas no llevan X-Frame-Options (clickjacking). S2-1 añade X-Frame-Options: DENY con el resto de cabeceras base.",
+    "retira": "S2-1"
+  },
+  "security.W003": {
+    "motivo": "Sin CsrfViewMiddleware a propósito: no hay SessionMiddleware ni admin de Django y la API autentica solo con JWT en la cabecera Authorization (SiepJWTAuthentication), sin cookies. Permanente mientras no haya autenticación por cookie de sesión.",
+    "permanente": true
+  },
+  "security.W004": {
+    "motivo": "SECURE_HSTS_SECONDS sin valor. S2-2 lo toma de SIEP_HSTS_SECONDS con la escalera 3600, 86400, 604800, 15552000.",
+    "retira": "S2-2"
+  },
+  "security.W008": {
+    "motivo": "SECURE_SSL_REDIRECT no es true: hoy el redirect a HTTPS lo deja al proxy de Railway. S2-2 lo activa por defecto con la exención de /api/health.",
+    "retira": "S2-2"
+  }
+}
