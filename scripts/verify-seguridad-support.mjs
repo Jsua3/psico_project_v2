@@ -31,8 +31,9 @@ function deployEnv() {
   return {
     DJANGO_SETTINGS_MODULE: 'psychosim.settings.production',
     DJANGO_SECRET_KEY: secretoNuevo(),
+    // S5-1: llave propia de las reflexiones (≥ 32 caracteres, distinta de DJANGO_SECRET_KEY); JWT_SECRET ya no se exige.
+    REFLECTION_ENCRYPTION_KEY: secretoNuevo(),
     DB_PASSWORD: secretoNuevo(),
-    JWT_SECRET: secretoNuevo(),
     DJANGO_ALLOWED_HOSTS: 'localhost',
     // S1-1: producción exige declarar cuántos proxies de confianza hay delante de Django.
     SIEP_TRUSTED_PROXIES: '1',

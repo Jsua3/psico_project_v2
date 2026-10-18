@@ -45,8 +45,8 @@ Artefactos que ya dejé listos en el repo:
    | Variable | Valor |
    |---|---|
    | `DJANGO_SETTINGS_MODULE` | `psychosim.settings.production` |
-   | `DJANGO_SECRET_KEY` | una cadena larga y aleatoria |
-   | `JWT_SECRET` | otra cadena larga (≥ 32 caracteres) |
+   | `DJANGO_SECRET_KEY` | una cadena aleatoria de **≥ 50 caracteres con ≥ 20 distintos** |
+   | `REFLECTION_ENCRYPTION_KEY` | otra cadena aleatoria de **≥ 32 caracteres**, distinta de `DJANGO_SECRET_KEY` (cifra las reflexiones) |
    | `DJANGO_ALLOWED_HOSTS` | el dominio que te dé Railway, p. ej. `siep-production.up.railway.app` |
    | `DATABASE_URL` | **referencia** a la del Postgres (ver abajo) |
 
@@ -56,10 +56,18 @@ Artefactos que ya dejé listos en el repo:
 
    > Genera secretos seguros, por ejemplo en tu terminal:
    > `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   > Producción no arranca si una llave es demasiado corta o repetitiva, si es un valor de ejemplo del repositorio
+   > (`cambia-esto…`, `dev-only…`, `django-insecure…`) o si las dos llaves son iguales. El error nombra la variable, nunca su valor.
+   >
+   > **Reflexiones ya cifradas:** hasta S5-1, `REFLECTION_ENCRYPTION_KEY` caía a `JWT_SECRET` si no se definía. Si este
+   > despliegue ya guardó reflexiones sin definirla, fija `REFLECTION_ENCRYPTION_KEY` con el valor que tenía `JWT_SECRET`
+   > (cumpliendo las reglas de arriba) o consulta antes de cambiarla: con otra llave, esas reflexiones no se descifran.
 
 4. (Opcional) Variables extra ya soportadas: `JWT_EXPIRATION_HOURS` (default 8),
    `GOOGLE_OAUTH_CLIENT_ID`, `DEFAULT_FROM_EMAIL`, `CORS_ALLOWED_ORIGINS`
-   (solo si algún día sirves el frontend en otro dominio).
+   (solo si algún día sirves el frontend en otro dominio), `DJANGO_SECURE_SSL_REDIRECT`
+   (`true` por defecto; solo `false` lo apaga) y `SIEP_HSTS_SECONDS` (3600 por defecto; ver
+   [HTTPS y HSTS](#https-y-hsts)).
 
 ## 3. Generar el dominio público
 
@@ -105,6 +113,22 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
 
    > Cámbialas cuanto antes (o crea usuarios nuevos) si el despliegue es público.
 
+### HTTPS y HSTS
+
+Django redirige a HTTPS por defecto (`DJANGO_SECURE_SSL_REDIRECT`: solo `false` lo apaga). Hay una excepción a propósito: **`/api/health` queda exento**, porque Railway lo sondea por HTTP plano con `Host: healthcheck.railway.app`; un `301` ahí impediría promover el despliegue. Mientras el sondeo sea por HTTP plano, no quites esa exención.
+
+HSTS se controla con `SIEP_HSTS_SECONDS` (3600 por defecto; entero entre 0 y 63072000). Un valor que no sea un entero o que esté fuera de ese rango impide arrancar la aplicación, y el error no muestra el valor leído. `includeSubDomains` y `preload` **no** se activan hasta fijar el dominio definitivo (decisión SD-5).
+
+**Escalera:** 3600 → 86400 → 604800 → 15552000. Sube un escalón solo después de:
+
+1. comprobar la redirección: `curl -I http://TU-DOMINIO` debe responder `301` con `Location: https://…`;
+2. comprobar la cabecera: `curl -I https://TU-DOMINIO` debe llevar `Strict-Transport-Security: max-age=<valor del escalón actual>`, sin `includeSubDomains` ni `preload` (con el primer escalón, `max-age=3600`);
+3. una semana sin problemas con el escalón anterior.
+
+Un navegador que recibió HSTS obliga a HTTPS en ese dominio hasta que venza su `max-age`, aunque el servidor deje de enviar la cabecera. Por eso la escalera sube despacio: si HTTPS falla con un valor alto, esos navegadores no llegan al sitio hasta que venza.
+
+**Retroceso:** bajar `SIEP_HSTS_SECONDS` no deshace lo que ya guardó un navegador. Con `0` Django deja de enviar la cabecera (no envía `max-age=0`), así que hay que esperar a que venza el `max-age` que el navegador recibió.
+
 ---
 
 ## Notas y problemas comunes
@@ -137,10 +161,11 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
   ese script además reclasifica como `REPLACED` los intentos reemplazados que se
   guardaron como salida segura. Como cada push redepliega, aplica los scripts
   **antes** de hacer push del código que los necesita.
-- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
-  `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
-  las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían
-  no descifrarse. No afecta al resto de la app.
+- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con la
+  llave de reflexiones local (hasta S5-1, el `JWT_SECRET` local). Si la
+  `REFLECTION_ENCRYPTION_KEY` de Railway es distinta (recomendado), las reflexiones
+  nuevas funcionan con normalidad; las viejas del volcado podrían no descifrarse.
+  No afecta al resto de la app.
 
 ---
 

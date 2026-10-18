@@ -38,6 +38,10 @@ MIDDLEWARE = [
     # Primero: cubre toda la cadena para medir la duración y fijar X-Request-Id.
     "shared.middleware.RequestContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # S2-1 · cabeceras base. Van ENCIMA de WhiteNoise: WhiteNoise responde los estáticos y corta la cadena,
+    # así que lo que quede debajo no llega a esas respuestas.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "shared.security_headers.SecurityHeadersMiddleware",
     # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
     # producción sin necesidad de un servidor web aparte.
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -46,6 +50,14 @@ MIDDLEWARE = [
     # Binds the request to a thread-local for audit-trail actor/IP capture.
     "apps.simulation.middleware.AuditContextMiddleware",
 ]
+
+# S2-1 · cabeceras base (plan 03). Django las pone en SecurityMiddleware y XFrameOptionsMiddleware; las de la API
+# y del portal (Permissions-Policy, no-store, X-Robots-Tag) en shared.security_headers.
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+# El valor por defecto de Django (same-origin) puede cortar la ventana emergente de Google Identity Services con FedCM apagado.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
 ROOT_URLCONF = "psychosim.urls"
 WSGI_APPLICATION = "psychosim.wsgi.application"
@@ -132,13 +144,14 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "userId",
 }
 
-# Reflection-at-rest encryption key (defaults to the JWT secret, like Spring's
-# simulation.reflection.encryption-key:${jwt.secret}).
-JWT_SECRET = os.environ.get(
-    "JWT_SECRET",
-    "psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256",
+# S5-1 · JWT_SECRET ya no firma nada (la firma de sesión sale de SECRET_KEY; S5-3 la decide) y no lleva valor por
+# defecto: el literal público que tenía se retira. El nombre se conserva por compatibilidad de entorno.
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+# S5-1 · Llave de cifrado en reposo de las reflexiones. Producción la exige (production.py) y NO la hereda de
+# JWT_SECRET. Aquí solo hay una llave de DESARROLLO inconfundible: el marcador «dev-only» hace que producción la rechace.
+REFLECTION_ENCRYPTION_KEY = os.environ.get(
+    "REFLECTION_ENCRYPTION_KEY", "dev-only-reflection-key-never-use-in-production"
 )
-REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 # S1-3 · dominios de correo que pueden entrar con Google, separados por comas. Vacía = sin restricción (SD-14).
 GOOGLE_ALLOWED_DOMAINS = [

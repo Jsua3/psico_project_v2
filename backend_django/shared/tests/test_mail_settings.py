@@ -7,6 +7,7 @@ declaración explícita de que no lo hay.
 """
 import importlib
 import runpy
+import secrets
 from pathlib import Path
 
 import pytest
@@ -21,10 +22,12 @@ SMTP = "django.core.mail.backends.smtp.EmailBackend"
 CONSOLE = "django.core.mail.backends.console.EmailBackend"
 
 PROD_ENV = {
-    "DJANGO_SECRET_KEY": "una-clave-de-prueba-que-no-es-la-insegura-por-defecto-123456",
+    # S5-1: las llaves de prueba se generan en cada ejecución; ninguna es un literal.
+    "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
     "DJANGO_ALLOWED_HOSTS": "siep.example.edu.co",
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
-    "JWT_SECRET": "otra-clave-de-prueba-de-al-menos-sesenta-y-cuatro-caracteres-0123456789",
+    "JWT_SECRET": secrets.token_urlsafe(48),
+    "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
     "EMAIL_BACKEND": SMTP,
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co, secretaria@siep.example.edu.co",
     # S1-1: producción exige SIEP_TRUSTED_PROXIES (sin valor por defecto).

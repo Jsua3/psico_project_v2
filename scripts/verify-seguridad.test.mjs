@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { buildSteps, evaluateDeployCheck, selectSteps } from './verify-seguridad-support.mjs';
 
 const ROOT = 'C:/repo';
-const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'JWT_SECRET'];
+const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'REFLECTION_ENCRYPTION_KEY'];
 const barras = (texto) => texto.replaceAll('\\', '/');
 const porId = (steps, id) => steps.find((step) => step.id === id);
 
@@ -150,6 +150,19 @@ test('el baseline real tiene entradas bien formadas: código, motivo y tarea o p
 test('el env de check --deploy declara los proxies de confianza que producción exige (S1-1)', () => {
   const env = porId(pasos(), 'deploy-check').env;
   assert.match(env.SIEP_TRUSTED_PROXIES, /^\d+$/);
+});
+
+test('el env de check --deploy no define JWT_SECRET: producción ya no la exige ni la usa (S5-1)', () => {
+  assert.equal(porId(pasos(), 'deploy-check').env.JWT_SECRET, undefined);
+});
+
+test('las llaves de check --deploy tienen 20 caracteres distintos y la de reflexiones no repite la de Django (S5-1)', () => {
+  const env = porId(pasos(), 'deploy-check').env;
+  for (const clave of ['DJANGO_SECRET_KEY', 'REFLECTION_ENCRYPTION_KEY']) {
+    assert.ok(new Set(env[clave]).size >= 20, clave);
+  }
+  assert.ok(env.REFLECTION_ENCRYPTION_KEY.length >= 32);
+  assert.notEqual(env.REFLECTION_ENCRYPTION_KEY, env.DJANGO_SECRET_KEY);
 });
 
 test('--only deja solo los pasos pedidos, en el orden del plan', () => {
