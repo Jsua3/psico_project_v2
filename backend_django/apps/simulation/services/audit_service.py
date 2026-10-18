@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 
+from apps.security.limiter import hit, key_hash
 from shared.client_ip import client_ip
 
 from ..models import AuditLog, CaseReview
@@ -174,6 +175,22 @@ def _client_ip(request):
 
 
 # ─── persistence (Spring AuditLogAdapter.append) ─────────────────────────────
+def _registrar_fallo_de_auditoria(action, ex):
+    """Un fallo al escribir la auditoría: una línea ERROR con nombre estable y un contador en la base (S4-3).
+
+    Solo se guarda el nombre de la excepción, porque su texto puede traer datos de la persona. La operación auditada
+    ya terminó y no se rompe; el contador va aparte, en su propio ``try``.
+    """
+    logger.error(
+        "audit_write_failed",
+        extra={"fields": {"event": "audit_write_failed", "action": action, "error": type(ex).__name__}},
+    )
+    try:
+        hit("audit_failure", key_hash("all"))
+    except Exception:  # noqa: BLE001 - contar el fallo no puede romper nada
+        pass
+
+
 def append(actor_id, actor_role, action, resource_type, resource_id,
            context, ip_address, user_agent, occurred_at):
     try:
@@ -199,7 +216,7 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
             retention_until=occurred + timedelta(days=retention_days()),
         )
     except Exception as ex:  # pragma: no cover - audit must never propagate
-        logger.warning("Audit persistence failed [action=%s]: %s", action, ex)
+        _registrar_fallo_de_auditoria(action, ex)
 
 
 # ─── @auditable decorator (Spring SimulationAuditAspect) ─────────────────────
@@ -231,7 +248,7 @@ def auditable(action, resource_type="", resource_id_param_index=0, context=None)
                         logger.warning("Audit context error [action=%s]: %s", action, ex)
                 _write_audit(func, action, resource_type, resource_id_param_index, args, extra)
             except Exception as ex:  # audit errors never reach the caller
-                logger.warning("Audit aspect error [action=%s]: %s", action, ex)
+                _registrar_fallo_de_auditoria(action, ex)
             return result
 
         return wrapper

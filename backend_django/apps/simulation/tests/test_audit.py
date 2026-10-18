@@ -3,17 +3,20 @@ AuditLogCleanupScheduler. Audit is written AFTER a successful operation, never o
 failure, never breaking the business op; retention is occurred_at + 360 days; a
 management command purges expired rows."""
 import json
+import logging
 from datetime import datetime, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.db import DatabaseError, connection
+from django.db.models import Sum
 from django.test import RequestFactory
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
+from apps.security.models import RateLimitBucket
 from apps.simulation.models import AuditLog, CaseVersion
 from apps.simulation.services import audit_service
 
@@ -381,3 +384,73 @@ def test_control_negativo_la_lectura_sin_validar_pierde_la_fila(db, settings, mo
 
     with pytest.raises(DatabaseError):
         _auditar_peticion(peticion, "ip-larga-control")
+
+
+# ── S4-3 · un fallo al escribir la auditoría: ERROR, contador y la operación sigue ─────────────────────
+
+
+def _operacion_con_auditoria_de_prueba():
+    @audit_service.auditable("TEST_FALLO_AUDITORIA", "PRUEBA", 0)
+    def operacion(valor):
+        return valor * 2
+
+    return operacion
+
+
+def _fallos_contados():
+    return RateLimitBucket.objects.filter(scope="audit_failure").aggregate(total=Sum("count"))["total"] or 0
+
+
+def _ejecutar_con_fallo(punto, monkeypatch, caplog):
+    """Hace fallar la escritura de la auditoría: en ``persistencia`` (``AuditLog.objects.create``) o en ``decorador``
+    (``_write_audit``). Devuelve lo que devuelve la operación auditada y sus registros ERROR de auditoría."""
+
+    def fallar(*args, **kwargs):
+        raise RuntimeError("base caída")
+
+    if punto == "persistencia":
+        monkeypatch.setattr(AuditLog.objects, "create", fallar)
+    else:
+        monkeypatch.setattr(audit_service, "_write_audit", fallar)
+    with caplog.at_level(logging.ERROR, logger="apps.simulation.services.audit_service"):
+        resultado = _operacion_con_auditoria_de_prueba()(21)
+    errores = [
+        registro
+        for registro in caplog.records
+        if registro.levelno == logging.ERROR and getattr(registro, "fields", {}).get("event") == "audit_write_failed"
+    ]
+    return resultado, errores
+
+
+def _afirmar_fallo_registrado(resultado, errores):
+    assert resultado == 42  # la operación auditada termina igual
+    assert len(errores) == 1
+    assert errores[0].fields == {
+        "event": "audit_write_failed", "action": "TEST_FALLO_AUDITORIA", "error": "RuntimeError",
+    }
+    assert _fallos_contados() == 1
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("punto", ["persistencia", "decorador"])
+def test_un_fallo_al_escribir_la_auditoria_es_un_error_contado_y_la_operacion_sigue(
+    db, settings, monkeypatch, caplog, punto
+):
+    settings.SIEP_THROTTLE_ENABLED = True
+
+    resultado, errores = _ejecutar_con_fallo(punto, monkeypatch, caplog)
+
+    _afirmar_fallo_registrado(resultado, errores)
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_control_negativo_sin_el_registro_de_error_el_fallo_pasa_inadvertido(db, settings, monkeypatch, caplog):
+    settings.SIEP_THROTTLE_ENABLED = True
+    monkeypatch.setattr(audit_service, "_registrar_fallo_de_auditoria", lambda action, ex: None)
+
+    resultado, errores = _ejecutar_con_fallo("persistencia", monkeypatch, caplog)
+
+    with pytest.raises(AssertionError):
+        _afirmar_fallo_registrado(resultado, errores)

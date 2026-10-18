@@ -12,15 +12,13 @@ porque leerlo podría quedarse esperando al cliente.
 """
 
 import io
-import logging
 import re
 
 from django.conf import settings
 from django.http import JsonResponse
 
 from shared.exceptions import ApiError
-
-logger = logging.getLogger("siep.security")
+from shared.security_events import log_security_event
 
 METODOS_CON_CUERPO = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 #: La importación de estudiantes: la fila ``multipart-import`` de ``shared/surface-inventory.json``, con o sin barra final.
@@ -114,7 +112,7 @@ def _acotar_flujo(request, tope):
 
 def _rechazar(scope, evento, codigo, mensaje, estado):
     """Registra el rechazo (clase de ruta y evento, sin la ruta ni el contenido) y responde con el sobre de errores."""
-    logger.info("security_event", extra={"fields": {"event": evento, "scope": scope}})
+    log_security_event(evento, scope=scope)
     return JsonResponse({"success": False, "code": codigo, "message": mensaje}, status=estado)
 
 

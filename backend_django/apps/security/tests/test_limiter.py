@@ -128,7 +128,7 @@ def test_si_la_base_no_responde_la_peticion_pasa_y_queda_registrado(
     registros = [registro for registro in caplog.records if registro.name == "siep.security"]
     assert [registro.fields["event"] for registro in registros] == ["throttle_backend_error"] * 2
     assert all(
-        registro.fields["scope"] == "login_ip" and registro.fields["error"] == "DatabaseError"
+        registro.fields["scope"] == "login_ip" and registro.fields["reason"] == "DatabaseError"
         for registro in registros
     )
     assert clave not in caplog.text

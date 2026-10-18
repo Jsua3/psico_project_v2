@@ -1,5 +1,3 @@
-import logging
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -26,6 +24,7 @@ from shared.client_ip import client_ip
 from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
+from shared.security_events import log_security_event
 
 from .models import AccessRequestStatus, burn_password_check
 from .serializers import (
@@ -47,7 +46,6 @@ from .serializers import (
 from .services import access_request_service, account_service
 
 User = get_user_model()
-logger = logging.getLogger("siep.security")
 
 
 class GoogleAuthenticationError(APIException):
@@ -226,7 +224,7 @@ class AccessRequestCreateView(FailFastThrottlesMixin, APIView):
         datos = dict(ser.validated_data)
         # S1-3 · campo trampa: lo rellena un bot. Recibe la misma respuesta y no se guarda ni se avisa nada.
         if datos.pop("website", ""):
-            logger.info("security_event", extra={"fields": {"event": "honeypot_hit"}})
+            log_security_event("honeypot_hit")
         else:
             # La misma respuesta exista o no la cuenta o la solicitud pendiente: no revela qué correos existen.
             access_request_service.create_access_request(**datos)
