@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { setOwnPassword } from './support/own-password';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 
@@ -322,6 +323,7 @@ async function openAttemptOfNewStudent(request: APIRequestContext): Promise<{ at
   const admin = { Authorization: `Bearer ${await apiToken(request, process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!')}` };
   const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reemplazo', apellido: stamp, role: 'ESTUDIANTE', activo: true } });
   expect(user.status(), 'crear estudiante').toBeLessThan(300);
+  const ownPassword = await setOwnPassword(request, email, password); // S1-5: la clave que fija un ADMIN es temporal
 
   const { groupId, headers: teacher } = await (async () => {
     const token = await apiToken(request, process.env['E2E_PROFESOR_EMAIL'] ?? 'profesora@psychosim.edu.co', process.env['E2E_PROFESOR_PASSWORD'] ?? 'Profesor123!');
@@ -335,7 +337,7 @@ async function openAttemptOfNewStudent(request: APIRequestContext): Promise<{ at
   expect(cases.length, 'hay un caso publicado').toBeGreaterThan(0);
   expect((await request.post(`/api/grupos/${groupId}/casos`, { headers: teacher, data: { caseVersionId: cases[0].caseVersionId } })).status()).toBeLessThan(300);
 
-  const student = { Authorization: `Bearer ${await apiToken(request, email, password)}` };
+  const student = { Authorization: `Bearer ${await apiToken(request, email, ownPassword)}` };
   expect((await request.post(`/api/me/invitations/${groupId}/accept`, { headers: student, data: {} })).status(), 'aceptar').toBe(200);
   const started = await request.post('/api/simulation/attempts', { headers: student, data: { caseVersionId: cases[0].caseVersionId } });
   expect(started.status(), 'iniciar intento').toBe(200);
