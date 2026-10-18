@@ -15,13 +15,16 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from apps.grupos.models import Grupo, GrupoEstudiante, MembershipStatus
+from apps.simulation.assessment import analytics, definitions
 from apps.simulation.models.attempt import (
     AttemptEvent,
     AttemptStatus,
     ReflectionJournal,
     SimulationAttempt,
 )
+from apps.simulation.models.case import CaseVersion
 from apps.simulation.models.rubric import EvaluationOrigin, RubricEvaluation
+from apps.simulation.services.audit_service import arg, auditable
 from apps.simulation.services.instructor_scope import student_ids_for_instructor
 from shared.identity import IdentityPresenter
 
@@ -165,17 +168,22 @@ def get_dashboard(usuario):
 
 
 # --- Group report ----------------------------------------------------------
-def generar_reporte_grupo(grupo_id, case_version_id, usuario):
+def _grupo_del_alcance(grupo_id, usuario):
+    """El grupo, si ``usuario`` puede reportarlo: un docente solo los suyos (RF-25) y activos (D-13); el ADMIN, cualquiera."""
     grupo = Grupo.objects.filter(pk=grupo_id).first()
     if not grupo:
         raise NotFound(f"Grupo no encontrado: {grupo_id}")
-    # Un docente solo reporta sus grupos (RF-25) y activos (D-13); el ADMIN reporta cualquiera.
     if getattr(usuario, "role", None) != "ADMIN":
         if grupo.profesor_id != usuario.id:
             raise PermissionDenied("No tienes permiso para ver el reporte de este grupo")
         if not grupo.activo:
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             raise PermissionDenied("El grupo no está activo: su reporte ya no se genera")
+    return grupo
+
+
+def generar_reporte_grupo(grupo_id, case_version_id, usuario):
+    grupo = _grupo_del_alcance(grupo_id, usuario)
     simulacion = (
         _build_simulation_report(grupo, case_version_id)
         if case_version_id is not None
@@ -292,6 +300,44 @@ def _estudiante_sim_dto(student, attempts, safe_exit_ids=None):
         "rubricasAplicadas": _count_rubrics(attempt_ids),
         "estado": estado,
     }
+
+
+# --- Learning analytics (C13) ----------------------------------------------
+def _analytics_scope(grupo_id, usuario):
+    """Los estudiantes cuyos intentos puede agregar ``usuario``: ``None`` = todos (ADMIN sin grupo), si no, sus ids."""
+    if grupo_id is not None:
+        return _grupo_student_ids(_grupo_del_alcance(grupo_id, usuario).id)
+    return student_ids_for_instructor(usuario)
+
+
+def _analytics_audit_context(args, kwargs, result):
+    """Qué se consultó, nunca a quién: el grupo, la versión y si la respuesta salió suprimida (sin ids ni cifras)."""
+    return {
+        "groupId": arg(args, kwargs, 0, "grupo_id"),
+        "caseVersionId": arg(args, kwargs, 1, "case_version_id"),
+        "suppressed": result["cohort"]["suppressed"],
+    }
+
+
+@auditable("ANALYTICS_VIEWED", "ANALYTICS", -1, context=_analytics_audit_context)
+def generar_analitica(grupo_id, case_version_id, usuario):
+    """Los agregados de aprendizaje (RQ-NEG-001 a 005, C13) del alcance de ``usuario``, con celda mínima por bloque.
+
+    Un docente agrega solo a los estudiantes de sus grupos activos con membresía ACTIVE (RF-25); con ``grupo_id``, ese
+    grupo debe ser suyo y estar activo (403) y existir (404). El ADMIN agrega a cualquiera, con la MISMA celda mínima.
+    Cada consulta buena se audita (``analitica.ver``) sin ids de estudiantes.
+    """
+    scope = _analytics_scope(grupo_id, usuario)
+    if case_version_id is not None and not CaseVersion.objects.filter(pk=case_version_id).exists():
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise NotFound(f"Versión de caso no encontrada: {case_version_id}")
+    return analytics.compute(
+        analytics.load_rows(scope, case_version_id),
+        min_cell=definitions.min_cell_size(),
+        acceptable_level=definitions.acceptable_level(),
+        reflection_definition=definitions.reflection_definition(),
+        survey_enabled=definitions.survey_enabled(),
+    )
 
 
 # --- CSV export ------------------------------------------------------------

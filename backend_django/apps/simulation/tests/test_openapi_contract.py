@@ -27,7 +27,7 @@ MAX_OPENAPI_ERRORS = 0
 #: Contratos tipados del documento (respuesta de éxito con ``data`` de forma conocida). El trinquete va en los dos
 #: sentidos, como el baseline de arquitectura: bajar es perder un contrato; subir exige anotarlo aquí. Cada uno tiene
 #: su caso contra el servidor en ``test_openapi_matches_responses.CALLS``.
-TYPED_CONTRACTS = 16
+TYPED_CONTRACTS = 17
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 TS_CONTRACTS_FILE = REPO_ROOT / "frontend" / "src" / "app" / "core" / "api" / "generated" / "openapi-contracts.d.ts"

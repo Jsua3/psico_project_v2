@@ -5,65 +5,41 @@ encuesta, con un número CONSTANTE de consultas (no crece con la cohorte) y sin 
 encuesta no se lee jamás; el del docente solo se mira para saber si está vacío). Un reporte ilegible o de otra forma no
 tumba nada: la fila entra como «sin dato». El cálculo sobre estas filas está en ``test_assessment_analytics.py``.
 """
-import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
-from django.utils import timezone
 
 from apps.simulation.assessment import analytics
 from apps.simulation.assessment.analytics import AttemptRow
-from apps.simulation.models import (
-    AttemptEvent,
-    AttemptFeedback,
-    AttemptReport,
-    CaseVersion,
-    Rubric,
-    RubricEvaluation,
-    SimulationAttempt,
-    SimulationCase,
-    SimulationNode,
-)
+from apps.simulation.models import AttemptEvent, CaseVersion, Rubric, SimulationCase
 from shared.testing import measure
+
+from .analytics_support import (
+    T0 as T,
+    add_evaluation,
+    add_rating,
+    add_viewed,
+    completed_attempt,
+    make_student,
+    make_user,
+    v2_report,
+)
 
 pytestmark = [
     pytest.mark.req("RQ-NEG-001"), pytest.mark.req("RQ-NEG-002"), pytest.mark.req("RQ-NEG-003"),
     pytest.mark.req("RQ-NEG-004"), pytest.mark.req("RQ-NEG-005"), pytest.mark.django_db,
 ]
 
-User = get_user_model()
-T = datetime(2026, 10, 1, 9, 0, 0)
-
-
-def _user(role, label):
-    return User.objects.create_user(
-        email=f"an_{label}_{uuid.uuid4().hex[:8]}@x.com", password="x", nombre="N", apellido="A", role=role
-    )
-
-
-def student(label="e"):
-    return _user("ESTUDIANTE", label)
-
-
-def v2_report(levels=("LOGRADO",), non_recommended=0, covered=True, key=True, definition="ANY"):
-    """El reporte congelado v2 con solo lo que la analítica lee."""
-    return {
-        "schemaVersion": 2,
-        "competencyLevels": [{"code": f"C{i}", "name": f"Competencia {i}", "level": level} for i, level in enumerate(levels)],
-        "nonRecommendedCount": non_recommended,
-        "reflectionCoverage": {"definition": definition, "reflections": 1, "decisionScenes": 1, "covered": covered},
-        "keyLearningEvidence": key,
-    }
+student = make_student
 
 
 @pytest.fixture
 def world(db):
-    admin, teacher = _user("ADMIN", "admin"), _user("PROFESOR", "prof")
+    admin, teacher = make_user("ADMIN", "admin"), make_user("PROFESOR", "prof")
     make_case = lambda title: SimulationCase.objects.create(  # noqa: E731
         code=f"AN-{uuid.uuid4().hex[:6].upper()}", title=title, created_by=admin
     )
@@ -75,36 +51,18 @@ def world(db):
     return SimpleNamespace(
         admin=admin, teacher=teacher, case_a=case_a, case_b=case_b, v_a1=v_a1, v_a2=v_a2, v_b=v_b,
         rubric=Rubric.objects.create(case_version=v_a1, name="Rúbrica", active=True, created_by=admin),
-        node=SimulationNode.objects.filter(start_node=True).first(),
     )
 
 
-def attempt(world, who, version, ordinal=1, *, status="COMPLETED", report=None, schema_version=2, started_at=None):
-    """Un intento con su reporte (un ``dict`` se guarda como JSON; un ``str`` se guarda tal cual)."""
-    record = SimulationAttempt.objects.create(
-        attempt_token_hash=uuid.uuid4().hex, student=who, case_version=version, current_node=world.node, status=status,
-        ended_at=timezone.now() if status == "COMPLETED" else None,
-    )
-    if started_at is not None:
-        SimulationAttempt.objects.filter(pk=record.pk).update(started_at=started_at)
-    if report is not None:
-        AttemptReport.objects.create(
-            attempt=record, report_json=report if isinstance(report, str) else json.dumps(report),
-            report_schema_version=schema_version, definition_hash="a" * 64, attempt_ordinal=ordinal,
-        )
-    return record
+def attempt(world, who, version, ordinal=1, **kwargs):
+    return completed_attempt(who, version, ordinal, **kwargs)
 
 
-def viewed(record, at):
-    event = AttemptEvent.objects.create(attempt=record, event_type="FEEDBACK_VIEWED", request_id="sistema/retroalimentacion-vista")
-    AttemptEvent.objects.filter(pk=event.pk).update(occurred_at=at)
+viewed = add_viewed
 
 
 def evaluate(world, record, *, origin, status="EVALUATED", comment=None):
-    return RubricEvaluation.objects.create(
-        attempt=record, rubric=world.rubric, origin=origin, status=status, comment=comment,
-        instructor=None if origin == "SISTEMA" else world.teacher,
-    )
+    return add_evaluation(record, world.rubric, origin=origin, teacher=world.teacher, status=status, comment=comment)
 
 
 # ─── la fila ──────────────────────────────────────────────────────────────────────────────────
@@ -117,7 +75,7 @@ def test_cada_fila_trae_lo_que_el_reporte_la_evaluacion_el_evento_y_la_encuesta_
     evaluate(world, first, origin="SISTEMA")
     evaluate(world, first, origin="DOCENTE", comment="Buen trabajo")
     viewed(first, T + timedelta(days=1))
-    AttemptFeedback.objects.create(attempt=first, rating=4, comment="esto es privado")
+    add_rating(first, 4, "esto es privado")
     AttemptEvent.objects.create(attempt=second, event_type="HINT_VIEWED")  # otro evento no es ver la retroalimentación
     evaluate(world, second, origin="SISTEMA", status="PENDING")  # una competencia sin evidencia: no está completa
     evaluate(world, second, origin="DOCENTE", comment="  \n ")  # un comentario en blanco no es un comentario
@@ -141,7 +99,7 @@ def test_cada_fila_trae_lo_que_el_reporte_la_evaluacion_el_evento_y_la_encuesta_
 def test_la_fila_no_tiene_ningun_campo_de_texto_libre_y_la_encuesta_no_se_lee_entera(world):
     who = student()
     record = attempt(world, who, world.v_a1, report=v2_report())
-    AttemptFeedback.objects.create(attempt=record, rating=5, comment="texto privado del estudiante")
+    add_rating(record, 5, "texto privado del estudiante")
 
     with CaptureQueriesContext(connection) as queries:
         rows = analytics.load_rows({who.id})
@@ -261,7 +219,7 @@ def test_el_numero_de_consultas_no_depende_de_cuantos_estudiantes_hay(world):
             evaluate(world, record, origin="SISTEMA")
             evaluate(world, record, origin="DOCENTE", comment="Comentario")
             viewed(record, T + timedelta(days=ordinal, hours=1))
-            AttemptFeedback.objects.create(attempt=record, rating=4)
+            add_rating(record, 4)
 
     small_rows, small = measure(lambda: analytics.load_rows(ids[:5]))
     big_rows, big = measure(lambda: analytics.load_rows(ids))

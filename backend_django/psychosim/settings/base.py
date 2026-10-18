@@ -354,6 +354,8 @@ SPECTACULAR_SETTINGS = {
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
         "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
         "HealthDbEnum": "shared.health_docs.HEALTH_DB",
+        "FormativeLevelEnum": "apps.reportes.contracts.FORMATIVE_LEVELS",
+        "ReflectionDefinitionEnum": "apps.simulation.assessment.definitions.REFLECTION_DEFINITIONS",
     },
 }
 

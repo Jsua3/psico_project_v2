@@ -14,6 +14,103 @@ export interface AccessDecision {
 
 export type AccessReasonEnum = 'NOT_ASSIGNED' | 'NOT_YET_OPEN' | 'CLOSED' | 'LOCKED_BY_SEQUENCE';
 
+/** RQ-NEG-002 · estudiantes con algún intento cuyas competencias con nivel están todas en el nivel aceptable o más. */
+export interface AnalyticsAcceptable {
+  readonly achieved: number;
+  /** El nivel aceptable con el que se calculó. */
+  readonly level: FormativeLevelEnum;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly pct: number;
+  /** Estudiantes con al menos un intento con alguna competencia con nivel. */
+  readonly students: number;
+}
+
+/** Quién aporta datos. Con `suppressed` verdadero solo viajan este bloque y `definitions`. */
+export interface AnalyticsCohort {
+  /** Intentos completados en el alcance. */
+  readonly attempts: number;
+  /** Estudiantes distintos con al menos un intento completado en el alcance. */
+  readonly students: number;
+  /** Verdadero si hay menos estudiantes que la celda mínima. */
+  readonly suppressed: boolean;
+}
+
+/** Con qué reglas se calculó. Mientras `status` sea `BORRADOR` ninguna cifra es oficial. */
+export interface AnalyticsDefinitions {
+  readonly acceptableLevel: FormativeLevelEnum;
+  /** Celda mínima: estudiantes distintos que hacen falta para publicar un bloque. */
+  readonly minCellSize: number;
+  readonly reflectionDefinition: ReflectionDefinitionEnum;
+  readonly status: AnalyticsDefinitionsStatusEnum;
+}
+
+export type AnalyticsDefinitionsStatusEnum = 'BORRADOR';
+
+/** RQ-NEG-005 · intentos con evaluación automática completa y con evaluación del docente comentada. */
+export interface AnalyticsEvaluated {
+  readonly attempts: number;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly commentedPct: number;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly systemPct: number;
+}
+
+/** RQ-NEG-003 · decisiones no recomendadas del primer frente al segundo intento (se omite si el primero no tuvo). */
+export interface AnalyticsFirstVsSecond {
+  /** Media de no recomendadas del primer intento, con dos decimales. */
+  readonly firstMean: number;
+  /** Cambio de la media. Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  readonly nonRecommendedDeltaPct: number;
+  /** Media de no recomendadas del segundo intento, con dos decimales. */
+  readonly secondMean: number;
+  readonly series: number;
+  readonly students: number;
+}
+
+/** RQ-NEG-001 · primer frente al último intento de cada serie (estudiante, caso) con al menos dos intentos. */
+export interface AnalyticsImprovement {
+  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  readonly deltaPct: number;
+  /** Media del índice del último intento. Índice interno de 1 a 4 (no es una nota), con dos decimales. */
+  readonly post: number;
+  /** Media del índice del primer intento. Índice interno de 1 a 4 (no es una nota), con dos decimales. */
+  readonly pre: number;
+  readonly series: number;
+  readonly students: number;
+}
+
+/** RQ-NEG-005 · mejora entre intentos consecutivos cuando se vio la retroalimentación antes del siguiente. */
+export interface AnalyticsImprovementAfterFeedback {
+  /** Mejora como porcentaje del recorrido posible (3 puntos). Cambio relativo en puntos porcentuales (puede ser negativo), con un decimal. */
+  readonly deltaPct: number;
+  readonly pairs: number;
+  readonly students: number;
+}
+
+/** RQ-NEG-004 · intentos que son evidencia clave de aprendizaje (completados, con reflexión y con perfil). */
+export interface AnalyticsKeyEvidence {
+  readonly attempts: number;
+  readonly keyEvidence: number;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly pct: number;
+}
+
+/** RQ-NEG-003 · intentos con reflexión, según la definición vigente (los cerrados con otra no se mezclan). */
+export interface AnalyticsReflection {
+  readonly attempts: number;
+  readonly covered: number;
+  readonly definition: ReflectionDefinitionEnum;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly pct: number;
+}
+
+/** RQ-NEG-004 · respuestas de la encuesta con 4 o 5 de 5. Solo existe con la encuesta encendida. */
+export interface AnalyticsSatisfaction {
+  readonly responses: number;
+  /** Porcentaje de 0 a 100, con un decimal. */
+  readonly satisfiedPct: number;
+}
+
 /** Sobre de éxito de la API: `{success, message?, data?}` (`shared.response.envelope`). `message` y `data` solo viajan cuando tienen valor. Los endpoints que aún no se tipan llevan este sobre con `data` sin forma. */
 export interface ApiEnvelope {
   readonly data?: unknown;
@@ -210,6 +307,8 @@ export interface ErrorEnvelope {
   readonly success: boolean;
 }
 
+export type FormativeLevelEnum = 'EN_INICIO' | 'EN_PROCESO' | 'LOGRADO' | 'DESTACADO';
+
 /** El estado mínimo del servicio. No devuelve nada interno: ni versiones ni el texto del error de la base. */
 export interface Health {
   readonly db: HealthDbEnum;
@@ -294,6 +393,28 @@ export interface InstructorAttemptsListEnvelope {
 
 export type IssueSeverityEnum = 'error' | 'warning';
 
+/** Los agregados de aprendizaje del alcance pedido. Cada bloque falta si no alcanza la celda mínima. */
+export interface LearningAnalytics {
+  readonly acceptable?: AnalyticsAcceptable;
+  readonly cohort: AnalyticsCohort;
+  readonly definitions: AnalyticsDefinitions;
+  readonly evaluated?: AnalyticsEvaluated;
+  readonly firstVsSecond?: AnalyticsFirstVsSecond;
+  readonly improvement?: AnalyticsImprovement;
+  readonly improvementAfterFeedback?: AnalyticsImprovementAfterFeedback;
+  readonly keyEvidence?: AnalyticsKeyEvidence;
+  readonly reflectionCoverage?: AnalyticsReflection;
+  readonly satisfaction?: AnalyticsSatisfaction;
+}
+
+/** Sobre de éxito: `data` es `LearningAnalytics`. */
+export interface LearningAnalyticsEnvelope {
+  readonly data: LearningAnalytics;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -305,6 +426,8 @@ export interface PlayerPosition {
   readonly x: number;
   readonly y: number;
 }
+
+export type ReflectionDefinitionEnum = 'ANY' | 'PER_DECISION_SCENE';
 
 /** Devoluciones por CONTENIDO frente a FORMA entre las revisiones decididas (alarma de sello de goma). */
 export interface ReviewQuality {
@@ -489,6 +612,7 @@ export interface OpenApiPaths {
   readonly '/api/me/invitations/{group_id}/accept': 'POST';
   readonly '/api/me/invitations/{group_id}/decline': 'POST';
   readonly '/api/me/invitations/{group_id}/leave': 'POST';
+  readonly '/api/reportes/analiticas': 'GET';
   readonly '/api/reportes/dashboard': 'GET';
   readonly '/api/reportes/estudiante/{estudiante_id}': 'GET';
   readonly '/api/reportes/grupo/{grupo_id}': 'GET';

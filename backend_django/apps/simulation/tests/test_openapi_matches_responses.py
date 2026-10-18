@@ -22,7 +22,7 @@ from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework.test import APIClient
 
-from apps.grupos.models import CaseAssignment
+from apps.grupos.models import CaseAssignment, GrupoEstudiante, MembershipStatus
 from apps.simulation.models import (
     AttemptFeedback,
     AttemptHintView,
@@ -30,6 +30,7 @@ from apps.simulation.models import (
     CaseCharacter,
     CaseReview,
     CaseVersion,
+    Rubric,
     SceneHint,
     SceneMap,
     SimulationAttempt,
@@ -37,6 +38,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.authoring import definition_io
 from apps.simulation.tests import dsl_support
+from apps.simulation.tests.analytics_support import make_student, seed_student_pair
 from apps.simulation.views.ai_assistant import AIAssistantView
 from shared import contract_testing
 from shared.contract_testing import (
@@ -68,6 +70,7 @@ ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista 
 WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
 FEEDBACK = "/api/simulation/attempts/{attempt_id}/feedback"
+ANALYTICS = "/api/reportes/analiticas"
 BRIEF = "/api/simulation/cases/{case_version_id}/brief"
 
 
@@ -276,6 +279,27 @@ def _survey_state(world):
 def _survey_answered(world):
     body = {"rating": 4, "comment": "Me ayudó a ordenar lo que viví."}
     return _survey_on(lambda: cl(world.student).post(_feedback_url(world), body, format="json"))
+
+
+def _analytics_cohort(world):
+    """Cinco estudiantes con dos intentos cerrados, evaluados, con el evento y la encuesta, en el grupo de la docente.
+
+    Con ellos la analítica muestra TODOS sus bloques (el que falta es un bloque que ninguna respuesta real probaría).
+    """
+    version = CaseVersion.objects.get(pk=world.version_id)
+    rubric = Rubric.objects.create(case_version=version, name="Rúbrica de contrato", active=True, created_by=world.admin)
+    first = {"levels": ("EN_INICIO", "EN_PROCESO"), "non_recommended": 4, "covered": False, "key": False}
+    second = {"levels": ("LOGRADO", "LOGRADO"), "non_recommended": 2, "covered": True, "key": True}
+    for index in range(5):
+        who = make_student(f"ctr{index}")
+        GrupoEstudiante.objects.create(grupo_id=world.grupo_id, estudiante=who, status=MembershipStatus.ACTIVE)
+        seed_student_pair(who, version, rubric, world.profesor, first=first, second=second, rating=4)
+
+
+@calls(ANALYTICS, "GET")
+def _analytics(world):
+    _analytics_cohort(world)
+    return _survey_on(lambda: cl(world.profesor).get(ANALYTICS, {"grupoId": world.grupo_id}))
 
 
 def _answer_twice(world):
@@ -658,6 +682,12 @@ ERRORS = [
          f"/api/simulation/attempts/{w.attempt_id}/feedback", {"rating": 4}, format="json")),
      409, "ATTEMPT_NOT_COMPLETED"),
     ("responder dos veces", FEEDBACK, "POST", _answer_twice, 409, "FEEDBACK_ALREADY_SENT"),
+    ("analítica sin sesión", ANALYTICS, "GET", lambda w: APIClient().get(ANALYTICS), 401, "UNAUTHENTICATED"),
+    ("analítica sin permiso", ANALYTICS, "GET", lambda w: cl(w.student).get(ANALYTICS), 403, "FORBIDDEN"),
+    ("analítica con un id que no es un número", ANALYTICS, "GET",
+     lambda w: cl(w.profesor).get(ANALYTICS, {"grupoId": "abc"}), 400, "INVALID_QUERY_PARAM"),
+    ("analítica de un grupo inexistente", ANALYTICS, "GET",
+     lambda w: cl(w.profesor).get(ANALYTICS, {"grupoId": 999999}), 404, "NOT_FOUND"),
     *[row for prefix in ROUTE_FAMILIES for row in _case_route_errors(prefix)],
 ]
 #: Estados documentados que no son un ``ErrorEnvelope`` y tienen su propio caso arriba.
