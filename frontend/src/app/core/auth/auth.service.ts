@@ -45,7 +45,7 @@ export class AuthService {
   }
 
   requestAccess(payload: { nombre: string; apellido: string; email: string; website?: string }) {
-    return this.http.post<ApiResponse<{ id: number }>>(`${this.API}/access-request`, payload);
+    return this.http.post<ApiResponse<{ status: string }>>(`${this.API}/access-request`, payload);
   }
 
   googleConfig() {

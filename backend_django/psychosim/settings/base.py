@@ -140,6 +140,12 @@ JWT_SECRET = os.environ.get(
 )
 REFLECTION_ENCRYPTION_KEY = os.environ.get("REFLECTION_ENCRYPTION_KEY", JWT_SECRET)
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+# S1-3 · dominios de correo que pueden entrar con Google, separados por comas. Vacía = sin restricción (SD-14).
+GOOGLE_ALLOWED_DOMAINS = [
+    dominio.strip().lower()
+    for dominio in os.environ.get("GOOGLE_ALLOWED_DOMAINS", "").split(",")
+    if dominio.strip()
+]
 # E2-9 · Contraseñas: longitud mínima y lista de contraseñas comunes (LS-16). Se aplican donde
 # alguien fija una (alta por el ADMIN, registro, cambio de contraseña); las cuentas que importa
 # el docente ya no llevan contraseña: nacen pendientes de aprobación (RN-10, D-5).

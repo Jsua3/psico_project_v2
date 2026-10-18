@@ -6,6 +6,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
+from shared.plain_text import plain_text_problem
+
 from .models import AccessRequest, AccessRequestStatus, UserRole
 
 User = get_user_model()
@@ -179,10 +181,26 @@ class ChangePasswordSerializer(serializers.Serializer):
     newPassword = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
+def _texto_plano(value):
+    """S1-3 · nombre y apellido: texto plano de una línea, sin etiquetas ni enlaces (regla de casedef)."""
+    problema = plain_text_problem(value, 100)
+    if problema is not None:
+        raise serializers.ValidationError(problema[1])
+    return value.strip()
+
+
 class AccessRequestCreateSerializer(serializers.Serializer):
     nombre = serializers.CharField(max_length=100)
     apellido = serializers.CharField(max_length=100)
     email = serializers.EmailField()
+    # S1-3 · campo trampa: una persona no lo ve. Si llega con texto, lo rellenó un bot (la vista lo descarta).
+    website = serializers.CharField(required=False, allow_blank=True, max_length=200, write_only=True)
+
+    def validate_nombre(self, value):
+        return _texto_plano(value)
+
+    def validate_apellido(self, value):
+        return _texto_plano(value)
 
     def validate_email(self, value):
         return validate_common_email_domain(normalize_email_value(value))

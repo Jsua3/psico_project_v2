@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -25,6 +27,7 @@ from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
+from .models import AccessRequestStatus, burn_password_check
 from .serializers import (
     AccessRequestCreateSerializer,
     AccessRequestSerializer,
@@ -44,6 +47,7 @@ from .serializers import (
 from .services import access_request_service, account_service
 
 User = get_user_model()
+logger = logging.getLogger("siep.security")
 
 
 class GoogleAuthenticationError(APIException):
@@ -104,7 +108,14 @@ class LoginView(APIView):
         _bloqueo_por_fallos(email, ip)
 
         user = User.objects.filter(email=email).first()
-        if not user or not user.activo or not user.check_password(password):
+        # S1-3 · exactamente un bcrypt.checkpw por intento: si no hay contraseña que comparar (correo inexistente
+        # o cuenta sin clave usable) se gasta el mismo trabajo con un hash ficticio, y el tiempo no revela cuentas.
+        if user is not None and user.has_usable_password():
+            matched = user.check_password(password)
+        else:
+            burn_password_check(password)
+            matched = False
+        if not (user is not None and user.activo and matched):
             _registrar_fallo(email, ip)
             # 401 "Credenciales inválidas" (Spring BadCredentialsException)
             raise AuthenticationFailed("Credenciales inválidas")
@@ -151,6 +162,12 @@ class GoogleLoginView(APIView):
         if not email:
             raise GoogleAuthenticationError("La cuenta de Google no entregó un correo válido")
 
+        # S1-3 · dominios permitidos (lista vacía = sin restricción, SD-14). Un dominio fuera de la lista recibe el
+        # mismo error que una cuenta inexistente: la restricción no se revela.
+        dominios = getattr(settings, "GOOGLE_ALLOWED_DOMAINS", [])
+        if dominios and email.rsplit("@", 1)[-1] not in dominios:
+            raise GoogleAuthenticationError("La cuenta de Google no está asociada a un usuario activo")
+
         # Un fallo de la base de datos no es un fallo de autenticación: se deja propagar (500).
         user = User.objects.filter(email=email).first()
         if not user or not user.activo:
@@ -196,9 +213,15 @@ class AccessRequestCreateView(FailFastThrottlesMixin, APIView):
     def post(self, request):
         ser = AccessRequestCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        created = access_request_service.create_access_request(**ser.validated_data)
+        datos = dict(ser.validated_data)
+        # S1-3 · campo trampa: lo rellena un bot. Recibe la misma respuesta y no se guarda ni se avisa nada.
+        if datos.pop("website", ""):
+            logger.info("security_event", extra={"fields": {"event": "honeypot_hit"}})
+        else:
+            # La misma respuesta exista o no la cuenta o la solicitud pendiente: no revela qué correos existen.
+            access_request_service.create_access_request(**datos)
         return api_created(
-            AccessRequestSerializer(created).data,
+            {"status": AccessRequestStatus.PENDING},
             message="Solicitud enviada. El administrador revisará tu acceso pronto.",
         )
 

@@ -27,6 +27,8 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 # S1-2 · el limitador va APAGADO en las pruebas (no rompe las que inician sesión muchas veces); las pruebas del
 # límite lo encienden con ``settings.SIEP_THROTTLE_ENABLED = True``.
 SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+# S1-3 · el aviso al administrador corre en el acto en las pruebas (se revisa mail.outbox al volver).
+SIEP_BACKGROUND_INLINE = True
 # WhiteNoise sirve los estáticos de producción, pero en test intenta inspeccionar
 # STATIC_ROOT (que no debe existir ni se necesita para la API).
 MIDDLEWARE = [
