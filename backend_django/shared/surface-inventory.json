@@ -15,7 +15,7 @@
       "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ACCESS_REQUEST_LIST_VIEWED"
     },
     {
       "route": "api/admin/access-requests/<int:request_id>/status",
@@ -23,7 +23,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ACCESS_REQUEST_RESOLVED"
     },
     {
       "route": "api/admin/audit",
@@ -31,7 +31,7 @@
       "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "AUDIT_VIEWED"
     },
     {
       "route": "api/admin/cases",
@@ -39,7 +39,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases",
@@ -47,7 +47,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "CASE_CREATED"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/brief",
@@ -55,7 +55,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_BRIEF"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/characters",
@@ -63,7 +63,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_CHARACTER"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/characters/<int:character_id>",
@@ -71,7 +71,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_CHARACTER"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/characters/<int:character_id>",
@@ -79,7 +79,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_CHARACTER"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/checklist",
@@ -87,7 +87,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CHECKLIST_UPDATE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/clone-version",
@@ -95,7 +95,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CLONE_VERSION"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/decisions",
@@ -103,7 +103,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_DECISION"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/decisions/<int:decision_id>",
@@ -111,7 +111,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_DECISION"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/decisions/<int:decision_id>",
@@ -119,7 +119,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_DECISION"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/definition",
@@ -129,7 +129,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/dialogues/<int:tree_id>",
@@ -137,7 +137,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_DIALOGUE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/dialogues/<int:tree_id>",
@@ -145,7 +145,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_DIALOGUE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/editor",
@@ -153,7 +153,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/hints/<int:hint_id>",
@@ -161,7 +161,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_HINT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/hints/<int:hint_id>",
@@ -169,7 +169,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_HINT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/lifecycle",
@@ -179,7 +179,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/lifecycle",
@@ -189,7 +189,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "CASE_SUBMITTED,CASE_APPROVED,CASE_REJECTED,CASE_ARCHIVED,CASE_CLONED"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps",
@@ -197,7 +197,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_MAP"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps/<int:map_id>",
@@ -205,7 +205,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_MAP"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps/<int:map_id>",
@@ -213,7 +213,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_MAP"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps/<int:map_id>/dialogues",
@@ -221,7 +221,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_DIALOGUE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps/<int:map_id>/hints",
@@ -229,7 +229,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_HINT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/maps/<int:map_id>/objects",
@@ -237,7 +237,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_OBJECT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/nodes",
@@ -245,7 +245,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_NODE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/nodes/<int:node_id>",
@@ -253,7 +253,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_NODE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/nodes/<int:node_id>",
@@ -261,7 +261,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_NODE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/nodes/reorder",
@@ -269,7 +269,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_REORDER_NODES"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/objects/<int:object_id>",
@@ -277,7 +277,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_OBJECT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/objects/<int:object_id>",
@@ -285,7 +285,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_OBJECT"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/publish",
@@ -293,7 +293,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_PUBLISH_CASE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/tools",
@@ -301,7 +301,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_TOOL"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/tools/<int:tool_id>",
@@ -309,7 +309,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_TOOL"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/tools/<int:tool_id>",
@@ -317,7 +317,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_TOOL"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/validate",
@@ -327,7 +327,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: valida el caso y devuelve hallazgos: no escribe en la base"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/world",
@@ -335,7 +335,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_SAVE_WORLD"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/world-editor",
@@ -343,7 +343,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/world-preview",
@@ -351,7 +351,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/world/validate",
@@ -361,7 +361,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: valida el caso y devuelve hallazgos: no escribe en la base"
     },
     {
       "route": "api/admin/cases/import",
@@ -371,7 +371,7 @@
       "throttle": [
         "import_user"
       ],
-      "audit": null
+      "audit": "CASE_IMPORTED"
     },
     {
       "route": "api/admin/users",
@@ -379,7 +379,7 @@
       "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "USER_LIST_VIEWED"
     },
     {
       "route": "api/admin/users",
@@ -387,7 +387,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "USER_CREATED,PASSWORD_SET_BY_ADMIN,ACCESS_REQUEST_RESOLVED"
     },
     {
       "route": "api/admin/users/<int:user_id>",
@@ -395,7 +395,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "USER_UPDATED,USER_STATUS_CHANGED,USER_ROLE_CHANGED,PASSWORD_SET_BY_ADMIN,USER_APPROVED"
     },
     {
       "route": "api/admin/users/<int:user_id>/revoke-sessions",
@@ -403,7 +403,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "SESSIONS_REVOKED"
     },
     {
       "route": "api/admin/users/<int:user_id>/status",
@@ -411,7 +411,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "USER_STATUS_CHANGED,USER_APPROVED"
     },
     {
       "route": "api/admin/users/approve",
@@ -419,7 +419,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "USER_APPROVED"
     },
     {
       "route": "api/assignments",
@@ -427,7 +427,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: grupos y asignaciones de casos: nombres, códigos y conteos, sin datos de personas"
     },
     {
       "route": "api/assignments",
@@ -435,7 +435,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "asignacion.crear"
     },
     {
       "route": "api/assignments/<int:assignment_id>",
@@ -443,7 +443,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "asignacion.eliminar"
     },
     {
       "route": "api/assignments/<int:assignment_id>",
@@ -451,7 +451,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "asignacion.actualizar"
     },
     {
       "route": "api/auth/access-request",
@@ -461,7 +461,7 @@
       "throttle": [
         "access_request_ip"
       ],
-      "audit": null
+      "audit": "ACCESS_REQUEST_CREATED"
     },
     {
       "route": "api/auth/change-password",
@@ -471,7 +471,7 @@
       "throttle": [
         "password_change_user"
       ],
-      "audit": null
+      "audit": "PASSWORD_CHANGED"
     },
     {
       "route": "api/auth/google",
@@ -481,7 +481,7 @@
       "throttle": [
         "google_ip"
       ],
-      "audit": null
+      "audit": "LOGIN_SUCCEEDED"
     },
     {
       "route": "api/auth/google/config",
@@ -499,7 +499,7 @@
       "throttle": [
         "login_ip"
       ],
-      "audit": null
+      "audit": "LOGIN_SUCCEEDED,LOGIN_FAILED,LOGIN_LOCKED"
     },
     {
       "route": "api/auth/logout",
@@ -507,7 +507,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "LOGOUT,SESSIONS_REVOKED"
     },
     {
       "route": "api/auth/me",
@@ -515,7 +515,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "api/authoring/cases",
@@ -523,7 +523,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases",
@@ -531,7 +531,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "CASE_CREATED"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/brief",
@@ -539,7 +539,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_BRIEF"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/characters",
@@ -547,7 +547,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_CHARACTER"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/characters/<int:character_id>",
@@ -555,7 +555,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_CHARACTER"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/characters/<int:character_id>",
@@ -563,7 +563,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_CHARACTER"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/checklist",
@@ -571,7 +571,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CHECKLIST_UPDATE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/clone-version",
@@ -579,7 +579,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CLONE_VERSION"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/decisions",
@@ -587,7 +587,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_DECISION"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/decisions/<int:decision_id>",
@@ -595,7 +595,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_DECISION"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/decisions/<int:decision_id>",
@@ -603,7 +603,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_DECISION"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/definition",
@@ -613,7 +613,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/dialogues/<int:tree_id>",
@@ -621,7 +621,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_DIALOGUE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/dialogues/<int:tree_id>",
@@ -629,7 +629,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_DIALOGUE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/editor",
@@ -637,7 +637,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/hints/<int:hint_id>",
@@ -645,7 +645,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_HINT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/hints/<int:hint_id>",
@@ -653,7 +653,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_HINT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/lifecycle",
@@ -663,7 +663,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/lifecycle",
@@ -673,7 +673,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "CASE_SUBMITTED,CASE_APPROVED,CASE_REJECTED,CASE_ARCHIVED,CASE_CLONED"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps",
@@ -681,7 +681,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_MAP"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps/<int:map_id>",
@@ -689,7 +689,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_MAP"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps/<int:map_id>",
@@ -697,7 +697,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_MAP"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps/<int:map_id>/dialogues",
@@ -705,7 +705,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_DIALOGUE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps/<int:map_id>/hints",
@@ -713,7 +713,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_HINT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/maps/<int:map_id>/objects",
@@ -721,7 +721,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_OBJECT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/nodes",
@@ -729,7 +729,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_NODE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/nodes/<int:node_id>",
@@ -737,7 +737,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_NODE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/nodes/<int:node_id>",
@@ -745,7 +745,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_NODE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/nodes/reorder",
@@ -753,7 +753,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_REORDER_NODES"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/objects/<int:object_id>",
@@ -761,7 +761,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_OBJECT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/objects/<int:object_id>",
@@ -769,7 +769,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_OBJECT"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/publish",
@@ -777,7 +777,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_PUBLISH_CASE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/tools",
@@ -785,7 +785,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_CREATE_TOOL"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/tools/<int:tool_id>",
@@ -793,7 +793,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_DELETE_TOOL"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/tools/<int:tool_id>",
@@ -801,7 +801,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_UPDATE_TOOL"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/validate",
@@ -811,7 +811,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: valida el caso y devuelve hallazgos: no escribe en la base"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/world",
@@ -819,7 +819,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ADMIN_SAVE_WORLD"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/world-editor",
@@ -827,7 +827,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/world-preview",
@@ -835,7 +835,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/world/validate",
@@ -845,7 +845,7 @@
       "throttle": [
         "heavy_user"
       ],
-      "audit": null
+      "audit": "EXENTO: valida el caso y devuelve hallazgos: no escribe en la base"
     },
     {
       "route": "api/authoring/cases/import",
@@ -855,7 +855,7 @@
       "throttle": [
         "import_user"
       ],
-      "audit": null
+      "audit": "CASE_IMPORTED"
     },
     {
       "route": "api/competencies",
@@ -863,7 +863,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: rúbricas y competencias (el instrumento de evaluación): no son datos de personas"
     },
     {
       "route": "api/competencies",
@@ -871,7 +871,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "COMPETENCY_CREATED"
     },
     {
       "route": "api/grupos",
@@ -879,7 +879,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: grupos y asignaciones de casos: nombres, códigos y conteos, sin datos de personas"
     },
     {
       "route": "api/grupos",
@@ -887,7 +887,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "GROUP_CREATED"
     },
     {
       "route": "api/grupos/<int:pk>",
@@ -895,7 +895,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "GROUP_DELETED"
     },
     {
       "route": "api/grupos/<int:pk>",
@@ -903,7 +903,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "GROUP_UPDATED"
     },
     {
       "route": "api/grupos/<int:pk>",
@@ -911,7 +911,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "GROUP_UPDATED"
     },
     {
       "route": "api/grupos/<int:pk>/casos",
@@ -919,7 +919,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: grupos y asignaciones de casos: nombres, códigos y conteos, sin datos de personas"
     },
     {
       "route": "api/grupos/<int:pk>/casos",
@@ -927,7 +927,7 @@
       "exposure": "role:PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "asignacion.crear"
     },
     {
       "route": "api/grupos/<int:pk>/casos/<int:case_version_id>",
@@ -935,7 +935,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "asignacion.eliminar"
     },
     {
       "route": "api/grupos/<int:pk>/estudiantes",
@@ -943,7 +943,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "GROUP_STUDENTS_VIEWED"
     },
     {
       "route": "api/grupos/<int:pk>/estudiantes",
@@ -951,7 +951,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_INVITED"
     },
     {
       "route": "api/grupos/<int:pk>/estudiantes/<int:estudiante_id>",
@@ -959,7 +959,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_REMOVED"
     },
     {
       "route": "api/grupos/<int:pk>/estudiantes/<int:estudiante_id>/activar",
@@ -967,7 +967,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_ACCEPTED"
     },
     {
       "route": "api/grupos/<int:pk>/estudiantes/import",
@@ -977,7 +977,7 @@
       "throttle": [
         "import_user"
       ],
-      "audit": null
+      "audit": "STUDENTS_IMPORTED"
     },
     {
       "route": "api/grupos/estudiantes/import/spec",
@@ -985,7 +985,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: plantilla o especificación estática: no lee datos de nadie"
     },
     {
       "route": "api/grupos/estudiantes/import/template",
@@ -993,7 +993,7 @@
       "exposure": "role:PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: plantilla o especificación estática: no lee datos de nadie"
     },
     {
       "route": "api/health",
@@ -1009,7 +1009,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: listado seudonimizado (alias por docente) dentro de su alcance; leer el detalle de un intento (traza, evaluación, reporte) sí queda auditado"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/replace",
@@ -1017,7 +1017,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ATTEMPT_REPLACED"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/rubric-evaluation",
@@ -1025,7 +1025,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "traza.leer"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/rubric-evaluation",
@@ -1033,7 +1033,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "rubrica.evaluar"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/rubric-evaluation",
@@ -1041,7 +1041,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "rubrica.evaluar"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/rubric-evaluation",
@@ -1049,7 +1049,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "rubrica.evaluar"
     },
     {
       "route": "api/instructor/attempts/<uuid:attempt_id>/trace",
@@ -1057,7 +1057,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "traza.leer"
     },
     {
       "route": "api/instructor/attempts/recent",
@@ -1065,7 +1065,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: listado seudonimizado (alias por docente) dentro de su alcance; leer el detalle de un intento (traza, evaluación, reporte) sí queda auditado"
     },
     {
       "route": "api/me/invitations",
@@ -1073,7 +1073,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "api/me/invitations/<int:group_id>/accept",
@@ -1081,7 +1081,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_ACCEPTED"
     },
     {
       "route": "api/me/invitations/<int:group_id>/decline",
@@ -1089,7 +1089,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_DECLINED"
     },
     {
       "route": "api/me/invitations/<int:group_id>/leave",
@@ -1097,7 +1097,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "MEMBERSHIP_LEFT"
     },
     {
       "route": "api/reportes/dashboard",
@@ -1105,7 +1105,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "ANALYTICS_VIEWED"
     },
     {
       "route": "api/reportes/estudiante/<int:estudiante_id>",
@@ -1113,7 +1113,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "REPORT_VIEWED"
     },
     {
       "route": "api/reportes/grupo/<int:grupo_id>",
@@ -1121,7 +1121,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "REPORT_VIEWED"
     },
     {
       "route": "api/reportes/grupo/<int:grupo_id>/export",
@@ -1129,7 +1129,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "REPORT_EXPORTED"
     },
     {
       "route": "api/rubrics",
@@ -1137,7 +1137,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: rúbricas y competencias (el instrumento de evaluación): no son datos de personas"
     },
     {
       "route": "api/rubrics",
@@ -1145,7 +1145,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_CREATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>",
@@ -1153,7 +1153,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: rúbricas y competencias (el instrumento de evaluación): no son datos de personas"
     },
     {
       "route": "api/rubrics/<int:rubric_id>",
@@ -1161,7 +1161,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>",
@@ -1169,7 +1169,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>/activate",
@@ -1177,7 +1177,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_ACTIVATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>/deactivate",
@@ -1185,7 +1185,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_ACTIVATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>/default",
@@ -1193,7 +1193,7 @@
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/rubrics/<int:rubric_id>/duplicate",
@@ -1201,7 +1201,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_CREATED"
     },
     {
       "route": "api/rubrics/case-versions/<int:case_version_id>",
@@ -1209,7 +1209,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: rúbricas y competencias (el instrumento de evaluación): no son datos de personas"
     },
     {
       "route": "api/rubrics/case-versions/<int:case_version_id>",
@@ -1217,7 +1217,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/rubrics/case-versions/<int:case_version_id>",
@@ -1225,7 +1225,7 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/security/csp-report",
@@ -1235,7 +1235,7 @@
       "throttle": [
         "csp_report_ip"
       ],
-      "audit": null
+      "audit": "EXENTO: informe anónimo del navegador sobre la política de contenido: no cambia datos de personas; deja una línea del registro de seguridad"
     },
     {
       "route": "api/simulation/ai-assistant",
@@ -1243,7 +1243,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "AI_ASSISTANT_QUERY"
     },
     {
       "route": "api/simulation/attempts",
@@ -1251,7 +1251,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ATTEMPT_STARTED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>",
@@ -1275,7 +1275,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "DECISION_SELECTED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/enter-room",
@@ -1283,7 +1283,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/evaluation",
@@ -1307,7 +1307,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/interactions/<str:interaction_key>",
@@ -1315,7 +1315,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/npcs/<str:npc_key>",
@@ -1323,7 +1323,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/progress-map",
@@ -1339,7 +1339,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "REFLECTION_SAVED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/report",
@@ -1355,7 +1355,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "ATTEMPT_RESUMED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/safe-exit",
@@ -1363,7 +1363,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "SAFE_EXIT_REQUESTED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/student-report",
@@ -1371,7 +1371,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "REPORT_VIEWED"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/tools/use",
@@ -1379,7 +1379,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/world",
@@ -1395,7 +1395,7 @@
       "exposure": "role:ESTUDIANTE",
       "body": "json-small",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: posición del jugador en su propio intento: cientos de escrituras por partida sin valor probatorio; el juego jamás se frena"
     },
     {
       "route": "api/simulation/attempts/history",
@@ -1411,7 +1411,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "api/simulation/cases/<int:case_version_id>/active-attempt",
@@ -1427,7 +1427,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "api/simulation/catalog",
@@ -1435,7 +1435,7 @@
       "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "schema",
@@ -1443,7 +1443,7 @@
       "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: documentación de la API: cerrada al ADMIN y apagada por defecto, sin datos de personas"
     },
     {
       "route": "swagger-ui.html",
@@ -1451,7 +1451,7 @@
       "exposure": "role:ADMIN",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: documentación de la API: cerrada al ADMIN y apagada por defecto, sin datos de personas"
     }
   ]
 }

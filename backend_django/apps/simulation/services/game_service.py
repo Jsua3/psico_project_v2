@@ -37,7 +37,7 @@ from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
 from .attempt_lock import lock_attempt_row, locked_attempt
 from .attempt_replacement import replace_open_attempt
-from .audit_service import auditable
+from .audit_service import auditable, record
 from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
 
@@ -458,7 +458,13 @@ def get_student_report(attempt_id, actor):
         member = alcance is None or attempt.student_id in alcance
     if not policies.can(actor, "attempt", "report", owner_id=attempt.student_id, member=member):
         raise PermissionDenied("No tiene acceso a este intento")
-    return attempt_report.report_for(attempt)
+    informe = attempt_report.report_for(attempt)
+    if attempt.student_id != actor.id:
+        # S4-1 · quien lo lee no es su dueño: es leer datos de otra persona. La lectura de lo propio no deja fila.
+        record(
+            "REPORT_VIEWED", "ATTEMPT", attempt.id, {"attemptId": str(attempt.id), "studentId": attempt.student_id}
+        )
+    return informe
 
 
 def _override_evidence_labels(missing_evidence):

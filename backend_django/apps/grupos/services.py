@@ -710,6 +710,11 @@ def listar_casos_asignados(grupo_id, actor):
     return [_case_summary(case_version_id) for case_version_id in ids]
 
 
+@auditable(
+    "GROUP_CREATED", "GRUPO", -1,
+    resource_id=lambda args, kwargs, result: result["id"],
+    context=lambda args, kwargs, result: {"groupId": result["id"]},
+)
 @transaction.atomic
 def crear(nombre, codigo, profesor):
     if Grupo.objects.filter(codigo=codigo).exists():
@@ -718,6 +723,17 @@ def crear(nombre, codigo, profesor):
     return grupo_dto(grupo)
 
 
+def _campos_del_grupo_enviados(args, kwargs, result):
+    """Solo los NOMBRES de los campos que la petición traía (el nombre y el código del grupo no van a la auditoría)."""
+    enviados = [
+        campo
+        for campo, posicion in (("nombre", 1), ("codigo", 2))
+        if arg(args, kwargs, posicion, campo) is not None
+    ]
+    return {"groupId": result["id"], "changed": enviados}
+
+
+@auditable("GROUP_UPDATED", "GRUPO", 0, context=_campos_del_grupo_enviados)
 @transaction.atomic
 def actualizar(grupo_id, nombre, codigo, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -737,6 +753,7 @@ def actualizar(grupo_id, nombre, codigo, profesor):
     return grupo_dto(grupo)
 
 
+@auditable("GROUP_DELETED", "GRUPO", 0, context=lambda args, kwargs, result: {"groupId": result["id"]})
 @transaction.atomic
 def eliminar(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -784,6 +801,13 @@ def agregar_estudiante(grupo_id, email, actor):
     return grupo_dto(grupo)
 
 
+def _contexto_de_la_asignacion(args, kwargs, result):
+    return {"groupId": arg(args, kwargs, 0, "grupo_id"), "caseVersionId": arg(args, kwargs, 1, "case_version_id")}
+
+
+# S4-1 · Las rutas heredadas ``/api/grupos/<id>/casos`` cambian lo mismo que ``/api/assignments`` y dejan las mismas
+# etiquetas que esta (``asignacion.crear`` y ``asignacion.eliminar``).
+@auditable("asignacion.crear", "ASSIGNMENT", -1, context=_contexto_de_la_asignacion)
 @transaction.atomic
 def asignar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -806,6 +830,7 @@ def asignar_caso(grupo_id, case_version_id, profesor):
     return listar_casos_asignados(grupo.id, profesor)
 
 
+@auditable("asignacion.eliminar", "ASSIGNMENT", -1, context=_contexto_de_la_asignacion)
 @transaction.atomic
 def quitar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)

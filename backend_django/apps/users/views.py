@@ -43,7 +43,7 @@ from .serializers import (
     generate_access_token,
     normalize_email_value,
 )
-from .services import access_request_service, account_service
+from .services import access_request_service, account_service, audit_events
 
 User = get_user_model()
 
@@ -108,9 +108,27 @@ def _bloqueo_por_fallos(email, ip, actor_id):
 
 
 def _registrar_fallo(email, ip):
-    """Cuenta un fallo de contraseña (también de una cuenta que no existe: así no se adivinan nombres)."""
-    hit("login_fail_account_ip", key_hash(email, ip))
-    hit("login_fail_account", key_hash(email))
+    """Cuenta un fallo de contraseña (también de una cuenta que no existe: así no se adivinan nombres).
+
+    Devuelve los alcances cuyo bloqueo SALTA con este fallo: su contador llega justo al tope. Ahí empieza el bloqueo, y la
+    auditoría lo anota una vez (``sesion.bloquear``, S4-1). Con el limitador apagado ``hit`` devuelve 0: nada salta.
+    """
+    saltan = []
+    for alcance, clave in (("login_fail_account_ip", key_hash(email, ip)), ("login_fail_account", key_hash(email))):
+        if hit(alcance, clave) == LIMITS[alcance].limit:
+            saltan.append(alcance)
+    return saltan
+
+
+def _motivo_del_fallo(user, caducada):
+    """Por qué falló el acceso, para la auditoría (``sesion.fallar``): nunca llega a quien lo intentó."""
+    if user is None:
+        return "unknown_account"
+    if caducada:
+        return "expired_temp_password"
+    if not user.activo:
+        return "inactive"
+    return "bad_password"
 
 
 class LoginView(APIView):
@@ -144,10 +162,15 @@ class LoginView(APIView):
             account_service.return_expired_to_pending(user.id)
             matched = False
         if not (user is not None and user.activo and matched):
-            _registrar_fallo(email, ip)
+            saltan = _registrar_fallo(email, ip)
+            # S4-1 · quién intentó entrar (el correo solo como hash) y, si este fallo hizo saltar un bloqueo, UNA fila de él.
+            audit_events.login_failed(email, user, _motivo_del_fallo(user, caducada), ip)
+            if saltan:
+                audit_events.login_locked(email, user, saltan[0], ip)
             # 401 "Credenciales inválidas" (Spring BadCredentialsException)
             raise AuthenticationFailed("Credenciales inválidas")
 
+        audit_events.login_succeeded(user, "password")  # S4-1
         return api_ok({
             "token": generate_access_token(user),
             "user": UserSummarySerializer(user).data,
@@ -213,6 +236,7 @@ class GoogleLoginView(APIView):
             # S1-4 · un token emitido con la contraseña temporal no debe sobrevivir a su anulación.
             user.session_epoch = account_service.revoke_sessions(user.id)
 
+        audit_events.login_succeeded(user, "google")  # S4-1
         return api_ok({
             "token": generate_access_token(user),
             "user": UserSummarySerializer(user).data,
@@ -266,7 +290,8 @@ class AdminAccessRequestListView(APIView):
 
     def get(self, request):
         status = request.query_params.get("status")
-        requests = access_request_service.list_access_requests(status=status)
+        requests = list(access_request_service.list_access_requests(status=status))
+        audit_events.access_requests_listed(len(requests))  # S4-1 · nombres y correos de otras personas
         return api_ok(AccessRequestSerializer(requests, many=True).data)
 
 
@@ -310,6 +335,7 @@ class LogoutView(APIView):
 
     def post(self, request):
         account_service.revoke_sessions(request.user.id)
+        audit_events.logged_out(request.user)  # S4-1
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
         return api_ok(None, message="Sesión cerrada")
 
@@ -342,12 +368,15 @@ class AdminUserListCreateView(APIView):
 
     def get(self, request):
         users = User.objects.order_by("id")
-        return api_ok(AdminUserSerializer(users, many=True).data)
+        data = AdminUserSerializer(users, many=True).data
+        audit_events.users_listed(len(data))  # S4-1 · datos personales de todas las cuentas
+        return api_ok(data)
 
     def post(self, request):
         ser = AdminUserWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         user = ser.save()
+        audit_events.user_created(user)  # S4-1
         access_request_service.resolve_pending_for_email(user.email)
         return api_ok(AdminUserSerializer(user).data, message="Usuario creado correctamente")
 
@@ -362,6 +391,7 @@ class AdminUserDetailView(APIView):
         with transaction.atomic():
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            antes = audit_events.snapshot(user)  # S4-1 · el serializador edita esta misma instancia
             ser = AdminUserWriteSerializer(instance=user, data=request.data)
             ser.is_valid(raise_exception=True)
             if ser.validated_data.get("activo") and user.is_pending_approval:
@@ -373,6 +403,7 @@ class AdminUserDetailView(APIView):
                 user, role=ser.validated_data.get("role"), activo=ser.validated_data.get("activo")
             )
             user = ser.save()
+        audit_events.user_changes(antes, user)  # S4-1 · fuera de la transacción: una fila por clase de cambio
         if approve_after:
             outcome = account_service.approve_if_pending(user.id, request.user)
             if outcome is not None and outcome["failed"]:
@@ -410,6 +441,8 @@ class AdminUserStatusView(APIView):
             if cambia:
                 # S1-4 · desactivar o reactivar cierra las sesiones de la persona (en ambos sentidos).
                 account_service.revoke_sessions(user.pk)
+        if cambia:
+            audit_events.user_status_changed(user)  # S4-1 · fuera de la transacción
         return api_ok(AdminUserSerializer(user).data, message="Estado actualizado correctamente")
 
 

@@ -24,6 +24,10 @@ ESPERADOS = {
     "password_change_user": Limit(10, 3600),
     "api_user": Limit(600, 60),
     "audit_failure": Limit(0, 3600),
+    # S4-1 · tope de FILAS de auditoría por correo: diez ``sesion.fallar`` por hash de correo cada 15 minutos.
+    "audit_login_fail": Limit(10, 900),
+    "audit_login_fail_ip": Limit(20, 900),
+    "audit_login_fail_global": Limit(300, 3600),
 }
 
 

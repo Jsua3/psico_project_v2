@@ -10,6 +10,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from django.utils import timezone
 
 from apps.security.throttling import ImportUserThrottle
+from apps.simulation.services import audit_service
 from shared.exceptions import ApiError
 from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
@@ -85,7 +86,10 @@ class GrupoEstudiantesView(APIView):
         return [(_CAN_MANAGE_GROUP if self.request.method == "GET" else _CAN_INVITE)()]
 
     def get(self, request, pk):
-        return api_ok(services.listar_estudiantes(pk, request.user))
+        estudiantes = services.listar_estudiantes(pk, request.user)
+        # S4-1 · nombres y correos de otras personas: queda quién los leyó y de qué grupo (cuántos, no cuáles).
+        audit_service.record("GROUP_STUDENTS_VIEWED", "GRUPO", pk, {"groupId": pk, "count": len(estudiantes)})
+        return api_ok(estudiantes)
 
     def post(self, request, pk):
         ser = AgregarEstudianteSerializer(data=request.data)

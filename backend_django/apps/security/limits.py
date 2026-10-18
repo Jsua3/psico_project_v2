@@ -29,6 +29,17 @@ LIMITS: dict[str, Limit] = {
     # Contador, no límite (S4-3): cuenta los fallos al escribir la auditoría para ``security_report``. Ninguna ruta lo
     # aplica, así que su tope no se usa.
     "audit_failure": Limit(0, 3600),
+    # Tope de FILAS de auditoría por correo (S4-1): un atacante provoca fallos de acceso sin límite y ``audit_logs`` es de
+    # solo añadir con retención de un año. Cada hash de correo deja a lo más 10 filas ``sesion.fallar`` cada 15 minutos
+    # (``apps.users.services.audit_events``); pasado el tope no se escribe la fila y queda un ``security_event``. Con la
+    # misma ventana (15 min) y otra clave, deja también UNA fila ``sesion.bloquear`` por correo y ventana.
+    "audit_login_fail": Limit(10, 900),
+    # Los otros dos topes de la MISMA fila (al revisar S4-1): rotar correos que no existen esquiva el tope por correo, y la
+    # auditoría de solo añadir no se puede vaciar en un año. Cada IP agrupada deja a lo más 20 filas de fallo cada 15 minutos
+    # y, entre todas, a lo más 300 por hora (un aula entera que se equivoca no llega a 40). Lo que pasa de un tope no se
+    # escribe (sigue contado en el limitador) y deja UN aviso por ventana.
+    "audit_login_fail_ip": Limit(20, 900),
+    "audit_login_fail_global": Limit(300, 3600),
 }
 
 #: Los contadores que ``hit`` suma sin aplicar ningún tope. ``security_report`` no los cuenta como límites aplicados.

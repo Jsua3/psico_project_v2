@@ -17,6 +17,7 @@ minimum of 12 months (360 days, E5-7 / RNF-007).
 import functools
 import json
 import logging
+import re
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -106,7 +107,66 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "PASSWORD_CHANGED": "usuario.cambiar_clave",
     "PASSWORD_SET_BY_ADMIN": "usuario.fijar_clave",
     "SESSIONS_REVOKED": "sesion.revocar",
+    # S4-1 · quién entró, quién cambió qué y quién leyó datos de otra persona (RNF-007, SIEP-RNF-02).
+    "LOGIN_SUCCEEDED": "sesion.entrar",
+    "LOGIN_FAILED": "sesion.fallar",
+    "LOGIN_LOCKED": "sesion.bloquear",
+    "LOGOUT": "sesion.salir",
+    "USER_CREATED": "usuario.crear",
+    "USER_UPDATED": "usuario.actualizar",
+    "USER_STATUS_CHANGED": "usuario.estado",
+    "USER_ROLE_CHANGED": "usuario.rol",
+    "USER_LIST_VIEWED": "usuario.listar",
+    "ADMIN_CREATED_BY_COMMAND": "usuario.crear_admin",
+    "ADMIN_RESET_BY_COMMAND": "usuario.reponer_admin",
+    "ACCESS_REQUEST_CREATED": "solicitud.crear",
+    "ACCESS_REQUEST_RESOLVED": "solicitud.resolver",
+    "ACCESS_REQUEST_LIST_VIEWED": "solicitud.listar",
+    "REPORT_VIEWED": "reporte.leer",
+    "REPORT_EXPORTED": "reporte.exportar",
+    "GROUP_STUDENTS_VIEWED": "grupo.listar_estudiantes",
+    "AUDIT_VIEWED": "auditoria.leer",
+    "RUBRIC_CREATED": "rubrica.crear",
+    "RUBRIC_UPDATED": "rubrica.actualizar",
+    "RUBRIC_ACTIVATED": "rubrica.activar",
+    "COMPETENCY_CREATED": "competencia.crear",
 }
+
+#: S4-1 · La lista blanca del contexto: por código crudo, los únicos campos que la fila de ese evento puede llevar (más
+#: ``taxonomy``, ``method`` y ``class``, que pone el sistema). Nunca contraseñas, tokens, correos en claro ni texto escrito
+#: por una persona: solo ids, banderas, nombres de campos y valores de un conjunto cerrado (``reason``, ``role``…). Un
+#: evento que no está aquí (los que ya existían) conserva su contexto tal cual. ``append`` la aplica a toda fila.
+CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
+    "LOGIN_SUCCEEDED": frozenset({"provider"}),
+    "LOGIN_FAILED": frozenset({"emailHash", "reason"}),
+    "LOGIN_LOCKED": frozenset({"scope", "targetId"}),
+    "LOGOUT": frozenset(),
+    "USER_CREATED": frozenset({"targetId", "role", "activo"}),
+    "USER_UPDATED": frozenset({"targetId", "changed"}),
+    "USER_STATUS_CHANGED": frozenset({"targetId", "changed", "activo"}),
+    "USER_ROLE_CHANGED": frozenset({"targetId", "changed", "role", "previousRole"}),
+    "USER_LIST_VIEWED": frozenset({"count"}),
+    "ADMIN_CREATED_BY_COMMAND": frozenset({"targetId"}),
+    "ADMIN_RESET_BY_COMMAND": frozenset({"targetId"}),
+    "ACCESS_REQUEST_CREATED": frozenset({"requestId"}),
+    "ACCESS_REQUEST_RESOLVED": frozenset({"requestId", "status"}),
+    "ACCESS_REQUEST_LIST_VIEWED": frozenset({"count"}),
+    "REPORT_VIEWED": frozenset({"groupId", "studentId", "attemptId", "caseVersionId"}),
+    "REPORT_EXPORTED": frozenset({"groupId", "caseVersionId"}),
+    "GROUP_STUDENTS_VIEWED": frozenset({"groupId", "count"}),
+    "GROUP_CREATED": frozenset({"groupId"}),
+    "GROUP_UPDATED": frozenset({"groupId", "changed"}),
+    "GROUP_DELETED": frozenset({"groupId"}),
+    "AUDIT_VIEWED": frozenset({"filters", "actorId", "page"}),
+    "RUBRIC_CREATED": frozenset({"rubricId", "sourceId", "isDefault"}),
+    "RUBRIC_UPDATED": frozenset({"rubricId", "changed", "caseVersionId"}),
+    "RUBRIC_ACTIVATED": frozenset({"rubricId", "active"}),
+    "COMPETENCY_CREATED": frozenset({"competencyId"}),
+}
+#: Lo que el sistema pone en toda fila escrita por ``@auditable``/``record``: constantes, nunca datos de la persona.
+_CONTEXTO_DEL_SISTEMA = frozenset({"taxonomy", "method", "class"})
+#: Un texto del contexto solo puede ser una palabra de un conjunto cerrado o un hash: sin espacios, sin ``@``, a lo más 64.
+_VALOR_SEGURO = re.compile(r"[A-Za-z0-9_.:\-]{1,64}")
 
 _local = threading.local()
 
@@ -195,6 +255,42 @@ def _registrar_fallo_de_auditoria(action, ex):
         pass
 
 
+def _lista_blanca_de(action):
+    """La lista blanca del evento, se escriba con su código crudo (``LOGIN_FAILED``) o con su etiqueta (``sesion.fallar``);
+    ``None`` si el evento no la tiene (los que ya existían)."""
+    if action in CONTEXT_WHITELIST:
+        return CONTEXT_WHITELIST[action]
+    return next(
+        (CONTEXT_WHITELIST[crudo] for crudo, etiqueta in AUDIT_TAXONOMY.items()
+         if etiqueta == action and crudo in CONTEXT_WHITELIST),
+        None,
+    )
+
+
+def _valor_seguro(valor) -> bool:
+    if isinstance(valor, (bool, int)):
+        return True
+    return isinstance(valor, str) and _VALOR_SEGURO.fullmatch(valor) is not None
+
+
+def _filtrar_contexto(payload: dict, permitidos: frozenset) -> dict:
+    """Deja en el contexto solo los campos de la lista blanca y solo valores simples (S4-1).
+
+    Un campo que el evento no declara se descarta; también un valor que no es un número, una bandera o una palabra
+    corta (sin espacios, sin ``@``): nada de textos libres, correos ni estructuras anidadas. Una lista conserva solo sus
+    elementos simples.
+    """
+    limpio = {}
+    for clave, valor in payload.items():
+        if clave not in permitidos and clave not in _CONTEXTO_DEL_SISTEMA:
+            continue
+        if isinstance(valor, (list, tuple)):
+            limpio[clave] = [item for item in valor if _valor_seguro(item)]
+        elif _valor_seguro(valor):
+            limpio[clave] = valor
+    return limpio
+
+
 def append(actor_id, actor_role, action, resource_type, resource_id,
            context, ip_address, user_agent, occurred_at):
     try:
@@ -207,6 +303,9 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
         occurred = occurred_at or timezone.now()
         payload = dict(context) if isinstance(context, dict) else {}
         payload.setdefault("taxonomy", canonical_action(action))
+        permitidos = _lista_blanca_de(action)
+        if permitidos is not None:
+            payload = _filtrar_contexto(payload, permitidos)
         AuditLog.objects.create(
             actor_id=actor_fk,
             actor_role=actor_role,
@@ -240,6 +339,42 @@ def audit_purge_window():
         cursor.execute("SELECT set_config(%s, %s, true)", [AUDIT_PURGE_SETTING, previous])
 
 
+def record(action, resource_type=None, resource_id=None, context=None, *, actor=None):
+    """Escribe UNA fila de auditoría ahora, sin decorador (S4-1). Nunca lanza.
+
+    Para los lugares donde ``@auditable`` no encaja: el acceso (la petición aún no está autenticada y quien entró es el
+    ``actor`` que se pasa), las lecturas de las vistas y los eventos de una operación que no es una función de servicio.
+    Sin ``actor`` sale de la petición enlazada (``AuditContextMiddleware``); fuera de una petición es ``ANONYMOUS``. El
+    contexto pasa por la lista blanca de ``action`` (``CONTEXT_WHITELIST``). Llámala FUERA de una transacción abierta: un
+    fallo de la base dentro de ella dejaría la transacción abortada, y la auditoría no debe romper la operación.
+    """
+    try:
+        if actor is not None:
+            actor_id = str(actor.pk) if getattr(actor, "pk", None) is not None else None
+            actor_role = getattr(actor, "role", None) or "SYSTEM"
+        else:
+            actor_id, actor_role = _resolve_actor()
+        request = _current_request()
+        ip_address = _client_ip(request) if request is not None else None
+        user_agent = request.META.get("HTTP_USER_AGENT") if request is not None else None
+        payload = {"taxonomy": canonical_action(action)}
+        if context:
+            payload.update(context)
+        append(
+            actor_id,
+            actor_role,
+            action,
+            resource_type or None,
+            None if resource_id is None else str(resource_id),
+            payload,
+            ip_address,
+            user_agent,
+            timezone.now(),
+        )
+    except Exception as ex:  # audit errors never reach the caller
+        _registrar_fallo_de_auditoria(action, ex)
+
+
 # ─── @auditable decorator (Spring SimulationAuditAspect) ─────────────────────
 def arg(args, kwargs, index, name):
     """El argumento ``name`` de una llamada, venga posicional (``index``) o por nombre."""
@@ -248,12 +383,14 @@ def arg(args, kwargs, index, name):
     return args[index] if index < len(args) else None
 
 
-def auditable(action, resource_type="", resource_id_param_index=0, context=None):
+def auditable(action, resource_type="", resource_id_param_index=0, context=None, resource_id=None):
     """Registra ``action`` DESPUÉS de que la operación termine bien.
 
     ``context`` (opcional) es ``(args, kwargs, result) -> dict``: lo que devuelve se suma al
-    contexto de la fila (p. ej. los ids de las cuentas aprobadas en un lote). Si falla, la fila se
-    escribe sin esos datos: la auditoría nunca rompe la operación.
+    contexto de la fila (p. ej. los ids de las cuentas aprobadas en un lote). ``resource_id`` (opcional, con la misma
+    firma) saca el recurso de lo que devolvió la operación (p. ej. el id de lo que acaba de crear) y manda sobre
+    ``resource_id_param_index``. Si cualquiera falla, la fila se escribe sin esos datos: la auditoría nunca rompe la
+    operación.
     """
 
     def decorator(func):
@@ -267,7 +404,13 @@ def auditable(action, resource_type="", resource_id_param_index=0, context=None)
                         extra = context(args, kwargs, result)
                     except Exception as ex:  # noqa: BLE001
                         logger.warning("Audit context error [action=%s]: %s", action, ex)
-                _write_audit(func, action, resource_type, resource_id_param_index, args, extra)
+                recurso = None
+                if resource_id is not None:
+                    try:
+                        recurso = resource_id(args, kwargs, result)
+                    except Exception as ex:  # noqa: BLE001
+                        logger.warning("Audit resource error [action=%s]: %s", action, ex)
+                _write_audit(func, action, resource_type, resource_id_param_index, args, extra, recurso)
             except Exception as ex:  # audit errors never reach the caller
                 _registrar_fallo_de_auditoria(action, ex)
             return result
@@ -277,11 +420,13 @@ def auditable(action, resource_type="", resource_id_param_index=0, context=None)
     return decorator
 
 
-def _write_audit(func, action, resource_type, idx, args, extra=None):
+def _write_audit(func, action, resource_type, idx, args, extra=None, recurso=None):
     actor_id, actor_role = _resolve_actor()
 
     resource_id = None
-    if idx >= 0 and args and idx < len(args) and args[idx] is not None:
+    if recurso is not None:
+        resource_id = str(recurso)
+    elif idx >= 0 and args and idx < len(args) and args[idx] is not None:
         resource_id = str(args[idx])
 
     request = _current_request()

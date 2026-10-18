@@ -281,6 +281,11 @@ def rubric(attempt_id, instructor=None):
     return rubric_service.attempt_rubric_view(attempt_id)
 
 
+# S4-1 · leer la evaluación de un intento ajeno es parte de revisarlo: queda con la misma etiqueta que la traza
+# (``traza.leer``); el ``method`` de la fila (``rubric``) dice que fue la evaluación.
+rubric = auditable("traza.leer", "ATTEMPT")(rubric)
+
+
 @transaction.atomic
 def save_rubric(attempt_id, request, instructor):
     _require_attempt(attempt_id, instructor)

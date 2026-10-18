@@ -13,6 +13,8 @@ from apps.users.models import AccessRequest, AccessRequestStatus
 from apps.users.serializers import normalize_email_value
 from shared.background import run_in_background
 
+from . import audit_events
+
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,7 @@ def create_access_request(*, nombre, apellido, email):
         email=email,
     )
 
+    audit_events.access_request_created(request)  # S4-1 · solo si se guardó: el campo trampa y los duplicados no llegan aquí
     _programar_aviso(request)
     return request
 
@@ -101,12 +104,21 @@ def update_access_request_status(request_id, *, status):
     request.status = status
     request.reviewed_at = timezone.now()
     request.save(update_fields=["status", "reviewed_at"])
+    audit_events.access_request_resolved(request)  # S4-1
     return request
 
 
 def resolve_pending_for_email(email):
+    """Resuelve (``REVIEWED``) las solicitudes pendientes de ese correo, p. ej. al crear su cuenta. Cada una deja su fila
+    ``solicitud.resolver`` (S4-1): es un cambio del ADMIN aunque no lo haya pedido por la ruta de solicitudes."""
     email = normalize_email_value(email)
-    AccessRequest.objects.filter(email=email, status=AccessRequestStatus.PENDING).update(
+    pendientes = list(AccessRequest.objects.filter(email=email, status=AccessRequestStatus.PENDING))
+    if not pendientes:
+        return
+    AccessRequest.objects.filter(pk__in=[solicitud.pk for solicitud in pendientes]).update(
         status=AccessRequestStatus.REVIEWED,
         reviewed_at=timezone.now(),
     )
+    for solicitud in pendientes:
+        solicitud.status = AccessRequestStatus.REVIEWED
+        audit_events.access_request_resolved(solicitud)

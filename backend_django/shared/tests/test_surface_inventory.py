@@ -55,9 +55,11 @@ def test_las_rutas_admin_exigen_rol_admin_mas_estricto_que_autenticado():
             assert fila["exposure"].startswith("role:") and "ADMIN" in fila["exposure"], fila
 
 
-def test_el_throttle_de_cada_ruta_son_alcances_conocidos_y_audit_va_vacio_hasta_s4_1():
+def test_el_throttle_de_cada_ruta_son_alcances_conocidos_y_audit_es_un_texto_o_va_vacio():
+    """S4-1 llena ``audit`` (la compuerta de cobertura vive en ``test_audit_coverage.py``): un texto con la auditoría de
+    la ruta, o ``None`` si la ruta ni muta ni lee datos de otra persona. Nunca una cadena vacía."""
     for fila in _inventario_versionado()["routes"]:
-        assert fila["audit"] is None, fila
+        assert fila["audit"] is None or (isinstance(fila["audit"], str) and fila["audit"].strip()), fila
         assert fila["throttle"] is None or set(fila["throttle"]) <= set(LIMITS), fila
 
 
