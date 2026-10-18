@@ -132,7 +132,9 @@ class AIAssistantView(APIView):
                 resource_type="SimulationAttempt",
                 resource_id=str(attempt_id),
                 context={
-                    "question": question[:500],
+                    # Cuánto preguntó, no qué: es texto libre de una persona (privacidad, Ley 1581/2012) y la auditoría
+                    # se lee desde ``/api/admin/audit`` durante al menos 360 días.
+                    "question_length": len(question),
                     "node": node_id,
                     "decision_taken": decision_taken,
                     "response_length": len(response_text or ""),

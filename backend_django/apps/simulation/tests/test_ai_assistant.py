@@ -194,6 +194,21 @@ def test_encendido_responde_y_deja_auditoria(estudiante, intento, monkeypatch):
 
 
 @override_settings(AI_ASSISTANT_ENABLED=True)
+def test_la_auditoria_del_asistente_guarda_cuanto_pregunto_el_estudiante_y_no_que(estudiante, intento, monkeypatch):
+    """La pregunta es texto libre de una persona en un simulador de violencia de género: con la lectura de
+    ``/api/admin/audit`` (E5-7) dejaría de dormir en la base y la leería cualquier ADMIN durante 360 días."""
+    monkeypatch.setattr(AIAssistantView, "_call_llm", lambda self, question, context: "¿Qué observas?")
+    asked = "Mi hermana me contó que su pareja la golpea, ¿qué hago?"
+
+    _ask(cl(estudiante), intento, question=asked, current_node_id=7)
+
+    entry = AuditLog.objects.filter(action="AI_ASSISTANT_QUERY", resource_id=intento).order_by("-id").first()
+    context = json.loads(entry.context_json)
+    assert "question" not in context and asked not in entry.context_json
+    assert context["question_length"] == len(asked)
+
+
+@override_settings(AI_ASSISTANT_ENABLED=True)
 def test_encendido_error_del_proveedor_no_filtra_detalles(estudiante, intento, monkeypatch):
     def _falla(self, question, context):
         raise RuntimeError("provider returned 401: sk-secreto-del-proveedor")

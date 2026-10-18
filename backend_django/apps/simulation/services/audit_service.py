@@ -302,6 +302,11 @@ def review_quality_summary() -> dict:
     }
 
 
+#: Claves del contexto que son texto libre escrito por una persona. El asistente de IA ya no las guarda, pero las
+#: filas anteriores pueden traerlas: la lectura de la auditoría nunca las devuelve.
+HIDDEN_CONTEXT_KEYS = frozenset({"question"})
+
+
 def _parse_context(raw_json: str | None) -> dict:
     if not raw_json:
         return {}
@@ -343,7 +348,7 @@ def list_audit_logs(
 
     items = []
     for row in rows:
-        ctx = _parse_context(row.context_json)
+        ctx = {k: v for k, v in _parse_context(row.context_json).items() if k not in HIDDEN_CONTEXT_KEYS}
         items.append({
             "id": row.id,
             "actorId": row.actor_id,

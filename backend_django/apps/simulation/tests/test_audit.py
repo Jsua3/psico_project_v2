@@ -2,6 +2,7 @@
 AuditLogCleanupScheduler. Audit is written AFTER a successful operation, never on
 failure, never breaking the business op; retention is occurred_at + 360 days; a
 management command purges expired rows."""
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -279,3 +280,17 @@ def test_una_fecha_con_zona_fuera_de_rango_es_un_parametro_invalido_y_no_un_erro
 
     assert resp.status_code == 400
     assert resp.data["code"] == "INVALID_QUERY_PARAM"
+
+
+@pytest.mark.req("SIEP-RNF-02", "RNF-007")
+def test_la_lectura_de_la_auditoria_nunca_devuelve_texto_que_escribio_una_persona(admin):
+    """Las filas que el asistente guardó antes de dejar de guardar la pregunta no se la entregan a quien lee."""
+    AuditLog.objects.create(
+        action="AI_ASSISTANT_QUERY", resource_type="SimulationAttempt", resource_id="a-1",
+        context_json=json.dumps({"question": "texto libre de una estudiante", "node": 7, "response_length": 4}),
+        retention_until=datetime(2027, 10, 17),
+    )
+
+    items = cl(admin).get("/api/admin/audit", {"action": "asistente.consultar"}).data["data"]["items"]
+
+    assert [i["context"] for i in items] == [{"node": 7, "response_length": 4}]
