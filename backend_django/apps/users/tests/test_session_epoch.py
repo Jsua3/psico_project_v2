@@ -230,7 +230,7 @@ def test_el_comando_que_fuerza_el_cambio_cierra_las_sesiones_de_esas_cuentas(db)
     assert _como(token).get(RUTA_YO).status_code == 200
 
     call_command(
-        "force_password_change_for_shared_passwords", "--password", clave_compartida, stdout=io.StringIO()
+        "force_password_change_for_shared_passwords", f"--password={clave_compartida}", stdout=io.StringIO()
     )
 
     usuario.refresh_from_db()
@@ -353,3 +353,17 @@ def test_entrar_con_google_anula_la_temporal_y_cierra_las_sesiones_que_la_usaron
     assert respuesta.status_code == 200, respuesta.data
     _revocado(_como(token_con_la_temporal).get(RUTA_YO))
     assert _como(respuesta.data["data"]["token"]).get(RUTA_YO).status_code == 200
+
+
+def test_una_clave_que_empieza_por_guion_tambien_se_acepta(db):
+    """Con ``--password <clave>`` argparse toma una clave que empieza por «-» por una opción (hallazgo #9); la forma
+    segura es ``--password=<clave>``. La clave de esta prueba empieza por guion a propósito: el fallo no depende del azar."""
+    clave_compartida = "-" + _clave()
+    usuario, _ = _cuenta(clave=clave_compartida)
+
+    call_command(
+        "force_password_change_for_shared_passwords", f"--password={clave_compartida}", stdout=io.StringIO()
+    )
+
+    usuario.refresh_from_db()
+    assert usuario.must_change_password is True

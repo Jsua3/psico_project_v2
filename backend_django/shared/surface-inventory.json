@@ -459,9 +459,7 @@
       "exposure": "public",
       "body": "json-small",
       "throttle": [
-        "access_request_ip",
-        "access_request_email",
-        "access_request_global"
+        "access_request_ip"
       ],
       "audit": null
     },

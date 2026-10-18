@@ -83,6 +83,12 @@ def test_key_hash_es_estable_distinto_por_parte_y_de_64_hex():
     assert len(limiter.key_hash("x")) == 64
 
 
+def test_key_hash_no_lanza_con_un_sustituto_suelto():
+    """Un correo con un sustituto suelto (el escape JSON ``\\ud800``) no puede tumbar la petición (hallazgo #8)."""
+    assert len(limiter.key_hash("\ud800")) == 64
+    assert limiter.key_hash("\ud800") != limiter.key_hash("\udfff")
+
+
 def test_la_tabla_no_guarda_el_correo_ni_la_ip_en_claro(db, reloj, limitador_encendido):
     correo = "alumna.prueba@ejemplo.org"
     ip = "203.0.113.77"

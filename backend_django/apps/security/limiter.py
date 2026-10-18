@@ -50,8 +50,9 @@ def _sal(secret_key: str) -> bytes:
 
 def key_hash(*partes) -> str:
     """HMAC-SHA256 hexadecimal de las partes unidas por ``_SEPARADOR``: estable, distinto por parte y sin el dato
-    en claro ni recuperable sin la llave del servidor."""
-    mensaje = _SEPARADOR.join(str(parte) for parte in partes).encode("utf-8")
+    en claro ni recuperable sin la llave del servidor. Nunca lanza: un sustituto suelto (hallazgo #8) se codifica
+    con ``surrogatepass``, que para el resto de texto da los mismos bytes que UTF-8."""
+    mensaje = _SEPARADOR.join(str(parte) for parte in partes).encode("utf-8", "surrogatepass")
     return hmac.new(_sal(settings.SECRET_KEY), mensaje, hashlib.sha256).hexdigest()
 
 

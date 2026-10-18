@@ -13,6 +13,7 @@ All bodies use the ``{"success": false, "code": ..., "message": ...}`` envelope.
 add its own fields at the root (``existingAttemptId``…), see ``ApiError``.
 """
 import logging
+import math
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
@@ -126,6 +127,17 @@ def _registrar_no_controlada(exc, context):
     logger.error("unhandled_exception", exc_info=exc, extra={"fields": _datos_de_la_peticion(context)})
 
 
+# BORRADOR: texto nuevo del servidor (la espera en palabras), pendiente de la aprobación de Psicología (VD-23).
+def _espera_legible(segundos: int) -> str:
+    """La espera como la lee la persona: segundos hasta dos minutos, minutos hasta dos horas y horas después.
+    Siempre hacia arriba: nunca anuncia menos espera de la que queda."""
+    if segundos < 120:
+        return f"{segundos} s"
+    if segundos < 7200:
+        return f"{math.ceil(segundos / 60)} min"
+    return f"{math.ceil(segundos / 3600)} h"
+
+
 def custom_exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
 
@@ -152,7 +164,7 @@ def custom_exception_handler(exc, context):
         message = "Recurso no encontrado"
     elif isinstance(exc, Throttled):
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-        message = f"Demasiados intentos. Espera {espera} s e inténtalo de nuevo."
+        message = f"Demasiados intentos. Espera {_espera_legible(espera)} e inténtalo de nuevo."
     else:
         detail = None
         if isinstance(response.data, dict):

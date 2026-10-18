@@ -4,10 +4,13 @@
 ve a la cola de ``X-Forwarded-For``. El cliente real es la entrada que queda a ``n`` posiciones desde la derecha:
 lo que el cliente escribió va a la izquierda y no cuenta.
 """
+import logging
+
 import pytest
 from django.test import RequestFactory
 
-from shared.client_ip import client_ip
+import shared.client_ip as modulo_ip
+from shared.client_ip import client_ip, rate_limit_ip
 
 pytestmark = [pytest.mark.req("SIEP-RNF-02"), pytest.mark.security]
 
@@ -57,7 +60,7 @@ def test_con_menos_entradas_que_saltos_o_sin_cabecera_se_usa_remote_addr(setting
     assert client_ip(_peticion(cabecera)) == REMOTE
 
 
-@pytest.mark.parametrize("entrada", ["no-es-ip", "9.9.9.9:443", "999.1.1.1"])
+@pytest.mark.parametrize("entrada", ["no-es-ip", "1.2.3.4:abc", "999.1.1.1"])
 def test_una_entrada_que_no_es_ip_se_usa_remote_addr(settings, entrada):
     settings.SIEP_TRUSTED_PROXIES = 1
 
@@ -98,3 +101,113 @@ def test_un_numero_negativo_nunca_lee_por_la_izquierda(settings):
     settings.SIEP_TRUSTED_PROXIES = -1
 
     assert client_ip(_peticion("6.6.6.6, 9.9.9.9")) == REMOTE
+
+
+# ── IPv6 por bloque y IPv4 mapeada (revisión de la ola A, hallazgo #1) ──────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("ip", "clave"),
+    [
+        ("203.0.113.7", "203.0.113.7"),
+        ("::ffff:203.0.113.7", "203.0.113.7"),
+        ("2001:db8:1:1::1", "2001:db8:1:1::/64"),
+        ("2001:db8:1:1:ffff:ffff:ffff:ffff", "2001:db8:1:1::/64"),
+        ("2001:db8:1:2::1", "2001:db8:1:2::/64"),
+    ],
+)
+def test_rate_limit_ip_agrupa_ipv6_por_bloque_de_64_y_mapeadas_por_ipv4(settings, ip, clave):
+    settings.SIEP_TRUSTED_PROXIES = 1
+
+    assert rate_limit_ip(_peticion(ip)) == clave
+
+
+@pytest.mark.parametrize(
+    ("cabecera", "saltos", "esperada"),
+    [
+        ("6.6.6.6, 9.9.9.9:443", 1, "9.9.9.9"),
+        ("9.9.9.9:8080", 1, "9.9.9.9"),
+        ("9.9.9.9, [2001:db8::1]:443", 1, "2001:db8::1"),
+        ("[2001:db8::1]", 1, "2001:db8::1"),
+    ],
+)
+def test_quita_el_puerto_de_la_entrada_que_se_elige(settings, cabecera, saltos, esperada):
+    settings.SIEP_TRUSTED_PROXIES = saltos
+
+    assert client_ip(_peticion(cabecera)) == esperada
+
+
+@pytest.fixture
+def reloj_del_aviso(monkeypatch):
+    """Reloj que cada prueba mueve, y ningún aviso emitido por otra prueba dentro de su minuto."""
+    instante = {"t": 1000.0}
+    # raising=False: el punto aún no existe en el código; sin él la prueba caería en la preparación, no en la aserción.
+    monkeypatch.setattr(modulo_ip, "_ahora", lambda: instante["t"], raising=False)
+    monkeypatch.setattr(modulo_ip, "_ultimo_aviso", None, raising=False)
+    return instante
+
+
+def _avisos_de_fallback(caplog):
+    return [
+        registro
+        for registro in caplog.records
+        if registro.name == "siep.security" and getattr(registro, "fields", {}).get("event") == "client_ip_fallback"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("cabecera", "saltos", "motivo"),
+    [
+        (None, 1, "cabecera_ausente"),
+        ("  ,  ", 1, "cabecera_ausente"),
+        ("9.9.9.9", 2, "menos_entradas_que_saltos"),
+        ("6.6.6.6, no-es-ip", 1, "entrada_no_es_ip"),
+    ],
+)
+def test_un_proxy_mal_contado_deja_una_linea_con_su_motivo(settings, reloj_del_aviso, caplog, cabecera, saltos, motivo):
+    settings.SIEP_TRUSTED_PROXIES = saltos
+
+    with caplog.at_level(logging.WARNING, logger="siep.security"):
+        ip = client_ip(_peticion(cabecera))
+
+    assert ip == REMOTE  # sigue cayendo a REMOTE_ADDR
+    avisos = _avisos_de_fallback(caplog)
+    assert [aviso.fields for aviso in avisos] == [{"event": "client_ip_fallback", "reason": motivo}]
+    assert avisos[0].levelno == logging.WARNING
+
+
+def test_como_maximo_un_aviso_por_minuto_y_proceso(settings, reloj_del_aviso, caplog):
+    settings.SIEP_TRUSTED_PROXIES = 1
+
+    with caplog.at_level(logging.WARNING, logger="siep.security"):
+        client_ip(_peticion(None))  # t = 1000: aviso
+        reloj_del_aviso["t"] += 59
+        client_ip(_peticion(None))  # t = 1059: dentro del mismo minuto, sin aviso
+        reloj_del_aviso["t"] += 1
+        client_ip(_peticion(None))  # t = 1060: ya pasó un minuto, aviso otra vez
+
+    assert len(_avisos_de_fallback(caplog)) == 2
+
+
+def test_sin_saltos_de_confianza_no_hay_nada_que_avisar(settings, reloj_del_aviso, caplog):
+    settings.SIEP_TRUSTED_PROXIES = 0
+
+    with caplog.at_level(logging.WARNING, logger="siep.security"):
+        client_ip(_peticion(None))
+
+    assert _avisos_de_fallback(caplog) == []
+
+
+def test_rate_limit_ip_deja_tal_cual_lo_que_no_es_una_ip(settings):
+    settings.SIEP_TRUSTED_PROXIES = 0
+
+    assert rate_limit_ip(_peticion(remote="no-es-ip")) == "no-es-ip"
+    assert rate_limit_ip(_peticion(remote=None)) == ""
+
+
+def test_la_direccion_exacta_sigue_en_client_ip_y_solo_el_limite_la_agrupa(settings):
+    settings.SIEP_TRUSTED_PROXIES = 0
+    peticion = _peticion(remote="2001:db8:1:1::1")
+
+    assert client_ip(peticion) == "2001:db8:1:1::1"
+    assert rate_limit_ip(peticion) == "2001:db8:1:1::/64"

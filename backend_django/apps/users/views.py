@@ -12,15 +12,12 @@ from rest_framework.views import APIView
 from apps.security.limiter import hit, key_hash, peek, retry_after
 from apps.security.limits import LIMITS
 from apps.security.throttling import (
-    AccessRequestEmailThrottle,
-    AccessRequestGlobalThrottle,
     AccessRequestIpThrottle,
-    FailFastThrottlesMixin,
     GoogleIpThrottle,
     LoginIpThrottle,
     PasswordChangeUserThrottle,
 )
-from shared.client_ip import client_ip
+from shared.client_ip import rate_limit_ip
 from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
@@ -71,18 +68,22 @@ def verify_google_credential(credential, audience):
         raise GoogleAuthenticationError("No fue posible validar la cuenta de Google") from exc
 
 
-def _bloqueo_por_fallos(email, ip):
+def _bloqueo_por_fallos(email, ip, actor_id):
     """Lanza 429 si esta cuenta desde esta IP, o esta cuenta desde cualquier IP, ya agotó sus fallos (S1-2).
 
     Se mira ANTES de la contraseña: acertarla no salta el bloqueo. Solo cuentan los fallos; los aciertos no suman.
+    Cuando salta, deja una línea ``account_throttled`` con el id de la cuenta (``None`` si no existe; nunca el correo):
+    un bloqueo provocado contra una cuenta real queda a la vista (hallazgo #2).
     """
-    esperas = []
+    bloqueos = []
     if peek("login_fail_account_ip", key_hash(email, ip)) >= LIMITS["login_fail_account_ip"].limit:
-        esperas.append(retry_after("login_fail_account_ip"))
+        bloqueos.append(("login_fail_account_ip", retry_after("login_fail_account_ip")))
     if peek("login_fail_account", key_hash(email)) >= LIMITS["login_fail_account"].limit:
-        esperas.append(retry_after("login_fail_account"))
-    if esperas:
-        raise Throttled(wait=max(esperas))
+        bloqueos.append(("login_fail_account", retry_after("login_fail_account")))
+    if bloqueos:
+        alcance, espera = max(bloqueos, key=lambda bloqueo: bloqueo[1])
+        log_security_event("account_throttled", scope=alcance, actor_id=actor_id)
+        raise Throttled(wait=espera)
 
 
 def _registrar_fallo(email, ip):
@@ -102,10 +103,12 @@ class LoginView(APIView):
         ser.is_valid(raise_exception=True)
         email = ser.validated_data["email"]
         password = ser.validated_data["password"]
-        ip = client_ip(request)
-        _bloqueo_por_fallos(email, ip)
-
+        ip = rate_limit_ip(request)
+        # La cuenta se busca ANTES del bloqueo para que su línea ``account_throttled`` lleve el id (nunca el correo). Ninguna
+        # búsqueda añade un ``checkpw``: si el bloqueo salta, tampoco hay ``checkpw`` (S1-2, hallazgo #2).
         user = User.objects.filter(email=email).first()
+        _bloqueo_por_fallos(email, ip, user.pk if user is not None else None)
+
         # S1-5 · una contraseña temporal caducada no entra: cuenta como credenciales inválidas (abajo) y la cuenta de
         # una persona vuelve a «pendiente». Se mira ANTES de decidir; el trabajo bcrypt de este intento no cambia.
         caducada = user is not None and account_service.temporary_password_expired(user)
@@ -210,22 +213,38 @@ class RegisterView(APIView):
         return api_ok(UserSummarySerializer(user).data, message="Usuario creado exitosamente")
 
 
-class AccessRequestCreateView(FailFastThrottlesMixin, APIView):
+def _contar_solicitud(correo):
+    """Cuenta una solicitud VÁLIDA: primero su correo y luego el tope global del día (S1-3, hallazgo #3).
+
+    Si el correo ya agotó su tope, el global no se gasta. Al cruzar el 80 % del global queda una alarma, una vez."""
+    if hit("access_request_email", key_hash(normalize_email_value(correo))) > LIMITS["access_request_email"].limit:
+        raise Throttled(wait=retry_after("access_request_email"))
+    total = hit("access_request_global", key_hash("global"))
+    limite = LIMITS["access_request_global"].limit
+    if total > limite:
+        raise Throttled(wait=retry_after("access_request_global"))
+    if total and total == int(limite * 0.8):
+        log_security_event("access_request_global_80", scope="access_request_global")
+
+
+class AccessRequestCreateView(APIView):
     """POST /api/auth/access-request — public student access request."""
 
     permission_classes = [AllowAny]
-    # El orden importa (FailFastThrottlesMixin): el tope global solo cuenta lo que pasó el de la IP y el del correo.
-    throttle_classes = [AccessRequestIpThrottle, AccessRequestEmailThrottle, AccessRequestGlobalThrottle]
+    # Solo la IP cuenta al entrar (también un cuerpo mal formado). El correo y el tope global cuentan después de
+    # validar (``_contar_solicitud``): un intento inválido o el campo trampa no gastan el cupo de nadie.
+    throttle_classes = [AccessRequestIpThrottle]
 
     @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         ser = AccessRequestCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         datos = dict(ser.validated_data)
-        # S1-3 · campo trampa: lo rellena un bot. Recibe la misma respuesta y no se guarda ni se avisa nada.
+        # S1-3 · campo trampa: lo rellena un bot. Recibe la misma respuesta y no se guarda, no se avisa ni cuenta.
         if datos.pop("website", ""):
             log_security_event("honeypot_hit")
         else:
+            _contar_solicitud(datos["email"])
             # La misma respuesta exista o no la cuenta o la solicitud pendiente: no revela qué correos existen.
             access_request_service.create_access_request(**datos)
         return api_created(

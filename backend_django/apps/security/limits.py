@@ -11,7 +11,7 @@ LIMITS: dict[str, Limit] = {
     "login_ip": Limit(300, 600),
     "login_fail_account_ip": Limit(5, 900),
     "login_fail_account": Limit(30, 900),
-    "google_ip": Limit(120, 600),
+    "google_ip": Limit(300, 600),
     "access_request_ip": Limit(5, 3600),
     "access_request_email": Limit(2, 86400),
     "access_request_global": Limit(200, 86400),
