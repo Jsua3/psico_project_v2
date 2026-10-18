@@ -57,6 +57,18 @@ test('checkLoadThresholds detecta exceso de p95 y tasa de error (E5-4)', () => {
   assert.equal(failed.violations.length, 2);
 });
 
+test('checkLoadThresholds: una corrida sin una sola muestra no cumple los umbrales (revisión de E5, M-3)', () => {
+  const result = checkLoadThresholds({}, { p95MaxMs: 2000, errorRateMax: 0.01 });
+  assert.equal(result.ok, false);
+  assert.match(result.violations[0], /ninguna muestra/);
+  // Una operación sin muestras tampoco cuenta: nadie midió nada.
+  assert.equal(checkLoadThresholds({ mundo: { count: 0, errors: 0, p50: null, p95: null } }, { p95MaxMs: 2000 }).ok, false);
+});
+
+test('checkLoadThresholds: sin umbrales no se exige nada, ni siquiera muestras (corrida exploratoria)', () => {
+  assert.deepEqual(checkLoadThresholds({}), { ok: true, violations: [] });
+});
+
 test('un estudiante virtual recorre la ruta del aula y repite al terminar el intento', async () => {
   const { planStudentSession } = await import('./aula-support.mjs');
   const plan = planStudentSession();

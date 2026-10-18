@@ -126,10 +126,13 @@ jobs:
           python -m venv backend_django/.venv
           backend_django/.venv/bin/pip install -r backend_django/requirements.txt
       - name: Carga nominal (40 estudiantes durante 60 min, p95 <= 2 s, error <= 1%)
+        id: nominal
         run: >
           node scripts/load/aula.mjs --students 40 --minutes 60 --server gunicorn
           --p95-max-ms 2000 --error-rate-max 0.01 --out load-results/load-40x60.json
       - name: Carga pico 3x (120 estudiantes durante 10 min, p95 <= 4 s, error <= 1%)
+        # Si la nominal incumple un umbral, el pico se mide igual: un fallo no esconde el resultado del otro.
+        if: ${{ !cancelled() && steps.nominal.conclusion != 'skipped' }}
         run: >
           node scripts/load/aula.mjs --students 120 --minutes 10 --server gunicorn
           --p95-max-ms 4000 --error-rate-max 0.01 --out load-results/load-120x10.json

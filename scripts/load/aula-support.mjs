@@ -72,6 +72,10 @@ export function checkLoadThresholds(byOperation, { p95MaxMs = null, errorRateMax
       violations.push(`${op}: p95=${Math.round(metrics.p95)} ms supera el máximo ${p95MaxMs} ms`);
     }
   }
+  if ((p95MaxMs !== null || errorRateMax !== null) && totalCount === 0) {
+    // Un guion que no llegó a medir nada (servidor caído, sin estudiantes) no «cumple»: no hay con qué comparar.
+    violations.push('la corrida no registró ninguna muestra: sin mediciones no hay umbral que cumplir');
+  }
   if (errorRateMax !== null && totalCount > 0) {
     const errorRate = totalErrors / totalCount;
     if (errorRate > errorRateMax) {
