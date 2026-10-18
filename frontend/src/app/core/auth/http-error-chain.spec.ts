@@ -121,7 +121,7 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 1, nav: 0, err: 0, warn: 0 });
     });
 
-    // req: RNF-04 (S1-4: cerrar sesión con un token ya revocado no avisa de «sesión vencida»)
+    // req: SIEP-RNF-04 (S1-4: cerrar sesión con un token ya revocado no avisa de «sesión vencida»)
     it('un 401 al cerrar sesión no avisa ni navega: la persona acaba de salir', () => {
       run(http(401), '/api/auth/logout');
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
@@ -145,7 +145,7 @@ describe('cadena de errores HTTP', () => {
     });
   });
 
-  // req: RNF-02 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
+  // req: DJA-2 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
   describe('429 del limitador', () => {
     const throttled = (body?: unknown, headers?: Record<string, string>) =>
       new HttpErrorResponse({ status: 429, statusText: 'Too Many Requests', error: body, headers: new HttpHeaders(headers) });

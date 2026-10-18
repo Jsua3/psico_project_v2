@@ -128,7 +128,13 @@ export class AuthService {
   }
 
   changePassword(currentPassword: string, newPassword: string) {
-    return this.http.post<ApiResponse<null>>(`${this.API}/change-password`, { currentPassword, newPassword });
+    return this.http.post<ApiResponse<{ token?: string } | null>>(`${this.API}/change-password`, { currentPassword, newPassword })
+      // S1-4: cambiar la contraseña cierra las demás sesiones y el servidor reemite un token a la actual: se guarda
+      // para que la persona siga en el portal sin volver a entrar.
+      .pipe(tap(res => {
+        const token = res.data?.token;
+        if (token) localStorage.setItem(this.TOKEN_KEY, token);
+      }));
   }
 
   /** Tras cambiarla: la sesión sigue (el token no cambia) y deja de exigirlo. */

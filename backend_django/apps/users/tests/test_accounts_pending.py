@@ -9,6 +9,7 @@ respuesta nunca la trae) y el primer inicio obliga a cambiarla antes de cualquie
 import io
 import json
 import re
+import secrets
 import zipfile
 from xml.etree import ElementTree as ET
 
@@ -231,9 +232,10 @@ def test_changing_the_password_clears_the_flag_and_unblocks(profesor, admin):
     common = client.post(
         "/api/auth/change-password", {"currentPassword": temporary, "newPassword": "password123"}, format="json"
     )
+    nueva = secrets.token_urlsafe(24)  # S1-4 · contraseña generada en ejecución, nunca un literal
     done = client.post(
         "/api/auth/change-password",
-        {"currentPassword": temporary, "newPassword": "Nueva-Clave-Larga-2026!"}, format="json",
+        {"currentPassword": temporary, "newPassword": nueva}, format="json",
     )
 
     assert wrong.status_code == 400 and wrong.data["field"] == "currentPassword"
@@ -243,7 +245,11 @@ def test_changing_the_password_clears_the_flag_and_unblocks(profesor, admin):
     assert done.status_code == 200
     user.refresh_from_db()
     assert user.must_change_password is False
-    assert user.check_password("Nueva-Clave-Larga-2026!")
+    assert user.check_password(nueva)
+    # S1-4 · cambiar la contraseña cierra las demás sesiones: el token anterior muere y la respuesta trae uno nuevo
+    # con el que la sesión actual sigue sin volver a entrar.
+    assert client.get("/api/simulation/cases").status_code == 401
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {done.data['data']['token']}")
     assert client.get("/api/simulation/cases").status_code == 200
     # La temporal ya no sirve.
     old = cl().post("/api/auth/login", {"email": user.email, "password": temporary}, format="json")

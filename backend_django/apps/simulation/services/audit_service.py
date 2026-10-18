@@ -99,6 +99,7 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "ASSIGNMENT_REMOVED": "asignacion.eliminar",
     "USER_APPROVED": "usuario.aprobar",
     "PASSWORD_CHANGED": "usuario.cambiar_clave",
+    "SESSIONS_REVOKED": "sesion.revocar",
 }
 
 _local = threading.local()

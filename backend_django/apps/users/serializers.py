@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from shared.plain_text import plain_text_problem
 
 from .models import AccessRequest, AccessRequestStatus, UserRole
+from .services import account_service
 
 User = get_user_model()
 
@@ -101,11 +102,15 @@ class AdminUserWriteSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", "")
+        previos = (instance.role, instance.activo)
         for field, value in validated_data.items():
             setattr(instance, field, value)
         if password:
             instance.set_password(password)
         instance.save()
+        # S1-4 · una contraseña fijada, un cambio de rol o de activo cierran las sesiones de la persona.
+        if password or previos != (instance.role, instance.activo):
+            account_service.revoke_sessions(instance.pk)
         return instance
 
 
@@ -115,13 +120,15 @@ class AdminUserStatusSerializer(serializers.Serializer):
 
 def generate_access_token(user):
     """Access token with the same claims Spring's JwtService emits:
-    sub=email, userId=id, role=role (plus simplejwt's exp/iat/jti)."""
+    sub=email, userId=id, role=role (plus simplejwt's exp/iat/jti), y ep = época de sesión (S1-4)."""
     token = AccessToken.for_user(user)  # sets the USER_ID_CLAIM ("userId")
     # simplejwt >= 5.5 serializa el id como texto; Spring lo emitía numérico y el
     # frontend lo tipa como number: se conserva el contrato original.
     token[api_settings.USER_ID_CLAIM] = user.id
     token["role"] = user.role
     token["sub"] = user.email
+    # S1-4 · época de sesión: ``SiepJWTAuthentication`` rechaza el token si la base la sube.
+    token["ep"] = user.session_epoch
     return str(token)
 
 
@@ -134,6 +141,7 @@ class PsychoSimTokenObtainSerializer(TokenObtainPairSerializer):
         token[api_settings.USER_ID_CLAIM] = user.id
         token["role"] = user.role
         token["sub"] = user.email
+        token["ep"] = user.session_epoch  # S1-4 · época de sesión
         return token
 
 

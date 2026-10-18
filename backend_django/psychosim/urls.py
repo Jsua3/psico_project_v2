@@ -43,7 +43,9 @@ from apps.users.views import (
     AdminUserApproveView,
     AdminUserDetailView,
     AdminUserListCreateView,
+    AdminUserRevokeSessionsView,
     AdminUserStatusView,
+    LogoutView,
 )
 from apps.simulation.views.audit_views import AdminAuditListView
 from apps.simulation.views.authoring_views import AdminCaseListCreateView
@@ -72,6 +74,8 @@ urlpatterns = [
     # C11: salud del servicio (pública, sin autenticación, sin datos internos).
     path("api/health", health),
     path("api/auth/", include("apps.users.urls")),
+    # S1-4 · cerrar la propia sesión: cualquier persona autenticada, también con el cambio de contraseña pendiente.
+    path("api/auth/logout", LogoutView.as_view()),
     path("api/grupos", GrupoListCreateView.as_view()),
     path("api/grupos/<int:pk>", GrupoDetailView.as_view()),
     path("api/grupos/<int:pk>/estudiantes", GrupoEstudiantesView.as_view()),
@@ -106,6 +110,7 @@ urlpatterns = [
     path("api/admin/users/approve", AdminUserApproveView.as_view()),
     path("api/admin/users/<int:user_id>", AdminUserDetailView.as_view()),
     path("api/admin/users/<int:user_id>/status", AdminUserStatusView.as_view()),
+    path("api/admin/users/<int:user_id>/revoke-sessions", AdminUserRevokeSessionsView.as_view()),
     path("api/admin/access-requests", AdminAccessRequestListView.as_view()),
     path("api/admin/access-requests/<int:request_id>/status", AdminAccessRequestStatusView.as_view()),
     path("api/instructor/", include("apps.simulation.urls_instructor")),

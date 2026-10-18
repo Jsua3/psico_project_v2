@@ -207,7 +207,7 @@ describe('LoginComponent', () => {
     });
   });
 
-  // req: RNF-02 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
+  // req: DJA-2 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
   describe('429 del limitador', () => {
     const throttled = () => new HttpErrorResponse({
       status: 429, statusText: 'Too Many Requests',

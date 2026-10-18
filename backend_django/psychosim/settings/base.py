@@ -299,6 +299,11 @@ SIEP_TRUSTED_PROXIES = int(os.environ.get("SIEP_TRUSTED_PROXIES", "0"))
 #: ``psychosim/settings/test.py``.
 SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 
+#: S1-4 · sesión revocable: cada token lleva la época de sesión de su dueño (claim ``ep``) y el servidor rechaza los
+#: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
+#: emergencia: no lo apagues en producción).
+SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }

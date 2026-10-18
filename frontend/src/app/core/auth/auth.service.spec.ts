@@ -65,8 +65,10 @@ describe('AuthService: cambio de contraseña obligatorio (E2-9)', () => {
     const request = http.expectOne('/api/auth/change-password');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ currentPassword: 'Temporal-123', newPassword: 'Nueva-clave-2026' });
-    request.flush({ success: true, message: 'Contraseña actualizada', data: null });
+    const reemitido = token('PROFESOR');  // S1-4: el servidor reemite un token con la época nueva
+    request.flush({ success: true, message: 'Contraseña actualizada', data: { token: reemitido } });
     await change;
+    expect(service.getToken()).toBe(reemitido);
 
     service.markPasswordChanged();
     expect(service.mustChangePassword()).toBe(false);
@@ -85,7 +87,7 @@ describe('AuthService: cambio de contraseña obligatorio (E2-9)', () => {
  * Cerrar sesión (S1-4): avisa al servidor para que el token deje de valer (`POST /api/auth/logout`), pero la salida
  * local no espera ni depende de eso.
  */
-// req: RNF-04
+// req: SIEP-RNF-04
 describe('AuthService: cierre de sesión revocable (S1-4)', () => {
   let service: AuthService;
   let http: HttpTestingController;

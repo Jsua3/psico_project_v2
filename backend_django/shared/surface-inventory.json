@@ -398,6 +398,14 @@
       "audit": null
     },
     {
+      "route": "api/admin/users/<int:user_id>/revoke-sessions",
+      "method": "POST",
+      "exposure": "role:ADMIN",
+      "body": "json-small",
+      "throttle": null,
+      "audit": null
+    },
+    {
       "route": "api/admin/users/<int:user_id>/status",
       "method": "PATCH",
       "exposure": "role:ADMIN",
@@ -493,6 +501,14 @@
       "throttle": [
         "login_ip"
       ],
+      "audit": null
+    },
+    {
+      "route": "api/auth/logout",
+      "method": "POST",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
       "audit": null
     },
     {
