@@ -40,8 +40,6 @@ PUBLIC_ROUTE_REASONS: dict[str, str] = {
     "api/auth/google": "entrar con una cuenta de Google",
     "api/auth/google/config": "configuración pública del acceso con Google",
     "api/auth/access-request": "pedir una cuenta, que aprueba el ADMIN",
-    "schema": "esquema OpenAPI, público hasta el plan 03 (seguridad)",
-    "swagger-ui.html": "visor del esquema OpenAPI, público hasta el plan 03 (seguridad)",
     "^(?!api/|schema/|swagger-ui|django-static/).*$": "comodín que sirve la SPA de Angular",
 }
 
@@ -65,11 +63,14 @@ def _methods(view_class):
     return tuple(method for method in HTTP_METHODS if hasattr(view_class, method.lower()))
 
 
-def _permissions_for(view_class, method):
-    """La vista y los permisos que DRF le aplicaría a ``method`` (``get_permissions`` puede depender de él)."""
+def _permissions_for(view_class, method, initkwargs=None):
+    """La vista y los permisos que DRF le aplicaría a ``method`` (``get_permissions`` puede depender de él).
+
+    Los ``initkwargs`` de ``as_view(...)`` (p. ej. ``permission_classes``) mandan sobre la clase, igual que en la petición real.
+    """
     if view_class is None:  # vista de función de Django puro: DRF no le pone permisos
         return None, []
-    view = view_class()
+    view = view_class(**(initkwargs or {}))
     view.setup(RequestFactory().generic(method, "/"))
     return view, view.get_permissions()
 
@@ -135,8 +136,9 @@ def collect_routes(patterns=None):
     for raw_route, callback in _iter_routes(_root_patterns() if patterns is None else patterns):
         route = raw_route.rstrip("/")
         view_class = getattr(callback, "cls", None)
+        initkwargs = getattr(callback, "initkwargs", None)
         for method in _methods(view_class):
-            view, permissions = _permissions_for(view_class, method)
+            view, permissions = _permissions_for(view_class, method, initkwargs)
             row = {
                 "route": route,
                 "method": method,

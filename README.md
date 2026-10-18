@@ -38,7 +38,7 @@ El script:
 2. Crea `.venv` e instala dependencias Python si hace falta
 3. Genera `local.py` de desarrollo si no existe
 4. Verifica el esquema del simulador; si falta, **se detiene** (ver «Bootstrap explícito»)
-5. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`)
+5. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`, solo con `SIEP_EXPOSE_API_DOCS=true` y sesión de ADMIN)
 6. Arranca el frontend en `http://localhost:4200` (proxy automático a la API)
 
 > Si el puerto 5433 está ocupado por la BD de otro checkout (p. ej. el contenedor
@@ -164,7 +164,7 @@ Valida login real (ADMIN / PROFESOR / ESTUDIANTE), acceso sin token, token invá
 
 ## API REST — rutas reales
 
-Base URL: `http://localhost:8091/api` (Swagger: `http://localhost:8091/swagger-ui.html`).
+Base URL: `http://localhost:8091/api` (Swagger: `http://localhost:8091/swagger-ui.html`). El esquema y su visor (`/schema/`, `/swagger-ui.html`) exigen `SIEP_EXPOSE_API_DOCS=true` y sesión de ADMIN; apagada la variable, responden 404.
 
 El enunciado histórico del proyecto usaba prefijos en español (`/api/simulacion`, `/api/usuarios`, `/api/casos`). **El backend Django actual usa rutas en inglés**, alineadas con el frontend:
 
