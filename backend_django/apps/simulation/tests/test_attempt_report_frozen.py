@@ -73,11 +73,11 @@ def test_completar_persiste_una_fila_con_version_de_esquema_ordinal_y_huella(com
 
     row = AttemptReport.objects.get(attempt_id=attempt_id)
 
-    assert row.report_schema_version == 1
+    assert row.report_schema_version == 2  # E6-1d: perfil por competencia (ver test_attempt_report_v2.py)
     assert row.attempt_ordinal == 1
     assert len(row.definition_hash) == 64
     payload = json.loads(row.report_json)
-    assert payload["schemaVersion"] == 1 and payload["ordinal"] == 1
+    assert payload["schemaVersion"] == 2 and payload["ordinal"] == 1
     assert payload["definitionHash"] == row.definition_hash
     assert payload["status"] == "COMPLETED"
 
@@ -190,7 +190,7 @@ def test_un_intento_completado_sin_fila_se_sirve_en_vivo_y_el_comando_lo_congela
     live = client.get(f"{BASE}/attempts/{attempt_id}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
 
     assert live.status_code == 200
-    assert live.data["data"]["schemaVersion"] == 1
+    assert live.data["data"]["schemaVersion"] == 2
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 0  # leer no escribe
 
     call_command("backfill_attempt_reports")

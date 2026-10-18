@@ -8,6 +8,11 @@ E1-8: ``schemaVersion``, ``ordinal``, ``definitionHash``, ``decisionReview[]``,
 intento, el del estudiante y el historial; leer no escribe. Un intento completado antes
 de E1-8 no tiene fila: se sirve en vivo (sin persistirlo) y ``backfill_attempt_reports``
 lo congela.
+
+E6-1d (``schemaVersion 2``) añade el perfil por competencia (``competencyLevels``), ``nonRecommendedCount``,
+``reflectionCoverage`` y ``keyLearningEvidence``: se calculan UNA vez, al cerrar, con la rúbrica, el catálogo y los
+efectos de ese momento, y no se recalculan (un reporte cerrado no cambia). Un reporte v1 sigue siendo v1: se lee tal
+cual, sin las claves nuevas.
 """
 import hashlib
 import json
@@ -17,6 +22,9 @@ from django.db.models import Q
 from shared.jsonutils import read_map
 
 from apps.simulation.serializers import game_dtos as dto
+
+from apps.simulation.assessment import competencies as assessment_competencies
+from apps.simulation.assessment import definitions, evidence
 
 from ..models import (
     AttemptEvent,
@@ -30,7 +38,7 @@ from ..models import (
 )
 from . import attempt_duration, case_effects
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2  # 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia)
 
 
 def load_events(attempt_id):
@@ -116,6 +124,15 @@ def build_decision_review(events):
 def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
     """El reporte completo (superconjunto del de cierre) con lo de E1-8."""
     payload = dto.build_completion_report(attempt, events)
+    # La lista nombra las notas (sin su texto: solo el dueño lo lee, por su propia ruta).
+    reflections = [
+        {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
+        for r in ReflectionJournal.objects.filter(attempt_id=attempt.id).select_related("node").order_by("node_id")
+    ]
+    competency_levels = assessment_competencies.competency_profile(attempt, events)
+    coverage = evidence.reflection_coverage(
+        [r["nodeId"] for r in reflections], evidence.decision_scene_ids(events), definitions.reflection_definition()
+    )
     payload.update({
         "schemaVersion": REPORT_SCHEMA_VERSION,
         "ordinal": ordinal if ordinal is not None else attempt_ordinal(attempt),
@@ -131,12 +148,14 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
             "reflections": payload["reflectionsCount"],
         },
         "decisionReview": build_decision_review(events),
-        # La lista nombra las notas (sin su texto: solo el dueño lo lee, por su propia ruta).
-        "reflections": [
-            {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
-            for r in ReflectionJournal.objects.filter(attempt_id=attempt.id)
-            .select_related("node").order_by("node_id")
-        ],
+        "reflections": reflections,
+        # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
+        "competencyLevels": competency_levels,
+        "nonRecommendedCount": evidence.non_recommended_count(events),
+        "reflectionCoverage": coverage,
+        "keyLearningEvidence": evidence.key_learning_evidence(
+            attempt.status == AttemptStatus.COMPLETED, coverage, competency_levels
+        ),
         "timeByScene": [
             {"nodeId": scene["nodeId"], "seconds": round(scene["seconds"], 1)}
             for scene in attempt_duration.scene_durations(
