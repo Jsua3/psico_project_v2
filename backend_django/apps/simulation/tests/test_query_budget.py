@@ -39,8 +39,10 @@ QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
     # E5-1: carga de árboles/líneas/opciones en 3 consultas y AttemptWorldState junto al intento.
     "get_world": 8,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
-    # E5-1: acuse mínimo + cerrojo en la lectura del intento + INSERT directo del estado inicial.
-    "patch_world_state": 6,  # (2) era 21 (4)
+    # E5-1: acuse mínimo + cerrojo en la lectura del intento + INSERT directo del estado inicial. Reparación de
+    # E5-1: 6 → 7, porque el estado del mundo se lee DESPUÉS del cerrojo (en la misma sentencia llegaba viejo y el
+    # PATCH pisaba lo que otra orden acababa de confirmar: test_world_patch_race.py). Sigue siendo 21 → 7.
+    "patch_world_state": 7,  # (2) era 21 (4)
     "enter_room": 13,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
