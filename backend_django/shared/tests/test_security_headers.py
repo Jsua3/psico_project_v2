@@ -24,7 +24,7 @@ from rest_framework.test import APIClient
 from psychosim.settings import base as ajustes_base
 
 pytestmark = [
-    pytest.mark.req("RNF-002"),
+    pytest.mark.req("RNF-02"),
     pytest.mark.security,
     pytest.mark.django_db,
     # WhiteNoise avisa de que STATIC_ROOT no existe en las pruebas; el aviso no es un fallo del control.
