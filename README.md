@@ -109,6 +109,8 @@ completos del caso (`@full-case`, 4 viewports) van en
 `master` y a mano desde Actions, porque en el runner sin GPU tardan ~3-4x más que en local.
 Localmente, `npm run test:e2e` sigue corriendo todo.
 
+Mientras Actions siga bloqueado por facturación, la compuerta es la corrida local: `npm run verify:estructural` y `npm run verify:seguridad`; cada integración se anota «sin CI» en el ledger.
+
 ## Grupos — importar estudiantes por Excel
 
 En **Portal → Grupos → Gestionar**, puedes cargar un archivo `.xlsx` con todos los estudiantes del grupo.
@@ -191,6 +193,7 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): el documento maestro único y vigente (producto, stack, arquitectura, funcionamiento, reglas, seguridad, calidad y estado).
 - [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
+- [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías

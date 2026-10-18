@@ -6,7 +6,7 @@
  * Un paso opcional sin su herramienta o sin su carpeta se omite y lo dice.
  *
  * Uso: npm run verify:seguridad [-- --keep-going] [--only id[,id]]   (ids: scripts, security-tests, deploy-check,
- *      pip-audit, npm-audit, gitleaks, dist-dev-only, image-scan). image-scan escanea la imagen SIEP_IMAGE si hay
+ *      pip-audit, npm-audit, actions-pinned, gitleaks, dist-dev-only, image-scan). image-scan escanea la imagen SIEP_IMAGE si hay
  *      trivy o grype; sin ellos, o sin esa variable, se omite y lo dice.
  */
 import { spawnSync } from 'node:child_process';
@@ -75,6 +75,13 @@ function runImageScan(step) {
   return ok ? 0 : 1;
 }
 
+// Paso en proceso (sin comando, p. ej. actions-pinned): sus problemas salen por consola y el veredicto decide la salida.
+function runCheck(step) {
+  const { ok, problemas } = step.check();
+  for (const problema of problemas) console.error(`[siep:seguridad] ${problema}`);
+  return ok ? 0 : 1;
+}
+
 let steps;
 try {
   steps = selectSteps(buildSteps({ root: ROOT, baseline, allowlist, imagen: process.env.SIEP_IMAGE || undefined }), only);
@@ -95,7 +102,10 @@ for (const step of steps) {
   }
   console.log(`\n[siep:seguridad] ▶ ${step.label}`);
   const started = Date.now();
-  const status = step.evaluate ? runDeployCheck(step) : step.scan ? runImageScan(step) : runInherited(step);
+  const status = step.evaluate ? runDeployCheck(step)
+    : step.scan ? runImageScan(step)
+      : step.check ? runCheck(step)
+        : runInherited(step);
   results.push({ id: step.id, status, seconds: (Date.now() - started) / 1000 });
   if (status !== 0) {
     failed = true;

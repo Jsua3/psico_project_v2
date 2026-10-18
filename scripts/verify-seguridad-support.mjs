@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
 import { buildSteps as buildEstructuralSteps, summarize } from './verify-estructural-support.mjs';
@@ -124,6 +124,71 @@ export function selectSteps(steps, only = []) {
   return steps.filter((step) => only.includes(step.id));
 }
 
+// --- Acciones de CI fijadas por commit (S6-2) ---------------------------------------------------------------------
+
+// `uses: dueño/repo[/ruta]@valor`, con guion de lista opcional y comillas opcionales.
+const USO_DE_ACCION = /^\s*(?:-\s+)?uses:\s*(['"]?)([^'"\s]+)\1/;
+const FIJADA_POR_COMMIT = /@[0-9a-f]{40}$/;
+const ES_CHECKOUT = /^actions\/checkout(@|$)/;
+const PERSISTENCIA_DESACTIVADA = /^\s*persist-credentials:\s*false\s*(#.*)?$/;
+
+const sangria = (linea) => linea.length - linea.trimStart().length;
+const esItemDeLista = (linea) => /^\s*-(\s|$)/.test(linea);
+
+// Líneas del paso que contiene la línea `uses:` de índice `indice`: desde su guion hasta la primera línea que no
+// esté más sangrada que ese guion. Así el `persist-credentials` de otro paso no cuenta para este checkout.
+function lineasDelPaso(lineas, indice) {
+  let inicio = indice;
+  if (!esItemDeLista(lineas[indice])) {
+    while (inicio > 0 && !(esItemDeLista(lineas[inicio]) && sangria(lineas[inicio]) < sangria(lineas[indice]))) {
+      inicio -= 1;
+    }
+    if (!esItemDeLista(lineas[inicio])) return [lineas[indice]];
+  }
+  const base = sangria(lineas[inicio]);
+  let fin = inicio + 1;
+  while (fin < lineas.length && (lineas[fin].trim() === '' || sangria(lineas[fin]) > base)) fin += 1;
+  return lineas.slice(inicio, fin);
+}
+
+/**
+ * Cada `uses:` externo de los flujos termina en `@<40 hex>` (la etiqueta va en un comentario); las acciones locales
+ * (`./…`) no se fijan. Cada `actions/checkout` lleva `persist-credentials: false` en su propio paso. Sin flujos que
+ * revisar falla: no se da por bueno un conjunto vacío.
+ */
+export function evaluateActionsPinned(flujos = []) {
+  if (flujos.length === 0) {
+    return { ok: false, problemas: ['no hay flujos de GitHub Actions en .github/workflows que revisar'] };
+  }
+  const problemas = [];
+  for (const { nombre, texto } of flujos) {
+    const lineas = texto.split(/\r?\n/);
+    lineas.forEach((linea, indice) => {
+      const uso = USO_DE_ACCION.exec(linea);
+      if (!uso || uso[2].startsWith('./')) return;
+      const accion = uso[2];
+      const donde = `${nombre}:${indice + 1}`;
+      if (!FIJADA_POR_COMMIT.test(accion)) {
+        problemas.push(`${donde}: uses: ${accion} no está fijado por commit (@<sha de 40 caracteres>)`);
+      }
+      if (ES_CHECKOUT.test(accion) && !lineasDelPaso(lineas, indice).some((l) => PERSISTENCIA_DESACTIVADA.test(l))) {
+        problemas.push(`${donde}: ${accion} sin persist-credentials: false`);
+      }
+    });
+  }
+  return { ok: problemas.length === 0, problemas };
+}
+
+/** Flujos de GitHub Actions del repositorio (`.github/workflows/*.yml`), con su ruta relativa para los avisos. */
+export function leerFlujos(root) {
+  const carpeta = join(root, '.github', 'workflows');
+  if (!existsSync(carpeta)) return [];
+  return readdirSync(carpeta)
+    .filter((nombre) => /\.ya?ml$/.test(nombre))
+    .sort()
+    .map((nombre) => ({ nombre: `.github/workflows/${nombre}`, texto: readFileSync(join(carpeta, nombre), 'utf8') }));
+}
+
 /**
  * Pasos de `npm run verify:seguridad`, en orden (plan 03, S0-1). Un paso opcional que falta
  * (gitleaks o el build) trae `skip` con su motivo: se omite y no falla.
@@ -134,6 +199,7 @@ export function buildSteps({
   baseline = {},
   allowlist = {},
   imagen,
+  flujos,
   exists = existsSync,
   which = (name) => findOnPath(name, { platform }),
 }) {
@@ -180,6 +246,15 @@ export function buildSteps({
     },
     reutilizado('pip-audit'),
     reutilizado('npm-audit'),
+    {
+      id: 'actions-pinned',
+      label: 'Acciones de CI fijadas por commit y persist-credentials: false (.github/workflows)',
+      // En proceso (sin comando): lee .github/workflows solo al correr el paso, no al construir la lista.
+      check: () => evaluateActionsPinned(flujos ?? leerFlujos(root)),
+      hint: 'Fija cada `uses:` externo con su sha (`uses: dueño/repo@<sha> # etiqueta`; el sha sale de '
+        + '`git ls-remote` sobre el repositorio de la acción y su etiqueta) y pon `persist-credentials: false` en cada '
+        + 'actions/checkout.',
+    },
     {
       id: 'gitleaks',
       label: 'gitleaks (secretos en el historial)',
