@@ -1,11 +1,18 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
+from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
+from apps.simulation.serializers.contracts import (
+    CaseBriefSerializer,
+    HintStateSerializer,
+    WorldPatchAckSerializer,
+)
 from apps.simulation.serializers.requests import (
     ReflectionRequest,
     ResumeAttemptRequest,
@@ -54,6 +61,7 @@ class CaseBriefView(APIView):
 
     permission_classes = [policy_permission("catalog", "read")]
 
+    @extend_schema(responses={200: envelope_of(CaseBriefSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         return api_ok(case_brief.brief_for(request.user, case_version_id))
 
@@ -74,6 +82,12 @@ class StartAttemptView(APIView):
 class ActiveAttemptView(APIView):
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(
+        responses={
+            200: ApiEnvelopeSerializer,
+            204: OpenApiResponse(description="No hay un intento abierto de esa versión: la respuesta no lleva cuerpo."),
+        }
+    )
     def get(self, request, case_version_id):
         state = game_service.find_active_attempt(case_version_id, request.user)
         if state is None:
@@ -95,6 +109,10 @@ class HintStateView(APIView):
 
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(
+        parameters=[OpenApiParameter(ATTEMPT_TOKEN_HEADER, str, OpenApiParameter.HEADER, required=True)],
+        responses={200: envelope_of(HintStateSerializer), **error_responses(400, 401, 403, 404)},
+    )
     def get(self, request, attempt_id):
         return _private_ok(hint_service.get_hint_state(
             attempt_id, _attempt_token(request), request.user,
@@ -233,6 +251,7 @@ class WorldView(APIView):
 class WorldStateView(APIView):
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(responses={200: envelope_of(WorldPatchAckSerializer), **error_responses(400, 401, 403, 404)})
     def patch(self, request, attempt_id):
         # Valores crudos a propósito: la validación estricta (entero finito,
         # límites, plausibilidad, colisión) es autoridad del servicio (GAME-01).

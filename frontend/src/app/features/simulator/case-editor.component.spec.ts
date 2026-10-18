@@ -23,7 +23,7 @@ const CASE_ID = 7;
 const node = (id: number, key: string, title: string, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key, title, narrative: `Narrativa de ${title}`, supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, ...over,
+  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const CHECKLIST_ITEMS = [
@@ -43,7 +43,9 @@ function editorView(over: Partial<CaseEditorView> = {}): CaseEditorView {
     title: 'Caso de duelo',
     semanticVersion: '1.2.0',
     status: 'DRAFT',
-    nodes: [node(1, 'inicio', 'Inicio del caso', { startNode: true }), node(2, 'cierre', 'Cierre', { terminal: true })],
+    context: 'Una mujer llega a urgencias.',
+    learningObjectives: ['Validar sin juzgar.'],
+    nodes: [node(1, 'inicio', 'Inicio del caso', { startNode: true }), node(2, 'cierre', 'Cierre', { terminal: true, displayOrder: 1 })],
     decisions: [],
     maps: [{ id: 11, key: 'sala', title: 'Sala de espera', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430, nodeId: 1, nodeKey: 'inicio' }],
     objects: [{
@@ -52,6 +54,8 @@ function editorView(over: Partial<CaseEditorView> = {}): CaseEditorView {
       decisionOptionId: null, toolCode: null, mapId: 11,
     }],
     tools: [{ id: 31, code: 'PAP', label: 'Primeros auxilios psicológicos', icon: 'psychology', category: 'clinical', description: 'Guía breve', active: true }],
+    hints: [{ id: 41, mapId: 11, order: 1, text: 'Mira cómo respira.' }],
+    characters: [{ id: 51, key: 'marta', displayName: 'Marta', roleLabel: 'Enfermera', portraitKey: '', showInBrief: true, displayOrder: 0 }],
     rubrics: [],
     checklistCompletion: 67,
     publishable: false,
@@ -109,6 +113,14 @@ describe('editor de casos (F8-1)', () => {
       updateTool: vi.fn(() => of(editorView({ revision: 4 }))),
       deleteTool: vi.fn(() => of(editorView({ revision: 4 }))),
       updateChecklist: vi.fn(() => of(editorView({ revision: 4 }))),
+      createHint: vi.fn(() => of(editorView({ revision: 4 }))),
+      updateHint: vi.fn(() => of(editorView({ revision: 4 }))),
+      deleteHint: vi.fn(() => of(editorView({ revision: 4 }))),
+      createCharacter: vi.fn(() => of(editorView({ revision: 4 }))),
+      updateCharacter: vi.fn(() => of(editorView({ revision: 4 }))),
+      deleteCharacter: vi.fn(() => of(editorView({ revision: 4 }))),
+      updateBrief: vi.fn(() => of(editorView({ revision: 4 }))),
+      reorderNodes: vi.fn(() => of(editorView({ revision: 4 }))),
       cloneCaseVersion: vi.fn(() => of(editorView({ revision: 1 }))),
       lifecycle: vi.fn(() => of({ caseVersionId: CASE_ID, state: 'DRAFT', allowedTransitions: ['submit', 'archive'] })),
       validateCase: vi.fn(() => of({ issues: [], canPublish: true })),
@@ -147,13 +159,14 @@ describe('editor de casos (F8-1)', () => {
 
   // req: RNF-04, BLOQUE-H
   describe('estructura y estados', () => {
-    it('un solo h1 con el título del caso, la región de estado siempre presente y las nueve pestañas', async () => {
+    it('un solo h1 con el título del caso, la región de estado siempre presente y las doce pestañas', async () => {
       await render();
       expect(host().querySelectorAll('h1')).toHaveLength(1);
       expect(text(host().querySelector('h1'))).toBe('Caso de duelo');
       expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
       expect([...host().querySelectorAll('[role="tab"]')].map(text)).toEqual([
-        'Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión', 'Mundo', 'Vista previa',
+        'Grafo DAG', 'Escenas', 'Mapas', 'Objetos', 'Herramientas', 'Ayudas', 'Ficha', 'Rúbricas', 'Checklist ético', 'Revisión', 'Mundo',
+        'Vista previa',
       ]);
     });
 
@@ -523,7 +536,7 @@ describe('editor de casos (F8-1)', () => {
   describe('accesibilidad de los botones', () => {
     it('todo botón del editor tiene nombre accesible, en cada pestaña de datos', async () => {
       await render();
-      for (const name of ['Grafo DAG', 'Mapas', 'Objetos', 'Herramientas', 'Rúbricas', 'Checklist ético', 'Revisión']) {
+      for (const name of ['Grafo DAG', 'Escenas', 'Mapas', 'Objetos', 'Herramientas', 'Ayudas', 'Ficha', 'Rúbricas', 'Checklist ético', 'Revisión']) {
         tab(name)!.click();
         await settle();
       }
@@ -641,6 +654,394 @@ describe('editor de casos (F8-1)', () => {
 
       await openTab('Herramientas');
       expect(emptyAction()).toBeNull();
+    });
+  });
+
+  // req: RF-06, RF-08, RF-09, RF-10, RF-11, RF-07, RF-16, CU-04
+  describe('escenas, ayudas, ficha y textos de la decisión (F10-3)', () => {
+    const openTab = async (name: string) => {
+      tab(name)!.click();
+      await settle();
+    };
+    const byLabel = (label: string) => host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+    const decisionEdge = {
+      id: 40, optionKey: 'cerrar', sourceNodeId: 1, sourceKey: 'inicio', targetNodeId: 2, targetKey: 'cierre', text: 'Cerrar el caso',
+      classification: 'ADEQUATE' as const, prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0,
+      prohibitedPenalty: 0, immediateFeedback: 'Bien.', consequenceText: 'Ella respira más tranquila.',
+      theoryBasis: 'Rogers (1957).', feedbackText: 'Validar sostiene la alianza.',
+    };
+
+    describe('Escenas', () => {
+      it('mover una escena pide el orden de TODAS con la revisión vigente, avisa y adopta la vista nueva', async () => {
+        await render();
+        await openTab('Escenas');
+        expect([...host().querySelectorAll('.so-title')].map(text)).toEqual(['Inicio del caso', 'Cierre']);
+
+        byLabel('Bajar «Inicio del caso»').click();
+        await settle();
+
+        expect(api['reorderNodes']).toHaveBeenCalledWith(CASE_ID, [2, 1], 3);
+        expect(notify['success']).toHaveBeenCalledWith('Orden de las escenas actualizado.');
+        expect(component().editor()!.revision).toBe(4);
+      });
+
+      it('un fallo del servidor se dice con su mensaje y el orden no cambia', async () => {
+        await render();
+        await openTab('Escenas');
+        api['reorderNodes'].mockReturnValueOnce(throwError(() => new HttpErrorResponse({
+          status: 400, error: { message: 'El orden debe incluir cada nodo del caso exactamente una vez.' },
+        })));
+
+        byLabel('Bajar «Inicio del caso»').click();
+        await settle();
+
+        expect(notify['error']).toHaveBeenCalledWith('El orden debe incluir cada nodo del caso exactamente una vez.');
+        expect(component().editor()!.revision).toBe(3);
+        expect(component().busy()).toBe(false);
+      });
+
+      it('«Editar» una escena abre la hoja de ese nodo', async () => {
+        await render();
+        await openTab('Escenas');
+
+        byLabel('Editar «Cierre»').click();
+
+        expect(component().panel()).toMatchObject({ kind: 'node-edit', node: expect.objectContaining({ id: 2 }) });
+      });
+
+      it('en una versión que no es borrador no se mueve nada y se dice por qué', async () => {
+        await render({ view: editorView({ status: 'PUBLISHED' }) });
+        await openTab('Escenas');
+
+        const down = byLabel('Bajar «Inicio del caso»');
+        expect(down.getAttribute('aria-disabled')).toBe('true');
+        expect(text(down.querySelector('span[hidden]'))).toContain('no es un borrador');
+        down.click();
+        expect(api['reorderNodes']).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Ayudas', () => {
+      it('«Agregar ayuda» abre la hoja de esa sala y guardar la crea en ella con la revisión vigente', async () => {
+        await render();
+        await openTab('Ayudas');
+
+        buttonLabelled('Agregar ayuda a «Sala de espera»')!.click();
+        expect(component().panel()).toEqual({ kind: 'hint-create', mapId: 11 });
+        component().hintForm!.patchValue({ text: '  Pregunta por el sueño.  ' });
+        component().saveHint(CASE_ID);
+        await settle();
+
+        expect(api['createHint']).toHaveBeenCalledWith(CASE_ID, 11, { text: 'Pregunta por el sueño.' }, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Ayuda guardada.');
+        expect(component().panel()).toBeNull();
+      });
+
+      it('con un lugar escrito lo manda como hintOrder; vacío no lo manda (el servidor la pone al final)', async () => {
+        await render();
+        component().openPanel({ kind: 'hint-create', mapId: 11 });
+        component().hintForm!.patchValue({ text: 'Primera.', hintOrder: 1 });
+        component().saveHint(CASE_ID);
+        await settle();
+
+        expect(api['createHint']).toHaveBeenCalledWith(CASE_ID, 11, { text: 'Primera.', hintOrder: 1 }, 3);
+      });
+
+      it('editar parte del texto y del lugar de la ayuda y guarda sobre ella', async () => {
+        await render();
+        const existing = component().editor()!.hints[0];
+
+        component().openPanel({ kind: 'hint-edit', hint: existing });
+        expect(component().hintForm!.value).toEqual({ text: 'Mira cómo respira.', hintOrder: 1 });
+        component().hintForm!.patchValue({ text: 'Mira su respiración.' });
+        component().saveHint(CASE_ID);
+        await settle();
+
+        expect(api['updateHint']).toHaveBeenCalledWith(CASE_ID, 41, { text: 'Mira su respiración.', hintOrder: 1 }, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Ayuda guardada.');
+      });
+
+      it('una ayuda sin texto no se envía: marca el campo y deja la hoja abierta', async () => {
+        await render();
+        component().openPanel({ kind: 'hint-create', mapId: 11 });
+
+        component().save();
+
+        expect(api['createHint']).not.toHaveBeenCalled();
+        expect(component().hintForm!.get('text')!.touched).toBe(true);
+        expect(component().panel()).toEqual({ kind: 'hint-create', mapId: 11 });
+      });
+
+      it('una ayuda de solo espacios no se envía: marca el campo (antes el servidor respondía 400 «No puede estar vacío»)', async () => {
+        await render();
+        component().openPanel({ kind: 'hint-create', mapId: 11 });
+        component().hintForm!.patchValue({ text: '    ' });
+
+        component().save();
+
+        expect(api['createHint']).not.toHaveBeenCalled();
+        expect(component().hintForm!.get('text')!.touched).toBe(true);
+        expect(component().panel()).toEqual({ kind: 'hint-create', mapId: 11 });
+      });
+
+      it('eliminar pide confirmar nombrando la ayuda y solo entonces llama al servidor', async () => {
+        await render();
+        let answer!: (value: boolean) => void;
+        dialog.confirm.mockReturnValue(new Promise<boolean>(resolve => { answer = resolve; }));
+
+        void component().confirmDeleteHint(CASE_ID, component().editor()!.hints[0]);
+        expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
+          title: 'Eliminar ayuda', message: expect.stringContaining('Mira cómo respira.'), tone: 'danger', confirmLabel: 'Eliminar',
+        }));
+        expect(api['deleteHint']).not.toHaveBeenCalled();
+
+        answer(true);
+        await settle();
+        expect(api['deleteHint']).toHaveBeenCalledWith(CASE_ID, 41, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Ayuda eliminada.');
+      });
+
+      it('«Ir a Mapas» de la pestaña sin salas cambia de pestaña', async () => {
+        await render({ view: editorView({ maps: [], objects: [], hints: [] }) });
+        await openTab('Ayudas');
+
+        buttonLabelled('Ir a Mapas')!.click();
+        await settle();
+
+        expect(component().tab()).toBe('mapas');
+      });
+    });
+
+    // req: RF-16, CU-04, RNF-08 (revisión de F10: una pestaña inactiva se destruye y lo escrito no puede morir con ella)
+    describe('Ficha: el formulario es de la pantalla', () => {
+      const brief = () => host().querySelector<HTMLTextAreaElement>('app-case-brief-editor textarea')!;
+      const typeBrief = (value: string) => {
+        const target = brief();
+        target.value = value;
+        target.dispatchEvent(new Event('input'));
+      };
+      const conflictWith = (current: CaseEditorView) => throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: { success: false, code: 'REVISION_CONFLICT', message: 'Este caso fue modificado en otra sesión.', revision: current.revision, current },
+      }));
+
+      it('lo escrito sin guardar sobrevive a cambiar de pestaña y volver', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+
+        await openTab('Escenas');
+        await openTab('Ficha');
+
+        expect(brief().value).toBe('Lo que estoy escribiendo.');
+      });
+
+      it('un guardado de otra cosa (que adopta la vista nueva) no pisa la ficha sin guardar', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+
+        component().saveChecklist(CASE_ID);
+        await settle();
+
+        expect(component().editor()!.revision).toBe(4);
+        expect(brief().value).toBe('Lo que estoy escribiendo.');
+      });
+
+      it('«Recargar» en un conflicto descarta la ficha sin guardar y deja la versión de la otra persona', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Lo que estoy escribiendo.');
+        api['createNode'].mockReturnValueOnce(conflictWith(editorView({ revision: 9, context: 'Contexto de la otra persona.', learningObjectives: ['Su objetivo.'] })));
+        dialog.open.mockReturnValue({ closed: of('reload') });
+        component().openPanel({ kind: 'node-create' });
+        component().nodeForm!.patchValue({ nodeKey: 'nuevo', title: 'Nuevo', narrative: 'Texto' });
+
+        component().saveNode(CASE_ID);
+        await settle();
+
+        expect(brief().value).toBe('Contexto de la otra persona.');
+        expect([...host().querySelectorAll<HTMLTextAreaElement>('app-case-brief-editor textarea')][1].value).toBe('Su objetivo.');
+      });
+
+      it('si no hay nada sin guardar, la ficha sigue lo que cambie en el servidor', async () => {
+        await render();
+        await openTab('Ficha');
+        api['caseEditor'].mockReturnValue(of(editorView({ revision: 5, context: 'Cambió en otra sesión.' })));
+
+        caseChanges.next(CASE_ID);
+        await settle();
+
+        expect(brief().value).toBe('Cambió en otra sesión.');
+      });
+
+      it('al guardar la ficha queda limpia: lo guardado vuelve normalizado y vuelve a seguir al servidor', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('  Nuevo contexto.  ');
+        api['updateBrief'].mockReturnValue(of(editorView({ revision: 4, context: 'Nuevo contexto.' })));
+        host().querySelector('app-case-brief-editor form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(api['updateBrief']).toHaveBeenCalledWith(CASE_ID, expect.objectContaining({ context: 'Nuevo contexto.' }), 3);
+        expect(brief().value).toBe('Nuevo contexto.');
+        expect(component().briefForm!.pristine).toBe(true);
+
+        api['caseEditor'].mockReturnValue(of(editorView({ revision: 6, context: 'Otro cambio.' })));
+        caseChanges.next(CASE_ID);
+        await settle();
+        expect(brief().value).toBe('Otro cambio.');
+      });
+
+      it('si se escribió más mientras se guardaba, lo nuevo no se pierde', async () => {
+        await render();
+        await openTab('Ficha');
+        typeBrief('Primera versión.');
+        const pending = new Subject<CaseEditorView>();
+        api['updateBrief'].mockReturnValue(pending);
+        host().querySelector('app-case-brief-editor form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+        typeBrief('Primera versión y algo más.');
+
+        pending.next(editorView({ revision: 4, context: 'Primera versión.' }));
+        pending.complete();
+        await settle();
+
+        expect(brief().value).toBe('Primera versión y algo más.');
+        expect(component().briefForm!.dirty).toBe(true);
+      });
+    });
+
+    describe('Ficha', () => {
+      it('guardar la ficha manda el contexto y los objetivos con la revisión vigente', async () => {
+        await render();
+        await openTab('Ficha');
+        expect(host().querySelector<HTMLTextAreaElement>('textarea')!.value).toBe('Una mujer llega a urgencias.');
+
+        const objectives = [...host().querySelectorAll<HTMLTextAreaElement>('textarea')][1];
+        objectives.value = 'Validar sin juzgar.\nNombrar la emoción.';
+        objectives.dispatchEvent(new Event('input'));
+        host().querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(api['updateBrief']).toHaveBeenCalledWith(
+          CASE_ID, { context: 'Una mujer llega a urgencias.', learningObjectives: ['Validar sin juzgar.', 'Nombrar la emoción.'] }, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Ficha del caso guardada.');
+      });
+
+      it('«Agregar personaje» abre la hoja y guardar crea el personaje', async () => {
+        await render();
+        await openTab('Ficha');
+
+        buttonLabelled('Agregar personaje')!.click();
+        expect(component().panel()).toEqual({ kind: 'character-create' });
+        expect(component().characterForm!.value).toEqual({
+          characterKey: '', displayName: '', roleLabel: '', portraitKey: '', showInBrief: true, displayOrder: 1,
+        });
+        component().characterForm!.patchValue({ characterKey: 'sofia', displayName: 'Sofía', roleLabel: 'Consultante' });
+        component().saveCharacter(CASE_ID);
+        await settle();
+
+        expect(api['createCharacter']).toHaveBeenCalledWith(CASE_ID, {
+          characterKey: 'sofia', displayName: 'Sofía', roleLabel: 'Consultante', portraitKey: '', showInBrief: true, displayOrder: 1,
+        }, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Personaje guardado.');
+      });
+
+      it('un personaje con la clave o el nombre de solo espacios no se envía', async () => {
+        await render();
+        component().openPanel({ kind: 'character-create' });
+        component().characterForm!.patchValue({ characterKey: '   ', displayName: 'Sofía' });
+        component().save();
+        component().characterForm!.patchValue({ characterKey: 'sofia', displayName: '  ' });
+        component().save();
+
+        expect(api['createCharacter']).not.toHaveBeenCalled();
+        expect(component().characterForm!.get('characterKey')!.touched).toBe(true);
+      });
+
+      it('editar un personaje parte de sus datos y guarda sobre él', async () => {
+        await render();
+        const marta = component().editor()!.characters[0];
+
+        component().openPanel({ kind: 'character-edit', character: marta });
+        expect(component().characterForm!.value).toMatchObject({ characterKey: 'marta', displayName: 'Marta', showInBrief: true });
+        component().characterForm!.patchValue({ showInBrief: false });
+        component().saveCharacter(CASE_ID);
+        await settle();
+
+        expect(api['updateCharacter']).toHaveBeenCalledWith(CASE_ID, 51, expect.objectContaining({ characterKey: 'marta', showInBrief: false }), 3);
+      });
+
+      it('eliminar un personaje pide confirmar y avisa que sus objetos del mundo quedan sin personaje', async () => {
+        await render();
+        dialog.confirm.mockResolvedValue(true);
+
+        await component().confirmDeleteCharacter(CASE_ID, component().editor()!.characters[0]);
+        await settle();
+
+        expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
+          title: 'Eliminar personaje', message: expect.stringContaining('Marta'), tone: 'danger',
+        }));
+        expect(api['deleteCharacter']).toHaveBeenCalledWith(CASE_ID, 51, 3);
+        expect(notify['success']).toHaveBeenCalledWith('Personaje eliminado.');
+      });
+    });
+
+    describe('los textos de la decisión y del nodo', () => {
+      it('editar una decisión parte de sus textos y guarda la consecuencia, la retroalimentación y el fundamento', async () => {
+        await render({ view: editorView({ decisions: [decisionEdge] }) });
+
+        component().openPanel({ kind: 'decision-edit', edge: decisionEdge });
+        expect(component().decisionForm!.value).toMatchObject({
+          consequenceText: 'Ella respira más tranquila.', feedbackText: 'Validar sostiene la alianza.', theoryBasis: 'Rogers (1957).',
+        });
+        component().decisionForm!.patchValue({ feedbackText: 'Validar sin juzgar sostiene la alianza.', theoryBasis: '' });
+        component().saveDecision(CASE_ID);
+        await settle();
+
+        expect(api['updateDecision']).toHaveBeenCalledWith(CASE_ID, 40, expect.objectContaining({
+          consequenceText: 'Ella respira más tranquila.', feedbackText: 'Validar sin juzgar sostiene la alianza.', theoryBasis: '',
+        }), 3);
+      });
+
+      it('una decisión nueva sale con los tres textos vacíos, no ausentes', async () => {
+        await render();
+        component().openPanel({ kind: 'decision-create' });
+        component().decisionForm!.patchValue({ sourceNodeId: 1, targetNodeId: 2, text: 'Escuchar' });
+        component().saveDecision(CASE_ID);
+        await settle();
+
+        expect(api['createDecision']).toHaveBeenCalledWith(CASE_ID, expect.objectContaining({
+          consequenceText: '', feedbackText: '', theoryBasis: '',
+        }), 3);
+      });
+
+      it('un texto de más de 1.200 caracteres no se envía y marca el campo', async () => {
+        await render();
+        component().openPanel({ kind: 'decision-create' });
+        component().decisionForm!.patchValue({ sourceNodeId: 1, targetNodeId: 2, text: 'Escuchar', feedbackText: 'a'.repeat(1201) });
+
+        component().save();
+
+        expect(api['createDecision']).not.toHaveBeenCalled();
+        expect(component().decisionForm!.get('feedbackText')!.touched).toBe(true);
+      });
+
+      it('el nodo parte de su enunciado y lo guarda; uno nuevo sale con el enunciado vacío', async () => {
+        await render();
+        component().openPanel({ kind: 'node-edit', node: node(1, 'inicio', 'Inicio del caso', { decisionPrompt: '¿Qué haces primero?' }) });
+        expect(component().nodeForm!.get('decisionPrompt')!.value).toBe('¿Qué haces primero?');
+        component().saveNode(CASE_ID);
+        await settle();
+        expect(api['updateNode']).toHaveBeenCalledWith(CASE_ID, 1, expect.objectContaining({ decisionPrompt: '¿Qué haces primero?' }), 3);
+
+        component().openPanel({ kind: 'node-create' });
+        component().nodeForm!.patchValue({ nodeKey: 'nuevo', title: 'Nuevo', narrative: 'Texto' });
+        component().saveNode(CASE_ID);
+        await settle();
+        // Tras el primer guardado la pantalla adoptó la revisión 4 que devolvió el servidor.
+        expect(api['createNode']).toHaveBeenCalledWith(CASE_ID, expect.objectContaining({ decisionPrompt: '' }), 4);
+      });
     });
   });
 

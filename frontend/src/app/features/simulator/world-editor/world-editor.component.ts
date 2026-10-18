@@ -1707,10 +1707,10 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       height
     });
 
-    this.backgroundLayer = new Konva.Layer();
+    this.backgroundLayer = new Konva.Layer({ listening: false });
     // Pixel art: el fondo se pinta sin suavizar (la rejilla va encima, en su propia capa).
     this.backgroundLayer.imageSmoothingEnabled(false);
-    this.gridLayer = new Konva.Layer();
+    this.gridLayer = new Konva.Layer({ listening: false });
     this.mainLayer = new Konva.Layer();
     this.uiLayer = new Konva.Layer();
 
@@ -2019,8 +2019,8 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       if (this.stage && (map.width > this.stage.width() || map.height > this.stage.height())) this.zoomFit();
     }
 
-    this.mainLayer.draw();
-    this.uiLayer.draw();
+    this.mainLayer.batchDraw();
+    this.uiLayer.batchDraw();
     this.highlightSelected(this.store.selectedKey());
   }
 
@@ -2082,7 +2082,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       if (!this.backgroundLayer) return;
       // En su capa (bajo la rejilla) y sin transparencia: el pixel art se ve como lo verá el jugador.
       this.backgroundLayer.add(new Konva.Image({ image: img, x: 0, y: 0, width, height, listening: false }));
-      this.backgroundLayer.draw();
+      this.backgroundLayer.batchDraw();
     };
     const cached = this.bgCache.get(url);
     if (cached && cached.complete) { add(cached); return; }
@@ -2101,7 +2101,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
       fill: '#f8fbfd',
       listening: false
     }));
-    this.backgroundLayer?.draw();
+    this.backgroundLayer?.batchDraw();
 
     // Grid lines
     for (let x = 0; x <= mapWidth; x += GRID_SIZE) {
@@ -2120,7 +2120,7 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
         listening: false
       }));
     }
-    this.gridLayer.draw();
+    this.gridLayer.batchDraw();
   }
 
   // ─── Mouse handlers ───────────────────────────────────────────────────

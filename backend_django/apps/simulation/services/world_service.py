@@ -8,6 +8,7 @@ import json
 import math
 import re
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -124,7 +125,7 @@ def _picked_up(map_object, inventory):
             and map_object.tool_code in inventory)
 
 
-def _position_blocked(world_state, x, y):
+def _position_blocked(world_state, x, y, objects=None):
     """¿El hitbox completo de pies solapa la geometría autoritativa del mapa?
 
     Solo cuenta lo que el mundo expone al cliente (_to_world_state): así el
@@ -139,7 +140,12 @@ def _position_blocked(world_state, x, y):
             zone.position_x, zone.position_y, zone.width, zone.height,
         ):
             return True
-    for obj in MapObject.objects.filter(scene_map_id=scene_map_id, collision=True, visible=True):
+    colliders = (
+        [o for o in objects if o.collision and o.visible]
+        if objects is not None
+        else MapObject.objects.filter(scene_map_id=scene_map_id, collision=True, visible=True)
+    )
+    for obj in colliders:
         if _picked_up(obj, inventory):
             continue
         if _rectangles_intersect(
@@ -177,19 +183,21 @@ def get_world(attempt_id, attempt_token, actor):
     return _to_world_state(attempt, world_state)
 
 
-@locked_attempt
+@transaction.atomic
 def update_position(attempt_id, attempt_token, player_x, player_y, actor,
                     current_map_key=None):
     """Movimiento validado en servidor (GAME-01/4A): números finitos, mapa
     actual obligatorio, límites del mapa, desplazamiento plausible en el
     tiempo transcurrido y punto fuera de la autoridad espacial de colisión."""
-    attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
+    attempt = game_service._require_attempt(attempt_id, attempt_token, actor, lock=True)
     _require_in_progress(attempt)
-    world_state = require_world_state(attempt)
+    world_state, _ = resolve_world_state(attempt)
     if not current_map_key or not str(current_map_key).strip():
         raise ValidationError("currentMapKey es obligatorio")
     if current_map_key != world_state.scene_map.map_key:
         # Carrera benigna tras un cambio de sala: eco sin mutación ni evento.
+        if world_state._state.adding:
+            world_state.save(force_insert=True)
         return _to_world_state(attempt, world_state)
     x = _require_finite_int(player_x, "playerX")
     y = _require_finite_int(player_y, "playerY")
@@ -205,10 +213,13 @@ def update_position(attempt_id, attempt_token, player_x, player_y, actor,
     world_state.player_x = x
     world_state.player_y = y
     _stamp_position_sync(world_state)
-    world_state.save()
+    if world_state._state.adding:
+        world_state.save(force_insert=True)
+    else:
+        world_state.save(update_fields=["scene_map", "player_x", "player_y", "flags_json", "updated_at"])
     # El reloj queda como dato en el intento: ya no se escribe un evento por cada movimiento (E1-5).
     attempt_duration.record_activity(attempt)
-    return _to_world_state(attempt, world_state)
+    return _to_position_ack(attempt, world_state)
 
 
 @locked_attempt
@@ -578,13 +589,62 @@ def _save_event(attempt, event_type, detail, request_id=None):
 
 
 # ─── DTO builders ─────────────────────────────────────────────────────────────
-def _to_world_state(attempt, state):
-    scene_map = state.scene_map
-    inventory = _read_string_list(state.inventory_json)
-    inventory_set = set(inventory)
+def _to_position_ack(attempt, state):
+    """Acuse mínimo al sincronizar la posición (E5-1): sin releer objetos, diálogos ni herramientas."""
     return {
         "attemptId": str(attempt.id),
         "status": attempt.status,
+        "map": {"key": state.scene_map.map_key},
+        "player": {"x": state.player_x, "y": state.player_y},
+    }
+
+
+def _dialogues_by_object_id(scene_map_id):
+    """Árboles de diálogo de una sala con sus líneas y opciones en 3 consultas (E5-1)."""
+    trees = list(DialogueTree.objects.filter(scene_map_id=scene_map_id).order_by("id"))
+    if not trees:
+        return {}
+    tree_ids = [t.id for t in trees]
+    lines_by_tree = {}
+    for l in DialogueLine.objects.filter(dialogue_tree_id__in=tree_ids).order_by("display_order", "id"):
+        lines_by_tree.setdefault(l.dialogue_tree_id, []).append({
+            "order": l.display_order,
+            "speakerName": l.speaker_name,
+            "text": l.text,
+            "emotion": l.emotion,
+        })
+    choices_by_tree = {}
+    for c in DialogueChoice.objects.filter(dialogue_tree_id__in=tree_ids).order_by("display_order", "id"):
+        choices_by_tree.setdefault(c.dialogue_tree_id, []).append({
+            "key": c.choice_key,
+            "text": c.text,
+            "decisionOptionId": c.decision_option_id,
+            "requiredToolCode": c.required_tool_code,
+            "effect": _read_map(c.effect_json),
+        })
+    result = {}
+    for tree in trees:
+        if tree.map_object_id is not None and tree.map_object_id not in result:
+            result[tree.map_object_id] = {
+                "key": tree.tree_key,
+                "speakerName": tree.speaker_name,
+                "portraitKey": tree.portrait_key,
+                "emotion": tree.emotion,
+                "lines": lines_by_tree.get(tree.id, []),
+                "choices": choices_by_tree.get(tree.id, []),
+            }
+    return result
+
+
+def _static_world_key(scene_map_id, case_version):
+    from shared import cache as shared_cache
+
+    return shared_cache.static_world_key(scene_map_id, case_version)
+
+
+def _build_static_world(scene_map, case_version_id):
+    dialogues = _dialogues_by_object_id(scene_map.id)
+    return {
         "map": {
             "id": scene_map.id,
             "key": scene_map.map_key,
@@ -596,13 +656,11 @@ def _to_world_state(attempt, state):
             "spawnY": scene_map.spawn_y,
             "ambient": _read_map(scene_map.ambient_json),
         },
-        "player": {"x": state.player_x, "y": state.player_y},
         "objects": [
-            _to_map_object(o)
+            _to_map_object(o, dialogue=dialogues.get(o.id))
             for o in MapObject.objects.filter(
                 scene_map_id=scene_map.id, visible=True
             ).order_by("id")
-            if not _picked_up(o, inventory_set)
         ],
         "collisions": [
             _to_collision_zone(c)
@@ -611,9 +669,48 @@ def _to_world_state(attempt, state):
         "tools": [
             _to_clinical_tool(t)
             for t in ClinicalTool.objects.filter(
-                case_version_id=attempt.case_version_id, active=True
+                case_version_id=case_version_id, active=True
             ).order_by("id")
         ],
+    }
+
+
+def _static_world_for(attempt, scene_map):
+    from shared import cache as shared_cache
+
+    case_version = getattr(attempt, "case_version", None)
+    key = _static_world_key(scene_map.id, case_version)
+    if key is None:
+        return _build_static_world(scene_map, attempt.case_version_id)
+    return shared_cache.get_or_set(
+        key, lambda: _build_static_world(scene_map, attempt.case_version_id)
+    )
+
+
+def _picked_up_dto(obj_dto, inventory_set):
+    return (
+        obj_dto.get("type") == "TOOL"
+        and bool(obj_dto.get("toolCode"))
+        and obj_dto["toolCode"] in inventory_set
+    )
+
+
+def _to_world_state(attempt, state):
+    scene_map = state.scene_map
+    inventory = _read_string_list(state.inventory_json)
+    inventory_set = set(inventory)
+    static = _static_world_for(attempt, scene_map)
+    return {
+        "attemptId": str(attempt.id),
+        "status": attempt.status,
+        "map": static["map"],
+        "player": {"x": state.player_x, "y": state.player_y},
+        "objects": [
+            o for o in static["objects"]
+            if not _picked_up_dto(o, inventory_set)
+        ],
+        "collisions": static["collisions"],
+        "tools": static["tools"],
         "inventory": inventory,
         "inspectedObjectKeys": _read_string_list(state.inspected_object_keys_json),
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
@@ -622,7 +719,10 @@ def _to_world_state(attempt, state):
     }
 
 
-def _to_map_object(o):
+_UNSET = object()
+
+
+def _to_map_object(o, dialogue=_UNSET):
     return {
         "key": o.object_key,
         "label": o.label,
@@ -639,7 +739,7 @@ def _to_map_object(o):
         "interactionText": o.interaction_text,
         "decisionOptionId": o.decision_option_id,
         "toolCode": o.tool_code,
-        "dialogue": _to_dialogue(o),
+        "dialogue": _to_dialogue(o) if dialogue is _UNSET else dialogue,
         # ── B1: additive movement passthrough (authored motion can override the
         #     frontend default later; authoring itself is deferred to sub-project E) ──
         "movementPattern": _read_map(o.movement_pattern_json),

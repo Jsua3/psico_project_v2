@@ -73,7 +73,7 @@ test('el control visible entra al caso una sola vez', async ({ page }) => {
   const enterButton = page.getByRole('button', { name: /entrar al caso/i });
   await expect(enterButton).toBeVisible();
   await enterButton.click();
-  await page.waitForURL(/\/portal\/simulador\/\d+/);
+  await page.waitForURL(/\/portal\/simulador\/\d+\/ficha$/);
 });
 
 test('la tecla E con el canvas enfocado entra al caso', async ({ page }) => {
@@ -85,7 +85,7 @@ test('la tecla E con el canvas enfocado entra al caso', async ({ page }) => {
   // pantalla depende de la pantalla).
   await page.locator('.phaser-host').focus();
   await page.keyboard.press('e');
-  await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(10_000) });
+  await page.waitForURL(/\/portal\/simulador\/\d+\/ficha$/, { timeout: scaled(10_000) });
 });
 
 test('no quedan controles enfocables ocultos en el lobby', async ({ page }) => {
@@ -116,6 +116,6 @@ test.describe('móvil', () => {
     const enterButton = page.getByRole('button', { name: /entrar al caso/i });
     await expect(enterButton).toBeVisible();
     await enterButton.tap();
-    await page.waitForURL(/\/portal\/simulador\/\d+/);
+    await page.waitForURL(/\/portal\/simulador\/\d+\/ficha$/);
   });
 });

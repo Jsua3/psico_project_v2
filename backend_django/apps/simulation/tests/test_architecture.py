@@ -240,3 +240,58 @@ def test_permisos_por_politica_acepta_policy_permission(tmp_path):
 def test_permisos_por_politica_no_aplica_fuera_de_las_vistas(tmp_path):
     files = {"apps/x/services.py": "class V:\n    permission_classes = [Custom]\n"}
     assert "permisos-por-politica" not in _rules(tmp_path, files)
+
+
+# ── E4-4 · La única escritura de PUBLISHED es la compuerta (publicacion-unica) ────────────
+
+GATE = "apps/simulation/services/authoring/gate.py"
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def f(v):\n    v.status = 'PUBLISHED'\n",
+        "def f(v):\n    v.status: str = 'PUBLISHED'\n",
+        "def f():\n    CaseVersion.objects.filter(pk=1).update(status='PUBLISHED')\n",
+        "def f():\n    CaseVersion.objects.create(status='PUBLISHED')\n",
+        "def f():\n    CaseVersion(status=CaseVersionStatus.PUBLISHED)\n",
+        "def f():\n    CaseVersion.objects.get_or_create(code='x', defaults={'status': 'PUBLISHED'})\n",
+        "PUBLISHED = 'PUBLISHED'\ndef f(v):\n    v.status = PUBLISHED\n",
+        "def f(v):\n    v.status = lifecycle.PUBLISHED\n",
+        "def f(version, actor):\n    _set_status(version, PUBLISHED, actor)\n",
+    ],
+)
+def test_nadie_fuera_de_la_compuerta_escribe_published(tmp_path, snippet):
+    assert "publicacion-unica" in _rules(tmp_path, {"apps/simulation/services/x.py": snippet})
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def f():\n    return CaseVersion.objects.filter(status='PUBLISHED')\n",
+        "def f(v):\n    return v.status == 'PUBLISHED' or v.status != 'PUBLISHED'\n",
+        "def f(v):\n    v.status = 'ARCHIVED'\n",
+        "def f(v):\n    CaseVersion.objects.filter(pk=1).update(status='ARCHIVED')\n",
+        "PUBLISHED = 'PUBLISHED'\nSTATES = ('DRAFT', PUBLISHED)\n",
+    ],
+)
+def test_leer_published_o_escribir_otro_estado_no_es_publicar(tmp_path, snippet):
+    assert check_architecture(_tree(tmp_path, {"apps/simulation/services/x.py": snippet})) == []
+
+
+def test_la_compuerta_si_puede_escribir_published(tmp_path):
+    files = {GATE: "def mark(v):\n    CaseVersion.objects.filter(pk=v).update(status='PUBLISHED')\n"}
+    assert check_architecture(_tree(tmp_path, files)) == []
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "apps/simulation/tests/test_x.py",
+        "apps/simulation/migrations/0099_x.py",
+        "apps/simulation/conftest.py",
+    ],
+)
+def test_las_pruebas_y_las_migraciones_quedan_fuera_de_la_regla(tmp_path, rel):
+    files = {rel: "def f(v):\n    v.status = 'PUBLISHED'\n"}
+    assert "publicacion-unica" not in _rules(tmp_path, files)

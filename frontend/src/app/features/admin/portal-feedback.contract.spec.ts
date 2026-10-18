@@ -9,6 +9,8 @@ describe('portal: feedback de acciones', () => {
   const users = source('users.component.ts');
   // La plantilla vive en su propio archivo desde F7-2: el contrato mira la clase y la plantilla juntas.
   const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
+  // Los casos asignados al grupo viven en su propia sección desde F10-5 (C7).
+  const asignaciones = source('../grupos/group-assignments.component.ts');
   const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
 
   it('Usuarios avisa el éxito con un aviso que no se borra', () => {
@@ -37,11 +39,19 @@ describe('portal: feedback de acciones', () => {
     expect(users).toContain("apiErrorMessage(err, 'No fue posible actualizar la solicitud.')");
   });
 
-  it('Grupos avisa crear, editar, borrar, copiar y asignar', () => {
-    for (const text of ['Grupo creado.', 'Grupo actualizado.', 'Grupo eliminado.', 'Caso asignado al grupo.', 'Caso retirado del grupo.']) {
+  it('Grupos avisa crear, editar, borrar y copiar', () => {
+    for (const text of ['Grupo creado.', 'Grupo actualizado.', 'Grupo eliminado.']) {
       expect(grupos).toContain(`this.notify.success('${text}')`);
     }
     expect(grupos).toContain('this.notify.success(`Código ${grupo.codigo} copiado al portapapeles.`)');
+  });
+
+  it('Los casos asignados avisan asignar, cambiar fechas, pausar, reanudar y retirar, y el fallo con su mensaje', () => {
+    for (const text of ['Caso asignado al grupo.', 'Fechas actualizadas.', 'Asignación en pausa.', 'Asignación reanudada.', 'Caso retirado del grupo.']) {
+      expect(asignaciones).toContain(`'${text}'`);
+    }
+    expect(asignaciones).toContain('this.notify.success(success)');
+    expect(asignaciones).toContain('apiErrorMessage(error, failure)');
   });
 
   it('Rúbricas avisa el resultado de sus acciones', () => {

@@ -15,13 +15,21 @@ fachada ``services/authoring_service.py``, que además aplica la auditoría.
 - ``publication``      — checklist, publicar y clonar una versión.
 - ``world_definition`` — el editor de mundo (WorldDefinition v2): leer, guardar,
                          validar y previsualizar.
+- ``definition_io``    — las filas de una versión ↔ el modelo puro ↔ el documento canónico (E4).
+- ``validation``       — la validación única de una versión: el mundo (``WORLD.*``) y el documento
+                         (``DSL.*``) en una sola lista de ``ValidationIssue`` (E4-2b).
+- ``gate``             — la compuerta única de publicación (E4-4): valida, calcula el sello y es la
+                         única escritura de ``PUBLISHED`` (regla de arquitectura ``publicacion-unica``).
 
 Dependencias (sin ciclos): ``guards`` y ``request_utils`` no importan nada del paquete;
 ``editor_view`` importa ``guards``; ``graph`` y ``scenes`` importan ``editor_view``,
 ``guards`` y ``request_utils``; ``tools`` y ``characters`` importan ``editor_view`` y ``guards``;
 ``world_definition`` importa ``editor_view`` (la herramienta clínica se ve igual en los dos
 editores), ``guards`` y ``scenes`` (las opciones de un diálogo se guardan igual en los dos
-sitios); ``publication`` importa ``editor_view``, ``guards``,
-``request_utils`` y ``world_definition`` (publicar valida el mundo); ``cases`` importa
-``editor_view`` y ``publication`` (un caso nuevo nace con su checklist).
+sitios); ``definition_io`` solo importa modelos y ``casedef``; ``validation`` importa
+``definition_io``, ``guards`` y ``world_definition`` (el mundo se valida sobre las filas); ``gate``
+importa ``validation``, ``editor_view`` y ``guards``; ``lifecycle`` importa ``gate`` (un caso con
+errores no se envía ni se aprueba, y aprobar sella); ``publication`` importa ``editor_view``,
+``guards``, ``request_utils``, ``lifecycle`` y ``world_definition`` (publicar valida el mundo);
+``cases`` importa ``editor_view`` y ``publication`` (un caso nuevo nace con su checklist).
 """

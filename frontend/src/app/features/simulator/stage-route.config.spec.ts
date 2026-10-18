@@ -25,7 +25,7 @@ describe('stage-route.config: estructura', () => {
     ROUTES.forEach((route, i) => {
       expect(route.number).toBe(i + 1);
       expect(route.nodeKey).toBe(NODE_ORDER[i]);
-      expect(seed.text).toContain(`"key": "${route.nodeKey}"`);
+      expect(seed.sceneKeys).toContain(route.nodeKey);
     });
   });
 
@@ -117,7 +117,7 @@ describe('stage-route.config: destinos reales', () => {
       for (const step of steps(route).filter(s => s.kind === 'collect')) {
         const code = (step.done as { toolCode: string }).toolCode;
         expect(TOOL_OBJECT[step.targetKey]).toBe(code);
-        expect(new RegExp(`"key":\\s*"${step.targetKey}"[^}]*?"tool":\\s*"${code}"`).test(seed.text)).toBe(true);
+        expect(seed.objects.some(o => o.key === step.targetKey && o.tool === code)).toBe(true);
         expect(TOOL_HINTS[code].room).toBe(step.room);
       }
     }

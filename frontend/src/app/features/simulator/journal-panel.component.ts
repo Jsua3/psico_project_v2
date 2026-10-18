@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { Component, effect, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, untracked, ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { AudioDirectorService } from './audio-director.service';
@@ -289,9 +291,49 @@ export class JournalPanelComponent {
   /** Por qué «Guardar» espera: sin texto no hay nada que guardar. */
   protected readonly saveReason = DRAFT_COPY.journalSaveReason.text;
   private readonly audio = inject(AudioDirectorService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly injector = inject(Injector);
+  /** Dónde estaba el foco al abrirse (el botón de la cabecera o, con la tecla J, el juego): a ese sitio vuelve al cerrarse (WCAG 2.4.3). */
+  private returnFocusTo: HTMLElement | null = null;
+  private wasOpen = false;
 
   constructor() {
     effect(() => { if (this.open()) this.audio.playSfx('ui_select'); });
+    // La bitácora no se destruye al cerrarse (solo se oculta), así que la trampa de foco del CDK no devuelve el foco al
+    // destruirse: sin esto, cerrarla con Esc lo dejaba en <body> y quien navega con teclado volvía a empezar por arriba.
+    // El efecto corre antes de que la trampa mueva el foco adentro, y ahí todavía está en quien abrió.
+    effect(() => {
+      const open = this.open();
+      untracked(() => {
+        if (open === this.wasOpen) return;
+        this.wasOpen = open;
+        if (open) this.rememberFocus();
+        else this.restoreFocus();
+      });
+    });
+  }
+
+  private rememberFocus(): void {
+    const active = document.activeElement;
+    this.returnFocusTo = active instanceof HTMLElement && active !== document.body && !this.host.contains(active) ? active : null;
+  }
+
+  private restoreFocus(): void {
+    const back = this.returnFocusTo;
+    this.returnFocusTo = null;
+    afterNextRender(() => {
+      // Si otra capa ya tomó el foco (la pausa, una pantalla), no se le roba: solo se restaura cuando se perdió con la bitácora.
+      const active = document.activeElement;
+      if (active && active !== document.body && !this.host.contains(active)) return;
+      const usable = back && back.isConnected && !back.closest('[aria-hidden="true"], [inert], [hidden]') ? back : null;
+      // Quien la abrió puede haber desaparecido (el menú de ajustes se cierra al elegirla): el contenedor del juego recibe el
+      // foco antes que <body>, y se prueba cada candidato hasta que uno lo toma de verdad.
+      for (const candidate of [usable, document.getElementById('game-area'), document.getElementById('main-content')]) {
+        if (!candidate) continue;
+        candidate.focus({ preventScroll: true });
+        if (document.activeElement === candidate) break;
+      }
+    }, { injector: this.injector });
   }
 
   onCloseClick(): void {

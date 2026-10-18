@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { assertNoUnexpectedConsoleOrPageErrors, KNOWN_CONSOLE_PATTERNS } from './support/console-gate';
 import { GUIDED_VIEWPORTS } from './support/guided-viewports';
 import {
   advanceDialogueToChoices,
@@ -107,6 +108,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
         await closeDialogue(page, /enfermera de urgencias/i);
         await expectNextStep(page, 'u1-usar');
         await waitForWorldReady(page);
+        await assertNoUnexpectedConsoleOrPageErrors(page, KNOWN_CONSOLE_PATTERNS);
       });
 
     test(`@orientation recorrido guiado de la etapa 1 sin coordenadas, con el Marco normativo informativo (${viewport.name})`,
@@ -187,6 +189,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
         // La barra ofrece el siguiente paso por su nombre, no por su posición.
         await reachNearby(page, input, ['ArrowRight', 'ArrowUp'], /marco normativo/i);
         await expect(nearbyAction(page, /marco normativo/i)).toBeVisible();
+        await assertNoUnexpectedConsoleOrPageErrors(page, KNOWN_CONSOLE_PATTERNS);
       });
   });
 }

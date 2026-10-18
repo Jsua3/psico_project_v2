@@ -22,6 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Node 24 LTS hasta el 2026-10-28: ese día se sube a '26' junto con `.nvmrc` (TOO-8). `engines` ya admite las dos.
   NODE_VERSION: '24'
   PYTHON_VERSION: '3.14'
 
@@ -104,3 +105,43 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
           if-no-files-found: ignore
+
+  load:
+    name: Carga del aula (40 estudiantes × 60 min nominal y 120 × 10 min a 3x pico, E5-4)
+    runs-on: ubuntu-latest
+    # 60 + 10 minutos de carga más el arranque de cada una (BD, migraciones, siembra de los estudiantes).
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend_django/requirements.txt
+      - name: Crear venv del backend
+        run: |
+          python -m venv backend_django/.venv
+          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+      - name: Carga nominal (40 estudiantes durante 60 min, p95 <= 2 s, error <= 1%)
+        id: nominal
+        run: >
+          node scripts/load/aula.mjs --students 40 --minutes 60 --server gunicorn
+          --p95-max-ms 2000 --error-rate-max 0.01 --out load-results/load-40x60.json
+      - name: Carga pico 3x (120 estudiantes durante 10 min, p95 <= 4 s, error <= 1%)
+        # Si la nominal incumple un umbral, el pico se mide igual: un fallo no esconde el resultado del otro.
+        if: ${{ !cancelled() && steps.nominal.conclusion != 'skipped' }}
+        run: >
+          node scripts/load/aula.mjs --students 120 --minutes 10 --server gunicorn
+          --p95-max-ms 4000 --error-rate-max 0.01 --out load-results/load-120x10.json
+      - name: Subir reporte de carga
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-aula-results
+          path: load-results/
+          retention-days: 14
+          if-no-files-found: ignore
+

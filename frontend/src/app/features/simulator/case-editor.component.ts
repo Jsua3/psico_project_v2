@@ -10,15 +10,21 @@ import { AuthoringApi } from '../../core/api/authoring.api';
 import { RevisionConflict, revisionConflictOf } from '../../core/api/revision-conflict.util';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
+  BriefUpdateRequest,
   CaseEditorView,
+  CharacterEditorState,
+  CharacterUpsertRequest,
   ChecklistUpdateRequest,
   ClinicalToolEditorState,
   DecisionEdgeState,
+  HintEditorState,
+  HintUpsertRequest,
   MapEditorState,
   MapObjectEditorState,
   NodeEditorState,
 } from '../../core/models/simulation.model';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
+import { requiredText } from '../../shared/forms/required-text.validator';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
@@ -33,14 +39,21 @@ import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { BriefForm, CaseBriefEditorComponent, buildBriefForm, parseObjectives } from './case-brief-editor.component';
 import { CaseEditorSheetComponent, CaseEditorSheetData, CaseEditorSheetHost, EditorPanel } from './case-editor-sheet.component';
+import { CaseHintsComponent } from './case-hints.component';
 import { CaseReviewPanelComponent, ValidationTarget } from './case-review-panel.component';
-import { mapThemeLabel, nodeOptionLabel, statusTone } from './case-editor.options';
+import { mapThemeLabel, nodeOptionLabel, shorten, statusTone } from './case-editor.options';
 import { DagEditorComponent } from './dag-editor.component';
 import { describeEditorChanges } from './editor-changes.util';
 import { RevisionConflictAnswer, RevisionConflictDialogComponent, RevisionConflictDialogData } from './revision-conflict-dialog.component';
+import { SceneOrderComponent } from './scene-order.component';
 import { WorldEditorComponent } from './world-editor';
 import { WorldPreviewComponent } from './world-preview.component';
+
+/** Los topes de texto del servidor (E3-5, E3-6, E3-7): el campo los dice antes de enviar. */
+const TEXT_LIMIT = 1200;
+const HINT_LIMIT = 280;
 
 /** Una petición del editor: recibe la revisión con la que se envía (null/undefined = sin cabecera) y devuelve la vista nueva. */
 type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
@@ -60,6 +73,7 @@ type EditorCall = (revision: number | undefined) => Observable<CaseEditorView>;
     UiBadge, UiButton, UiCard, UiIconButton, UiPageActions, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiTab, UiTabs,
     UiEmptyState, UiErrorState,
     CaseReviewPanelComponent, DagEditorComponent, WorldPreviewComponent, WorldEditorComponent,
+    CaseBriefEditorComponent, CaseHintsComponent, SceneOrderComponent,
   ],
   templateUrl: './case-editor.component.html',
   styleUrl: './case-editor.component.scss',
@@ -105,7 +119,11 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   mapForm: FormGroup | null = null;
   objectForm: FormGroup | null = null;
   toolForm: FormGroup | null = null;
+  hintForm: FormGroup | null = null;
+  characterForm: FormGroup | null = null;
   checklistForm: FormGroup | null = null;
+  /** La ficha vive aquí y no en su pestaña: una pestaña inactiva se destruye y lo escrito sin guardar moriría con ella. */
+  briefForm: BriefForm | null = null;
 
   /** Estado de la pantalla: una sola señal, de a uno (carga, error o listo). */
   readonly state = uiDataState({
@@ -184,6 +202,15 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     if (switched) this.selectedWorldNodeId.set(null);
     // Las casillas sin guardar no se pierden al guardar otra cosa; una recarga o un cambio de versión sí las renueva.
     if (force || switched || !this.checklistForm || this.checklistForm.pristine) this.buildChecklistForm(model);
+    // Lo mismo con la ficha: un refresco no pisa el texto sin guardar; una recarga (descartar lo propio) sí lo renueva.
+    if (force || switched || !this.briefForm || this.briefForm.pristine) this.syncBriefForm(model);
+  }
+
+  private syncBriefForm(model: CaseEditorView): void {
+    const context = model.context ?? '';
+    const objectives = model.learningObjectives ?? [];
+    if (this.briefForm) this.briefForm.reset({ context, objectives: objectives.join('\n') });
+    else this.briefForm = buildBriefForm(context, objectives);
   }
 
   private buildChecklistForm(model: CaseEditorView): void {
@@ -207,6 +234,10 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     else if (p.kind === 'object-edit') this.initObjectForm(p.obj, null);
     else if (p.kind === 'tool-create') this.initToolForm(null);
     else if (p.kind === 'tool-edit') this.initToolForm(p.tool);
+    else if (p.kind === 'hint-create') this.initHintForm(null);
+    else if (p.kind === 'hint-edit') this.initHintForm(p.hint);
+    else if (p.kind === 'character-create') this.initCharacterForm(null);
+    else if (p.kind === 'character-edit') this.initCharacterForm(p.character);
     this.openSheet();
   }
 
@@ -247,6 +278,10 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       'object-edit': 'Editar objeto',
       'tool-create': 'Nueva herramienta clínica',
       'tool-edit': 'Editar herramienta',
+      'hint-create': 'Nueva ayuda',
+      'hint-edit': 'Editar ayuda',
+      'character-create': 'Nuevo personaje',
+      'character-edit': 'Editar personaje',
     };
     return titles[p.kind] ?? '';
   }
@@ -274,6 +309,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       case 'map': this.saveMap(caseVersionId); break;
       case 'object': this.saveObject(caseVersionId); break;
       case 'tool': this.saveTool(caseVersionId); break;
+      case 'hint': this.saveHint(caseVersionId); break;
+      case 'character': this.saveCharacter(caseVersionId); break;
     }
   }
 
@@ -284,6 +321,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       case 'map': return this.mapForm;
       case 'object': return this.objectForm;
       case 'tool': return this.toolForm;
+      case 'hint': return this.hintForm;
+      case 'character': return this.characterForm;
       default: return null;
     }
   }
@@ -300,6 +339,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       nodeKey: [node?.key ?? '', Validators.required],
       title: [node?.title ?? '', Validators.required],
       narrative: [node?.narrative ?? '', Validators.required],
+      decisionPrompt: [node?.decisionPrompt ?? '', Validators.maxLength(TEXT_LIMIT)],
       warningMessage: [node?.warningMessage ?? ''],
       startNode: [node?.startNode ?? false],
       terminal: [node?.terminal ?? false],
@@ -323,6 +363,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       stressDelta: [edge?.stressDelta ?? 0],
       prohibitedPenalty: [edge?.prohibitedPenalty ?? 0],
       immediateFeedback: [edge?.immediateFeedback ?? ''],
+      consequenceText: [edge?.consequenceText ?? '', Validators.maxLength(TEXT_LIMIT)],
+      feedbackText: [edge?.feedbackText ?? '', Validators.maxLength(TEXT_LIMIT)],
+      theoryBasis: [edge?.theoryBasis ?? '', Validators.maxLength(TEXT_LIMIT)],
     });
   }
 
@@ -371,6 +414,26 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     });
   }
 
+  private initHintForm(hint: HintEditorState | null): void {
+    this.hintForm = this.fb.group({
+      text: [hint?.text ?? '', [requiredText, Validators.maxLength(HINT_LIMIT)]],
+      hintOrder: [hint?.order ?? null],
+    });
+  }
+
+  private initCharacterForm(character: CharacterEditorState | null): void {
+    const characters = this.editor()?.characters ?? [];
+    this.characterForm = this.fb.group({
+      characterKey: [character?.key ?? '', requiredText],
+      displayName: [character?.displayName ?? '', requiredText],
+      roleLabel: [character?.roleLabel ?? ''],
+      portraitKey: [character?.portraitKey ?? ''],
+      showInBrief: [character?.showInBrief ?? true],
+      // Un personaje nuevo va después de los que ya hay.
+      displayOrder: [character?.displayOrder ?? (characters.length ? Math.max(...characters.map(item => item.displayOrder)) + 1 : 0)],
+    });
+  }
+
   // ─── Guardar ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   saveNode(caseVersionId: number): void {
@@ -388,6 +451,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       warningMessage: v.warningMessage || null,
       terminal: v.terminal, startNode: v.startNode,
       positionX: v.positionX, positionY: v.positionY,
+      decisionPrompt: v.decisionPrompt ?? '',
     };
     this.runAction(
       revision => editing
@@ -407,6 +471,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       prohibitedConduct: v.prohibitedConduct, prohibitionReason: v.prohibitionReason || null,
       scoreDelta: v.scoreDelta, stressDelta: v.stressDelta,
       prohibitedPenalty: v.prohibitedPenalty, immediateFeedback: v.immediateFeedback || '',
+      consequenceText: v.consequenceText ?? '', feedbackText: v.feedbackText ?? '', theoryBasis: v.theoryBasis ?? '',
     };
     const editingId = p?.kind === 'decision-edit' ? p.edge.id : null;
     this.runAction(
@@ -473,6 +538,62 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     );
   }
 
+  saveHint(caseVersionId: number): void {
+    if (!this.hintForm?.valid || this.busy()) return;
+    const p = this.panel();
+    const v = this.hintForm.value;
+    const body: HintUpsertRequest = { text: String(v.text).trim() };
+    // Sin lugar, el servidor la pone al final de las de su sala.
+    if (v.hintOrder !== null && v.hintOrder !== '') body.hintOrder = Number(v.hintOrder);
+    const editingId = p?.kind === 'hint-edit' ? p.hint.id : null;
+    const mapId = p?.kind === 'hint-create' ? p.mapId : null;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateHint(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createHint(caseVersionId, mapId!, body, revision),
+      'Ayuda guardada.', 'No fue posible guardar la ayuda.',
+    );
+  }
+
+  saveCharacter(caseVersionId: number): void {
+    if (!this.characterForm?.valid || this.busy()) return;
+    const p = this.panel();
+    const v = this.characterForm.value;
+    const body: CharacterUpsertRequest = {
+      characterKey: v.characterKey, displayName: v.displayName, roleLabel: v.roleLabel ?? '', portraitKey: v.portraitKey ?? '',
+      showInBrief: !!v.showInBrief, displayOrder: Number(v.displayOrder ?? 0),
+    };
+    const editingId = p?.kind === 'character-edit' ? p.character.id : null;
+    this.runAction(
+      revision => editingId !== null
+        ? this.authoringApi.updateCharacter(caseVersionId, editingId, body, revision)
+        : this.authoringApi.createCharacter(caseVersionId, body, revision),
+      'Personaje guardado.', 'No fue posible guardar el personaje.',
+    );
+  }
+
+  /** El contexto y los objetivos de la ficha; el componente de la ficha ya validó los topes. */
+  saveBrief(caseVersionId: number, request: BriefUpdateRequest): void {
+    this.runAction(
+      revision => this.authoringApi.updateBrief(caseVersionId, request, revision),
+      'Ficha del caso guardada.', 'No fue posible guardar la ficha del caso.',
+      // Lo guardado vuelve normalizado y la ficha queda limpia, salvo que se haya escrito más mientras se guardaba.
+      view => {
+        const written = this.briefForm?.getRawValue();
+        const sameObjectives = written && parseObjectives(written.objectives).join('\n') === request.learningObjectives?.join('\n');
+        if (written && written.context.trim() === request.context && sameObjectives) this.syncBriefForm(view);
+      },
+    );
+  }
+
+  /** El orden de las escenas: los ids de todas, en el orden pedido. */
+  reorderScenes(caseVersionId: number, order: number[]): void {
+    this.runAction(
+      revision => this.authoringApi.reorderNodes(caseVersionId, order, revision),
+      'Orden de las escenas actualizado.', 'No fue posible cambiar el orden de las escenas.',
+    );
+  }
+
   saveChecklist(caseVersionId: number): void {
     if (!this.checklistForm || this.busy()) return;
     const body = this.checklistForm.getRawValue() as ChecklistUpdateRequest;
@@ -528,6 +649,29 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       this.runAction(
         revision => this.authoringApi.deleteTool(caseVersionId, tool.id, revision),
         'Herramienta eliminada.', 'No fue posible eliminar la herramienta.',
+      );
+    }
+  }
+
+  async confirmDeleteHint(caseVersionId: number, hint: HintEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger('Eliminar ayuda', `¿Eliminar la ayuda «${shorten(hint.text)}»? La persona dejará de verla en esa sala.`);
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteHint(caseVersionId, hint.id, revision),
+        'Ayuda eliminada.', 'No fue posible eliminar la ayuda.',
+      );
+    }
+  }
+
+  async confirmDeleteCharacter(caseVersionId: number, character: CharacterEditorState): Promise<void> {
+    const confirmed = await this.confirmDanger(
+      'Eliminar personaje',
+      `¿Eliminar a «${character.displayName}»? Los objetos del mundo que lo usan quedan sin personaje; no se borran.`,
+    );
+    if (confirmed) {
+      this.runAction(
+        revision => this.authoringApi.deleteCharacter(caseVersionId, character.id, revision),
+        'Personaje eliminado.', 'No fue posible eliminar el personaje.',
       );
     }
   }

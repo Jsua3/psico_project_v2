@@ -68,7 +68,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       }
     </div>
   `,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     :host { position: relative; }
     .tool-dock-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }

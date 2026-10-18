@@ -43,6 +43,18 @@ test('extrae los iconos que se pasan como atributo a los componentes de shared/u
   for (const name of ['save', 'arrow_forward', 'close', 'logout', 'hourglass_empty', 'check']) assert.ok(names.has(name), name);
 });
 
+// req: RNF-007 (E4-6: la semilla del caso PDF es un documento)
+test('lee el icono de los documentos del caso (clave «icono») además del «icon» de las semillas de Python', () => {
+  const names = iconNamesIn([
+    {
+      path: 'backend_django/apps/simulation/data/cases/CASO.dsl.json',
+      text: '{"x-siep": {"herramientas": [{"icono": "healing_zz"}], "escenas": [{"mapa": {"objetos": [{"icono": "door_front_zz"}]}}]}}',
+    },
+    { path: 'backend_django/apps/x/seed.py', text: '{"icon": "monitor_heart_zz"}' },
+  ]);
+  for (const name of ['healing_zz', 'door_front_zz', 'monitor_heart_zz']) assert.ok(names.has(name), name);
+});
+
 test('sigue las funciones que llaman a otras y los parámetros llamados *icon* (revisión de F1, C2)', () => {
   const files = [{ path: 'src/app/x/x.component.ts', text: [
     'template: `<mat-icon>{{ timelineIcon(entry) }}</mat-icon><mat-icon>{{ metric.icon }}</mat-icon>`,',

@@ -138,7 +138,7 @@ describe('orientation.config: nombres humanos contra el seed', () => {
   it('las herramientas del seed tienen descripción genérica y nombre real que coincide con su objeto', () => {
     const toolOfObject: Record<string, string> = { 'tool-pap': 'PAP', 'tool-spikes': 'SPIKES', 'tool-riesgo': 'RISK_METER' };
     for (const [objectKey, code] of Object.entries(toolOfObject)) {
-      expect(new RegExp(`"key":\\s*"${objectKey}"[^}]*?"tool":\\s*"${code}"`).test(seed.text)).toBe(true);
+      expect(seed.objects.some(o => o.key === objectKey && o.tool === code)).toBe(true);
       const entity = ENTITY_NAMES[objectKey];
       expect(TOOL_HINTS[code].named).toBe(`${entity.article} ${entity.name}`);
       expect(TOOL_HINTS[code].room).toBe(entity.room);

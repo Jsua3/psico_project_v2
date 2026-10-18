@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { buildPublishableDraft } from './support/case-fixtures';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -48,44 +49,6 @@ async function send(request: APIRequestContext, token: string, method: 'post' | 
   const response = await request[method](`/api/authoring/cases${path}`, { headers: bearer(token), data });
   expect(response.status(), what).toBe(200);
   return (await response.json()).data;
-}
-
-const NODE_BODY = {
-  requiredTools: [], supportResources: [], sensitiveContent: false, safeExitRequired: false,
-  warningMessage: null, terminal: false, startNode: false, positionX: null, positionY: null,
-};
-
-/**
- * Un borrador con el mundo completo: dos escenas unidas por una decisión con su retroalimentación escrita (E3: una
- * decisión sin ella es un aviso de validación), un mapa por escena, una salida segura y la lista de publicación al
- * 100 %. Sin errores ni avisos de validación: se puede enviar a revisión y publicar.
- */
-async function publishableDraft(request: APIRequestContext, token: string, title: string): Promise<{ id: number; title: string }> {
-  const created = await send(request, token, 'post', '', { title }, 'crear el caso');
-  const id: number = created['caseVersionId'];
-  const startId: number = created['nodes'][0]['id'];
-  const withClosing = await send(request, token, 'post', `/${id}/nodes`,
-    { ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true }, 'escena final');
-  const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
-  await send(request, token, 'post', `/${id}/decisions`, {
-    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
-    immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
-  }, 'decisión');
-  // La escena de inicio ya trae su mapa («escena-inicial»: un mapa por escena); solo falta el de la escena final.
-  await send(request, token, 'post', `/${id}/maps`, {
-    nodeId: closingId, mapKey: 'sala-cierre', title: 'Sala de cierre', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
-  }, 'mapa de la escena final');
-  const view = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(token) })).json()).data;
-  await send(request, token, 'post', `/${id}/maps/${view['maps'][0]['id']}/objects`, {
-    objectKey: 'salida', label: 'Salida segura', objectType: 'EXIT', x: 800, y: 300, width: 48, height: 48, colorHex: '#4FA3A5',
-    icon: 'exit_to_app', shortCode: 'SAL', collision: false, visible: true, interactionPrompt: 'Salir', interactionText: '',
-    decisionOptionId: null, toolCode: null,
-  }, 'salida segura');
-  await send(request, token, 'put', `/${id}/checklist`, {
-    contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true, accessibilityOk: true,
-  }, 'lista de publicación');
-  return { id, title: created['title'] };
 }
 
 /** El aviso del sistema (los avisos también se repiten en la región viva, fuera de pantalla: un solo elemento visible). */
@@ -168,7 +131,7 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
   test('el ciclo completo: enviar a revisión, devolver con motivo y nota, volver a enviar y aprobar', async ({ page, request }) => {
     test.setTimeout(scaled(240_000));
     const token = await apiToken(request, ADMIN);
-    const draft = await publishableDraft(request, token, `Revisión e2e ${Date.now()}`);
+    const draft = await buildPublishableDraft(request, token, { title: `Revisión e2e ${Date.now()}` });
     try {
       await loginAs(page, 'admin');
       const panel = await openReview(page, draft.id, draft.title);
@@ -235,7 +198,7 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
   test('el docente envía su caso a revisión pero no puede aprobarlo ni devolverlo (lo decide el servidor)', async ({ page, request }) => {
     test.setTimeout(scaled(150_000));
     const token = await apiToken(request, PROFESOR);
-    const draft = await publishableDraft(request, token, `Revisión docente e2e ${Date.now()}`);
+    const draft = await buildPublishableDraft(request, token, { title: `Revisión docente e2e ${Date.now()}` });
     toRetire.push(draft.id);
     await loginAs(page, 'profesor');
     const panel = await openReview(page, draft.id, draft.title);

@@ -2989,6 +2989,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene.setStressLevel(this.stressLevel());
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
+        // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula
+        // sin aceleración WebGL; la viñeta de crisis se genera en textura de canvas (vignette-texture.util) compatible con ambos.
+        // Con qué se dibuja de verdad lo MIDE `e2e/render-info.e2e.ts` en cada corrida (renderizador y GPU, en el informe) y
+        // falla si cae a Canvas 2D: ahí el juego funciona pero va con otro costo y otro aspecto.
         type: Phaser.AUTO,
         parent: this.gameHost!.nativeElement,
         backgroundColor: '#0e141a',

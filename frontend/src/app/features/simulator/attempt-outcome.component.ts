@@ -188,7 +188,7 @@ import { reconsideredChip } from './reconsidered.util';
       </section>
     }
   `,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     .outcome {
       position: absolute; inset: 0; z-index: 150; display: flex; flex-direction: column;

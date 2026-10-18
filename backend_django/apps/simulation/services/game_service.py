@@ -88,8 +88,17 @@ def _get_version(case_version_id):
 
 
 def _ensure_published(version):
+    """Solo se arranca una versión publicada **y sellada** (E4-4): lo que se ejecuta es lo que se validó."""
     if version.status != "PUBLISHED" or not version.simulation_case.active:
         raise PermissionDenied("El caso no está publicado")
+    if version.validated_at is None or not version.definition_hash:
+        raise ApiError(
+            "CASE_NOT_PUBLISHABLE",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El caso está publicado pero aún no tiene el sello de validación: pide a un administrador "
+            "que lo valide y lo selle antes de empezar.",
+            status.HTTP_409_CONFLICT,
+        )
 
 
 def _require_published(case_version_id):
@@ -98,7 +107,7 @@ def _require_published(case_version_id):
     return version
 
 
-def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
+def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, lock=False):
     """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04).
 
     Un docente o el ADMIN no leen un intento ajeno por token: su vía es ``/api/instructor/**``
@@ -106,14 +115,20 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True):
 
     ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
     alcanzable, aunque el estudiante ya no tenga el caso asignado).
+    ``lock=True`` toma el cerrojo de la fila del intento (``lock_attempt_row``) en su PROPIA sentencia y solo después
+    lee el intento con todas sus uniones. Una sola sentencia con ``FOR UPDATE`` y uniones (la forma de E5-1) devuelve
+    la fila del intento al día pero las demás filas de la unión —el nodo, el estado del mundo— como estaban ANTES de
+    esperar el cerrojo: si la orden anterior avanzó el nodo, el INNER JOIN descartaba la fila nueva (un 404 espurio
+    para un intento que existe) y, si escribió el estado del mundo, el PATCH de posición lo pisaba con una copia
+    vieja. Con el cerrojo ya en la mano, la lectura ve todo lo que esa orden confirmó (reparación de E5-1).
     """
     if not attempt_token:
         raise ValidationError("El token del intento es obligatorio")
+    if lock:
+        lock_attempt_row(attempt_id)
     attempt = (
-        SimulationAttempt.objects.filter(
-            pk=attempt_id, attempt_token_hash=_hash_token(attempt_token)
-        )
-        .select_related("case_version__simulation_case", "current_node", "student")
+        SimulationAttempt.objects.filter(pk=attempt_id, attempt_token_hash=_hash_token(attempt_token))
+        .select_related("case_version__simulation_case", "current_node", "student", "world_state__scene_map")
         # E1-4: la asignación vigente del dueño viaja en la misma consulta (sin un viaje más).
         .annotate(owner_has_assignment=assignments.assignment_exists(
             OuterRef("student_id"), OuterRef("case_version_id")
@@ -157,9 +172,12 @@ _student_can_access_case = assignments.student_has_assignment
 
 
 def list_published_cases(actor=None):
+    from django.db.models import Count
+
     versions = (
         CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True)
         .select_related("simulation_case")
+        .annotate(node_count=Count("nodes"))
         .order_by("-published_at")
     )
     if actor is not None and getattr(actor, "role", None) == "ESTUDIANTE":
@@ -167,11 +185,7 @@ def list_published_cases(actor=None):
         if not assigned_ids:
             return []
         versions = versions.filter(id__in=assigned_ids)
-    result = []
-    for v in versions:
-        node_count = SimulationNode.objects.filter(case_version_id=v.id).count()
-        result.append(dto.case_summary(v, node_count))
-    return result
+    return [dto.case_summary(v, v.node_count) for v in versions]
 
 
 def _close_active_attempts(student, case_version_id, reason):

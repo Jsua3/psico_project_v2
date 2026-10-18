@@ -19,7 +19,7 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
   selector: 'app-world-places-list',
   standalone: true,
   imports: [A11yModule, SafeExitButtonComponent, UiButton],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="places" role="dialog" aria-modal="true" aria-labelledby="places-title" cdkTrapFocus>
       <header class="places__head">

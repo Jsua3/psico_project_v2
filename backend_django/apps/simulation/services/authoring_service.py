@@ -31,12 +31,15 @@ from .authoring import (
     cases,
     characters,
     editor_view,
+    definition_io,
     graph,
     hints,
+    importing,
     lifecycle,
     publication,
     scenes,
     tools,
+    validation,
     world_definition,
 )
 
@@ -53,6 +56,20 @@ def create_case(request, actor):
 
 def editor(case_version_id):
     return editor_view.editor(case_version_id)
+
+
+def definition_of(case_version_id):
+    """E4-7: el documento de la versión con su hash, su sello y su reutilización."""
+    return definition_io.definition_view(case_version_id)
+
+
+@auditable(
+    "CASE_IMPORTED", "CASE_VERSION", -1,
+    context=lambda args, kwargs, result: {"caseVersionId": result["caseVersionId"], "caseId": result["caseId"]},
+)
+def import_case(raw, actor):
+    """E4-5: crea un borrador desde el documento del caso (bytes JSON); el 400 lleva los ``ValidationIssue``."""
+    return importing.import_bytes(raw, actor)
 
 
 # ─── Nodes and decisions ─────────────────────────────────────────────────────
@@ -276,7 +293,7 @@ def validate_world(case_version_id):
 
 
 def validate_case(case_version_id):
-    return world_definition.validate_case(case_version_id)
+    return validation.validate_case(case_version_id)
 
 
 @auditable("ADMIN_SAVE_WORLD", "CASE_VERSION")

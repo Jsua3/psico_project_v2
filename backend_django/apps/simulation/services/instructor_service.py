@@ -8,9 +8,11 @@ from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
+from apps.grupos.models import Grupo, GrupoEstudiante, MembershipStatus
 from apps.simulation.serializers import game_dtos as dto
 from shared import policies
 from shared.exceptions import ApiError
+from shared.identity import IdentityPresenter
 
 from ..models import (
     AttemptEvent,
@@ -26,13 +28,17 @@ from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
 from .instructor_scope import student_ids_for_instructor
 
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+MAX_PAGE = 1_000_000  # más allá, el OFFSET se sale del rango de la base y el listado cae con un 500
+
 
 def _dt(value):
     return value.isoformat() if value else None
 
 
-def _anonymize(attempt):
-    return f"Estudiante-{attempt.student_id if attempt.student_id is not None else 0}"
+def _anonymize(attempt, instructor=None):
+    return IdentityPresenter.alias_for(attempt.student_id, viewer=instructor)
 
 
 def _require_attempt(attempt_id, instructor=None):
@@ -51,6 +57,82 @@ def _require_attempt(attempt_id, instructor=None):
     return attempt
 
 
+def list_attempts(
+    instructor,
+    *,
+    grupo_id=None,
+    estudiante_id=None,
+    case_version_id=None,
+    estado=None,
+    page=1,
+    page_size=DEFAULT_PAGE_SIZE,
+):
+    """Listado paginado y filtrable de intentos para revisión docente (E5-6: RF-25, CU-14).
+
+    Sin tope fijo de 20 ni filtro ``PUBLISHED``: incluye intentos de versiones archivadas
+    o en borrador dentro del alcance del docente, con ``coverage {shown, total}``.
+    """
+    attempts = SimulationAttempt.objects.select_related(
+        "case_version__simulation_case", "student"
+    ).filter(case_version__simulation_case__active=True)
+
+    if grupo_id is not None:
+        grupo = Grupo.objects.filter(pk=grupo_id).first()
+        if not grupo:
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            raise NotFound("Grupo no encontrado")
+        if getattr(instructor, "role", None) != "ADMIN":
+            if grupo.profesor_id != instructor.id or not grupo.activo:
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                raise PermissionDenied("No tienes permiso para revisar intentos de este grupo")
+        group_student_ids = set(
+            GrupoEstudiante.objects.filter(
+                grupo_id=grupo.id, status=MembershipStatus.ACTIVE
+            ).values_list("estudiante_id", flat=True)
+        )
+        attempts = attempts.filter(student_id__in=group_student_ids)
+    else:
+        student_ids = student_ids_for_instructor(instructor)
+        if student_ids is not None:
+            attempts = attempts.filter(student_id__in=student_ids)
+
+    if estudiante_id is not None:
+        attempts = attempts.filter(student_id=estudiante_id)
+    if case_version_id is not None:
+        attempts = attempts.filter(case_version_id=case_version_id)
+    if estado:
+        attempts = attempts.filter(status=estado)
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
+
+    total = attempts.count()
+    offset = (page - 1) * page_size
+    rows = list(attempts.order_by("-started_at", "-id")[offset : offset + page_size])
+    items = [
+        {
+            "attemptId": str(a.id),
+            "studentAlias": _anonymize(a, instructor=instructor),
+            "caseVersionId": a.case_version_id,
+            "caseVersionStatus": a.case_version.status,
+            "caseTitle": a.case_version.simulation_case.title,
+            "status": a.status,
+            "accumulatedScore": a.accumulated_score,
+            "stressIndex": a.stress_index,
+            "activeSeconds": int(round(a.active_seconds or 0)),
+            "startedAt": _dt(a.started_at),
+            "endedAt": _dt(a.ended_at),
+        }
+        for a in rows
+    ]
+    return {
+        "items": items,
+        "page": page,
+        "pageSize": page_size,
+        "coverage": {"shown": len(items), "total": total},
+    }
+
+
 def recent_attempts(instructor):
     attempts = (
         SimulationAttempt.objects.select_related("case_version__simulation_case", "student")
@@ -67,7 +149,7 @@ def recent_attempts(instructor):
     return [
         {
             "attemptId": str(a.id),
-            "studentAlias": _anonymize(a),
+            "studentAlias": _anonymize(a, instructor=instructor),
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
             "accumulatedScore": a.accumulated_score,
@@ -94,7 +176,7 @@ def trace(attempt_id, instructor=None):
             total_duration = int((last_at - attempt.started_at).total_seconds())
     return {
         "attemptId": str(attempt.id),
-        "studentAlias": _anonymize(attempt),
+        "studentAlias": _anonymize(attempt, instructor=instructor),
         "caseTitle": attempt.case_version.simulation_case.title,
         "status": attempt.status,
         "accumulatedScore": attempt.accumulated_score,
@@ -133,6 +215,9 @@ def trace(attempt_id, instructor=None):
             .order_by("-evaluated_at")
         ],
     }
+
+
+trace = auditable("traza.leer", "ATTEMPT")(trace)
 
 
 @transaction.atomic
@@ -174,6 +259,9 @@ def rubric(attempt_id, instructor=None):
 def save_rubric(attempt_id, request, instructor):
     _require_attempt(attempt_id, instructor)
     return rubric_service.save_attempt_evaluation(attempt_id, request, instructor)
+
+
+save_rubric = auditable("rubrica.evaluar", "ATTEMPT")(save_rubric)
 
 
 # ─── DTO builders ─────────────────────────────────────────────────────────────

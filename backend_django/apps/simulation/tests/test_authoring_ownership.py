@@ -109,6 +109,7 @@ def test_create_case_leaves_an_audit_row_with_the_actors_role(prof_a):
 #: Leer lo ajeno es 404; mutarlo, 403; publicar es del ADMIN (403 en la puerta).
 FOREIGN_ROUTES = [
     ("get", "<int:case_version_id>/editor", None, 404),
+    ("get", "<int:case_version_id>/definition", None, 404),
     ("get", "<int:case_version_id>/world-editor", None, 404),
     ("get", "<int:case_version_id>/world-preview", None, 404),
     ("post", "<int:case_version_id>/world/validate", {}, 404),
@@ -148,6 +149,9 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/characters/<int:character_id>",
      {"characterKey": "k", "displayName": "N"}, 403),
     ("delete", "<int:case_version_id>/characters/<int:character_id>", None, 403),
+    # Importar no apunta a un caso por su id: el caso ajeno se decide por ``caso.id`` dentro del documento
+    # (403 ``CASE_NOT_OWNED``, en ``test_definition_import``); un cuerpo vacío es un 400 para cualquiera.
+    ("post", "import", {}, 400),
 ]
 
 

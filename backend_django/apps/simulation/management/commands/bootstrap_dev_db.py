@@ -63,6 +63,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Caso base creado: {case.code}")
 
         call_command("seed_caso_pdf")
+        call_command("seal_published_versions")  # lo publicado antes del sello (E4-4); idempotente
 
         version = CaseVersion.objects.get(
             simulation_case__code=DEMO_CASE_CODE,

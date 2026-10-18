@@ -2,12 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Lector del seed del caso PDF para los specs de orientación (SOLO pruebas: usa `fs`, no lo importa la app).
- * Se localiza con una ruta relativa robusta y falla si falta: así un cambio de lugar del seed no deja
- * los contratos «verdes por vacío». Extrae solo lo que la orientación necesita: nombres de objetos,
- * NPC del escenario y requisitos de las puertas.
+ * Lector del documento del caso PDF para los specs de orientación (SOLO pruebas: usa `fs`, no lo importa la app).
+ * La semilla es un documento (E4-6): `backend_django/apps/simulation/data/cases/SIM-VBG-001.dsl.json`, el DSL del taller
+ * con su extensión `x-siep`; el mundo de cada sala vive en `x-siep.escenas[].mapa`. Se localiza con una ruta relativa
+ * robusta y falla si falta: así un cambio de lugar del documento no deja los contratos «verdes por vacío». Extrae solo
+ * lo que la orientación necesita: nombres de objetos, NPC del escenario, claves de escena y requisitos de las puertas.
  */
-const SEED_RELATIVE = ['backend_django', 'apps', 'simulation', 'management', 'commands', 'seed_caso_pdf.py'];
+const SEED_RELATIVE = ['backend_django', 'apps', 'simulation', 'data', 'cases', 'SIM-VBG-001.dsl.json'];
 
 function findRepoRoot(from: string): string {
   let dir = from;
@@ -20,7 +21,13 @@ function findRepoRoot(from: string): string {
 
 export const SEED_PATH = path.join(findRepoRoot(__dirname), ...SEED_RELATIVE);
 
-export interface SeedObject { key: string; label: string; type: string; x: number | null; y: number | null }
+export interface SeedObject {
+  key: string; label: string; type: string; x: number | null; y: number | null;
+  /** Clave del mapa (sala) en el que está el objeto. */
+  room: string;
+  /** Código de la herramienta que entrega el objeto, si es una herramienta. */
+  tool: string | null;
+}
 export interface SeedDoor {
   key: string; label: string; targetNodeKey: string | null;
   requiresInspected: string[]; requiresNpcs: string[]; requiresTools: string[]; requiresNodes: string[];
@@ -28,38 +35,40 @@ export interface SeedDoor {
 export interface SeedNpc { key: string; x: number; y: number }
 
 export interface SeedData {
-  text: string;
+  /** Claves de las escenas (nodos) del caso. */
+  sceneKeys: string[];
+  /** Todos los objetos de todos los mapas (el mismo objeto puede estar en varias salas). */
   objects: SeedObject[];
   doors: SeedDoor[];
   ambientNpcs: SeedNpc[];
 }
 
-function listOf(segment: string, name: string): string[] {
-  const match = new RegExp(`"${name}":\\s*\\[([^\\]]*)\\]`).exec(segment);
-  return match ? [...match[1].matchAll(/"([^"]+)"/g)].map(m => m[1]) : [];
+interface SeedDocumentObject {
+  clave: string; etiqueta: string; tipo: string; x: number; y: number; herramienta: string | null;
+  metadatos: { targetNodeKey?: string; requiresInspected?: string[]; requiresNpcs?: string[]; requiresTools?: string[]; requiresNodes?: string[] };
 }
+interface SeedDocumentMap {
+  clave: string;
+  objetos: SeedDocumentObject[];
+  ambiente: { ambientNpcs?: Array<{ key: string; x: number; y: number }> };
+}
+interface SeedDocument { 'x-siep': { escenas: Array<{ clave: string; mapa?: SeedDocumentMap }> } }
 
 export function readSeed(): SeedData {
-  const text = fs.readFileSync(SEED_PATH, 'utf-8');
-  const objects = [...text.matchAll(
-    /"key":\s*"([^"]+)",\s*"label":\s*"([^"]+)",\s*"type":\s*"(PERSON|OBJECT|TOOL|EXIT|ROUTE|WARNING)",\s*(?:"pos":\s*\((\d+),\s*(\d+)\))?/g,
-  )].map(m => ({
-    key: m[1], label: m[2], type: m[3], x: m[4] === undefined ? null : Number(m[4]), y: m[5] === undefined ? null : Number(m[5]),
-  }));
-
-  const doors = [...text.matchAll(
-    /"key":\s*"([^"]+)",\s*"label":\s*"([^"]+)",\s*"type":\s*"EXIT"([\s\S]*?)(?="key":|\n\s*\],)/g,
-  )].map(m => ({
-    key: m[1], label: m[2],
-    targetNodeKey: /"targetNodeKey":\s*"([^"]+)"/.exec(m[3])?.[1] ?? null,
-    requiresInspected: listOf(m[3], 'requiresInspected'),
-    requiresNpcs: listOf(m[3], 'requiresNpcs'),
-    requiresTools: listOf(m[3], 'requiresTools'),
-    requiresNodes: listOf(m[3], 'requiresNodes'),
-  }));
-
-  const ambientNpcs = [...text.matchAll(/_ambient_npc\("([^"]+)",\s*(\d+),\s*(\d+)\)/g)]
-    .map(m => ({ key: m[1], x: Number(m[2]), y: Number(m[3]) }));
-
-  return { text, objects, doors, ambientNpcs };
+  const document = JSON.parse(fs.readFileSync(SEED_PATH, 'utf-8')) as SeedDocument;
+  const scenes = document['x-siep'].escenas;
+  const maps = scenes.flatMap(scene => (scene.mapa ? [scene.mapa] : []));
+  const objects = maps.flatMap(map => map.objetos.map(o => ({
+    key: o.clave, label: o.etiqueta, type: o.tipo, x: o.x, y: o.y, room: map.clave, tool: o.herramienta ?? null,
+  })));
+  const doors = maps.flatMap(map => map.objetos.filter(o => o.tipo === 'EXIT').map(o => ({
+    key: o.clave, label: o.etiqueta,
+    targetNodeKey: o.metadatos.targetNodeKey ?? null,
+    requiresInspected: o.metadatos.requiresInspected ?? [],
+    requiresNpcs: o.metadatos.requiresNpcs ?? [],
+    requiresTools: o.metadatos.requiresTools ?? [],
+    requiresNodes: o.metadatos.requiresNodes ?? [],
+  })));
+  const ambientNpcs = maps.flatMap(map => (map.ambiente.ambientNpcs ?? []).map(n => ({ key: n.key, x: n.x, y: n.y })));
+  return { sceneKeys: scenes.map(scene => scene.clave), objects, doors, ambientNpcs };
 }

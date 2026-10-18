@@ -112,6 +112,19 @@ def _load_to_manage(assignment_id, actor, *, lock=False):
 
 
 # ─── Operaciones ──────────────────────────────────────────────────────────────────────────
+from apps.simulation.services.audit_service import auditable
+
+
+@auditable(
+    "asignacion.crear",
+    "ASSIGNMENT",
+    -1,
+    context=lambda args, kwargs, result: {
+        "assignmentId": result.id,
+        "caseVersionId": result.case_version_id,
+        "groupId": result.grupo_id,
+    },
+)
 @transaction.atomic
 def create_assignment(actor, payload):
     """Crea la asignación de un caso a un grupo del docente. ``payload`` ya viene validado en su
@@ -167,6 +180,7 @@ def list_assignments(actor, group_id=None, case_version_id=None):
     return list(queryset.order_by("sort_order", "id"))
 
 
+@auditable("asignacion.actualizar", "ASSIGNMENT", 1)
 @transaction.atomic
 def update_assignment(actor, assignment_id, changes):
     """Aplica solo lo que viene en ``changes`` («ausente = no tocar»; ``None`` borra una fecha)."""
@@ -186,6 +200,7 @@ def update_assignment(actor, assignment_id, changes):
     return row
 
 
+@auditable("asignacion.eliminar", "ASSIGNMENT", 1)
 @transaction.atomic
 def remove_assignment(actor, assignment_id):
     row = _load_to_manage(assignment_id, actor, lock=True)

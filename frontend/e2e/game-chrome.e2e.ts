@@ -8,6 +8,7 @@ import {
   enterWorld,
   exploreUntilNearby,
   finishCaseIntroduction,
+  leaveBrief,
   loginStudent,
   startFreshAttempt,
   waitForWorldReady,
@@ -126,6 +127,7 @@ test.describe('@game-chrome arranque del juego', () => {
     await openLobby(page);
     await page.getByRole('button', { name: /entrar al caso/i }).click();
     await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
+    await leaveBrief(page);
 
     const failure = page.locator('.game-failure');
     // Otra prueba pudo dejar un intento abierto: la tarjeta de reanudar aparece en vez de pedir uno nuevo.

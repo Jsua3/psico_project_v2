@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, merge } from 'rxjs';
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -50,6 +50,7 @@ export class RubricsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notify = inject(NotificationService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly formTick = signal(0);
   // @ViewChild y no viewChild(): ts-jest no aplica la transformación JIT de Angular a las queries con signals.
   @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
 
@@ -93,6 +94,12 @@ export class RubricsComponent implements OnInit {
     criteria: this.fb.array([]),
   });
 
+  constructor() {
+    merge(this.form.valueChanges, this.form.statusChanges).subscribe(() => {
+      this.formTick.update(v => v + 1);
+    });
+  }
+
   get criteria(): FormArray {
     return this.form.get('criteria') as FormArray;
   }
@@ -116,6 +123,7 @@ export class RubricsComponent implements OnInit {
   }
 
   totalWeight(): number {
+    this.formTick();
     return this.criteria.controls.reduce((sum, control) => sum + Number(control.get('weight')?.value || 0), 0);
   }
 

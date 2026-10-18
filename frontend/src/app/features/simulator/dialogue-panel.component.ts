@@ -18,6 +18,7 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { DRAFT_COPY } from './draft-copy';
 import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
+import { HintAttemptRef, SceneHintComponent } from './scene-hint.component';
 
 const CHARS_PER_SEC = 22;
 const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
@@ -29,7 +30,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, SafeExitButtonComponent, UiButton],
+  imports: [A11yModule, CommonModule, SafeExitButtonComponent, SceneHintComponent, UiButton],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -96,6 +97,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             @if (notice) {
               <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
             }
+            <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
+            @if (offersHints(d) && hintAttempt(); as attemptRef) {
+              <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken" />
+            }
             <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
               [attr.aria-describedby]="notice ? 'choices-notice' : null"
               [class.choices--locked]="chosenKey() !== null">
@@ -109,17 +114,15 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                   [class.choice-btn--chosen]="chosenKey() === choice.key"
                   [class.choice-btn--unavailable]="choice.toolMissing"
                   [style.--stagger]="i"
-                  [attr.aria-label]="(i + 1) + '. ' + choice.text"
+                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.toolMissing ? '. ' + toolMissingHint : '')"
                   [attr.aria-disabled]="choice.toolMissing ? 'true' : null"
-                  [attr.aria-describedby]="choice.toolMissing ? 'choice-hint-' + i : null"
                   (focus)="onChoiceFocus($event)"
                   (click)="onChoiceClick($event, choice)">
-                  <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>
-                  <span class="choice-btn__icon" aria-hidden="true"></span>
+                  <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>{{ ' ' }}<span class="choice-btn__icon" aria-hidden="true"></span>
                   <span class="choice-btn__body">
                     <span class="choice-btn__label">{{ choice.text }}</span>
                     @if (choice.toolMissing) {
-                      <span class="choice-btn__hint" [id]="'choice-hint-' + i">Aún no tienes esta herramienta. Recógela en la sala.</span>
+                      {{ ' ' }}<span class="choice-btn__hint" [id]="'choice-hint-' + i">{{ toolMissingHint }}</span>
                     }
                   </span>
                 </button>
@@ -545,6 +548,13 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * apertura) debe devolver el panel a un estado utilizable. Sin esto `chosenKey` quedaba fijo
    * hasta que cambiaba el diálogo y el panel se quedaba atrapado (DLG-01).
    */
+  /**
+   * El intento en juego (F10-2): con él, las opciones de una decisión llevan las pistas de la escena (C9). Sin él —la vista
+   * previa del editor no tiene intento— no hay pistas.
+   */
+  readonly hintAttempt = input<HintAttemptRef | null>(null);
+  /** Aviso de una opción de herramienta sin la herramienta: se ve y forma parte de su nombre accesible (WCAG 2.5.3). */
+  protected readonly toolMissingHint = 'Aún no tienes esta herramienta. Recógela en la sala.';
   readonly releaseToken = input(0);
   /** Hay una salida segura pedida que espera: el botón «Salida segura» del panel dice «Pausando…» (F6-6). */
   readonly pausing = input(false);
@@ -680,6 +690,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   /** Alguna opción activa registra una decisión (cabecera con el chip de decisión: VD-24). */
   hasDecisionOptions(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null);
+  }
+
+  /**
+   * Hay una acción del caso que decidir con ayuda: una decisión o una herramienta (en el caso demo la decisión de la sala se
+   * alcanza por la herramienta, y sin ella la lista solo trae esa opción). Las confirmaciones de la interfaz, sin decisión ni
+   * herramienta, no son un momento de decidir: no se ofrecen pistas ni se pide nada al servidor.
+   */
+  offersHints(d: DialogueState): boolean {
+    return !d.stale && d.choices.some(choice => choice.decisionOptionId != null || choice.requiredToolCode != null);
   }
 
   /** Solo las voces de sistema llevan chip y etiqueta de emoción; las personas no (duelo, límite 2). */

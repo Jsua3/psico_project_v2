@@ -53,13 +53,18 @@ async function firstEditorPath(page: Page): Promise<string> {
   return (await link.getAttribute('href')) ?? '/portal/casos';
 }
 
-/** El botón «Entrar al caso» vive en la sala (lobby), igual que en `enterCaseAtContentWarning`. */
-async function studentCasePath(page: Page): Promise<string> {
+/** El botón «Entrar al caso» vive en la sala (lobby) y lleva a la ficha del caso (F10-1), igual que en `enterCaseAtContentWarning`. */
+async function studentBriefPath(page: Page): Promise<string> {
   await page.goto('/portal/jugar');
   await waitForCanvas(page);
   await page.getByRole('button', { name: /entrar al caso/i }).first().click({ timeout: 30_000 });
-  await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: 30_000 });
+  await page.waitForURL(/\/portal\/simulador\/\d+\/ficha$/, { timeout: 30_000 });
   return new URL(page.url()).pathname;
+}
+
+/** El juego del caso: la ficha sin su cola. */
+async function studentCasePath(page: Page): Promise<string> {
+  return (await studentBriefPath(page)).replace(/\/ficha$/, '');
 }
 
 /**
@@ -106,6 +111,13 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'no-encontrada', role: 'estudiante', routePattern: 'portal/**', path: '/portal/no-existe' },
   // Plan visual F4-3: lo que ve el estudiante al pedir una sección de otro rol.
   { id: 'sin-permiso', role: 'estudiante', routePattern: 'portal/sin-permiso', path: '/portal/sin-permiso?desde=%2Fportal%2Frubricas' },
+  // Plan visual F10-1† (C8, RF-16): la ficha del caso, a donde lleva la puerta de la sala y «Iniciar simulación».
+  {
+    id: 'caso-ficha', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId/ficha', resolvePath: studentBriefPath,
+    ready: async page => {
+      await page.getByRole('button', { name: 'Comenzar', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+    },
+  },
   {
     id: 'caso-aviso', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId', resolvePath: studentCasePath,
     ready: async page => {

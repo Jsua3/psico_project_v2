@@ -37,7 +37,7 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
   let component: GrupoListComponent;
   let grupos: Record<
     | 'listar' | 'crear' | 'actualizar' | 'eliminar' | 'quitarEstudiante' | 'agregarEstudiante'
-    | 'asignarCaso' | 'quitarCaso' | 'importSpec' | 'listarEstudiantes' | 'listarCasos',
+    | 'importSpec' | 'listarEstudiantes',
     Mock
   >;
   let simulation: { listCases: Mock };
@@ -53,11 +53,8 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
       eliminar: vi.fn(),
       quitarEstudiante: vi.fn(),
       agregarEstudiante: vi.fn(),
-      asignarCaso: vi.fn(),
-      quitarCaso: vi.fn(),
       importSpec: vi.fn(),
       listarEstudiantes: vi.fn(() => of([marta])),
-      listarCasos: vi.fn(() => of([])),
     };
     simulation = { listCases: vi.fn(() => of([caso])) };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
@@ -321,66 +318,6 @@ describe('grupos: feedback de acciones (comportamiento)', () => {
 
       expect(notify.info).toHaveBeenCalledWith('Código del grupo: COH-A');
       expect(component.mensajeEstudiante()).toBe('');
-    });
-  });
-
-  describe('asignar y retirar casos', () => {
-    it('asignar avisa el éxito', () => {
-      grupos.asignarCaso.mockReturnValue(of([caso]));
-      component.casoForm.setValue({ caseVersionId: '12' });
-
-      component.asignarCaso();
-
-      expect(grupos.asignarCaso).toHaveBeenCalledWith(1, 12);
-      expect(notify.success).toHaveBeenCalledWith('Caso asignado al grupo.');
-      expect(component.casosAsignados()).toEqual([caso]);
-      expect(component.asignandoCaso()).toBe(false);
-    });
-
-    it('asignar con error avisa el mensaje del backend y libera asignandoCaso', () => {
-      grupos.asignarCaso.mockReturnValue(backendError(409, { message: 'El caso ya está asignado.' }));
-      component.casoForm.setValue({ caseVersionId: '12' });
-
-      component.asignarCaso();
-
-      expect(notify.error).toHaveBeenCalledWith('El caso ya está asignado.');
-      expect(notify.success).not.toHaveBeenCalled();
-      expect(component.mensajeEstudiante()).toBe('');
-      expect(component.asignandoCaso()).toBe(false);
-    });
-
-    it('asignar con error sin mensaje avisa el texto de respaldo', () => {
-      grupos.asignarCaso.mockReturnValue(backendError(500, null));
-      component.casoForm.setValue({ caseVersionId: '12' });
-
-      component.asignarCaso();
-
-      expect(notify.error).toHaveBeenCalledWith('No fue posible asignar el caso al grupo.');
-    });
-
-    it('retirar avisa el éxito', () => {
-      component.casosAsignados.set([caso]);
-      grupos.quitarCaso.mockReturnValue(of([]));
-
-      component.quitarCaso(12);
-
-      expect(grupos.quitarCaso).toHaveBeenCalledWith(1, 12);
-      expect(notify.success).toHaveBeenCalledWith('Caso retirado del grupo.');
-      expect(component.casosAsignados()).toEqual([]);
-      expect(component.asignandoCaso()).toBe(false);
-    });
-
-    it('retirar con error avisa el mensaje del backend, o el respaldo si no hay', () => {
-      grupos.quitarCaso.mockReturnValue(backendError(400, { message: 'Hay estudiantes con este caso en curso.' }));
-      component.quitarCaso(12);
-      expect(notify.error).toHaveBeenLastCalledWith('Hay estudiantes con este caso en curso.');
-
-      grupos.quitarCaso.mockReturnValue(backendError(500, null));
-      component.quitarCaso(12);
-      expect(notify.error).toHaveBeenLastCalledWith('No fue posible retirar el caso del grupo.');
-      expect(notify.success).not.toHaveBeenCalled();
-      expect(component.mensajeEstudiante()).toBe('');
-      expect(component.asignandoCaso()).toBe(false);
     });
   });
 

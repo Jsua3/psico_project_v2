@@ -570,6 +570,7 @@ export class GameMenuComponent implements OnDestroy {
   /**
    * Entra al caso YA (antes, 900 ms de espera ficticia): la tarjeta «Entrando al caso» cubre lo que tarde la
    * navegación. Una sola navegación (E y clic casi simultáneos); si no se pudo navegar, la sala vuelve a estar a mano.
+   * Lleva primero a la ficha del caso (F10-1, RF-16), que no crea el intento; su «Comenzar» abre el juego.
    */
   enter(caseVersionId: number) {
     // Con la ayuda abierta, la E del juego (Phaser la sigue leyendo) no debe llevar al caso a quien está leyendo.
@@ -577,7 +578,7 @@ export class GameMenuComponent implements OnDestroy {
     const item = this.catalog().find(c => c.caseVersionId === caseVersionId);
     if (item && !item.unlocked) return;
     this.entering.set(item?.title ?? 'Caso');
-    Promise.resolve(this.router.navigate(['/portal/simulador', caseVersionId]))
+    Promise.resolve(this.router.navigate(['/portal/simulador', caseVersionId, 'ficha']))
       .then(navigated => { if (navigated === false) this.entering.set(''); })
       .catch(() => this.entering.set(''));
   }

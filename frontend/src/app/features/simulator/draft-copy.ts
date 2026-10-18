@@ -17,7 +17,7 @@ export interface DraftCopyEntry {
    * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
    * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -233,6 +233,35 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Traza docente: diálogo «Reemplazar intento», consecuencia para el intento y su bitácora',
     text: `El intento se cerrará como «${statusLabel('REPLACED')}» y su bitácora quedará bloqueada; la próxima vez que la persona entre al caso empezará uno nuevo.`,
+  },
+  /**
+   * Aviso de la ficha del caso cuando el caso trae contenido sensible (F10-1, RF-16): antes del aviso previo de
+   * contenido (ETH-01), que sigue siendo el que pide el consentimiento. Dice lo que viene y recuerda la salida.
+   */
+  briefSensitiveNote: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    where: 'Ficha del caso: aviso de contenido sensible, antes de «Comenzar»',
+    text: 'Este caso trata situaciones delicadas. Antes de entrar verás un aviso, y en cualquier momento puedes parar con «Salida segura».',
+  },
+  /** Ficha del caso sin objetivos ni personajes redactados todavía (F10-1): se puede comenzar igual. */
+  briefPending: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ficha del caso: cuando el caso aún no trae objetivos ni personajes',
+    text: 'Tu docente aún no ha redactado los objetivos ni los personajes de este caso. Puedes comenzar de todas formas.',
+  },
+  /**
+   * Junto al contador de «Ver pista» (F10-2, RF-18, decisión 13): pedir una pista no cuesta puntaje. Corta a propósito: va
+   * en la misma línea que el botón, porque en un celular cada renglón que se le suma al panel empuja las opciones.
+   */
+  hintNoCostNote: {
+    decision: 'F10-2',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Pistas de la escena: junto al contador de «Ver pista»',
+    text: 'sin costo',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

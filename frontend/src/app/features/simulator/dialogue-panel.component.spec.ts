@@ -3,7 +3,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
+import { of } from 'rxjs';
+
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { SimulationService } from '../../core/api/simulation.service';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueState } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
@@ -713,7 +716,17 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
       expect(decisionBtn.hasAttribute('aria-disabled')).toBe(false);
       const chip = toolBtn.querySelector('.choice-btn__hint')!;
       expect(text(chip)).toBe('Aún no tienes esta herramienta. Recógela en la sala.');
-      expect(toolBtn.getAttribute('aria-describedby')).toBe(chip.id);
+      // WCAG 2.5.3 (Axe label-content-name-mismatch, nivel A): el texto visible —el aviso también— forma parte del nombre
+      // accesible. Como ya está en el nombre, no se repite como descripción (un lector lo leería dos veces).
+      expect(toolBtn.getAttribute('aria-label')).toBe('1. Aplicar el material de apoyo. Aún no tienes esta herramienta. Recógela en la sala.');
+      expect(toolBtn.hasAttribute('aria-describedby')).toBe(false);
+      expect(chip.hasAttribute('aria-hidden')).toBe(false);
+      // Axe junta el texto visible de los hijos TAL CUAL: sin un espacio entre la etiqueta y el aviso queda «apoyoAún» y no
+      // coincide con el nombre accesible (el e2e de las pistas lo midió en el navegador).
+      expect(toolBtn.textContent).toMatch(/apoyo\s+Aún/);
+      // Y lo mismo entre el número y la etiqueta, en cualquier opción: «2Escuchar» tampoco coincide con «2. Escuchar».
+      expect(toolBtn.textContent).toMatch(/^\s*1\s+Aplicar/);
+      expect(decisionBtn.textContent).toMatch(/^\s*2\s+Escuchar/);
 
       vi.advanceTimersByTime(600);
       fixture.detectChanges();
@@ -1274,6 +1287,110 @@ const INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC);
 function simulateTypewriter(fullText: string, tickCount: number): string {
   return fullText.slice(0, tickCount);
 }
+
+// req: RF-18, CU-09 (F10-2)
+describe('DialoguePanelComponent - pistas de la escena (F10-2)', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  let getHints: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    getHints = vi.fn(() => of({ available: 2, shown: [] }));
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [
+        { provide: AudioDirectorService, useValue: { playSfx: vi.fn() } },
+        { provide: KitService, useValue: fakeKitService() },
+        { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } },
+        { provide: SimulationService, useValue: { getHints, revealNextHint: vi.fn() } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  /** Abre el diálogo con opciones: la última intervención ya escrita, que es cuando se ven. */
+  function openWithChoices(): void {
+    writeInputSignal(component.dialogue, MULTI_LINE_DIALOGUE);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    component.advanceLine();
+    component.skipTypewriter();
+    fixture.detectChanges();
+  }
+
+  it('con el intento a la vista, las pistas van justo antes de las opciones y piden el estado de ese intento', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    openWithChoices();
+    const root = fixture.nativeElement as HTMLElement;
+    const hints = root.querySelector('app-scene-hint');
+    const choices = root.querySelector('.choices');
+    expect(hints).not.toBeNull();
+    expect(choices).not.toBeNull();
+    // DOCUMENT_POSITION_FOLLOWING: las opciones vienen después de las pistas.
+    expect(hints!.compareDocumentPosition(choices!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(getHints).toHaveBeenCalledWith('intento-1', 'token-1');
+  });
+
+  it('sin intento (la vista previa del editor) no hay pistas ni se pide nada', () => {
+    openWithChoices();
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-scene-hint')).toBeNull();
+    expect(getHints).not.toHaveBeenCalled();
+  });
+
+  /** Abre un diálogo con las opciones dadas y las deja a la vista (última intervención ya escrita). */
+  function openWith(choices: DialogueState['choices']): HTMLElement {
+    writeInputSignal(component.dialogue, { ...MULTI_LINE_DIALOGUE, choices });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    component.advanceLine();
+    component.skipTypewriter();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  // req: RF-18, CU-09 (revisión de F10: una confirmación de la interfaz no es un momento de decidir)
+  it('una confirmación de la interfaz (sin decisión ni herramienta) no ofrece pistas ni las pide', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    const root = openWith([
+      { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
+      { key: 'frontend:proceed-evidence:7', text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
+    ]);
+
+    expect(root.querySelector('.choices'), 'las opciones sí se ven').not.toBeNull();
+    expect(root.querySelector('app-scene-hint')).toBeNull();
+    expect(getHints).not.toHaveBeenCalled();
+  });
+
+  // req: RF-18, CU-09 (el caso demo llega a la decisión de la familia por la herramienta: sin ella, la lista solo trae esa opción)
+  it('una lista solo de herramientas sí ofrece pistas: así se llega a la decisión de la sala', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    const root = openWith([
+      { key: 'tool-1', text: 'Aplicar PAP a la familia en crisis', decisionOptionId: null, requiredToolCode: 'PAP', effect: {} },
+    ]);
+
+    expect(root.querySelector('app-scene-hint'), 'la franja de pistas está sobre las opciones').not.toBeNull();
+    expect(getHints).toHaveBeenCalledWith('intento-1', 'token-1');
+  });
+
+  it('mientras las opciones siguen ocultas (hay más intervenciones por leer) tampoco', () => {
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+    writeInputSignal(component.dialogue, MULTI_LINE_DIALOGUE);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-scene-hint')).toBeNull();
+    expect(getHints).not.toHaveBeenCalled();
+  });
+});
 
 describe('Dialogue typewriter timing', () => {
   it('reveals characters at 22 chars/sec', () => {

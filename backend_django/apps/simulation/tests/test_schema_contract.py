@@ -171,6 +171,16 @@ def _case_versions_status():
     CaseVersion.objects.filter(pk=_published_version().pk).update(status="ZOMBIE")
 
 
+def _case_versions_seal():
+    # E4-4: el sello es completo o no es: una fecha sin huella (o al revés) no entra.
+    CaseVersion.objects.filter(pk=_published_version().pk).update(validated_at=None, definition_hash="sha256:" + "a" * 64)
+
+
+def _case_versions_reuse_ratio():
+    # E4-7: la reutilización es una razón entre 0 y 1.
+    CaseVersion.objects.filter(pk=_published_version().pk).update(reuse_ratio=2)
+
+
 def _decision_options_classification():
     DecisionOption.objects.filter(pk=DecisionOption.objects.first().pk).update(classification="MAYBE")
 
@@ -256,6 +266,8 @@ def _attempts_user_trust_range():
 CHECKS = {
     "users_role_check": _users_role,
     "case_versions_status_check": _case_versions_status,
+    "case_versions_seal_check": _case_versions_seal,
+    "case_versions_reuse_ratio_check": _case_versions_reuse_ratio,
     "decision_options_classification_check": _decision_options_classification,
     "map_objects_object_type_check": _map_objects_object_type,
     "publication_checklists_status_check": _publication_checklists_status,

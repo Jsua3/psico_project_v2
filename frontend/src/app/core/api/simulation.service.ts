@@ -1,11 +1,14 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { ApiResponse } from './api-response';
+import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import {
   AttemptCompletionReport,
+  CaseBrief,
   CatalogItem,
+  HintState,
   InteractionResult,
   ScenarioConfig,
   SimulationAttemptState,
@@ -40,15 +43,42 @@ export class SimulationService {
       .pipe(map(response => response.data));
   }
 
+  /**
+   * La ficha del caso (C8, RF-16): contexto, personajes y objetivos, sin crear intento. El 403 `ACCESS_NOT_ASSIGNED` lo
+   * explica la pantalla con su propio texto, así que el aviso genérico de «sin permisos» no sale además.
+   */
+  getCaseBrief(caseVersionId: number) {
+    return this.http.get<ApiResponse<CaseBrief>>(`${this.API}/cases/${caseVersionId}/brief`, {
+      context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
+    }).pipe(map(response => response.data));
+  }
+
+  /**
+   * Inicia el intento o devuelve el abierto. El 403 `ACCESS_*` (cerró, aún no abre, secuencia) lo explica la pantalla de
+   * juego con el aviso del caso, así que el aviso genérico de «sin permisos» no sale además.
+   */
   startAttempt(caseVersionId: number, forceNew = false) {
-    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, { caseVersionId, forceNew })
-      .pipe(map(response => response.data));
+    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, { caseVersionId, forceNew }, {
+      context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
+    }).pipe(map(response => response.data));
   }
 
   getActiveAttempt(caseVersionId: number) {
     return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/cases/${caseVersionId}/active-attempt`, {
       observe: 'response'
     }).pipe(map(response => response.status === 204 ? null : response.body!.data));
+  }
+
+  /** Las pistas de la escena actual (C9): lo que el intento ya pidió y cuántas quedan. */
+  getHints(attemptId: string, attemptToken: string) {
+    return this.http.get<ApiResponse<HintState>>(`${this.API}/attempts/${attemptId}/hints`, this.attemptOptions(attemptToken))
+      .pipe(map(response => response.data));
+  }
+
+  /** Pide la siguiente pista (C9, sin costo). `requestId` la hace idempotente: un doble clic revela una sola. */
+  revealNextHint(attemptId: string, attemptToken: string, requestId: string) {
+    return this.http.post<ApiResponse<HintState>>(`${this.API}/attempts/${attemptId}/hints/next`, { attemptToken, requestId })
+      .pipe(map(response => response.data));
   }
 
   getProgressMap(attemptId: string, attemptToken: string) {

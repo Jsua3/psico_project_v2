@@ -173,6 +173,34 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
       expect(component.attempt()).not.toBeNull();
     });
 
+    // req: RN-04, RF-15, decisión 12
+    it('un 403 ACCESS_CLOSED al iniciar (o al empezar de nuevo) dice que el caso cerró, no «revisa tus permisos», y no ofrece reintentar', () => {
+      const refusal = new HttpErrorResponse({
+        status: 403, error: { success: false, code: 'ACCESS_CLOSED', message: 'El plazo de este caso ya terminó.', closesAt: '2026-10-05T23:59:00-05:00' },
+      });
+      setup({ sim: { startAttempt: vi.fn(() => throwError(() => refusal)) } });
+
+      component.ngOnInit();
+
+      expect(component.error()).toMatch(/^Ya cerró\. /);
+      expect(component.error()).toContain('ya no se pueden iniciar intentos');
+      expect(component.error()).not.toContain('Revisa tus permisos');
+      expect(component.errorKind()).toBe('forbidden');
+      expect(component.canRetry()).toBe(false);
+    });
+
+    it('un 403 ACCESS_NOT_YET_OPEN al iniciar dice desde cuándo se puede', () => {
+      const refusal = new HttpErrorResponse({
+        status: 403, error: { success: false, code: 'ACCESS_NOT_YET_OPEN', message: 'Este caso aún no está abierto.', opensAt: '2026-10-20T08:00:00-05:00' },
+      });
+      setup({ sim: { startAttempt: vi.fn(() => throwError(() => refusal)) } });
+
+      component.ngOnInit();
+
+      expect(component.error()).toMatch(/^Aún no abre\. /);
+      expect(component.error()).toMatch(/20 de oct/);
+    });
+
     it('un permiso negado se dice «sin permiso» (sin botón de reintento)', () => {
       setup({ sim: { startAttempt: vi.fn(() => throwError(() => httpError(403))) } });
 

@@ -10,8 +10,16 @@
           <ui-field label="Título" required [error]="host.fieldError(control(g, 'title'), 'Escribe el título del nodo.')">
             <input uiControl type="text" formControlName="title" placeholder="Sala de urgencias" autocomplete="off">
           </ui-field>
-          <ui-field label="Narrativa" required [error]="host.fieldError(control(g, 'narrative'), 'Escribe la narrativa del nodo.')">
+          <!-- Una conclusión (nodo terminal) tiene su propio texto: el campo lo dice (F10-3, RF-09). -->
+          <ui-field required
+            [label]="g.get('terminal')?.value ? 'Texto de la conclusión' : 'Narrativa'"
+            [hint]="g.get('terminal')?.value ? 'Es lo que lee la persona al llegar a este final. Cada conclusión tiene su propio texto.' : null"
+            [error]="host.fieldError(control(g, 'narrative'), g.get('terminal')?.value ? 'Escribe el texto de la conclusión.' : 'Escribe la narrativa del nodo.')">
             <textarea uiControl rows="4" formControlName="narrative"></textarea>
+          </ui-field>
+          <ui-field label="Enunciado de la decisión" hint="La pregunta que lee la persona antes de elegir. Déjalo vacío si esta escena es una conclusión. Hasta 1.200 caracteres."
+            [error]="host.fieldError(control(g, 'decisionPrompt'), feedbackLimitMessage)">
+            <textarea uiControl rows="2" formControlName="decisionPrompt"></textarea>
           </ui-field>
           <ui-field label="Mensaje de advertencia">
             <input uiControl type="text" formControlName="warningMessage" placeholder="Contenido sensible: violencia..." autocomplete="off">
@@ -66,6 +74,18 @@
           </div>
           <ui-field label="Retroalimentación inmediata">
             <textarea uiControl rows="2" formControlName="immediateFeedback"></textarea>
+          </ui-field>
+          <ui-field label="Consecuencia en la historia" hint="Lo que ve la persona justo después de elegir esta opción. Hasta 1.200 caracteres."
+            [error]="host.fieldError(control(g, 'consequenceText'), feedbackLimitMessage)">
+            <textarea uiControl rows="3" formControlName="consequenceText"></textarea>
+          </ui-field>
+          <ui-field label="Retroalimentación pedagógica" hint="Por qué esta opción es adecuada o no, explicado para quien aprende. Hasta 1.200 caracteres."
+            [error]="host.fieldError(control(g, 'feedbackText'), feedbackLimitMessage)">
+            <textarea uiControl rows="3" formControlName="feedbackText"></textarea>
+          </ui-field>
+          <ui-field label="Fundamento teórico" hint="El concepto o la referencia que respalda la retroalimentación. Hasta 1.200 caracteres."
+            [error]="host.fieldError(control(g, 'theoryBasis'), feedbackLimitMessage)">
+            <textarea uiControl rows="3" formControlName="theoryBasis"></textarea>
           </ui-field>
           <div class="cs-checks">
             <label ui-check><input type="checkbox" formControlName="prohibitedConduct">Conducta prohibida (penalización grave)</label>
@@ -185,6 +205,38 @@
           </ui-field>
           <ui-field label="Descripción" required [error]="host.fieldError(control(g, 'description'), 'Escribe la descripción de la herramienta.')">
             <textarea uiControl rows="4" formControlName="description"></textarea>
+          </ui-field>
+        }
+        @case ('hint') {
+          <p class="cs-context">Sala «{{ hintMapTitle() }}»</p>
+          <ui-field label="Texto de la ayuda" required hint="Texto plano, hasta 280 caracteres."
+            [error]="host.fieldError(control(g, 'text'), hintTextMessage(control(g, 'text')))">
+            <textarea uiControl rows="3" formControlName="text"></textarea>
+          </ui-field>
+          <ui-field label="Lugar entre las ayudas de la sala" [error]="host.fieldError(control(g, 'hintOrder'), 'El lugar empieza en 1.')"
+            [hint]="host.panel()?.kind === 'hint-edit' ? 'Déjalo vacío para no cambiarlo.' : 'Déjalo vacío para que sea la última.'">
+            <input uiControl type="number" min="1" formControlName="hintOrder">
+          </ui-field>
+        }
+        @case ('character') {
+          <ui-field label="Clave del personaje" required hint="Identifica al personaje dentro del caso; no la ve la persona."
+            [error]="host.fieldError(control(g, 'characterKey'), 'Escribe la clave del personaje.')">
+            <input uiControl type="text" formControlName="characterKey" maxlength="120" placeholder="enfermera-urgencias" autocomplete="off">
+          </ui-field>
+          <ui-field label="Nombre" required [error]="host.fieldError(control(g, 'displayName'), 'Escribe el nombre del personaje.')">
+            <input uiControl type="text" formControlName="displayName" maxlength="255" placeholder="Marta, enfermera" autocomplete="off">
+          </ui-field>
+          <ui-field label="Rol" hint="Lo que la persona sabe de quien es antes de empezar.">
+            <input uiControl type="text" formControlName="roleLabel" maxlength="255" placeholder="Enfermera de urgencias" autocomplete="off">
+          </ui-field>
+          <ui-field label="Retrato (clave del kit)" hint="Déjalo vacío para que el retrato se elija por el nombre.">
+            <input uiControl type="text" formControlName="portraitKey" maxlength="120" autocomplete="off">
+          </ui-field>
+          <div class="cs-checks">
+            <label ui-check><input type="checkbox" formControlName="showInBrief">Aparece en la ficha del caso</label>
+          </div>
+          <ui-field label="Orden en la ficha">
+            <input uiControl type="number" formControlName="displayOrder">
           </ui-field>
         }
       }
