@@ -487,6 +487,9 @@ export class CaseReviewPanelComponent {
     if (body?.code === 'CASE_NOT_PUBLISHABLE') {
       const blockers = readBlockers(body.blockers);
       if (blockers.length > 0) {
+        // S3-3: la constancia que falta llega como un bloqueo `ETHICS.NO_CONTENT_REVIEW` (409), ya no como un 400
+        // `CONTENT_REVIEW_REQUIRED`: el siguiente intento de aprobar la pide como obligatoria en el diálogo.
+        if (blockers.some(blocker => blocker.code === 'ETHICS.NO_CONTENT_REVIEW')) this.contentReviewRequired = true;
         this.blockers.set(blockers);
         // La región de estado ya existe: lo que impide avanzar se anuncia ahí (un `alert` que nace con su texto no).
         this.statusText.set(`No se pudo completar la acción: ${blockers.map(blocker => blocker.message).join(' ')}`);

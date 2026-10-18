@@ -309,8 +309,9 @@ RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 
 #: E2-5 · REVIEW_WORKFLOW_STRICT. Encendida: la publicación pasa por revisión: solo se publica desde `IN_REVIEW`
 #: (`POST …/publish` sobre un borrador → 409 REVIEW_REQUIRED), con la lista completa de siete ítems y la constancia de
-#: revisión de contenido de Psicología (400 CONTENT_REVIEW_REQUIRED si falta). Apagada: `/publish` del ADMIN sigue
-#: publicando un borrador, la constancia es opcional y solo los seis ítems originales son obligatorios.
+#: revisión de contenido de Psicología (409 CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW si falta; 400
+#: CONTENT_REVIEW_REQUIRED si viene incompleta, S3-3). Apagada: `/publish` del ADMIN sigue publicando un borrador, la
+#: constancia es opcional y solo los seis ítems originales son obligatorios.
 REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
 #: E2-6 · REVISION_REQUIRED. Encendida: `revision` es obligatoria en toda mutación de autoría (400 REVISION_REQUIRED
 #: si falta). Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409 REVISION_CONFLICT.

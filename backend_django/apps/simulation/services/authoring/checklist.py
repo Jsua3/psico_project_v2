@@ -7,17 +7,28 @@ valide (decisión 17). Con ``REVIEW_WORKFLOW_STRICT`` apagada solo los seis son 
 
 La «revisión de contenido por Psicología» NO es una casilla del autor: se cumple con la
 constancia que el ADMIN registra al aprobar (``case_reviews``), y aquí solo se muestra.
+
+Cada ítem declara además **quién lo respalda** (S3-3): una casilla marcada no basta por sí sola.
+
+- ``SYSTEM``: el sistema lo comprueba con los datos del caso o del servidor (``ethics``).
+- ``CONSTANCIA``: lo respalda la constancia de Psicología, que se registra al aprobar. Solo vale con
+  ``REVIEW_WORKFLOW_STRICT``: apagada la constancia es opcional y la casilla es solo declaración.
+- ``AUTHOR``: solo la declaración de quien autora el caso; nadie puede comprobarla con los datos de hoy.
 """
 from django.conf import settings
 
-#: (código, texto, ¿obligatorio sin la bandera?, ¿texto en borrador?)
+SYSTEM = "system"
+CONSTANCIA = "constancia"
+AUTHOR = "author"
+
+#: (código, texto, ¿obligatorio sin la bandera?, ¿texto en borrador?, ¿quién lo respalda?)
 CHECKLIST_ITEMS = (
-    ("contentOriginal", "Contenido original — sin copiar personajes, mapas ni narrativa comercial.", True, False),
-    ("ethicsReviewed", "Revisión ética — caso validado por experto o comité.", True, False),
-    ("safetyProtocols", "Protocolos de seguridad — ruta VBG, NNA y salida segura incluidos.", True, False),
-    ("noStigmatizing", "Sin lenguaje estigmatizante ni estereotipos clínicos.", True, False),
-    ("triggerWarnings", "Advertencias de contenido sensible configuradas en nodos.", True, False),
-    ("accessibilityOk", "Accesibilidad — fallback accesible y controles táctiles probados.", True, False),
+    ("contentOriginal", "Contenido original — sin copiar personajes, mapas ni narrativa comercial.", True, False, AUTHOR),
+    ("ethicsReviewed", "Revisión ética — caso validado por experto o comité.", True, False, CONSTANCIA),
+    ("safetyProtocols", "Protocolos de seguridad — ruta VBG, NNA y salida segura incluidos.", True, False, SYSTEM),
+    ("noStigmatizing", "Sin lenguaje estigmatizante ni estereotipos clínicos.", True, False, AUTHOR),
+    ("triggerWarnings", "Advertencias de contenido sensible configuradas en nodos.", True, False, SYSTEM),
+    ("accessibilityOk", "Accesibilidad — fallback accesible y controles táctiles probados.", True, False, AUTHOR),
     # BORRADOR: texto nuevo, pendiente de la validación de Psicología (decisión 17, VD-23).
     (
         "scopeEducational",
@@ -25,18 +36,38 @@ CHECKLIST_ITEMS = (
         "intervención clínica real.",
         False,
         True,
+        AUTHOR,
     ),
 )
 CODES = tuple(code for code, *_ in CHECKLIST_ITEMS)
+_BACKING = {code: backing for code, *_, backing in CHECKLIST_ITEMS}
+
+# BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+#: Etiqueta corta de cada respaldo, para quien lee la lista sin programar.
+BACKING_LABELS = {
+    SYSTEM: "Lo comprueba el sistema",
+    CONSTANCIA: "Lo respalda la constancia de Psicología",
+    AUTHOR: "Declaración de quien autora el caso",
+}
 
 
 def strict():
     return bool(settings.REVIEW_WORKFLOW_STRICT)
 
 
+def backing_of(code, strict_mode):
+    """Quién respalda la casilla ``code`` ahora: ``SYSTEM``, ``CONSTANCIA`` o ``AUTHOR``.
+
+    La constancia solo es obligatoria con la bandera estricta; apagada, ``ethicsReviewed`` es solo la declaración de
+    quien autora (``AUTHOR``).
+    """
+    declared = _BACKING[code]
+    return declared if declared != CONSTANCIA or strict_mode else AUTHOR
+
+
 def required_codes(strict_mode):
     """Los códigos obligatorios: los seis de siempre; con la bandera, los siete."""
-    return tuple(code for code, _, required_always, _ in CHECKLIST_ITEMS if strict_mode or required_always)
+    return tuple(code for code, _, required_always, *_ in CHECKLIST_ITEMS if strict_mode or required_always)
 
 
 def legacy_strict_cap():

@@ -13,6 +13,7 @@ from apps.grupos.models import Grupo
 from apps.simulation.models import AuditLog, CaseReview, CaseVersion, SimulationAttempt, SimulationCase
 from apps.simulation.services.authoring import publication
 
+from .publication_support import give_support_resource
 from .test_game import assign_case_to_student, attempt_headers
 
 pytestmark = [pytest.mark.req("RF-13"), pytest.mark.req("CU-05"), pytest.mark.req("RQ-NEG-008")]
@@ -69,6 +70,7 @@ def _draft_owned_by(owner, filled=True):
         code=f"LC-{_counter['n']}", title=f"Caso del ciclo {_counter['n']}", created_by=owner
     )
     CaseVersion.objects.filter(pk=cv).update(simulation_case=case, semantic_version="0.1.0")
+    give_support_resource(cv)  # S3-3: la lista marca «protocolos de seguridad» y el caso sembrado no trae ningún recurso
     if filled:
         assert cl(owner).put(f"{AUTHORING}/{cv}/checklist", CHECKLIST, format="json").status_code == 200
     return cv
@@ -131,11 +133,17 @@ def test_only_admin_approves_and_strict_mode_asks_for_the_certificate(prof_a, ad
     _post(cl(prof_a), cv, action="submit")
 
     assert _post(cl(prof_a), cv, action="approve").status_code == 403
+    # S3-3: sin constancia la compuerta no deja publicar (antes era un 400 CONTENT_REVIEW_REQUIRED); una constancia
+    # incompleta sigue siendo un 400 de forma.
     missing = _post(cl(admin), cv, action="approve")
-    assert missing.status_code == 400
-    assert missing.data["code"] == "CONTENT_REVIEW_REQUIRED"
+    assert missing.status_code == 409
+    assert missing.data["code"] == "CASE_NOT_PUBLISHABLE"
+    assert [issue["code"] for blocker in missing.data["blockers"] for issue in blocker["issues"]] == [
+        "ETHICS.NO_CONTENT_REVIEW"
+    ]
     partial = _post(cl(admin), cv, action="approve", contentReview={"reviewer": "Mg. Elena Rojas"})
     assert partial.status_code == 400
+    assert partial.data["code"] == "CONTENT_REVIEW_REQUIRED"
     assert CaseVersion.objects.get(pk=cv).status == "IN_REVIEW"
 
     approved = _post(cl(admin), cv, action="approve", note="Contenido validado", contentReview=CONTENT_REVIEW)

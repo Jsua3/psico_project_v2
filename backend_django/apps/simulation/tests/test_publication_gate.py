@@ -28,6 +28,7 @@ from apps.simulation.services.authoring import definition_io, gate, graph, lifec
 from shared.exceptions import ApiError
 from shared.testing import run_concurrently
 
+from .publication_support import give_support_resource
 from .test_case_lifecycle import AUTHORING, CHECKLIST, _draft_owned_by
 from .test_game import assign_case_to_student
 
@@ -230,6 +231,7 @@ def _real_valid_draft(owner):
     suffix = uuid.uuid4().hex[:8]
     case = SimulationCase.objects.create(code=f"GATE-{suffix.upper()}", title=f"Caso {suffix}", created_by=owner)
     CaseVersion.objects.filter(pk=cv).update(simulation_case=case, semantic_version="0.1.0")
+    give_support_resource(cv)  # S3-3: la lista marca «protocolos de seguridad» y el caso sembrado no trae ningún recurso
     assert cl(owner).put(f"{AUTHORING}/{cv}/checklist", CHECKLIST, format="json").status_code == 200
     return cv, case
 

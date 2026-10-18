@@ -17,6 +17,10 @@ toma sus permisos de la matriz de políticas; la de abajo son las transiciones, 
 Banderas (R4): con ``REVIEW_WORKFLOW_STRICT`` apagada, ``approve`` también publica un
 borrador (el atajo del editor de hoy) y la constancia es opcional; encendida, solo se
 publica desde ``IN_REVIEW`` y con la constancia de revisión de contenido de Psicología.
+
+La constancia se exige en la compuerta (S3-3): una «revisión ética» marcada sin constancia —ni la de esta llamada ni una
+previa— es ``CASE_NOT_PUBLISHABLE`` (409) con ``ETHICS.NO_CONTENT_REVIEW`` en los bloqueos. Aquí solo se valida la FORMA de
+la que llega (``CONTENT_REVIEW_REQUIRED``, 400, si viene incompleta o con fecha futura).
 """
 import datetime
 from types import SimpleNamespace
@@ -32,6 +36,7 @@ from shared import policies
 from shared.exceptions import ApiError
 
 from . import gate
+from .editor_view import checklist_view
 from .guards import check_revision, revision_bump
 
 DRAFT = "DRAFT"
@@ -146,8 +151,11 @@ def submit(case_version_id, actor, revision=None):
     return lifecycle_view(version.pk, actor)
 
 
-def _parse_content_review(payload, *, required):
-    """La constancia de revisión de contenido: ``{reviewer, reviewedOn, reference}`` o ``None``."""
+def _parse_content_review(payload):
+    """La constancia de revisión de contenido que llega: ``{reviewer, reviewedOn, reference}`` o ``None`` si no llega.
+
+    Solo valida la forma. Que haga falta (con la bandera, y sin una previa) lo decide la compuerta.
+    """
     def invalid(message=None):
         return ApiError(
             "CONTENT_REVIEW_REQUIRED",
@@ -159,8 +167,6 @@ def _parse_content_review(payload, *, required):
         )
 
     if not payload:
-        if required:
-            raise invalid()
         return None
     if not isinstance(payload, dict):
         raise invalid()
@@ -196,8 +202,10 @@ def approve(case_version_id, actor, note="", content_review=None, revision=None)
             )
     else:
         _require_transition(version, "approve", actor)
-    seal = gate.ensure_publishable(version)  # la compuerta única: valida y calcula el sello
-    constancia = _parse_content_review(content_review, required=strict)
+    # La compuerta única: valida, comprueba el respaldo de la lista y calcula el sello. Una constancia que llega en esta
+    # llamada la satisface; su forma se valida enseguida, en esta misma transacción y antes de publicar.
+    seal = gate.ensure_publishable(version, content_review_given=bool(content_review))
+    constancia = _parse_content_review(content_review)
 
     review = _pending_review(version) or CaseReview(case_version=version, requested_by=actor)
     now = seal.validated_at
@@ -335,12 +343,21 @@ def _review_view(review):
 
 
 def lifecycle_view(case_version_id, actor):
-    """``CaseLifecycle`` (C4): estado, transiciones permitidas, motivo de bloqueo y última revisión."""
+    """``CaseLifecycle`` (C4): estado, transiciones permitidas, motivo de bloqueo, última revisión y la lista con sus respaldos.
+
+    ``checklist`` (S3-3, aditivo) es la misma lista que trae el editor: quien revisa ve quién respalda cada casilla
+    (``backing``) y si el dato que la respalda existe (``backed``) sin pedir el caso entero.
+    """
     version = CaseVersion.objects.select_related("simulation_case").get(pk=case_version_id)
     allowed = allowed_transitions(
         version.status, role=actor.role, is_author=_is_author(actor, version)
     )
-    view = {"caseVersionId": version.pk, "state": version.status, "allowedTransitions": allowed}
+    view = {
+        "caseVersionId": version.pk,
+        "state": version.status,
+        "allowedTransitions": allowed,
+        "checklist": checklist_view(version.pk),
+    }
     if "submit" in allowed or "approve" in allowed:
         blockers = publishing_blockers(version)
         if blockers:
