@@ -44,11 +44,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend_django/requirements.txt
+          cache-dependency-path: backend_django/requirements*.txt
       - name: Crear venv del backend
         run: |
           python -m venv backend_django/.venv
-          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+          backend_django/.venv/bin/pip install -r backend_django/requirements-dev.txt
       - run: npm ci --prefix frontend
       - name: Instalar Chromium de Playwright
         working-directory: frontend
@@ -85,11 +85,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend_django/requirements.txt
+          cache-dependency-path: backend_django/requirements*.txt
       - name: Crear venv del backend
         run: |
           python -m venv backend_django/.venv
-          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+          backend_django/.venv/bin/pip install -r backend_django/requirements-dev.txt
       - run: npm ci --prefix frontend
       - name: Instalar Chromium de Playwright
         working-directory: frontend
@@ -120,11 +120,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend_django/requirements.txt
+          cache-dependency-path: backend_django/requirements*.txt
       - name: Crear venv del backend
         run: |
           python -m venv backend_django/.venv
-          backend_django/.venv/bin/pip install -r backend_django/requirements.txt
+          backend_django/.venv/bin/pip install -r backend_django/requirements-dev.txt
       - name: Carga nominal (40 estudiantes durante 60 min, p95 <= 2 s, error <= 1%)
         id: nominal
         run: >

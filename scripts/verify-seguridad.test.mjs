@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { buildSteps, evaluateDeployCheck, selectSteps } from './verify-seguridad-support.mjs';
+import { buildSteps, evaluateDeployCheck, evaluateImageScan, selectSteps } from './verify-seguridad-support.mjs';
 
 const ROOT = 'C:/repo';
 const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'REFLECTION_ENCRYPTION_KEY', 'JWT_SIGNING_KEY'];
@@ -25,7 +25,7 @@ test('los pasos van en el orden del plan y cada uno tiene comando y argumentos',
   const steps = pasos();
   assert.deepEqual(
     steps.map((step) => step.id),
-    ['scripts', 'security-tests', 'deploy-check', 'pip-audit', 'npm-audit', 'gitleaks', 'dist-dev-only'],
+    ['scripts', 'security-tests', 'deploy-check', 'pip-audit', 'npm-audit', 'gitleaks', 'dist-dev-only', 'image-scan'],
   );
   for (const step of steps) {
     assert.ok(step.command, step.id);
@@ -201,4 +201,81 @@ test('--only deja solo los pasos pedidos, en el orden del plan', () => {
 
 test('--only con un paso que no existe falla y nombra los que hay', () => {
   assert.throws(() => selectSteps(pasos(), ['no-existe']), /paso desconocido: no-existe.*deploy-check/);
+});
+
+// --- Escaneo de la imagen (S6-1, opcional): trivy o grype, severidad alta o crítica sin corrección -------------------
+
+const TRIVY = (vulnerabilidades) => JSON.stringify({ Results: [{ Target: 'siep:prueba', Vulnerabilities: vulnerabilidades }] });
+const ALTA = { VulnerabilityID: 'CVE-2099-0001', PkgName: 'libcompleja', InstalledVersion: '1.0', FixedVersion: '', Severity: 'HIGH' };
+
+test('image-scan se omite con «no instalado» cuando no hay trivy ni grype', () => {
+  const step = porId(pasos('linux', { imagen: 'siep:prueba' }), 'image-scan');
+  assert.match(step.skip, /no instalado/);
+});
+
+test('image-scan se omite y lo dice cuando no hay imagen que escanear (SIEP_IMAGE)', () => {
+  const step = porId(pasos('linux', { which: (nombre) => (nombre === 'trivy' ? '/usr/bin/trivy' : null) }), 'image-scan');
+  assert.match(step.skip, /SIEP_IMAGE/);
+});
+
+test('image-scan usa trivy si está, pide la imagen en JSON y evalúa la salida', () => {
+  const step = porId(
+    pasos('linux', { which: (nombre) => (nombre === 'trivy' ? '/usr/bin/trivy' : null), imagen: 'siep:prueba' }),
+    'image-scan',
+  );
+  assert.equal(step.skip, undefined);
+  assert.equal(step.command, '/usr/bin/trivy');
+  assert.ok(step.args.includes('json') && step.args.includes('siep:prueba'));
+  assert.equal(typeof step.scan, 'function');
+});
+
+test('image-scan cae a grype cuando no hay trivy', () => {
+  const step = porId(
+    pasos('linux', { which: (nombre) => (nombre === 'grype' ? '/usr/bin/grype' : null), imagen: 'siep:prueba' }),
+    'image-scan',
+  );
+  assert.equal(step.command, '/usr/bin/grype');
+  assert.ok(step.args.includes('siep:prueba'));
+});
+
+test('una vulnerabilidad alta sin corrección bloquea y la nombra (trivy)', () => {
+  const veredicto = evaluateImageScan(TRIVY([ALTA]), {});
+  assert.equal(veredicto.ok, false);
+  assert.match(veredicto.problemas.join('\n'), /CVE-2099-0001/);
+});
+
+test('una alta con corrección disponible no bloquea: la corrige la actualización', () => {
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, FixedVersion: '1.0.1' }]), {}).ok, true);
+});
+
+test('una crítica sin corrección pasa solo si está en la lista justificada', () => {
+  const critica = { ...ALTA, VulnerabilityID: 'CVE-2099-0002', Severity: 'CRITICAL' };
+  assert.equal(evaluateImageScan(TRIVY([critica]), {}).ok, false);
+  assert.equal(evaluateImageScan(TRIVY([critica]), { 'CVE-2099-0002': { motivo: 'No llega a la imagen' } }).ok, true);
+});
+
+test('media y baja sin corrección no bloquean', () => {
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'MEDIUM' }]), {}).ok, true);
+  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'LOW' }]), {}).ok, true);
+});
+
+test('sin vulnerabilidades pasa; una salida que no es un informe reconocido falla y no se da por buena', () => {
+  assert.equal(evaluateImageScan(TRIVY([]), {}).ok, true);
+  assert.equal(evaluateImageScan('no es json', {}).ok, false);
+  assert.equal(evaluateImageScan('{"otra":1}', {}).ok, false);
+});
+
+test('grype usa su propio formato (matches, fix.state) y la misma regla', () => {
+  const grype = (vulnerabilidad) => JSON.stringify({ matches: [{ vulnerability: vulnerabilidad, artifact: { name: 'libcompleja' } }] });
+  const sinCorreccion = { id: 'CVE-2099-0004', severity: 'High', fix: { state: 'not-fixed', versions: [] } };
+  const corregida = { id: 'CVE-2099-0005', severity: 'High', fix: { state: 'fixed', versions: ['1.0.1'] } };
+  assert.equal(evaluateImageScan(grype(sinCorreccion), {}).ok, false);
+  assert.equal(evaluateImageScan(grype(corregida), {}).ok, true);
+});
+
+test('la lista justificada del escaneo es un JSON cuyas entradas llevan motivo', () => {
+  const lista = JSON.parse(readFileSync(new URL('./image-scan-allowlist.json', import.meta.url), 'utf8'));
+  for (const [id, entrada] of Object.entries(lista)) {
+    assert.ok(entrada.motivo?.trim(), id);
+  }
 });

@@ -22,12 +22,59 @@ export function evaluateDeployCheck(output, baseline = {}) {
   return { ok: nuevos.length === 0 && obsoletos.length === 0, nuevos, obsoletos };
 }
 
+const SEVERIDADES_BLOQUEANTES = new Set(['HIGH', 'CRITICAL']);
+
+// Hallazgos normalizados de un informe de trivy (`Results`) o de grype (`matches`); null si no es ninguno de los dos.
+function hallazgosDelInforme(informe) {
+  if (Array.isArray(informe?.Results)) {
+    return informe.Results.flatMap((resultado) => (resultado.Vulnerabilities ?? []).map((vulnerabilidad) => ({
+      id: vulnerabilidad.VulnerabilityID,
+      severidad: String(vulnerabilidad.Severity ?? '').toUpperCase(),
+      corregible: Boolean(vulnerabilidad.FixedVersion),
+      paquete: vulnerabilidad.PkgName ?? '?',
+    })));
+  }
+  if (Array.isArray(informe?.matches)) {
+    return informe.matches.map(({ vulnerability: vulnerabilidad = {}, artifact = {} }) => ({
+      id: vulnerabilidad.id,
+      severidad: String(vulnerabilidad.severity ?? '').toUpperCase(),
+      corregible: vulnerabilidad.fix?.state === 'fixed' || (vulnerabilidad.fix?.versions ?? []).length > 0,
+      paquete: artifact.name ?? '?',
+    }));
+  }
+  return null;
+}
+
+/**
+ * Trinquete del escaneo de la imagen (S6-1, opcional). Bloquea una vulnerabilidad de severidad alta o crítica sin
+ * corrección disponible que no esté en la lista justificada (scripts/image-scan-allowlist.json). Una salida que no es
+ * un informe reconocido no pasa: no se da por buena una respuesta que no se entiende.
+ */
+export function evaluateImageScan(output, allowlist = {}) {
+  let informe;
+  try {
+    informe = JSON.parse(String(output ?? ''));
+  } catch {
+    return { ok: false, problemas: ['la salida del escáner no es JSON'] };
+  }
+  const hallazgos = hallazgosDelInforme(informe);
+  if (!hallazgos) return { ok: false, problemas: ['formato de escáner no reconocido (trivy o grype)'] };
+  const problemas = [...new Set(
+    hallazgos
+      .filter((hallazgo) => SEVERIDADES_BLOQUEANTES.has(hallazgo.severidad)
+        && !hallazgo.corregible
+        && !Object.hasOwn(allowlist, hallazgo.id))
+      .map((hallazgo) => `${hallazgo.id} (${hallazgo.severidad}, ${hallazgo.paquete}): sin corrección disponible`),
+  )].sort();
+  return { ok: problemas.length === 0, problemas };
+}
+
 // Valores nuevos en cada corrida, nunca literales. No se imprimen ni se guardan en ningún sitio.
 function secretoNuevo() {
   return randomBytes(48).toString('base64url');
 }
 
-function deployEnv() {
+export function deployEnv() {
   return {
     DJANGO_SETTINGS_MODULE: 'psychosim.settings.production',
     DJANGO_SECRET_KEY: secretoNuevo(),
@@ -85,6 +132,8 @@ export function buildSteps({
   platform = process.platform,
   root,
   baseline = {},
+  allowlist = {},
+  imagen,
   exists = existsSync,
   which = (name) => findOnPath(name, { platform }),
 }) {
@@ -96,6 +145,19 @@ export function buildSteps({
   const reutilizado = (id) => estructurales.find((step) => step.id === id);
   const gitleaks = which('gitleaks');
   const distDir = join(root, 'frontend', 'dist', 'psychosim-admin-panel', 'browser');
+  // Escaneo de la imagen (S6-1, opcional): trivy si está y, si no, grype. Sin escáner o sin imagen, el paso se omite.
+  const trivy = which('trivy');
+  const grype = trivy ? null : which('grype');
+  const escaneo = {
+    command: trivy ?? grype ?? 'trivy',
+    args: trivy || !grype ? ['image', '--format', 'json', '--quiet', imagen ?? ''] : [imagen ?? '', '-o', 'json', '--quiet'],
+    scan: (output) => evaluateImageScan(output, allowlist),
+    hint: 'Corrige la vulnerabilidad (actualiza la base o la dependencia) o regístrala con su motivo en '
+      + 'scripts/image-scan-allowlist.json.',
+    skip: !trivy && !grype
+      ? 'escáner de imagen no instalado (trivy o grype): el paso es opcional y se omite'
+      : imagen ? undefined : 'sin imagen: define SIEP_IMAGE con la imagen a escanear (p. ej. docker build -t siep .)',
+  };
 
   return [
     { id: 'scripts', label: 'Scripts de entorno (node --test)', command: npm, args: ['run', 'test:scripts'] },
@@ -133,5 +195,6 @@ export function buildSteps({
       args: [join(root, 'frontend', 'scripts', 'ui', 'check-dist-dev-only.mjs')],
       skip: exists(distDir) ? undefined : 'sin build: corre npm run build:frontend',
     },
+    { id: 'image-scan', label: 'Escaneo de la imagen (trivy o grype: alta o crítica sin corrección)', ...escaneo },
   ];
 }

@@ -215,7 +215,7 @@ la instalación real:
 ```powershell
 Remove-Item backend_django\.venv -Recurse -Force
 & C:\Python313\python.exe -m venv backend_django\.venv
-backend_django\.venv\Scripts\python.exe -m pip install -r backend_django\requirements.txt
+backend_django\.venv\Scripts\python.exe -m pip install -r backend_django\requirements-dev.txt
 ```
 
 ### Errores `relation "..." does not exist` con una BD existente

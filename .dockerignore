@@ -12,3 +12,27 @@ backend_django/frontend_dist
 **/coverage
 e2e
 *.log
+# S6-1 · Lo que la imagen no necesita: documentación, scripts, pruebas, configuración local y secretos.
+docs/
+.superpowers/
+scripts/
+**/tests
+**/conftest.py
+**/pytest.ini
+.env*
+**/.env*
+!.env.example
+!**/.env.example
+**/psychosim/settings/local.py
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+*.sql
+.worktrees/
+.claude/
+frontend/e2e
+frontend/scripts
+# npm run build ejecuta frontend/scripts/ui/check-dist-dev-only.mjs: esa excepción conserva el script del build.
+!frontend/scripts/ui/check-dist-dev-only.mjs
+**/_sondeo
