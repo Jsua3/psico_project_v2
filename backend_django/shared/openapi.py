@@ -5,6 +5,12 @@ que devuelven ``ApiResponse`` sin ``serializer_class`` declarativa, registra el
 esquema ``BearerAuth`` para ``SiepJWTAuthentication`` y deduplica rutas con y
 sin barra final (``/api/x`` frente a ``/api/x/``) para evitar colisiones de
 ``operationId``.
+
+Reparación de E5-9: el documento tiene que decir lo que el servidor responde. El sobre de éxito es
+``{success, message?, data?}`` (``shared.response``), el de error ``{success: false, code, message, field?}``
+(``shared.exceptions``) y, en un contrato tipado, ``data`` lleva la forma real (``envelope_of``). Las formas
+concretas viven junto a su dominio (``apps/<app>/serializers/contracts.py``) y las comprueba, contra el servidor,
+``apps/simulation/tests/test_openapi_matches_responses.py``.
 """
 from __future__ import annotations
 
@@ -12,15 +18,71 @@ from typing import Any
 
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.utils import OpenApiResponse
 from rest_framework import serializers
 
 
 class ApiEnvelopeSerializer(serializers.Serializer):
-    """Sobre estándar ``{status, message, data}`` devuelto por ``shared.responses.ApiResponse``."""
+    """Sobre de éxito de la API: `{success, message?, data?}` (`shared.response.envelope`).
 
-    status = serializers.ChoiceField(choices=["success", "error"])
-    message = serializers.CharField(allow_null=True, required=False)
-    data = serializers.JSONField(allow_null=True, required=False)
+    `message` y `data` solo viajan cuando tienen valor. Los endpoints que aún no se tipan llevan este sobre
+    con `data` sin forma.
+    """
+
+    success = serializers.BooleanField(help_text="Siempre `true` en una respuesta de éxito.")
+    message = serializers.CharField(required=False)
+    data = serializers.JSONField(required=False)
+
+
+class ErrorEnvelopeSerializer(serializers.Serializer):
+    """Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`).
+
+    `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos
+    propios en la raíz (`existingAttemptId`, `nodeId`…).
+    """
+
+    success = serializers.BooleanField(help_text="Siempre `false` en un error.")
+    code = serializers.CharField()
+    message = serializers.CharField()
+    field = serializers.CharField(required=False, help_text="El primer campo que falló la validación.")
+
+
+_ENVELOPES: dict[tuple[type, bool], type[serializers.Serializer]] = {}
+
+
+def envelope_of(data_serializer: type[serializers.Serializer], *, many: bool = False) -> type[serializers.Serializer]:
+    """El sobre de éxito de un endpoint cuyo ``data`` tiene la forma de ``data_serializer`` (o una lista de ellas).
+
+    Se crea una sola clase por forma: ``drf-spectacular`` la nombra por su clase y dos distintas con el mismo
+    nombre serían un aviso.
+    """
+    key = (data_serializer, many)
+    if key not in _ENVELOPES:
+        stem = data_serializer.__name__.removesuffix("Serializer")
+        _ENVELOPES[key] = type(
+            f"{stem}{'List' if many else ''}EnvelopeSerializer",
+            (ApiEnvelopeSerializer,),
+            {
+                "__module__": __name__,
+                "__doc__": f"Sobre de éxito: `data` es {'una lista de ' if many else ''}`{stem}`.",
+                "data": data_serializer(many=many),
+            },
+        )
+    return _ENVELOPES[key]
+
+
+_ERROR_DESCRIPTIONS = {
+    400: "Petición inválida; el motivo va en `code`.",
+    401: "Sin sesión válida.",
+    403: "Sin permiso para esta acción.",
+    404: "No existe, o no es visible para quien pregunta.",
+    409: "Choca con el estado actual.",
+}
+
+
+def error_responses(*statuses: int) -> dict[int, OpenApiResponse]:
+    """Las respuestas de error (todas con ``ErrorEnvelope``) que un endpoint declara en ``@extend_schema``."""
+    return {s: OpenApiResponse(ErrorEnvelopeSerializer, description=_ERROR_DESCRIPTIONS[s]) for s in statuses}
 
 
 class GenericJsonPayloadSerializer(serializers.Serializer):
@@ -28,77 +90,6 @@ class GenericJsonPayloadSerializer(serializers.Serializer):
 
     def to_internal_value(self, data: Any) -> Any:
         return data
-
-
-class AuditLogItemSchemaSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    action = serializers.CharField()
-    taxonomy = serializers.CharField()
-    entityType = serializers.CharField(allow_null=True)
-    entityId = serializers.CharField(allow_null=True)
-    actorUserId = serializers.IntegerField(allow_null=True)
-    actorEmail = serializers.CharField(allow_null=True)
-    actorRole = serializers.CharField(allow_null=True)
-    ipAddress = serializers.CharField(allow_null=True)
-    context = serializers.DictField()
-    createdAt = serializers.CharField(allow_null=True)
-
-
-class CoverageSchemaSerializer(serializers.Serializer):
-    shown = serializers.IntegerField()
-    total = serializers.IntegerField()
-
-
-class ReviewQualitySchemaSerializer(serializers.Serializer):
-    contentCommentCount = serializers.IntegerField()
-    formOnlyCount = serializers.IntegerField()
-    totalReviews = serializers.IntegerField()
-    formRatio = serializers.FloatField()
-    rubberStampWarning = serializers.BooleanField()
-
-
-class AuditListResponseSchemaSerializer(serializers.Serializer):
-    items = AuditLogItemSchemaSerializer(many=True)
-    page = serializers.IntegerField()
-    pageSize = serializers.IntegerField()
-    coverage = CoverageSchemaSerializer()
-    retentionDays = serializers.IntegerField()
-    reviewQuality = ReviewQualitySchemaSerializer()
-
-
-class InstructorAttemptItemSchemaSerializer(serializers.Serializer):
-    attemptId = serializers.IntegerField()
-    studentId = serializers.IntegerField(allow_null=True)
-    studentName = serializers.CharField(allow_null=True)
-    studentCode = serializers.CharField(allow_null=True)
-    studentProgram = serializers.CharField(allow_null=True)
-    studentSemester = serializers.IntegerField(allow_null=True)
-    groupId = serializers.IntegerField(allow_null=True)
-    groupCode = serializers.CharField(allow_null=True)
-    caseId = serializers.IntegerField(allow_null=True)
-    caseCode = serializers.CharField(allow_null=True)
-    caseTitle = serializers.CharField(allow_null=True)
-    caseVersionId = serializers.IntegerField(allow_null=True)
-    caseVersionStatus = serializers.CharField(allow_null=True)
-    status = serializers.CharField()
-    outcome = serializers.CharField(allow_null=True)
-    rapportScore = serializers.IntegerField()
-    totalDecisions = serializers.IntegerField()
-    startedAt = serializers.CharField(allow_null=True)
-    finishedAt = serializers.CharField(allow_null=True)
-
-
-class InstructorAttemptsListSchemaSerializer(serializers.Serializer):
-    items = InstructorAttemptItemSchemaSerializer(many=True)
-    page = serializers.IntegerField()
-    pageSize = serializers.IntegerField()
-    coverage = CoverageSchemaSerializer()
-
-
-class WorldPatchAckSchemaSerializer(serializers.Serializer):
-    currentLocation = serializers.CharField()
-    playerX = serializers.IntegerField()
-    playerY = serializers.IntegerField()
 
 
 class SiepJWTAuthenticationScheme(OpenApiAuthenticationExtension):
@@ -113,7 +104,9 @@ class SiepJWTAuthenticationScheme(OpenApiAuthenticationExtension):
         }
 
 
-_LIST_GET_PATHS = frozenset({
+#: GET que devuelven una colección. Solo cambia el NOMBRE de la operación (``x_list`` y no ``x_retrieve``, que
+#: chocaría con el del detalle ``/{id}``); la forma de la respuesta la fija el sobre, nunca un arreglo.
+_COLLECTION_GET_PATHS = frozenset({
     "/api/rubrics",
     "/api/admin/cases",
     "/api/authoring/cases",
@@ -125,20 +118,15 @@ _LIST_GET_PATHS = frozenset({
     "/api/simulation/cases",
 })
 
-_ENDPOINT_RESPONSE_SERIALIZERS: dict[tuple[str, str], type[serializers.Serializer]] = {
-    ("/api/admin/audit", "GET"): AuditListResponseSchemaSerializer,
-    ("/api/instructor/attempts", "GET"): InstructorAttemptsListSchemaSerializer,
-    ("/api/simulation/attempts/{attempt_id}/world-state", "PATCH"): WorldPatchAckSchemaSerializer,
-}
-
 
 class SiepAutoSchema(AutoSchema):
     """AutoSchema que provee el sobre ``ApiEnvelopeSerializer`` por defecto en ``APIView``."""
 
-    def _is_list_view(self, serializer: Any = None) -> bool:
-        if self.method == "GET" and self.path.rstrip("/") in _LIST_GET_PATHS:
-            return True
-        return super()._is_list_view(serializer)
+    def get_operation_id(self) -> str:
+        operation_id = super().get_operation_id()
+        if self.method == "GET" and self.path.rstrip("/") in _COLLECTION_GET_PATHS:
+            return operation_id.removesuffix("_retrieve") + "_list"
+        return operation_id
 
     def get_request_serializer(self) -> Any:
         override = self._get_Serializer_override("request")
@@ -155,9 +143,6 @@ class SiepAutoSchema(AutoSchema):
         override = self._get_Serializer_override("response")
         if override is not None:
             return override
-        mapped = _ENDPOINT_RESPONSE_SERIALIZERS.get((self.path.rstrip("/"), self.method))
-        if mapped is not None:
-            return mapped()
         view = self.view
         if hasattr(view, "get_serializer_class") or getattr(view, "serializer_class", None) is not None:
             return super().get_response_serializers()
@@ -212,12 +197,23 @@ PROHIBITED_SCHEMA_FIELDS = frozenset({
 })
 
 
+def _ts_literal(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    return f"'{value}'" if isinstance(value, str) else str(value)
+
+
 def _openapi_type_to_ts(prop: dict[str, Any]) -> str:
     if "$ref" in prop:
         ref_name = prop["$ref"].rsplit("/", 1)[-1]
         base = ref_name
+    elif "allOf" in prop and len(prop["allOf"]) == 1:
+        # Un anidado que admite null: drf-spectacular lo emite como allOf de una sola parte.
+        base = _openapi_type_to_ts(prop["allOf"][0])
     elif "enum" in prop:
-        base = " | ".join(f"'{v}'" if isinstance(v, str) else str(v) for v in prop["enum"])
+        base = " | ".join(_ts_literal(v) for v in prop["enum"])
     else:
         kind = prop.get("type", "unknown")
         if kind in ("integer", "number"):
@@ -243,6 +239,14 @@ def _openapi_type_to_ts(prop: dict[str, Any]) -> str:
     return base
 
 
+def _jsdoc(description: Any, indent: str = "") -> list[str]:
+    """El ``description`` del esquema como comentario JSDoc de una línea (vacío si no hay)."""
+    if not description:
+        return []
+    text = " ".join(str(description).split()).replace("*/", "* /")
+    return [f"{indent}/** {text} */"]
+
+
 def render_typescript_contracts(schema: dict[str, Any]) -> str:
     """Genera definiciones TypeScript deterministas desde el esquema OpenAPI 3.0."""
     lines: list[str] = [
@@ -255,16 +259,19 @@ def render_typescript_contracts(schema: dict[str, Any]) -> str:
     for name in sorted(schemas.keys()):
         defn = schemas[name]
         if "enum" in defn and "properties" not in defn:
-            union = " | ".join(f"'{v}'" if isinstance(v, str) else str(v) for v in defn["enum"])
+            union = " | ".join(_ts_literal(v) for v in defn["enum"])
+            lines.extend(_jsdoc(defn.get("description")))
             lines.append(f"export type {name} = {union};")
             lines.append("")
             continue
         props: dict[str, Any] = defn.get("properties", {})
         required = set(defn.get("required", []))
+        lines.extend(_jsdoc(defn.get("description")))
         lines.append(f"export interface {name} {{")
         for prop_name in sorted(props.keys()):
             opt = "" if prop_name in required else "?"
             ts_type = _openapi_type_to_ts(props[prop_name])
+            lines.extend(_jsdoc(props[prop_name].get("description"), "  "))
             lines.append(f"  readonly {prop_name}{opt}: {ts_type};")
         lines.append("}")
         lines.append("")
@@ -285,4 +292,3 @@ def render_typescript_contracts(schema: dict[str, Any]) -> str:
     lines.append("export type OpenApiEndpointPath = keyof OpenApiPaths;")
     lines.append("")
     return "\n".join(lines)
-

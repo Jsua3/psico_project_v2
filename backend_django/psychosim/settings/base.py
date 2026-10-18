@@ -293,6 +293,12 @@ SPECTACULAR_SETTINGS = {
     "PREPROCESSING_HOOKS": [
         "shared.openapi.preprocess_canonical_api_endpoints",
     ],
+    "ENUM_GENERATE_CHOICE_DESCRIPTION": False,  # sin el listado en inglés de las etiquetas de Django
+    # Un nombre estable por conjunto de valores: dos campos `status` con opciones distintas ya no chocan.
+    "ENUM_NAME_OVERRIDES": {
+        "AttemptStatusEnum": "apps.simulation.models.AttemptStatus",
+        "CaseVersionStatusEnum": "apps.simulation.models.CaseVersionStatus",
+    },
 }
 
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).

@@ -1,83 +1,147 @@
 // ARCHIVO GENERADO AUTOMÁTICAMENTE DESDE EL CONTRATO OPENAPI (E5-9 · DJG-6).
 // No editar a mano: regenerar con `node scripts/openapi/generate-types.mjs`.
 
+/** Sobre de éxito de la API: `{success, message?, data?}` (`shared.response.envelope`). `message` y `data` solo viajan cuando tienen valor. Los endpoints que aún no se tipan llevan este sobre con `data` sin forma. */
 export interface ApiEnvelope {
-  readonly data?: unknown | null;
-  readonly message?: string | null;
-  readonly status: StatusEnum;
+  readonly data?: unknown;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
 }
 
-export interface AuditListResponseSchema {
-  readonly coverage: CoverageSchema;
-  readonly items: ReadonlyArray<AuditLogItemSchema>;
+export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
+
+/** Página de auditoría, de la más reciente a la más antigua, con el resumen de calidad de las revisiones. */
+export interface AuditList {
+  readonly coverage: PageCoverage;
+  readonly items: ReadonlyArray<AuditLogItem>;
   readonly page: number;
   readonly pageSize: number;
+  /** Días que se conserva la auditoría (nunca menos de 360). */
   readonly retentionDays: number;
-  readonly reviewQuality: ReviewQualitySchema;
+  readonly reviewQuality: ReviewQuality;
 }
 
-export interface AuditLogItemSchema {
+/** Sobre de éxito: `data` es `AuditList`. */
+export interface AuditListEnvelope {
+  readonly data: AuditList;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** Una fila de la auditoría. Los campos opcionales son nulos en los eventos de sistema (sin actor ni recurso). */
+export interface AuditLogItem {
+  /** Código tal como se guardó (`entidad.verbo` o el legado). */
   readonly action: string;
-  readonly actorEmail: string | null;
+  readonly actorId: number | null;
   readonly actorRole: string | null;
-  readonly actorUserId: number | null;
+  /** Contexto libre de la acción (método, clase, taxonomía…). */
   readonly context: Readonly<Record<string, unknown>>;
-  readonly createdAt: string | null;
-  readonly entityId: string | null;
-  readonly entityType: string | null;
   readonly id: number;
   readonly ipAddress: string | null;
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly occurredAt: string;
+  readonly resourceId: string | null;
+  readonly resourceType: string | null;
+  /** Hasta cuándo se conserva la fila. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly retentionUntil: string;
+  /** El código canónico `entidad.verbo` de la acción. */
   readonly taxonomy: string;
+  readonly userAgent: string | null;
 }
 
-export interface CoverageSchema {
+export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
+export interface ErrorEnvelope {
+  readonly code: string;
+  /** El primer campo que falló la validación. */
+  readonly field?: string;
+  readonly message: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+/** Un intento en la revisión docente. El estudiante se identifica solo por su alias (nunca por su id). */
+export interface InstructorAttemptItem {
+  readonly accumulatedScore: number;
+  readonly activeSeconds: number;
+  readonly attemptId: string;
+  readonly caseTitle: string;
+  readonly caseVersionId: number;
+  readonly caseVersionStatus: CaseVersionStatusEnum;
+  /** Nulo mientras el intento está abierto. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly endedAt: string | null;
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly startedAt: string;
+  readonly status: AttemptStatusEnum;
+  readonly stressIndex: number;
+  /** `Estudiante-<hash>`: el mismo en todas las vistas del docente. */
+  readonly studentAlias: string;
+}
+
+/** Página de intentos dentro del alcance del docente, del más reciente al más antiguo. */
+export interface InstructorAttemptsList {
+  readonly coverage: PageCoverage;
+  readonly items: ReadonlyArray<InstructorAttemptItem>;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+/** Sobre de éxito: `data` es `InstructorAttemptsList`. */
+export interface InstructorAttemptsListEnvelope {
+  readonly data: InstructorAttemptsList;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
+export interface PageCoverage {
   readonly shown: number;
   readonly total: number;
 }
 
-export interface InstructorAttemptItemSchema {
-  readonly attemptId: number;
-  readonly caseCode: string | null;
-  readonly caseId: number | null;
-  readonly caseTitle: string | null;
-  readonly caseVersionId: number | null;
-  readonly caseVersionStatus: string | null;
-  readonly finishedAt: string | null;
-  readonly groupCode: string | null;
-  readonly groupId: number | null;
-  readonly outcome: string | null;
-  readonly rapportScore: number;
-  readonly startedAt: string | null;
-  readonly status: string;
-  readonly studentCode: string | null;
-  readonly studentId: number | null;
-  readonly studentName: string | null;
-  readonly studentProgram: string | null;
-  readonly studentSemester: number | null;
-  readonly totalDecisions: number;
+/** Posición del jugador en el mapa, en píxeles. */
+export interface PlayerPosition {
+  readonly x: number;
+  readonly y: number;
 }
 
-export interface InstructorAttemptsListSchema {
-  readonly coverage: CoverageSchema;
-  readonly items: ReadonlyArray<InstructorAttemptItemSchema>;
-  readonly page: number;
-  readonly pageSize: number;
+/** Devoluciones por CONTENIDO frente a FORMA entre las revisiones decididas (alarma de sello de goma). */
+export interface ReviewQuality {
+  readonly approved: number;
+  /** Devueltas por contenido / decididas (0 a 1). */
+  readonly contentRejectionRate: number;
+  readonly decidedReviews: number;
+  /** Devueltas por forma / decididas (0 a 1). */
+  readonly formRejectionRate: number;
+  readonly rejectedByContent: number;
+  readonly rejectedByForm: number;
+  readonly rejectedTotal: number;
+  readonly rubberStampAlarm: boolean;
 }
 
-export interface ReviewQualitySchema {
-  readonly contentCommentCount: number;
-  readonly formOnlyCount: number;
-  readonly formRatio: number;
-  readonly rubberStampWarning: boolean;
-  readonly totalReviews: number;
+/** Acuse de la posición guardada (E5-1): sin releer objetos, diálogos ni herramientas. Si la sala del cliente ya no es la actual, la respuesta es el mundo completo: estas mismas claves y además `objects`, `collisions`, `tools`, `inventory`… El cliente solo debe leer de aquí `map.key` y `player`. */
+export interface WorldPatchAck {
+  readonly attemptId: string;
+  readonly map: WorldPatchAckMap;
+  readonly player: PlayerPosition;
+  readonly status: AttemptStatusEnum;
 }
 
-export type StatusEnum = 'success' | 'error';
+/** Sobre de éxito: `data` es `WorldPatchAck`. */
+export interface WorldPatchAckEnvelope {
+  readonly data: WorldPatchAck;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
 
-export interface WorldPatchAckSchema {
-  readonly currentLocation: string;
-  readonly playerX: number;
-  readonly playerY: number;
+/** La sala en la que quedó guardado el jugador. */
+export interface WorldPatchAckMap {
+  readonly key: string;
 }
 
 export interface OpenApiPaths {

@@ -11,9 +11,10 @@ test('openapi-contracts.d.ts existe y contiene las interfaces clave del contrato
   assert.equal(existsSync(TS_CONTRACTS), true);
   const content = readFileSync(TS_CONTRACTS, 'utf-8');
   assert.match(content, /export interface ApiEnvelope/);
-  assert.match(content, /export interface AuditListResponseSchema/);
-  assert.match(content, /export interface InstructorAttemptsListSchema/);
-  assert.match(content, /export interface WorldPatchAckSchema/);
+  assert.match(content, /export interface ErrorEnvelope/);
+  assert.match(content, /export interface AuditListEnvelope/);
+  assert.match(content, /export interface InstructorAttemptsListEnvelope/);
+  assert.match(content, /export interface WorldPatchAckEnvelope/);
   assert.match(content, /export interface OpenApiPaths/);
   assert.match(content, /'\/api\/admin\/audit': 'GET'/);
   assert.match(content, /'\/api\/instructor\/attempts': 'GET'/);

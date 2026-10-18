@@ -40,5 +40,6 @@ if (res.status !== 0) {
 }
 
 mkdirSync(dirname(outFile), { recursive: true });
-writeFileSync(outFile, res.stdout, 'utf-8');
+// Python escribe CRLF en Windows: el archivo generado va siempre con LF (igual que el del repositorio).
+writeFileSync(outFile, res.stdout.replaceAll('\r\n', '\n'), 'utf-8');
 console.log(`[openapi:types] Escrito ${outFile}`);

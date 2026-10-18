@@ -2,13 +2,14 @@
 
 All endpoints PROFESOR/ADMIN.
 """
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
 from apps.simulation.models import AttemptStatus
+from apps.simulation.serializers.contracts import InstructorAttemptsListSerializer
 from shared.exceptions import ApiError
-from shared.openapi import InstructorAttemptsListSchemaSerializer
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -50,7 +51,17 @@ def _status_param(request):
 class InstructorAttemptsView(APIView):
     permission_classes = [policy_permission("attempt", "review")]
 
-    @extend_schema(responses=InstructorAttemptsListSchemaSerializer)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("grupoId", int, description="Solo los estudiantes de este grupo (el docente debe serlo)."),
+            OpenApiParameter("estudianteId", int, description="Solo los intentos de este estudiante, dentro del alcance."),
+            OpenApiParameter("caseVersionId", int, description="Solo los intentos de esta versión de caso."),
+            OpenApiParameter("estado", str, enum=AttemptStatus.values, description="Solo los intentos en este estado."),
+            OpenApiParameter("page", int, description="Página, desde 1."),
+            OpenApiParameter("pageSize", int, description="Intentos por página (tope 200)."),
+        ],
+        responses={200: envelope_of(InstructorAttemptsListSerializer), **error_responses(400, 401, 403, 404)},
+    )
     def get(self, request):
         grupo_id = _int_param(request, "grupoId", "groupId")
         estudiante_id = _int_param(request, "estudianteId", "studentId")

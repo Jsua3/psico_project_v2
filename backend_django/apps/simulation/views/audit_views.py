@@ -8,13 +8,15 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
+from apps.simulation.serializers.contracts import AuditListSerializer
 from apps.simulation.services import audit_service
 from shared.exceptions import ApiError
-from shared.openapi import AuditListResponseSchemaSerializer
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -60,7 +62,21 @@ def _parse_dt(request, name):
 class AdminAuditListView(APIView):
     permission_classes = [policy_permission("audit", "read")]
 
-    @extend_schema(responses=AuditListResponseSchemaSerializer)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("actorId", int, description="Id del usuario que hizo la acción."),
+            OpenApiParameter("action", str, description="Código `entidad.verbo` (o el legado) de la acción."),
+            OpenApiParameter("resourceType", str, description="Tipo de recurso: `CASE`, `ATTEMPT`…"),
+            OpenApiParameter(
+                "from", OpenApiTypes.DATETIME,
+                description="Desde (ISO 8601). Con zona se convierte a la hora local del servidor; sin zona ya lo es.",
+            ),
+            OpenApiParameter("to", OpenApiTypes.DATETIME, description="Hasta (ISO 8601); misma regla de zona que `from`."),
+            OpenApiParameter("page", int, description="Página, desde 1."),
+            OpenApiParameter("pageSize", int, description="Filas por página (tope 200)."),
+        ],
+        responses={200: envelope_of(AuditListSerializer), **error_responses(400, 401, 403)},
+    )
     def get(self, request):
         actor_id = _parse_int(request, "actorId")
         action = request.query_params.get("action")

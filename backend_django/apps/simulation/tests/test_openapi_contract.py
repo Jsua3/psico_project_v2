@@ -16,12 +16,17 @@ import pytest
 from drf_spectacular.drainage import GENERATOR_STATS
 from drf_spectacular.generators import SchemaGenerator
 
+from shared.contract_testing import typed_operations
 from shared.openapi import PROHIBITED_SCHEMA_FIELDS, render_typescript_contracts
 
 pytestmark = pytest.mark.req("RNF-07")
 
 MAX_OPENAPI_WARNINGS = 0
 MAX_OPENAPI_ERRORS = 0
+#: Contratos tipados del documento (respuesta de éxito con ``data`` de forma conocida). El trinquete va en los dos
+#: sentidos, como el baseline de arquitectura: bajar es perder un contrato; subir exige anotarlo aquí. Cada uno tiene
+#: su caso contra el servidor en ``test_openapi_matches_responses.CALLS``.
+TYPED_CONTRACTS = 3
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 TS_CONTRACTS_FILE = REPO_ROOT / "frontend" / "src" / "app" / "core" / "api" / "generated" / "openapi-contracts.d.ts"
@@ -100,4 +105,15 @@ def test_generated_typescript_contracts_match_openapi_schema():
     assert current == expected, (
         "Los tipos TypeScript de OpenAPI están desactualizados respecto al esquema actual. "
         "Ejecuta `node scripts/openapi/generate-types.mjs`."
+    )
+
+
+def test_typed_contracts_ratchet():
+    typed = typed_operations(SchemaGenerator().get_schema(request=None, public=True))
+    assert len(typed) >= TYPED_CONTRACTS, (
+        f"Bajó el número de contratos tipados ({len(typed)} < {TYPED_CONTRACTS}); hoy: {sorted(typed)}"
+    )
+    assert len(typed) <= TYPED_CONTRACTS, (
+        f"Hay {len(typed)} contratos tipados: sube TYPED_CONTRACTS a {len(typed)} y dale su caso contra el servidor "
+        "en test_openapi_matches_responses.CALLS"
     )

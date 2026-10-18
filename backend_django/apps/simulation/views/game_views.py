@@ -1,11 +1,14 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
+from apps.simulation.serializers.contracts import WorldPatchAckSerializer
 from apps.simulation.serializers.requests import (
     ReflectionRequest,
     ResumeAttemptRequest,
@@ -233,6 +236,7 @@ class WorldView(APIView):
 class WorldStateView(APIView):
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(responses={200: envelope_of(WorldPatchAckSerializer), **error_responses(400, 401, 403, 404)})
     def patch(self, request, attempt_id):
         # Valores crudos a propósito: la validación estricta (entero finito,
         # límites, plausibilidad, colisión) es autoridad del servicio (GAME-01).
