@@ -1,10 +1,10 @@
 """Student simulation API — /api/simulation. Mirrors SimulationGameController."""
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shared.idempotency import normalize_request_id
-from shared.openapi import envelope_of, error_responses
+from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -82,6 +82,12 @@ class StartAttemptView(APIView):
 class ActiveAttemptView(APIView):
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(
+        responses={
+            200: ApiEnvelopeSerializer,
+            204: OpenApiResponse(description="No hay un intento abierto de esa versión: la respuesta no lleva cuerpo."),
+        }
+    )
     def get(self, request, case_version_id):
         state = game_service.find_active_attempt(case_version_id, request.user)
         if state is None:

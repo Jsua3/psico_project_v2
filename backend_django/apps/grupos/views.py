@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -9,7 +10,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from django.utils import timezone
 
 from shared.exceptions import ApiError
-from shared.openapi import envelope_of, error_responses
+from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
@@ -49,6 +50,7 @@ class GrupoListCreateView(APIView):
             return api_ok(services.listar_activos())
         return api_ok(services.listar_de_profesor(request.user.id))
 
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         ser = CrearGrupoSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -131,6 +133,7 @@ class GrupoEstudiantesImportSpecView(APIView):
 class GrupoEstudiantesImportTemplateView(APIView):
     permission_classes = [policy_permission("group", "manage")]
 
+    @extend_schema(responses={(200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"): OpenApiTypes.BINARY})
     def get(self, request):
         response = HttpResponse(
             services.student_import_template_bytes(),
@@ -206,6 +209,7 @@ class AssignmentListCreateView(APIView):
         now = timezone.now()
         return api_ok([assignment_service.assignment_dto(row, now) for row in rows])
 
+    @extend_schema(responses={201: envelope_of(AssignmentSerializer), **error_responses(400, 401, 403, 404)})
     def post(self, request):
         ser = AssignmentCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)

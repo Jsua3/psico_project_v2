@@ -13,12 +13,15 @@ import uuid
 
 from django.conf import settings
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from shared.openapi import error_responses
 from shared.permissions import policy_permission
 
+from apps.simulation.serializers.contracts import AssistantAnswerSerializer
 from apps.simulation.services import audit_service
 from apps.simulation.services.ai_providers import DEFAULT_PROVIDER, AIProvider, NotConfigured, provider_class
 
@@ -28,6 +31,7 @@ logger = logging.getLogger(__name__)
 class AIAssistantView(APIView):
     permission_classes = [policy_permission("account", "self")]
 
+    @extend_schema(responses={200: AssistantAnswerSerializer, **error_responses(404)})
     def post(self, request):
         # Primero la bandera: apagado, la ruta no distingue peticiones válidas de
         # inválidas ni dice por qué (sin nombres de variables internas).

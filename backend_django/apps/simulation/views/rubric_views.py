@@ -1,6 +1,8 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
+from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
@@ -21,6 +23,7 @@ class CompetencyListCreateView(APIView):
     def get(self, request):
         return api_ok(competencies.list_competencies())
 
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         return api_ok(
             competencies.create_competency(request.data),
@@ -36,6 +39,7 @@ class RubricListCreateView(APIView):
     def get(self, request):
         return api_ok(rubric_service.list_rubrics(request.user))
 
+    @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
         return api_ok(
             rubric_service.create_rubric(request.data, request.user),

@@ -96,6 +96,13 @@ class InstructorAttemptsListSerializer(serializers.Serializer):
     coverage = PageCoverageSerializer()
 
 
+# ─── POST /api/simulation/ai-assistant (RF-027) ───────────────────────────────
+class AssistantAnswerSerializer(serializers.Serializer):
+    """La respuesta del asistente de IA: un objeto con el texto, SIN el sobre `{success, data}` de las demás rutas."""
+
+    response = serializers.CharField()
+
+
 # ─── PATCH /api/simulation/attempts/{attempt_id}/world-state ──────────────────
 class WorldPatchAckMapSerializer(serializers.Serializer):
     """La sala en la que quedó guardado el jugador."""

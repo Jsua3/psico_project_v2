@@ -33,6 +33,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.authoring import definition_io
 from apps.simulation.tests import dsl_support
+from apps.simulation.views.ai_assistant import AIAssistantView
 from shared.contract_testing import assert_matches, response_schema, typed_operations
 
 from .test_instructor import assign_case_to_student, cl
@@ -62,6 +63,8 @@ class World:
     y: int
     version_id: int  # la versión publicada que se sembró
     draft_id: int  # un borrador vacío, con hallazgos de validación
+    grupo_id: int  # el grupo de la docente al que pertenece el estudiante
+    free_student: object  # un estudiante con el caso asignado y sin ningún intento
 
 
 @pytest.fixture(scope="module")
@@ -78,6 +81,8 @@ def world(db):
     student = make(email="est_contrato@x.com", password="x", nombre="Est", apellido="Contrato", role="ESTUDIANTE")
     outsider = make(email="fuera_contrato@x.com", password="x", nombre="Fue", apellido="Ra", role="ESTUDIANTE")
     grupo = assign_case_to_student(student, version.id, "CONTRATO", profesor=profesor)
+    free_student = make(email="libre_contrato@x.com", password="x", nombre="Li", apellido="Bre", role="ESTUDIANTE")
+    CaseAssignment.objects.create(case_version=version, estudiante=free_student, assigned_by=admin)
 
     client = cl(student)
     started = client.post("/api/simulation/attempts", {"caseVersionId": version.id}, format="json").data["data"]
@@ -122,7 +127,7 @@ def world(db):
     draft = CaseVersion.objects.get(simulation_case__title="Caso de contrato")
     return World(
         admin, profesor, student, outsider, attempt_id, token, scene["map"]["key"], scene["player"]["x"],
-        scene["player"]["y"], version.id, draft.id,
+        scene["player"]["y"], version.id, draft.id, grupo.id, free_student,
     )
 
 
@@ -189,6 +194,20 @@ def _world_patch_ack(world):
 @calls("/api/assignments", "GET")
 def _assignments(world):
     return cl(world.admin).get("/api/assignments")
+
+
+def _new_assignment(world, **changes):
+    body = {
+        "caseVersionId": world.version_id, "target": {"type": "GROUP", "groupId": world.grupo_id}, "sortOrder": 3,
+        "opensAt": "2026-10-20T08:00:00-05:00", **changes,
+    }
+    return cl(world.profesor).post("/api/assignments", body, format="json")
+
+
+@calls("/api/assignments", "POST", 201)
+def _assignment_created(world):
+    CaseAssignment.objects.filter(grupo_id=world.grupo_id, case_version_id=world.version_id).delete()
+    return _new_assignment(world)
 
 
 @calls(BRIEF, "GET")
@@ -363,6 +382,92 @@ def test_un_endpoint_sin_tipar_se_documenta_con_el_sobre_generico_y_coincide(doc
     assert_matches(cl(world.profesor).get("/api/grupos").json(), schema, document)
 
 
+# ─── Lo que el servidor responde y NO es un 200 con el sobre JSON: el documento lo dice como es ──────────
+#: POST que crean y responden 201 con el sobre genérico (el documento decía 200).
+CREATED = [
+    ("grupo", "/api/grupos", lambda w: cl(w.profesor).post("/api/grupos", {"nombre": "Grupo nuevo", "codigo": "NUEVO1"}, format="json")),
+    ("competencia", "/api/competencies", lambda w: cl(w.admin).post("/api/competencies", {"code": "CTR", "name": "Competencia de contrato"}, format="json")),
+    ("rúbrica", "/api/rubrics", lambda w: cl(w.admin).post("/api/rubrics/", {
+        "name": "Rúbrica de contrato", "description": "D", "version": "1.0", "active": False,
+        "criteria": [{"title": "Uno", "description": "A", "weight": 100, "displayOrder": 1, "active": True}],
+    }, format="json")),
+    ("solicitud de acceso", "/api/auth/access-request", lambda w: APIClient().post(
+        "/api/auth/access-request", {"nombre": "Ana", "apellido": "Gil", "email": "ana.contrato@psychosim.edu.co"}, format="json")),
+]
+
+
+@pytest.mark.parametrize(("path", "call"), [pytest.param(path, call, id=what) for what, path, call in CREATED])
+def test_una_operacion_que_crea_documenta_su_201_y_no_un_200(path, call, document, world):
+    response = call(world)
+
+    assert response.status_code == 201, response.content
+    declared = document["paths"][path]["post"]["responses"]
+    assert "201" in declared and "200" not in declared, f"POST {path} responde 201 y el documento declara {sorted(declared)}"
+    assert_matches(response.json(), response_schema(document, path, "POST", "201"), document)
+
+
+#: Respuestas que no son el sobre JSON: (nombre, ruta del documento, método, llamada real, estado, tipo de contenido).
+NOT_JSON_ENVELOPE = [
+    ("plantilla de estudiantes", "/api/grupos/estudiantes/import/template", "GET",
+     lambda w: cl(w.profesor).get("/api/grupos/estudiantes/import/template"), 200,
+     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    ("reporte del grupo en CSV", "/api/reportes/grupo/{grupo_id}/export", "GET",
+     lambda w: cl(w.profesor).get(f"/api/reportes/grupo/{w.grupo_id}/export"), 200, "text/csv"),
+    ("sin intento abierto", "/api/simulation/cases/{case_version_id}/active-attempt", "GET",
+     lambda w: cl(w.free_student).get(f"/api/simulation/cases/{w.version_id}/active-attempt"), 204, None),
+]
+
+
+@pytest.mark.parametrize(
+    ("path", "method", "call", "status", "media"),
+    [pytest.param(path, method, call, status, media, id=what) for what, path, method, call, status, media in NOT_JSON_ENVELOPE],
+)
+def test_lo_que_no_es_el_sobre_json_dice_en_el_documento_como_es(path, method, call, status, media, document, world):
+    response = call(world)
+
+    assert response.status_code == status, response.content
+    declared = document["paths"][path][method.lower()]["responses"]
+    assert str(status) in declared, f"{method} {path} responde {status} y el documento declara {sorted(declared)}"
+    content = declared[str(status)].get("content", {})
+    if media is None:
+        assert content == {}, "una respuesta sin cuerpo no declara contenido"
+    else:
+        assert response["Content-Type"].split(";")[0] == media
+        assert set(content) == {media}, f"{path} responde {media} y el documento declara {sorted(content)}"
+
+
+def test_con_un_intento_abierto_la_consulta_del_intento_activo_sigue_siendo_el_sobre(document, world):
+    response = cl(world.student).get(f"/api/simulation/cases/{world.version_id}/active-attempt")
+
+    assert response.status_code == 200
+    declared = document["paths"]["/api/simulation/cases/{case_version_id}/active-attempt"]["get"]["responses"]
+    assert_matches(response.json(), declared["200"]["content"]["application/json"]["schema"], document)
+
+
+def test_el_asistente_de_ia_responde_su_propio_objeto_y_no_el_sobre(document, world, settings, monkeypatch):
+    settings.AI_ASSISTANT_ENABLED = True
+    monkeypatch.setattr(AIAssistantView, "_call_llm", lambda self, question, context: "¿Qué observas?")
+
+    response = cl(world.student).post(
+        "/api/simulation/ai-assistant", {"attempt_id": world.attempt_id, "question": "¿Qué hago?"}, format="json"
+    )
+
+    assert response.status_code == 200 and response.json() == {"response": "¿Qué observas?"}
+    assert_matches(response.json(), response_schema(document, "/api/simulation/ai-assistant", "POST"), document)
+
+
+def test_el_asistente_apagado_responde_el_sobre_de_error_que_el_documento_declara(document, world, settings):
+    settings.AI_ASSISTANT_ENABLED = False
+
+    response = cl(world.student).post(
+        "/api/simulation/ai-assistant", {"attempt_id": world.attempt_id, "question": "x"}, format="json"
+    )
+
+    declared = document["paths"]["/api/simulation/ai-assistant"]["post"]["responses"]
+    assert response.status_code == 404 and "404" in declared
+    assert_matches(response.json(), declared["404"]["content"]["application/json"]["schema"], document)
+
+
 # ─── Errores: cada uno que un contrato tipado documenta tiene su caso ─────────────────────────────────────
 def _case_route_errors(prefix):
     validate, definition, import_ = (
@@ -426,6 +531,14 @@ ERRORS = [
      lambda w: cl(w.admin).get("/api/assignments", {"groupId": "abc"}), 400, "VALIDATION_ERROR"),
     ("asignaciones de un grupo inexistente", "/api/assignments", "GET",
      lambda w: cl(w.admin).get("/api/assignments", {"groupId": 999999}), 404, "NOT_FOUND"),
+    ("asignar sin sesión", "/api/assignments", "POST",
+     lambda w: APIClient().post("/api/assignments", {}, format="json"), 401, "UNAUTHENTICATED"),
+    ("asignar sin permiso", "/api/assignments", "POST",
+     lambda w: cl(w.student).post("/api/assignments", {}, format="json"), 403, "FORBIDDEN"),
+    ("asignar con el cuerpo vacío", "/api/assignments", "POST",
+     lambda w: cl(w.profesor).post("/api/assignments", {}, format="json"), 400, "VALIDATION_ERROR"),
+    ("asignar a un grupo inexistente", "/api/assignments", "POST",
+     lambda w: _new_assignment(w, target={"type": "GROUP", "groupId": 999999}), 404, "NOT_FOUND"),
     ("ficha sin sesión", BRIEF, "GET", lambda w: APIClient().get(f"/api/simulation/cases/{w.version_id}/brief"),
      401, "UNAUTHENTICATED"),
     ("ficha de un caso no asignado", BRIEF, "GET",

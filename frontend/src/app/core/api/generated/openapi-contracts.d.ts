@@ -39,6 +39,14 @@ export interface Assignment {
   readonly target: AssignmentTarget;
 }
 
+/** Sobre de éxito: `data` es `Assignment`. */
+export interface AssignmentEnvelope {
+  readonly data: Assignment;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** Sobre de éxito: `data` es una lista de `Assignment`. */
 export interface AssignmentListEnvelope {
   readonly data: ReadonlyArray<Assignment>;
@@ -59,6 +67,11 @@ export interface AssignmentTarget {
 }
 
 export type AssignmentTargetTypeEnum = 'GROUP' | 'STUDENT';
+
+/** La respuesta del asistente de IA: un objeto con el texto, SIN el sobre `{success, data}` de las demás rutas. */
+export interface AssistantAnswer {
+  readonly response: string;
+}
 
 export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
 
