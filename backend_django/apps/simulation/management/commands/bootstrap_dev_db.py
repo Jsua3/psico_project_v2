@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand
 from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SimulationCase
 from apps.users.models import CustomUser
+from shared.dev_only import require_dev_environment
 
 DEMO_CASE_CODE = "SIM-VBG-001"
 DEMO_GRUPO_CODIGO = "DEMO1"
@@ -47,6 +48,7 @@ class Command(BaseCommand):
     help = "Aplica las migraciones, siembra el caso demo y lo asigna al estudiante demo."
 
     def handle(self, *args, **options):
+        require_dev_environment("bootstrap_dev_db")
         call_command("migrate", verbosity=0)
         call_command("seed_demo_users")
 

@@ -228,7 +228,7 @@ cd backend_django
 ```
 
 <!-- BORRADOR: advertencia para desarrolladores, pendiente de revisión. -->
-> **Solo desarrollo.** Las siembras de demostración (`seed_demo_users`, que usa `bootstrap_dev_db`, y `seed_demo_access`) se niegan a correr con los ajustes de producción o con `DATABASE_URL` definido. Las cuentas que ya existen no se modifican (`seed_demo_access --reset` las repone), salvo el admin demo: `seed_caso_pdf`, que corre con `bootstrap_dev_db`, le restablece la contraseña, el rol y el estado activo. La excepción `SIEP_ALLOW_DEMO_SEED=true` es solo para una base de pruebas desechable.
+> **Solo desarrollo.** `bootstrap_dev_db`, `seed_demo_users` y `seed_demo_access` se niegan a correr con los ajustes de producción o con `DATABASE_URL` definido. Las cuentas que ya existen no se modifican: `seed_caso_pdf` ya no restablece la clave, el rol ni el estado del admin demo, y fuera de desarrollo no crea la cuenta demo (lo mismo `seed_default_rubric`). Solo `seed_demo_access --reset` repone cuentas, a propósito. La excepción `SIEP_ALLOW_DEMO_SEED=true` es solo para una base de pruebas desechable.
 
 ### Pruebas del frontend que fallan solo en tu máquina (fin de línea CRLF)
 

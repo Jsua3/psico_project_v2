@@ -1,18 +1,23 @@
 """Las siembras de demostración solo corren en desarrollo (S5-4, SF-19).
 
-``seed_demo_access`` y ``seed_demo_users`` se niegan con los ajustes de producción o con
-``DATABASE_URL`` definido, salvo la excepción ``SIEP_ALLOW_DEMO_SEED``; y una cuenta demo que
-ya existe no se repone sin ``--reset``.
+``seed_demo_access``, ``seed_demo_users`` y ``bootstrap_dev_db`` se niegan con los ajustes de
+producción o con ``DATABASE_URL`` definido, salvo la excepción ``SIEP_ALLOW_DEMO_SEED``; una cuenta
+demo que ya existe no se repone sin ``--reset``; ``seed_caso_pdf`` no restablece la clave del admin
+y ``seed_caso_pdf``/``seed_default_rubric`` solo crean la cuenta demo en desarrollo.
 """
 import secrets
 from io import StringIO
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from apps.simulation.management.commands import bootstrap_dev_db as bootstrap_cmd
+from apps.simulation.management.commands import seed_caso_pdf as caso_cmd
 from apps.simulation.management.commands import seed_demo_access
 from apps.users.models import CustomUser, UserRole
+from shared import dev_only
 from shared.testing import assert_queries_at_most
 
 pytestmark = [
@@ -55,6 +60,25 @@ def _cuenta_demo_admin_existente(clave):
     cuenta.activo = False
     cuenta.save()
     return cuenta
+
+
+def _retirar_admin_demo():
+    """Saca la cuenta admin demo de la prueba: otro correo y sin rol ADMIN (la transacción lo deshace)."""
+    CustomUser.objects.filter(email=ADMIN_EMAIL).update(
+        email=f"retirado-{secrets.token_hex(8)}@example.org", role=UserRole.PROFESOR
+    )
+
+
+def _admin_alterno(activo=True):
+    """Crea un ADMIN distinto del demo; con ``activo=False``, uno inactivo."""
+    return CustomUser.objects.create_user(
+        email=f"alterno-{secrets.token_hex(8)}@example.org",
+        password=secrets.token_urlsafe(24),
+        nombre="Otro",
+        apellido="Admin",
+        role=UserRole.ADMIN,
+        activo=activo,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -153,3 +177,121 @@ def test_con_reset_seed_demo_access_repone_la_cuenta_existente():
     assert cuenta.activo is True
     assert cuenta.nombre == DEMO_ADMIN["nombre"]
     assert cuenta.apellido == DEMO_ADMIN["apellido"]
+
+
+def test_seed_caso_pdf_no_repone_clave_rol_ni_activo_de_un_admin_existente():
+    clave = secrets.token_urlsafe(24)
+    cuenta = _cuenta_demo_admin_existente(clave)
+
+    call_command("seed_caso_pdf", stdout=StringIO())
+
+    cuenta.refresh_from_db()
+    assert cuenta.check_password(clave)
+    assert cuenta.role == UserRole.ESTUDIANTE
+    assert cuenta.activo is False
+
+
+def test_seed_caso_pdf_fuera_de_desarrollo_sin_admin_activo_se_niega_sin_crear_la_demo(settings):
+    settings.SETTINGS_MODULE = "psychosim.settings.production"
+    _retirar_admin_demo()
+    _admin_alterno(activo=False)
+
+    with pytest.raises(CommandError, match="ningún ADMIN activo"):
+        call_command("seed_caso_pdf", stdout=StringIO())
+
+    assert not CustomUser.objects.filter(email=ADMIN_EMAIL).exists()
+
+
+def test_seed_caso_pdf_fuera_de_desarrollo_usa_el_admin_activo_que_no_es_el_demo(settings):
+    settings.SETTINGS_MODULE = "psychosim.settings.production"
+    _retirar_admin_demo()
+    alterno = _admin_alterno()
+
+    assert caso_cmd.Command()._admin() == alterno
+    call_command("seed_caso_pdf", stdout=StringIO())
+
+    assert not CustomUser.objects.filter(email=ADMIN_EMAIL).exists()
+
+
+def test_en_desarrollo_seed_caso_pdf_crea_la_cuenta_demo_si_falta():
+    _retirar_admin_demo()
+
+    call_command("seed_caso_pdf", stdout=StringIO())
+
+    cuenta = CustomUser.objects.get(email=ADMIN_EMAIL)
+    assert cuenta.role == UserRole.ADMIN
+    assert cuenta.activo is True
+
+
+def test_seed_default_rubric_fuera_de_desarrollo_sin_admin_se_niega_sin_crear_la_demo(settings):
+    settings.SETTINGS_MODULE = "psychosim.settings.production"
+    _retirar_admin_demo()
+
+    with pytest.raises(CommandError, match="ningún ADMIN"):
+        call_command("seed_default_rubric", stdout=StringIO())
+
+    assert not CustomUser.objects.filter(email=ADMIN_EMAIL).exists()
+
+
+def test_seed_default_rubric_fuera_de_desarrollo_usa_un_admin_existente(settings):
+    settings.SETTINGS_MODULE = "psychosim.settings.production"
+    _retirar_admin_demo()
+    _admin_alterno()
+
+    call_command("seed_default_rubric", stdout=StringIO())
+
+    assert not CustomUser.objects.filter(email=ADMIN_EMAIL).exists()
+
+
+def test_en_desarrollo_seed_default_rubric_crea_la_cuenta_demo_si_falta():
+    _retirar_admin_demo()
+
+    call_command("seed_default_rubric", stdout=StringIO())
+
+    assert CustomUser.objects.filter(email=ADMIN_EMAIL, role=UserRole.ADMIN).exists()
+
+
+@pytest.mark.parametrize("senal", ["ajustes_de_produccion", "database_url"])
+def test_bootstrap_dev_db_se_niega_fuera_de_desarrollo_sin_llegar_a_migrar(senal, settings, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(bootstrap_cmd, "call_command", lambda nombre, *args, **kwargs: llamadas.append(nombre))
+    if senal == "ajustes_de_produccion":
+        settings.SETTINGS_MODULE = "psychosim.settings.production"
+    else:
+        monkeypatch.setenv("DATABASE_URL", DSN_DE_PLATAFORMA)
+
+    with pytest.raises(CommandError, match="bootstrap_dev_db"):
+        call_command("bootstrap_dev_db", stdout=StringIO())
+
+    assert llamadas == []
+
+
+@pytest.mark.parametrize(
+    ("ajustes", "database_url", "excepcion", "esperado"),
+    [
+        ("psychosim.settings.test", None, None, True),
+        ("psychosim.settings.production", None, None, False),
+        ("psychosim.settings.test", DSN_DE_PLATAFORMA, None, False),
+        ("psychosim.settings.production", DSN_DE_PLATAFORMA, "true", True),
+        ("psychosim.settings.test", None, "0", True),
+    ],
+)
+def test_is_dev_environment_usa_las_mismas_senales(ajustes, database_url, excepcion, esperado, settings, monkeypatch):
+    settings.SETTINGS_MODULE = ajustes
+    if database_url is not None:
+        monkeypatch.setenv("DATABASE_URL", database_url)
+    if excepcion is not None:
+        monkeypatch.setenv("SIEP_ALLOW_DEMO_SEED", excepcion)
+
+    assert dev_only.is_dev_environment() is esperado
+
+
+def test_is_dev_environment_no_lanza_sin_ajustes_configurados(monkeypatch):
+    class SinAjustes:
+        @property
+        def SETTINGS_MODULE(self):
+            raise ImproperlyConfigured("sin ajustes")
+
+    monkeypatch.setattr(dev_only, "settings", SinAjustes())
+
+    assert dev_only.is_dev_environment() is False
