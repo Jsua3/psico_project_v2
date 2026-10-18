@@ -47,21 +47,26 @@ def cl(user=None):
     return client
 
 
-def test_access_request_public_201(db):
-    resp = cl().post(
-        "/api/auth/access-request",
-        {"nombre": "Carolina", "apellido": "Mejia", "email": "carolina@psychosim.edu.co"},
-        format="json",
-    )
+def test_access_request_public_201(db, django_capture_on_commit_callbacks):
+    # S1-3 · el aviso se programa al confirmar la transacción; execute=True lo corre al salir del bloque.
+    with django_capture_on_commit_callbacks(execute=True):
+        resp = cl().post(
+            "/api/auth/access-request",
+            {"nombre": "Carolina", "apellido": "Mejia", "email": "carolina@psychosim.edu.co"},
+            format="json",
+        )
     assert resp.status_code == 201
     assert resp.data["success"] is True
     assert AccessRequest.objects.filter(email="carolina@psychosim.edu.co", status="PENDING").exists()
     assert len(mail.outbox) == 1
-    assert "Carolina" in mail.outbox[0].subject
+    # S1-3 · el asunto es fijo; el nombre va en el cuerpo, marcado como sin verificar.
+    assert mail.outbox[0].subject == "[SIEP] Nueva solicitud de acceso"
+    assert 'Nombre indicado (sin verificar): "Carolina Mejia"' in mail.outbox[0].body
 
 
-def test_access_request_rejects_duplicate_pending(db):
-    cl().post(
+def test_access_request_duplicate_pending_responde_igual_sin_guardar(db):
+    # S1-3 · antes 400; ahora la misma respuesta 201 y ninguna fila nueva.
+    primera = cl().post(
         "/api/auth/access-request",
         {"nombre": "Ana", "apellido": "Uno", "email": "dup@psychosim.edu.co"},
         format="json",
@@ -71,16 +76,21 @@ def test_access_request_rejects_duplicate_pending(db):
         {"nombre": "Ana", "apellido": "Dos", "email": "dup@psychosim.edu.co"},
         format="json",
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 201
+    assert resp.data == primera.data
+    assert AccessRequest.objects.filter(email="dup@psychosim.edu.co").count() == 1
 
 
-def test_access_request_rejects_existing_user(estudiante_existente):
+def test_access_request_existing_user_responde_igual_sin_guardar(estudiante_existente):
+    # S1-3 · antes 400 («Ya existe una cuenta»); ahora la misma respuesta 201 y ninguna fila.
     resp = cl().post(
         "/api/auth/access-request",
         {"nombre": "X", "apellido": "Y", "email": estudiante_existente.email},
         format="json",
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 201
+    assert resp.data["data"] == {"status": "PENDING"}
+    assert not AccessRequest.objects.filter(email=estudiante_existente.email).exists()
 
 
 def test_admin_lists_pending_requests(admin):

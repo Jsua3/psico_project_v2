@@ -15,6 +15,9 @@ LIMITS: dict[str, Limit] = {
     "access_request_ip": Limit(5, 3600),
     "access_request_email": Limit(2, 86400),
     "access_request_global": Limit(200, 86400),
+    # No limita peticiones: agrupa el aviso al ADMIN. La primera solicitud de cada ventana de 10 minutos avisa y el
+    # resto de esa ventana no (``access_request_service``); el contador atómico evita avisos dobles entre procesos.
+    "access_request_notice": Limit(1, 600),
     "import_user": Limit(10, 3600),
     "heavy_user": Limit(30, 60),
     # Sin clase todavía: el informe de CSP (DJA-4) aún no tiene ruta que lo use.
