@@ -46,9 +46,12 @@ export async function collectUnexpectedPageAndConsoleErrors(
   page: Page,
   allowPatterns: readonly RegExp[] = [],
 ): Promise<ConsoleFailureReport> {
-  const rawPageErrors = typeof page.pageErrors === 'function' ? await page.pageErrors() : [];
+  // `filter: 'all'`: por defecto Playwright solo devuelve lo ocurrido desde la última navegación de documento, y un
+  // recorrido largo que navega a mitad perdería en silencio los errores anteriores. (Sigue habiendo un tope de 200
+  // mensajes por página: no es un registro ilimitado.)
+  const rawPageErrors = typeof page.pageErrors === 'function' ? await page.pageErrors({ filter: 'all' }) : [];
   const rawConsoleMessages: ConsoleMessage[] =
-    typeof page.consoleMessages === 'function' ? await page.consoleMessages() : [];
+    typeof page.consoleMessages === 'function' ? await page.consoleMessages({ filter: 'all' }) : [];
 
   return {
     pageErrors: filterUnexpectedPageErrors(rawPageErrors, allowPatterns),

@@ -43,4 +43,27 @@ describe('console-gate (TOO-7)', () => {
       consoleErrors: ['Boom console'],
     });
   });
+
+  it('lee TODA la historia de la página y no solo lo que pasó desde la última navegación (revisión de E5, M-2)', async () => {
+    const asked: Array<{ method: string; options: unknown }> = [];
+    const fakePage = {
+      pageErrors: async (options?: unknown) => {
+        asked.push({ method: 'pageErrors', options });
+        return [];
+      },
+      consoleMessages: async (options?: unknown) => {
+        asked.push({ method: 'consoleMessages', options });
+        return [];
+      },
+    } as unknown as Page;
+
+    await collectUnexpectedPageAndConsoleErrors(fakePage);
+
+    // Por defecto Playwright devuelve lo ocurrido desde la última navegación de documento: un recorrido largo que
+    // navega a mitad perdería los errores anteriores sin que nadie lo note.
+    expect(asked).toEqual([
+      { method: 'pageErrors', options: { filter: 'all' } },
+      { method: 'consoleMessages', options: { filter: 'all' } },
+    ]);
+  });
 });
