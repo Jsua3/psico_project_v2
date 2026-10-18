@@ -16,7 +16,9 @@ cual, sin las claves nuevas.
 """
 import hashlib
 import json
+import logging
 
+from django.db import transaction
 from django.db.models import Q
 
 from shared.jsonutils import read_map
@@ -25,6 +27,7 @@ from apps.simulation.serializers import game_dtos as dto
 
 from apps.simulation.assessment import competencies as assessment_competencies
 from apps.simulation.assessment import definitions, evidence
+from apps.simulation.assessment import evaluation as system_evaluation
 
 from ..models import (
     AttemptEvent,
@@ -37,6 +40,8 @@ from ..models import (
     SimulationNode,
 )
 from . import attempt_duration, case_effects
+
+logger = logging.getLogger(__name__)
 
 REPORT_SCHEMA_VERSION = 2  # 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia)
 
@@ -175,13 +180,26 @@ def freeze_report(attempt, events=None):
     ordinal = attempt_ordinal(attempt)
     definition_hash = case_definition_hash(attempt.case_version_id)
     payload = build_report_payload(attempt, events, ordinal, definition_hash)
-    return AttemptReport.objects.create(
+    row = AttemptReport.objects.create(
         attempt=attempt,
         report_json=json.dumps(payload, ensure_ascii=False),
         report_schema_version=REPORT_SCHEMA_VERSION,
         definition_hash=definition_hash,
         attempt_ordinal=ordinal,
     )
+    _record_system_evaluation(attempt, payload)
+    return row
+
+
+def _record_system_evaluation(attempt, payload):
+    """La evaluación automática (E6-1e) deriva del reporte que acaba de congelarse y NUNCA rompe el cierre: es un dato
+    derivado, como lo que escuchan los suscriptores de ``attempt_completed`` (``send_robust``). Va en un punto de
+    guardado para que un fallo de base de datos no deje abortada la transacción que cierra el intento."""
+    try:
+        with transaction.atomic():
+            system_evaluation.record_system_evaluation(attempt, payload)
+    except Exception:  # noqa: BLE001 - el cierre del intento no depende de su evaluación automática
+        logger.exception("No se pudo crear la evaluación del sistema del intento %s", attempt.id)
 
 
 def frozen_report_for(attempt_id):

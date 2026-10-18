@@ -21,7 +21,7 @@ from apps.simulation.models.attempt import (
     ReflectionJournal,
     SimulationAttempt,
 )
-from apps.simulation.models.rubric import RubricEvaluation
+from apps.simulation.models.rubric import EvaluationOrigin, RubricEvaluation
 from apps.simulation.services.instructor_scope import student_ids_for_instructor
 from shared.identity import IdentityPresenter
 
@@ -80,8 +80,9 @@ def _count_reflections(attempt_ids):
 def _count_rubrics(attempt_ids):
     if not attempt_ids:
         return 0
+    # Solo las rúbricas que aplicó un docente (E6-1e): la evaluación automática del sistema no es una «rúbrica aplicada».
     return (
-        RubricEvaluation.objects.filter(attempt_id__in=attempt_ids)
+        RubricEvaluation.objects.filter(attempt_id__in=attempt_ids, origin=EvaluationOrigin.DOCENTE)
         .values("attempt_id")
         .distinct()
         .count()
