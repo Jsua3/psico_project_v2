@@ -36,6 +36,9 @@ PERMITIDAS = {
     ("apps.users.services.account_service", "create_admin_account"): (
         "primera cuenta ADMIN por terminal (``create_admin``): clave temporal con fecha, la pone el operador del despliegue"
     ),
+    ("apps.users.services.account_service", "reset_admin_account"): (
+        "reposición del ADMIN por terminal (``create_admin --reset``, R1b2): clave temporal con fecha, la pone el operador"
+    ),
 }
 
 

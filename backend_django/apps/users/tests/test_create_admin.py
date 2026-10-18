@@ -9,12 +9,14 @@ import io
 import json
 import secrets
 import sys
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from apps.simulation.models import AuditLog
 
@@ -190,5 +192,183 @@ def test_la_clave_no_se_acepta_como_argumento_de_linea_de_comandos(monkeypatch):
 
     with pytest.raises(CommandError):
         _crear("--password", _clave())
+
+    assert not User.objects.filter(email=CORREO).exists()
+
+
+# --- R1b2 · ``create_admin --reset``: reponer la clave del único ADMIN cuando la pierde o su temporal caducó. ---------
+LOGIN = "/api/auth/login"
+ME = "/api/auth/me"
+USUARIOS = "/api/admin/users"
+CORREO_SIN_CUENTA = "nadie.repone@inst.test"
+
+
+def _reponer(correo=CORREO):
+    salida = io.StringIO()
+    call_command("create_admin", "--email", correo, "--reset", stdout=salida)
+    return salida.getvalue()
+
+
+def _cuenta(role="ADMIN", clave=None, **extra):
+    """Cuenta existente en ``CORREO`` con su clave (o una generada en ejecución). Devuelve ``(cuenta, clave)``."""
+    clave = clave or _clave()
+    cuenta = User.objects.create_user(email=CORREO, password=clave, nombre="Ana", apellido="Ruiz", role=role, **extra)
+    return cuenta, clave
+
+
+def _caducada():
+    """Temporal fijada hace 8 días: ya caducó (``SIEP_TEMP_PASSWORD_DAYS`` vale 7)."""
+    return {"must_change_password": True, "temp_password_set_at": timezone.now() - timedelta(days=8)}
+
+
+def _estado(cuenta):
+    """Lo que el comando puede cambiar en una cuenta. Recarga desde la base."""
+    cuenta.refresh_from_db()
+    return (
+        cuenta.role,
+        cuenta.activo,
+        cuenta.password,
+        cuenta.must_change_password,
+        cuenta.temp_password_set_at,
+        cuenta.session_epoch,
+    )
+
+
+def _entrar(clave):
+    return APIClient().post(LOGIN, {"email": CORREO, "password": clave}, format="json")
+
+
+def _como(token):
+    cliente = APIClient()
+    cliente.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+    return cliente
+
+
+@pytest.mark.parametrize("estado", ["caducada", "desactivado"])
+def test_reponer_deja_al_admin_activo_con_clave_temporal_nueva_y_fecha(monkeypatch, estado):
+    admin, vieja = _cuenta(**(_caducada() if estado == "caducada" else {"activo": False}))
+    nueva = _clave()
+    monkeypatch.setenv(VARIABLE, nueva)
+    antes = timezone.now()
+
+    _reponer()
+
+    admin.refresh_from_db()
+    assert admin.activo is True
+    assert admin.must_change_password is True
+    assert admin.temp_password_set_at >= antes
+    assert admin.check_password(nueva)
+    assert not admin.check_password(vieja)
+    assert _entrar(vieja).status_code == 401
+    entrada = _entrar(nueva)
+    assert entrada.status_code == 200, entrada.data
+    assert entrada.data["data"]["user"]["mustChangePassword"] is True
+    bloqueada = _como(entrada.data["data"]["token"]).get(USUARIOS)
+    assert bloqueada.status_code == 403
+    assert bloqueada.data["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+
+def test_reponer_cierra_las_sesiones_anteriores_y_su_token_da_401(monkeypatch):
+    admin, clave = _cuenta()
+    token = _entrar(clave).data["data"]["token"]
+    assert _como(token).get(ME).status_code == 200
+    monkeypatch.setenv(VARIABLE, _clave())
+
+    _reponer()
+
+    admin.refresh_from_db()
+    assert admin.session_epoch == 1
+    respuesta = _como(token).get(ME)
+    assert respuesta.status_code == 401
+    assert respuesta.data["code"] == "TOKEN_INVALID"
+
+
+@pytest.mark.parametrize("rol", ["PROFESOR", "ESTUDIANTE"])
+def test_rechaza_reponer_una_cuenta_que_no_es_de_admin_sin_tocarla(monkeypatch, rol):
+    cuenta, _ = _cuenta(role=rol)
+    antes = _estado(cuenta)
+    monkeypatch.setenv(VARIABLE, _clave())
+
+    with pytest.raises(CommandError, match="no es de ADMIN"):
+        _reponer()
+
+    assert _estado(cuenta) == antes
+    assert not AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND").exists()
+
+
+def test_rechaza_reponer_un_correo_sin_cuenta_y_no_crea_nada(monkeypatch):
+    monkeypatch.setenv(VARIABLE, _clave())
+
+    with pytest.raises(CommandError, match="(?i)no hay una cuenta con ese correo para reponer"):
+        _reponer(correo=CORREO_SIN_CUENTA)
+
+    assert not User.objects.filter(email=CORREO_SIN_CUENTA).exists()
+    assert not AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND").exists()
+
+
+@pytest.mark.parametrize(
+    "valor",
+    [secrets.token_urlsafe(4), "".join(secrets.choice("0123456789") for _ in range(14))],
+    ids=["corta", "solo_digitos"],
+)
+def test_la_clave_de_reposicion_cumple_las_reglas_y_si_no_cumple_no_toca_nada(monkeypatch, valor):
+    admin, _ = _cuenta(**_caducada())
+    antes = _estado(admin)
+    monkeypatch.setenv(VARIABLE, valor)
+
+    # El aviso lo da AUTH_PASSWORD_VALIDATORS (idioma «es»): siempre habla de la contraseña.
+    with pytest.raises(CommandError, match="contrase"):
+        _reponer()
+
+    assert _estado(admin) == antes
+    assert not AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND").exists()
+
+
+def test_la_auditoria_de_la_reposicion_tiene_el_id_y_nunca_la_clave_ni_el_correo(monkeypatch):
+    admin, _ = _cuenta(**_caducada())
+    nueva = _clave()
+    monkeypatch.setenv(VARIABLE, nueva)
+
+    _reponer()
+
+    filas = list(AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND"))
+    assert len(filas) == 1
+    assert json.loads(filas[0].context_json)["targetId"] == admin.pk
+    for fila in AuditLog.objects.all():
+        volcado = f"{fila.action} {fila.resource_type} {fila.context_json}"
+        assert nueva not in volcado
+        assert CORREO not in volcado
+
+
+def test_la_salida_de_la_reposicion_muestra_el_id_y_no_la_clave_ni_el_correo(monkeypatch):
+    admin, _ = _cuenta(**_caducada())
+    nueva = _clave()
+    monkeypatch.setenv(VARIABLE, nueva)
+
+    salida = _reponer()
+
+    assert nueva not in salida
+    assert CORREO not in salida
+    assert str(admin.pk) in salida
+    assert "temporal" in salida
+
+
+def test_sin_reset_un_admin_existente_sigue_sin_tocarse(monkeypatch):
+    admin, _ = _cuenta(**_caducada())
+    antes = _estado(admin)
+    monkeypatch.setenv(VARIABLE, _clave())
+
+    with pytest.raises(CommandError, match="ya está registrado"):
+        _crear()
+
+    assert _estado(admin) == antes
+    assert not AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND").exists()
+
+
+def test_sin_reset_el_nombre_y_el_apellido_siguen_siendo_obligatorios(monkeypatch):
+    monkeypatch.setenv(VARIABLE, _clave())
+
+    with pytest.raises(CommandError, match="--nombre"):
+        call_command("create_admin", "--email", CORREO, stdout=io.StringIO())
 
     assert not User.objects.filter(email=CORREO).exists()

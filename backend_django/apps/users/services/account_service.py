@@ -312,6 +312,52 @@ def create_admin_account(email, nombre, apellido, password):
     return cuenta
 
 
+def _contexto_del_admin_repuesto(args, kwargs, result):
+    """Solo el id de la cuenta repuesta en la auditoría: ni el correo ni la clave (R1b2)."""
+    return {"targetId": result.pk}
+
+
+@auditable("ADMIN_RESET_BY_COMMAND", "USER", -1, context=_contexto_del_admin_repuesto)
+def reset_admin_account(email, password):
+    """Repone la clave de un ADMIN existente (R1b2): clave TEMPORAL nueva, cuenta activa y sesiones cerradas.
+
+    Lo llama ``create_admin --reset`` para el único administrador cuando pierde su clave o su temporal caducó antes del
+    primer acceso (SD-15: no hay recuperación por correo). Solo acepta cuentas de rol ADMIN: nunca convierte a nadie en
+    ADMIN ni repone a un estudiante o a un docente. Un correo sin cuenta, una cuenta que no es ADMIN o una clave que no
+    pasa ``AUTH_PASSWORD_VALIDATORS`` fallan sin tocar nada. La clave no sale de aquí.
+    """
+    # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+    if not password:
+        raise _field_error("password", "La contraseña es obligatoria.")
+    with transaction.atomic():
+        cuenta = User.objects.select_for_update().filter(email=email).first()
+        if cuenta is None:
+            raise ApiError(
+                "ADMIN_RESET_NOT_FOUND",
+                "No hay una cuenta con ese correo para reponer.",
+                status.HTTP_404_NOT_FOUND,
+            )
+        if cuenta.role != UserRole.ADMIN:
+            raise ApiError(
+                "ADMIN_RESET_NOT_ADMIN",
+                "Solo se repone una cuenta de administrador: esta cuenta no es de ADMIN y no se ha tocado.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            password_validation.validate_password(password, cuenta)
+        except DjangoValidationError as exc:
+            raise _field_error("password", " ".join(exc.messages)) from None
+        cuenta.set_password(password)
+        cuenta.activo = True
+        cuenta.must_change_password = True
+        # S1-5 · la temporal cuenta su plazo desde la reposición: no hereda la fecha de la anterior.
+        cuenta.temp_password_set_at = timezone.now()
+        cuenta.save(update_fields=["password", "activo", "must_change_password", "temp_password_set_at"])
+        # S1-4 · las sesiones anteriores dejan de valer, también las de la clave perdida. La instancia queda al día.
+        cuenta.session_epoch = revoke_sessions(cuenta.pk)
+    return cuenta
+
+
 def notify_admin_password_change(user):
     """Avisa a la persona de que un ADMIN le cambió la contraseña (S1-5 · SF-21).
 

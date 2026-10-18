@@ -103,7 +103,35 @@ unset SIEP_ADMIN_PASSWORD
 - La clave cumple las mismas reglas que cualquier otra: longitud, contraseñas comunes y no parecerse a la cuenta.
 - La clave es **temporal**: caduca a los `SIEP_TEMP_PASSWORD_DAYS` días (7 por defecto). Entra antes de que venza y
   cámbiala en el primer acceso.
-- Si el correo ya tiene cuenta, el comando falla y no toca la cuenta existente.
+- Si el correo ya tiene cuenta, el comando falla y no toca la cuenta existente: para reponer su clave, usa `--reset` (abajo).
+
+### Reponer al único administrador (`--reset`)
+
+Si el único ADMIN **pierde su clave**, o su **temporal caducó antes de su primer acceso** (no hay recuperación por correo:
+la repone un administrador), repónla con `--reset`:
+
+```bash
+export SIEP_ADMIN_PASSWORD='...'
+railway run python backend_django/manage.py create_admin --reset --email admin@tu-dominio.edu.co
+unset SIEP_ADMIN_PASSWORD
+```
+
+- La cuenta queda **activa**, con una clave **temporal nueva** (caduca igual que la de la primera vez) y sus sesiones
+  anteriores quedan **cerradas**: un token viejo deja de servir.
+- Solo repone cuentas de rol ADMIN. Si el correo no tiene cuenta, o es de un estudiante o de un docente, el comando falla
+  y no toca nada: nunca convierte a nadie en administrador. Con `--reset` no hacen falta `--nombre` ni `--apellido`.
+- La auditoría guarda solo el id de la cuenta, y el comando imprime solo ese id y que la clave es temporal.
+
+> **A verificar en el primer despliegue.** `railway run` ejecuta el comando en tu máquina, con las variables del servicio.
+> Si `DATABASE_URL` apunta a la red interna de Railway (`*.railway.internal`), esa dirección no se resuelve desde fuera y
+> el comando no conecta. En ese caso hay dos salidas:
+> - Abrir una terminal dentro del contenedor del servicio (el panel de Railway o `railway ssh`, si la versión instalada de
+>   la CLI lo trae; consulta la documentación de la CLI) y ejecutar allí `python manage.py create_admin --reset …`, con
+>   `SIEP_ADMIN_PASSWORD` fijada solo en esa sesión.
+> - O exportar en tu terminal la URL pública de la base (`DATABASE_PUBLIC_URL` del servicio de PostgreSQL) como
+>   `DATABASE_URL`, solo para ese comando.
+>
+> No pegues la clave ni la URL de la base en ningún chat ni en las variables del servicio.
 
 ## 5. Verificar
 
@@ -156,37 +184,20 @@ Los incumplimientos llegan en los dos modos a `POST /api/security/csp-report` y 
 
 - **Error 400 / DisallowedHost:** falta el dominio en `DJANGO_ALLOWED_HOSTS`.
 - **500 al cargar / no conecta a la BD:** revisa que `DATABASE_URL` esté
-  referenciada y que restauraste `deploy/db_seed.sql`.
+  referenciada y mira en los registros del despliegue si el arranque llegó a aplicar las migraciones (`migrate`).
 - **La página carga pero las llamadas fallan con 404 en `/api`:** asegúrate de
   que el servicio es el del `Dockerfile` de la raíz (no solo el frontend).
 - **Recargar una ruta interna (p. ej. `/portal/...`) da 404:** ya está resuelto
   por el catch-all del SPA en `psychosim/urls.py`; si pasa, es que el build de
   Angular no se copió (revisa el log de build del Dockerfile).
 - **Actualizaciones:** cada push a la rama conectada redepliega automáticamente.
-  La BD NO se toca en redeploys; solo restauras el volcado la primera vez.
-- **Cambios de esquema sobre una BD ya restaurada:** aplica, en orden, los
-  scripts de [`deploy/upgrades/`](../../deploy/upgrades) posteriores a tu restauración
-  (todos son idempotentes):
-  ```bash
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-09-29-attempt-status-paused.sql
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-ambient-npcs-caso-pdf.sql
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-attempt-status-replaced.sql
-  ```
-  Sin el de 2026-09-29, la "pausa segura" falla con 500 porque el CHECK viejo
-  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin
-  `2026-10-01-ambient-npcs-caso-pdf.sql`, hablar con los NPC ambientales del
-  caso (enfermera, médico, trabajadora social…) responde 400 y el diálogo no se
-  abre: el backend exige su posición en `scene_maps.ambient_json.ambientNpcs`.
-  Sin `2026-10-01-attempt-status-replaced.sql`, empezar un intento nuevo sobre
-  uno activo ("forceNew") falla con 500 porque el CHECK no admite `REPLACED`;
-  ese script además reclasifica como `REPLACED` los intentos reemplazados que se
-  guardaron como salida segura. Como cada push redepliega, aplica los scripts
-  **antes** de hacer push del código que los necesita.
-- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con la
-  llave de reflexiones local (hasta S5-1, el `JWT_SECRET` local). Si la
-  `REFLECTION_ENCRYPTION_KEY` de Railway es distinta (recomendado), las reflexiones
-  nuevas funcionan con normalidad; las viejas del volcado podrían no descifrarse.
-  No afecta al resto de la app.
+  La BD NO se restaura en los redeploys: el arranque solo aplica las migraciones que falten.
+- **Cambios de esquema:** no hay scripts SQL que aplicar a mano. Las migraciones de Django las aplica el arranque
+  (`migrate --noinput`, antes de gunicorn). Los scripts que había en `deploy/upgrades/` ya no existen en el repositorio.
+- **Reflexiones cifradas con otra llave:** si una base llega de otro entorno (por ejemplo, una restauración de respaldo),
+  sus reflexiones se descifran solo con la llave con la que se cifraron (hasta S5-1, el `JWT_SECRET` local). Si la
+  `REFLECTION_ENCRYPTION_KEY` de Railway es distinta (recomendado), las reflexiones nuevas funcionan con normalidad; las
+  viejas podrían no descifrarse. No afecta al resto de la app.
 
 ---
 

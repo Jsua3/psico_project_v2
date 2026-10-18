@@ -96,3 +96,6 @@ Las siembras de demostración (`seed_demo_users` y `seed_demo_access`) son solo 
 producción (`shared/dev_only.py`). Sus contraseñas están en el código del repositorio, así que son **públicas**. Si una cuenta
 de demostración llegara a la plataforma, desactívala desde la administración y no la uses. Comprobación: no debe haber
 cuentas de demostración activas en producción.
+
+Para reponer la clave del único ADMIN (la perdió, o su temporal caducó antes del primer acceso) no sirve ninguna de estas
+cuentas: la vía es `create_admin --reset`, descrita en [despliegue-railway.md](despliegue-railway.md) (sección 4).
