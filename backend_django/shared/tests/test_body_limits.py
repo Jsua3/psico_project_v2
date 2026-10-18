@@ -27,7 +27,8 @@ pytestmark = [pytest.mark.req("RNF-002"), pytest.mark.security]
 MIB = 1024 * 1024
 BODY = "shared.body_limit.BodyLimitMiddleware"
 SECURITY = "django.middleware.security.SecurityMiddleware"
-WHITENOISE = "whitenoise.middleware.WhiteNoiseMiddleware"
+# S2-4: WhiteNoise va en su subclase del SPA (no sirve index.html); ocupa el mismo sitio de la cadena.
+WHITENOISE = "shared.static_files.SpaStaticFilesMiddleware"
 LOGIN = "/api/auth/login"
 IMPORTACION = "/api/grupos/7/estudiantes/import"
 IMPORTACION_DE_CASOS = "/api/admin/cases/import"

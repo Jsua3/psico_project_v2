@@ -15,8 +15,9 @@ regexes = [
   '''^[a-z0-9]+(?:-[a-z0-9]+)+$''',
   # Marcadores de posición de .env.example: se piden cambiar antes de desplegar.
   '''^cambia-esto[a-z0-9-]*$''',
-  # Secreto JWT de DESARROLLO que base.py ya no contiene (S5-1), pero sí el historial de git, que `gitleaks detect`
-  # también escanea: se mantiene la excepción para que el historial no falle.
+  # Literal JWT de DESARROLLO de JWT_SECRET: base.py ya no lo contiene (S5-1) y JWT_SECRET ya no firma nada (S5-3: la
+  # llave de firma es JWT_SIGNING_KEY). Se mantiene la excepción porque sigue en el historial de git, que `gitleaks detect`
+  # también escanea: así el historial no falla.
   '''^psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256$''',
   # Llave de cifrado de reflexiones de DESARROLLO por defecto de settings/base.py (S5-1): producción la rechaza
   # (caracteres repetidos y el marcador «dev-only»); no es un secreto.

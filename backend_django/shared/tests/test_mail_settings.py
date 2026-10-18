@@ -26,8 +26,12 @@ PROD_ENV = {
     "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
     "DJANGO_ALLOWED_HOSTS": "siep.example.edu.co",
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
-    "JWT_SECRET": secrets.token_urlsafe(48),
+    # S5-3: producción exige la llave que firma las sesiones (distinta de las demás).
+    "JWT_SIGNING_KEY": secrets.token_urlsafe(48),
     "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
+    # S5-2: producción exige la llave activa versionada (REFLECTION_ACTIVE_KEY y su secreto en REFLECTION_KEYS).
+    "REFLECTION_ACTIVE_KEY": "k1",
+    "REFLECTION_KEYS": f"k1={secrets.token_urlsafe(48)}",
     "EMAIL_BACKEND": SMTP,
     "ACCESS_REQUEST_NOTIFY_EMAILS": "admin@siep.example.edu.co, secretaria@siep.example.edu.co",
     # S1-1: producción exige SIEP_TRUSTED_PROXIES (sin valor por defecto).

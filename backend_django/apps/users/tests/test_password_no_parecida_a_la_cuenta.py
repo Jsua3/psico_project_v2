@@ -14,8 +14,9 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
 
 from apps.users import password_validators
-from apps.users.serializers import AdminUserWriteSerializer, RegisterSerializer
+from apps.users.serializers import AdminUserWriteSerializer
 from apps.users.services import account_service
+from rest_framework.test import APIClient
 from shared.exceptions import ApiError
 
 pytestmark = [pytest.mark.req("SIEP-RNF-03"), pytest.mark.security]
@@ -77,19 +78,28 @@ def test_la_cadena_de_validadores_acepta_una_clave_distinta():
     password_validation.validate_password(_clave(), _cuenta())
 
 
-def test_el_registro_rechaza_la_clave_igual_a_nombre_y_apellido():
-    ser = RegisterSerializer(
-        data={
+def test_el_alta_por_la_ruta_canonica_rechaza_la_clave_igual_a_nombre_y_apellido(db):
+    admin = User.objects.create_user(
+        email="admin_parecida@inst.test", password=_clave(), nombre="Ad", apellido="Min", role="ADMIN"
+    )
+    cliente = APIClient()
+    cliente.force_authenticate(user=admin)
+
+    resp = cliente.post(
+        "/api/admin/users",
+        {
             "email": CORREO,
             "password": "Valentina Restrepo",
             "nombre": NOMBRE,
             "apellido": APELLIDO,
             "role": "ESTUDIANTE",
-        }
+            "activo": True,
+        },
+        format="json",
     )
 
-    assert not ser.is_valid()
-    assert "password" in ser.errors
+    assert resp.status_code == 400
+    assert not User.objects.filter(email=CORREO).exists()
 
 
 def test_el_alta_de_un_admin_rechaza_la_clave_igual_al_correo(db):

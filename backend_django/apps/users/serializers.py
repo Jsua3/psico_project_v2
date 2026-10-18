@@ -8,7 +8,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
-from shared.plain_text import plain_text_problem
+from shared.plain_text import person_text_problem
 
 from .models import AccessRequest, AccessRequestStatus, UserRole
 from .services import account_service
@@ -87,7 +87,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 class AdminUserWriteSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
+    # Sin recorte: la clave se guarda y se compara tal cual (los espacios finales cuentan).
+    password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, min_length=8, trim_whitespace=False
+    )
     nombre = serializers.CharField(max_length=100)
     apellido = serializers.CharField(max_length=100)
     role = serializers.ChoiceField(choices=UserRole.choices)
@@ -101,6 +104,12 @@ class AdminUserWriteSerializer(serializers.Serializer):
         if qs.exists():
             raise serializers.ValidationError("El email ya está registrado")
         return value
+
+    def validate_nombre(self, value):
+        return _nombre_de_persona(value)
+
+    def validate_apellido(self, value):
+        return _nombre_de_persona(value)
 
     def validate_password(self, value):
         return validate_new_password(value, _cuenta_propuesta(self.initial_data, self.instance)) if value else value
@@ -168,7 +177,8 @@ class PsychoSimTokenObtainSerializer(TokenObtainPairSerializer):
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    # Sin recorte (R1b): la clave con la que entra es la que se guardó, espacios finales incluidos.
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def validate_email(self, value):
         return normalize_email_value(value)
@@ -176,24 +186,6 @@ class LoginSerializer(serializers.Serializer):
 
 class GoogleLoginSerializer(serializers.Serializer):
     credential = serializers.CharField(write_only=True)
-
-
-class RegisterSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, min_length=8)
-    nombre = serializers.CharField(max_length=100)
-    apellido = serializers.CharField(max_length=100)
-    role = serializers.ChoiceField(choices=UserRole.choices)
-
-    def validate_email(self, value):
-        value = validate_common_email_domain(normalize_email_value(value))
-        return value
-
-    def validate_password(self, value):
-        return validate_new_password(value, _cuenta_propuesta(self.initial_data))
-
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
 
 
 class ApproveUsersSerializer(serializers.Serializer):
@@ -210,11 +202,12 @@ class ChangePasswordSerializer(serializers.Serializer):
     newPassword = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
-def _texto_plano(value):
-    """S1-3 · nombre y apellido: texto plano de una línea, sin etiquetas ni enlaces (regla de casedef)."""
-    problema = plain_text_problem(value, 100)
+def _nombre_de_persona(value):
+    """S1-3 · nombre y apellido: texto plano de una línea, sin etiquetas ni enlaces (regla de casedef). R1b: además, sin
+    invisibles ni dominios, y solo con letras y signos de nombre (``shared.plain_text.person_text_problem``)."""
+    problema = person_text_problem(value, 100)
     if problema is not None:
-        raise serializers.ValidationError(problema[1])
+        raise serializers.ValidationError(problema)
     return value.strip()
 
 
@@ -226,10 +219,10 @@ class AccessRequestCreateSerializer(serializers.Serializer):
     website = serializers.CharField(required=False, allow_blank=True, max_length=200, write_only=True)
 
     def validate_nombre(self, value):
-        return _texto_plano(value)
+        return _nombre_de_persona(value)
 
     def validate_apellido(self, value):
-        return _texto_plano(value)
+        return _nombre_de_persona(value)
 
     def validate_email(self, value):
         return validate_common_email_domain(normalize_email_value(value))

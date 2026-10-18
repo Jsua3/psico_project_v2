@@ -4,6 +4,7 @@ Django owns the PostgreSQL schema: every table is created and evolved by the
 migrations of each app (E0-8); the constraints that production enforces live in
 the models' ``Meta`` and are pinned by ``test_schema_contract.py``.
 """
+import logging
 import os
 import re
 from datetime import timedelta
@@ -153,6 +154,11 @@ from corsheaders.defaults import default_headers  # noqa: E402
 
 CORS_ALLOW_HEADERS = (*default_headers, "x-case-revision")
 
+# S5-3 · Llave que FIRMA los tokens de sesión (simplejwt). Va aparte de DJANGO_SECRET_KEY: rotar esta última no cierra las
+# sesiones de SIEP, y rotar JWT_SIGNING_KEY sí las cierra todas. Producción la exige (production.py); en desarrollo y
+# pruebas, sin ella, cae a SECRET_KEY para no cambiar nada de lo existente.
+JWT_SIGNING_KEY = os.environ.get("JWT_SIGNING_KEY", "").strip() or SECRET_KEY
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
         hours=int(os.environ.get("JWT_EXPIRATION_HOURS", "8"))
@@ -160,10 +166,14 @@ SIMPLE_JWT = {
     "TOKEN_OBTAIN_SERIALIZER": "apps.users.serializers.PsychoSimTokenObtainSerializer",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "userId",
+    # S5-3 · Firma explícita: un cambio de algoritmo o de llave tiene que verse aquí y no ser silencioso.
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "VERIFYING_KEY": "",
 }
 
-# S5-1 · JWT_SECRET ya no firma nada (la firma de sesión sale de SECRET_KEY; S5-3 la decide) y no lleva valor por
-# defecto: el literal público que tenía se retira. El nombre se conserva por compatibilidad de entorno.
+# S5-3 · JWT_SECRET está obsoleto: ya no firma nada ni lo exige producción. Se conserva el nombre por compatibilidad de
+# entorno y no lleva valor por defecto (el literal público que tuvo se retiró en S5-1).
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 # S5-1 · Llave de cifrado en reposo de las reflexiones. Producción la exige (production.py) y NO la hereda de
 # JWT_SECRET. Aquí solo hay una llave de DESARROLLO inconfundible: el marcador «dev-only» hace que producción la rechace.
@@ -241,6 +251,28 @@ def _env_flag(name, default=False):
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+#: Valores que APAGAN un interruptor de seguridad «cerrado» (sin mayúsculas ni espacios). Cualquier otro valor lo enciende.
+_VALORES_DE_APAGADO = frozenset({"0", "false", "no", "off"})
+_VALORES_DE_ENCENDIDO = frozenset({"1", "true", "yes", "on"})
+
+
+def _env_flag_cerrada(name, default=True):
+    """Interruptor de seguridad que falla CERRADO (R1b, S1-2 y S1-4): ausente o vacío → ``default``; ``0/false/no/off`` →
+    apagado; cualquier otro valor → encendido, y se avisa UNA vez en el registro sin mostrar el valor. Un error de tecleo
+    («ture») no apaga nada."""
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw in _VALORES_DE_APAGADO:
+        return False
+    if raw not in _VALORES_DE_ENCENDIDO:
+        logging.getLogger("siep.security").warning(
+            "valor_de_interruptor_no_reconocido",
+            extra={"fields": {"event": "valor_de_interruptor_no_reconocido", "variable": name}},
+        )
+    return True
 
 
 def _entero_env(name, default, minimo):
@@ -365,12 +397,12 @@ SIEP_TRUSTED_PROXIES = int(os.environ.get("SIEP_TRUSTED_PROXIES", "0"))
 #: S1-2 · limitador compartido de peticiones (DJA-2). Interruptor de emergencia: por defecto encendido; con él
 #: apagado, ``apps.security.limiter`` no toca la base y ninguna petición recibe 429. Las pruebas lo apagan en
 #: ``psychosim/settings/test.py``.
-SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+SIEP_THROTTLE_ENABLED = _env_flag_cerrada("SIEP_THROTTLE_ENABLED", default=True)
 
 #: S1-4 · sesión revocable: cada token lleva la época de sesión de su dueño (claim ``ep``) y el servidor rechaza los
 #: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
 #: emergencia: no lo apagues en producción).
-SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+SIEP_SESSION_EPOCH_ENFORCE = _env_flag_cerrada("SIEP_SESSION_EPOCH_ENFORCE", default=True)
 
 #: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
 #: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.

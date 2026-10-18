@@ -20,7 +20,8 @@ BASE_ENV = {
     "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
     "DJANGO_ALLOWED_HOSTS": "siep.example.edu.co",
     "DATABASE_URL": "postgres://usuario:clave@bd.example:5432/siep",
-    "JWT_SECRET": secrets.token_urlsafe(48),
+    # S5-3: la llave que firma las sesiones es obligatoria y propia (distinta de las demás).
+    "JWT_SIGNING_KEY": secrets.token_urlsafe(48),
     "REFLECTION_ENCRYPTION_KEY": secrets.token_urlsafe(32),
     # S5-2: la llave activa es versionada y su secreto cumple las reglas de S5-1 (generado en cada ejecución).
     "REFLECTION_ACTIVE_KEY": "k1",
@@ -45,10 +46,12 @@ def _restore_base_settings(monkeypatch):
 def _production(monkeypatch, *, recargar_base=True, **overrides):
     env = {**BASE_ENV, **overrides}
     for name in (
-        "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
+        "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_PUBLIC_DOMAIN",
+        "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
         "SIEP_TRUSTED_PROXIES", "DJANGO_SECURE_SSL_REDIRECT", "SIEP_HSTS_SECONDS",
-        "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET", "REFLECTION_ACTIVE_KEY", "REFLECTION_KEYS",
+        "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET", "JWT_SIGNING_KEY", "REFLECTION_ACTIVE_KEY",
+        "REFLECTION_KEYS",
     ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
@@ -474,3 +477,129 @@ def test_dos_llaves_versionadas_con_la_activa_declarada_cargan_produccion(monkey
 
     assert settings["REFLECTION_ACTIVE_KEY"] == "k2"
     assert settings["REFLECTION_KEYS"] == {"k1": k1, "k2": k2}
+
+
+# ── S5-3 · Llave que firma las sesiones: obligatoria, propia y con las reglas de S5-1 ───────────────────────────
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_es_obligatoria_en_produccion(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY"):
+        _production(monkeypatch, JWT_SIGNING_KEY=None)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_de_49_caracteres_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY es demasiado corta"):
+        _production(monkeypatch, JWT_SIGNING_KEY=_secreto(49))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_de_50_caracteres_con_20_distintos_es_la_llave_de_simplejwt(monkeypatch):
+    valor = _secreto(50)
+
+    settings = _production(monkeypatch, JWT_SIGNING_KEY=valor)
+
+    assert settings["SIMPLE_JWT"]["SIGNING_KEY"] == valor
+    assert settings["SIMPLE_JWT"]["SIGNING_KEY"] != settings["SECRET_KEY"]
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_igual_a_django_secret_key_falla(monkeypatch):
+    valor = _secreto(64)
+
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY debe ser distinta de DJANGO_SECRET_KEY"):
+        _production(monkeypatch, DJANGO_SECRET_KEY=valor, JWT_SIGNING_KEY=valor)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_igual_a_reflection_encryption_key_falla(monkeypatch):
+    valor = _secreto(64)
+
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY debe ser distinta de REFLECTION_ENCRYPTION_KEY"):
+        _production(monkeypatch, REFLECTION_ENCRYPTION_KEY=valor, JWT_SIGNING_KEY=valor)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_igual_a_un_secreto_de_reflection_keys_falla(monkeypatch):
+    valor = _secreto(64)
+
+    with pytest.raises(ImproperlyConfigured, match=r"JWT_SIGNING_KEY debe ser distinta de REFLECTION_KEYS \(par 2\)"):
+        _production(monkeypatch, REFLECTION_KEYS=f"k1={_secreto(64)},k2={valor}", JWT_SIGNING_KEY=valor)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_con_marcador_de_ejemplo_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY es un valor de ejemplo"):
+        _production(monkeypatch, JWT_SIGNING_KEY="cambia-esto" + _secreto(60))
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_jwt_signing_key_con_una_sola_letra_repetida_falla(monkeypatch):
+    with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY tiene muy pocos caracteres distintos"):
+        _production(monkeypatch, JWT_SIGNING_KEY=secrets.choice(string.ascii_lowercase) * 60)
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+def test_el_error_de_jwt_signing_key_no_muestra_su_valor(monkeypatch):
+    for valor in (_secreto(49), "cambia-esto" + _secreto(60)):
+        with pytest.raises(ImproperlyConfigured, match="JWT_SIGNING_KEY") as error:
+            _production(monkeypatch, JWT_SIGNING_KEY=valor)
+
+        # La causa va en el mensaje; el valor, ni entero ni en parte, y tampoco en una excepción encadenada.
+        assert valor not in str(error.value)
+        assert error.value.__context__ is None
+
+
+@pytest.mark.req("SIEP-RNF-03")
+@pytest.mark.security
+@pytest.mark.parametrize("archivo", PLANTILLAS, ids=["raiz", "backend"])
+def test_las_plantillas_documentan_jwt_signing_key_sin_darle_valor(archivo):
+    assert "JWT_SIGNING_KEY" in archivo.read_text(encoding="utf-8"), f"{archivo} debe documentar JWT_SIGNING_KEY"
+    assert _valor_de_plantilla(archivo, "JWT_SIGNING_KEY") is None, f"{archivo} no debe dar un valor a JWT_SIGNING_KEY"
+
+
+# ── R1b · comodines en los hosts y SIEP_TRUSTED_PROXIES = 0 en Railway ─────────────────────
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("hosts", ["*", "siep.example.edu.co,*"])
+def test_un_comodin_en_los_hosts_impide_arrancar_sin_mostrarlo(monkeypatch, hosts):
+    with pytest.raises(ImproperlyConfigured, match="DJANGO_ALLOWED_HOSTS") as error:
+        _production(monkeypatch, DJANGO_ALLOWED_HOSTS=hosts)
+
+    assert "*" not in str(error.value)
+    assert error.value.__context__ is None
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("variable", ["RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_PUBLIC_DOMAIN"])
+def test_en_railway_con_cero_proxies_de_confianza_no_arranca(monkeypatch, variable):
+    # Railway pone siempre un proxy delante: con 0, todos los clientes comparten la IP del borde.
+    with pytest.raises(ImproperlyConfigured, match="SIEP_TRUSTED_PROXIES"):
+        _production(monkeypatch, SIEP_TRUSTED_PROXIES="0", **{variable: "siep.example.test"})
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_en_railway_con_un_proxy_arranca(monkeypatch):
+    settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES="1", RAILWAY_PROJECT_ID="proyecto-de-prueba")
+
+    assert settings["SIEP_TRUSTED_PROXIES"] == 1
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_fuera_de_railway_cero_proxies_sigue_arrancando(monkeypatch):
+    settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES="0")
+
+    assert settings["SIEP_TRUSTED_PROXIES"] == 0

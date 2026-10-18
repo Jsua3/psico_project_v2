@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { buildSteps, evaluateDeployCheck, selectSteps } from './verify-seguridad-support.mjs';
 
 const ROOT = 'C:/repo';
-const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'REFLECTION_ENCRYPTION_KEY'];
+const SECRETOS = ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'REFLECTION_ENCRYPTION_KEY', 'JWT_SIGNING_KEY'];
 const barras = (texto) => texto.replaceAll('\\', '/');
 const porId = (steps, id) => steps.find((step) => step.id === id);
 
@@ -181,6 +181,16 @@ test('la llave versionada de check --deploy es nueva en cada llamada: nunca un l
   const primero = porId(pasos(), 'deploy-check').env.REFLECTION_KEYS;
   const segundo = porId(pasos(), 'deploy-check').env.REFLECTION_KEYS;
   assert.notEqual(primero, segundo);
+});
+
+test('check --deploy declara la llave que firma las sesiones, distinta de la de Django y de las reflexiones (S5-3)', () => {
+  const env = porId(pasos(), 'deploy-check').env;
+  const secretoReflexion = env.REFLECTION_KEYS.slice(env.REFLECTION_KEYS.indexOf('=') + 1);
+  assert.ok(env.JWT_SIGNING_KEY.length >= 50);
+  assert.ok(new Set(env.JWT_SIGNING_KEY).size >= 20);
+  for (const otra of [env.DJANGO_SECRET_KEY, env.REFLECTION_ENCRYPTION_KEY, secretoReflexion]) {
+    assert.notEqual(env.JWT_SIGNING_KEY, otra);
+  }
 });
 
 test('--only deja solo los pasos pedidos, en el orden del plan', () => {
