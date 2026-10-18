@@ -70,6 +70,16 @@ def _elemento_reporte(**cambios):
     return {"type": "csp-violation", "age": 0, "url": DOCUMENTO, "user_agent": "Mozilla/5.0", "body": cuerpo}
 
 
+def _elemento_ligero(n):
+    """Un elemento mínimo de ``application/reports+json`` (unos 190 bytes): treinta caben en el tope de 8 KB."""
+    cuerpo = {
+        "blockedURL": f"https://cdn{n}.ejemplo.org/x.js",
+        "documentURL": DOCUMENTO,
+        "effectiveDirective": "script-src-elem",
+    }
+    return {"type": "csp-violation", "body": cuerpo}
+
+
 def _enviar(cliente, cuerpo, tipo=CLASICO, **extra):
     """POST del informe tal cual (texto), con el tipo de medio dado y desde la IP de prueba. Sin sesión."""
     return cliente.post(RUTA, cuerpo, content_type=tipo, REMOTE_ADDR=IP, **extra)
@@ -160,13 +170,25 @@ def test_los_tres_tipos_de_medio_se_aceptan_sin_sesion(cliente, registros, tipo,
     assert len(_violaciones(registros)) == 1
 
 
-def test_reportes_registra_un_informe_por_elemento_hasta_diez(cliente, registros):
-    cuerpo = [_elemento_reporte(blockedURL=f"https://cdn{n}.ejemplo.org/x.js") for n in range(12)]
+def test_reportes_registra_como_mucho_tres_informes_por_peticion(cliente, registros):
+    # Treinta informes en una sola petición dejan tres líneas: el resto se descarta en silencio y la respuesta es 204.
+    cuerpo = [_elemento_ligero(n) for n in range(30)]
 
     respuesta = _enviar(cliente, json.dumps(cuerpo), REPORTES)
 
     assert respuesta.status_code == 204
-    assert [v["blocked"] for v in _violaciones(registros)] == [f"https://cdn{n}.ejemplo.org" for n in range(10)]
+    assert [v["blocked"] for v in _violaciones(registros)] == [f"https://cdn{n}.ejemplo.org" for n in range(3)]
+
+
+def test_control_negativo_con_tope_de_diez_la_prueba_de_tres_falla(cliente, registros, monkeypatch):
+    from apps.security import csp_report
+
+    monkeypatch.setattr(csp_report, "MAX_INFORMES", 10)
+    cuerpo = [_elemento_ligero(n) for n in range(30)]
+    _enviar(cliente, json.dumps(cuerpo), REPORTES)
+
+    with pytest.raises(AssertionError):
+        assert len(_violaciones(registros)) == 3
 
 
 def test_reportes_no_registra_los_elementos_que_no_son_violaciones_de_csp(cliente, registros):
