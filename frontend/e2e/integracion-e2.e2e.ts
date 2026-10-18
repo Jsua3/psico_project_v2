@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
-import { setOwnPassword } from './support/own-password';
+import { nameStamp, setOwnPassword } from './support/own-password';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 
@@ -321,7 +321,7 @@ async function openAttemptOfNewStudent(request: APIRequestContext): Promise<{ at
   const email = `reemplazo-${stamp}@siep.test`;
   const password = `Clave-${stamp}-2026`;
   const admin = { Authorization: `Bearer ${await apiToken(request, process.env['E2E_ADMIN_EMAIL'] ?? 'admin@psychosim.edu.co', process.env['E2E_ADMIN_PASSWORD'] ?? 'Admin123!')}` };
-  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reemplazo', apellido: stamp, role: 'ESTUDIANTE', activo: true } });
+  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Reemplazo', apellido: nameStamp(stamp), role: 'ESTUDIANTE', activo: true } });
   expect(user.status(), 'crear estudiante').toBeLessThan(300);
   const ownPassword = await setOwnPassword(request, email, password); // S1-5: la clave que fija un ADMIN es temporal
 
@@ -344,7 +344,7 @@ async function openAttemptOfNewStudent(request: APIRequestContext): Promise<{ at
   const attemptId = (await started.json()).data.attemptId as string;
   return {
     attemptId,
-    alias: `Reemplazo ${stamp}`,
+    alias: `Reemplazo ${nameStamp(stamp)}`,
     cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); },
   };
 }

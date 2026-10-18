@@ -9,6 +9,7 @@ import { directiveSources, isExecutionViolation, nonceOfDirective } from './supp
 import type { Finding } from './support/csp-probe';
 import { injectCanary, probeMode, recordFinding, runProbedFlow, startProbe } from './support/csp-probe-runtime';
 import { EDITOR_TABS, visitEditorTabs } from './support/editor-tabs';
+import { nameStamp } from './support/own-password';
 import { TOUR_SCREENS, loginAs, openScreen } from './support/screen-tour';
 import {
   acceptContentWarning, createWorldInputDriver, enterWorld, finishCaseIntroduction, leaveBrief, waitForWorldReady, waitUntilPlayerStill,
@@ -253,7 +254,7 @@ async function studentWithAttempt(request: APIRequestContext) {
   const password = `Clave-${stamp}-2026`;
   const ownPassword = `Propia-${randomBytes(6).toString('hex')}-Zq9!`;
   const admin = bearer(await apiToken(request, ADMIN));
-  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Sonda', apellido: stamp, role: 'ESTUDIANTE', activo: true } });
+  const user = await request.post('/api/admin/users', { headers: admin, data: { email, password, nombre: 'Sonda', apellido: nameStamp(stamp), role: 'ESTUDIANTE', activo: true } });
   expect(user.status(), 'crear estudiante').toBeLessThan(300);
   const studentId = (await user.json()).data.id as number;
   const temporary = bearer(await apiToken(request, { email, password }));
@@ -273,7 +274,7 @@ async function studentWithAttempt(request: APIRequestContext) {
   expect((await request.post(`/api/me/invitations/${groupId}/accept`, { headers: student, data: {} })).status(), 'aceptar').toBe(200);
   expect((await request.post('/api/simulation/attempts', { headers: student, data: { caseVersionId } })).status(), 'iniciar intento').toBe(200);
   return {
-    groupId, studentId, studentName: `Sonda ${stamp}`, caseVersionId: caseVersionId!,
+    groupId, studentId, studentName: `Sonda ${nameStamp(stamp)}`, caseVersionId: caseVersionId!,
     cleanup: async () => { await request.delete(`/api/grupos/${groupId}`, { headers: teacher }); },
   };
 }

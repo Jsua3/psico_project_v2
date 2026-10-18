@@ -21,3 +21,12 @@ export async function setOwnPassword(request: APIRequestContext, email: string, 
   expect(changed.status(), `cambiar la contraseña temporal de ${email}: ${await changed.text()}`).toBe(200);
   return own;
 }
+
+/**
+ * Un apellido de prueba SIN cifras a partir de una marca de tiempo en base 36 (R1b): desde que el servidor exige que un
+ * nombre solo lleve letras, espacios, apóstrofos, guiones y puntos, `apellido: stamp` da 400. Cada cifra pasa a una letra
+ * (0→a … 9→j); el correo y el código del grupo siguen usando la marca original.
+ */
+export function nameStamp(stamp: string): string {
+  return stamp.replace(/\d/g, digit => String.fromCharCode(97 + Number(digit)));
+}
