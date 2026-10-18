@@ -108,6 +108,9 @@ def custom_exception_handler(exc, context):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
+    # Segundos que hay que esperar antes de reintentar (S1-2): el 429 siempre trae una espera de al menos uno.
+    espera = int(exc.wait or 1) if isinstance(exc, Throttled) else None
+
     if isinstance(exc, ValidationError):
         message = ", ".join(_flatten(exc.detail))
     elif isinstance(exc, (PermissionDenied, DjangoPermissionDenied)):
@@ -118,6 +121,9 @@ def custom_exception_handler(exc, context):
         message = "No autenticado"
     elif isinstance(exc, Http404):
         message = "Recurso no encontrado"
+    elif isinstance(exc, Throttled):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        message = f"Demasiados intentos. Espera {espera} s e inténtalo de nuevo."
     else:
         detail = None
         if isinstance(response.data, dict):
@@ -129,5 +135,8 @@ def custom_exception_handler(exc, context):
         # El primer campo que falló: el cliente lleva el foco ahí (§2.7, ``field?``).
         body["field"] = str(next(iter(exc.detail)))
     body.update(getattr(exc, "extra", None) or {})
+    if espera is not None:
+        body["retryAfter"] = espera
+        response["Retry-After"] = str(espera)
     response.data = body
     return response

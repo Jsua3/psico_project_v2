@@ -5,10 +5,21 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException
-from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from rest_framework.exceptions import AuthenticationFailed, Throttled, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from apps.security.limiter import hit, key_hash, peek, retry_after
+from apps.security.limits import LIMITS
+from apps.security.throttling import (
+    AccessRequestEmailThrottle,
+    AccessRequestGlobalThrottle,
+    AccessRequestIpThrottle,
+    GoogleIpThrottle,
+    LoginIpThrottle,
+    PasswordChangeUserThrottle,
+)
+from shared.client_ip import client_ip
 from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
@@ -57,19 +68,43 @@ def verify_google_credential(credential, audience):
         raise GoogleAuthenticationError("No fue posible validar la cuenta de Google") from exc
 
 
+def _bloqueo_por_fallos(email, ip):
+    """Lanza 429 si esta cuenta desde esta IP, o esta cuenta desde cualquier IP, ya agotó sus fallos (S1-2).
+
+    Se mira ANTES de la contraseña: acertarla no salta el bloqueo. Solo cuentan los fallos; los aciertos no suman.
+    """
+    esperas = []
+    if peek("login_fail_account_ip", key_hash(email, ip)) >= LIMITS["login_fail_account_ip"].limit:
+        esperas.append(retry_after("login_fail_account_ip"))
+    if peek("login_fail_account", key_hash(email)) >= LIMITS["login_fail_account"].limit:
+        esperas.append(retry_after("login_fail_account"))
+    if esperas:
+        raise Throttled(wait=max(esperas))
+
+
+def _registrar_fallo(email, ip):
+    """Cuenta un fallo de contraseña (también de una cuenta que no existe: así no se adivinan nombres)."""
+    hit("login_fail_account_ip", key_hash(email, ip))
+    hit("login_fail_account", key_hash(email))
+
+
 class LoginView(APIView):
     """POST /api/auth/login — public. Mirrors Spring AuthController.login."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [LoginIpThrottle]
 
     def post(self, request):
         ser = LoginSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         email = ser.validated_data["email"]
         password = ser.validated_data["password"]
+        ip = client_ip(request)
+        _bloqueo_por_fallos(email, ip)
 
         user = User.objects.filter(email=email).first()
         if not user or not user.activo or not user.check_password(password):
+            _registrar_fallo(email, ip)
             # 401 "Credenciales inválidas" (Spring BadCredentialsException)
             raise AuthenticationFailed("Credenciales inválidas")
 
@@ -97,6 +132,7 @@ class GoogleLoginView(APIView):
     """POST /api/auth/google - public Google Identity Services login."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [GoogleIpThrottle]
 
     def post(self, request):
         client_id = getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "")
@@ -152,6 +188,7 @@ class AccessRequestCreateView(APIView):
     """POST /api/auth/access-request — public student access request."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [AccessRequestIpThrottle, AccessRequestEmailThrottle, AccessRequestGlobalThrottle]
 
     @extend_schema(responses={201: ApiEnvelopeSerializer})
     def post(self, request):
@@ -196,6 +233,7 @@ class ChangePasswordView(APIView):
     """POST /api/auth/change-password — la propia persona, también con el cambio obligatorio."""
 
     permission_classes = [policy_permission("account", "self")]
+    throttle_classes = [PasswordChangeUserThrottle]
 
     def post(self, request):
         ser = ChangePasswordSerializer(data=request.data)

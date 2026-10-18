@@ -7,6 +7,7 @@ import uuid
 
 import pytest
 from django.contrib.auth import get_user_model
+from rest_framework.exceptions import Throttled
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework.views import APIView
 
@@ -123,3 +124,42 @@ def test_error_no_controlado_trae_internal_error():
         "code": "INTERNAL_ERROR",
         "message": "Error interno del servidor",
     }
+
+
+@pytest.mark.req("DJA-2")
+@pytest.mark.security
+def test_limite_de_peticiones_trae_throttled_con_la_espera_en_el_cuerpo_y_en_la_cabecera():
+    class Limitado(APIView):
+        authentication_classes = []
+        permission_classes = []
+
+        def get(self, request):
+            raise Throttled(wait=42)
+
+    response = _call(Limitado)
+
+    assert response.status_code == 429
+    assert response.data == {
+        "success": False,
+        "code": "THROTTLED",
+        "message": "Demasiados intentos. Espera 42 s e inténtalo de nuevo.",
+        "retryAfter": 42,
+    }
+    assert response["Retry-After"] == "42"
+
+
+@pytest.mark.req("DJA-2")
+@pytest.mark.security
+def test_limite_sin_espera_conocida_pide_un_segundo():
+    class Limitado(APIView):
+        authentication_classes = []
+        permission_classes = []
+
+        def get(self, request):
+            raise Throttled()
+
+    response = _call(Limitado)
+
+    assert response.status_code == 429
+    assert response.data["retryAfter"] == 1
+    assert response["Retry-After"] == "1"

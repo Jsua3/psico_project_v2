@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.simulation",
     "apps.reportes",
     "apps.progression",
+    "apps.security",
 ]
 
 MIDDLEWARE = [
@@ -273,6 +274,11 @@ AUDIT_RETENTION_DAYS = max(360, int(os.environ.get("AUDIT_RETENTION_DAYS", "360"
 #: ``X-Forwarded-For``: la IP de la auditoría y de los límites es ``REMOTE_ADDR``. Producción la exige y no tiene
 #: valor por defecto (psychosim/settings/production.py la valida antes de importar este módulo).
 SIEP_TRUSTED_PROXIES = int(os.environ.get("SIEP_TRUSTED_PROXIES", "0"))
+
+#: S1-2 · limitador compartido de peticiones (DJA-2). Interruptor de emergencia: por defecto encendido; con él
+#: apagado, ``apps.security.limiter`` no toca la base y ninguna petición recibe 429. Las pruebas lo apagan en
+#: ``psychosim/settings/test.py``.
+SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on",

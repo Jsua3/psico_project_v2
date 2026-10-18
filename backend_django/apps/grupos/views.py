@@ -9,6 +9,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 
 from django.utils import timezone
 
+from apps.security.throttling import ImportUserThrottle
 from shared.exceptions import ApiError
 from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
@@ -108,6 +109,7 @@ class GrupoEstudianteDetailView(APIView):
 class GrupoEstudiantesImportView(APIView):
     permission_classes = [policy_permission("group", "manage")]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ImportUserThrottle]
 
     def post(self, request, pk):
         ser = ImportarEstudiantesSerializer(data=request.data)
