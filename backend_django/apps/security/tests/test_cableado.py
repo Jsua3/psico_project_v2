@@ -7,8 +7,6 @@ import pytest
 
 from apps.grupos.views import GrupoEstudiantesImportView
 from apps.security.throttling import (
-    AccessRequestEmailThrottle,
-    AccessRequestGlobalThrottle,
     AccessRequestIpThrottle,
     GoogleIpThrottle,
     HeavyUserThrottle,
@@ -30,7 +28,7 @@ pytestmark = [pytest.mark.req("DJA-2"), pytest.mark.security]
 CON_LIMITE = [
     (LoginView, [LoginIpThrottle]),
     (GoogleLoginView, [GoogleIpThrottle]),
-    (AccessRequestCreateView, [AccessRequestIpThrottle, AccessRequestEmailThrottle, AccessRequestGlobalThrottle]),
+    (AccessRequestCreateView, [AccessRequestIpThrottle]),
     (ChangePasswordView, [PasswordChangeUserThrottle]),
     (GrupoEstudiantesImportView, [ImportUserThrottle]),
     (CaseImportView, [ImportUserThrottle]),

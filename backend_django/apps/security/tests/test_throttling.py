@@ -16,10 +16,7 @@ from rest_framework.test import APIRequestFactory
 
 from apps.security import limiter
 from apps.security.limits import LIMITS, Limit
-from apps.security.models import RateLimitBucket
 from apps.security.throttling import (
-    AccessRequestEmailThrottle,
-    AccessRequestGlobalThrottle,
     HeavyUserThrottle,
     ImportUserThrottle,
     LoginIpThrottle,
@@ -76,26 +73,29 @@ def test_la_clave_de_ip_es_el_hash_de_la_ip_del_cliente():
     assert LoginIpThrottle().key(_peticion(), None) == limiter.key_hash(IP)
 
 
-def test_sin_correo_utilizable_la_peticion_pasa_sin_contar(db, reloj, limitador_encendido):
-    for datos in ({}, {"email": ""}, {"email": "   "}, {"email": 123}):
-        assert AccessRequestEmailThrottle().allow_request(_peticion(datos), None) is True
+def test_dos_direcciones_del_mismo_bloque_de_64_comparten_contador(db, reloj, limitador_encendido, monkeypatch):
+    monkeypatch.setitem(LIMITS, "login_ip", Limit(1, 600))
 
-    assert not RateLimitBucket.objects.exists()
-
-
-def test_el_correo_se_normaliza_antes_de_contarlo():
-    con_mayusculas = AccessRequestEmailThrottle().key(_peticion({"email": "  Alumna@Ejemplo.ORG "}), None)
-    en_minusculas = AccessRequestEmailThrottle().key(_peticion({"email": "alumna@ejemplo.org"}), None)
-
-    assert con_mayusculas == en_minusculas
-    assert con_mayusculas is not None
+    assert LoginIpThrottle().allow_request(_peticion(ip="2001:db8:1:1::1"), None) is True
+    assert LoginIpThrottle().allow_request(_peticion(ip="2001:db8:1:1::2"), None) is False
 
 
-def test_la_solicitud_global_usa_una_clave_constante():
-    primera = AccessRequestGlobalThrottle().key(_peticion({"email": "uno@ejemplo.org"}), None)
-    segunda = AccessRequestGlobalThrottle().key(_peticion({"email": "dos@ejemplo.org"}), None)
+def test_direcciones_de_bloques_de_64_distintos_no_comparten_contador(db, reloj, limitador_encendido, monkeypatch):
+    monkeypatch.setitem(LIMITS, "login_ip", Limit(1, 600))
 
-    assert primera == segunda
+    assert LoginIpThrottle().allow_request(_peticion(ip="2001:db8:1:1::1"), None) is True
+    assert LoginIpThrottle().allow_request(_peticion(ip="2001:db8:1:2::1"), None) is True
+
+
+def test_la_ipv4_mapeada_y_la_ipv4_comparten_contador(db, reloj, limitador_encendido, monkeypatch):
+    monkeypatch.setitem(LIMITS, "login_ip", Limit(1, 600))
+
+    assert LoginIpThrottle().allow_request(_peticion(ip="::ffff:203.0.113.10"), None) is True
+    assert LoginIpThrottle().allow_request(_peticion(ip="203.0.113.10"), None) is False
+
+
+def test_la_clave_de_una_ipv6_es_el_hash_de_su_bloque():
+    assert LoginIpThrottle().key(_peticion(ip="2001:db8:1:1::abcd"), None) == limiter.key_hash("2001:db8:1:1::/64")
 
 
 def test_las_clases_de_persona_cuentan_por_cuenta_y_sin_cuenta_pasan(db, reloj, limitador_encendido, monkeypatch):

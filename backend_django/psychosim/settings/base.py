@@ -11,6 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.csp import CSP
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -49,9 +50,14 @@ MIDDLEWARE = [
     # así que lo que quede debajo no llega a esas respuestas.
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "shared.security_headers.SecurityHeadersMiddleware",
-    # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en
-    # producción sin necesidad de un servidor web aparte.
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    # S2-3a / S2-4 · política de contenido (RNF-002). Pone ``Content-Security-Policy-Report-Only`` (SECURE_CSP_REPORT_ONLY,
+    # la inicial) y, con SIEP_CSP_ENFORCE, ``Content-Security-Policy`` (SECURE_CSP, la que se aplica, con nonce). Va encima
+    # de WhiteNoise.
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
+    # WhiteNoise sirve los estáticos del SPA (Angular) y del backend en producción sin necesidad de un servidor web
+    # aparte. S2-4: la subclase del SPA NUNCA sirve index.html (ni «/» ni «/index.html»): el HTML lo sirve siempre la vista
+    # shared.spa.spa_index, que escribe el nonce de la petición.
+    "shared.static_files.SpaStaticFilesMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     # Binds the request to a thread-local for audit-trail actor/IP capture.
@@ -74,7 +80,9 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
         "APP_DIRS": True,
-        "OPTIONS": {"context_processors": []},
+        # S2-4 · ``csp`` expone el nonce de la petición a las plantillas. SIEP no renderiza plantillas (el HTML del SPA lo
+        # escribe shared.spa.spa_index), pero Django avisa (security.W027) si la política lleva nonce y falta el procesador.
+        "OPTIONS": {"context_processors": ["django.template.context_processors.csp"]},
     }
 ]
 AUTH_USER_MODEL = "users.CustomUser"
@@ -132,6 +140,9 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
     ],
+    # S2-4 · Solo JSON: la API navegable de DRF devuelve HTML con <script> y <style> en línea, que la política de
+    # contenido en vigor degrada, y ninguna parte de SIEP la usa (el SPA, las pruebas y curl hablan JSON).
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
     "EXCEPTION_HANDLER": "shared.exceptions.custom_exception_handler",
 }
@@ -397,6 +408,15 @@ SIEP_SESSION_EPOCH_ENFORCE = _env_flag_cerrada("SIEP_SESSION_EPOCH_ENFORCE", def
 SIEP_ALLOWED_ASSET_HOSTS = [
     host.strip().lower() for host in os.environ.get("SIEP_ALLOWED_ASSET_HOSTS", "").split(",") if host.strip()
 ]
+# S2-4 · cada host entra tal cual a ``img-src`` de la política de contenido: un nombre de host y nada más (sin esquema,
+# puerto, ruta ni comodín). Un valor mal escrito impide arrancar, sin imprimirlo.
+for _host_de_fondo in SIEP_ALLOWED_ASSET_HOSTS:
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", _host_de_fondo):
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_ALLOWED_ASSET_HOSTS: cada elemento debe ser un nombre de host (sin esquema, puerto, ruta ni comodín; "
+            "valor no mostrado)."
+        )
 
 #: S1-5 · días que vive una contraseña temporal (la de una aprobación o la que fija un ADMIN) antes de caducar. Entero ≥ 1.
 #: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
@@ -495,6 +515,68 @@ SPECTACULAR_SETTINGS = {
 # (psychosim/urls.py, _docs_gate). Solo para desarrollo.
 SIEP_EXPOSE_API_DOCS = _env_flag("SIEP_EXPOSE_API_DOCS")
 
+# S2-3a / S2-4 · política de contenido (RNF-002, ADR-S3 en docs/seguridad/adr-s3-csp.md). Los informes de violaciones
+# llegan a CSP_REPORT_PATH (ruta pública, anónima y limitada por IP).
+#
+# - MODO REPORTE (por defecto): ``Content-Security-Policy-Report-Only`` con la política INICIAL; el navegador informa de lo
+#   que incumple y no bloquea nada. SIEP_CSP_REPORT_ONLY=false (interruptor de emergencia) quita esa cabecera.
+# - EN VIGOR (SIEP_CSP_ENFORCE=true, apagada por defecto hasta que la sonda ``npm run test:csp`` no halle violaciones):
+#   ``Content-Security-Policy`` con la política EN VIGOR, que lleva el nonce de la petición en ``script-src`` y
+#   ``style-src`` (``spa_index`` lo escribe en el HTML) y NO lleva 'unsafe-inline' en los scripts ni en los ``<style>``
+#   (solo, con el acceso con Google, en los atributos de estilo: ver CSP_ENFORCED_POLICY). Encendida, la cabecera de reporte
+#   se omite: con la misma política en las dos, cada violación se informaría dos veces.
+CSP_REPORT_PATH = "/api/security/csp-report"
+SIEP_CSP_REPORT_ONLY = _env_flag("SIEP_CSP_REPORT_ONLY", default=True)
+SIEP_CSP_ENFORCE = _env_flag("SIEP_CSP_ENFORCE")
+
+#: Las imágenes que la política deja cargar: las propias, ``data:`` y ``blob:`` (Phaser y el kit del personaje; los midió la
+#: sonda) y los hosts https que el servidor permite para el fondo de sala (SIEP_ALLOWED_ASSET_HOSTS, S2-6b; vacía = solo propias).
+_CSP_IMG_SRC = [CSP.SELF, "data:", "blob:", *(f"https://{host}" for host in SIEP_ALLOWED_ASSET_HOSTS)]
+
+#: La política inicial (S2-3a, modo reporte): ni nonce ni restricciones de scripts en línea.
+CSP_INITIAL_POLICY = {
+    "default-src": [CSP.SELF],
+    "script-src": [CSP.SELF, "https://accounts.google.com/gsi/client"],
+    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE, "https://accounts.google.com/gsi/style"],
+    "img-src": _CSP_IMG_SRC,
+    "font-src": [CSP.SELF],
+    "media-src": [CSP.SELF, "blob:"],
+    "worker-src": [CSP.SELF, "blob:"],
+    "connect-src": [CSP.SELF, "https://accounts.google.com/gsi/"],
+    "frame-src": ["https://accounts.google.com/gsi/"],
+    "frame-ancestors": [CSP.NONE],
+    "base-uri": [CSP.SELF],
+    "form-action": [CSP.SELF],
+    "object-src": [CSP.NONE],
+    "report-uri": [CSP_REPORT_PATH],
+}
+#: La política en vigor (S2-4, ajustada con lo que midió la sonda ``npm run test:csp``; docs/seguridad/adr-s3-csp.md):
+#: el nonce de la petición en scripts y estilos, sin 'unsafe-inline' en ninguno de los dos, y SIN ``blob:`` en ``media-src`` ni
+#: ``worker-src`` (la sonda no los usó; ``data:`` y ``blob:`` en ``img-src`` SÍ: Phaser y el kit del personaje).
+#: Un único permiso excepcional: con el acceso con Google configurado (GOOGLE_OAUTH_CLIENT_ID), ``style-src-attr 'unsafe-inline'``.
+#: Google Identity Services escribe atributos ``style=`` con ``innerHTML`` y un atributo no puede llevar nonce (medido con la
+#: sonda y un client id falso: ``style-src-attr`` en /gsi/client). Solo atributos; los ``<style>`` siguen exigiendo el nonce
+#: (el cliente se lo pasa al script de Google, que lo copia a su hoja). Sin Google, no hay excepción.
+CSP_ENFORCED_POLICY = {
+    "default-src": [CSP.SELF],
+    "script-src": [CSP.SELF, CSP.NONCE, "https://accounts.google.com/gsi/client"],
+    "style-src": [CSP.SELF, CSP.NONCE, "https://accounts.google.com/gsi/style"],
+    **({"style-src-attr": [CSP.UNSAFE_INLINE]} if GOOGLE_OAUTH_CLIENT_ID else {}),
+    "img-src": _CSP_IMG_SRC,
+    "font-src": [CSP.SELF],
+    "media-src": [CSP.SELF],
+    "worker-src": [CSP.SELF],
+    "connect-src": [CSP.SELF, "https://accounts.google.com/gsi/"],
+    "frame-src": ["https://accounts.google.com/gsi/"],
+    "frame-ancestors": [CSP.NONE],
+    "base-uri": [CSP.SELF],
+    "form-action": [CSP.SELF],
+    "object-src": [CSP.NONE],
+    "report-uri": [CSP_REPORT_PATH],
+}
+SECURE_CSP = CSP_ENFORCED_POLICY if SIEP_CSP_ENFORCE else {}
+SECURE_CSP_REPORT_ONLY = CSP_INITIAL_POLICY if SIEP_CSP_REPORT_ONLY and not SIEP_CSP_ENFORCE else {}
+
 # Logs: una línea JSON por registro, con el id de la request (RNF-06, TD-10).
 LOGGING = {
     "version": 1,
@@ -524,9 +606,11 @@ STATIC_URL = "/django-static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # El build de Angular se copia a backend_django/frontend_dist en el contenedor.
-# Si existe, WhiteNoise lo sirve en la raíz (index.html incluido); las rutas del
-# SPA que no son archivos caen en el catch-all de urls.py.
+# Si existe, WhiteNoise sirve en la raíz sus archivos (bundles, assets, fuentes), PERO NO el index.html (S2-4): ni
+# «/» ni «/index.html». El HTML lo sirve siempre la vista shared.spa.spa_index (catch-all de urls.py), que escribe el
+# nonce de la política de contenido en cada petición; shared.static_files.SpaStaticFilesMiddleware lo garantiza aunque
+# alguien vuelva a encender WHITENOISE_INDEX_FILE.
 SPA_DIST_DIR = BASE_DIR / "frontend_dist"
 if SPA_DIST_DIR.exists():
     WHITENOISE_ROOT = str(SPA_DIST_DIR)
-    WHITENOISE_INDEX_FILE = True
+WHITENOISE_INDEX_FILE = False

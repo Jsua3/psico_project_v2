@@ -45,6 +45,8 @@ PUBLIC_VIEWS = {
         "GoogleLoginView",
         "AccessRequestCreateView",
     },
+    # S2-3a · el informe de violaciones de la CSP lo envía el navegador sin sesión (RNF-002).
+    "apps/security/csp_report.py": {"CspReportView"},
 }
 ORM_WRITES = {
     "save",

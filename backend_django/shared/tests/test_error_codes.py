@@ -170,6 +170,47 @@ def test_limite_sin_espera_conocida_pide_un_segundo():
     assert response["Retry-After"] == "1"
 
 
+@pytest.mark.req("DJA-2")
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("segundos", "legible"),
+    [
+        (1, "1 s"),
+        (119, "119 s"),
+        (120, "2 min"),
+        (121, "3 min"),
+        (7199, "120 min"),
+        (7200, "2 h"),
+        (7201, "3 h"),
+        (57600, "16 h"),
+    ],
+)
+def test_la_espera_se_dice_en_segundos_minutos_u_horas_hacia_arriba(segundos, legible):
+    assert shared_exceptions._espera_legible(segundos) == legible
+
+
+@pytest.mark.req("DJA-2")
+@pytest.mark.security
+def test_una_espera_larga_se_dice_en_horas_y_la_cabecera_sigue_en_segundos():
+    class Limitado(APIView):
+        authentication_classes = []
+        permission_classes = []
+
+        def get(self, request):
+            raise Throttled(wait=57600)
+
+    response = _call(Limitado)
+
+    assert response.status_code == 429
+    assert response.data == {
+        "success": False,
+        "code": "THROTTLED",
+        "message": "Demasiados intentos. Espera 16 h e inténtalo de nuevo.",
+        "retryAfter": 57600,
+    }
+    assert response["Retry-After"] == "57600"
+
+
 # ── S4-3 · una excepción no controlada deja UNA línea ERROR con su causa ─────────────────────────────
 
 

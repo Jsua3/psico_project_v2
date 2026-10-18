@@ -73,8 +73,9 @@ Artefactos del repo que usa el despliegue:
 4. (Opcional) Variables extra ya soportadas: `JWT_EXPIRATION_HOURS` (default 8),
    `GOOGLE_OAUTH_CLIENT_ID`, `DEFAULT_FROM_EMAIL`, `CORS_ALLOWED_ORIGINS`
    (solo si algún día sirves el frontend en otro dominio), `DJANGO_SECURE_SSL_REDIRECT`
-   (`true` por defecto; solo `false` lo apaga) y `SIEP_HSTS_SECONDS` (3600 por defecto; ver
-   [HTTPS y HSTS](#https-y-hsts)).
+   (`true` por defecto; solo `false` lo apaga), `SIEP_HSTS_SECONDS` (3600 por defecto; ver
+   [HTTPS y HSTS](#https-y-hsts)) y `SIEP_CSP_ENFORCE` (apagada por defecto; ver
+   [Política de contenido](#política-de-contenido-csp)).
 
 ## 3. Generar el dominio público
 
@@ -126,6 +127,28 @@ HSTS se controla con `SIEP_HSTS_SECONDS` (3600 por defecto; entero entre 0 y 630
 Un navegador que recibió HSTS obliga a HTTPS en ese dominio hasta que venza su `max-age`, aunque el servidor deje de enviar la cabecera. Por eso la escalera sube despacio: si HTTPS falla con un valor alto, esos navegadores no llegan al sitio hasta que venza.
 
 **Retroceso:** bajar `SIEP_HSTS_SECONDS` no deshace lo que ya guardó un navegador. Con `0` Django deja de enviar la cabecera (no envía `max-age=0`), así que hay que esperar a que venza el `max-age` que el navegador recibió.
+
+### Política de contenido (CSP)
+
+La CSP dice al navegador qué puede cargar y ejecutar la página; es la segunda capa contra un XSS (la primera es que Angular escapa lo que pinta). El diseño y sus motivos están en [`docs/seguridad/adr-s3-csp.md`](../seguridad/adr-s3-csp.md). Dos banderas, ambas opcionales:
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `SIEP_CSP_REPORT_ONLY` | `true` | Envía `Content-Security-Policy-Report-Only` con la política inicial: el navegador **informa** de lo que incumple y no bloquea nada. `false` es solo un interruptor de emergencia (no envía ninguna política). |
+| `SIEP_CSP_ENFORCE` | `false` | `true` envía `Content-Security-Policy` (la política **en vigor**): el navegador **bloquea** lo que incumple. Los scripts y estilos solo corren con el nonce de la petición; no hay `'unsafe-inline'` en los scripts. Con ella encendida la cabecera de reporte se omite. |
+
+Los incumplimientos llegan en los dos modos a `POST /api/security/csp-report` y dejan UNA línea `csp_violation` en el registro (directiva, esquema y host del recurso bloqueado, ruta de la página y si se bloqueó o solo se informó; nunca la consulta ni el contenido).
+
+**Antes de encenderla** corre la sonda en local: `npm run test:csp` (construye el frontend de producción, lo sirve con Django como en el despliegue y recorre acceso, portal, juego, editor y reporte; falla con la lista de violaciones) y, con internet, `npm run test:csp -- --google` (usa un client id **falso** y comprueba que el script, el botón y la hoja de Google cargan; la política cambia con `GOOGLE_OAUTH_CLIENT_ID`: con él añade `style-src-attr 'unsafe-inline'`, que Google necesita para los atributos `style=` de su botón). Después:
+
+1. Pon `SIEP_CSP_ENFORCE=true` y redespliega.
+2. Comprueba la cabecera: `curl -sI https://TU-DOMINIO/login` debe llevar `Content-Security-Policy:` con `'nonce-…'` en `script-src` y `style-src`, y **no** `Content-Security-Policy-Report-Only`. Dos peticiones seguidas deben traer nonces distintos.
+3. Entra, juega un caso y abre el editor con una cuenta real; vigila el registro durante unos días: cada línea `csp_violation` con `"disposition": "enforce"` es algo que la política bloqueó a una persona real.
+4. **Botón de Google:** con `GOOGLE_OAUTH_CLIENT_ID` real, comprueba que el botón se pinta y que entrar con Google funciona. La sonda no puede hacerlo sin un client id real (ver el ADR); la política deja pasar solo lo que documenta Google (`accounts.google.com/gsi/…`).
+
+**Retroceso:** quita `SIEP_CSP_ENFORCE` (o ponla en `false`) y redespliega: vuelve al modo reporte. No hay nada que esperar en los navegadores (a diferencia de HSTS, la CSP no se guarda).
+
+**Si una imagen de fondo de un caso es de otro host** (lista blanca de S2-6), ese host debe añadirse a `img-src` de `CSP_ENFORCED_POLICY` (`psychosim/settings/base.py`), o el navegador la bloqueará.
 
 ---
 

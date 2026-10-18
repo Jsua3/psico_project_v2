@@ -36,7 +36,8 @@ User = get_user_model()
 SECURITY = "django.middleware.security.SecurityMiddleware"
 XFO = "django.middleware.clickjacking.XFrameOptionsMiddleware"
 SH = "shared.security_headers.SecurityHeadersMiddleware"
-WHITENOISE = "whitenoise.middleware.WhiteNoiseMiddleware"
+# S2-4: WhiteNoise va en su subclase del SPA (no sirve index.html); sigue ocupando el mismo sitio de la cadena.
+WHITENOISE = "shared.static_files.SpaStaticFilesMiddleware"
 
 # Lo que toda respuesta lleva, sea cual sea la ruta.
 CABECERAS_BASE = {

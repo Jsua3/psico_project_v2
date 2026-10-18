@@ -11,7 +11,7 @@ LIMITS: dict[str, Limit] = {
     "login_ip": Limit(300, 600),
     "login_fail_account_ip": Limit(5, 900),
     "login_fail_account": Limit(30, 900),
-    "google_ip": Limit(120, 600),
+    "google_ip": Limit(300, 600),
     "access_request_ip": Limit(5, 3600),
     "access_request_email": Limit(2, 86400),
     "access_request_global": Limit(200, 86400),
@@ -20,7 +20,7 @@ LIMITS: dict[str, Limit] = {
     "access_request_notice": Limit(1, 600),
     "import_user": Limit(10, 3600),
     "heavy_user": Limit(30, 60),
-    # Sin clase todavía: el informe de CSP (DJA-4) aún no tiene ruta que lo use.
+    # Informes de violaciones de la CSP (S2-3a): los cuenta ``CspReportIpThrottle`` en ``apps/security/csp_report.py``.
     "csp_report_ip": Limit(60, 60),
     "password_change_user": Limit(10, 3600),
     # Se DEFINE pero NO se aplica globalmente: contar cada petición autenticada añade una escritura a la base por

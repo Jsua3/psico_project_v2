@@ -474,6 +474,7 @@ export interface OpenApiPaths {
   readonly '/api/rubrics/{rubric_id}/deactivate': 'POST';
   readonly '/api/rubrics/{rubric_id}/default': 'POST';
   readonly '/api/rubrics/{rubric_id}/duplicate': 'POST';
+  readonly '/api/security/csp-report': 'POST';
   readonly '/api/simulation/ai-assistant': 'POST';
   readonly '/api/simulation/attempts': 'POST';
   readonly '/api/simulation/attempts/history': 'GET';

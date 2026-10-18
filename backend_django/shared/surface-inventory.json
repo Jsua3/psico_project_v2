@@ -459,9 +459,7 @@
       "exposure": "public",
       "body": "json-small",
       "throttle": [
-        "access_request_ip",
-        "access_request_email",
-        "access_request_global"
+        "access_request_ip"
       ],
       "audit": null
     },
@@ -1227,6 +1225,16 @@
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
       "throttle": null,
+      "audit": null
+    },
+    {
+      "route": "api/security/csp-report",
+      "method": "POST",
+      "exposure": "public",
+      "body": "json-small",
+      "throttle": [
+        "csp_report_ip"
+      ],
       "audit": null
     },
     {
