@@ -327,6 +327,33 @@ export interface ShownHint {
   readonly text: string;
 }
 
+/** Lo que el estudiante envía: la calificación y, si quiere, un comentario (la validación es del servicio). */
+export interface SurveyRequest {
+  /** Texto plano, sin marcado ni enlaces. */
+  readonly comment?: string;
+  /** Entero de 1 a 5. */
+  readonly rating: number;
+}
+
+/** La encuesta breve de un intento: si ya se respondió y, en ese caso, qué respondió. */
+export interface SurveyState {
+  /** Solo si ya respondió; puede ser vacío. */
+  readonly comment?: string;
+  /** Solo si ya respondió. */
+  readonly rating?: number;
+  readonly submitted: boolean;
+  /** Solo si ya respondió. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly submittedAt?: string;
+}
+
+/** Sobre de éxito: `data` es `SurveyState`. */
+export interface SurveyStateEnvelope {
+  readonly data: SurveyState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** Un hallazgo del validador. El mensaje está en lenguaje llano: nombra los elementos por su título, sin ids. */
 export interface ValidationIssue {
   /** Estable: `DSL.OCL-02`, `WORLD.OPTION_WITHOUT_TRIGGER`… */
@@ -481,6 +508,7 @@ export interface OpenApiPaths {
   readonly '/api/simulation/attempts/{attempt_id}/decisions': 'POST';
   readonly '/api/simulation/attempts/{attempt_id}/enter-room': 'POST';
   readonly '/api/simulation/attempts/{attempt_id}/evaluation': 'GET';
+  readonly '/api/simulation/attempts/{attempt_id}/feedback': 'GET' | 'POST';
   readonly '/api/simulation/attempts/{attempt_id}/hints': 'GET';
   readonly '/api/simulation/attempts/{attempt_id}/hints/next': 'POST';
   readonly '/api/simulation/attempts/{attempt_id}/interactions/{interaction_key}': 'POST';

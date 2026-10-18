@@ -6,11 +6,13 @@ from rest_framework.views import APIView
 from shared.idempotency import normalize_request_id
 from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
-from shared.response import api_ok
+from shared.response import api_created, api_ok
 
 from apps.simulation.serializers.contracts import (
     CaseBriefSerializer,
     HintStateSerializer,
+    SurveyRequestSerializer,
+    SurveyStateSerializer,
     WorldPatchAckSerializer,
 )
 from apps.simulation.serializers.requests import (
@@ -21,6 +23,7 @@ from apps.simulation.serializers.requests import (
     StartAttemptRequest,
 )
 from apps.simulation.services import (
+    attempt_survey,
     case_brief,
     game_service,
     hints as hint_service,
@@ -129,6 +132,25 @@ class NextHintView(APIView):
         return _private_ok(hint_service.reveal_next_hint(
             attempt_id, token, request.user, request_id=request.data.get("requestId"),
         ))
+
+
+class AttemptSurveyView(APIView):
+    """C14 · La encuesta breve opcional de un intento completado (apagada por defecto: 404)."""
+
+    permission_classes = [policy_permission("attempt", "play")]
+
+    @extend_schema(responses={200: envelope_of(SurveyStateSerializer), **error_responses(401, 403, 404)})
+    def get(self, request, attempt_id):
+        return _private_ok(attempt_survey.read(attempt_id, request.user))
+
+    @extend_schema(
+        request=SurveyRequestSerializer,
+        responses={201: envelope_of(SurveyStateSerializer), **error_responses(400, 401, 403, 404, 409)},
+    )
+    def post(self, request, attempt_id):
+        response = api_created(attempt_survey.submit(attempt_id, request.data, request.user))
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class CompletionReportView(APIView):

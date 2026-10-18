@@ -219,3 +219,21 @@ class HintStateSerializer(serializers.Serializer):
     reason = serializers.ChoiceField(
         choices=HINT_REASONS, required=False, help_text="Solo si no quedan: la escena no tiene o ya se pidieron todas."
     )
+
+
+class SurveyRequestSerializer(serializers.Serializer):
+    """Lo que el estudiante envía: la calificación y, si quiere, un comentario (la validación es del servicio)."""
+
+    rating = serializers.IntegerField(min_value=1, max_value=5, help_text="Entero de 1 a 5.")
+    comment = serializers.CharField(
+        required=False, allow_blank=True, max_length=500, help_text="Texto plano, sin marcado ni enlaces."
+    )
+
+
+class SurveyStateSerializer(serializers.Serializer):
+    """La encuesta breve de un intento: si ya se respondió y, en ese caso, qué respondió."""
+
+    submitted = serializers.BooleanField()
+    rating = serializers.IntegerField(required=False, help_text="Solo si ya respondió.")
+    comment = serializers.CharField(required=False, allow_blank=True, help_text="Solo si ya respondió; puede ser vacío.")
+    submittedAt = serializers.DateTimeField(required=False, help_text=f"Solo si ya respondió. {LOCAL_TIME}")
