@@ -26,9 +26,11 @@ logger = logging.getLogger("siep.security")
 
 #: Tope del cuerpo de un informe (8 KB): un informe real pesa unos cientos de bytes.
 TOPE_BYTES = 8192
-#: De un ``application/reports+json`` se registran, como mucho, los primeros elementos.
-MAX_INFORMES = 10
+#: De un ``application/reports+json`` se registran, como mucho, los primeros elementos: tres informes por petición.
+MAX_INFORMES = 3
 DIRECTIVA_MAX = 40
+#: Tope de ``blocked`` (esquema y host del recurso bloqueado): ni el esquema ni el host tienen longitud propia.
+BLOQUEADO_MAX = 255
 RUTA_MAX = 120
 #: Valores de ``blocked-uri`` que no son una URL y se registran tal cual.
 _PALABRAS_BLOQUEO = frozenset({"inline", "eval", "data", "blob", "self"})
@@ -84,15 +86,21 @@ def _leer_cuerpo(request):
     El informe DEBE declarar ``Content-Length`` (los navegadores siempre lo envían): se lee exactamente lo declarado y,
     si lo declarado supera el tope, se responde 413 sin leer nada. Sin la cabecera se responde 411: Django y DRF tratan
     ese caso como cuerpo vacío y leer el flujo crudo del servidor sin saber cuánto viene puede dejar la petición
-    esperando datos que no llegan (PEP 3333).
+    esperando datos que no llegan (PEP 3333). Un valor que no sea solo dígitos ASCII también responde 411, y uno que
+    ``int()`` no convierte (más de 4300 dígitos) responde 413: nunca un 500.
     """
     declarada = (request.META.get("CONTENT_LENGTH") or "").strip()
-    if not declarada.isdigit():
+    # Solo dígitos ASCII (RFC 9110): str.isdigit() acepta dígitos Unicode como «²», que int() no convierte.
+    if not (declarada.isascii() and declarada.isdigit()):
         raise _longitud_requerida()
-    if int(declarada) > TOPE_BYTES:
+    try:
+        longitud = int(declarada)
+    except ValueError as exc:
+        raise _demasiado_grande() from exc
+    if longitud > TOPE_BYTES:
         raise _demasiado_grande()
     flujo = request.META.get("wsgi.input")
-    return flujo.read(int(declarada)) if flujo is not None else b""
+    return flujo.read(longitud) if flujo is not None else b""
 
 
 def _analizar(analizador, cuerpo):
@@ -135,7 +143,10 @@ def _directiva(valor):
 
 
 def _recurso_bloqueado(valor):
-    """Solo el esquema y el host del recurso bloqueado (sin usuario, ruta, consulta ni fragmento), o la palabra clave."""
+    """Solo el esquema y el host del recurso bloqueado (sin usuario, ruta, consulta ni fragmento), o la palabra clave.
+
+    Como mucho ``BLOQUEADO_MAX`` caracteres.
+    """
     if valor in _PALABRAS_BLOQUEO:
         return valor
     try:
@@ -144,9 +155,8 @@ def _recurso_bloqueado(valor):
         return ""
     if not partes.scheme:
         return ""
-    if not partes.netloc:
-        return partes.scheme
-    return f"{partes.scheme}://{partes.netloc.rsplit('@', 1)[-1]}"
+    recurso = f"{partes.scheme}://{partes.netloc.rsplit('@', 1)[-1]}" if partes.netloc else partes.scheme
+    return recurso[:BLOQUEADO_MAX]
 
 
 def _ruta_del_documento(valor):
