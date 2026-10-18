@@ -191,6 +191,38 @@ def freeze_report(attempt, events=None):
     return row
 
 
+#: Evento de que el estudiante abrió su retroalimentación (E6-4). Sin nodo ni opción.
+FEEDBACK_VIEWED = "FEEDBACK_VIEWED"
+#: Su clave de idempotencia: el ``request_id`` único por intento hace que la base descarte la segunda fila. Lleva una
+#: «/», que ningún cliente puede mandar en un ``requestId`` (``shared.idempotency``), así que no choca con las órdenes.
+FEEDBACK_VIEWED_KEY = "sistema/retroalimentacion-vista"
+
+
+def _insert_feedback_viewed(attempt):
+    AttemptEvent.objects.bulk_create(
+        [AttemptEvent(
+            attempt=attempt, event_type=FEEDBACK_VIEWED, request_id=FEEDBACK_VIEWED_KEY,
+            detail="Retroalimentación vista",  # BORRADOR: texto nuevo del servidor, pendiente de Psicología (VD-23)
+        )],
+        ignore_conflicts=True,  # INSERT … ON CONFLICT DO NOTHING: a lo sumo una fila por intento, sin comprobar antes
+    )
+
+
+def record_feedback_viewed(attempt, actor):
+    """Registra que el dueño de un intento COMPLETADO abrió su reporte (E6-4, R13); solo la primera vez cuenta.
+
+    Es la única escritura de una lectura y por eso es estrecha: solo el dueño (el docente y el ADMIN leen sin escribir),
+    solo un intento completado, y nunca rompe la lectura —en un punto de guardado— si la escritura falla.
+    """
+    if attempt.status != AttemptStatus.COMPLETED or attempt.student_id != actor.id:
+        return
+    try:
+        with transaction.atomic():
+            _insert_feedback_viewed(attempt)
+    except Exception:  # noqa: BLE001 - la lectura del reporte no depende de este evento
+        logger.exception("No se pudo registrar que el intento %s vio su retroalimentación", attempt.id)
+
+
 def _record_system_evaluation(attempt, payload):
     """La evaluación automática (E6-1e) deriva del reporte que acaba de congelarse y NUNCA rompe el cierre: es un dato
     derivado, como lo que escuchan los suscriptores de ``attempt_completed`` (``send_robust``). Va en un punto de

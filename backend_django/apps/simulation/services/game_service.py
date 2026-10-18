@@ -347,6 +347,7 @@ def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
+    attempt_report.record_feedback_viewed(attempt, actor)
     return attempt_report.report_for(attempt)
 
 
@@ -363,6 +364,7 @@ def get_attempt_report(attempt_id, attempt_token, actor):
             "El intento no está completado: aún no tiene reporte de cierre.",
             status.HTTP_409_CONFLICT,
         )
+    attempt_report.record_feedback_viewed(attempt, actor)
     return attempt_report.report_for(attempt)
 
 
@@ -458,6 +460,7 @@ def get_student_report(attempt_id, actor):
         member = alcance is None or attempt.student_id in alcance
     if not policies.can(actor, "attempt", "report", owner_id=attempt.student_id, member=member):
         raise PermissionDenied("No tiene acceso a este intento")
+    attempt_report.record_feedback_viewed(attempt, actor)
     return attempt_report.report_for(attempt)
 
 
