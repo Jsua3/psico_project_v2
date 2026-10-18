@@ -294,3 +294,63 @@ def test_identity_presenter_stable_alias_per_instructor_and_dashboard_links_atte
     assert row["estudiante"] == "Est Inst"
     assert row["studentAlias"] == alias_p1
 
+
+# --- Reparación de E5-6: un solo alias, sin el id al lado, y un estado desconocido es un error -------------
+def _review_rows(client, query=""):
+    return client.get(f"/api/instructor/attempts{query}").data["data"]["items"]
+
+
+@pytest.mark.req("RF-25", "CU-14", "RQ-NEG-006")
+def test_el_alias_del_mismo_estudiante_es_el_mismo_en_todas_las_vistas_del_docente(
+    estudiante, profesor, case_version_id
+):
+    """ED-8: «alias estable en la traza». Filtrar por grupo no lo cambia (con el grupo en el cálculo, el mismo
+    estudiante aparecía con dos alias distintos según desde dónde se mirara)."""
+    attempt_id = _play_one_decision(estudiante, case_version_id, "INST-ALI", profesor=profesor)
+    grupo = Grupo.objects.get(codigo="INST-ALI")
+    client = cl(profesor)
+
+    def mine(rows):
+        return next(r for r in rows if r["attemptId"] == attempt_id)
+
+    aliases = {
+        "listado": mine(_review_rows(client))["studentAlias"],
+        "listado de un grupo": mine(_review_rows(client, f"?grupoId={grupo.id}"))["studentAlias"],
+        "traza": client.get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]["studentAlias"],
+        "recientes": mine(client.get("/api/instructor/attempts/recent").data["data"])["studentAlias"],
+        "tablero": mine(client.get("/api/reportes/dashboard").data["data"]["ultimosIntentos"])["studentAlias"],
+    }
+
+    assert len(set(aliases.values())) == 1, aliases
+
+
+@pytest.mark.req("RF-25", "CU-14", "RQ-NEG-006")
+def test_el_listado_de_revision_solo_identifica_al_estudiante_por_su_alias(estudiante, profesor, case_version_id):
+    """El alias existe para no exponer la clave del estudiante: el id al lado lo anula."""
+    attempt_id = _play_one_decision(estudiante, case_version_id, "INST-NOID", profesor=profesor)
+
+    row = next(r for r in _review_rows(cl(profesor)) if r["attemptId"] == attempt_id)
+
+    assert [key for key in row if key.lower().startswith("student")] == ["studentAlias"]
+
+
+@pytest.mark.req("RF-25", "CU-14")
+def test_el_filtro_por_estudiante_respeta_el_alcance_del_docente(estudiante, profesor, otro_profesor, case_version_id):
+    """El docente conoce los ids por sus grupos: filtrar por uno que no es suyo no devuelve nada."""
+    attempt_id = _play_one_decision(estudiante, case_version_id, "INST-ESC", profesor=profesor)
+
+    own = cl(profesor).get(f"/api/instructor/attempts?estudianteId={estudiante.id}").data["data"]
+    other = cl(otro_profesor).get(f"/api/instructor/attempts?estudianteId={estudiante.id}").data["data"]
+
+    assert [r["attemptId"] for r in own["items"]] == [attempt_id]
+    assert other["items"] == [] and other["coverage"] == {"shown": 0, "total": 0}
+
+
+@pytest.mark.req("RF-25", "CU-14")
+@pytest.mark.parametrize("param", ["estado", "status"])
+def test_un_estado_desconocido_es_un_error_y_no_una_lista_vacia(profesor, param):
+    """Una lista vacía por un estado mal escrito se lee como «no hay intentos»."""
+    resp = cl(profesor).get(f"/api/instructor/attempts?{param}=NOEXISTE")
+
+    assert resp.status_code == 400
+    assert resp.data["code"] == "INVALID_QUERY_PARAM"

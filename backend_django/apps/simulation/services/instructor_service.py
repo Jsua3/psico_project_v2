@@ -36,8 +36,8 @@ def _dt(value):
     return value.isoformat() if value else None
 
 
-def _anonymize(attempt, instructor=None, group_id=None):
-    return IdentityPresenter.alias_for(attempt.student_id, viewer=instructor, group_id=group_id)
+def _anonymize(attempt, instructor=None):
+    return IdentityPresenter.alias_for(attempt.student_id, viewer=instructor)
 
 
 def _require_attempt(attempt_id, instructor=None):
@@ -111,8 +111,7 @@ def list_attempts(
     items = [
         {
             "attemptId": str(a.id),
-            "studentId": a.student_id,
-            "studentAlias": _anonymize(a, instructor=instructor, group_id=grupo_id),
+            "studentAlias": _anonymize(a, instructor=instructor),
             "caseVersionId": a.case_version_id,
             "caseVersionStatus": a.case_version.status,
             "caseTitle": a.case_version.simulation_case.title,

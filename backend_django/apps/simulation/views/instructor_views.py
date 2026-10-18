@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.views import APIView
 
+from apps.simulation.models import AttemptStatus
 from shared.exceptions import ApiError
 from shared.openapi import InstructorAttemptsListSchemaSerializer
 from shared.permissions import policy_permission
@@ -31,6 +32,21 @@ def _int_param(request, *names):
     return None
 
 
+def _status_param(request):
+    """``estado`` (o ``status``): un estado conocido del intento. Uno mal escrito no es «sin resultados»."""
+    raw = request.query_params.get("estado") or request.query_params.get("status")
+    if not raw:
+        return None
+    if raw not in AttemptStatus.values:
+        raise ApiError(
+            "INVALID_QUERY_PARAM",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El parámetro 'estado' debe ser uno de: {', '.join(AttemptStatus.values)}.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+    return raw
+
+
 class InstructorAttemptsView(APIView):
     permission_classes = [policy_permission("attempt", "review")]
 
@@ -39,7 +55,7 @@ class InstructorAttemptsView(APIView):
         grupo_id = _int_param(request, "grupoId", "groupId")
         estudiante_id = _int_param(request, "estudianteId", "studentId")
         case_version_id = _int_param(request, "caseVersionId")
-        estado = request.query_params.get("estado") or request.query_params.get("status")
+        estado = _status_param(request)
         page = _int_param(request, "page") or 1
         page_size = _int_param(request, "pageSize", "limit") or instructor_service.DEFAULT_PAGE_SIZE
         return api_ok(
