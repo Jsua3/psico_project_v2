@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -18,11 +20,13 @@ from apps.security.throttling import (
     PasswordChangeUserThrottle,
 )
 from shared.client_ip import rate_limit_ip
+from shared.exceptions import ApiError
 from shared.openapi import ApiEnvelopeSerializer
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 from shared.security_events import log_security_event
 
+from .google_verification import CachedCertsRequest, tiene_forma_de_jwt
 from .models import AccessRequestStatus, burn_password_check
 from .serializers import (
     AccessRequestCreateSerializer,
@@ -52,18 +56,36 @@ class GoogleAuthenticationError(APIException):
 
 def verify_google_credential(credential, audience):
     try:
+        from google.auth.exceptions import GoogleAuthError, TransportError
         from google.auth.transport import requests
         from google.oauth2 import id_token
     except ImportError as exc:
         raise ValidationError("El proveedor de Google no está instalado en el backend") from exc
 
+    # R1c · la forma se mira ANTES de la red: lo que no es un JWT no le cuesta una petición a Google.
+    if not tiene_forma_de_jwt(credential):
+        raise GoogleAuthenticationError("No fue posible validar la cuenta de Google")
+
     try:
+        # R1c · certificados en caché y tope de 5 s por llamada (google_verification.py).
         return id_token.verify_oauth2_token(
             credential,
-            requests.Request(),
+            CachedCertsRequest(requests.Request()),
             audience,
         )
     except ValueError as exc:
+        raise GoogleAuthenticationError("No fue posible validar la cuenta de Google") from exc
+    except (TransportError, OSError) as exc:
+        # R1c · Google caído o lento es un 503 definido, no un 500. La línea no lleva credencial ni correo.
+        log_security_event("google_unavailable", level=logging.WARNING)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise ApiError(
+            "GOOGLE_UNAVAILABLE",
+            "No pudimos validar con Google en este momento. Inténtalo de nuevo en unos minutos.",
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except GoogleAuthError as exc:
+        # R1c · lo demás que google-auth rechaza (p. ej. un emisor que no es de Google) no es un fallo del servidor: 401, no 500.
         raise GoogleAuthenticationError("No fue posible validar la cuenta de Google") from exc
 
 

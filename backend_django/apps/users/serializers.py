@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from shared.plain_text import person_text_problem
 
+from .google_verification import LONGITUD_MAXIMA
 from .models import AccessRequest, AccessRequestStatus, UserRole
 from .services import account_service
 
@@ -185,7 +186,8 @@ class LoginSerializer(serializers.Serializer):
 
 
 class GoogleLoginSerializer(serializers.Serializer):
-    credential = serializers.CharField(write_only=True)
+    # R1c · una credencial de Google no pasa de LONGITUD_MAXIMA: el 400 de validación llega antes de cualquier red.
+    credential = serializers.CharField(write_only=True, max_length=LONGITUD_MAXIMA)
 
 
 class ApproveUsersSerializer(serializers.Serializer):
