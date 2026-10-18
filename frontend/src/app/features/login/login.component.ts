@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal,
-  viewChild,
+  AfterViewInit, CSP_NONCE, ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject,
+  signal, viewChild,
 } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -57,6 +57,8 @@ export class LoginComponent implements AfterViewInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  /** El nonce de la CSP de esta página (S2-4): Angular lo lee de ngCspNonce; sin política, nulo. */
+  private readonly cspNonce = inject(CSP_NONCE, { optional: true });
   private readonly query = inject(ActivatedRoute).snapshot.queryParamMap;
 
   /** La guardia mandó aquí porque la sesión venció (plan visual F3-6, H-34): se dice en la pantalla. */
@@ -305,6 +307,9 @@ export class LoginComponent implements AfterViewInit {
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
+      // Google Identity Services inyecta una hoja <style> en la página y le copia el nonce de SU script
+      // (document.currentScript.nonce): sin él, la CSP en vigor (style-src con nonce) bloquea esa hoja (S2-4, sonda --google).
+      if (this.cspNonce) script.nonce = this.cspNonce;
       script.onload = () => resolve();
       script.onerror = () => {
         script.dataset['fallo'] = 'true';

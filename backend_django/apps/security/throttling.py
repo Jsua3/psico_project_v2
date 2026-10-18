@@ -52,6 +52,14 @@ class AccessRequestIpThrottle(ScopedThrottle):
     methods = ("POST",)
 
 
+class CspReportIpThrottle(ScopedThrottle):
+    """Informes de violaciones de la CSP (S2-3a, RNF-002): anónimos, así que el límite cuenta por IP de cliente
+    (agrupada, como las demás). Solo cuentan los ``POST``: un ``GET`` a la ruta de informes no gasta cupo (hallazgo #17)."""
+
+    scope = "csp_report_ip"
+    methods = ("POST",)
+
+
 class _PersonaThrottle(ScopedThrottle):
     def key(self, request, view):
         pk = getattr(getattr(request, "user", None), "pk", None)

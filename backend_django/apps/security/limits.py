@@ -20,7 +20,7 @@ LIMITS: dict[str, Limit] = {
     "access_request_notice": Limit(1, 600),
     "import_user": Limit(10, 3600),
     "heavy_user": Limit(30, 60),
-    # Sin clase todavía: el informe de CSP (DJA-4) aún no tiene ruta que lo use.
+    # Informes de violaciones de la CSP (S2-3a): los cuenta ``CspReportIpThrottle`` en ``apps/security/csp_report.py``.
     "csp_report_ip": Limit(60, 60),
     "password_change_user": Limit(10, 3600),
     # Se DEFINE pero NO se aplica globalmente: contar cada petición autenticada añade una escritura a la base por

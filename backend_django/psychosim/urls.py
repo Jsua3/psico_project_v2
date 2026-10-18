@@ -2,21 +2,9 @@
 from functools import update_wrapper
 
 from django.conf import settings
-from django.http import Http404, HttpResponse
+from django.http import Http404
 from django.urls import include, path, re_path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-
-
-def spa_index(request):
-    """Sirve el index.html del SPA (Angular) para las rutas del cliente.
-
-    WhiteNoise sirve los archivos que existen (assets, JS); las rutas de Angular
-    que no son archivos (p. ej. /portal/personaje al recargar) llegan aquí.
-    """
-    index_path = getattr(settings, "SPA_DIST_DIR", None)
-    if index_path is None or not (index_path / "index.html").exists():
-        raise Http404("SPA build not available")
-    return HttpResponse((index_path / "index.html").read_bytes(), content_type="text/html")
 
 from apps.grupos.views import (
     AssignmentDetailView,
@@ -36,6 +24,7 @@ from apps.grupos.views import (
     MeInvitationLeaveView,
     MeInvitationsView,
 )
+from apps.security.csp_report import CspReportView
 from apps.simulation.views.rubric_views import CompetencyListCreateView
 from apps.users.views import (
     AdminAccessRequestListView,
@@ -52,6 +41,9 @@ from apps.simulation.views.authoring_views import AdminCaseListCreateView
 from apps.users.authentication import SiepJWTAuthentication
 from shared.health import health
 from shared.permissions import policy_permission
+
+# S2-4 · el HTML del SPA lo sirve SIEMPRE esta vista (shared/spa.py), con el nonce de la petición.
+from shared.spa import spa_index
 
 
 def _docs_gate(view):
@@ -73,6 +65,8 @@ def _docs_gate(view):
 urlpatterns = [
     # C11: salud del servicio (pública, sin autenticación, sin datos internos).
     path("api/health", health),
+    # S2-3a · informe de violaciones de la CSP (RNF-002): anónimo y limitado por IP; responde 204 sin cuerpo.
+    path("api/security/csp-report", CspReportView.as_view()),
     path("api/auth/", include("apps.users.urls")),
     # S1-4 · cerrar la propia sesión: cualquier persona autenticada, también con el cambio de contraseña pendiente.
     path("api/auth/logout", LogoutView.as_view()),

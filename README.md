@@ -96,6 +96,9 @@ npm run test:backend:down     # elimina SOLO los recursos del proyecto de test
 npm run test:scripts          # tests de las guardas de entorno (node --test)
 npm run test:e2e              # Playwright contra un stack aislado completo
                               # (BD desechable + Django :8093 + Angular :4315)
+npm run test:csp              # sonda de CSP: el build de producción servido por Django (:8193, BD desechable)
+                              # y cinco flujos con Playwright; falla con la lista de violaciones
+                              # (-- --mode report|report-strict, --control <nombre>; ver docs/seguridad/adr-s3-csp.md)
 ```
 
 **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estos mismos comandos
