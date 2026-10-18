@@ -189,14 +189,15 @@ def preprocess_canonical_api_endpoints(
     return filtered
 
 
-PROHIBITED_SCHEMA_FIELDS = frozenset({
-    "password",
-    "password_hash",
-    "encrypted_text",
-    "jwt_secret",
-    "secret_key",
-    "reflection_encryption_key",
-})
+def is_prohibited_field(name: str) -> bool:
+    """¿Un campo con este nombre no debe viajar nunca en una respuesta? (E5-9: ``password*``, ``encrypted_*``, ``token``, ``secret``).
+
+    Se compara en minúsculas y sin ``_`` ni ``-``: la base habla snake_case y la API camelCase, y el mismo secreto es
+    ``encrypted_text`` en una y ``encryptedText`` en la otra. Una respuesta que existe para ENTREGAR una credencial
+    (iniciar sesión, abrir un intento) y la lleva a propósito tiene que ampliar esta regla con su motivo.
+    """
+    flat = name.lower().replace("_", "").replace("-", "")
+    return flat.startswith(("password", "encrypted")) or any(part in flat for part in ("secret", "token", "encryptionkey"))
 
 
 def _ts_literal(value: Any) -> str:

@@ -2,7 +2,8 @@
 
 Verifica que:
 1. ``drf-spectacular`` genera el esquema completo con 0 errores y 0 avisos (trinquete en 0).
-2. Ningún esquema de respuesta expone campos prohibidos (``password``, ``encrypted_text``, secretos).
+2. Ningún esquema de respuesta expone campos prohibidos (``password*``, ``encrypted*``, ``token``, ``secret``), se
+   escriban en snake_case o en camelCase.
 3. Las rutas canónicas ``/api/...`` están documentadas sin duplicados con barra final y con ``BearerAuth``.
 4. El archivo TypeScript generado ``frontend/src/app/core/api/generated/openapi-contracts.d.ts``
    coincide exactamente con el esquema OpenAPI actual.
@@ -17,7 +18,7 @@ from drf_spectacular.drainage import GENERATOR_STATS
 from drf_spectacular.generators import SchemaGenerator
 
 from shared.contract_testing import typed_operations
-from shared.openapi import PROHIBITED_SCHEMA_FIELDS, render_typescript_contracts
+from shared.openapi import is_prohibited_field, render_typescript_contracts
 
 pytestmark = pytest.mark.req("RNF-07")
 
@@ -90,11 +91,31 @@ def test_openapi_schema_covers_canonical_endpoints_and_bearer_auth():
 def test_openapi_schema_never_exposes_prohibited_fields():
     schema = SchemaGenerator().get_schema(request=None, public=True)
     components = schema.get("components", {}).get("schemas", {})
-    exposed = _collect_schema_property_names(components) & PROHIBITED_SCHEMA_FIELDS
+    exposed = {name for name in _collect_schema_property_names(components) if is_prohibited_field(name)}
     assert not exposed, f"Campos prohibidos expuestos en components.schemas: {sorted(exposed)}"
 
-    synthetic = {"BadSchema": {"type": "object", "properties": {"encrypted_text": {"type": "string"}}}}
-    assert _collect_schema_property_names(synthetic) & PROHIBITED_SCHEMA_FIELDS == {"encrypted_text"}
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "password", "password_hash", "passwordHash", "PASSWORD",
+        "encrypted_text", "encryptedText", "encrypted-text",
+        "jwt_secret", "clientSecret", "secret_key", "secretKey",
+        "reflection_encryption_key", "reflectionEncryptionKey",
+        "token", "accessToken", "attemptToken", "attempt_token_hash", "refresh-token",
+    ],
+)
+def test_un_nombre_de_campo_prohibido_se_reconoce_en_snake_case_y_en_camel_case(name):
+    """La API habla camelCase y la base snake_case: el mismo secreto no puede colarse con el otro nombre."""
+    assert is_prohibited_field(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["definitionHash", "sealedHash", "portraitKey", "key", "caseVersionId", "displayName", "retentionDays", "passed"],
+)
+def test_los_campos_corrientes_no_se_marcan_como_prohibidos(name):
+    assert not is_prohibited_field(name)
 
 
 def test_generated_typescript_contracts_match_openapi_schema():
