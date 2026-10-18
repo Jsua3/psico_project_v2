@@ -46,7 +46,8 @@ def _restore_base_settings(monkeypatch):
 def _production(monkeypatch, *, recargar_base=True, **overrides):
     env = {**BASE_ENV, **overrides}
     for name in (
-        "RAILWAY_PUBLIC_DOMAIN", "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
+        "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_PUBLIC_DOMAIN",
+        "DJANGO_ALLOWED_HOSTS", "DATABASE_URL", "EMAIL_BACKEND",
         "ACCESS_REQUEST_NOTIFY_EMAILS", "ACCESS_REQUEST_NOTIFY_DISABLED", "SIEP_ALLOW_CONSOLE_EMAIL",
         "SIEP_TRUSTED_PROXIES", "DJANGO_SECURE_SSL_REDIRECT", "SIEP_HSTS_SECONDS",
         "DJANGO_SECRET_KEY", "REFLECTION_ENCRYPTION_KEY", "JWT_SECRET", "JWT_SIGNING_KEY", "REFLECTION_ACTIVE_KEY",
@@ -564,3 +565,41 @@ def test_el_error_de_jwt_signing_key_no_muestra_su_valor(monkeypatch):
 def test_las_plantillas_documentan_jwt_signing_key_sin_darle_valor(archivo):
     assert "JWT_SIGNING_KEY" in archivo.read_text(encoding="utf-8"), f"{archivo} debe documentar JWT_SIGNING_KEY"
     assert _valor_de_plantilla(archivo, "JWT_SIGNING_KEY") is None, f"{archivo} no debe dar un valor a JWT_SIGNING_KEY"
+
+
+# ── R1b · comodines en los hosts y SIEP_TRUSTED_PROXIES = 0 en Railway ─────────────────────
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("hosts", ["*", "siep.example.edu.co,*"])
+def test_un_comodin_en_los_hosts_impide_arrancar_sin_mostrarlo(monkeypatch, hosts):
+    with pytest.raises(ImproperlyConfigured, match="DJANGO_ALLOWED_HOSTS") as error:
+        _production(monkeypatch, DJANGO_ALLOWED_HOSTS=hosts)
+
+    assert "*" not in str(error.value)
+    assert error.value.__context__ is None
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("variable", ["RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_PUBLIC_DOMAIN"])
+def test_en_railway_con_cero_proxies_de_confianza_no_arranca(monkeypatch, variable):
+    # Railway pone siempre un proxy delante: con 0, todos los clientes comparten la IP del borde.
+    with pytest.raises(ImproperlyConfigured, match="SIEP_TRUSTED_PROXIES"):
+        _production(monkeypatch, SIEP_TRUSTED_PROXIES="0", **{variable: "siep.example.test"})
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_en_railway_con_un_proxy_arranca(monkeypatch):
+    settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES="1", RAILWAY_PROJECT_ID="proyecto-de-prueba")
+
+    assert settings["SIEP_TRUSTED_PROXIES"] == 1
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_fuera_de_railway_cero_proxies_sigue_arrancando(monkeypatch):
+    settings = _production(monkeypatch, SIEP_TRUSTED_PROXIES="0")
+
+    assert settings["SIEP_TRUSTED_PROXIES"] == 0

@@ -411,7 +411,6 @@ export interface OpenApiPaths {
   readonly '/api/auth/login': 'POST';
   readonly '/api/auth/logout': 'POST';
   readonly '/api/auth/me': 'GET';
-  readonly '/api/auth/register': 'POST';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';

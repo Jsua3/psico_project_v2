@@ -28,7 +28,6 @@ def admin(db):
     [
         ("post", "/api/rubrics/"),
         ("post", "/api/authoring/cases"),
-        ("post", "/api/auth/register"),
         ("post", "/api/admin/users"),
         ("post", "/api/auth/change-password"),
     ],

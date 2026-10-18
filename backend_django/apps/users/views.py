@@ -38,7 +38,6 @@ from .serializers import (
     ChangePasswordSerializer,
     GoogleLoginSerializer,
     LoginSerializer,
-    RegisterSerializer,
     UserSummarySerializer,
     generate_access_token,
     normalize_email_value,
@@ -193,21 +192,6 @@ class GoogleLoginView(APIView):
             "token": generate_access_token(user),
             "user": UserSummarySerializer(user).data,
         })
-
-
-class RegisterView(APIView):
-    """POST /api/auth/register — ADMIN only. Mirrors Spring AuthController.register."""
-
-    permission_classes = [policy_permission("user", "manage")]
-
-    def post(self, request):
-        ser = RegisterSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        if User.objects.filter(email=ser.validated_data["email"]).exists():
-            raise ValidationError("El email ya está registrado")
-        user = ser.save()
-        # Spring returns 200 OK with message + data.
-        return api_ok(UserSummarySerializer(user).data, message="Usuario creado exitosamente")
 
 
 class AccessRequestCreateView(FailFastThrottlesMixin, APIView):

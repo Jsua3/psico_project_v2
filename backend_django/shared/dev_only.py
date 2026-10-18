@@ -49,9 +49,10 @@ def require_dev_environment(command_name):
     """
     if is_dev_environment():
         return
-    # BORRADOR: mensaje de consola para el operador, pendiente de revisión.
+    # BORRADOR: mensaje de consola para el operador, pendiente de revisión. No nombra la excepción ni cómo saltarse la
+    # guarda: quien lo lea en un entorno real la usaría. La excepción solo está documentada en el docstring y el README.
     raise CommandError(
         f"{command_name} se niega a correr: {' y '.join(_motivos_de_no_desarrollo())}. "
-        "Las cuentas de demostración solo se siembran en desarrollo. "
-        f"Solo para una base de pruebas desechable, define {ALLOW_ENV}=true."
+        "Las cuentas de demostración no se siembran aquí. Para el primer administrador de un entorno real usa "
+        "`python manage.py create_admin` (ver docs/operacion/despliegue-railway.md)."
     )

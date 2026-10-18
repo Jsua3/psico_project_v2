@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
+from django.core.validators import validate_email
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -21,8 +22,10 @@ from django.utils.crypto import get_random_string
 from rest_framework import status
 
 from apps.simulation.services.audit_service import auditable
+from apps.users.models import UserRole
 from shared.background import run_in_background
 from shared.exceptions import ApiError
+from shared.plain_text import person_text_problem
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -265,6 +268,48 @@ def set_password_by_admin(user, password):
     user.temp_password_set_at = timezone.now()
     user.save(update_fields=["password", "must_change_password", "temp_password_set_at"])
     return user
+
+
+def _contexto_del_admin_creado(args, kwargs, result):
+    """Solo el id de la cuenta nueva en la auditoría: ni el correo ni la clave (SF-21)."""
+    return {"targetId": result.pk}
+
+
+@auditable("ADMIN_CREATED_BY_COMMAND", "USER", -1, context=_contexto_del_admin_creado)
+def create_admin_account(email, nombre, apellido, password):
+    """Crea una cuenta ADMIN activa cuya clave es TEMPORAL (cambio obligatorio y fecha de caducidad).
+
+    Lo llama el comando ``create_admin``, que ya normalizó el correo (``apps.users.serializers.normalize_email_value``).
+    Un correo ya registrado, una clave que no pasa ``AUTH_PASSWORD_VALIDATORS`` o un dato vacío fallan sin tocar nada.
+    La clave no sale de aquí: ni a la auditoría, ni al registro, ni a la respuesta.
+    """
+    # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+    for campo, valor in (("nombre", nombre), ("apellido", apellido)):
+        if not (valor or "").strip():
+            raise _field_error(campo, f"El {campo} es obligatorio.")
+        problema = person_text_problem(valor, 100)
+        if problema is not None:
+            raise _field_error(campo, problema)
+    if not password:
+        raise _field_error("password", "La contraseña es obligatoria.")
+    try:
+        validate_email(email)
+    except DjangoValidationError:
+        raise _field_error("email", "El correo no es válido.") from None
+    with transaction.atomic():
+        if User.objects.filter(email=email).exists():
+            raise _field_error("email", "El email ya está registrado")
+        cuenta = User(email=email, nombre=nombre.strip(), apellido=apellido.strip(), role=UserRole.ADMIN, activo=True)
+        try:
+            password_validation.validate_password(password, cuenta)
+        except DjangoValidationError as exc:
+            raise _field_error("password", " ".join(exc.messages)) from None
+        cuenta.set_password(password)
+        # S1-5 · la clave del primer administrador es temporal: el primer acceso la cambia, y la fecha cuenta el plazo.
+        cuenta.must_change_password = True
+        cuenta.temp_password_set_at = timezone.now()
+        cuenta.save()
+    return cuenta
 
 
 def notify_admin_password_change(user):

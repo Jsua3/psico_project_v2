@@ -133,6 +133,17 @@ def test_otros_valores_de_la_excepcion_no_la_activan(valor, monkeypatch):
 
 
 @pytest.mark.parametrize("comando", COMANDOS)
+def test_el_error_fuera_de_desarrollo_no_enseña_como_saltarse_la_guarda(comando, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", DSN_DE_PLATAFORMA)
+
+    with pytest.raises(CommandError) as error:
+        _correr(comando)
+
+    assert dev_only.ALLOW_ENV not in str(error.value)
+    assert "create_admin" in str(error.value)
+
+
+@pytest.mark.parametrize("comando", COMANDOS)
 def test_sin_senales_corre_como_en_las_pruebas(comando):
     _correr(comando)
 

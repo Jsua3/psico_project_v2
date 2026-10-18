@@ -76,6 +76,14 @@ def _validate_secret(name, value, *, min_length, distinct_from=()):
             )
 
 
+#: R1b · variables que Railway inyecta en sus servicios: basta una con valor para saber que el arranque es en Railway.
+RAILWAY_VARIABLES = ("RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID", "RAILWAY_PUBLIC_DOMAIN")
+
+
+def _en_railway():
+    return any(os.environ.get(name, "").strip() for name in RAILWAY_VARIABLES)
+
+
 # S1-1 · base.py convierte SIEP_TRUSTED_PROXIES con int() al importarse: un valor que no sea un entero ≥ 0 se
 # rechaza AQUÍ, antes del ``from .base import *``, para que la causa salga como ImproperlyConfigured.
 def _validate_trusted_proxies():
@@ -89,6 +97,15 @@ def _validate_trusted_proxies():
             # BORRADOR
             "SIEP_TRUSTED_PROXIES debe ser un entero ≥ 0: número de proxies de confianza delante de Django "
             "(0 = ninguno)."
+        )
+    # R1b · en Railway siempre hay un proxy delante de Django. Con 0, Django toma la IP del borde como la de todos los
+    # clientes y los límites por IP se vuelven un cierre global. El mensaje explica la causa y no muestra el valor.
+    if int(value) == 0 and _en_railway():
+        raise ImproperlyConfigured(
+            # BORRADOR
+            "SIEP_TRUSTED_PROXIES no puede ser 0 en Railway: hay un proxy delante de Django. Con 0, todos los clientes "
+            "comparten una sola IP y los límites por IP se vuelven un cierre global. Mide el número de proxies en el "
+            "primer despliegue (en Railway suele ser 1)."
         )
 
 
@@ -114,6 +131,12 @@ if not ALLOWED_HOSTS:
     raise ImproperlyConfigured(
         "Define DJANGO_ALLOWED_HOSTS (o despliega en Railway, que provee "
         "RAILWAY_PUBLIC_DOMAIN) para psychosim.settings.production"
+    )
+if "*" in ALLOWED_HOSTS:
+    # R1b · un comodín deja pasar cualquier cabecera Host: se listan los dominios exactos. El valor no entra en el mensaje.
+    raise ImproperlyConfigured(
+        # BORRADOR
+        "DJANGO_ALLOWED_HOSTS no admite comodines: lista los dominios exactos (valor no mostrado)."
     )
 
 # CSRF: confía en el origen https del dominio público (por si algún flujo usa CSRF).

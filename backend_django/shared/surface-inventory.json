@@ -520,14 +520,6 @@
       "audit": null
     },
     {
-      "route": "api/auth/register",
-      "method": "POST",
-      "exposure": "role:ADMIN",
-      "body": "json-small",
-      "throttle": null,
-      "audit": null
-    },
-    {
       "route": "api/authoring/cases",
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",

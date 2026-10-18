@@ -4,6 +4,7 @@ Django owns the PostgreSQL schema: every table is created and evolved by the
 migrations of each app (E0-8); the constraints that production enforces live in
 the models' ``Meta`` and are pinned by ``test_schema_contract.py``.
 """
+import logging
 import os
 import re
 from datetime import timedelta
@@ -240,6 +241,28 @@ def _env_flag(name, default=False):
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+#: Valores que APAGAN un interruptor de seguridad «cerrado» (sin mayúsculas ni espacios). Cualquier otro valor lo enciende.
+_VALORES_DE_APAGADO = frozenset({"0", "false", "no", "off"})
+_VALORES_DE_ENCENDIDO = frozenset({"1", "true", "yes", "on"})
+
+
+def _env_flag_cerrada(name, default=True):
+    """Interruptor de seguridad que falla CERRADO (R1b, S1-2 y S1-4): ausente o vacío → ``default``; ``0/false/no/off`` →
+    apagado; cualquier otro valor → encendido, y se avisa UNA vez en el registro sin mostrar el valor. Un error de tecleo
+    («ture») no apaga nada."""
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw in _VALORES_DE_APAGADO:
+        return False
+    if raw not in _VALORES_DE_ENCENDIDO:
+        logging.getLogger("siep.security").warning(
+            "valor_de_interruptor_no_reconocido",
+            extra={"fields": {"event": "valor_de_interruptor_no_reconocido", "variable": name}},
+        )
+    return True
+
+
 def _entero_env(name, default, minimo):
     """Entero por variable de entorno (S1-5). Ausente o vacía, ``default``; un valor que no sea un entero ≥ ``minimo``
     detiene el arranque. El valor recibido no entra en el mensaje: puede ser un secreto puesto en la variable equivocada."""
@@ -362,12 +385,12 @@ SIEP_TRUSTED_PROXIES = int(os.environ.get("SIEP_TRUSTED_PROXIES", "0"))
 #: S1-2 · limitador compartido de peticiones (DJA-2). Interruptor de emergencia: por defecto encendido; con él
 #: apagado, ``apps.security.limiter`` no toca la base y ninguna petición recibe 429. Las pruebas lo apagan en
 #: ``psychosim/settings/test.py``.
-SIEP_THROTTLE_ENABLED = os.environ.get("SIEP_THROTTLE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+SIEP_THROTTLE_ENABLED = _env_flag_cerrada("SIEP_THROTTLE_ENABLED", default=True)
 
 #: S1-4 · sesión revocable: cada token lleva la época de sesión de su dueño (claim ``ep``) y el servidor rechaza los
 #: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
 #: emergencia: no lo apagues en producción).
-SIEP_SESSION_EPOCH_ENFORCE = _env_flag("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+SIEP_SESSION_EPOCH_ENFORCE = _env_flag_cerrada("SIEP_SESSION_EPOCH_ENFORCE", default=True)
 
 #: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
 #: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.

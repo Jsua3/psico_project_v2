@@ -1,7 +1,7 @@
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 
-from shared.plain_text import plain_text_problem
+from shared.plain_text import texto_visible_problem
 
 #: Los largos de las columnas de ``grupos`` (S2-6b, SF-22): un campo más largo es un 400 con el campo, no un 500.
 NOMBRE_MAX = 255
@@ -13,10 +13,11 @@ CODIGO_FORMATO = RegexValidator(
 
 
 def _nombre_de_grupo(value):
-    """S2-6b · SF-23: el nombre sale en los correos de invitación, así que es texto plano de una línea."""
-    problema = plain_text_problem(value, NOMBRE_MAX)
+    """S2-6b · SF-23: el nombre sale en los correos de invitación, así que es texto plano de una línea. R1b: además,
+    sin invisibles ni dominios. No es un nombre de persona: puede llevar cifras («Grupo 1A»)."""
+    problema = texto_visible_problem(value, NOMBRE_MAX)
     if problema is not None:
-        raise serializers.ValidationError(problema[1])
+        raise serializers.ValidationError(problema)
     return value.strip()
 
 
