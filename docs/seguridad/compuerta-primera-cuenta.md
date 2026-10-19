@@ -62,7 +62,7 @@ Las 27 filas de la sección 11 del plan y, al final, dos filas extra (los derech
 | 20 | Ninguna cuenta de demostración y al menos un ADMIN activo con la clave ya cambiada | automática (entorno aportado) | script | S5-4, S7-4 | `sin-cuentas-demo` |
 | 21 | Tareas programadas en la plataforma: `purge_rate_limits`, `expire_temporary_passwords` y `purge_audit_logs` | manual | quien despliega | S1-2, S1-5, S4-2 | `tareas-programadas` |
 | 22 | El rol de la aplicación (el que atiende las peticiones, **no** el de mantenimiento) no tiene UPDATE, DELETE ni TRUNCATE sobre `audit_logs`; los comandos de mantenimiento se corren con otra cuenta (ver `derechos-del-titular.md`) | automática (entorno aportado) | script | S4-2 | `rol-sin-escritura-en-auditoria` |
-| 23 | Alerta sobre las líneas `throttle_backend_error` y `audit_write_failed` | manual | quien despliega | S1-2, S4-3 | `alertas` |
+| 23 | Alerta sobre las líneas `throttle_backend_error` y `audit_write_failed`, y aviso de `account_throttled` (una cuenta bloqueada: si es la única de administración, hay que levantarla con `unblock_login`) y de `audit_game_user_capped` | manual | quien despliega | S1-2, S4-3 | `alertas` |
 | 24 | `npm run test:image` verde sobre la imagen que se despliega (se corre con `--with-image`) | automática | script | S6-1 | `imagen` |
 | 25 | `railway run` y la terminal del contenedor verificados para `create_admin` | manual | quien despliega | R1b2 | `railway-run` |
 | 26 | `SIEP_ALLOWED_ASSET_HOSTS` decidida con la institución y reflejada en `img-src` | manual | institución | S2-6b | `hosts-de-activos` |

@@ -265,7 +265,7 @@ export const PASOS = Object.freeze([
   },
   {
     id: 'alertas',
-    comprobacion: 'Alerta sobre las líneas throttle_backend_error y audit_write_failed',
+    comprobacion: 'Alerta sobre las líneas throttle_backend_error y audit_write_failed, y aviso de account_throttled (una cuenta bloqueada: si es la única de administración, hay que levantarla con unblock_login) y de audit_game_user_capped',
     tipo: TIPOS.MANUAL,
     quien: 'quien despliega',
     tarea: 'S1-2, S4-3',
