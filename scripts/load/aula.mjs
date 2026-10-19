@@ -125,11 +125,26 @@ async function virtualStudent(index, ctx) {
   const token = login?.data?.data?.token;
   if (!token) return;
 
+  let consentAsked = false;
   while (Date.now() < ctx.deadline && interruptedExitCode === null) {
     const cycleStart = Date.now();
     const cases = await api('catalogo', 'GET', '/simulation/cases', { token });
     const caseVersionId = cases.data?.data?.find?.((c) => c.code === 'SIM-VBG-001')?.caseVersionId;
     if (!caseVersionId) return;
+    // S3-2b: el cliente real acepta el aviso de contenido UNA vez por persona y caso (lee el estado y acepta la versión
+    // vigente). Si el servidor lo exige (SIEP_CONSENT_REQUIRED), sin esto el mundo daría 403; con la bandera apagada la
+    // aceptación igual queda registrada. Su costo entra en la medición.
+    if (!consentAsked) {
+      consentAsked = true;
+      const consent = await api('consentimiento', 'GET', `/simulation/cases/${caseVersionId}/consent`, { token });
+      const consentState = consent.data?.data;
+      if (consentState?.accepted !== true && typeof consentState?.noticeVersion === 'string') {
+        await api('consentimiento', 'POST', `/simulation/cases/${caseVersionId}/consent`, {
+          token,
+          body: { noticeVersion: consentState.noticeVersion },
+        });
+      }
+    }
     const attempt = await api('intento', 'POST', '/simulation/attempts', {
       token,
       body: { caseVersionId, forceNew: true },
