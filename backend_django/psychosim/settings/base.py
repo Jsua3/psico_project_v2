@@ -461,9 +461,11 @@ def _version_de_aviso_env(name, default, *, vacia_vale=False):
 
 #: La versión VIGENTE del aviso de contenido. El servidor es su dueño: el cliente envía la que mostró y, si no coincide, 409
 #: NOTICE_VERSION_STALE con ésta. Cambiarla hace que todas las personas vuelvan a aceptar (las aceptaciones viejas se conservan
-#: como evidencia). El cliente repite el valor (S3-2b compara los dos). Es un BORRADOR hasta que Psicología apruebe el texto.
+#: como evidencia). El cliente repite el valor (consent-recorder.ts; una prueba de contrato compara los dos): cambiarla exige
+#: cambiar a la vez el texto del aviso, esa constante y este valor por defecto. Es un BORRADOR hasta que Psicología apruebe el texto.
 SIEP_CONTENT_NOTICE_VERSION = _version_de_aviso_env("SIEP_CONTENT_NOTICE_VERSION", "2026-10-borrador")
-#: APAGADA hasta que el cliente use el servidor (S3-2b) y la institución entregue el texto. Encendida: cargar el mundo de un
+#: El cliente ya usa el servidor (S3-2b), pero sigue APAGADA hasta desplegarlo, medir su costo y que la institución entregue
+#: el texto. Encendida: cargar el mundo de un
 #: intento y las órdenes de juego responden 403 CONSENT_REQUIRED sin un consentimiento vigente de ese caso y de la versión
 #: actual del aviso. La pausa, la salida segura, reanudar, abandonar y consultar el intento abierto NUNCA lo exigen.
 SIEP_CONSENT_REQUIRED = _env_flag("SIEP_CONSENT_REQUIRED")
