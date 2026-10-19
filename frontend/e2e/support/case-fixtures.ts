@@ -95,6 +95,21 @@ function mutationHeaders(token: string, url: string): Record<string, string> {
 }
 
 /**
+ * La constancia de la revisión de contenido de Psicología (RQ-NEG-008): con `SIEP_REVIEW_WORKFLOW_STRICT` el servidor no
+ * aprueba sin ella (400 `CONTENT_REVIEW_REQUIRED`) y sin la bandera la acepta y la guarda. La fecha es la de ayer: el
+ * servidor rechaza una posterior a hoy y la hora local del servidor y la de esta máquina pueden quedar a un día.
+ */
+export function contentReviewProof(): { reviewer: string; reviewedOn: string; reference: string } {
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const two = (value: number) => String(value).padStart(2, '0');
+  return {
+    reviewer: 'Revisión e2e',
+    reviewedOn: `${yesterday.getFullYear()}-${two(yesterday.getMonth() + 1)}-${two(yesterday.getDate())}`,
+    reference: 'Acta e2e',
+  };
+}
+
+/**
  * Una mutación por la API real que espera un éxito (200 o 201) y devuelve su `data`. Manda la revisión del caso y adopta
  * la de la respuesta. Las del ciclo de vida no la traen (responden `CaseLifecycle`): después se relee el editor.
  */
@@ -209,7 +224,7 @@ export async function createPublishedCase(request: APIRequestContext, options: C
     await send(request, admin, 'post', `${base}/${id}/characters`, { ...character, showInBrief: true, displayOrder: index }, `personaje ${character.displayName}`);
   }
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
-  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.', contentReview: contentReviewProof() }, 'aprobar y publicar');
   return { caseVersionId: id, title: draft.title };
 }
 
@@ -235,7 +250,7 @@ export async function cloneAndPublishCase(
     accessibilityOk: true, scopeEducational: true,
   }, 'lista de publicación');
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
-  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.', contentReview: contentReviewProof() }, 'aprobar y publicar');
   return { caseVersionId: id, title: view['title'] };
 }
 
