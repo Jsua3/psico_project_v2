@@ -26,6 +26,7 @@ from rest_framework.test import APIClient
 SOURCE_CODE = "SIM-VBG-001"
 PROBE_CODE = "SONDA-CSP-001"
 PROBE_TITLE = "Caso de la sonda de CSP"
+SUPPORT_RESOURCE = "Recurso de apoyo de la sonda (no verificado)"
 
 #: El texto hostil: un ``<script>`` y una imagen con manejador en línea. La prueba 7 de la sonda busca estos mismos textos.
 SCRIPT = "<script>alert(1)</script>"
@@ -99,6 +100,9 @@ def _publish_copy(admin):
     document = definition_io.export_definition(source.id)
     document["caso"]["id"] = PROBE_CODE
     document["caso"]["titulo"] = PROBE_TITLE
+    # La lista marca «protocolos de seguridad» y la compuerta (S3-3) pide al menos una escena con un recurso de apoyo: el caso
+    # demo no trae ninguno, así que la copia lleva uno de prueba. A propósito no es un recurso real.
+    document["x-siep"]["escenas"][0]["apoyo"] = [SUPPORT_RESOURCE]
     client = APIClient()
     client.force_authenticate(user=admin)
     imported = _expect(

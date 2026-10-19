@@ -405,6 +405,24 @@ describe('CaseReviewPanelComponent', () => {
       expect(decide.mock.calls[1][1]).toMatchObject({ data: { mode: 'approve', contentReviewRequired: true } });
     });
 
+    it('si la compuerta bloquea por la constancia (ETHICS.NO_CONTENT_REVIEW), el siguiente intento de aprobar la pide como obligatoria', async () => {
+      setup(IN_REVIEW);
+      api.transitionCase.mockReturnValueOnce(throwError(() => http(409, {
+        code: 'CASE_NOT_PUBLISHABLE',
+        message: 'La casilla «revisión ética» está marcada, pero el caso no tiene la constancia.',
+        blockers: [{ code: 'ETHICS.NO_CONTENT_REVIEW', message: 'La casilla «revisión ética» está marcada, pero el caso no tiene la constancia.' }],
+      })));
+      decide.mockReturnValue({ closed: of({}) });
+
+      buttonNamed('Aprobar y publicar')!.click();
+      await settle();
+      buttonNamed('Aprobar y publicar')!.click();
+      await settle();
+
+      expect(decide.mock.calls[0][1]).toMatchObject({ data: { mode: 'approve', contentReviewRequired: false } });
+      expect(decide.mock.calls[1][1]).toMatchObject({ data: { mode: 'approve', contentReviewRequired: true } });
+    });
+
     it('lo que se escribió en el diálogo no se pierde si el servidor rechaza: al reabrirlo llega como borrador; al cancelar se olvida', async () => {
       setup(IN_REVIEW);
       const typed = { note: 'Cumple con todo.', contentReview: { reviewer: 'Dra. Ruiz', reviewedOn: '2026-10-10', reference: 'Acta 4' } };
