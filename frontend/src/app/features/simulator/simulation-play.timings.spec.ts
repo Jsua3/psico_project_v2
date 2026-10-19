@@ -33,12 +33,6 @@ import type { Mock } from 'vitest';
 
 const CASE_VERSION_ID = 7;
 
-const FEEDBACK = {
-  classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
-  prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
-  message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false,
-};
-
 function makeWorld(mapKey = 'hospital-sala-escucha', title = 'Sala de escucha'): SimulationWorldState {
   return {
     map: { key: mapKey, title },
@@ -254,7 +248,11 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     it('la supervisión de una decisión que no es la última se abre 400 ms después de la respuesta', () => {
       component.attempt.set(makeAttempt());
       component.world.set(makeWorld());
-      sim['chooseDecision'].mockReturnValue(of(makeAttempt({ feedback: FEEDBACK }, 'hospital-accion')));
+      sim['chooseDecision'].mockReturnValue(of({
+        ...makeAttempt({}, 'hospital-accion'),
+        consequence: { text: 'La estudiante asiente.', source: 'OPTION' },
+        retry: null,
+      }));
       component.dialogue.set({
         key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
@@ -267,7 +265,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       advance(399);
       expect(component.dialogue()).toBeNull();
       advance(1);
-      expect(component.dialogue()?.speakerName).toBe('Supervisión clínica');
+      expect(component.dialogue()?.speakerName).toBe('Consecuencia');
     });
   });
 

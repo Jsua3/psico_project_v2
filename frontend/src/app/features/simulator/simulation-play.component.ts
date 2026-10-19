@@ -13,7 +13,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
-  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
+  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import { PATIENT_INITIAL_STATE } from './patient-state.util';
@@ -83,8 +83,12 @@ const NOTE_SEEN_MS = 1500;
 const FADE_OUT_MS = 340;
 /** Tras aplicar un mundo nuevo, espera antes de retirar el fundido de escena; luego corren los efectos de cámara. */
 const WORLD_REVEAL_DELAY_MS = 80;
-/** La supervisión de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
+/** La consecuencia de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
 const SUPERVISION_DELAY_MS = 400;
+/** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
+const CONSEQUENCE_SPEAKER = 'Consecuencia';
+/** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
+const RETRY_NOTICE = 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.';
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
 const POSITION_SAVE_DEBOUNCE_MS = 550;
 /** Duración del pulso visual de estrés tras aplicar una herramienta. */
@@ -529,6 +533,7 @@ const CASE_INTRO_PARAGRAPHS = [
         @if (!holdingOutcome()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
             [supportResources]="supportResources()"
+            [reviewAttemptId]="game.status === 'COMPLETED' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
         }
 
@@ -2066,8 +2071,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, 'door_open'));
   }
 
-  /** Sacudida por decisión, pendiente hasta que el fundido de escena deje ver el mundo. */
-  private pendingDecisionImpact: SimulationFeedback | null = null;
+  /**
+   * La intención de decidir en curso: si la misma opción falla en la red y se reenvía, viaja con el mismo `requestId`
+   * (el servidor responde la repetición sin decidir dos veces). Se libera al recibir respuesta.
+   */
+  private pendingDecisionRequest: { decisionOptionId: number; requestId: string } | null = null;
 
   /** Texto del aviso del sistema con ese id; '' si no hay o la persona ya lo cerró. */
   private noticeText(id: number | null): string {
@@ -2291,11 +2299,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
+      const request = this.decisionRequestFor(decisionOptionId);
       this.simulationService.chooseDecision(
         game.attemptId, game.attemptToken, decisionOptionId,
-        evidenceOverride, confirmedMissingEvidence,
+        evidenceOverride, confirmedMissingEvidence, request.requestId,
       ).subscribe({
         next: updated => {
+          this.pendingDecisionRequest = null;
           // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
           // esta decisión no lo pisa con uno anterior.
           if (this.attempt()?.status === 'PAUSED') {
@@ -2311,18 +2321,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.journalPanel?.clear();
-          // Última decisión: la supervisión se lee sobre la escena y el resultado se abre al cerrarla. Se arma
-          // antes de pedir el mundo: si este falla, su error suelta la retención. Sin supervisión que mostrar,
-          // el resultado se abre ya y el cierre suena como siempre.
+          // Última decisión: la consecuencia se lee sobre la escena y el resultado se abre al cerrarla. Se arma antes
+          // de pedir el mundo: si este falla, su error suelta la retención. Sin consecuencia que mostrar, el resultado
+          // se abre ya y el cierre suena como siempre. Nada de esto mira la clasificación (RN-08).
           const lastDecision = updated.status === 'COMPLETED';
-          if (lastDecision && !this.holdOutcomeForSupervision(updated.feedback)) this.playCompletionAudio();
+          if (lastDecision && !this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
-          this.pendingDecisionImpact = updated.feedback ?? null;
-          if (!lastDecision && updated.feedback) {
-            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), SUPERVISION_DELAY_MS);
-          }
+          const consequence = lastDecision ? null : this.buildConsequenceDialogue(updated);
+          if (consequence) window.setTimeout(() => this.dialogue.set(consequence), SUPERVISION_DELAY_MS);
         },
         error: err => {
           perfCancel('decision-to-scene');
@@ -2732,18 +2740,29 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
+  /** Reutiliza el `requestId` de la misma opción si el envío anterior falló; si no, abre una intención nueva. */
+  private decisionRequestFor(decisionOptionId: number): { decisionOptionId: number; requestId: string } {
+    const pending = this.pendingDecisionRequest;
+    if (pending && pending.decisionOptionId === decisionOptionId) return pending;
+    const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.pendingDecisionRequest = { decisionOptionId, requestId };
+    return this.pendingDecisionRequest;
+  }
+
   /**
-   * Última decisión (DLG-05): muestra la supervisión sobre la escena y retiene el resultado hasta que se cierre.
-   * Devuelve `false` si no hay nada que mostrar (sin feedback o con uno que no se puede armar): el resultado
+   * Última decisión (DLG-05): muestra la consecuencia sobre la escena y retiene el resultado hasta que se cierre.
+   * Devuelve `false` si no hay nada que mostrar (ni consecuencia ni reintento) o si no se puede armar: el resultado
    * se abre entonces como siempre.
    */
-  private holdOutcomeForSupervision(feedback: SimulationFeedback | null | undefined): boolean {
-    if (!feedback) return false;
+  private holdOutcomeForConsequence(decision: SimulationDecisionResult): boolean {
+    let dialogue: DialogueState | null;
     try {
-      this.dialogue.set(this.buildSupervisionDialogue(feedback));
+      dialogue = this.buildConsequenceDialogue(decision);
     } catch {
       return false;
     }
+    if (!dialogue) return false;
+    this.dialogue.set(dialogue);
     this.supervisionHold.set(true);
     return true;
   }
@@ -2762,34 +2781,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.audioDirector.playSfx('session_complete');
   }
 
-  private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {
-    const retryRequired = this.feedbackRequiresRetry(feedback);
-    const lines: DialogueState['lines'] = [
-      { order: 1, speakerName: 'Supervisión clínica', text: feedback.message, emotion: feedback.prohibitedConduct ? 'danger' : 'neutral' }
-    ];
-    if (feedback.prohibitionReason) {
-      lines.push({ order: 2, speakerName: 'Supervisión clínica', text: feedback.prohibitionReason, emotion: 'danger' });
+  /**
+   * Lo que se lee justo tras decidir (RN-08): la consecuencia narrativa y, si la regla concede otra oportunidad, el aviso
+   * neutro de reintento. Nunca la clasificación, la razón de la prohibición ni el mensaje evaluativo: eso va al cierre.
+   * Devuelve `null` si no hay nada que decir.
+   */
+  private buildConsequenceDialogue(decision: SimulationDecisionResult): DialogueState | null {
+    const text = decision.consequence?.text?.trim() ?? '';
+    const lines: DialogueState['lines'] = [];
+    if (text) {
+      lines.push({ order: 1, speakerName: CONSEQUENCE_SPEAKER, text, emotion: 'neutral' });
     }
-    if (retryRequired) {
-      lines.push({
-        order: lines.length + 1,
-        speakerName: '',
-        text: 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.',
-        emotion: 'concerned'
-      });
-    } else {
+    if (decision.retry) {
+      lines.push({ order: lines.length + 1, speakerName: text ? '' : CONSEQUENCE_SPEAKER, text: RETRY_NOTICE, emotion: 'neutral' });
+    } else if (text) {
       // Sin cifras: las del motor no coinciden con las barras del HUD y «puntaje» convierte el caso en un marcador.
-      lines.push({
-        order: lines.length + 1,
-        speakerName: '',
-        text: ORIENTATION_COPY.notices.supervision,
-        emotion: 'neutral'
-      });
+      lines.push({ order: lines.length + 1, speakerName: '', text: ORIENTATION_COPY.notices.supervision, emotion: 'neutral' });
     }
+    if (!lines.length) return null;
     return {
-      key: `supervision-${Date.now()}`, speakerName: 'Supervisión clínica',
+      key: `consequence-${Date.now()}`, speakerName: CONSEQUENCE_SPEAKER,
       portraitKey: null,
-      emotion: feedback.prohibitedConduct ? 'danger' : feedback.classification === 'ADEQUATE' ? 'positive' : 'neutral',
+      emotion: 'neutral',
       lines, choices: []
     };
   }
@@ -2805,10 +2818,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(() => this.playRevealEffects(), SCENE_FADE_MS);
   }
 
+  /** Sin clasificación: el mundo solo revela la sala (RN-08; la sacudida por decisión se retiró). */
   private playRevealEffects(): void {
-    const impact = this.pendingDecisionImpact;
-    this.pendingDecisionImpact = null;
-    this.gameWorld?.playRevealEffects(impact);
+    this.gameWorld?.playRevealEffects();
   }
 
   private loadProgressMap(attempt: SimulationAttemptState) {
@@ -2827,7 +2839,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
         this.supervisionHold.set(false);
-        this.pendingDecisionImpact = null;
         this.pendingStage = null;
         this.loading.set(false);
         this.busy.set(false);
@@ -3204,15 +3215,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       attemptToken: attempt.attemptToken,
       viewedNpcKeys: Array.from(this.viewedNpcKeys()),
     }));
-  }
-
-  private feedbackRequiresRetry(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct' | 'retryRequired'>): boolean {
-    // El backend es la autoridad: solo concede reintento en la 1ª respuesta mala
-    // (regla de 2 oportunidades). La 2ª respuesta riesgosa/inadecuada queda
-    // registrada y llega con retryRequired=false (aunque la clasificación sea mala).
-    if (typeof feedback.retryRequired === 'boolean') return feedback.retryRequired;
-    // Fallback para respuestas legacy sin el flag.
-    return feedback.prohibitedConduct || feedback.classification === 'INADEQUATE' || feedback.classification === 'RISKY';
   }
 
   private restoreViewedNpcKeys(attempt: SimulationAttemptState): ReadonlySet<string> {

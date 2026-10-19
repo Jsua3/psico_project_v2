@@ -2,7 +2,6 @@ import {
   CRISIS_PULSE_THRESHOLD,
   CRISIS_VIGNETTE_START,
   crisisVignetteState,
-  decisionShake,
   roomEntryFlash,
   vignetteFrame,
 } from './game-feel.util';
@@ -65,24 +64,6 @@ describe('game-feel.util', () => {
           anterior = alpha;
         }
       }
-    });
-  });
-
-  describe('decisionShake', () => {
-    it('sacude más fuerte una conducta prohibida que una riesgosa o inadecuada', () => {
-      expect(decisionShake({ classification: 'RISKY', prohibitedConduct: true }, false))
-        .toEqual({ durationMs: 260, intensity: 0.006 });
-      expect(decisionShake({ classification: 'RISKY', prohibitedConduct: false }, false))
-        .toEqual({ durationMs: 200, intensity: 0.003 });
-      expect(decisionShake({ classification: 'INADEQUATE', prohibitedConduct: false }, false))
-        .toEqual({ durationMs: 200, intensity: 0.003 });
-    });
-
-    it('no sacude una decisión adecuada, sin feedback ni con movimiento reducido', () => {
-      expect(decisionShake({ classification: 'ADEQUATE', prohibitedConduct: false }, false)).toBeNull();
-      expect(decisionShake(null, false)).toBeNull();
-      expect(decisionShake(undefined, false)).toBeNull();
-      expect(decisionShake({ classification: 'RISKY', prohibitedConduct: true }, true)).toBeNull();
     });
   });
 

@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, inject, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
-import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationFeedback, SimulationWorldState } from '../../core/models/simulation.model';
+import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage } from './world-editor/room-edit.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
@@ -77,7 +77,7 @@ import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
-import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, decisionShake, roomEntryFlash, vignetteFrame } from './game-feel.util';
+import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
@@ -594,23 +594,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyCrisisState();
   }
 
-  /** Sacudida de cámara por una decisión de alto impacto (nada con movimiento reducido). */
-  playDecisionImpact(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
-    const shake = decisionShake(feedback, this.callbacks.reduceMotion);
-    if (shake && this.ready && this.cameras?.main) this.cameras.main.shake(shake.durationMs, shake.intensity);
-  }
-
   /**
-   * La sala ya se ve: sacudida si la decisión fue de alto impacto; si no, el destello de
-   * cambio de sala. Nunca los dos a la vez.
+   * La sala ya se ve: el destello de cambio de sala si lo hay. Sin sacudida por decisión: el movimiento de cámara no
+   * puede revelar la clasificación antes del cierre (RN-08).
    */
-  playRevealEffects(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null): void {
-    if (decisionShake(feedback, this.callbacks.reduceMotion)) {
-      this.pendingRoomFlash = null;
-      this.playDecisionImpact(feedback);
-    } else {
-      this.playPendingRoomFlash();
-    }
+  playRevealEffects(): void {
+    this.playPendingRoomFlash();
   }
 
   setSfxMuted(muted: boolean) {
@@ -2926,7 +2915,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
-  playRevealEffects(feedback: SimulationFeedback | null) { this.scene?.playRevealEffects(feedback); }
+  playRevealEffects() { this.scene?.playRevealEffects(); }
   updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
     this.scene?.updatePatientVisualState(state);
   }
