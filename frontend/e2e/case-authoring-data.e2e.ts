@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
-import { PROFESOR, apiToken, bearer } from './support/case-fixtures';
+import { PROFESOR, apiToken, readEditor, send } from './support/case-fixtures';
 import { assertQualityState, runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -20,20 +20,6 @@ const NODE_BODY = {
   warningMessage: null, terminal: false, startNode: false, positionX: null, positionY: null,
 };
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-
-async function send(
-  request: APIRequestContext, token: string, method: 'post' | 'put' | 'patch', url: string, data: Json, what: string,
-): Promise<Json> {
-  const response = await request[method](url, { headers: bearer(token), data });
-  expect([200, 201], `${what}: ${response.status()} ${await response.text().catch(() => '')}`).toContain(response.status());
-  return (await response.json()).data;
-}
-
-async function readEditor(request: APIRequestContext, token: string, id: number): Promise<Json> {
-  const response = await request.get(`${A}/${id}/editor`, { headers: bearer(token) });
-  expect(response.status(), 'GET editor').toBe(200);
-  return (await response.json()).data;
-}
 
 interface Seed { id: number; title: string; token: string; mapId: number; nodes: Record<string, number> }
 

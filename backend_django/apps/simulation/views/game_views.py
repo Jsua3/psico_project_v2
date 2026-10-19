@@ -124,6 +124,7 @@ class NextHintView(APIView):
 
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(responses={200: envelope_of(HintStateSerializer), **error_responses(400, 401, 403, 404, 409)})
     def post(self, request, attempt_id):
         token = request.data.get("attemptToken") or _attempt_token(request)
         return _private_ok(hint_service.reveal_next_hint(

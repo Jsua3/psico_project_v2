@@ -5,10 +5,12 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.views import APIView
 
+from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
 
 from . import services
+from .contracts import StudentReportSerializer
 
 
 def _long(value):
@@ -32,6 +34,13 @@ class ReporteEstudianteView(APIView):
 
     permission_classes = [policy_permission("analytics", "read")]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("caseVersionId", int, description="Solo los intentos de esta versión de caso."),
+            OpenApiParameter("limit", int, description="Cuántos intentos trae, los más recientes primero."),
+        ],
+        responses={200: envelope_of(StudentReportSerializer), **error_responses(401, 403, 404)},
+    )
     def get(self, request, estudiante_id):
         case_version_id = _long(request.query_params.get("caseVersionId"))
         limit = _long(request.query_params.get("limit"))

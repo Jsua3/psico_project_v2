@@ -5,7 +5,10 @@ prueba ``apps/simulation/tests/test_openapi_matches_responses.py`` contra la res
 """
 from rest_framework import serializers
 
+from shared.openapi import ErrorEnvelopeSerializer
+
 from .access import REASONS as ACCESS_REASONS
+from .models import MembershipStatus
 
 ASSIGNMENT_STATES = ("SCHEDULED", "OPEN", "CLOSED")
 ASSIGNMENT_TARGETS = ("GROUP", "STUDENT")
@@ -42,3 +45,27 @@ class AssignmentSerializer(serializers.Serializer):
     sortOrder = serializers.IntegerField(help_text="Su lugar en la secuencia de casos.")
     opensAt = serializers.DateTimeField(required=False, help_text=f"Si no hay fecha, no viaja. {WINDOW}")
     closesAt = serializers.DateTimeField(required=False, help_text=f"Si no hay fecha, no viaja. {WINDOW}")
+
+
+# ─── Invitaciones del estudiante (C5) ──────────────────────────────────────────
+class InvitationSerializer(serializers.Serializer):
+    """La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada.
+
+    El listado no trae las retiradas (`REMOVED`), pero la respuesta de `leave` (y la de aceptar o rechazar) sí devuelve
+    la membresía tal como quedó, también con ese estado."""
+
+    id = serializers.IntegerField(help_text="Igual a `groupId`: la membresía es `(grupo, estudiante)`.")
+    groupId = serializers.IntegerField()
+    groupName = serializers.CharField()
+    teacherName = serializers.CharField(help_text="Nombre completo del docente del grupo, quien invita.")
+    invitedAt = serializers.DateTimeField(
+        allow_null=True,
+        help_text="Hora local del servidor (America/Bogota), sin zona. Nula en las membresías anteriores a las invitaciones.",
+    )
+    status = serializers.ChoiceField(choices=MembershipStatus.choices)
+
+
+class MembershipConflictEnvelopeSerializer(ErrorEnvelopeSerializer):
+    """El 409 de responder una invitación (`MEMBERSHIP_NOT_INVITED`, `MEMBERSHIP_NOT_ACTIVE`): trae el estado de hoy."""
+
+    status = serializers.ChoiceField(choices=MembershipStatus.choices, help_text="El estado en que está la membresía hoy.")
