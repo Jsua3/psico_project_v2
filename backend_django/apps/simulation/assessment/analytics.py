@@ -38,7 +38,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.attempt_report import FEEDBACK_VIEWED
 
-from .definitions import DEFINITIONS_STATUS
+from .definitions import DEFINITIONS_STATUS, MIN_CELL_FLOOR
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ def compute(rows, *, min_cell, acceptable_level, reflection_definition, profile_
     ``profile_rules``; los que leen la reflexión, solo los cerrados con la ``reflection_definition`` vigente.
     """
     rows = list(rows)
-    k = max(1, min_cell)  # el piso de privacidad lo pone ``definitions.min_cell_size``; aquí solo se evita dividir por cero
+    k = max(MIN_CELL_FLOOR, min_cell)  # el piso de privacidad vale AQUÍ, también para quien llame sin ``min_cell_size()``
     level = FormativeLevel(acceptable_level).value
     students = {row.student_id for row in rows}
     suppressed = len(students) < k

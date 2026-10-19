@@ -113,11 +113,22 @@ def test_con_cinco_estudiantes_la_cohorte_ya_no_esta_suprimida_y_trae_todos_los_
     }  # sin encuesta apagada ni evento de retroalimentación: esos dos bloques faltan
 
 
-def test_la_celda_minima_es_la_que_se_pasa():
-    rows = [r for r in five_students() if r.student_id <= 3]
+def test_una_celda_minima_mayor_que_el_piso_se_respeta():
+    rows = five_students()
 
-    assert run(rows, min_cell=3)["cohort"]["suppressed"] is False
-    assert run(rows, min_cell=4)["cohort"]["suppressed"] is True
+    assert run(rows, min_cell=5)["cohort"]["suppressed"] is False
+    assert run(rows, min_cell=6)["cohort"]["suppressed"] is True
+
+
+@pytest.mark.parametrize("requested", [4, 3, 1, 0, -2])
+def test_la_celda_minima_nunca_baja_del_piso_de_privacidad_aunque_se_pida(requested):
+    rows = [r for r in five_students() if r.student_id <= 4]
+
+    result = run(rows, min_cell=requested)
+
+    assert result["cohort"] == {"students": 4, "attempts": 8, "suppressed": True}
+    assert set(result) == {"cohort", "definitions"}  # ningún bloque viaja con menos estudiantes que el piso
+    assert result["definitions"]["minCell"] == definitions.MIN_CELL_FLOOR == 5
 
 
 # ─── RQ-NEG-001 · mejora: primer frente al último intento ─────────────────────────────────────
