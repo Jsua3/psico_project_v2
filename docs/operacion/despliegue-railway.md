@@ -178,6 +178,8 @@ Los incumplimientos llegan en los dos modos a `POST /api/security/csp-report` y 
 
 **Si una imagen de fondo de un caso es de otro host** (lista blanca de S2-6), ese host debe añadirse a `img-src` de `CSP_ENFORCED_POLICY` (`psychosim/settings/base.py`), o el navegador la bloqueará.
 
+Antes de abrir la primera cuenta real, `npm run gate:primera-cuenta -- --url https://TU-DOMINIO --out ..\compuerta-primera-cuenta.md` reúne la evidencia automática y deja la lista manual para el PR de despliegue: el procedimiento está en [`docs/seguridad/compuerta-primera-cuenta.md`](../seguridad/compuerta-primera-cuenta.md).
+
 ---
 
 ## Notas y problemas comunes

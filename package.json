@@ -21,6 +21,7 @@
     "baseline:backend": "node scripts/baseline/measure-backend.mjs",
     "verify:estructural": "node scripts/verify-estructural.mjs",
     "verify:seguridad": "node scripts/verify-seguridad.mjs",
+    "gate:primera-cuenta": "node scripts/gate-primera-cuenta.mjs",
     "load:aula": "node scripts/load/aula.mjs",
     "ui:lint": "npm run ui:lint --prefix frontend",
     "e2e:types": "npm run e2e:types --prefix frontend",
