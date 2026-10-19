@@ -341,6 +341,38 @@ describe('pantalla Rúbricas (F7-5)', () => {
     });
   });
 
+  // Hallazgo de F9-10: la pantalla abre sola la primera rúbrica al cargar, y su detalle llega DESPUÉS. Quien pulsa
+  // «Nueva rúbrica» (o abre otra) en ese intervalo veía su formulario pisado por la primera y, al guardar, mandaba un PUT
+  // a una rúbrica que no es suya (403 «solo lectura»). Pasaba a veces en el e2e de teclado y le pasa a quien tiene red lenta.
+  // req: SIEP-CU-04, RNF-04
+  describe('un detalle que llega tarde no pisa lo que la persona ya eligió', () => {
+    it('«Nueva rúbrica» pulsada antes de que llegue el detalle de la primera conserva el formulario nuevo', async () => {
+      const firstDetail = new Subject<RubricAdmin>();
+      await render({ detail: () => firstDetail });
+      expect(service['detail']).toHaveBeenCalledWith(4);
+
+      component().newRubric();
+      component().form.patchValue({ name: 'La mía' });
+      firstDetail.next(completa);
+      fixture.detectChanges();
+
+      expect(component().selected()).toBeNull();
+      expect(component().form.get('name')?.value).toBe('La mía');
+    });
+
+    it('abrir otra rúbrica antes de que llegue el detalle de la primera deja abierta la última que se pidió', async () => {
+      const firstDetail = new Subject<RubricAdmin>();
+      await render({ detail: (id: number) => (id === 4 ? firstDetail : of(incompleta)) });
+
+      component().openRubric(7);
+      firstDetail.next(completa);
+      fixture.detectChanges();
+
+      expect(component().selected()?.id).toBe(7);
+      expect(component().form.get('name')?.value).toBe('Observación de aula');
+    });
+  });
+
   // req: RNF-04, BLOQUE-H
   describe('estructura', () => {
     it('ninguna región repite el nombre de otra y no quedan restos de Material', async () => {

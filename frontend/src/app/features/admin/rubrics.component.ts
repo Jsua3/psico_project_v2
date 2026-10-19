@@ -185,16 +185,25 @@ export class RubricsComponent implements OnInit {
     return rubric.isDefault ? 'success' : (rubric.active ? 'info' : 'neutral');
   }
 
+  /**
+   * La última apertura que la persona pidió (abrir una rúbrica o empezar una nueva). El detalle de una apertura anterior
+   * puede llegar después —sobre todo el de la primera rúbrica, que `load` abre sola— y no debe pisar lo que ya se eligió.
+   */
+  private openRequest = 0;
+
   /** Abre una rúbrica. Elegir otra retira el aviso de la anterior (salvo cuando la apertura es la de `load`). */
   openRubric(id: number, keepMessage = false): void {
     this.readOnly.set(false);
     if (!keepMessage) this.clearMessage();
+    const request = ++this.openRequest;
     this.rubricService.detail(id).subscribe({
       next: rubric => {
+        if (request !== this.openRequest) return;
         this.selected.set(rubric);
         this.populate(rubric);
       },
       error: () => {
+        if (request !== this.openRequest) return;
         this.message.set('No fue posible abrir la rúbrica.');
         this.messageIsError.set(true);
       },
@@ -202,6 +211,7 @@ export class RubricsComponent implements OnInit {
   }
 
   newRubric(): void {
+    this.openRequest += 1;
     this.readOnly.set(false);
     this.clearMessage();
     this.selected.set(null);
