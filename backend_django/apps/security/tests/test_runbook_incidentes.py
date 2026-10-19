@@ -266,9 +266,11 @@ def _ensayo_unico_admin(monkeypatch):
     assert cambio.status_code == 200, cambio.data
     api_admin = _como(cambio.data["data"]["token"])
     assert api_admin.get("/api/admin/users").status_code == 200, "tras cambiarla, el ADMIN vuelve a operar"
-    # El comando no tiene petición, así que el id de la cuenta va en el contexto (``targetId``), no en el recurso.
+    # El comando no tiene petición ni actor: la fila nombra la cuenta repuesta en el recurso y en el contexto.
     filas = _auditoria(api_admin, action="usuario.reponer_admin")
-    assert any(fila["context"].get("targetId") == admin.pk for fila in filas), "la reposición queda en la auditoría"
+    assert any(
+        fila["resourceId"] == str(admin.pk) and fila["context"].get("targetId") == admin.pk for fila in filas
+    ), "la reposición queda en la auditoría"
 
 
 @pytest.mark.django_db
