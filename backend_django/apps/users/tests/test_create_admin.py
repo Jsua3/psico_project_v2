@@ -87,6 +87,7 @@ def test_la_auditoria_guarda_el_id_de_la_cuenta_y_nunca_la_clave(monkeypatch):
     assert len(filas) == 1
     contexto = json.loads(filas[0].context_json)
     assert contexto["targetId"] == cuenta.pk
+    assert filas[0].resource_id == str(cuenta.pk), "el recurso de la fila es la cuenta creada (S7-5)"
     volcado = json.dumps(
         {"action": filas[0].action, "resource": filas[0].resource_type, "context": contexto}
     )
@@ -334,6 +335,7 @@ def test_la_auditoria_de_la_reposicion_tiene_el_id_y_nunca_la_clave_ni_el_correo
     filas = list(AuditLog.objects.filter(action="ADMIN_RESET_BY_COMMAND"))
     assert len(filas) == 1
     assert json.loads(filas[0].context_json)["targetId"] == admin.pk
+    assert filas[0].resource_id == str(admin.pk), "el recurso de la fila es la cuenta repuesta (S7-5)"
     for fila in AuditLog.objects.all():
         volcado = f"{fila.action} {fila.resource_type} {fila.context_json}"
         assert nueva not in volcado
